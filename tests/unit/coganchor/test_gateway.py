@@ -160,6 +160,85 @@ def test_claude_is_pointed_at_a_gateway_by_its_own_gateway_way() -> None:
     assert argued(_claude(), env) == ()
 
 
+@pytest.mark.parametrize(
+    ("cli", "expected", "args"),
+    [
+        (
+            "dsh",
+            {
+                "DEEPSEEK_BASE_URL": "http://127.0.0.1:4000",
+                "DEEPSEEK_API_KEY": "sk-master",
+                "DSH_GATEWAY_API": "openai-completions",
+            },
+            (),
+        ),
+        (
+            "kimi",
+            {
+                "KIMI_MODEL_BASE_URL": "http://127.0.0.1:4000",
+                "KIMI_MODEL_API_KEY": "sk-master",
+                "KIMI_MODEL_PROVIDER_TYPE": "openai",
+            },
+            (),
+        ),
+        (
+            "qwen",
+            {
+                "OPENAI_BASE_URL": "http://127.0.0.1:4000",
+                "OPENAI_API_KEY": "sk-master",
+                "QWEN_DEFAULT_AUTH_TYPE": "openai",
+            },
+            ("--auth-type", "openai"),
+        ),
+    ],
+)
+def test_a_cli_speaking_openais_api_is_pointed_at_a_gateway_by_its_openai_way(
+    cli: str, expected: dict[str, str], args: tuple[str, ...]
+) -> None:
+    profile = backends.named(cli)
+    assert profile is not None
+
+    env = spoken(profile, "http://127.0.0.1:4000", "sk-master")
+
+    assert env == expected
+    assert argued(profile, env) == args
+
+
+@pytest.mark.parametrize(
+    ("backend", "fixed"),
+    [
+        ("opencode", {"OPENCODE_GATEWAY_NPM": "@ai-sdk/openai-compatible"}),
+        ("mimo", {"MIMO_GATEWAY_API": "@ai-sdk/openai-compatible"}),
+        ("pi", {"PI_GATEWAY_API": "openai-completions"}),
+    ],
+)
+def test_a_cli_speaking_openais_api_is_pointed_at_the_gateways_v1(
+    backend: str, fixed: dict[str, str]
+) -> None:
+    profile = backends.named(backend)
+    assert profile is not None
+    assert profile.routes == "openai-gateway"
+
+    env = spoken(profile, "http://127.0.0.1:4000", "sk-master")
+
+    assert env[profile.endpoint] == "http://127.0.0.1:4000/v1"
+    assert "sk-master" in env.values()
+    assert fixed.items() <= env.items()
+    # The model is the turn's, which the driver says: nothing here names one.
+    assert not any(name.endswith("_MODEL") for name in env)
+
+
+def test_another_cli_speaking_openais_api_is_given_the_bare_gateway() -> None:
+    # One that adds `/v1/chat/completions` itself, as Antigravity's does, is not given `/v1`
+    # twice: the version is added only for the backends whose SDKs leave it out.
+    agy = backends.named("agy")
+    assert agy is not None
+
+    env = spoken(agy, "http://127.0.0.1:4000", "sk-master")
+
+    assert env["AGY_LLM_GATEWAY_URL"] == "http://127.0.0.1:4000"
+
+
 def test_codex_is_pointed_at_a_gateway_by_its_own_gateway_way() -> None:
     codex = backends.named("codex")
     assert codex is not None
@@ -179,10 +258,10 @@ def test_codex_is_pointed_at_a_gateway_by_its_own_gateway_way() -> None:
 
 
 def test_a_backend_naming_no_way_to_a_gateway_is_pointed_nowhere() -> None:
-    dsh = backends.named("dsh")
-    assert dsh is not None
-    assert spoken(dsh, "http://127.0.0.1:4000", "sk") == {}
-    assert argued(dsh, {}) == ()
+    omp = backends.named("omp")
+    assert omp is not None
+    assert spoken(omp, "http://127.0.0.1:4000", "sk") == {}
+    assert argued(omp, {}) == ()
 
 
 @pytest.mark.parametrize("missing", NEEDS)

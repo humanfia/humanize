@@ -329,9 +329,21 @@ def test_no_way_goes_through_a_gateway_that_cannot_be_started_here(
 
 
 @pytest.mark.parametrize("cli", ["dsh", "litellm"])
-def test_some_backends_offer_only_the_ways_they_name(cli: str) -> None:
+def test_some_backends_offer_only_the_ways_they_name(
+    monkeypatch: pytest.MonkeyPatch, cli: str
+) -> None:
+    monkeypatch.setattr(gateway, "gatewayable", lambda: False)
     assert ENV not in ways(cli)
     assert ways(cli) == profile(cli).ways
+
+
+def test_dsh_offers_litellms_ways_through_a_gateway_and_no_variables_of_your_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(gateway, "gatewayable", lambda: True)
+    dsh = profile("dsh")
+
+    assert ways("dsh") == (*dsh.ways, *backends.routed(dsh))
 
 
 def test_a_backend_there_is_not_offers_nothing() -> None:

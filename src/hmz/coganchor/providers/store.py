@@ -77,20 +77,22 @@ def ways(cli: str) -> tuple[backends.Way, ...]:
     Returns:
       What that backend offers, in the order it offers them, and variables of your own last
       where that backend accepts arbitrary credentials. DeepSeek Harness takes only the ways
-      it names -- its key and its gateways -- and so does litellm, whose turns are calls in
-      this process and are handed the account rather than an environment to read it from.
-      Every way litellm has in besides, through a local gateway, for a backend that can be
-      spoken to through one -- while the gateway can be started here at all. Nothing at all
-      for a name no backend answers to.
+      it names -- its key and its gateways, and the gateway below -- and so does litellm,
+      whose turns are calls in this process and are handed the account rather than an
+      environment to read it from. Every way litellm has in besides, through a local
+      gateway, for a backend that can be spoken to through one -- while the gateway can be
+      started here at all. Nothing at all for a name no backend answers to.
     """
     from hmz.coganchor.gateway import gatewayable
 
     profile = backends.named(cli)
     if profile is None:
         return ()
-    if profile.name in ("dsh", "litellm"):
+    if profile.name == "litellm":
         return profile.ways
     through = backends.routed(profile) if gatewayable() else ()
+    if profile.name == "dsh":
+        return (*profile.ways, *through)
     return (*profile.ways, *through, ENV)
 
 

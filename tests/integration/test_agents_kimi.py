@@ -4,7 +4,8 @@ The stand-in is the daemon a Kimi agent drives: it prints the line saying where 
 then serves the session REST routes on the loopback -- sessions, profiles, prompts, the status
 a turn is polled on, the history it is read back from, and the questions a turn stops on. It
 serves no `/ws`, so the driver reads every turn by polling, as it does against a daemon whose
-notifications it cannot reach.
+notifications it cannot reach. Started pointed at an endpoint by `KIMI_MODEL_*`, it asks that
+for the answer -- a local LiteLLM gateway, run for real, in front of an `Endpoint`.
 """
 
 from __future__ import annotations
@@ -14,15 +15,26 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz.coganchor import providers
 from hmz.coganchor.agents import (
     Failed,
     KimiCodeCLIAgent,
     KimiCodeCLIAgentConfig,
     Question,
 )
-from tests.integration.doubles_agents import Standins, kinds, standins
+from hmz.coganchor.gateway import gatewayable
+from hmz.coganchor.providers import Provider
+from tests.integration.doubles_agents import (
+    CHATTING,
+    Endpoint,
+    Standins,
+    kinds,
+    serving,
+    standins,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 CONFIG = KimiCodeCLIAgentConfig(model="kimi-code/stand-in", effort="high")
@@ -67,6 +79,10 @@ class Handler(BaseHTTPRequestHandler):
             if said == "refused":
                 self.reply(None, status=400)
                 return
+            if os.environ.get("KIMI_MODEL_BASE_URL"):
+                said = chatted(os.environ["KIMI_MODEL_BASE_URL"],
+                               os.environ["KIMI_MODEL_API_KEY"],
+                               os.environ["KIMI_MODEL_NAME"], said)
             PROMPTS[session] = said
             if said == "ask":
                 ASKED[session] = question(session)
@@ -125,7 +141,7 @@ server.serve_forever()
 @pytest.fixture
 def kimi(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standins:
     held = standins(tmp_path, monkeypatch)
-    held.install("kimi", KIMI)
+    held.install("kimi", CHATTING + KIMI)
     return held
 
 
@@ -196,3 +212,65 @@ def test_a_prompt_the_daemon_refuses_is_a_failed_turn_leaving_nothing_open(
     with pytest.raises(RuntimeError):
         _ = session.id
     assert agent.opened == []
+
+
+@pytest.fixture
+def endpoint() -> Iterator[Endpoint]:
+    yield from serving()
+
+
+def _unswapped(self: Provider) -> tuple[tuple[str, str], ...]:
+    """No credential path answered by another, which the supervisor's own tests cover."""
+    return ()
+
+
+@pytest.mark.skipif(not gatewayable(), reason="the [litellm] extra is not installed")
+@pytest.mark.timeout(240)
+def test_the_daemon_under_an_account_a_gateway_holds_is_pointed_at_it(
+    endpoint: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = standins(
+        tmp_path,
+        monkeypatch,
+        "KIMI_MODEL_BASE_URL",
+        "KIMI_MODEL_API_KEY",
+        "KIMI_MODEL_NAME",
+        "KIMI_MODEL_PROVIDER_TYPE",
+        "LITELLM_GATEWAY_KEY",
+    )
+    held.install("kimi", CHATTING + KIMI)
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
+    monkeypatch.setenv("KIMI_MODEL_NAME", "lying-about")
+    monkeypatch.setattr(Provider, "swaps", _unswapped)
+    providers.add(
+        "kimi",
+        "gw",
+        way="litellm-openai-gateway",
+        env={
+            "LITELLM_GATEWAY_URL": endpoint.url,
+            "LITELLM_GATEWAY_KEY": "upstream-secret",
+            "LITELLM_GATEWAY_API": "openai",
+        },
+    )
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="stand-in", effort="", provider="gw")
+    )
+    try:
+        said = agent.new()("hello")
+        through = agent.gateway
+        assert through is not None
+    finally:
+        agent.stop()
+
+    assert said == "hello"
+    assert [one["model"] for one in endpoint.asked] == ["stand-in"]
+    assert held.calls("kimi")[0].env == {
+        "HMZ_TEST_INHERITED": "from-the-flow",
+        "KIMI_MODEL_BASE_URL": through.url,
+        "KIMI_MODEL_API_KEY": through.key,
+        "KIMI_MODEL_NAME": "stand-in",
+        "KIMI_MODEL_PROVIDER_TYPE": "openai",
+        "LITELLM_GATEWAY_KEY": None,
+    }
+    assert not through.running

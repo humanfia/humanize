@@ -16,6 +16,7 @@ import os
 import threading
 import urllib.parse
 import uuid
+import weakref
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -146,6 +147,14 @@ _ABORTING = 5.0
 _DECLARING = ".pi.models.lock"
 
 
+#: What every provider humanize declares in pi's `models.json` is called, before its hash.
+_DECLARED = "humanize-"
+
+#: Where each agent has declared a local LiteLLM gateway of its own, as :func:`_host` writes
+#: it: every one it has had, since one that went away is started again at another port.
+_LENT: weakref.WeakKeyDictionary[AgentBase, set[str]] = weakref.WeakKeyDictionary()
+
+
 def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
     """The provider of pi's own a gateway account comes to, and what pi calls it.
 
@@ -157,7 +166,8 @@ def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
 
     The name is made of what is declared, so that two accounts on two gateways are two
     providers and one account's every turn is the one -- written once, and then left as it
-    is. Not the account's name: that is humanize's, and nothing the way was answered with.
+    is, but for one at a local LiteLLM gateway's port, which :meth:`PiAgent.stop` takes back
+    out. Not the account's name: that is humanize's, and nothing the way was answered with.
 
     Args:
       said: The variables the account sets.
@@ -176,7 +186,7 @@ def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
         "models": [{"id": model}] if model else [],
     }
     spelled = json.dumps(declared, sort_keys=True).encode()
-    return f"humanize-{hashlib.sha256(spelled).hexdigest()[:12]}", declared
+    return f"{_DECLARED}{hashlib.sha256(spelled).hexdigest()[:12]}", declared
 
 
 def _declare(home: Path, named: str, declared: dict[str, Any]) -> None:
@@ -227,6 +237,39 @@ def _declare(home: Path, named: str, declared: dict[str, Any]) -> None:
             json.dumps(held, indent=2) + "\n",
             mode=None if at.exists() else 0o600,
         )
+
+
+def _withdraw(home: Path, host: str) -> None:
+    """Takes every provider :func:`_gateway` named that is at `host` out of `models.json`.
+
+    What a local LiteLLM gateway was declared as is at a port of loopback that is nobody's
+    once it has gone, so it is taken back out with it rather than left for every pi after to
+    read. Nothing else in the file is touched, and a file this cannot read is left as it is.
+
+    Args:
+      home: pi's home, as the turn found it.
+      host: Where the gateway was, as :func:`_host` writes one.
+    """
+    at = (home / "models.json").resolve()
+    with _locked(), contextlib.suppress(OSError, ValueError):
+        said: object = json.loads(at.read_text(encoding="utf-8"))
+        held = cast("dict[str, Any]", said) if isinstance(said, dict) else {}
+        providers = held.get("providers")
+        if not isinstance(providers, dict):
+            return
+        declared = cast("dict[str, Any]", providers)
+        gone = [
+            named
+            for named, one in declared.items()
+            if named.startswith(_DECLARED)
+            and isinstance(one, dict)
+            and _host(str(cast("dict[str, Any]", one).get("baseUrl", ""))) == host
+        ]
+        if not gone:
+            return
+        for named in gone:
+            del declared[named]
+        atomic.writes(at, json.dumps(held, indent=2) + "\n", mode=None)
 
 
 @contextlib.contextmanager
@@ -479,7 +522,25 @@ class PiSession(StreamSessionBase):
             "--session-id",
             pinned,
         ]
-        if (gateway := _gateway(self._agent.environment())) is not None:
+        from hmz.coganchor import backends, providers
+
+        if self._agent.anchor is not None and providers.routed(self._agent.provider):
+            # Refused before its gateway is started for nothing, for the reason below.
+            msg = (
+                f"pi: the {config.provider} account goes through a local LiteLLM gateway, "
+                "which pi reads only from models.json on the machine it runs on, and this "
+                "turn runs on another one: run this agent here"
+            )
+            raise ValueError(msg)
+        said = dict(self._agent.environment())
+        through = self._agent.gateway
+        if through is not None:
+            # A gateway of litellm's was made with no model in mind, and serves whichever one
+            # a turn names: that one is the provider's, declared as the turn names it -- a
+            # catalogue's `openai/gpt-5` as well as a bare id -- so it is one pi finds by its
+            # whole id under `--provider`.
+            said["PI_GATEWAY_MODEL"] = config.model
+        if (gateway := _gateway(said)) is not None:
             # An account on a gateway is one provider of pi's own, declared in its
             # `models.json` as the turn starts, and the turn is held to it: pi given
             # `--provider` takes the model as an id of that provider's -- the gateway's own
@@ -492,17 +553,17 @@ class PiSession(StreamSessionBase):
             named, declared = gateway
             if self._agent.anchor is not None:
                 msg = (
-                    f"pi: the {self._agent.config.provider} account is a gateway, which pi "
+                    f"pi: the {config.provider} account is a gateway, which pi "
                     "reads only from models.json on the machine it runs on, and this turn "
                     "runs on another one: declare the gateway in that machine's own "
                     "models.json, or run this agent here"
                 )
                 raise ValueError(msg)
-            from hmz.coganchor import backends
-
             profile = backends.named(self._agent.backend)
             if profile is not None:
                 _declare(profile.directory(self._environ()), named, declared)
+            if through is not None:
+                _LENT.setdefault(self._agent, set()).add(_host(declared["baseUrl"]))
             argv += ["--provider", named]
         if self._id is None and self._forked_from is not None:
             # `--fork` opens this session on top of the one it names, so the turns of that
@@ -1004,6 +1065,28 @@ class PiAgent(AgentBase):
           ValueError: If it is not JSON.
         """
         return json.loads((home / "models.json").read_text(encoding="utf-8"))
+
+    def stop(self) -> None:
+        """Stops the agent, as every agent stops, and takes its gateways out of `models.json`.
+
+        A turn through a local LiteLLM gateway declared it there, at a port that is nobody's
+        once the gateway is gone: see :func:`_withdraw`. pi's home is found as a turn finds
+        it, less the gateway -- which asking for the turn's whole environment would start
+        again, the agent's having just been taken down.
+        """
+        super().stop()
+        lent = _LENT.pop(self, set())
+        from hmz.coganchor import backends
+
+        profile = backends.named(self.backend)
+        if not lent or profile is None:
+            return
+        hushed = self.hushed()
+        home = profile.directory(
+            {name: value for name, value in os.environ.items() if name not in hushed}
+        )
+        for host in lent:
+            _withdraw(home, host)
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> PiSession:
         """Opens a new pi session, in the directory it is given or in this one."""

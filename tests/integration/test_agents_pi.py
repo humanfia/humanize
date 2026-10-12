@@ -8,17 +8,29 @@ into it; an `abort` stops it.
 
 from __future__ import annotations
 
+import json
 import shutil
 import threading
 from typing import TYPE_CHECKING
 
+import psutil
 import pytest
 from pydantic import BaseModel
 
 from hmz.coganchor.agents import Failed, FakeTool, PiAgent, PiAgentConfig
-from tests.integration.doubles_agents import Standins, kinds, standins
+from hmz.coganchor.gateway import gatewayable
+from tests.integration.doubles_agents import (
+    CHATTING,
+    Endpoint,
+    Standins,
+    kinds,
+    routing,
+    serving,
+    standins,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 CONFIG = PiAgentConfig(model="openai-codex/stand-in", effort="high")
@@ -222,6 +234,79 @@ def test_an_agent_that_may_change_nothing_is_given_no_tools_that_would(
     ).new()("hello")
 
     assert pi.calls()[0].flag("--exclude-tools") == "bash,edit,write,powershell"
+
+
+#: A `pi --mode rpc` that does what the real one does with `--provider`: finds that provider in
+#: `models.json` under its home, the model `--model` names among its models and the key its
+#: `apiKey` names in the environment, and asks the provider's `baseUrl` for every prompt.
+ROUTED = (
+    CHATTING
+    + r"""
+home = os.environ.get("PI_CODING_AGENT_DIR") or os.path.expanduser("~/.pi/agent")
+with open(os.path.join(home, "models.json")) as declared:
+    held = json.load(declared)["providers"][flags["--provider"]]
+model = flags["--model"]
+key = os.environ[held["apiKey"].removeprefix("$")]
+note()
+for line in sys.stdin:
+    told = json.loads(line)
+    if told["type"] != "prompt":
+        out({"type": "response", "command": told["type"], "success": True})
+        continue
+    said = told["message"]
+    note(said)
+    body = (chatted(held["baseUrl"], key, model, said)
+            if model in [one["id"] for one in held["models"]] else "no such model: " + model)
+    out({"type": "response", "command": "prompt", "success": True})
+    out({"type": "agent_start"})
+    out({"type": "message_end", "message": {"role": "assistant",
+         "content": [{"type": "text", "text": body}],
+         "usage": {"input": 1, "output": 1, "cacheRead": 0, "cacheWrite": 0}}})
+    out({"type": "agent_end"})
+    out({"type": "agent_settled"})
+"""
+)
+
+
+@pytest.fixture
+def upstream() -> Iterator[Endpoint]:
+    """The endpoint an account of litellm's is on, shut once the test is done with it."""
+    yield from serving()
+
+
+@pytest.mark.timeout(240)
+@pytest.mark.skipif(not gatewayable(), reason="the [litellm] extra is not installed")
+def test_a_turn_through_a_litellm_gateway_reaches_the_accounts_endpoint(
+    upstream: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = standins(tmp_path, monkeypatch, "OPENAI_API_KEY", "LITELLM_GATEWAY_KEY")
+    held.install("pi", ROUTED)
+    monkeypatch.delenv("PI_CODING_AGENT_DIR", raising=False)
+    routing(tmp_path, monkeypatch, "pi", upstream)
+    # The model as litellm's catalogue spells one, with its provider in front.
+    agent = PiAgent(PiAgentConfig(model="openai/stand-in", effort="", provider="gw"))
+    try:
+        said = agent.new(tmp_path)("say hi")
+        through = agent.gateway
+        assert through is not None
+    finally:
+        agent.stop()
+
+    assert said == "say hi"
+    assert [one["model"] for one in upstream.asked] == ["stand-in"]
+    call = held.calls("pi")[0]
+    assert call.env["OPENAI_API_KEY"] is None
+    assert call.env["LITELLM_GATEWAY_KEY"] is None
+    assert not through.running
+    # And not started again by being taken out of pi's file.
+    assert not any(
+        "litellm.proxy" in " ".join(one.cmdline())
+        for one in psutil.Process().children(recursive=True)
+        if one.status() != psutil.STATUS_ZOMBIE
+    )
+    # Taken back out of pi's own file with the gateway it named.
+    models = tmp_path / "home/.pi/agent/models.json"
+    assert json.loads(models.read_text())["providers"] == {}
 
 
 #: What a stand-in pi runs to load the extension it was handed and call one tool of it: the

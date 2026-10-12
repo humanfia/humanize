@@ -36,6 +36,8 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
+    from hmz.coganchor.gateway import Gateway
+    from hmz.coganchor.providers import Provider
 
 __all__ = ["DshAgent", "DshAgentConfig", "DshSession", "native_ready"]
 
@@ -133,10 +135,17 @@ _GATEWAYS: dict[str, tuple[str, str | None]] = {
 #: key that endpoint takes -- so every one of them can authenticate a turn, and a way it does
 #: not declare is an account made for something else: variables of somebody's own, or a login
 #: belonging to a CLI this is not. Derived rather than listed so that a way added to the
-#: profile is one a turn accepts without this file being touched.
+#: profile is one a turn accepts without this file being touched. And every way through a
+#: local LiteLLM gateway besides, whose key is the gateway's rather than the account's.
 _WAYS = frozenset(
-    way.name for one in backends.PROFILES if one.name == "dsh" for way in one.ways
+    way.name
+    for one in backends.PROFILES
+    if one.name == "dsh"
+    for way in (*one.ways, *backends.routed(one))
 )
+
+#: Which of those ways a turn through the gateway runs on, as the route it is pointed at.
+_ROUTES = next(one.routes for one in backends.PROFILES if one.name == "dsh")
 _REF = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _EXTRA = (
     "DeepSeek Harness is not installed in this Python environment, where it is the [dsh] "
@@ -331,6 +340,9 @@ class DshSession(SessionBase):
         #: The composition the live runtime was started from, so that an agent reconfigured
         #: mid-session is noticed as one whose runtime was built the old way.
         self._runtime_composition: str | None = None
+        #: The LiteLLM gateway the live runtime was pointed at, if any: one started again
+        #: since is at another port, under another key, so the runtime is stale with it.
+        self._runtime_through: Gateway | None = None
         #: Where the composition the live runtime was started from is written, for as long
         #: as that runtime is up. Its own finalizer removes it if this session is dropped
         #: without ever being shut.
@@ -550,13 +562,15 @@ class DshSession(SessionBase):
                 output="",
                 stderr=f"{said}does not offer. {_KEY_REQUIRED}",
             )
-        if not key.strip():
+        # Not for an account a local gateway holds, which has no key of dsh's to hold: the
+        # runtime is handed the gateway's instead.
+        if not key.strip() and not backends.upstream(provider.way):
             raise Failed(1, ["dsh", session_id], output="", stderr=_KEY_REQUIRED)
 
     def _running(self) -> _Harness:
         """Returns a runtime initialized for this session's current effort and composition."""
         effort = self.effort
-        way = self._agent.provider.way if self._agent.provider is not None else None
+        way = _route(self._agent.provider)
         toolbox = self._agent.toolbox
         offered = toolbox.names()
         composition = _composed(
@@ -569,11 +583,13 @@ class DshSession(SessionBase):
         # once at boot, and none of the three changes under one already up -- so an agent
         # reconfigured mid-session, or one told `disable_goals` after its first turn, has to
         # be given a runtime that was built the new way rather than quietly left on the old
-        # one.
+        # one. And the gateway the account is held by, which is started again once it has gone.
+        through = self._agent.gateway
         stale = (
             self._runtime_effort != effort
             or self._runtime_composition != composition
             or self._runtime_offered != offered
+            or self._runtime_through is not through
             or self.elsewhere()
         )
         if self._harness is not None and not stale:
@@ -721,6 +737,7 @@ class DshSession(SessionBase):
         self._runtime_effort = effort
         self._runtime_composition = composition
         self._runtime_offered = offered
+        self._runtime_through = through
         self._as, self._pathed = self._agent.node().name, pathed
         self._reaper = weakref.finalize(self, harness.close)
         return harness
@@ -764,6 +781,7 @@ class DshSession(SessionBase):
         composition, self._composition = self._composition, None
         self._runtime_effort = None
         self._runtime_composition = None
+        self._runtime_through = None
         if self._reaper is not None:
             self._reaper.detach()
             self._reaper = None
@@ -890,6 +908,17 @@ def _represent_js(dumper: yaml.SafeDumper, value: _Js) -> yaml.ScalarNode:
 
 
 _CordisDumper.add_representer(_Js, _represent_js)
+
+
+def _route(provider: Provider | None) -> str | None:
+    """Which of dsh's own ways a turn under an account runs on, or None for no account.
+
+    The account's, but for one a local LiteLLM gateway holds: that runs on the way the gateway
+    is spoken to through, whose URL and key :meth:`AgentBase.environment` answers with it.
+    """
+    if provider is None:
+        return None
+    return _ROUTES if backends.upstream(provider.way) else provider.way
 
 
 def _composed(
