@@ -37,6 +37,8 @@ let routed = 0
 let behind = ''
 /** What the view drawn was drawn for, so a dialog opened over it leaves it standing. */
 let shown = ''
+/** The address last routed, or put in since: one gone past it is another view's, not yet drawn. */
+let routedAt = ''
 
 /** Where the page is: the parts of the address's path, and its query. */
 export function where() {
@@ -52,11 +54,14 @@ export function go(path) {
 
 /** Puts the query of the view the page is on in the address, without a step in its history. */
 export function stays(query) {
+  // A view still reading as the address moves on to another is not the one to say its query.
+  if (location.hash !== routedAt) return
   const { parts } = where()
   const said = new URLSearchParams()
   for (const [name, value] of Object.entries(query)) if (value !== '' && value !== undefined && value !== null) said.set(name, value)
   const text = said.toString()
   history.replaceState(null, '', `#/${parts.map(encodeURIComponent).join('/')}${text ? `?${text}` : ''}`)
+  routedAt = location.hash
 }
 
 /** Closes the dialog open, going back to the view under it. */
@@ -67,6 +72,7 @@ export function shut() {
 async function route() {
   if (out) return
   const mine = ++routed
+  routedAt = location.hash
   const { parts, query } = where()
   const dialog = DIALOGS[parts[0]]
   if (dialog) {

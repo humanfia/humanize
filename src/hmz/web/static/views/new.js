@@ -112,6 +112,7 @@ export function mount(root, { query }) {
 
   async function choose(name, ran) {
     choosing = name
+    const at = workspace
     run = ran
     stays({ workspace, flow: name, resume: ran ? ran.name : '' })
     fill(picker.querySelector('b'), name)
@@ -122,7 +123,8 @@ export function mount(root, { query }) {
       if (choosing === name) fill(box.said, problem(error))
       return
     }
-    if (choosing !== name) return
+    // Another flow, or another workspace's, was chosen while this one was read.
+    if (choosing !== name || at !== workspace) return
     picked = read
     fill(about, picked.description || '')
     fill(resumed, ran ? h('p', { class: 'note' }, `Picks up ${ran.name}, carrying on from where it stopped.`) : null)
@@ -234,6 +236,9 @@ export function mount(root, { query }) {
   }
   window.addEventListener('hashchange', back)
   return () => {
+    // What is still being read, left, says nothing: not in the address another view is at.
+    loading = null
+    choosing = null
     window.removeEventListener('hashchange', back)
     for (const one of leaving) one()
   }
