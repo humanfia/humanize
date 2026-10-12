@@ -1075,11 +1075,16 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 | Element | Value |
 | --- | --- |
 | Title | `Epics` |
-| About | `Every run of a flow in this directory, newest first: task, status, and session count.` |
-| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|was left unfinished][ · resumable]`. `resumable`: the flow is resumable now and the run left a journal. A run in progress reads `was left unfinished`. |
-| Buttons | **Search…** (flow, task, run name) |
-| Keys | `enter open   / search   tab actions   esc close` |
-| Empty | `no flow has been run in this directory yet` |
+| About | `Every epic in this directory, newest first: task, status, and session count.`; on this machine, `Every epic on this machine, newest first: workspace, task, status, and session count.` |
+| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `[<workspace> · ]<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress reads `was left unfinished`. |
+| Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t` |
+| Keys | `enter open   ctrl+t this machine\|this directory   / search   tab actions   esc close` |
+| Empty | `no flow has been run in this directory yet` / `no flow has been run on this machine yet`; `reading…` while a machine's are read |
+
+`ctrl+t` turns the list between the epics of this directory and those of every directory on
+this machine (every `epics/*/*` under the [home](/reference/environment#humanize-home)), read
+off the screen. Which was last chosen is remembered as
+[`every_epic`](/reference/settings#machine-settings).
 
 `enter`, `→` or a click on a run opens it, a pick list of what can be done with it (`/epics` as
 its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←`, `backspace` or
@@ -1090,7 +1095,7 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | Title | `<when> · <flow>` |
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).` |
 | Keys | `enter choose   esc back` |
-| `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
+| `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not

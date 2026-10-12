@@ -53,8 +53,8 @@ session of Claude Code. Its `/epics` list:
 
 ```text
   hmz › Epics
-  Every run of a flow in this directory, newest first: task, status, and
-  session count.
+  Every epic in this directory, newest first: task, status, and session
+  count.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. Change│

@@ -211,3 +211,29 @@ def test_a_projects_own_flows_are_offered_in_that_project_alone(
         declared = browser.get(f"/api/flow?name=@local/mine&workspace={other}").json()
         assert [one["name"] for one in declared["agents"]] == ["solo"]
         assert browser.get("/api/flow?name=@local/mine").status == 404
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_long_name_stays_inside_what_shows_it(
+    project: Path, tmp_path: Path, engine: str
+) -> None:
+    """A flow's name and a workspace's have nowhere to break, and still fit a phone."""
+    long = "a_flow_whose_name_runs_on_and_on_with_nowhere_at_all_to_break"
+    at = tmp_path / "a-workspace-whose-name-runs-on-and-on-with-nowhere-to-break"
+    write_flow(at / ".hmz" / "flows", long, _OWN)
+    with served() as site, opened(site, engine=engine, width=390, height=844) as page:
+        _go(page, f"/flows?workspace={at.resolve()}&flow=@local/{long}")
+        expect(page.locator(".flow-detail h2")).to_have_text(f"@local/{long}")
+        out = page.evaluate(
+            """() => [...document.querySelectorAll(
+                '[data-hmz=bar], .card, .flow-detail'
+            )].filter((one) => one.scrollWidth > one.clientWidth).map((one) => one.className)"""
+        )
+        assert not out, f"run out of: {out}"
+        assert page.evaluate("document.documentElement.scrollWidth") <= 390
+        # What is cut short says itself in full on hover.
+        page.locator("[data-hmz=workspace-picker]").hover()
+        expect(page.locator(".tip")).to_have_text(str(at.resolve()))
+        _go(page, f"/new?workspace={at.resolve()}&flow=@local/{long}")
+        page.locator("[data-hmz=flow-picker] b").hover()
+        expect(page.locator(".tip")).to_have_text(f"@local/{long}")

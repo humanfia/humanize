@@ -43,6 +43,7 @@ workspaces:
 enable_sentry: false               # this machine
 details: true                      # this machine
 btw: claude/claude-opus-5:high     # this machine
+every_epic: true                   # this machine
 spelling: 2                        # how envs are spelled; written with every change
 fallbacks:                         # this machine; the Fallback page
 - spec: claude@work/claude-opus-5
@@ -64,6 +65,7 @@ runtimes:                          # this machine; the Runtimes page
 | <span id="enable-sentry"></span>`enable_sentry` | `bool` | absent: *nobody has been asked*; the TUI asks at its first start; everything else reports nothing | the first-start question; `/settings` › General › **Error reports** | every process that could report (read once per process) | immediately in the process that changed it; at start elsewhere. [`HUMANIZE_SENTRY`](/reference/environment#humanize-sentry) overrides it for one process without writing it. Reading never writes it. |
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › General › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
 | `btw` | `str`: `cli[@account]/model:effort` | `""`: the running flow's first agent | `/settings` › General › **/btw agent** | the TUI | the next time `/btw` is entered |
+| `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
 | <span id="spelling"></span>`spelling` | `int` | absent: written before `-e` wrote `@` only before a provider | every write of the file, as `2` | every process, as it reads the file | absent, `envs` are read as their old spelling meant and rewritten once; `2`, as written |
 
 What error reports contain and exclude is listed on `/settings` › General › **What is sent**.

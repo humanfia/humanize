@@ -3555,7 +3555,7 @@ class Humanize(App[None]):
 
     @work
     async def action_epics(self) -> None:
-        """Opens the runs of this directory, which is what `/epics` is for.
+        """Opens the runs of this directory or this machine, which is what `/epics` is for.
 
         Every run of a flow here, newest first: what it was and how it went, with enter
         going into one. Read while a flow runs -- what has already happened does not change

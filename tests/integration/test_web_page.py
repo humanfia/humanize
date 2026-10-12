@@ -8,6 +8,7 @@ WebKit, which the macOS app's window is.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -220,11 +221,16 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
+        # A theme is chosen only in Settings: the machine's menu offers none.
         page.locator("[data-hmz=machine-menu]").click()
-        choices = page.locator("[role=menu] .choice-label")
-        expect(choices).to_have_text(["Auto", "Themes", *_PAIRS, "Settings", "Usage"])
-        expect(page.locator("[role=menu] .choice-about")).to_have_text("Humanize Green")
-        page.get_by_role("menuitem", name="Peaceful Lilac").click()
+        expect(page.locator("[role=menu] .choice-label")).to_have_text(
+            ["Settings", "Usage"]
+        )
+        page.keyboard.press("Escape")
+        _go(page, "/settings/themes")
+        expect(page.locator("[data-hmz=pair]")).to_have_count(len(_PAIRS))
+        expect(page.locator("[data-hmz=auto-pair]")).to_have_value("humanize")
+        page.locator("[data-hmz=auto-pair]").select_option(label="Peaceful Lilac")
         expect(page.locator("html")).to_have_attribute("data-theme", "light")
         _painted(page, "--paper", "#f7f2f7")
         page.emulate_media(color_scheme="dark")
@@ -238,8 +244,6 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
         again.close()
 
         # One theme of a pair, chosen outright, holds whatever the system is.
-        _go(page, "/settings/themes")
-        expect(page.locator("[data-hmz=pair]")).to_have_count(len(_PAIRS))
         expect(page.locator("[data-hmz=auto-pair]")).to_have_value("peaceful-lilac")
         page.get_by_role("button", name="Use Devoted Pink · Light").click()
         expect(page.locator("html")).to_have_attribute("data-theme", "light")
@@ -319,6 +323,54 @@ def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
         again.close()
 
 
+def test_a_pair_is_made_written_out_with_both_its_themes_and_read_back(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _go(page, "/settings/themes")
+        page.get_by_role("button", name="New pair").click()
+        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
+            "Light"
+        )
+        page.locator("[data-hmz=theme-name]").fill("Dusk")
+        page.locator("[data-hmz=colour-paper]").fill("#fff8e0")
+        page.locator("[data-hmz=theme-side]").get_by_role("button", name="Dark").click()
+        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
+            "Dark"
+        )
+        expect(page.locator("[data-hmz=theme-name]")).to_have_value("Dusk")
+        page.locator("[data-hmz=colour-paper]").fill("#201008")
+        page.get_by_role("link", name="Done").click()
+
+        dusk = page.locator("[data-hmz=pair]", has_text="Dusk")
+        dusk.get_by_role("button", name="Export").click()
+        with page.expect_download() as saving:
+            page.get_by_role("menuitem", name="Pair").click()
+        saved = saving.value
+        assert saved.suggested_filename == "Dusk.hmztheme"
+        written = json.loads(Path(saved.path()).read_text())
+        assert written["name"] == "Dusk"
+        assert written["light"]["colors"]["paper"] == "#fff8e0"
+        assert written["dark"]["colors"]["paper"] == "#201008"
+
+        dusk.get_by_role("button", name="Delete").click()
+        dusk.get_by_role("button", name="Delete").click()
+        expect(dusk).to_have_count(0)
+        page.locator("[data-hmz=theme-file]").set_input_files(
+            {
+                "name": "Dusk.hmztheme",
+                "mimeType": "application/json",
+                "buffer": json.dumps(written).encode(),
+            }
+        )
+        expect(dusk).to_have_count(1)
+        page.locator("[data-hmz=auto-pair]").select_option(label="Dusk")
+        _painted(page, "--paper", "#fff8e0")
+        page.emulate_media(color_scheme="dark")
+        _painted(page, "--paper", "#201008")
+        expect(dusk).to_have_class(re.compile("chosen"))
+
+
 def test_a_file_that_is_not_a_theme_is_refused(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _go(page, "/settings/themes")
@@ -346,11 +398,9 @@ def test_a_newer_release_is_offered_under_the_machine(
         expect(page.locator("[data-hmz=newer]")).to_be_visible()
         page.locator("[data-hmz=machine-menu]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Auto", "Themes", *_PAIRS, "Update", "Settings", "Usage"]
+            ["Update", "Settings", "Usage"]
         )
-        expect(page.locator("[role=menu] .choice-about")).to_have_text(
-            ["Humanize Green", "hmz 99.0.0"]
-        )
+        expect(page.locator("[role=menu] .choice-about")).to_have_text(["hmz 99.0.0"])
 
 
 def test_a_flow_is_opened_and_started_from_the_flows(
