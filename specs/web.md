@@ -124,8 +124,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   up where its flow says it can be.
 - MUST let an epic exported anywhere be imported -- picked, dropped anywhere on the window, or
   named by its path on this machine at an address of its own -- as `runtime` imports one, and
-  then open it; MUST refuse one already here as a conflict naming it, and offer to open it; and
-  MUST say why an imported epic cannot be picked up here, offering no picking up.
+  then open it, one named by its path on its Exomyth; MUST refuse one already here as a
+  conflict naming it, and offer to open it; and MUST say why an imported epic cannot be
+  picked up here, offering no picking up.
 - MUST offer `Upload` on every epic, which backs it up now to the targets it was started with,
   else the defaults, answering at once with the targets it was queued for -- never waiting on a
   push -- and MUST say how its last backup to each target went, as it is read again.

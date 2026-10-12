@@ -844,6 +844,8 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
             name,
         )
         opened_on = re.compile(rf".*#/epics/{re.escape(name)}$")
+        # By its path, an epic opens on its Exomyth, as the desktop app opens a file.
+        on_exomyth = re.compile(rf".*#/epics/{re.escape(name)}/exomyth$")
         listed = page.locator(f"[data-hmz=sidebar] .side-item[data-epic='{name}']")
 
         def gone() -> None:
@@ -888,7 +890,7 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
         importing = page.locator("[data-hmz=importing]")
         expect(importing).to_contain_text(str(archive))
         importing.get_by_role("button", name="Import").click()
-        page.wait_for_url(opened_on)
+        page.wait_for_url(on_exomyth)
 
         junk = tmp_path / "junk.hmzepic"
         junk.write_bytes(b"not a bundle")
@@ -906,14 +908,14 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
         browser = page.context.browser
         assert browser is not None
         app = browser.new_context(user_agent=_APP).new_page()
-        app.goto(site.address)
-        app.wait_for_selector("[data-hmz=sidebar] .brand")
-        go(app, f"/epics/import?path={urllib.parse.quote(str(theirs))}")
+        # As the app opens it: at the address with the key, whose hash outlives signing in.
+        app.goto(f"{site.address}#/epics/import?path={urllib.parse.quote(str(theirs))}")
         try:
-            app.wait_for_url(opened_on)
+            app.wait_for_url(on_exomyth)
         except PlaywrightError as why:
             said = app.locator("[data-hmz=page]").inner_text()
             raise AssertionError(f"{app.url} says {said!r}") from why
+        go(app, f"/epics/{name}")
         expect(app.locator("[data-hmz=foreign]")).to_contain_text(
             "not resumable here: the workspace it ran in, /nowhere/at/all, is not on"
         )

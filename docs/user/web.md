@@ -202,8 +202,8 @@ An imported epic is read as any other. It is picked up only where the directory 
 here at the same path, holding the commit its archive says; otherwise it says why under it,
 `Imported · not resumable here: …`, and offers no **Resume**. A `.hmzepic` already on this
 machine is imported by its address too, `#/epics/import?path=<file>`, once you press **Import**
-under its path. See
-[Exporting a run](/user/export#importing-a-run).
+under its path, and opens on its [Exomyth](#exomyth) -- as the [macOS app](/user/desktop#opening-a-hmzepic)
+opens one you double-click. See [Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}
 

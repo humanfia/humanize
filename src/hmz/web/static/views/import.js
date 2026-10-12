@@ -1,5 +1,6 @@
 // `#/epics/import?path=<file>`: an epic read back in from a `.hmzepic` already on this machine,
-// by its path, and opened in place of this address -- what the desktop app opens a file with.
+// by its path, and its Exomyth opened in place of this address -- what the desktop app opens a
+// file with.
 // In a browser it is asked first: any page elsewhere can link here, and the page would carry
 // its key.
 
@@ -20,7 +21,7 @@ export function mount(root, { query }) {
         if (left) return
         refresh('/api/runs')
         // In place of this address, so that going back never imports it again.
-        location.replace(`#/epics/${encodeURIComponent(answer.name)}`)
+        location.replace(`#/epics/${encodeURIComponent(answer.name)}/exomyth`)
       },
       (error) => {
         if (!left) fill(body, refusal(error))
