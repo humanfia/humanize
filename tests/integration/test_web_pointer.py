@@ -14,7 +14,7 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import ENGINES, Browser, opened, served
+from tests.integration.doubles_web import ENGINES, Browser, go, opened, served
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -33,10 +33,6 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Pa
     (home / ".ssh").mkdir()
     (home / ".ssh" / "id_ed25519").write_text("not a key\n")
     return at
-
-
-def _go(page: Page, address: str) -> None:
-    page.evaluate("(to) => { location.hash = to }", address)
 
 
 def _menu(page: Page, target: Locator) -> Locator:
@@ -85,7 +81,7 @@ def test_the_page_keeps_the_browsers_menu_to_what_is_there_to_read_or_write(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/new?flow=chat")
+        go(page, "/new?flow=chat")
         expect(page.locator("[data-hmz=composer-text]")).to_be_visible()
         assert _prevented(page, "[data-hmz=sidebar] .brand")
         assert _prevented(page, ".greeting")
@@ -99,7 +95,7 @@ def test_the_page_keeps_the_browsers_menu_to_what_is_there_to_read_or_write(
 
 def test_a_folder_is_browsed_for_a_step_at_a_time(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/new?flow=chat")
+        go(page, "/new?flow=chat")
         page.locator("[data-hmz=workspace-picker]").click()
         page.get_by_role("menuitem", name="Open folder…").click()
         page.locator("[data-hmz=path-browse]").click()
@@ -117,7 +113,7 @@ def test_a_folder_is_browsed_for_a_step_at_a_time(project: Path, engine: str) ->
 
 def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/settings/runtimes")
+        go(page, "/settings/runtimes")
         # Read whole -- what is saved and what the SSH config names -- before anything is typed.
         expect(page.locator("[data-hmz=import-runtimes] button")).to_be_visible()
         page.locator("#runtime-name").fill("box")
@@ -160,7 +156,7 @@ def test_a_fallback_and_the_btw_agent_are_picked_not_spelled(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/settings/fallback")
+        go(page, "/settings/fallback")
         place = page.locator("[data-hmz=fallback-spec]")
         expect(place.locator("[data-hmz=pick-model] option").first).to_have_text(
             "claude-haiku-4-5"
@@ -171,7 +167,7 @@ def test_a_fallback_and_the_btw_agent_are_picked_not_spelled(
         page.get_by_role("button", name="Save").click()
         expect(page.locator("[data-hmz=step]")).to_have_count(1)
 
-        _go(page, "/settings/general")
+        go(page, "/settings/general")
         page.locator("[data-hmz=btw-whom]").select_option("chosen")
         agent = page.locator("[data-hmz=btw-agent]")
         expect(agent.locator("[data-hmz=pick-model] option").first).to_have_text(
@@ -196,7 +192,7 @@ def test_a_fallback_and_the_btw_agent_are_picked_not_spelled(
 def test_settings_fit_a_phone(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine, width=390, height=844) as page:
         for one in ("general", "runtimes", "workspace", "usage"):
-            _go(page, f"/settings/{one}")
+            go(page, f"/settings/{one}")
             expect(page.locator(f"[data-hmz=settings-{one}]")).to_be_visible()
             wide = page.evaluate("document.querySelector('.dialog').scrollWidth")
             assert wide <= 390, f"{one} is {wide} wide"
@@ -219,7 +215,7 @@ def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -
     """A menu opens on the side of its button there is room on, however far down a list it is."""
     with served() as site, opened(site, engine=engine, width=900, height=420) as page:
         # The last of a list that scrolls, in a dialog: its menu opens over the button.
-        _go(page, "/settings/themes")
+        go(page, "/settings/themes")
         last = page.locator("[data-hmz=pair]").last
         last.evaluate("(row) => row.scrollIntoView({ block: 'end' })")
         last.get_by_role("button", name="Export").click()
@@ -240,7 +236,7 @@ def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -
         page.keyboard.press("Escape")
 
         # A path browsed for from the folder a new epic opens, in a window too short for it.
-        _go(page, "/new?flow=chat")
+        go(page, "/new?flow=chat")
         page.locator("[data-hmz=workspace-picker]").click()
         _whole(page, page.get_by_role("menu", name="Workdirs"))
         page.get_by_role("menuitem", name="Open folder…").click()
@@ -251,7 +247,7 @@ def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -
         _whole(page, panel)
 
         # What a right click opens, at the window's foot.
-        _go(page, "/settings/themes")
+        go(page, "/settings/themes")
         row = page.locator("[data-hmz=pair]").last
         row.scroll_into_view_if_needed()
         row.click(button="right", position={"x": 300, "y": 20})

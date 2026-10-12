@@ -302,24 +302,51 @@ def test_a_session_keeps_its_runtime_across_turns_and_resumes_its_conversation(
     assert first == second
 
 
-def test_a_new_effort_starts_a_new_runtime(
+def test_a_new_effort_is_refused_once_the_conversation_has_taken_a_turn(
     made: Callable[..., DshAgent], runtime: _Runtime, tmp_path: Path
 ) -> None:
+    """A new runtime cannot resume the conversation, so the turn is refused up front."""
     agent = made(effort="low")
     session = agent.new(tmp_path)
 
     _turn(session)
     session.effort = "high"
+    with pytest.raises(Unrecoverable, match="cannot carry") as refused:
+        _turn(session)
+
+    (kept,) = runtime.harnesses
+    assert not kept.closed
+    assert len(runtime.prompts) == 1
+    assert session.id in str(refused.value.stderr)
+    # Put back as it was, the session carries on in the runtime it took its turn in.
+    session.effort = "low"
+    _turn(session)
+    assert len(runtime.harnesses) == 1
+
+
+def test_a_closed_runtime_is_not_restarted_under_a_conversation(
+    made: Callable[..., DshAgent], runtime: _Runtime, tmp_path: Path
+) -> None:
+    session = made().new(tmp_path)
+
+    _turn(session)
+    session.cut(why="stop")
+    with pytest.raises(Unrecoverable, match="cannot carry"):
+        _turn(session)
+
+    assert len(runtime.harnesses) == 1
+
+
+def test_a_new_effort_before_the_first_turn_starts_a_runtime_at_it(
+    made: Callable[..., DshAgent], runtime: _Runtime, tmp_path: Path
+) -> None:
+    session = made(effort="low").new(tmp_path)
+
+    session.effort = "high"
     _turn(session)
 
-    old, new = runtime.harnesses
-    assert old.closed
-    assert [old.made["reasoning_effort"], new.made["reasoning_effort"]] == [
-        "low",
-        "high",
-    ]
-    first, second = (asked for asked, _ in runtime.prompts)
-    assert first == second
+    (harness,) = runtime.harnesses
+    assert harness.made["reasoning_effort"] == "high"
 
 
 def test_an_agent_at_no_effort_leaves_the_adapter_at_its_own_default(

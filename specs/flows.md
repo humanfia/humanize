@@ -232,6 +232,7 @@ class Agent(Protocol):
     _permission: ClassVar[Permission]
     _skills: ClassVar[tuple[str, ...]]
     _tools: ClassVar[tuple[FakeTool, ...]] # Needs FakeToolAgentMixin.
+    _clis: ClassVar[tuple[FakeCli, ...]] # Unique names; put on the PATH of any harness with a shell. Refused for litellm, as `env` is.
 
     @property
     def effort(self) -> str: ...
@@ -365,12 +366,26 @@ class AskUserHookAgentMixin: # A fake hook to handle the case where the harness 
 class FakeToolAgentMixin: ...
     # Lets the role declare `_tools`: each is offered to the agent as a tool, and the agent calling it runs `call` in the flow, as the flow.
 
+# FakeTool, FakeCli and FakeCommand are `hmz.coganchor.faking`'s, re-exported: the one type each that coganchor's drivers offer.
 @dataclass(frozen=True)
 class FakeTool:
     name: str # Unique per role.
     about: str # What the model is told it is for.
     call: Callable[..., Any] # Sync or async, given an instance of `takes` (nothing if None). Its answer goes back to the agent as text; what it raises is the tool failing, not the turn.
     takes: type[pydantic.BaseModel] | None = None
+
+@dataclass(frozen=True)
+class FakeCommand:
+    name: str # Unique per FakeCli.
+    about: str # What `--help` lists it with.
+    call: Callable[..., Any] # Sync or async, given an instance of `takes` (nothing if None), run in the flow, as the flow. Its answer is printed; SystemExit exits with its status, anything else raised exits 1.
+    takes: type[pydantic.BaseModel] | None = None # Each field a `--flag`; what the model refuses is a usage error, exiting 2.
+
+@dataclass(frozen=True)
+class FakeCli:
+    name: str # The program's name on the agent's PATH; unique per role.
+    about: str # What its `--help` opens with.
+    commands: tuple[FakeCommand, ...] # At least one. The program answers `--help` and usage errors as any program does.
 ```
 
 The flow declares what an agent must be able to do by subclassing it:

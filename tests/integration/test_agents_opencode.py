@@ -17,11 +17,11 @@ from hmz.coganchor.agents import (
     AgentBase,
     AgentConfig,
     Failed,
+    FakeTool,
     MimoCodeAgent,
     MimoCodeAgentConfig,
     OpencodeAgent,
     OpencodeAgentConfig,
-    Tool,
 )
 from tests.integration.doubles_agents import Standins, kinds, standins
 
@@ -245,7 +245,7 @@ def test_a_callback_offered_is_a_server_in_the_cli_s_config_that_runs_it_here(
         return said.word.upper()
 
     session = agent.new()
-    session.offers([Tool("shout", "says the word louder", shout, _Word)])
+    session.offers([FakeTool("shout", "says the word louder", shout, _Word)])
 
     assert session("hello") == "shout: HELLO ['mcp', 'provider']"
     assert heard == ["hello"]
