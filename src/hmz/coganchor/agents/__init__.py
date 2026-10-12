@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from hmz.coganchor.backends import SWARM
+from hmz.coganchor.faking import FakeCli, FakeCommand, FakeTool
 
 from .acp import AcpAgent, AcpAgentConfig, AcpSession, McpServer
 from .agy import (
@@ -28,7 +29,7 @@ from .base import (
 )
 from .board import ANYONE, FLOW, USER, WHOSE, Board, Item, Refused
 from .claude import ClaudeCodeAgent, ClaudeCodeAgentConfig, ClaudeCodeSession
-from .clis import Cli, Command, Shelf
+from .clis import Shelf
 from .codex import CodexAgent, CodexAgentConfig, CodexSession
 from .config import (
     CUTOFFS,
@@ -76,7 +77,7 @@ from .omp import OhMyPiAgent, OhMyPiAgentConfig, OhMyPiSession
 from .opencode import OpencodeAgent, OpencodeAgentConfig, OpencodeSession
 from .pi import PiAgent, PiAgentConfig, PiSession
 from .qwen import QwenCodeAgent, QwenCodeAgentConfig, QwenCodeSession
-from .tools import Tool, Toolbox
+from .tools import Toolbox
 
 #: What each coding agent CLI is driven by here, under the name a command line calls it --
 #: and litellm, which is a model called from this process rather than a CLI.
@@ -157,11 +158,9 @@ __all__ = [
     "ClaudeCodeAgent",
     "ClaudeCodeAgentConfig",
     "ClaudeCodeSession",
-    "Cli",
     "CodexAgent",
     "CodexAgentConfig",
     "CodexSession",
-    "Command",
     "CommandSessionBase",
     "CursorAgent",
     "CursorAgentConfig",
@@ -171,6 +170,9 @@ __all__ = [
     "DshSession",
     "Event",
     "Failed",
+    "FakeCli",
+    "FakeCommand",
+    "FakeTool",
     "Gate",
     "GrokBuildAgent",
     "GrokBuildAgentConfig",
@@ -218,7 +220,6 @@ __all__ = [
     "Shelf",
     "Stopped",
     "StreamSessionBase",
-    "Tool",
     "Toolbox",
     "Unfenced",
     "Unhooked",

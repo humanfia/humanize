@@ -20,6 +20,8 @@ humanize.app      ai.humanfia.humanize, macOS 11 or later, on Apple silicon and 
   runs hmz from   `uv tool dir --bin`; $HUMANIZE_HMZ alone where it is set, and in a
                   development build, $PATH, then ~/.local/bin, $UV_TOOL_BIN_DIR,
                   /opt/homebrew/bin, /usr/local/bin, /usr/bin and /bin
+  opens           .hmzepic, application/vnd.hmz.epic+gzip, as ai.humanfia.humanize.epic,
+                  which it exports, conforming to public.data: its viewer and owner
   keeps           ~/Library/Application Support/ai.humanfia.humanize/port
                   ~/Library/Application Support/ai.humanfia.humanize/uv/uv
                   ~/Library/Logs/ai.humanfia.humanize/humanize.log
@@ -103,6 +105,10 @@ either: it runs the first `hmz` it finds.
 - MUST load nothing but its own page and `http://127.0.0.1:<port>` of the `hmz web` it started;
   anything else, a new window included, MUST open in the default browser, and only where it is
   `http`, `https` or `mailto`.
+- MUST import a `.hmzepic` opened with it -- double-clicked, or `Open With` -- or dropped on
+  its window, by opening `#/epics/import?path=<its path>` on `hmz web`'s page, which opens its
+  Exomyth; one opened before `hmz web` listens MUST be imported once it does. Of several at once,
+  MUST import the last; MUST ignore any other file.
 - MUST put a download in `~/Downloads`, under the name the page gave it -- numbered where that
   is taken, never over another file -- and show it in the Finder once it is saved.
 - MUST keep its size and place from one launch to the next, and MUST keep its title the page's.

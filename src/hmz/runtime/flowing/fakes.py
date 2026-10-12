@@ -20,9 +20,10 @@ granted what it declared -- with the drivers underneath swapped for these::
   others a scripted answer reaches for through its session -- :meth:`FakeSession.tool`,
   :meth:`~FakeSession.ask`, :meth:`~FakeSession.notify`, :meth:`~FakeSession.subagent` --
   so that a flow's hooks are exercised too; and it calls the flow's own tools its session
-  offers, through :meth:`FakeSession.use`. A `STOP` hook that blocks keeps the turn going
-  with its reason as the next prompt, as a real one does, and a hard deadline cuts off a turn
-  its answer holds open -- one waiting on :meth:`FakeSession.until_steered` -- as a real
+  offers, through :meth:`FakeSession.use`, and runs the flow's own command lines it puts on
+  the agent's PATH, through :meth:`FakeSession.run_cli`. A `STOP` hook that blocks keeps the
+  turn going with its reason as the next prompt, as a real one does, and a hard deadline cuts
+  off a turn its answer holds open -- one waiting on :meth:`FakeSession.until_steered` -- as a real
   driver's does. It forks where its harness does, as a real one does: not a session that
   has taken no turn, not onto another machine, not into another workdir on a harness that
   forks only in place, and not -- refused at the fork's first turn, where a CLI cuts it --
@@ -49,6 +50,7 @@ the engine's own tests hold them to it.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import datetime
 import inspect
 import itertools
@@ -94,6 +96,7 @@ if TYPE_CHECKING:
 
     from hmz.flows import (
         AskUserHookResult,
+        FakeCli,
         FakeTool,
         Flow,
         FlowParams,
@@ -284,6 +287,7 @@ class FakeSession:
       steered: Every prompt it was steered with, and whether it was queued.
       tools: Every tool its answers reached for, what with, and whether it was let run.
       offered: The flow's tools it offers the agent.
+      shelved: The flow's command lines it puts on the agent's PATH.
       turns: How many turns it was asked for, a turn a hook refused among them.
       named: Whether a turn of it has got past its hooks to the agent, which is where a real
         CLI names a conversation, and so has one to fork.
@@ -302,9 +306,11 @@ class FakeSession:
         forked_from: FakeSession | None,
         carried_on: Kept | None = None,
         offered: tuple[FakeTool, ...] = (),
+        shelved: tuple[FakeCli, ...] = (),
     ) -> None:
         self.driver = driver
         self.offered = offered
+        self.shelved = shelved
         self.placement = placement
         self.placements = [placement]
         self.permission = permission
@@ -600,11 +606,60 @@ class FakeSession:
         try:
             given = () if tool.takes is None else (tool.takes(**(input or {})),)
             said = await cast("Callable[..., Awaitable[object]]", tool.call)(*given)
-        except Exception as why:  # noqa: BLE001 -- told the agent, as a real one is
+        except (Exception, SystemExit) as why:  # noqa: BLE001 -- told the agent, as a real one is
             return f"{type(why).__name__}: {why}"
         if said is None:
             return "done"
         return said if isinstance(said, str) else json.dumps(said, default=str)
+
+    async def run_cli(self, argv: Sequence[str]) -> tuple[int, str, str]:
+        """Runs one of the flow's command lines it puts on the PATH, as the agent's shell would.
+
+        Args:
+          argv: The words typed, the program's name first.
+
+        Returns:
+          What it exits with, prints on stdout and prints on stderr -- the help and 0 for
+          `--help`, the usage and 2 for a line it refuses -- as a real one's would be.
+
+        Raises:
+          SessionError: If it is closed, or puts no command line of that name there.
+        """
+        if self.closed:
+            raise SessionError(f"{self._id} is closed")
+        name, *rest = argv or ("",)
+        cli = next((one for one in self.shelved if one.name == name), None)
+        if cli is None:
+            raise SessionError(f"{self._id} puts no command line called {name!r}")
+        loop = asyncio.get_running_loop()
+
+        def carried(fn: Callable[..., Any]) -> Callable[..., object]:
+            async def outcome(
+                given: tuple[Any, ...],
+            ) -> tuple[object, BaseException | None]:
+                try:
+                    return await fn(*given), None
+                except (Exception, SystemExit) as why:  # noqa: BLE001 -- the program's
+                    return None, why
+
+            def call(*given: Any) -> object:
+                said, why = asyncio.run_coroutine_threadsafe(
+                    outcome(given), loop
+                ).result()
+                if why is not None:
+                    raise why
+                return said
+
+            return call
+
+        # Run as the shelf runs it: parsed and answered off the loop, each call back on it.
+        real = dataclasses.replace(
+            cli,
+            commands=tuple(
+                dataclasses.replace(one, call=carried(one.call)) for one in cli.commands
+            ),
+        )
+        return await asyncio.to_thread(real.run, rest)
 
     async def ask(self, question: str, options: Sequence[str] = ()) -> str | None:
         """Asks the user a question, where the harness can.
@@ -732,6 +787,7 @@ class FakeAgentDriver:
         fork_of: Any = None,
         carry_on: Kept | None = None,
         tools: tuple[FakeTool, ...] = (),
+        clis: tuple[FakeCli, ...] = (),
     ) -> FakeSession:
         forked: FakeSession | None = None
         told = None if carry_on is None else self.recalled(carry_on, placement)
@@ -748,7 +804,7 @@ class FakeAgentDriver:
             self.carried(fork_of.placement, placement, "fork")
             forked = fork_of
         session = FakeSession(
-            self, placement, permission, skills, hooks, forked, carry_on, tools
+            self, placement, permission, skills, hooks, forked, carry_on, tools, clis
         )
         if told is not None:
             session.prompts = told

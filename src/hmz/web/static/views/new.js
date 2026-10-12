@@ -5,7 +5,7 @@
 // terminal interface sets one up. Picking a run up again is the same box, on that run.
 
 import { get, post } from '../api.js'
-import { go, stays } from '../app.js'
+import { covered, go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
@@ -87,6 +87,7 @@ export function mount(root, { query }) {
     fill(box.said)
     try {
       const ran = resume ? await get(`/api/runs/${encodeURIComponent(resume)}`) : null
+      if (mine !== loading) return
       if (ran && !workspace) {
         workspace = ran.workspace
         place.set(workspace)
@@ -113,7 +114,8 @@ export function mount(root, { query }) {
   async function choose(name, ran) {
     choosing = name
     run = ran
-    stays({ workspace, flow: name, resume: ran ? ran.name : '' })
+    // The address of a dialog opened over it is the dialog's own.
+    if (!covered()) stays({ workspace, flow: name, resume: ran ? ran.name : '' })
     fill(picker.querySelector('b'), name)
     let read
     try {
@@ -133,7 +135,8 @@ export function mount(root, { query }) {
       box.text.dispatchEvent(new Event('input'))
     }
     summarise()
-    box.text.focus()
+    // Typed into next -- but not from under a dialog opened over it, out of what is typed there.
+    if (!covered()) box.text.focus()
   }
 
   function summarise() {
@@ -234,6 +237,10 @@ export function mount(root, { query }) {
   }
   window.addEventListener('hashchange', back)
   return () => {
+    // Left, what is still being read draws nothing -- above all, it never puts its flow in the
+    // address of the view the page went on to.
+    loading = null
+    choosing = null
     window.removeEventListener('hashchange', back)
     for (const one of leaving) one()
   }

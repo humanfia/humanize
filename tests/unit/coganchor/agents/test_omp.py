@@ -372,3 +372,11 @@ def test_a_fence_that_cuts_the_network_is_not_said_to_omp(
 
     argv = spawned[0].args
     assert argv[argv.index("--") + 2 :] == _BARE  # pi's would end `--offline`
+
+
+def test_pis_extension_prefixes_a_flows_tools_as_omp_does() -> None:
+    from hmz.coganchor.agents import omp
+
+    extension = Path(omp.__file__).with_name("pi_tools.cjs").read_text()
+
+    assert f"name: `{omp.PREFIX}${{tool.name}}`" in extension

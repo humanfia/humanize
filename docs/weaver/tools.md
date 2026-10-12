@@ -33,9 +33,9 @@ for the answer. In a flow, that user is your flow:
    the turn carries on from there.
 
 The hook is the flow's own code, so it can take a turn of another agent, read the workspace, or
-call a whole flow before it answers. The agent's turn is paused meanwhile. On Claude Code and
-Codex the flow can also hand the agent [a tool of its own](#fake-tools), which the agent calls
-by name rather than by asking.
+call a whole flow before it answers. The agent's turn is paused meanwhile. The flow can also
+hand the agent [a tool of its own](#fake-tools), which the agent calls by name rather than by
+asking, or [a command line of its own](#fake-clis), which it runs from its shell.
 
 The agent only knows when to ask, and how to phrase it, from its prompt, so the flow says both.
 A fixed first word, like `review ` below, is the simplest way for the hook to tell one kind of
@@ -296,9 +296,105 @@ is sent as JSON. What it raises is the tool failing: the agent is told, and the 
 flow go on. Every session of the role offers the tools, `derive` keeps them, and a flow the agent
 is handed on to offers the ones its own role declares instead.
 
-Only `claude` and `codex` serve `FakeToolAgentMixin`; any other CLI is refused before the first
-turn. In a test, a fake session calls one with `await session.use("review", {"path": "calc.py"})`,
+`claude`, `codex`, `qwen`, `agy`, `opencode`, `mimo`, `pi`, `omp`, `dsh` and `grok` serve
+`FakeToolAgentMixin`, each over its own MCP configuration. `cursor-agent`, `mcode`, `kimi` and
+`litellm` do not, and neither does an ACP CLI, whose role is a plain `Agent`: a role declaring the
+mixin is refused for any of them before the first turn. On `grok`, a turn only `grok -p` can take
+fails with `HarnessUnrecoverable` while tools are offered: one with an `output_schema`, the
+first turn of a fork, web search off, or a permission that takes tools away.
+
+In a test, a fake session calls one with `await session.use("review", {"path": "calc.py"})`,
 which answers what the agent would read.
+
+## A command line of the flow's own {#fake-clis}
+
+A `FakeCli` is a program on the agent's PATH whose every run is answered by the flow. The agent
+finds out what it does the way it finds out about any program, with `--help`, and running a
+command is a function of the flow's running. The role declares it in `_clis`; no mixin is needed:
+
+```python
+import pydantic
+
+from hmz.flows import Agent, FakeCli, FakeCommand
+
+tickets: list[str] = []
+
+
+class Ticket(pydantic.BaseModel):
+    title: str = pydantic.Field(description="What the ticket says.")
+    urgent: bool = pydantic.Field(False, description="Whether it jumps the queue.")
+
+
+async def file(ticket: Ticket) -> str:
+    tickets.append(ticket.title)
+    return f"filed #{len(tickets)}"
+
+
+def listed() -> list[str]:
+    return tickets
+
+
+class Triager(Agent):
+    _clis = (
+        FakeCli(
+            "tix",
+            "Files and lists the tickets of this run.",
+            (
+                FakeCommand("file", "Files a ticket.", file, Ticket),
+                FakeCommand("list", "Lists the tickets filed so far.", listed),
+            ),
+        ),
+    )
+```
+
+The agent's shell then sees a program like any other:
+
+```text
+$ tix --help
+usage: tix [-h] COMMAND ...
+
+Files and lists the tickets of this run.
+
+options:
+  -h, --help  show this help message and exit
+
+commands:
+  COMMAND
+    file      Files a ticket.
+    list      Lists the tickets filed so far.
+$ tix file --help
+usage: tix file [-h] --title TITLE [--urgent | --no-urgent]
+
+Files a ticket.
+
+options:
+  -h, --help            show this help message and exit
+  --title TITLE         What the ticket says.
+  --urgent, --no-urgent
+                        Whether it jumps the queue. (default: False)
+$ tix file
+usage: tix file [-h] --title TITLE [--urgent | --no-urgent]
+tix file: error: the following arguments are required: --title
+$ tix file --title "the build is red"
+filed #1
+```
+
+| | |
+| --- | --- |
+| `FakeCli(name, about, commands)` | the program: `name` is what the agent runs, one per role; `about` opens its `--help` |
+| `FakeCommand(name, about, call, takes)` | one subcommand: `about` is its line in `--help` |
+| `takes` | a pydantic model: each field is a `--flag`, its description the help, required where it has no default; a `bool` is `--flag/--no-flag`, a list takes several words, a `Literal` or an `Enum` one of its values |
+
+The function runs as a tool's does: in the flow's process, as the flow, sync or async. A string
+it returns is printed as it is, `None` prints nothing, anything else is printed as JSON, and the
+program exits 0. Raising `SystemExit(n)` exits with `n`; raising anything else exits 1 with the
+error on stderr. A line the parser refuses, or a value the model refuses, prints the usage and
+exits 2. None of these fail the turn.
+
+Every CLI with a shell runs them. `litellm` has none, so a role declaring `_clis` is refused
+for it before the run starts. In a test, a fake session runs one with
+`await session.run_cli(["tix", "file", "--title", "x"])`, which answers the status, stdout and
+stderr the agent's shell would have seen.
 
 ## Variations
 

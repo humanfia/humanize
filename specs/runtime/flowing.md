@@ -144,6 +144,7 @@ class Grant:
     permission: Permission
     skills: tuple[str, ...]
     tools: tuple[FakeTool, ...]
+    clis: tuple[FakeCli, ...]
 @dataclass(frozen=True, slots=True, eq=False)
 class AgentRole:
     name: str
@@ -155,6 +156,7 @@ class AgentRole:
     permission: Permission
     skills: tuple[str, ...]
     tools: tuple[FakeTool, ...]
+    clis: tuple[FakeCli, ...]
     grant: Grant
 @dataclass(frozen=True, slots=True, eq=False)
 class EnvRole:
@@ -220,7 +222,7 @@ def pinned(url: str, rev: str | None) -> Path: ...  # machine()/pinned/<url>/<co
 # fakes.py -- in-memory drivers, for testing a flow
 class FakeAgentDriver: ...  # (harness, *, reply, model, effort, provider, capabilities,
                             #  cost, output_tokens, seconds, forks, names_late)
-class FakeSession: ...  # until_steered, tool, use, ask, notify, subagent
+class FakeSession: ...  # until_steered, tool, use, run_cli, ask, notify, subagent
 class FakeEnvDriver: ...  # (files, *, workdir, backend, provider, capabilities, cpu_count,
                           #  memory, gpu_count, gpu_memory, run, refs, repo)
 class FakeOutworlder: ...  # (reply, *, away)
@@ -378,7 +380,7 @@ def under() -> Path: ...  # machine()/skills
   resolve. `NotRequired`, `Required`, `ReadOnly` and `Annotated` MUST be read through, and
   `__extra_items__` MUST NOT be relied on.
 - A role's type MUST be read once per type: its capabilities (a mixin's bases with it), its
-  `_permission`, `_skills` and `_tools` for an agent, its resources and `_image` for an environment, the
+  `_permission`, `_skills`, `_tools` and `_clis` for an agent, its resources and `_image` for an environment, the
   harness a
   harness protocol names, and whether the runtime fills it -- an `Outworlder`, a `LocalEnv`.
   A type no agent or environment can be MUST raise `FlowDefinitionError`.
@@ -418,7 +420,10 @@ def under() -> Path: ...  # machine()/skills
   derived from another MUST share its hooks and its sessions.
 - A role's `_tools` MUST be offered by every session of its agent, and a call of one MUST run
   its function on the run's loop as the flow the agent belongs to; what it raises MUST be
-  answered to the agent as the tool failing, and MUST NOT fail the turn.
+  answered to the agent as the tool failing, and MUST NOT fail the turn. A role's `_clis` MUST
+  be put on the PATH of every session of its agent likewise, each command's function run the
+  same way, and MUST be refused for litellm, as `env` is. Both MUST reach coganchor as the
+  types the flow declared, only their functions wrapped.
 - A hook MUST be called with the context of the flow the agent belongs to and the session the
   moment arrived in, and MUST run as that flow. What it raises MUST fail the turn it arrived
   in. A callee's hooks MUST NOT be heard by its caller's sessions, nor the other way round.

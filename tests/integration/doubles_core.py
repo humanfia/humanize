@@ -10,6 +10,8 @@ it drives the real CLI. It answers a prompt as a model would be asked to:
 - `silent` answers nothing;
 - `tool: <name> <json>` starts the MCP server its `--mcp-config` names, lists its tools and
   calls `<name>` with the JSON, answering `tools: <names>; said: <what the tool said>`;
+- `run: <json>` runs each argv of the JSON list from its own shell's PATH, answering a JSON list
+  of `[status, stdout, stderr]`, one per argv;
 - a turn asked for a JSON schema answers `{"done": true, "notes": "reviewed"}`;
 - asked what it runs, before any session, it runs `claude-haiku-4-5` and `claude-opus-4-1`;
 - every prompt and every answer is logged to its transcript as Claude Code logs them, with when;
@@ -128,11 +130,21 @@ def tool(said):
     return f"tools: {names}; said: {called['content'][0]['text']}"
 
 
+def run(said):
+    import subprocess
+
+    ran = [subprocess.run(argv, capture_output=True, text=True, check=False)
+           for argv in json.loads(said)]
+    return json.dumps([[one.returncode, one.stdout, one.stderr] for one in ran])
+
+
 def answer(said):
     if said.startswith("fail: "):
         return None
     if said.startswith("tool: "):
         return tool(said[len("tool: "):])
+    if said.startswith("run: "):
+        return run(said[len("run: "):])
     if said.startswith("/goal "):
         return "goal met: " + said[len("/goal "):]
     if said == "silent":

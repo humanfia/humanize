@@ -582,7 +582,7 @@ class QwenCodeSession(StreamSessionBase):
             self._agent.config,
             self.effort,
             self._carrying(),
-            tuple(sorted(one.name for one in self._agent.toolbox.offered())),
+            self._agent.toolbox.names(),
             environment,
             native if native is not None else object(),
         )

@@ -48,7 +48,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   from here MUST be let in, and a page elsewhere that points its own name at the loopback is
   kept out by the key, since a browser hands a name only that name's cookies.
 - MUST take a write only as JSON sent from its own page's origin, and no larger than a request
-  here may be; MUST answer what it refuses as JSON saying why in one sentence, with a status
+  here may be -- save an epic to import, which MAY be sent as the `.hmzepic`'s own bytes, no
+  larger than an archive here may be, kept among this machine's own files only until it is
+  answered; MUST answer what it refuses as JSON saying why in one sentence, with a status
   saying what kind of refusal it is.
 - MUST serve the page as its own files and nothing beside them, under a content policy that
   lets it load and run nothing else, and MUST NOT be framed.
@@ -120,6 +122,11 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
+- MUST let an epic exported anywhere be imported -- picked, dropped anywhere on the window, or
+  named by its path on this machine at an address of its own -- as `runtime` imports one, and
+  then open it, one named by its path on its Exomyth; MUST refuse one already here as a
+  conflict naming it, and offer to open it; and MUST say why an imported epic cannot be
+  picked up here, offering no picking up.
 - MUST offer `Upload` on every epic, which backs it up now to the targets it was started with,
   else the defaults, answering at once with the targets it was queued for -- never waiting on a
   push -- and MUST say how its last backup to each target went, as it is read again.
@@ -129,6 +136,18 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   again on every request, answered with the tag that says whether the page has it already. A
   span's id MUST be read in the last timeline laid out of that run, and one asked for with a
   `layout` that is not that timeline's MUST be refused as a conflict.
+- MUST draw any epic, going or written down, as its Exomyth: its timeline's processes as rows
+  of their tracks under a ruler of time, each under the process that started it, folded or
+  opened, with an arrow from each span that started one; moved over by keys, a wheel and a
+  pinch as Perfetto is moved over; a span pointed at said in brief and one picked said whole
+  with what it carried; a stretch of time picked summed by category; spans found by their
+  words, one after the next; and, beside it, a flame graph of the stretch picked or the whole --
+  each agent its stack, its sessions merged or apart, then its spans as they nest -- weighed by
+  time, tokens in or out or count, zoomed by a click, and every slice name summed in a table
+  sorted by any column. It MUST draw on one canvas, in the theme shown, only what shows, a
+  frame of fifty thousand spans in well under a frame's time, sum them for the flame graph in
+  well under a tenth of a second, and MUST read an epic going again while it is looked at and
+  goes, asking only for what changed.
 - MUST let a flow be set up in a workspace and saved without starting it, refused where a role
   has no agent or -- for every flow but chat -- nothing says what it may spend, and MUST save
   it as it is started.
