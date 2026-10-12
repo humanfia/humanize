@@ -57,6 +57,10 @@ The app is a window, not a second humanize. It runs `hmz` as
   sidebar's top. Drag the window by any empty part of the top row, and double-click it to zoom.
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown
   in the Finder.
+- **Other machines too.** The [daemons](/user/web#daemons) the page reaches -- your ssh hosts
+  -- are reached from the app as from a browser, with your ssh config, and switched between at
+  the foot of the sidebar.
+- **It notifies as macOS does.** See [Notifications](#notifications).
 - **It updates itself.** See [Updates](#updates).
 
 ## Opening a `.hmzepic` {#opening-a-hmzepic}
@@ -69,6 +73,18 @@ at once, the last is imported; anything but a `.hmzepic` is left alone.
 
 One you already have is refused, with **Open** to go to it; one that cannot be picked up on this
 Mac says why on its own page, as any [imported epic](/user/web#importing-an-epic) does.
+
+## Notifications {#notifications}
+
+The page's [notifications](/user/web#notifications) -- an epic done, failed or stopped, a
+question for you, a `chat` waiting for your next line, on any daemon -- show in the window's bell
+and toasts as in a browser, and, while the window is hidden or not in front, as macOS
+notifications from humanize. Click one: the window comes to the front, on the epic it is about.
+
+The kinds that appear, and whether they are macOS notifications at all, are set in
+**Settings → Notifications**; the app needs no permission asked there, as a browser does.
+macOS's own **System Settings → Notifications → humanize** decides how they are shown, or
+silences them.
 
 ## Updates {#updates}
 
@@ -142,6 +158,12 @@ open ~/Library/Logs/ai.humanfia.humanize/humanize.log
 
 `hmz: the runs … are held by an older humanize` is the most common: an older `hmz` holds them.
 See [`hmz web`'s troubleshooting](/user/web#troubleshooting).
+
+### No macOS notifications
+
+They come only while the window is hidden or not in front. Check that **Settings →
+Notifications** in the app has them switched on, and that **System Settings → Notifications →
+humanize** allows them.
 
 ### The window opened on a page that forgot what I chose
 

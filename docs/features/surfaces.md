@@ -21,6 +21,11 @@ import { withBase } from 'vitepress'
 - **Walk away.** [The terminal can leave](/features/daemon), and the run keeps going.
 - **Two windows, one run.** A browser on [`hmz web`](/user/web) and a terminal on `hmz` read and
   drive the same run, and each says who did what.
+- **Many machines, one page.** The page reaches the [daemons](/user/web#daemons) of your ssh
+  hosts as it does this machine's, one at a time, and installs the same humanize where one is
+  missing.
+- **Told when it matters.** An epic ending, a question for you or a `chat` waiting, on any of
+  them, is a [notification](/user/web#notifications): in the page, the browser or macOS.
 - **Settings become a form.** The terminal interface draws one from a flow's
   [settings](/weaver/flow-settings). Its author writes none of it.
 
