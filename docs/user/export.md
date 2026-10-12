@@ -268,7 +268,9 @@ epic = Hmz().epics.imported("~/Downloads/20260930T054014.242Z-bdae4a.hmzepic")
 ```
 
 It lands under the directory the run was started in, as it was there, so `/epics` lists it
-once you start `hmz` in that directory. A file not ending `.hmzepic`, one holding anything but
+once you start `hmz` in that directory. In [`hmz web`](/user/web#importing-an-epic) and the
+desktop app, press **Import** in **Search epics** and pick the file -- or, in a browser, drop it
+on the window: the run opens once it is in. A file not ending `.hmzepic`, one holding anything but
 the one run, and a run you already have are refused. An epic [backed up](/user/backups) to a git
 repository is downloaded the same way, with `hmz backup --pull`.
 

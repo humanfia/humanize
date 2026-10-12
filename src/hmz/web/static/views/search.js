@@ -7,6 +7,7 @@ import { address, poll } from '../api.js'
 import { shut, stays } from '../app.js'
 import { nameOf, workspaces } from '../places.js'
 import { epicMenu } from '../sidebar.js'
+import { pick } from '../importing.js'
 import { menuOn } from '../ui.js'
 import { dragged } from '../shell.js'
 import { ago, badge, flowName, empty, fill, h, headline, icon, iconButton, lasting, settled, when } from '../dom.js'
@@ -44,7 +45,7 @@ export function mount(root, { query }) {
   fill(
     root,
     // The top row of a narrow window, which it fills.
-    dragged(h('div', { class: 'dialog-head' }, icon('search'), search, iconButton('close', 'Close', { onclick: shut }))),
+    dragged(h('div', { class: 'dialog-head' }, icon('search'), search, h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'import', onclick: pick }, 'Import'), iconButton('close', 'Close', { onclick: shut }))),
     h('div', { class: 'dialog-filters' }, statuses, places, flows),
     body,
     foot,

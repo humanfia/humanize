@@ -981,6 +981,37 @@ code {
   box-shadow: 3px 3px 0 var(--pink);
 }
 
+/* A toast that stays: an import going, or why it failed, until the next or until closed. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(640px, calc(100vw - 32px));
+}
+
+.notice .error {
+  margin: 0;
+  padding: 0 0 0 8px;
+  background: none;
+  color: inherit;
+  font-weight: 500;
+}
+
+.notice a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.notice .icon-btn {
+  color: inherit;
+}
+
+/* A file dragged over the window, which takes a .hmzepic dropped anywhere on it. */
+body.dropping .app {
+  outline: 3px dashed var(--pink);
+  outline-offset: -3px;
+}
+
 /* The page's own parts are not text to select; what it says is. */
 .sidebar,
 .bar,

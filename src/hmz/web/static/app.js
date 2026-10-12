@@ -10,6 +10,7 @@ import { mountSidebar } from './sidebar.js'
 import { kept, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
+import './importing.js'
 
 /** Every view, by the first part of the address that names it. */
 const VIEWS = {
@@ -81,8 +82,11 @@ async function route() {
   await view(mine, parts, query, key)
 }
 
+/** An epic read back in by its path: an address under `epics` no epic is named. */
+const IMPORT = () => import('./views/import.js')
+
 async function view(mine, parts, query, key) {
-  const load = VIEWS[parts[0]] || VIEWS.new
+  const load = parts[0] === 'epics' && parts[1] === 'import' && parts.length === 2 ? IMPORT : VIEWS[parts[0]] || VIEWS.new
   const named = VIEWS[parts[0]] ? parts : ['new']
   // A view that can move within itself -- a run's graph to one of its sessions -- does.
   if (mounted && mounted.load === load && mounted.moved && mounted.moved({ parts: named, query })) {

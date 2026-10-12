@@ -5,6 +5,7 @@
 
 import { address, get, poll, post, refresh } from './api.js'
 import { ask } from './held.js'
+import { pick } from './importing.js'
 import { copy, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.js'
 import { sessionsOf } from './epic.js'
@@ -46,6 +47,7 @@ export function mountSidebar(root, context, where) {
     account,
     (close) => [
       context.newer ? choice({ label: 'Update', about: `hmz ${context.newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
+      choice({ label: 'Import', glyph: 'file', act: pick, close }),
       choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
       choice({ label: 'Usage', glyph: 'chart', href: '#/settings/usage', close }),
     ],
@@ -73,6 +75,8 @@ export function mountSidebar(root, context, where) {
   )
   // The band across its top, above the row.
   dragged(root, '')
+  // What is offered between the epics, rather than on one of them.
+  menuOn(list, () => [{ label: 'Import', glyph: 'file', act: pick }])
   root.addEventListener('click', (event) => {
     if (event.target.closest('a[href]')) settleSidebar()
   })

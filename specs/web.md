@@ -48,7 +48,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   from here MUST be let in, and a page elsewhere that points its own name at the loopback is
   kept out by the key, since a browser hands a name only that name's cookies.
 - MUST take a write only as JSON sent from its own page's origin, and no larger than a request
-  here may be; MUST answer what it refuses as JSON saying why in one sentence, with a status
+  here may be -- save an epic to import, which MAY be sent as the `.hmzepic`'s own bytes, no
+  larger than an archive here may be, kept among this machine's own files only until it is
+  answered; MUST answer what it refuses as JSON saying why in one sentence, with a status
   saying what kind of refusal it is.
 - MUST serve the page as its own files and nothing beside them, under a content policy that
   lets it load and run nothing else, and MUST NOT be framed.
@@ -120,6 +122,10 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
+- MUST let an epic exported anywhere be imported -- picked, dropped anywhere on the window, or
+  named by its path on this machine at an address of its own -- as `runtime` imports one, and
+  then open it; MUST refuse one already here as a conflict naming it, and offer to open it; and
+  MUST say why an imported epic cannot be picked up here, offering no picking up.
 - MUST offer `Upload` on every epic, which backs it up now to the targets it was started with,
   else the defaults, answering at once with the targets it was queued for -- never waiting on a
   push -- and MUST say how its last backup to each target went, as it is read again.
