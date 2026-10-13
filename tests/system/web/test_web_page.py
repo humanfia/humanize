@@ -634,8 +634,9 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
     project: Path, engine: str
 ) -> None:
     """The app's window draws the page to its top edge, its traffic lights over the top left."""
-    # How far across they reach, at most.
+    # How far across, and how far down, they reach, at most.
     lights = 76
+    strip = 30
     clicked = "a, button, input, select, textarea, summary, [role=tab]"
 
     def left(page: Page, selector: str) -> float:
@@ -643,10 +644,16 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         assert box
         return box["x"]
 
+    def top(page: Page, selector: str) -> float:
+        box = page.locator(selector).first.bounding_box()
+        assert box
+        return box["y"]
+
     with served() as site, opened(site, engine=engine) as page:
         assert page.evaluate("document.documentElement.dataset.shell") is None
         expect(page.locator("[data-tauri-drag-region]")).to_have_count(0)
         assert left(page, ".brand") < lights
+        assert top(page, ".brand") < strip
 
     # Said before the page is drawn: by the time its body is, so it never moves.
     at_body = (
@@ -659,7 +666,9 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         opened(site, engine=engine, user_agent=_APP, init=at_body) as page,
     ):
         assert page.evaluate("window.shellAtBody") == "macos"
-        assert left(page, ".brand") >= lights
+        # The sidebar keeps a strip for them, its top row drawn under it.
+        assert top(page, ".brand") >= strip
+        assert top(page, ".side-fold") >= strip
         for row in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
             expect(page.locator(row)).to_have_attribute(
                 "data-tauri-drag-region", "deep"
