@@ -2050,7 +2050,7 @@ FlowException
 | <code id="harnessunrecoverable">HarnessUnrecoverable</code> | `HarnessError` | any other failure no retry would change; a CLI that cannot be configured as asked |
 | <code id="outputschemaerror">OutputSchemaError</code> | `HarnessError`, `ValueError` | the answer is not the `output_schema` |
 | <code id="sessionerror">SessionError</code> | `HarnessError` | a session is closed, another agent's, busy, not taking a turn to steer, interrupted, not forkable yet, or its prompt was blocked by a hook |
-| <code id="unsupportedoperation">UnsupportedOperation</code> | `HarnessError` | the harness cannot do this at all (fork; fork elsewhere; outworlder fork or steer) |
+| <code id="unsupportedoperation">UnsupportedOperation</code> | `HarnessError` | the harness cannot do this at all (fork; fork elsewhere; outworlder fork or steer); any `NotImplementedError` from a turn |
 | <code id="enverror">EnvError</code> | `FlowException` | an environment could not do what it was asked |
 | <code id="envunavailable">EnvUnavailable</code> | `EnvError` | the machine is gone or the workdir does not exist |
 | <code id="envconnectionerror">EnvConnectionError</code> | `EnvError`, `ConnectionError` | the connection to a remote environment failed |

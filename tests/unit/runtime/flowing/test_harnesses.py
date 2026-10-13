@@ -516,6 +516,37 @@ async def test_a_kept_conversation_is_refused_before_anything_is_built(
     assert len(coganchor.built) == built
 
 
+@pytest.mark.parametrize(
+    ("refused", "kind"),
+    [
+        (
+            NotImplementedError(
+                "claude cannot carry a conversation into another directory"
+            ),
+            UnsupportedOperation,
+        ),
+        (
+            RuntimeError("claude: another copy of conversation told is kept at /k"),
+            SessionError,
+        ),
+    ],
+    ids=["cannot-carry-it-there", "another-copy"],
+)
+async def test_a_kept_conversation_its_first_turn_cannot_bring_in_is_refused_there(
+    coganchor: type[CLI], tmp_path: Path, refused: Exception, kind: type[Exception]
+) -> None:
+    """As opening refuses the same: what the CLI cannot do, and a copy already held."""
+
+    def bringing(prompt: str) -> str:
+        raise refused
+
+    coganchor.reply = staticmethod(bringing)
+    session = await _carrying(open_agent(_spec()), _placed(tmp_path))
+
+    with pytest.raises(kind, match=str(refused)):
+        await session.turn(TurnRequest("go on"), Sink())
+
+
 async def test_a_kept_conversation_that_is_not_there_cannot_be_forked(
     coganchor: type[CLI], tmp_path: Path
 ) -> None:

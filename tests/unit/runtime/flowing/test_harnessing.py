@@ -43,6 +43,7 @@ from hmz.flows import (
     PreToolUseHookResult,
     SessionError,
     StopHookResult,
+    UnsupportedOperation,
 )
 from hmz.runtime.flowing.harnessing import (
     ASKING,
@@ -337,6 +338,7 @@ def test_a_question_is_answered_with_what_its_hook_said() -> None:
         (Unrecoverable(1, ["x"]), HarnessUnrecoverable),
         (ConnectionResetError("reset"), HarnessDropped),
         (RuntimeError("closed"), SessionError),
+        (NotImplementedError("no way to carry it there"), UnsupportedOperation),
         (ValueError("bad config"), HarnessUnrecoverable),
     ],
     ids=lambda one: (

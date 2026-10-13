@@ -103,6 +103,7 @@ from hmz.flows import (
     PermissionRequestHookResult,
     PreToolUseHookResult,
     SessionError,
+    UnsupportedOperation,
 )
 
 if TYPE_CHECKING:
@@ -414,6 +415,11 @@ def harness_error(error: BaseException, backend: str) -> HarnessError | None:
         return FAULTS.get(fault, HarnessUnrecoverable)(said)
     if isinstance(error, OSError):
         return HarnessDropped(said)
+    if isinstance(error, NotImplementedError):
+        # What the CLI has no way of doing -- carrying a kept conversation to where the turn
+        # works, among them -- refused as opening a session refuses it, not as a session gone
+        # wrong: it is a RuntimeError too.
+        return UnsupportedOperation(said)
     if isinstance(error, RuntimeError):
         return SessionError(said)
     if isinstance(error, ValueError):
