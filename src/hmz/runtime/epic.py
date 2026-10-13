@@ -21,7 +21,8 @@ One epic is one run, and one directory::
         epic.jsonl                      what happened, a line at a time
         epic.<flow>_<which>.jsonl       the same, for one flow the run called
         resume.jsonl                    the engine's journal, for a flow that can be picked up
-        profile.jsonl                   the programs it ran, for a run that was profiled
+        profile.jsonl                   the programs it ran, for a run that profiled them
+        flow-profile.jsonl              where the flow's own Python was, for one that profiled it
         sessions/<cli>/…                its sessions, where that CLI keeps them under its home
         traces/<when>.trace.json        what was gathered of it afterwards, to be read
 
@@ -74,7 +75,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.machines import MachineConfig
 
-    from .tracing.profile import Profiler
+    from .tracing.profile import Profiler, Sampler
 
 __all__ = [
     "BACKED",
@@ -314,8 +315,10 @@ class Ran(NamedTuple):
       params: What the flow was set up with, as JSON.
       budget: What the run was allowed to spend, as JSON, or None where it said nothing.
       picked_up: The epic this run was picked up from, by name, or "".
-      profile: Whether the run was asked to profile the programs its agents started as well
-        as trace them; False for a run written before a run could be asked.
+      profile_flow: Whether the run was asked to sample the flow's own Python; False for a
+        run written before a run could be asked.
+      profile_environment: Whether it was asked to profile the programs its agents started
+        as well as trace them, the same way.
       spent: What the run spent as its budget counted it, as JSON -- `cost` in dollars,
         `output_tokens` and `seconds` -- written as it ended, or None for a run still going
         or one killed before it could say.
@@ -342,7 +345,8 @@ class Ran(NamedTuple):
     params: dict[str, Any] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     budget: dict[str, Any] | None = None
     picked_up: str = ""
-    profile: bool = False
+    profile_flow: bool = False
+    profile_environment: bool = False
     spent: dict[str, Any] | None = None
     backup: tuple[str, ...] = ()
     backed: dict[str, dict[str, Any]] = {}  # noqa: RUF012 -- a NamedTuple's default
@@ -692,7 +696,8 @@ class Epic:
         budget: Mapping[str, Any] | None = None,
         resumable: bool = False,
         picked_up: Path | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         backup: Sequence[str] = (),
     ) -> None:
         """Opens an epic, and writes down what it is a run of.
@@ -713,10 +718,14 @@ class Epic:
             the journal it keeps something to run it on rather than something to read.
           picked_up: The epic this run is picked up from, whose journal is copied into this
             one for the run to go on from, or None for a run starting from nothing.
-          profile: Whether to sample the programs the agents start while the run goes, so
-            that what a turn spent its minutes on is in the run's trace beside the turn. Asked
-            of the run as its budget is, by whoever starts it, and written down with the rest
-            so that a run picked up again is profiled as the run it goes on from was.
+          profile_flow: Whether to sample the flow's own Python while the run goes, from the
+            thread and the task this is opened on -- which is the flow's -- so that what it
+            did between and around the turns is in the run's trace beside them.
+          profile_environment: Whether to sample the programs the agents start while the run
+            goes, so that what a turn spent its minutes on is in the run's trace beside the
+            turn. Both are asked of the run as its budget is, by whoever starts it, and
+            written down with the rest so that a run picked up again is profiled as the run
+            it goes on from was.
           backup: The git repositories it is backed up to, by name.
         """
         self._begin(
@@ -741,8 +750,12 @@ class Epic:
             with contextlib.suppress(OSError):
                 shutil.copyfile(picked_up / RESUME, self._at / RESUME)
         #: The programs this run starts, sampled while it runs, or None for a run nobody
-        #: asked to profile -- which is every run not started with `--profile`.
-        self._profiler = self._profiling() if profile else None
+        #: asked to profile them -- which is every run not started with
+        #: `--profile-environment`.
+        self._profiler = self._profiling() if profile_environment else None
+        #: The flow's own Python, sampled while it runs, or None likewise -- started as
+        #: the epic is entered, so that a run refused before then leaves nothing sampling.
+        self._sampler = self._sampling() if profile_flow else None
         from hmz.coganchor.machines.store import SPELLING
 
         self.write(
@@ -762,7 +775,8 @@ class Epic:
             ),
             params=dict(params or {}),
             **({"budget": dict(budget)} if budget is not None else {}),
-            **({"profile": True} if profile else {}),
+            **({"profile_flow": True} if profile_flow else {}),
+            **({"profile_environment": True} if profile_environment else {}),
             **({"backup": list(backup)} if backup else {}),
             spelling=SPELLING,
         )
@@ -788,6 +802,7 @@ class Epic:
         self._flow = flow
         self._where = workspace
         self._profiler: Profiler | None = None
+        self._sampler: Sampler | None = None
         #: How it ended, where whoever is running it has said: "stopped" for a run stopped
         #: by hand or by what it was allowed to spend, rather than one that failed.
         self._how = ""
@@ -855,8 +870,33 @@ class Epic:
             return None
         return one
 
+    def _sampling(self) -> Sampler | None:
+        """The sampler of the flow's own Python, not yet started, or None where there is none.
+
+        Returns:
+          The sampler, for :meth:`__enter__` to start.
+        """
+        try:
+            from .tracing.profile import FLOW_PROFILE, Sampler
+        except (
+            ImportError
+        ):  # pragma: no cover -- an install missing what it was built with
+            return None
+        return Sampler(self._at / FLOW_PROFILE)
+
     def __enter__(self) -> Self:
-        """Hands the epic to whatever is running the flow inside it."""
+        """Hands the epic to whatever is running the flow inside it.
+
+        Which is where the flow's Python starts being sampled: on the thread and in the task
+        that enters it, which are the flow's. As unable to stop a run as :meth:`_profiling`:
+        a thread something else is already profiling is a run with no profile of its flow
+        rather than a run that will not start.
+        """
+        if (one := self._sampler) is not None:
+            try:
+                one.start()
+            except Exception:  # noqa: BLE001 -- whatever pyinstrument raises, no run fails on it
+                self._sampler = None
         return self
 
     def __exit__(
@@ -884,6 +924,8 @@ class Epic:
         # and so that a run which is over stops costing anything.
         if self._profiler is not None:
             self._profiler.stop()
+        if self._sampler is not None:
+            self._sampler.stop()
         # A run interrupted from outside is a run that was stopped, however the turn under
         # way made of it: the process goes out from under that turn, and from inside one
         # that reads as a turn that could not finish.
@@ -1301,7 +1343,8 @@ def read(epic: Path) -> Ran | None:
         params=cast("dict[str, Any]", params) if isinstance(params, dict) else {},
         budget=cast("dict[str, Any]", budget) if isinstance(budget, dict) else None,
         picked_up=str(began.get("picked_up") or ""),
-        profile=bool(began.get("profile")),
+        profile_flow=bool(began.get("profile_flow")),
+        profile_environment=bool(began.get("profile_environment")),
         spent=(
             {
                 key: usage[key]

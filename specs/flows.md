@@ -14,7 +14,8 @@ Mixin system is crucial to the flow system. It allows the flow to declare what i
 
 All of the above supports comma-separated list and multiple flags. (e.g. `-a role1=... -a role2=...` or `-a role1=...,role2=...`)
 
-- `--profile`: profiling the programs the run's agents start, as well as tracing them.
+- `--profile-flow`: profiling the flow's own Python, as well as tracing the run.
+- `--profile-environment`: profiling the programs the run's agents start, as well as tracing them.
 
 ## Environments
 

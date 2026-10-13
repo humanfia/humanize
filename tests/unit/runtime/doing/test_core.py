@@ -149,7 +149,8 @@ def test_a_runner_is_made_in_this_workspace(making: Making, tmp_path: Path) -> N
         envs={"box": "local/x"},
         params={"rounds": 2},
         budget={"cost": 1},
-        profile=True,
+        profile_flow=True,
+        profile_environment=True,
         resume=True,
     )
 
@@ -160,7 +161,8 @@ def test_a_runner_is_made_in_this_workspace(making: Making, tmp_path: Path) -> N
         "envs": {"box": "local/x"},
         "params": {"rounds": 2},
         "budget": {"cost": 1},
-        "profile": True,
+        "profile_flow": True,
+        "profile_environment": True,
         "resume": True,
         "workspace": tmp_path,
         "backup": None,
@@ -177,7 +179,8 @@ def test_a_runner_of_no_workspace_named_runs_wherever_humanize_is(
         "envs": (),
         "params": None,
         "budget": None,
-        "profile": False,
+        "profile_flow": False,
+        "profile_environment": False,
         "resume": False,
         "workspace": None,
         "backup": None,
@@ -232,7 +235,8 @@ def test_a_line_is_run_to_its_return_on_what_it_names(
             "box=local/srv",
             "-p",
             "rounds=2,budget.cost=3",
-            "--profile",
+            "--profile-flow",
+            "--profile-environment",
             "--resume",
             "fix it",
         ]
@@ -245,7 +249,8 @@ def test_a_line_is_run_to_its_return_on_what_it_names(
     assert [str(one) for one in made.said["envs"]] == ["box=local/srv"]
     assert made.said["params"] == {"rounds": "2"}
     assert made.said["budget"].cost == 3.0
-    assert (made.said["profile"], made.said["resume"]) == (True, True)
+    assert made.said["profile_flow"] is True
+    assert (made.said["profile_environment"], made.said["resume"]) == (True, True)
     assert made.said["workspace"] == tmp_path
     assert ran.held[0].runner is made
     assert ran.held[0].outworlder is None

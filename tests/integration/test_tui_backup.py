@@ -173,7 +173,7 @@ async def test_a_flow_saved_without_choosing_backup_follows_the_defaults(
         await leaves(pilot)
         await shows(pilot, "◉ chat")
 
-    assert Hmz().settings.profile("chat")
+    assert Hmz().settings.profile_environment("chat")
     assert Hmz().settings.backup("chat") is None
 
 

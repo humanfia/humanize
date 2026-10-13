@@ -284,7 +284,8 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | `epic.jsonl` | appended per event, open/write/close under a thread lock; no fsync | [events](/reference/tracing#epic-jsonl) |
 | `epic.<flow>_<hex6>.jsonl` | one per flow call | [records](/reference/tracing#records-of-called-flows) |
 | `resume.jsonl` | resumable runs only; compacted via `.resume.jsonl.<random>.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
-| `profile.jsonl` | profiled runs only | [profile](/reference/tracing#profile-jsonl) |
+| `profile.jsonl` | runs whose environment was profiled | [profile](/reference/tracing#profile-jsonl) |
+| `flow-profile.jsonl` | runs whose flow was profiled | [flow profile](/reference/tracing#flow-profile-jsonl) |
 | `host.log` | runs held by a [host process](/reference/daemon#files) only; appended (`0600`), never rotated | that process's descriptors 1 and 2 while the run is the one it holds: output of the CLIs the run started, and the carrier's failures |
 | `.held` | empty, `0600`; `flock`ed exclusively by the process running the run until `ended` is written | a run whose `.held` is locked is still going, and is not [picked up](/reference/cli#picking-a-run-up) |
 | `sessions/<cli>/…` | by the CLI itself, redirected | the CLI's own layout |

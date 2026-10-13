@@ -119,6 +119,7 @@ def test_a_trace_of_a_run_is_of_that_runs_sessions_and_kept_with_it(
         "start": "yesterday",
         "end": "now",
         "profile": run / profile.PROFILE,
+        "flow_profile": run / profile.FLOW_PROFILE,
         "kept": [run / SESSIONS],
     }
 
@@ -145,6 +146,7 @@ def test_a_timeline_of_a_run_is_laid_out_of_what_its_trace_is_gathered_from(
     assert kwargs["ran"] == Epics(workspace).read(run)
     assert kwargs["calls"] == ()
     assert kwargs["profiled"] == []
+    assert kwargs["sampled"] == []
     # Written nowhere: a timeline is drawn and thrown away.
     assert not (run / TRACES).exists()
 
@@ -204,12 +206,13 @@ def test_a_trace_of_no_workspace_reads_every_run_there_is(
     run = _run(workspace)
     (run / SESSIONS).mkdir()
 
-    Epics().trace(kept=None, profile="p", agents={"a": ["x"]})
+    Epics().trace(kept=None, profile="p", flow_profile="f", agents={"a": ["x"]})
 
     ((args, kwargs),) = collected.calls
     assert args == (None,)
     assert kwargs["kept"] == [run / SESSIONS]
     assert kwargs["profile"] == "p"
+    assert kwargs["flow_profile"] == "f"
     assert kwargs["agents"] == {"a": ["x"]}
 
 

@@ -101,7 +101,8 @@ A moment later the list of runs is back, with a line under it:
 ├── epic.jsonl               <span class="d">what happened, a line at a time</span>
 ├── epic.&lt;flow&gt;_&lt;id&gt;.jsonl   <span class="d">the same, for each flow it called</span>
 ├── resume.jsonl             <span class="d">for a flow that can be picked up</span>
-├── profile.jsonl            <span class="d">for a profiled run</span>
+├── profile.jsonl            <span class="d">for a run whose environment was profiled</span>
+├── flow-profile.jsonl       <span class="d">for a run whose flow was profiled</span>
 ├── traces/
 │   └── export.trace.json    <span class="d">the whole run as one timeline</span>
 └── sessions/
@@ -110,7 +111,7 @@ A moment later the list of runs is back, with a line under it:
 </Term>
 
 A file the run never wrote is left out: `resume.jsonl` only for a flow that
-[can be picked up](/user/resuming), `profile.jsonl` only for a
+[can be picked up](/user/resuming), `profile.jsonl` and `flow-profile.jsonl` only for a
 [profiled](/user/tracing#profiling-a-run) run.
 
 **`manifest.json`** is what lets somebody else read the rest:

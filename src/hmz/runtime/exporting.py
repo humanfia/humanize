@@ -220,9 +220,9 @@ def bundle(
     """Writes one whole run as one archive, credentials struck out of every byte of it.
 
     Everything the run wrote goes in -- its own record, a record per flow it called, the
-    state a resumable flow left, the profile of the programs it ran, every trace gathered of
-    it -- and beside those the session logs themselves, each filed under the session it is a
-    log of.
+    state a resumable flow left, the profiles of the programs it ran and of the flow's own
+    Python, every trace gathered of it -- and beside those the session logs themselves, each
+    filed under the session it is a log of.
 
     Args:
       epic: The run, by the directory it is written in.
@@ -755,7 +755,8 @@ def _files(epic: Path) -> Iterator[tuple[str, Path]]:
     """Everything one run wrote down about itself, by the name it goes in the archive under.
 
     The run's own record first, then a record per flow it called, then the journal a
-    resumable flow kept, the profile of the programs it ran, and every trace gathered of it.
+    resumable flow kept, the profiles of the programs it ran and of the flow's own Python, and
+    every trace gathered of it.
     Each is absent from a run that never wrote one -- a flow that is not resumable, a run
     nobody profiled -- and an absent one is left out rather than carried as an empty file.
 
@@ -765,11 +766,11 @@ def _files(epic: Path) -> Iterator[tuple[str, Path]]:
     Yields:
       What to call it inside the archive, and where to read it from.
     """
-    from hmz.runtime.tracing.profile import PROFILE
+    from hmz.runtime.tracing.profile import FLOW_PROFILE, PROFILE
 
     for one in records(epic):
         yield one.name, one
-    for name in (RESUME, PROFILE):
+    for name in (RESUME, PROFILE, FLOW_PROFILE):
         if (epic / name).is_file():
             yield name, epic / name
     with contextlib.suppress(OSError):

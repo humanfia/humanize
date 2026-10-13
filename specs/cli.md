@@ -11,8 +11,8 @@ settles who is reading; it decides nothing a layer under it decides.
 ```shell
 hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the terminal interface
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
-         [-p|--params <param>[,<param>...]]... [--profile] [--resume] [--json]
-         [--backup <target>|none]... <task>
+         [-p|--params <param>[,<param>...]]... [--profile-flow] [--profile-environment]
+         [--resume] [--json] [--backup <target>|none]... <task>
 hmz web [--port <port>] [--no-open] [--attached]
 hmz update
 hmz backup <epic> [--to <target>]... | hmz backup --list [--to <target>]...
@@ -173,9 +173,10 @@ def tools(argv: list[str]) -> int: ...
   exit with 128 plus the signal only once the run has let go of everything it made.
 - `--resume` MUST pick up the newest run of that flow in this workspace that can be picked up;
   without it every run MUST start from the top.
-- `--profile` MUST profile the programs the run's agents start as well as tracing them, and
-  without it no run MUST be: it is an option of the run, as its budget is, and nothing written
-  down for the workspace MUST turn it on.
+- `--profile-flow` MUST profile the flow's own Python, and `--profile-environment` the programs
+  the run's agents start, as well as tracing them; without each no run MUST be profiled that
+  way: each is an option of the run, as its budget is, and nothing written down for the
+  workspace MUST turn either on.
 - MUST read `<cli>` from the front and `<effort>` from after the last colon so that a model's own
   punctuation stays the model's, and MUST NOT restate here which backends exist.
 - A run started from a command line MUST have nobody outside it: its outworlder is away.

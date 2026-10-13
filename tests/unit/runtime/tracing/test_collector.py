@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.runtime.tracing import collect, collector
-from hmz.runtime.tracing.profile import PROFILE, Process
+from hmz.runtime.tracing.profile import FLOW_PROFILE, PROFILE, Process, Sample
 from tests.unit.runtime.tracing.logs import jsonl
 
 if TYPE_CHECKING:
@@ -187,3 +187,22 @@ def test_a_profile_is_drawn_inside_the_window(homes: Path, tmp_path: Path) -> No
     by_path = collect(WORKSPACE, profile=tmp_path / "epic")
     assert "make · 12" in processes(by_path)
     assert "programs" not in collect(WORKSPACE)["otherData"]
+
+
+def test_a_profile_of_the_flow_is_drawn_inside_the_window(
+    homes: Path, tmp_path: Path
+) -> None:
+    conversation(homes / "litellm", "a")
+    inside = Sample(T0 + 1, 1.0, ("inside x:1",))
+    outside = Sample(T0 - 100, 1.0, ("outside x:1",))
+    start = "2026-01-01T00:00:00Z"
+    document = collect(WORKSPACE, flow_profile=[inside, outside], start=start)
+    drawn = {e["name"] for e in document["traceEvents"] if e.get("cat") == "sample"}
+    assert drawn == {"inside x:1"}
+
+    jsonl(
+        tmp_path / "epic" / FLOW_PROFILE,
+        [{"t": T0 + 1, "dt": 1.0, "stack": ["read x:1"]}],
+    )
+    by_path = collect(WORKSPACE, flow_profile=tmp_path / "epic")
+    assert "python" in processes(by_path)

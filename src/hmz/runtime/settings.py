@@ -347,12 +347,12 @@ class Settings:
         """
         return self._kept(flow, "budget")
 
-    def profile(self, flow: str) -> bool:
-        """Whether a run of one flow here was last said to be profiled as well as traced.
+    def profile_flow(self, flow: str) -> bool:
+        """Whether a run of one flow here was last said to have the flow's own Python profiled.
 
         Kept beside the budget and for the reason it is kept: it is a thing about a run of the
         flow rather than one of the flow's params, decided by whoever runs it here -- a flow
-        whose tests take an hour is one somebody wants to see the processes of every time.
+        that spends its minutes between turns is one somebody wants to see the code of.
 
         Args:
           flow: The flow it was said for.
@@ -360,7 +360,21 @@ class Settings:
         Returns:
           Whether it was, and False for a flow nobody has said it of here.
         """
-        return self._flow(self._here(), flow).get("profile") is True
+        return self._flow(self._here(), flow).get("profile_flow") is True
+
+    def profile_environment(self, flow: str) -> bool:
+        """Whether a run of one flow here was last said to have its agents' programs profiled.
+
+        Kept for the reason :meth:`profile_flow` is: a flow whose tests take an hour is one
+        somebody wants to see the processes of every time.
+
+        Args:
+          flow: The flow it was said for.
+
+        Returns:
+          Whether it was, and False for a flow nobody has said it of here.
+        """
+        return self._flow(self._here(), flow).get("profile_environment") is True
 
     def backup(self, flow: str) -> tuple[str, ...] | None:
         """The backup targets an epic of one flow here was last said to go to, by name.
@@ -419,7 +433,8 @@ class Settings:
         params: dict[str, Any] | None = None,
         budget: dict[str, Any] | None = None,
         *,
-        profile: bool | None = None,
+        profile_flow: bool | None = None,
+        profile_environment: bool | None = None,
         backup: Sequence[str] | None = None,
     ) -> None:
         """Writes down what this workspace is set up to run, so that it opens that way.
@@ -440,9 +455,11 @@ class Settings:
             kept. The same asymmetry as the rest and for the same reason: the flow's whole
             entry is replaced below, so what is not handed in has to be read back or it is
             forgotten. A value that is empty erases it.
-          profile: Whether a run of it here is profiled as well as traced, or None to leave
-            whatever was kept, for the same reason. Written down only where it is on: off is
-            what a flow nobody has said anything of is.
+          profile_flow: Whether a run of it here has the flow's own Python profiled, or None
+            to leave whatever was kept, for the same reason. Written down only where it is
+            on: off is what a flow nobody has said anything of is.
+          profile_environment: Whether a run of it here has the programs its agents start
+            profiled, the same way.
           backup: The backup targets an epic of it here goes to, by name, or None to leave
             whatever was kept, for the same reason. Empty is none at all, which is a choice
             as much as any: the defaults are what a flow nobody has said anything of gets.
@@ -464,13 +481,12 @@ class Settings:
                 )
                 if one:
                     kept[under] = one
-            profiled = (
-                profile
-                if profile is not None
-                else self._flow(mine, flow).get("profile") is True
-            )
-            if profiled:
-                kept["profile"] = True
+            for under, said in (
+                ("profile_flow", profile_flow),
+                ("profile_environment", profile_environment),
+            ):
+                if said or (said is None and self._flow(mine, flow).get(under) is True):
+                    kept[under] = True
             targets = backup if backup is not None else self._backup(mine, flow)
             if targets is not None:
                 kept["backup"] = list(dict.fromkeys(targets))
