@@ -34,8 +34,8 @@ rules as `main`. Three workflows do it:
    or, for a new line, since the line before it was cut. A pre-release counts as a last release
    only to the pre-releases after it: `0.2.0` says all that changed since `0.1.x`, not just
    since `0.2.0-rc.1`.
-2. **`ci.yml`** runs on the release pull request, started by `release.yml`: a pull request a
-   workflow opened starts no checks of its own, and `ci-ok` is needed to merge it. It runs
+2. **`ci.yml`** runs on the release pull request, approved by `release.yml`: on a pull request
+   a workflow opened, it waits for approval, and its `ci-ok` is needed to merge it. It runs
    again on every push to a `release/*` branch, the merge included, on what the push changed.
 3. **`publish.yml`**, on a push to a `release/*` branch that merged its release pull request,
    tags the merge commit `vX.Y.Z`, builds a wheel and an sdist, runs `twine check --strict`
