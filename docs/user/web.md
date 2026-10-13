@@ -370,7 +370,8 @@ Start `hmz web` in a project, and open **New epic**:
 ### Check it worked
 
 - The terminal's transcript shows the task you typed in the browser, marked `· by browser`.
-- The sidebar lists the epic, `stopped`; **Search epics** shows what it spent.
+- The sidebar lists the epic, `done`: a chat is `running` only while its agent answers;
+  **Search epics** shows what it spent.
 
 ## Daemons {#daemons}
 
@@ -445,11 +446,11 @@ not only the one showing:
 
 | Kind | When |
 | --- | --- |
-| **done** | An epic ended, done. |
+| **done** | An epic ended, done; or a `chat` finished a turn and waits for your next line. |
 | **failed** | An epic failed, crashed, ran out of its budget, or was refused. |
-| **stopped** | An epic was stopped. |
+| **stopped** | An epic was stopped. Never a `chat`: leaving one is no news. |
 | **asked** | A flow put a question to a person: the outworlder. See [Questions](/user/questions). |
-| **listening** | A `chat` finished a turn and waits for your next line. |
+| **listening** | A flow other than `chat` waits for what to say next. |
 
 Each says which daemon, which directory and which epic it came from, and what was asked or how
 it ended.

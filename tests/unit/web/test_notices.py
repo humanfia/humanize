@@ -137,6 +137,56 @@ def test_a_question_is_asked_and_a_chat_waiting_is_listening(
     )
 
 
+def _chat(statuses: Statuses, turn: str, **said: Any) -> None:
+    """The chat standing at a turn, as a host says one."""
+    statuses.stands(**said)
+    statuses.now["/w"] |= {"flow": "chat", "turn": turn}
+
+
+def test_each_chat_turn_done_is_a_done_notice(
+    statuses: Statuses, notices: Notices
+) -> None:
+    _chat(statuses, "running")
+    notices.look()
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    (first,) = notices.look()
+    _chat(statuses, "running")
+    assert notices.look() == []
+    # What the agent asks mid-turn is asked, not its turn done.
+    _chat(statuses, "running", pending=[_asked("q2")])
+    assert [one["kind"] for one in notices.look()] == ["asked"]
+    _chat(statuses, "done", pending=[_asked("q3", "listen")])
+    (second,) = notices.look()
+
+    assert (first["kind"], first["flow"], first["text"]) == ("done", "chat", "which?")
+    assert second["kind"] == "done"
+
+
+@pytest.mark.parametrize(
+    ("turn", "how", "kinds"),
+    [
+        # Left, between turns or mid-turn, it is no news.
+        ("done", "stopped", []),
+        ("running", "stopped", []),
+        # Its last turn told done already, its end is told nothing again.
+        ("done", "done", []),
+        # Ended on a turn nothing had told done, that turn is.
+        ("running", "done", ["done"]),
+        ("done", "failed", ["failed"]),
+        ("running", "crashed", ["failed"]),
+    ],
+)
+def test_a_chat_ending_is_news_only_where_it_failed_or_ended_a_turn(
+    turn: str, how: str, kinds: list[str], statuses: Statuses, notices: Notices
+) -> None:
+    _chat(statuses, turn)
+    notices.look()
+    ended = _ended(how, at=time.time() + 1) | {"flow": "chat"}
+    _chat(statuses, "done", ended=ended)
+
+    assert [one["kind"] for one in notices.look()] == kinds
+
+
 def test_a_workspace_first_seen_later_is_news(
     statuses: Statuses, notices: Notices
 ) -> None:

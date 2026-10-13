@@ -578,8 +578,8 @@ class Host:
         Returns:
           How many frontends are attached and who, the state and number of the run, the
           flow, its epic and task, what it may spend and has spent -- both None with nothing
-          running -- the questions it waits on, how the last run to end ended, and the flows
-          running, as refs and as calls.
+          running -- the questions it waits on, where a chat is in its turn, how the last run
+          to end ended, and the flows running, as refs and as calls.
         """
         with self._lock:
             running = self._current
@@ -596,6 +596,7 @@ class Host:
                 for one in self._questions
             ]
             ended = dict(self._ended) if self._ended is not None else None
+            turn = self._turn(shown)
         calls = self._calls(now=time.monotonic())
         return {
             "attached": len(clients),
@@ -607,6 +608,7 @@ class Host:
             "task": shown.started.get("task", "") if shown is not None else "",
             "pending": pending,
             "ended": ended,
+            **turn,
             "budget": _json(running.run.budget) if running is not None else None,
             "usage": _json(running.run.usage) if running is not None else None,
             "flows": [one["ref"] for one in calls],
@@ -763,6 +765,8 @@ class Host:
         self._snap_pending()
 
     def _snap_pending(self) -> None:
+        # And the turn of a chat, which a question between turns is the end of.
+        self._snap_run()
         self._snap(
             "pending",
             pending=[
@@ -810,7 +814,24 @@ class Host:
             state=self._state(),
             **(shown.started if shown is not None else {"run": 0}),
             stopping=self._stopping.number if self._stopping is not None else None,
+            **self._turn(shown),
         )
+
+    def _turn(self, shown: _Run | None) -> dict[str, str]:
+        """Where a chat is in its turn: "running" while its agent answers, "done" otherwise.
+
+        A turn ends where the chat asks what to say next, or where the chat does; what the
+        agent asks its user mid-turn is not the end of one. Nothing for any other flow.
+        Under the lock.
+        """
+        if shown is None or not shown.run.chats:
+            return {}
+        listening = any(
+            one.run == shown.number and one.mode == "listen" for one in self._questions
+        )
+        return {
+            "turn": "done" if listening or shown is not self._current else "running"
+        }
 
     def _name_of(self, client: str) -> str:
         frontend = self._frontends.get(client)

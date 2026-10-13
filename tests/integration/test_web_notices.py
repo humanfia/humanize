@@ -1,4 +1,4 @@
-"""`hmz web`: an epic ending, and a chat waiting on its next turn, said as notices."""
+"""`hmz web`: an epic ending, and each turn of a chat done, said as notices."""
 
 from __future__ import annotations
 
@@ -94,7 +94,7 @@ def _until(
     raise AssertionError(f"no {kind} notice came")
 
 
-def test_a_chat_waiting_and_an_epic_ending_are_notices(project: Path) -> None:
+def test_each_chat_turn_done_and_an_epic_ending_are_notices(project: Path) -> None:
     write_flow(project / ".hmz" / "flows", "once", _ONCE)
     with served() as site:
         browser = Browser(site)
@@ -108,15 +108,20 @@ def test_a_chat_waiting_and_an_epic_ending_are_notices(project: Path) -> None:
                 "agents": {"assistant": AGENT},
             }
             assert browser.post("/api/held/start", chat).status == 200
-            _, listening = _until(heard, "listening")
-            assert (listening["workspace"], listening["flow"]) == (str(project), "chat")
-            assert (listening["task"], listening["role"]) == ("hello there", "human")
-            assert listening["epic"]
+            _, turned = _until(heard, "done")
+            assert (turned["workspace"], turned["flow"]) == (str(project), "chat")
+            assert (turned["task"], turned["role"]) == ("hello there", "human")
+            assert turned["text"] == "did: hello there"
+            assert turned["epic"]
 
+            # Each turn of it done is a notice of its own.
+            assert browser.post("/api/held/say", {"text": "and again"}).status == 200
+            _, again = _until(heard, "done")
+            assert (again["epic"], again["text"]) == (turned["epic"], "did: and again")
+
+            # And the chat left is none.
+            stopped_at = str(browser.get("/api/notices").json()["last"])
             assert browser.post("/api/held/stop").status == 200
-            stopped_at, stopped = _until(heard, "stopped")
-            assert stopped["epic"] == listening["epic"]
-
             started = browser.post(
                 "/api/held/start",
                 {
@@ -133,18 +138,18 @@ def test_a_chat_waiting_and_an_epic_ending_are_notices(project: Path) -> None:
                 "do it",
                 "",
             )
-            assert done["epic"] != listening["epic"]
+            assert done["epic"] != turned["epic"]
 
         kept = browser.get("/api/notices").json()
-        assert [one["kind"] for one in kept["notices"]] == [
-            "listening",
-            "stopped",
-            "done",
+        assert [(one["kind"], one["flow"]) for one in kept["notices"]] == [
+            ("done", "chat"),
+            ("done", "chat"),
+            ("done", "@local/once"),
         ]
         assert kept["last"] == kept["notices"][-1]["id"]
         after = browser.get(f"/api/notices?after={stopped_at}").json()["notices"]
-        assert [one["kind"] for one in after] == ["done"]
+        assert [one["flow"] for one in after] == ["@local/once"]
         assert browser.get("/api/notices?after=soon").status == 400
         # Carried on from the last one heard, a stream hears what came after it.
         with _follows(browser, stopped_at) as heard:
-            assert heard()[1]["kind"] == "done"
+            assert heard()[1]["flow"] == "@local/once"

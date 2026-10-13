@@ -382,8 +382,10 @@ class Fallbacks:
   it chose none, and how it was started MUST say which.
 - `status` MUST say, beside what is running, every question waiting on a person --
   `{question, role, text, mode}`, `mode` being `ask`, or `listen` for a chat waiting on its next
-  turn -- how the last run ended, `{how, why, epic, at}` or null, and the epic and task of the
-  run going or the last, so that a frontend can tell what happened without attaching.
+  turn -- how the last run ended, `{how, why, epic, at}` or null, the epic and task of the
+  run going or the last, and of a chat its `turn`: `running` while its agent answers, `done`
+  between turns and once it is over, which the run's standing also says -- so that a frontend
+  can tell what happened without attaching.
 - One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST
   close every conversation of a stopping run under whatever turn is open, and say how many.
 - An aside MUST be read-only, carry no skills, say nothing to the run, answer only the frontend

@@ -98,7 +98,15 @@ def test_the_run_going_is_the_one_opened_for_it_as_it_started(
 
     held = held_by(runs, running)
 
-    assert held == ({runs[found].at} if found is not None else set())
+    assert set(held) == ({runs[found].at} if found is not None else set())
+
+
+@pytest.mark.parametrize("turn", ["running", "done", ""])
+def test_the_run_going_carries_where_a_chat_is_in_its_turn(turn: str) -> None:
+    runs = _runs(_Ran(flow="chat", at="going"))
+    standing = {"state": "running", "flow": "chat"} | ({"turn": turn} if turn else {})
+
+    assert held_by(runs, {"/work/one": standing}) == {"going": turn}
 
 
 def test_a_trace_is_read_as_each_sessions_actions_in_the_order_they_happened() -> None:
@@ -214,6 +222,31 @@ def test_a_run_is_said_running_while_any_process_holds_it(
 
     assert listed["how"] == said
     assert listed["held"] is held
+
+
+@pytest.mark.parametrize(
+    ("how", "held", "going", "turn", "said"),
+    [
+        # The agent is answering.
+        ("", True, True, "running", "running"),
+        # Between turns: the turn is done, though the chat goes on.
+        ("", True, True, "done", "done"),
+        # Going where no host says where its turn is.
+        ("", False, True, "", "running"),
+        # Over: however it was ended but failing, it is done.
+        ("", False, False, "", "done"),
+        ("stopped", False, False, "", "done"),
+        ("done", False, False, "", "done"),
+        ("failed", False, False, "", "failed"),
+        ("crashed", False, False, "", "crashed"),
+    ],
+)
+def test_a_chat_is_said_running_only_while_its_agent_answers(
+    how: str, held: bool, going: bool, turn: str, said: str
+) -> None:
+    ran = cast("Ran", _Row(flow="chat", how=how))
+
+    assert row(ran, held=held, going=going, turn=turn)["how"] == said
 
 
 @dataclass(frozen=True)

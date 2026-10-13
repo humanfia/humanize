@@ -1,6 +1,6 @@
 """What happened to the runs of this machine worth telling somebody about, as notices.
 
-An epic ending, a question for a person, a chat waiting for its next turn: each is a notice,
+An epic ending, a question for a person, a chat's turn done: each is a notice,
 worked out of how every workspace's runs stand -- asked of each host every couple of seconds,
 as `Places` asks what runs, and never by attaching to it, which would keep a host that would
 otherwise go. What stood when this started is where it starts from rather than news. The last
@@ -113,6 +113,7 @@ class Notices:
                     "host": (status.get("pid"), status.get("started")),
                     "ended": status.get("ended"),
                     "pending": list(status.get("pending") or []),
+                    "turn": status.get("turn"),
                 }
             self._stood = stood
             for one in made:
@@ -217,21 +218,27 @@ def _noticed(
     """
     made: list[dict[str, Any]] = []
     ended = now.get("ended")
+    # A host says the turn of a chat alone, and of the run it shows: the one going, or the last.
+    chat = "turn" in now
     if ended and ended != was.get("ended") and float(ended.get("at") or began) >= began:
         why = str(ended.get("why") or "").strip()
-        made.append(
-            {
-                "kind": _ENDED.get(str(ended.get("how")), "failed"),
-                "workspace": workspace,
-                "epic": ended.get("epic") or "",
-                "flow": ended.get("flow") or now.get("flow") or "",
-                "task": ended.get("task") or now.get("task") or "",
-                "role": "",
-                # Why in a line: of a crash, the last of its traceback.
-                "text": why.splitlines()[-1] if why else "",
-                "at": ended.get("at") or time.time(),
-            }
-        )
+        kind = _ENDED.get(str(ended.get("how")), "failed")
+        # A chat left is no news, nor one whose last turn was told done already.
+        left = kind == "stopped" or (kind == "done" and was.get("turn") == "done")
+        if not (chat and now.get("run") == ended.get("run") and left):
+            made.append(
+                {
+                    "kind": kind,
+                    "workspace": workspace,
+                    "epic": ended.get("epic") or "",
+                    "flow": ended.get("flow") or now.get("flow") or "",
+                    "task": ended.get("task") or now.get("task") or "",
+                    "role": "",
+                    # Why in a line: of a crash, the last of its traceback.
+                    "text": why.splitlines()[-1] if why else "",
+                    "at": ended.get("at") or time.time(),
+                }
+            )
     same = was.get("host") == (now.get("pid"), now.get("started"))
     stood: list[dict[str, Any]] = (was.get("pending") or []) if same else []
     pending: list[dict[str, Any]] = now.get("pending") or []
@@ -242,7 +249,8 @@ def _noticed(
             continue
         made.append(
             {
-                "kind": kind,
+                # A chat asking what to say next is its turn done.
+                "kind": "done" if chat and kind == "listening" else kind,
                 "workspace": workspace,
                 "epic": now.get("epic") or "",
                 "flow": now.get("flow") or "",

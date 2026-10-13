@@ -41,6 +41,12 @@ UNFINISHED = "unfinished"
 #: How the run going now is said, before its epic says how it ended.
 RUNNING = "running"
 
+#: How a chat is said between its turns, and once it is over however it ended but failing.
+DONE = "done"
+
+#: The flow that is a conversation, said a turn at a time rather than as one run.
+CHAT = "chat"
+
 #: The most rows one page of the list holds.
 _PAGE = 200
 
@@ -285,7 +291,7 @@ def refused(why: ValueError) -> Refusal:
     return Refusal(sentence)
 
 
-def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> set[Path]:
+def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> dict[Path, str]:
     """Which of the runs written down are the runs the hosts are going with now.
 
     A host says what it started and when -- or, asked from outside, which flow -- and the epic
@@ -298,9 +304,9 @@ def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> set[Path]:
       running: What each host says runs, by its workspace.
 
     Returns:
-      Each run going, by its epic.
+      Each run going, by its epic, with where it is in its turn where it is a chat, or "".
     """
-    held: set[Path] = set()
+    held: dict[Path, str] = {}
     for workspace, standing in running.items():
         started = float(standing.get("at") or 0.0)
         for ran in runs:
@@ -312,20 +318,25 @@ def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> set[Path]:
                 continue
             if started and abs(_epoch(ran.began) - started) > _SAME:
                 continue
-            held.add(ran.at)
+            held[ran.at] = str(standing.get("turn") or "")
             break
     return held
 
 
-def row(ran: Ran, *, held: bool, going: bool = False) -> dict[str, Any]:
+def row(ran: Ran, *, held: bool, going: bool = False, turn: str = "") -> dict[str, Any]:
     """One run as the list says it.
 
     Args:
       ran: The run.
       held: Whether it is the run a host is going with, which the page follows live.
       going: Whether it is going at all, held by a host or by any other process.
+      turn: Of a chat a host is going with, where it is in its turn, or "" where unknown.
     """
     first = ran.task.strip().splitlines()[0] if ran.task.strip() else ""
+    how = ran.how or (RUNNING if held or going else UNFINISHED)
+    if ran.flow == CHAT and how in (RUNNING, UNFINISHED, "stopped"):
+        # A chat is going while its agent answers, and done between turns or once over.
+        how = RUNNING if how == RUNNING and turn != DONE else DONE
     return {
         "name": ran.name,
         "workspace": _resolved(ran.workspace),
@@ -333,7 +344,7 @@ def row(ran: Ran, *, held: bool, going: bool = False) -> dict[str, Any]:
         "task": first[:_TOLD] + ("…" if len(first) > _TOLD else ""),
         "began": ran.began,
         "ended": ran.ended,
-        "how": ran.how or (RUNNING if held or going else UNFINISHED),
+        "how": how,
         "agents": [
             {"name": one.name or one.agent, "role": one.agent, "runs": one.spec}
             for one in ran.agents
@@ -365,7 +376,13 @@ def labelled(spent: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def detail(
-    ran: Ran, *, held: bool, picks_up: bool, foreign: str = "", going: bool = False
+    ran: Ran,
+    *,
+    held: bool,
+    picks_up: bool,
+    foreign: str = "",
+    going: bool = False,
+    turn: str = "",
 ) -> dict[str, Any]:
     """One run, whole, as its own page says it.
 
@@ -375,8 +392,9 @@ def detail(
       going: Whether it is going at all, held by a host or by any other process.
       picks_up: Whether it can be picked up.
       foreign: Why one imported cannot be picked up here, or "".
+      turn: Of a chat a host is going with, where it is in its turn, or "" where unknown.
     """
-    return row(ran, held=held, going=going) | {
+    return row(ran, held=held, going=going, turn=turn) | {
         "at": str(ran.at),
         "task": ran.task,
         "ref": ran.ref,
@@ -578,7 +596,13 @@ def _listed(asked: Asked) -> dict[str, Any]:
     flow = asked.query.get("flow", "")
     wanted = asked.query.get("q", "").casefold()
     rows = [
-        row(ran, held=ran.at in held, going=asked.site.runs.going(ran)) for ran in runs
+        row(
+            ran,
+            held=ran.at in held,
+            going=asked.site.runs.going(ran),
+            turn=held.get(ran.at, ""),
+        )
+        for ran in runs
     ]
     counts: dict[str, int] = {}
     for one in rows:
@@ -623,6 +647,7 @@ def _one(asked: Asked) -> dict[str, Any]:
         picks_up=picks_up,
         foreign=foreign,
         going=runs.going(ran),
+        turn=held.get(ran.at, ""),
     ) | {"calls": calls(hmz.epics.tree(ran.at))}
 
 

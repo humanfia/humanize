@@ -1,8 +1,8 @@
 """Another machine's daemon, reached over ssh, telling this page of its epics.
 
-A chat started on the other machine through this interface waits on its next turn there; the
-notice that says so comes back as a notification here, said to be that daemon's, and so does
-its stopping.
+A chat started on the other machine through this interface finishes a turn there; the notice
+that says so comes back as a notification here, said to be that daemon's, and so does the
+next turn's.
 """
 
 from __future__ import annotations
@@ -32,13 +32,13 @@ def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Host:
     return found
 
 
-def _told(browser: Browser, kind: str) -> dict[str, Any]:
-    """The first notification of that kind, once there is one."""
+def _told(browser: Browser, kind: str, many: int = 1) -> dict[str, Any]:
+    """The newest notification of that kind, once there are that many."""
     deadline = time.monotonic() + PATIENCE
     while time.monotonic() < deadline:
         items = browser.get("/api/notifications").json()["items"]
         found = [one for one in items if one["kind"] == kind]
-        if found:
+        if len(found) >= many:
             return found[0]
         time.sleep(0.2)
     raise AssertionError(f"no {kind} notification in {PATIENCE}s")
@@ -60,16 +60,17 @@ def test_a_chat_on_another_machine_is_told_here(host: Host) -> None:
         )
         assert started.status == 200, started.body
 
-        listening = _told(browser, "listening")
-        assert listening["daemon"] == "box"
-        assert listening["workspace"] == str(there)
-        assert listening["task"] == "hello there"
-        assert not listening["read"]
+        turned = _told(browser, "done")
+        assert turned["daemon"] == "box"
+        assert turned["workspace"] == str(there)
+        assert turned["task"] == "hello there"
+        assert not turned["read"]
 
         read = browser.post("/api/notifications/read", {"all": True}).json()
         assert read["unread"] == 0
-        assert (
-            browser.post("/d/box/api/held/stop", {"workspace": str(there)}).status
-            == 200
-        )
-        assert _told(browser, "stopped")["daemon"] == "box"
+        said = {"workspace": str(there), "text": "and again"}
+        assert browser.post("/d/box/api/held/say", said).status == 200
+        again = _told(browser, "done", 2)
+        assert (again["daemon"], again["read"]) == ("box", False)
+        stop = browser.post("/d/box/api/held/stop", {"workspace": str(there)})
+        assert stop.status == 200

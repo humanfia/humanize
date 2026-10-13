@@ -143,7 +143,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   background, and where it is newer than the one serving, MUST mark the machine and offer
   `Update` in its menu, which copies `hmz update`.
 - MUST offer every workspace as a folder of its runs, newest first -- how each ended or that it
-  is going, its task, flow and agents, what it spent and how long it took, how many sessions it
+  is going, a chat `running` while its agent answers and `done` otherwise, short of failing --
+  its task, flow and agents, what it spent and how long it took, how many sessions it
   opened, whether it can be picked up and where it is written down -- found by how it went, by
   workspace, by flow and by its task, a page at a time.
 - MUST draw the run going as it happens: its sessions as lanes of turns over time, what each
@@ -296,7 +297,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 
 - MUST tell, of this machine's runs, every epic that ends -- `done`, `stopped`, or `failed`
   where it failed, crashed, ran out of budget or was refused -- every question a flow asks a
-  person, `asked`, and every chat waiting on its next turn, `listening`: each a notice, numbered
+  person, `asked`, and every other flow waiting on what to say next, `listening`; of a chat,
+  each turn done as `done` and its end only where it failed or ended a turn not yet told,
+  never `stopped`: each a notice, numbered
   in order and kept to a bound, served after a number and as server-sent events resumed from the
   last heard, `hmz web` reached over ssh included. It MUST work them out of each host's status as
   the daemon answers it, never by attaching, so that no host is kept for them.

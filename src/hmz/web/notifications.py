@@ -1,11 +1,12 @@
 """Notifications: what every daemon's notices come to, on this machine's interface alone.
 
-Each `hmz web` serves its own machine's notices -- an epic ended, a flow asking a person, a
-chat waiting for its next turn. The interface a person has open is told them of every daemon at
-once: this machine's as they are heard, and each SSH daemon's, while it is reached, off the
-stream its own interface serves. Each is told by which daemon said it, kept only where the kinds
-a person wants to be told of say so, and kept a while -- the last few hundred -- with whether it
-was read, for every page this interface serves to follow from where it last heard.
+Each `hmz web` serves its own machine's notices -- an epic ended, a chat's turn done, a flow
+asking a person or waiting for what to say next. The interface a person has open is told them
+of every daemon at once: this machine's as they are heard, and each SSH daemon's, while it is
+reached, off the stream its own interface serves. Each is told by which daemon said it, kept
+only where the kinds a person wants to be told of say so, and kept a while -- the last few
+hundred -- with whether it was read, for every page this interface serves to follow from where
+it last heard.
 
 Which kinds are told, and whether the system is asked to show them too, are the app's own
 settings, kept under `notifications` in this machine's `settings.yaml` and never a daemon's.
@@ -31,8 +32,8 @@ if TYPE_CHECKING:
 
 __all__ = ["KINDS", "ROUTES", "Notifications", "daemons", "preferences"]
 
-#: Every kind of notice there is: an epic done, failed or stopped, a person asked, and a chat
-#: listening for its next turn.
+#: Every kind of notice there is: an epic or a chat's turn done, an epic failed or stopped, a
+#: person asked, and a flow listening for what to say next.
 KINDS = ("done", "failed", "stopped", "asked", "listening")
 
 #: How many notifications are kept.

@@ -1103,6 +1103,44 @@ def test_the_status_says_the_questions_waited_on_and_how_the_last_run_ended(
     assert ended["at"] > 0
 
 
+def test_a_chats_turn_is_running_until_it_asks_what_to_say_next(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    where.next_run = FakeRun(flow="chat", ref="official/chat", chats=True)
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    assert host.status()["turn"] == "running"
+
+    # What the agent asks its user mid-turn is not the end of it.
+    asking = Asking()(outworlders.ask, Question("which?", ("red", "blue")))
+    asked = alice.told("asked", run=1)
+    assert host.status()["turn"] == "running"
+    alice.asks("answer", question=asked["question"], text="1")
+    assert asking.done.wait(PATIENCE)
+
+    asking = Asking()(outworlders.ask, Question("what next?"))
+    asked = alice.told("asked", run=1, mode="listen")
+    assert host.status()["turn"] == "done"
+    alice.told("run", turn="done")
+    alice.asks("answer", question=asked["question"], text="more")
+    assert asking.done.wait(PATIENCE)
+    assert host.status()["turn"] == "running"
+
+    run.released.set()
+    alice.told("ended", run=1)
+    assert host.status()["turn"] == "done"
+
+
+def test_a_flow_that_is_no_chat_says_no_turn(host: Host, where: Workspace) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+
+    assert "turn" not in host.status()
+    assert "turn" not in alice.told("run", state="running")
+    run.released.set()
+
+
 def test_a_question_of_a_claimed_role_is_its_claimants(
     host: Host, where: Workspace, outworlders: Outworlders
 ) -> None:
