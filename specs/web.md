@@ -147,9 +147,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   MUST offer, while it goes, every thing a person may do to it, never drawing over what somebody
   is typing while what it is about stands.
 - MUST offer the transcripts the terminal interface keeps: one per session, one per agent
-  across its sessions, one per person of what they are asked and answer, and one they all
-  appear on -- a line said in one going to whose it is, and answering instead what that
-  session's open turn asks.
+  across its sessions, and one per person of what they are asked and answer -- never one they
+  all appear on, an old address of which opens the epic -- a line said in one going to whose
+  it is, and answering instead what that session's open turn asks.
 - MUST name every agent of a run, going or written down, by its own name -- its sessions
   `<agent>/<n>`, its node, its transcript, its address and what is said to it -- the role it
   fills said only after the name, as the parameter it is; and a person by the role they answer.

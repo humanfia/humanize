@@ -143,7 +143,7 @@ export function mount(root, { parts, query }) {
         h('span', { title: when(detail.began) }, `began ${ago(detail.began)}`),
         h('span', { class: 'mono', 'data-hmz': 'clock' }),
       ]
-      const where = mode.session || (mode.log ? `${mode.log} log` : 'Log')
+      const where = mode.session || `${mode.log} log`
       const title = reading(mode)
         ? h('span', { class: 'crumbs' }, h('a', { href: base }, headline(detail.task)), h('span', { 'aria-hidden': 'true' }, ' / '), h('span', { class: 'mono' }, where))
         : headline(detail.task)
@@ -216,7 +216,6 @@ export function mount(root, { parts, query }) {
   /** What the thread in front is the transcript of, as `sayer` takes it. */
   function threadKey() {
     if (mode.session) return mode.session
-    if (!mode.log) return ''
     return persons.has(mode.log) ? `person:${mode.log}` : `agent:${mode.log}`
   }
 
@@ -285,8 +284,8 @@ export function mount(root, { parts, query }) {
     if (!traced && !tracing && !traceError) readTrace()
     region('thread', [key, Boolean(traced), tracing, String(traceError)], () => {
       saidFor = ''
-      // The sessions the thread is of: one, every one of an agent's, or every one.
-      const sessions = sessionsOf(detail).filter((one) => (mode.session ? one.key === key : !mode.log || one.agent === mode.log))
+      // The sessions the thread is of: one, or every one of an agent's.
+      const sessions = sessionsOf(detail).filter((one) => (mode.session ? one.key === key : one.agent === mode.log))
       const read = traced ? sessions.map((one) => ({ ...(traced.find((each) => each.key === one.traced) || { actions: [] }), label: one.key })).filter((one) => one.actions.length) : []
       fill(
         box,
@@ -344,7 +343,7 @@ export function mount(root, { parts, query }) {
         sayToKey = to
       }
     }
-    const composer = going ? (reading(mode) && sayToKey && (mode.session || mode.log) ? sayTo.node : say.node) : null
+    const composer = going ? (reading(mode) && sayToKey ? sayTo.node : say.node) : null
     region('dock-composer', [going, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
       dock.querySelector('.composer, .dock-note')?.remove()
       if (composer) dock.append(composer)
@@ -556,15 +555,14 @@ function modeOf(parts) {
   return {
     session: parts[2] === 'sessions' ? parts[3] || '' : '',
     focus: parts[2] === 'agents' ? parts[3] || '' : '',
-    // A log: every agent's and person's lines, "" -- or one agent's, by its name, or one
-    // person's, by the role they answer.
-    log: parts[2] === 'logs' ? parts[3] || '' : null,
+    // A log: one agent's lines, by its name, or one person's, by the role they answer.
+    log: parts[2] === 'logs' ? parts[3] || '' : '',
   }
 }
 
 /** Whether a view of an epic is a thread to read rather than its graph. */
 function reading(mode) {
-  return Boolean(mode.session) || mode.log !== null
+  return Boolean(mode.session || mode.log)
 }
 
 /**

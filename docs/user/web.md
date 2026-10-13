@@ -80,7 +80,7 @@ daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same mach
 `@` is Local's.
 
 **Right-click** anything for what can be done to it: a folder in the sidebar (new epic here, its
-flows, search it, copy its path, settings), an epic (open, its log, resume, copy its link or task,
+flows, search it, copy its path, settings), an epic (open, its Exomyth, resume, copy its link or task,
 export, stop), an agent or a session, a node on the graph, a flow or flowverse card, a search
 result, a line of a thread (copy it, or the whole thread). Where there is text to read or write,
 selected text keeps the browser's own menu. **Hover** over anything cut short -- a folder's name,
@@ -148,9 +148,10 @@ task, then each reply and each line you typed under it, on the right. The box un
 you answer -- between turns it is your next turn, and while the agent asks something mid-turn
 it answers that, the answers it offers buttons at the end of the conversation.
 
-**Log**, first under an epic in the sidebar, is the transcript every agent and person appears
-on; each node's **log** row is that agent's across its sessions, and a person's node opens what
-they were asked and answered. A line typed under one goes to whose it is.
+Each node's **log** row is that agent's transcript across its sessions, and a person's node
+opens what they were asked and answered. A line typed under one goes to whose it is. There is
+no log of every session at once: under an epic in the sidebar are its agents and their
+sessions.
 
 **List**, at the top right of the graph, draws the agents as a list instead, the working first;
 your choice is kept in this browser.
@@ -174,11 +175,11 @@ spent, and how long it took, with how much of that was spent working.
 
 ### Exomyth {#exomyth}
 
-**Exomyth** (the chart at the top of an epic, its row under the epic in the sidebar, or its
-menu) lays the epic out over time, as [Perfetto](https://ui.perfetto.dev) lays out a trace --
-but with **every session its own process**, under the session or the flow that started it. It
-reads the epic's [timeline](/reference/tracing#timeline) out of the logs its agents kept; an
-epic still going is read again every two seconds while the tab is shown.
+**Exomyth** (the chart at the top of an epic, or its menu) lays the epic out over time, as
+[Perfetto](https://ui.perfetto.dev) lays out a trace -- but with **every session its own
+process**, under the session or the flow that started it. It reads the epic's
+[timeline](/reference/tracing#timeline) out of the logs its agents kept; an epic still going is
+read again every two seconds while the tab is shown.
 
 - **Timeline.** The epic's flows, each session and each program a [profiled](/user/tracing)
   epic ran, a row each, with a track per lane of its spans: sessions, turns, model calls,

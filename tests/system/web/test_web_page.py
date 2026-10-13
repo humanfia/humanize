@@ -786,7 +786,7 @@ def test_the_flow_and_its_environment_are_profiled_apart(
         page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
 
 
-def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(
+def test_an_epic_is_read_by_its_agents_logs_and_its_agents_as_a_list(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
@@ -799,21 +799,36 @@ def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(
         )
         expect(inspector.locator("[data-hmz=frontends]")).to_contain_text("this page")
 
-        page.locator("[data-hmz=sidebar] [data-hmz=log]").click()
-        thread = page.locator("[data-hmz=thread]")
-        expect(thread).to_contain_text("did: log me")
-        # What a chat asks next is the reply said back, which is not said twice.
-        expect(thread).not_to_contain_text("human asks")
-        expect(page.locator("[data-hmz=bar] .crumbs")).to_contain_text("Log")
+        # No log of every session, and no Exomyth, under the epic in the sidebar: Exomyth is
+        # opened from the epic's menu or its bar, and a log is one agent's.
+        side = page.locator("[data-hmz=sidebar]")
+        expect(side.locator("[data-hmz=agent]").first).to_be_visible()
+        expect(side.locator("[data-hmz=log], [data-hmz=exomyth-link]")).to_have_count(0)
+        page.locator("[data-hmz=bar] .bar-title").click(button="right")
+        menu = page.locator(".popover.context")
+        expect(menu.get_by_role("menuitem", name="Exomyth")).to_be_visible()
+        expect(menu.get_by_role("menuitem", name="Open log")).to_have_count(0)
+        page.keyboard.press("Escape")
+        # Where that log was, the epic's graph is.
+        found = re.search(r"#/epics/([^/]+)", page.url)
+        assert found is not None
+        name = found[1]
+        go(page, f"/epics/{name}/logs")
+        page.wait_for_url(re.compile(rf"#/epics/{name}$"))
+        expect(page.locator("[data-hmz=thread]")).to_have_count(0)
+        expect(page.locator("[data-hmz=bar] .crumbs")).to_have_count(0)
 
-        page.locator("[data-hmz=bar] .crumbs a").click()
         page.locator(".shape-switch").get_by_role("button", name="List").click()
         listed = page.locator("[data-hmz=agent-list] [data-agent]").filter(
             has_text="assistant"
         )
         expect(listed).to_contain_text(re.compile(r"\w+/1"))
         listed.get_by_role("link", name="≡ log").click()
-        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: log me")
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("did: log me")
+        # What a chat asks next is the reply said back, which is not said twice.
+        expect(thread).not_to_contain_text("human asks")
+        expect(page.locator("[data-hmz=bar] .crumbs")).to_contain_text("log")
         page.locator("[data-hmz=bar] .crumbs a").click()
         page.locator(".shape-switch").get_by_role("button", name="Graph").click()
         page.get_by_role("button", name="Stop").click()
