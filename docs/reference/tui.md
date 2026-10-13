@@ -104,13 +104,13 @@ conversation), `outworlder` and `monitor`.
 
 ### Chat {#chat}
 
-A run of the flow named `chat` -- or, with none running, `chat` set up -- is one conversation,
-read as Claude Code reads one:
+A run of the flow named `chat` (a path or ref whose last part is `chat` included) -- or, with
+none running, `chat` set up -- is one conversation, read as Claude Code reads one:
 
 | | |
 | --- | --- |
-| View | The aggregate only: no round, and [`←`](#key-left) opens no monitor. |
-| Above the prompt | No outworlder line. |
+| View | Its conversation alone, landed on as any run's first is but with no `─ reading <agent> ─` line: no round, and [`←`](#key-left) opens no monitor. |
+| Above the prompt | No outworlder line, and its agent's line marks neither `reading` nor `unread`. |
 | Status line | `running` while a turn is open, `done` once it waits for you ([left side](#status-left)). |
 | Stopping | None: `/stop` is refused, and [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) ends the chat; the next line starts another. |
 | Leaving | [`/exit`](#leaving-and-letting-go) and `ctrl+q` ask nothing. |
