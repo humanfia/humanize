@@ -1,41 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 480" width="660" height="480">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 584" width="720" height="584">
   <!-- The disk image's window, drawn as the docs' and humanfia.ai's heroes are: a ruled sheet,
-       one square, one circle, and the move between them. The app sits on the pink square at
-       (180, 170) and Applications in the cyan disc at (480, 170), as tauri.conf.json places
-       their 128-point icons; the arrow says which way. Finder keeps a window with a picture
-       light, and its labels ink, so the sheet is the light paper alone.
+       one square, one circle, and the move between them. The app sits in the pink square at
+       (210, 196) and Applications in the cyan disc at (510, 196), as tauri.conf.json places
+       their 128-point icons, each with its label inside its plane; the arrow says which way.
+       Finder keeps a window with a picture light, and its labels ink, so the sheet is the light
+       paper alone, kept 48 points clear of the window's rounded edges.
 
        Under it, the plate `#unsigned`: how to open an app macOS cannot check, the first time.
-       `pnpm dmg-background` makes background.tiff, 660 x 480 with the plate, and
-       background-signed.tiff, 660 x 400 without it for an app signed with a Developer ID, each
+       `pnpm dmg-background` makes background.tiff, 720 x 584 with the plate, and
+       background-signed.tiff, 720 x 456 without it for an app signed with a Developer ID, each
        at 1x and 2x, from this. Finder draws it under its title bar, 28 points that the window
        sizes in tauri.conf.json and publish.yml add to it. -->
-  <rect width="660" height="480" fill="#f4f8f9"/>
+  <rect width="720" height="584" fill="#f4f8f9"/>
 
-  <!-- The sheet: ruled, ticked along two edges, marked at its corners. -->
+  <!-- The sheet: ruled, and marked at its top corners. -->
   <g stroke="#141a1f" stroke-opacity="0.07">
-    <path d="M60 16V464M120 16V464M240 16V464M300 16V464M360 16V464M420 16V464M540 16V464M600 16V464"/>
-    <path d="M16 60H644M16 120H644M16 240H644M16 360H644M16 420H644"/>
+    <path d="M120 24V560M240 24V560M360 24V560M480 24V560M600 24V560"/>
+    <path d="M24 120H696M24 240H696M24 360H696M24 480H696"/>
   </g>
-  <g stroke="#141a1f" stroke-opacity="0.38">
-    <path d="M20 0v6M40 0v6M60 0v10M80 0v6M100 0v6M120 0v14M140 0v6M160 0v6M180 0v10M200 0v6M220 0v6M240 0v14M260 0v6M280 0v6M300 0v10M320 0v6M340 0v6M360 0v14M380 0v6M400 0v6M420 0v10M440 0v6M460 0v6M480 0v14M500 0v6M520 0v6M540 0v10M560 0v6M580 0v6M600 0v14M620 0v6M640 0v6"/>
-    <path d="M0 20h6M0 40h6M0 60h10M0 80h6M0 100h6M0 120h14M0 140h6M0 160h6M0 180h10M0 200h6M0 220h6M0 240h14M0 260h6M0 280h6M0 300h10M0 320h6M0 340h6M0 360h14M0 380h6M0 400h6M0 420h10M0 440h6M0 460h6"/>
-    <g fill="none">
-      <circle cx="36" cy="36" r="5"/><path d="M27 36h18M36 27v18"/>
-      <circle cx="624" cy="36" r="5"/><path d="M615 36h18M624 27v18"/>
-    </g>
+  <g stroke="#141a1f" stroke-opacity="0.38" fill="none">
+    <circle cx="48" cy="48" r="5"/><path d="M39 48h18M48 39v18"/>
+    <circle cx="672" cy="48" r="5"/><path d="M663 48h18M672 39v18"/>
   </g>
 
-  <!-- Where the app is: a square plane, set on the sheet's own rules. -->
-  <rect x="96" y="86" width="168" height="168" fill="#ec6fa3" fill-opacity="0.16"/>
-  <path d="M96 86h28M96 86v28" stroke="#b83a72" stroke-width="2" fill="none"/>
+  <!-- Where the app is: a square plane, holding the icon and its label. -->
+  <rect x="110" y="108" width="200" height="200" fill="#ec6fa3" fill-opacity="0.16"/>
+  <path d="M110 108h32M110 108v32" stroke="#b83a72" stroke-width="2" fill="none"/>
 
-  <!-- Where it goes: a disc, a compass ring round it ticked every 15 degrees, and a green
-       square riding the ring. -->
-  <circle cx="480" cy="170" r="92" fill="#1fb3c7" fill-opacity="0.18"/>
-  <circle cx="480" cy="170" r="112" fill="none" stroke="#141a1f" stroke-width="1.2"/>
-  <g stroke="#141a1f" stroke-width="1" transform="translate(480 170)">
-    <path id="tick" d="M0 -112v8"/>
+  <!-- Where it goes: a disc holding the icon and its label, a compass ring round it ticked
+       every 15 degrees, and a green square riding the ring. -->
+  <circle cx="510" cy="208" r="104" fill="#1fb3c7" fill-opacity="0.18"/>
+  <circle cx="510" cy="208" r="124" fill="none" stroke="#141a1f" stroke-width="1.2"/>
+  <g stroke="#141a1f" stroke-width="1" transform="translate(510 208)">
+    <path id="tick" d="M0 -124v8"/>
     <use href="#tick" transform="rotate(15)"/><use href="#tick" transform="rotate(30)"/>
     <use href="#tick" transform="rotate(60)"/><use href="#tick" transform="rotate(75)"/>
     <use href="#tick" transform="rotate(90)"/><use href="#tick" transform="rotate(105)"/>
@@ -48,36 +45,36 @@
     <use href="#tick" transform="rotate(315)"/><use href="#tick" transform="rotate(330)"/>
     <use href="#tick" transform="rotate(345)"/>
   </g>
-  <rect x="-7" y="-119" width="14" height="14" fill="#76b900" transform="translate(480 170) rotate(45)"/>
+  <rect x="-7" y="-131" width="14" height="14" fill="#76b900" transform="translate(510 208) rotate(45)"/>
 
   <!-- The move: a bar cut across, and its head. -->
-  <path d="M280 165H330V175H280Z" fill="#141a1f"/>
-  <path d="M326 150L356 170L326 190Z" fill="#141a1f"/>
+  <path d="M322 191H352V201H322Z" fill="#141a1f"/>
+  <path d="M348 178L374 196L348 214Z" fill="#141a1f"/>
 
   <!-- The base the drawing stands on, and what it says. -->
-  <rect x="36" y="300" width="588" height="6" fill="#141a1f"/>
-  <rect x="36" y="327" width="14" height="4" fill="#76b900"/>
-  <rect x="50" y="327" width="14" height="4" fill="#1fb3c7"/>
+  <rect x="48" y="364" width="624" height="6" fill="#141a1f"/>
+  <rect x="48" y="396" width="14" height="4" fill="#76b900"/>
+  <rect x="62" y="396" width="14" height="4" fill="#1fb3c7"/>
   <g font-family="'SF Mono', ui-monospace, Menlo, monospace" font-size="11" letter-spacing="2.2" fill="#141a1f">
-    <text x="76" y="333" font-weight="700">DRAG TO APPLICATIONS</text>
-    <text x="624" y="333" text-anchor="end" fill-opacity="0.55">humanfia.ai</text>
+    <text x="88" y="402" font-weight="700">DRAG TO APPLICATIONS</text>
+    <text x="672" y="402" text-anchor="end" fill-opacity="0.55">humanfia.ai</text>
   </g>
 
   <!-- The first open, where the app is signed ad hoc: an ink plate, its steps numbered in gold. -->
   <g id="unsigned">
-    <rect x="36" y="350" width="588" height="108" fill="#141a1f"/>
-    <rect x="36" y="350" width="6" height="108" fill="#d9a440"/>
+    <rect x="48" y="424" width="624" height="112" fill="#141a1f"/>
+    <rect x="48" y="424" width="6" height="112" fill="#d9a440"/>
     <g font-family="'SF Mono', ui-monospace, Menlo, monospace" font-size="10" letter-spacing="2" fill="#d9a440" font-weight="700">
-      <text x="60" y="373">FIRST OPEN</text>
-      <text x="60" y="399">1</text>
-      <text x="60" y="421">2</text>
-      <text x="60" y="443">OR</text>
+      <text x="76" y="449">FIRST OPEN</text>
+      <text x="76" y="475">1</text>
+      <text x="76" y="497">2</text>
+      <text x="76" y="519">OR</text>
     </g>
     <g font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13" fill="#f4f8f9">
-      <text x="180" y="373" fill-opacity="0.6">humanize is not signed by Apple yet, so macOS stops it once.</text>
-      <text x="84" y="399">Open humanize from Applications, and choose <tspan font-weight="700">Done</tspan>.</text>
-      <text x="84" y="421">System Settings → Privacy &amp; Security → <tspan font-weight="700">Open Anyway</tspan>.</text>
+      <text x="196" y="449" fill-opacity="0.6">humanize is not signed by Apple yet, so macOS stops it once.</text>
+      <text x="104" y="475">Open humanize from Applications, and choose <tspan font-weight="700">Done</tspan>.</text>
+      <text x="104" y="497">System Settings → Privacy &amp; Security → <tspan font-weight="700">Open Anyway</tspan>.</text>
     </g>
-    <text x="84" y="443" font-family="'SF Mono', ui-monospace, Menlo, monospace" font-size="11" fill="#f4f8f9">xattr -dr com.apple.quarantine /Applications/humanize.app</text>
+    <text x="104" y="519" font-family="'SF Mono', ui-monospace, Menlo, monospace" font-size="11" fill="#f4f8f9">xattr -dr com.apple.quarantine /Applications/humanize.app</text>
   </g>
 </svg>
