@@ -30,7 +30,7 @@ jobs:
       contents: write # the release branch
       pull-requests: write # the release pull request
       issues: write # the `autorelease:` labels release-please finds its pull requests by
-      actions: write # to run ci.yml on the release pull request
+      actions: write # to approve ci.yml's run on the release pull request
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -128,10 +128,10 @@ jobs:
           npm ci --no-audit --no-fund
           node release-pr.js
 
-      # A pull request this workflow's token opens or updates starts no `ci-ok` of its own, and
-      # the branch rule needs one. A dispatch is the one event that token may start. The pull
-      # request is found by release-please's branch, not its `autorelease: pending` label, which
-      # it may not have yet; and never dispatched without one, which would run CI on `main`.
+      # A pull request this workflow's token opens or updates starts ci.yml held for approval,
+      # and only that run's `ci-ok` lets it merge: a dispatched run's does not count. So it is
+      # approved here, found by release-please's branch rather than its `autorelease: pending`
+      # label, which the pull request may not have yet.
       - name: Run CI on the release pull request
         env:
           GH_TOKEN: ${{ github.token }}
@@ -143,4 +143,13 @@ jobs:
             echo "::error::No release pull request is open against $BRANCH."
             exit 1
           fi
-          gh workflow run ci.yml --ref "$head" --repo "$GITHUB_REPOSITORY"
+          for _ in $(seq 30); do
+            run="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch "$head" \
+              --event pull_request --status action_required --json databaseId --jq '.[0].databaseId // ""')"
+            if [[ -n "$run" ]]; then
+              gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$run/approve"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::No CI run on $head waits for approval: the pull request did not change."
