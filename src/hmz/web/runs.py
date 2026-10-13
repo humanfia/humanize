@@ -479,52 +479,6 @@ def sessions_of(document: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(held.values(), key=lambda one: one["actions"][0]["start"])
 
 
-def spending(runs: list[Ran], days: int, now: datetime.datetime) -> dict[str, Any]:
-    """What the runs of the last few days spent, by day and by flow, as the epics say.
-
-    Args:
-      runs: The runs, newest first.
-      days: How many days back, counting today.
-      now: When today is, in UTC.
-
-    Returns:
-      The days, oldest first, each with what its runs spent; the flows, the costliest
-      first; how the runs ended; and the whole of it. A run that has not said what it spent
-      -- still going, or killed before it could -- is counted as a run and nothing else.
-    """
-    first = (now - datetime.timedelta(days=days - 1)).date()
-    by_day: dict[str, dict[str, Any]] = {
-        (first + datetime.timedelta(days=step)).isoformat(): _nothing()
-        for step in range(days)
-    }
-    by_flow: dict[str, dict[str, Any]] = {}
-    ended: dict[str, int] = {}
-    whole = _nothing()
-    for ran in runs:
-        when = _when(ran.began)
-        if when is None or when.date() < first:
-            continue
-        for into in (
-            by_day.setdefault(when.date().isoformat(), _nothing()),
-            by_flow.setdefault(ran.flow, _nothing()),
-            whole,
-        ):
-            _add(into, ran)
-        how = ran.how or UNFINISHED
-        ended[how] = ended.get(how, 0) + 1
-    return {
-        "days": [{"day": day} | _said(one) for day, one in sorted(by_day.items())],
-        "flows": [
-            {"flow": flow} | _said(one)
-            for flow, one in sorted(
-                by_flow.items(), key=lambda item: (-item[1]["cost"], item[0])
-            )
-        ],
-        "ended": ended,
-        "whole": _said(whole),
-    }
-
-
 def _said(one: dict[str, Any]) -> dict[str, Any]:
     """What some runs spent, with each figure also said as the terminal interface says it."""
     return one | {
@@ -532,18 +486,6 @@ def _said(one: dict[str, Any]) -> dict[str, Any]:
         for key, value in (labelled(one) or {}).items()
         if key in ("money", "tokens", "worked")
     }
-
-
-def _nothing() -> dict[str, Any]:
-    return {"runs": 0, "cost": 0.0, "output_tokens": 0, "seconds": 0.0}
-
-
-def _add(into: dict[str, Any], ran: Ran) -> None:
-    into["runs"] += 1
-    spent = ran.spent or {}
-    into["cost"] += float(spent.get("cost") or 0.0)
-    into["output_tokens"] += int(spent.get("output_tokens") or 0)
-    into["seconds"] += float(spent.get("seconds") or 0.0)
 
 
 def _stamp(epic: Path) -> tuple[int, int]:
@@ -722,9 +664,16 @@ def _usage(asked: Asked) -> dict[str, Any]:
         days = min(365, max(1, int(asked.query.get("days", "30"))))
     except ValueError as why:
         raise Refusal("days is a whole number.") from why
-    now = datetime.datetime.now(datetime.UTC)
-    runs = asked.site.runs.all(asked.query.get("workspace", ""))
-    return {"days_back": days} | spending(runs, days, now)
+    from hmz.runtime.epic import spending
+
+    said = spending(asked.site.runs.all(asked.query.get("workspace", "")), days)
+    return {
+        "days_back": days,
+        "days": [_said(one) for one in said["days"]],
+        "flows": [_said(one) for one in said["flows"]],
+        "ended": said["ended"],
+        "whole": _said(said["whole"]),
+    }
 
 
 #: What a page reads of the runs written down here.

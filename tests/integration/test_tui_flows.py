@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import yaml
 
+from hmz.runtime.flowing import index
 from hmz.tui import Humanize
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Agent, Clis
@@ -29,6 +30,7 @@ from tests.integration.doubles_tui import (
     started,
     trail,
     typed,
+    until,
 )
 
 if TYPE_CHECKING:
@@ -148,3 +150,25 @@ async def test_the_cli_and_model_pickers_offer_what_the_installed_agent_said_it_
         await on(pilot, Agent)
         await opens(pilot, "model")
         await shows(pilot, f"{MODEL} ✔")
+
+
+async def test_the_flows_with_a_newer_release_are_counted_on_the_status_line(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = index.Installed(
+        verse="official", name="kernel", version="1.0.0", commit="", repo=""
+    )
+    newer = [index.Update(held, "1.1.0")]
+    monkeypatch.setattr(index, "updates", lambda: newer)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await shows(
+            pilot, "kernel 1.0.0 ↑ 1.1.0; update from /flow", "1 flow update · "
+        )
+
+        newer.clear()
+        await typed(pilot, "/flow")
+        await on(pilot, Flows)
+        await leaves(pilot)
+        await until(pilot, lambda: "flow update" not in screen(app), "the count to go")

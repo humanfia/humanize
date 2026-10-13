@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 from dataclasses import dataclass, field
@@ -812,3 +813,46 @@ def test_an_epic_from_before_sessions_were_kept_reads_its_links(
     assert epic.where(tmp_path, one) == links
     assert epic.logs(tmp_path, one) == {"log.jsonl": target.resolve()}
     assert epic.logs(tmp_path, one._replace(name="other")) == {}
+
+
+# ------------------------------------------------------------------ spending
+
+
+def test_spending_counts_each_day_and_flow_and_how_each_run_ended() -> None:
+    def ran(began: str = "2026-10-08T10:00:00+00:00", **said: Any) -> epic.Ran:
+        return epic.Ran(Path("e"), flow=said.pop("flow", "ralph"), began=began, **said)
+
+    said = epic.spending(
+        [
+            ran(how="done", spent={"cost": 1.5, "output_tokens": 300, "seconds": 60}),
+            ran(
+                "2026-10-07T23:59:00+00:00",
+                flow="goal",
+                how="failed",
+                spent={"cost": 2.0, "output_tokens": 100, "seconds": 30},
+            ),
+            # Still going: a run, and nothing spent yet.
+            ran("2026-10-08T11:00:00+00:00"),
+            # Before the days asked about.
+            ran("2026-10-01T10:00:00+00:00", how="done", spent={"cost": 9.0}),
+            ran("not a moment", how="done", spent={"cost": 9.0}),
+        ],
+        days=2,
+        now=datetime.datetime(2026, 10, 8, 12, 0, tzinfo=datetime.UTC),
+    )
+
+    assert [(one["day"], one["runs"], one["cost"]) for one in said["days"]] == [
+        ("2026-10-07", 1, 2.0),
+        ("2026-10-08", 2, 1.5),
+    ]
+    assert [(one["flow"], one["runs"]) for one in said["flows"]] == [
+        ("goal", 1),  # the costliest first
+        ("ralph", 2),
+    ]
+    assert said["ended"] == {"done": 1, "failed": 1, epic.UNFINISHED: 1}
+    assert said["whole"] == {
+        "runs": 3,
+        "cost": 3.5,
+        "output_tokens": 400,
+        "seconds": 90.0,
+    }

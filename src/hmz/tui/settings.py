@@ -1,8 +1,8 @@
 """`/settings`: every setting humanize has, on a screen of its own, one level at a time.
 
-What opens is the six places settings are kept and nothing else -- this machine's own, the
-accounts, the fallbacks, the runtimes, the backups and this workspace's -- each a card saying
-what is in it,
+What opens is the six places settings are kept -- this machine's own, the accounts, the
+fallbacks, the runtimes, the backups and this workspace's -- and what the epics spent, each a
+card saying what is in it,
 as a phone's settings or VS Code's open on their categories. They stand from the broadest to
 the nearest: what is true wherever humanize runs, who its agents are and what takes over when
 one fails, where their work goes and where its epics are kept, and last the one directory open
@@ -74,6 +74,7 @@ from .pick import (
     complete,
     switched,
 )
+from .usage import USAGE, Spends
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -96,6 +97,7 @@ PAGES = (
     "runtimes",
     "backup",
     "workspace",
+    "usage",
 )
 
 #: The page that moved to `/flow`, still taken by `/settings` so that it can say where it went.
@@ -150,6 +152,7 @@ _PAGES = (
     ),
     _Page("Backup", "⇪", "repositories epics are backed up to"),
     _Page("Workspace", "⌂", "this directory: its flow, and forgetting it"),
+    _Page("Usage", "$", "what the epics spent, by day and by flow"),
 )
 
 #: What the first screen says it is.
@@ -212,8 +215,8 @@ _MEANS = {
 }
 
 
-class Adjusts(Providers, Machines, Fallbacks, Backups):
-    """Every setting humanize has: `/settings`, six pages opened from one screen of them.
+class Adjusts(Providers, Machines, Fallbacks, Backups, Spends):
+    """Every setting humanize has: `/settings`, seven pages opened from one screen of them.
 
     General is what is true of this machine however many projects are driven from it; the
     accounts, the fallbacks and the runtimes are what agents run as, where turns go when they
@@ -411,6 +414,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
                 _MACHINES: self.MACHINES_ABOUT,
                 _FALLBACK: self.STEPS_ABOUT,
                 _BACKUP: self.BACKUP_ABOUT,
+                USAGE: self.USAGE_ABOUT,
             }[self._tab]
         )
         if self._home:
@@ -423,6 +427,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
             self._fill_steps()
         elif self._tab == _BACKUP:
             self._fill_backups()
+        elif self._tab == USAGE:
+            self._fill_usage()
         else:
             self._fill_own()
 
@@ -438,6 +444,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
             return _many(len(self._saved_machines), "machine")
         if page == _BACKUP:
             return _many(len(self._repos), "target")
+        if page == USAGE:
+            return self._usage_summary()
         return _many(len(self._steps), "rule")
 
     def _pending(self, page: int) -> bool:
@@ -680,6 +688,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
             _MACHINES: self._machine_actions,
             _FALLBACK: self._step_actions,
             _BACKUP: self._backup_actions,
+            USAGE: self._usage_actions,
         }.get(self._tab, lambda: [self._saves_all()])()
 
     def _footed(self, *keys: Key) -> None:
@@ -736,6 +745,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         Returns:
           True for a switch.
         """
+        if not self._home and self._tab == USAGE:
+            return self._drops_usage(row)
         return (
             not self._home and self._tab in (_EVERYWHERE, _DIRECTORY) and row in _MEANS
         )
@@ -749,6 +760,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         Returns:
           The list, opening on the answer it is not, so that enter twice turns it round.
         """
+        if self._tab == USAGE:
+            return self._dropping_usage(row)
         now = self._switched(row)
         named = next(one.named for one in self._settings() if one.held == row)
         return switched(named, _word(now) if now is not None else "", _MEANS[row])
@@ -761,7 +774,9 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
           picked: `on` or `off`.
         """
         on_ = picked == _YES
-        if row == _SENTRY:
+        if self._tab == USAGE:
+            self._dropped_usage(row, picked)
+        elif row == _SENTRY:
             self._sentry = on_
         elif row == _DETAILS:
             self._details = on_

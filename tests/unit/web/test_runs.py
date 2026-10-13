@@ -8,13 +8,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.web.runs import held_by, refused, row, sessions_of, spending
+from hmz.web.runs import held_by, refused, row, sessions_of
 
 if TYPE_CHECKING:
     from hmz.runtime.epic import Ran
-
-#: Today, as the tests see it.
-_NOW = datetime.datetime(2026, 10, 8, 12, 0, tzinfo=datetime.UTC)
 
 
 @dataclass(frozen=True)
@@ -33,40 +30,6 @@ class _Ran:
 
 def _runs(*runs: _Ran) -> list[Ran]:
     return cast("list[Ran]", list(runs))
-
-
-def test_spending_counts_each_day_and_flow_and_how_each_run_ended() -> None:
-    said = spending(
-        _runs(
-            _Ran(how="done", spent={"cost": 1.5, "output_tokens": 300, "seconds": 60}),
-            _Ran(
-                flow="goal",
-                began="2026-10-07T23:59:00+00:00",
-                how="failed",
-                spent={"cost": 2.0, "output_tokens": 100, "seconds": 30},
-            ),
-            # Still going: a run, and nothing spent yet.
-            _Ran(began="2026-10-08T11:00:00+00:00"),
-            # Before the days asked about.
-            _Ran(began="2026-10-01T10:00:00+00:00", how="done", spent={"cost": 9.0}),
-            _Ran(began="not a moment", how="done", spent={"cost": 9.0}),
-        ),
-        days=2,
-        now=_NOW,
-    )
-
-    assert [(one["day"], one["runs"], one["cost"]) for one in said["days"]] == [
-        ("2026-10-07", 1, 2.0),
-        ("2026-10-08", 2, 1.5),
-    ]
-    assert [(one["flow"], one["runs"]) for one in said["flows"]] == [
-        ("goal", 1),  # the costliest first
-        ("ralph", 2),
-    ]
-    assert said["ended"] == {"done": 1, "failed": 1, "unfinished": 1}
-    whole = said["whole"]
-    assert (whole["runs"], whole["cost"], whole["output_tokens"]) == (3, 3.5, 400)
-    assert whole["seconds"] == 90.0
 
 
 @pytest.mark.parametrize(
