@@ -156,8 +156,15 @@ jobs:
           version="${TAG#v}"
           # The update only where its key is held: the bundler refuses to make it unsigned.
           updater="$([[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]] && echo true || echo false)"
+          # Signed with a Developer ID, the disk image says nothing on how to open it unsigned.
+          # The window is its background and Finder's 28-point title bar.
+          dmg='{}'
+          if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
+            dmg='{"background": "dmg/background-signed.tiff", "windowSize": {"width": 660, "height": 428}}'
+          fi
           config="$(jq -nc --arg v "$version" --arg b "${version%%-*}" --argjson u "$updater" \
-            '{version: $v, bundle: {createUpdaterArtifacts: $u, macOS: {bundleVersion: $b}}}')"
+            --argjson d "$dmg" \
+            '{version: $v, bundle: {createUpdaterArtifacts: $u, macOS: {bundleVersion: $b, dmg: $d}}}')"
           pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config "$config"
           bundle=src-tauri/target/universal-apple-darwin/release/bundle
           mkdir -p ../dist

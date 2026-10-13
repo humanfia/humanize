@@ -110,8 +110,9 @@ The disk image a release attaches, for both architectures, is
 `pnpm tauri build --target universal-apple-darwin --bundles dmg`, once
 `rustup target add aarch64-apple-darwin x86_64-apple-darwin` has run. Finder lays it out, so
 the first build asks to let your terminal control Finder. Its background is
-`src-tauri/dmg/background.svg`; after changing it, `pnpm dmg-background` remakes the
-`background.tiff` the bundler takes.
+`src-tauri/dmg/background.svg`, with a plate on opening the app unsigned that a release signed
+with a Developer ID leaves off; after changing it, `pnpm dmg-background` remakes
+`background.tiff` and `background-signed.tiff`, the two the bundler takes.
 
 ## Where a test goes
 
