@@ -1877,8 +1877,8 @@ save: `<n> backup target(s) saved`, or `hmz: <why>` where settings refused them.
 
 **Download…** opens `hmz › /settings › Backup › Download from <target>` on the first saved
 target, intro `Every epic the target holds, by machine and directory, newest first; enter
-downloads one here, as an import does.` It fetches the target off the drawing path (`fetching
-<target>…`), then lists under a heading per machine and a dim line per directory (`~` for home),
+downloads one here, as an import does.` It fetches the target off the drawing path
+(`fetching <target>…`), then lists under a heading per machine and a dim line per directory (`~` for home),
 newest first: `<YYYY-MM-DD HH:MM> · <flow>[ ✔]  <task> · <how>[ · here]`, `✔` and `here` on an
 epic this machine has. Buttons: **Search…** (flow, task, directory, machine), **Fetch**,
 **Target…** (more than one target; drops them). Keys: `enter download   esc back`. Enter on one

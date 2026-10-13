@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import tarfile
 import time
@@ -380,7 +381,12 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
         await pilot.press("i")
         await on(pilot, ImportingEpic)
         app.screen.post_message(events.Paste(f"'{dropped}'"))
-        await shows(pilot, "my epics")
+        # Taken in, whichever line of the row the path wraps onto.
+        await until(
+            pilot,
+            lambda: "myepics" in re.sub(r"[\s│]", "", screen(app)),
+            "the path pasted",
+        )
         await pilot.click("#act-done")
         await on(pilot, Epics)
         await until(pilot, here.path.is_dir, "the epic imported")
