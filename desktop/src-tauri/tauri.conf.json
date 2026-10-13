@@ -33,9 +33,9 @@
       "signingIdentity": "-",
       "dmg": {
         "background": "dmg/background.tiff",
-        "windowSize": { "width": 660, "height": 400 },
-        "appPosition": { "x": 180, "y": 180 },
-        "applicationFolderPosition": { "x": 480, "y": 180 }
+        "windowSize": { "width": 660, "height": 508 },
+        "appPosition": { "x": 180, "y": 170 },
+        "applicationFolderPosition": { "x": 480, "y": 170 }
       }
     }
   },

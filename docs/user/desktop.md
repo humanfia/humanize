@@ -16,8 +16,8 @@ opens and stops it when you quit.
 1. Download `humanize-<version>-macos-universal.dmg` from the
    [latest release](https://github.com/humanfia/humanize/releases/latest).
 2. Open it, and drag **humanize** onto **Applications**.
-3. Open humanize from Applications. The first time, macOS stops it: see
-   [The first time it opens](#the-first-time-it-opens).
+3. Open humanize from Applications. The first time, macOS stops it: the disk image's window
+   says what to do, and so does [The first time it opens](#the-first-time-it-opens).
 
 The first time, it says **Installing humanize**, with each step, while it installs `hmz`; from
 then on it shows its mark while `hmz web` starts, then the page, with the sidebar of your epics.
