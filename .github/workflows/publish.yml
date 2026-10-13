@@ -160,7 +160,7 @@ jobs:
           # The window is its background and Finder's 28-point title bar.
           dmg='{}'
           if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
-            dmg='{"background": "dmg/background-signed.tiff", "windowSize": {"width": 660, "height": 428}}'
+            dmg='{"background": "dmg/background-signed.tiff", "windowSize": {"width": 720, "height": 484}}'
           fi
           config="$(jq -nc --arg v "$version" --arg b "${version%%-*}" --argjson u "$updater" \
             --argjson d "$dmg" \

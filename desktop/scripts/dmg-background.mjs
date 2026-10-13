@@ -13,8 +13,8 @@ const dir = new URL('../src-tauri/dmg/', import.meta.url).pathname
 const sheet = readFileSync(join(dir, 'background.svg'), 'utf8')
 const signed = sheet
   .replace(/<g id="unsigned">[\s\S]*?\n {2}<\/g>\n/, '')
-  .replace('viewBox="0 0 660 480" width="660" height="480"', 'viewBox="0 0 660 400" width="660" height="400"')
-if (signed.includes('id="unsigned"') || !signed.includes('height="400"')) {
+  .replace('viewBox="0 0 720 584" width="720" height="584"', 'viewBox="0 0 720 456" width="720" height="456"')
+if (signed.includes('id="unsigned"') || !signed.includes('height="456"')) {
   throw new Error('background.svg no longer has the plate or the size this cuts')
 }
 
