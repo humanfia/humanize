@@ -944,6 +944,24 @@ code {
   user-select: text;
 }
 
+/* A choice that opens a menu beside the one it is in. */
+.choice-more {
+  flex: none;
+  margin-left: auto;
+  align-self: center;
+  color: var(--ink-3);
+}
+
+.choice-sub > .choice[aria-expanded='true'] {
+  background: var(--hover);
+}
+
+.popover.sub {
+  z-index: 61;
+  min-width: 220px;
+  max-height: min(70vh, 520px);
+}
+
 .choice.danger,
 .choice.danger .choice-mark {
   color: var(--fail);

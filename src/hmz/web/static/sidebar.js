@@ -13,7 +13,7 @@ import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.
 import { sessionsOf } from './epic.js'
 import { bell } from './notifications.js'
 import { nameOf } from './places.js'
-import { choice, dragged, keep, kept, menu, section, settleSidebar, toggleSidebar } from './shell.js'
+import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSidebar } from './shell.js'
 
 /** How many epics a page of the list holds. */
 const PAGE = 60
@@ -381,7 +381,8 @@ function named(name) {
 
 /**
  * The foot of the sidebar: the daemon the page is of -- its name, its host, how it stands and
- * how many epics are going on it -- opening a picker of every daemon and the machine's choices.
+ * how many epics are going on it -- opening a menu of every daemon, beside it, and the settings
+ * and what the epics spent.
  */
 function daemonBar(context) {
   const local = { name: 'local', host: context.machine || '', state: 'up' }
@@ -430,21 +431,25 @@ function daemonBar(context) {
   menu(
     el,
     (close) => [
-      section('Daemons'),
-      daemons.flatMap((one) => [
-        choice({ label: named(one.name), about: [one.host, STATES[said(one)]].filter(Boolean).join(' · '), chosen: one.name === current(), act: () => {
-            settleSidebar()
-            if (one.name !== current()) switchTo(one.name)
-          }, close }),
-        said(one) === 'failed' ? choice({ label: 'Connect', about: named(one.name), glyph: 'resume', act: () => connect(one.name), close }) : null,
-      ]),
-      choice({ label: 'Manage', glyph: 'sliders', href: hash('/settings/daemons'), close }),
-      section('Machine'),
+      submenu({
+        label: 'Daemon',
+        about: named(current()),
+        hmz: 'daemons',
+        items: () => [
+          daemons.flatMap((one) => [
+            choice({ label: named(one.name), about: [one.host, STATES[said(one)]].filter(Boolean).join(' · '), chosen: one.name === current(), act: () => {
+                settleSidebar()
+                if (one.name !== current()) switchTo(one.name)
+              }, close }),
+            said(one) === 'failed' ? choice({ label: 'Connect', about: named(one.name), glyph: 'resume', act: () => connect(one.name), close }) : null,
+          ]),
+          h('hr'),
+          choice({ label: 'Manage', glyph: 'sliders', href: hash('/settings/daemons'), close }),
+        ],
+      }),
       context.newer ? choice({ label: 'Update', about: `hmz ${context.newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
-      choice({ label: 'Import', glyph: 'file', act: pick, close }),
       choice({ label: 'Settings', glyph: 'gear', href: hash('/settings/general'), close }),
       choice({ label: 'Usage', glyph: 'chart', href: hash('/settings/usage'), close }),
-      choice({ label: 'Download', glyph: 'download', href: hash('/download'), close }),
     ],
     { up: true, label: 'Daemon' },
   )

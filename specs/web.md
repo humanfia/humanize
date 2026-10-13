@@ -174,7 +174,7 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST offer `Upload` on every epic, which backs it up now to the targets it was started with,
   else the defaults, answering at once with the targets it was queued for -- never waiting on a
   push -- and MUST say how its last backup to each target went, as it is read again.
-- MUST offer `Download` in the machine's menu, which lists every epic a backup target holds --
+- MUST offer `Download` on the Backup settings, which lists every epic a backup target holds --
   the target picked where there is more than one, fetched afresh off any other request, by
   machine and then by workspace, those already here marked -- and downloads one as an import
   does, opening it, a refusal said where it happened and a URL never shown with anything signed
@@ -275,9 +275,10 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   takes put in here, never handed to the page -- and nothing else of it; `/d/local/api/` MUST be
   `/api/`. One not reached MUST be refused as unavailable, saying how it stands.
 - MUST draw the sidebar's foot as the daemon bar: the daemon shown, its host, how it stands and
-  how many epics it runs. A click on it MUST open the picker -- every daemon and how it stands,
-  one picked switched to, `Connect` on one that failed, `Manage` for the daemons in Settings --
-  with the machine's own choices below it.
+  how many epics it runs. A click on it MUST open its menu: `Daemon`, opening beside it every
+  daemon and how it stands, one picked switched to, `Connect` on one that failed, and `Manage`
+  for the daemons in Settings; then `Settings` and `Usage`, and nothing else but `Update` where
+  a newer release is out.
 - MUST show the daemon picked alone -- its workspaces, epics, flows, settings and everything
   else but the notifications -- carrying it in every address as `#/@<name>/...`, an address
   without one being Local's, and MUST draw everything again of the daemon switched to.

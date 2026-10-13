@@ -1,7 +1,8 @@
 // The git repositories epics are backed up to: each with when an epic goes to it unasked -- as
 // a session closes, every so many minutes, once the epic ends, or never, by hand only -- and
-// which of them a new epic goes to unless it is told otherwise. A URL is shown with nothing
-// signed into it, and one left as shown is kept as written.
+// which of them a new epic goes to unless it is told otherwise; and `Download`, which brings an
+// epic they hold here. A URL is shown with nothing signed into it, and one left as shown is kept
+// as written.
 
 import { get, post } from '../../api.js'
 import { acting, confirming, fill, h, problem } from '../../dom.js'
@@ -85,7 +86,18 @@ export function draw(holder, query, parts, scope) {
     )
     fill(
       listing,
-      h('header', {}, h('h2', {}, 'Targets'), scope.batch(() => [['/api/settings', { backup: data }]])),
+      h(
+        'header',
+        {},
+        h('h2', {}, 'Targets'),
+        h(
+          'span',
+          { class: 'row' },
+          // What the targets hold, brought here onto the daemon picked.
+          data.targets.length ? h('a', { class: 'btn quiet', href: scope.name === 'local' ? '#/download' : `#/@${encodeURIComponent(scope.name)}/download`, 'data-hmz': 'download' }, 'Download') : null,
+          scope.batch(() => [['/api/settings', { backup: data }]]),
+        ),
+      ),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Repository'), h('th', {}, 'When'), h('th', {}, ''), h('th', {}, ''))), h('tbody', {}, rows)))
         : h('p', { class: 'dim' }, 'None yet: no epic is backed up.'),
