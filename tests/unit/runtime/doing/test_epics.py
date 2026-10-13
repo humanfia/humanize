@@ -123,6 +123,61 @@ def test_a_trace_of_a_run_is_of_that_runs_sessions_and_kept_with_it(
     }
 
 
+def test_a_runs_transcripts_are_each_sessions_actions_in_the_order_they_happened(
+    workspace: Path, stand: Stands
+) -> None:
+    document: dict[str, Any] = {
+        "traceEvents": [
+            {"ph": "M", "name": "process_name", "pid": 7, "args": {"name": "builder"}},
+            {"ph": "X", "cat": "session", "pid": 7, "ts": 0, "dur": 9e6},
+            {
+                "ph": "X",
+                "cat": "tool",
+                "name": "Bash",
+                "pid": 7,
+                "ts": 3e6,
+                "dur": 1e6,
+                "args": {"session": "claude:s1", "at": "t3", "command": "ls"},
+            },
+            {
+                "ph": "X",
+                "cat": "turn",
+                "name": "turn 1",
+                "pid": 7,
+                "ts": 1e6,
+                "dur": 5e6,
+                "args": {"session": "claude:s1"},
+            },
+            {
+                "ph": "X",
+                "cat": "turn",
+                "name": "turn 1",
+                "pid": 8,
+                "ts": 2e6,
+                "dur": 1e6,
+                "args": {"session": "codex:s2"},
+            },
+            {"ph": "X", "cat": "turn", "pid": 7, "ts": 0, "dur": 1, "args": {}},
+        ]
+    }
+
+    stand(collector, "collect", document)
+
+    sessions = Epics(workspace).transcripts(_run(workspace))
+
+    assert [(one["key"], one["agent"]) for one in sessions] == [
+        ("claude:s1", "builder"),
+        ("codex:s2", ""),
+    ]
+    first = sessions[0]["actions"]
+    assert [(one["category"], one["start"], one["seconds"]) for one in first] == [
+        ("turn", 1.0, 5.0),
+        ("tool", 3.0, 1.0),
+    ]
+    assert first[1]["at"] == "t3"
+    assert first[1]["args"] == {"command": "ls"}
+
+
 def test_a_timeline_of_a_run_is_laid_out_of_what_its_trace_is_gathered_from(
     workspace: Path, stand: Stands
 ) -> None:

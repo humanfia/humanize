@@ -93,6 +93,7 @@ from .pick import (
     Runs,
     asks,
     budget_of,
+    chatting,
     declared_of,
     named_as,
     params_model,
@@ -2565,9 +2566,34 @@ class Humanize(App[None]):
                 listed=self._monitor_listed,
                 opened=self._monitor_opened,
                 turned=self._turns_monitor,
+                timelined=self._timelined,
+                exomyth=self._exomyth,
             ),
             self._back_from_monitor,
         )
+
+    def _timelined(self) -> bool:
+        """Whether a run is going that Exomyth can draw: any but a chat, which has no timeline."""
+        return self._run is not None and not chatting(self._run.flow)
+
+    def _exomyth(self) -> None:
+        """Opens the epic of the run going in Exomyth, as its host names it.
+
+        Asked rather than looked for: two runs of one flow may be going here, and the host
+        says which epic is this one's.
+        """
+
+        def opens(answer: dict[str, Any]) -> None:
+            from .exomyth import Exomyth
+
+            named = str(answer.get("epic") or "")
+            ran = self.hmz.epics.read(self.hmz.epics.under() / named) if named else None
+            if ran is None:
+                self.show("the run has not written its epic yet", "dim")
+            else:
+                self.push_screen(Exomyth(ran))
+
+        self._asks("status", opens)
 
     def _turns_monitor(self, listed: bool) -> None:  # noqa: FBT001 -- what it was turned to
         """Remembers whether the monitor draws a list, for the next time it opens.

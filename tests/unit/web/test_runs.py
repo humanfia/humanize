@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.web.runs import held_by, refused, row, sessions_of, spending
+from hmz.web.runs import held_by, refused, row, spending
 
 if TYPE_CHECKING:
     from hmz.runtime.epic import Ran
@@ -99,57 +99,6 @@ def test_the_run_going_is_the_one_opened_for_it_as_it_started(
     held = held_by(runs, running)
 
     assert held == ({runs[found].at} if found is not None else set())
-
-
-def test_a_trace_is_read_as_each_sessions_actions_in_the_order_they_happened() -> None:
-    document: dict[str, Any] = {
-        "traceEvents": [
-            {"ph": "M", "name": "process_name", "pid": 7, "args": {"name": "builder"}},
-            {"ph": "X", "cat": "session", "pid": 7, "ts": 0, "dur": 9e6},
-            {
-                "ph": "X",
-                "cat": "tool",
-                "name": "Bash",
-                "pid": 7,
-                "ts": 3e6,
-                "dur": 1e6,
-                "args": {"session": "claude:s1", "at": "t3", "command": "ls"},
-            },
-            {
-                "ph": "X",
-                "cat": "turn",
-                "name": "turn 1",
-                "pid": 7,
-                "ts": 1e6,
-                "dur": 5e6,
-                "args": {"session": "claude:s1"},
-            },
-            {
-                "ph": "X",
-                "cat": "turn",
-                "name": "turn 1",
-                "pid": 8,
-                "ts": 2e6,
-                "dur": 1e6,
-                "args": {"session": "codex:s2"},
-            },
-            {"ph": "X", "cat": "turn", "pid": 7, "ts": 0, "dur": 1, "args": {}},
-        ]
-    }
-
-    sessions = sessions_of(document)
-
-    assert [(one["key"], one["agent"]) for one in sessions] == [
-        ("claude:s1", "builder"),
-        ("codex:s2", ""),
-    ]
-    first = sessions[0]["actions"]
-    assert [(one["category"], one["start"], one["seconds"]) for one in first] == [
-        ("turn", 1.0, 5.0),
-        ("tool", 3.0, 1.0),
-    ]
-    assert first[1]["at"] == "t3"
-    assert first[1]["args"] == {"command": "ls"}
 
 
 @pytest.mark.parametrize(

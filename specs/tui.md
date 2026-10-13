@@ -186,7 +186,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   adding, correcting and removing one on one form: its name, URL and branch, `On session close`,
   `Every N minutes` (off, or how many), `On epic end` -- none switched on is manual only -- and
   `Default`; refusing a name that is not one short word or is another target's, or no URL.
-- MUST list the runs of this directory newest first with when each began, its flow, its task, how
+- MUST list the runs of this directory newest first with when each began, its flow, its task, its
+  agents, what it spent and how long it took where it said, the targets it is backed up to, how
   it went and how many sessions it opened, marking which can be picked up, readable while one runs;
   and, turned by `ctrl+t` or a button and remembered for this machine, those of every directory
   on this machine instead, each with its directory, read without holding the screen up.
@@ -202,13 +203,20 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   there is a backup target, `upload` it -- to the targets it was started with, else the
   defaults -- without holding anything up, saying where it goes, with how its last backup to
   each target went said on it.
-- MUST open a run from its sheet in Exomyth: every session a process under the one that started
-  it, foldable, each lane a row of its spans cut to the eighth of a cell and coloured by category
-  in the theme's colours under a ruler of time; zoomed and panned around the span under the
-  cursor, which moves between spans and rows, is searched to by name and opens a pane of the span
-  whole; and, a tab away, a flame of where the time on screen went -- kind of process, category,
-  name -- weighed by time or tokens. Read without holding the screen up and again every few
-  seconds while the run goes, drawing only the rows on screen, responsive at fifty thousand spans.
+- MUST offer per run, finished or going, its graph, read as it stands without holding the screen up:
+  a box per agent as the monitor draws one, with its turns and the handovers between neighbours read
+  back out of its logs, its sessions under it, and the tree of flows it called; and each session
+  read whole, what it did in order -- turns, model calls, tools with what went in and came out, what
+  it said -- searchable, each cut to a few lines until opened.
+- MUST open a run in Exomyth from its sheet and its graph, and the run going from the monitor by
+  `ctrl+e` or a click above its graph, never a chat's, which has no timeline: every session a
+  process under the one that started it, foldable, each lane a row of its spans cut to the eighth of
+  a cell and coloured by category in the theme's colours under a ruler of time; zoomed and panned
+  around the span under the cursor, which moves between spans and rows, is searched to by name and
+  opens a pane of the span whole; and, a tab away, a flame of where the time on screen went -- kind
+  of process, category, name -- weighed by time or tokens. Read without holding the screen up and
+  again every few seconds while the run goes, drawing only the rows on screen, responsive at fifty
+  thousand spans.
 - MUST make the monitor the parent screen and the log its child: a full-screen graph of the run
   over the log's own prompt, where every command works, with a graph status line in place of the
   log's; reached by `←` on an empty prompt and never by `esc` or a command, and left by `→` on an
@@ -298,6 +306,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | `↑`, `↓`, `enter` | monitor | on an empty prompt: the node before or after; read it |
 | `space` | monitor | on an empty prompt: open an agent out to its sessions, or shut it |
 | `ctrl+t` | monitor | the graph or the list |
+| `ctrl+e` | monitor | on an empty prompt: the epic going in Exomyth |
 | `w`/`s`, `a`/`d`, `←`/`→`, `↑`/`↓`, `enter`, `f`, `0`, `space`, `/`, `n`/`N`, `tab`, `t`, `r` | Exomyth | zoom, pan, the span before or after, the row above or below, the span's pane, fit it, the whole run, fold, search, the next found, timeline or flame, time or tokens, read again |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |

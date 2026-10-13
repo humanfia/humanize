@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
-import json
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +15,7 @@ from hmz.tui.exomyth import Exomyth
 from hmz.tui.pick import Does, Epics
 from tests.integration.doubles_tui import (
     SIZE,
+    claude_logged,
     on,
     opened,
     opens,
@@ -39,68 +38,10 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
     del asking
     workspace = stand_in(tmp_path, monkeypatch)
     began = time.time()
-    with Epic("chat", "fix the bug", workspace) as epic:
+    with Epic("solo", "fix the bug", workspace) as epic:
         epic.session("NeiKos496", "claude", "", "sess-1")
-    _logged(tmp_path / "claude-home", workspace, "sess-1", began)
+    claude_logged(tmp_path / "claude-home", workspace, "sess-1", began)
     return workspace
-
-
-def _logged(home: Path, workspace: Path, ident: str, began: float) -> None:
-    """Writes one session as Claude Code logs one: a prompt, a thought, a tool, an answer."""
-
-    def at(offset: float) -> str:
-        return datetime.datetime.fromtimestamp(began + offset, datetime.UTC).isoformat()
-
-    def assistant(
-        offset: float, request: str, *blocks: dict[str, Any]
-    ) -> dict[str, Any]:
-        return {
-            "type": "assistant",
-            "timestamp": at(offset),
-            "requestId": request,
-            "message": {
-                "model": "claude-x",
-                "usage": {"input_tokens": 1000, "output_tokens": 200},
-                "content": list(blocks),
-            },
-        }
-
-    folder = "".join(one if one.isalnum() else "-" for one in str(workspace))
-    rows = [
-        {
-            "type": "user",
-            "timestamp": at(0),
-            "promptId": "p1",
-            "cwd": str(workspace),
-            "sessionId": ident,
-            "message": {"content": "fix the bug"},
-        },
-        assistant(2, "r1", {"type": "thinking", "thinking": "hmm"}),
-        assistant(
-            3,
-            "r1",
-            {
-                "type": "tool_use",
-                "id": "t1",
-                "name": "Bash",
-                "input": {"command": "pytest"},
-            },
-        ),
-        {
-            "type": "user",
-            "timestamp": at(6),
-            "promptId": "p1",
-            "message": {
-                "content": [
-                    {"type": "tool_result", "tool_use_id": "t1", "content": "ok"}
-                ]
-            },
-        },
-        assistant(8, "r2", {"type": "text", "text": "fixed"}),
-    ]
-    log = home / "projects" / folder / f"{ident}.jsonl"
-    log.parent.mkdir(parents=True)
-    log.write_text("".join(json.dumps(one) + "\n" for one in rows))
 
 
 async def _exomyth(pilot: Pilot[None]) -> Exomyth:
@@ -108,7 +49,7 @@ async def _exomyth(pilot: Pilot[None]) -> Exomyth:
     await opened(pilot)
     await typed(pilot, "/epics")
     await on(pilot, Epics)
-    await shows(pilot, "· chat")
+    await shows(pilot, "· solo")
     await pilot.press("enter")
     await on(pilot, Does)
     await shows(pilot, "Exomyth", "the epic as a timeline of its sessions")
@@ -129,9 +70,9 @@ async def test_an_epic_is_drawn_as_its_sessions_spans_and_read_span_by_span(
         await _exomyth(pilot)
         await shows(
             pilot,
-            "· chat \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK}",
+            "· solo \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK}",
             "1 session · 8 spans",
-            "▾ chat",
+            "▾ solo",
             "▾ main · sess-1",
             "turn: fix the bug",
             "Bash: pytest",
@@ -157,7 +98,7 @@ async def test_an_epic_is_drawn_as_its_sessions_spans_and_read_span_by_span(
 
         # The cursor opens on the epic itself: its pane says what it is.
         await pilot.press("enter")
-        await shows(pilot, "flow · chat", "lasted", "task fix the bug")
+        await shows(pilot, "flow · solo", "lasted", "task fix the bug")
         await pilot.press("escape")
 
         await pilot.press("slash", *"pytest", "enter")

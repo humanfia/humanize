@@ -26,7 +26,12 @@ To read a run without leaving the terminal, choose **Exomyth** instead of **expo
 session is a row of bars under the session that started it. <kbd>w</kbd> <kbd>s</kbd> zoom,
 <kbd>a</kbd> <kbd>d</kbd> pan, <kbd>←</kbd> <kbd>→</kbd> step from span to span, <kbd>enter</kbd>
 shows the one under the cursor whole, and <kbd>tab</kbd> turns it into a flame of where the time
-went. Every key is in [Exomyth](/reference/tui#exomyth).
+went. Every key is in [Exomyth](/reference/tui#exomyth). The run going opens there from the
+[monitor](/user/monitor) as well, with <kbd>ctrl+e</kbd>.
+
+Or choose **graph**: its agents as the monitor draws them, who handed to whom, the flows it
+called, and its sessions under each agent. <kbd>enter</kbd> on a session reads what it did, turn
+by turn, read back out of its log.
 
 ## Before you start
 
@@ -41,7 +46,8 @@ went. Every key is in [Exomyth](/reference/tui#exomyth).
 
 humanize keeps a record of every run of a flow, called an **epic**, whether the run finished or
 not. `/epics` lists them for the directory you are in: when each ran, which flow, what it was
-asked to do, how many sessions it opened, and how it ended if it did not finish.
+asked to do, its agents, what it spent and how long it took, where it is backed up, how many
+sessions it opened, and how it ended if it did not finish.
 
 A run ends one of three ways: **done**, **failed**, or **stopped**, which covers a
 [stop by hand](/user/stopping), <kbd>ctrl+c</kbd>, and a spent budget. <kbd>enter</kbd> goes
@@ -59,14 +65,15 @@ session of Claude Code. Its `/epics` list:
 
 ```text
   hmz › Epics
-  Every epic in this directory, newest first: task, status, and session
-  count.
+  Every epic in this directory, newest first: task, agents, spend,
+  duration, session count, and status.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · 1 session · stopped        │
+  │                               slug.py only. · Ralph · 1 session · stopped│
   │ 2026-09-30 05:37 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · 3 sessions · stopped       │  ①
+  │                               slug.py only. · Ralph · 3 sessions ·       │  ①
+  │                               stopped                                    │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
   Search…                                                                       ②
