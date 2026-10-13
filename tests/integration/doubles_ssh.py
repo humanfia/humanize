@@ -18,6 +18,7 @@ import os
 import sys
 import tempfile
 from dataclasses import dataclass
+from importlib.metadata import version as installed
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -165,14 +166,14 @@ class Host:
 
 
 def faked(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str | None = "0.0.0"
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str | None = None
 ) -> Host:
     """Puts the stand-in `ssh` first on `PATH`, reaching a machine of its own.
 
     Args:
       tmp_path: The test's own directory.
       monkeypatch: What puts `PATH` back.
-      version: What its `hmz` says it is, or None for none at all.
+      version: What its `hmz` says it is; this one's by default, so nothing is installed.
 
     Returns:
       The machine.
@@ -206,7 +207,7 @@ def faked(
         at.write_text(script)
         at.chmod(0o755)
     monkeypatch.setenv("PATH", f"{made}{os.pathsep}{os.environ['PATH']}")
-    host.installs(version)
+    host.installs(version or installed("hmz"))
     return host
 
 
