@@ -3747,12 +3747,11 @@ pre.exo-args {
 /* ------------------------------------------------------------------ the macOS app's window */
 
 /* There the page runs to the window's top edge, and the window's traffic lights stand where
-   macOS puts them, in its top 32 pixels at the left. The sidebar keeps that strip for them alone,
-   drawing its top row under it; where the sidebar is folded away or a drawer, the bar over the
-   view, or a dialog that fills a narrow window, starts past them. Full screen, where they are
-   gone, the page is drawn as anywhere else. */
+   macOS puts them, in its top 32 pixels at the left. That strip is kept for them alone, across
+   the whole window: the sidebar draws its top row under it, the view under it, and a dialog that
+   fills a narrow window under it. Full screen, where they are gone, the page is drawn as anywhere
+   else. */
 :root[data-shell='macos']:not([data-fullscreen]) {
-  --lights: 80px;
   --lights-strip: 32px;
 }
 
@@ -3761,13 +3760,13 @@ pre.exo-args {
   padding-top: calc(var(--lights-strip) - 4px + 8px);
 }
 
-:root[data-shell='macos']:not([data-fullscreen]) .side-folded .bar {
-  padding-left: var(--lights);
+:root[data-shell='macos']:not([data-fullscreen]) .main {
+  padding-top: var(--lights-strip);
 }
 
 @media (max-width: 860px) {
-  :root[data-shell='macos']:not([data-fullscreen]) :is(header.bar, .settings-nav, .dialog-head) {
-    padding-left: var(--lights);
+  :root[data-shell='macos']:not([data-fullscreen]) .overlay {
+    padding-top: var(--lights-strip);
   }
 }
 
