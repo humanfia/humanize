@@ -6,6 +6,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from textual.widgets import OptionList
 
 from hmz.runtime.doing.epics import Epics as Kept
 from hmz.runtime.epic import Epic
@@ -107,14 +108,70 @@ async def test_an_epic_is_drawn_as_its_sessions_spans_and_read_span_by_span(
         await shows(pilot, "tool · ", "command", "pytest")
 
         await pilot.press("tab")
-        await shows(pilot, "weighed by time", "stack", "session", "tool")
+        await shows(
+            pilot, "weighed by time · sessions merged", "stack", "NeiKos496", "Bash"
+        )
         await pilot.press("t")
-        await shows(pilot, "weighed by tokens", "llm")
+        await shows(pilot, "weighed by tokens in", "think")
 
         await pilot.press("escape")
         await on(pilot, Does)
         await pilot.press("escape")
         await on(pilot, Epics)
+
+
+async def test_a_range_is_summed_and_weighed_in_the_flame_and_the_slices(
+    workspace: Path,
+) -> None:
+    del workspace
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await _exomyth(pilot)
+        await shows(pilot, "Bash: pytest")
+
+        # The process of the row under the cursor, whole.
+        await pilot.press("down", "p")
+        await shows(pilot, "session · ", "agent NeiKos496", "parent ralph_loop")
+        await pilot.press("p")
+        await until(pilot, lambda: "agent NeiKos" not in screen(app), "the pane shut")
+
+        # From the first thought to the tool two spans on, held, and summed by category.
+        await pilot.press("down", "down", "v", "right", "right", "v")
+        await shows(pilot, "Range", "lasted 6s", "category", "llm", "tool", "v drop")
+        whole = _ruler(app)
+        await pilot.press("f")
+        await until(pilot, lambda: _ruler(app) != whole, "the range to fill the window")
+
+        await pilot.press("tab")
+        await shows(pilot, "weighed by time · sessions merged · range", "NeiKos496")
+        for weight in ("tokens in", "tokens out", "count", "time"):
+            await pilot.press("t")
+            await shows(pilot, f"weighed by {weight} · ")
+        await pilot.press("m")
+        await shows(pilot, "sessions apart", "main · sess-1")
+
+        await pilot.press("tab")
+        await shows(pilot, "sorted by total↓", "category", "Bash: pytest")
+        await pilot.press("o")
+        await shows(pilot, "sorted by self↓")
+        await pilot.press("O")
+        await shows(pilot, "sorted by self↑")
+
+        # A slice picked is found on the timeline.
+        sliced = app.screen.query_one("#sliced", OptionList)
+        at = next(
+            at
+            for at in range(sliced.option_count)
+            if "Bash: pytest" in str(sliced.get_option_at_index(at).prompt)
+        )
+        await pilot.press(*["down"] * (at - (sliced.highlighted or 0)), "enter")
+        await shows(pilot, "1 of 1 · Bash: pytest", "v drop")
+        await pilot.press("escape")
+        await until(pilot, lambda: "Range" not in screen(app), "the range let go")
+        await pilot.press("shift+tab")
+        await shows(pilot, "sorted by self↑")
+        await pilot.press("escape")
+        await on(pilot, Does)
 
 
 async def test_an_epic_of_fifty_thousand_spans_is_drawn_and_zoomed_at_once(
@@ -133,14 +190,23 @@ async def test_an_epic_of_fifty_thousand_spans_is_drawn_and_zoomed_at_once(
         await shows(pilot, "50 sessions", "50000 spans", "main · session 0")
         # Each press is drawn before the next is taken: a second apiece is a ceiling a
         # loaded machine stays under, where drawing every span would not.
-        for keys in (("w",) * 6, ("d",) * 4, ("s",) * 6, ("down",) * 45, ("0", "tab")):
+        for keys in (
+            ("w",) * 6,
+            ("d",) * 4,
+            ("s",) * 6,
+            ("down",) * 45,
+            ("0", "tab"),
+            ("tab",),
+        ):
             began = time.perf_counter()
             await pilot.press(*keys)
             screen(app)
             took = time.perf_counter() - began
             assert took < len(keys), f"{keys[0]} took {took:.2f}s"
+        await shows(pilot, "sorted by total↓", "Bash: ls")
+        await pilot.press("shift+tab")
         await shows(pilot, "weighed by time", "Bash: ls")
-        await pilot.press("tab")
+        await pilot.press("shift+tab")
         # Walked down past the bottom of the screen, which scrolled to keep up.
         await until(
             pilot,

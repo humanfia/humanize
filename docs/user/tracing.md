@@ -25,8 +25,11 @@ end of this page you will have found a run, exported its trace and read it.
 To read a run without leaving the terminal, choose **Exomyth** instead of **export run**: every
 session is a row of bars under the session that started it. <kbd>w</kbd> <kbd>s</kbd> zoom,
 <kbd>a</kbd> <kbd>d</kbd> pan, <kbd>←</kbd> <kbd>→</kbd> step from span to span, <kbd>enter</kbd>
-shows the one under the cursor whole, and <kbd>tab</kbd> turns it into a flame of where the time
-went. Every key is in [Exomyth](/reference/tui#exomyth). The run going opens there from the
+shows the one under the cursor whole, <kbd>p</kbd> its process, and <kbd>v</kbd> picks a stretch
+from one span to another and sums it by category. <kbd>tab</kbd> turns it into a flame of
+where that stretch went, each agent with its sessions merged or apart, weighed by time, tokens
+in or out, or count; and again into a table of every slice name, sorted by any column. Every
+key is in [Exomyth](/reference/tui#exomyth). The run going opens there from the
 [monitor](/user/monitor) as well, with <kbd>ctrl+e</kbd>.
 
 Or choose **graph**: its agents as the monitor draws them, who handed to whom, the flows it

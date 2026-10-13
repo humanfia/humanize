@@ -248,13 +248,16 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   it said -- searchable, each cut to a few lines until opened.
 - MUST open a run in Exomyth from its sheet and its graph, and the run going from the monitor by
   `ctrl+e` or a click above its graph, never a chat's, which has no timeline: every session a
-  process under the one that started it, foldable, each lane a row of its spans cut to the eighth of
-  a cell and coloured by category in the theme's colours under a ruler of time; zoomed and panned
-  around the span under the cursor, which moves between spans and rows, is searched to by name and
-  opens a pane of the span whole; and, a tab away, a flame of where the time on screen went -- kind
-  of process, category, name -- weighed by time or tokens. Read without holding the screen up and
-  again every few seconds while the run goes, drawing only the rows on screen, responsive at fifty
-  thousand spans.
+  process under the one that started it, foldable, each lane of any process a row of its spans
+  cut to the eighth of a cell and coloured by category in the theme's colours under a ruler of
+  time; zoomed and panned around the span under the cursor, which moves between spans and rows,
+  is searched to by name, opens a pane of the span or its process whole, and picks a stretch of
+  time from one span to another, summed by category in the pane; and, a tab away each, a flame
+  of where the stretch picked or the time on screen went -- each agent its stack, its sessions
+  merged or apart, then its spans as they nest -- weighed by time, tokens in or out or count,
+  and every slice name of it summed in a table sorted by any column, a slice picked found on the
+  timeline. Read without holding the screen up and again every few seconds while the run goes,
+  drawing only the rows on screen, responsive at fifty thousand spans.
 - MUST make the monitor the parent screen and the log its child: a full-screen graph of the run
   over the log's own prompt, where every command works, with a graph status line in place of the
   log's; reached by `←` on an empty prompt outside a chat and never by `esc` or a command, and left by `→` on an
@@ -353,7 +356,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | `space` | monitor | on an empty prompt: open an agent out to its sessions, or shut it |
 | `ctrl+t` | monitor | the graph or the list |
 | `ctrl+e` | monitor | on an empty prompt: the epic going in Exomyth |
-| `w`/`s`, `a`/`d`, `←`/`→`, `↑`/`↓`, `enter`, `f`, `0`, `space`, `/`, `n`/`N`, `tab`, `t`, `r` | Exomyth | zoom, pan, the span before or after, the row above or below, the span's pane, fit it, the whole run, fold, search, the next found, timeline or flame, time or tokens, read again |
+| `w`/`s`, `a`/`d`, `←`/`→`, `↑`/`↓`, `enter`, `p`, `v`, `f`, `0`, `space`, `/`, `n`/`N`, `tab`/`shift+tab`, `t`, `m`, `o`/`O`, `r` | Exomyth | zoom, pan, the span before or after, the row above or below, the span's pane, its process's, begin, hold or drop a range, fit it, the whole run, fold, search, the next found, the next view or the one before, the flame's weight, sessions merged or apart, the slices' column and order, read again |
 | `ctrl+c` | app | clear the line; on an empty one, twice stops the flow, or in a chat or with nothing running exits |
 | `ctrl+q` | app | what `/exit` does |
 | `↑`, `↓` | sheets | walk the rows, round the ends, keeping the row being written; back to the list from its search or its buttons; in a box, between its buttons |

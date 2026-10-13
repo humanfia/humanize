@@ -1206,18 +1206,19 @@ The epic as a timeline of its sessions, as [the Exomyth timeline](/reference/tra
 lays it out, on a screen of its own -- opened from an epic's sheet or [graph](#an-epic-s-graph),
 or, for the epic going, from the monitor -- `hmz › /epics › <when> · <flow> › Exomyth` (or
 `hmz › monitor › <when> · <flow> › Exomyth`) across the
-top, **Timeline** and **Flame** at the right of it (the one shown in bold), then
+top, **Timeline**, **Flame** and **Slices** at the right of it (the one shown in bold), then
 `<epic> · <n> session(s) · <n> span(s) · <length>[ · live]`. It is read off the screen (`reading…`;
 an error in red); while the epic is `live` it is read again every 3 seconds, a failed read
-included, keeping the window, the search, what is folded (by process key) and the span under
-the cursor (by process, track, depth and start). A timeline of a version this hmz does not
+included, keeping the window, the search, the range, what is folded (by process key) and the
+span under the cursor (by process, track, depth and start). A timeline of a version this hmz does not
 know is refused: `timeline version <n> is not 1`.
 
 **Timeline**: a ruler of time (`│0s   │2s …`, a tick every 12 cells or more, at 1, 2 or 5 of a
 unit), then a row per lane. On the left, as wide as a third of the screen and at most 28
 cells, each process under the one it hangs from, two cells deeper, `▾` (open) or `▸`
 (folded) before one with more than one lane or a process under it; a track's second and later
-lanes are its name or blank. The row under the cursor is marked `❯`. A span is a bar across
+lanes are its name or blank. Every lane of every process is drawn alike, whatever its kind: a
+flow, a session, a program, or a lane of slices nested in one another. The row under the cursor is marked `❯`. A span is a bar across
 its row in its category's colour of the theme (`flow` primary, `session` accent, `turn`
 secondary, `llm` success, `tool` warning, `message` primary, `event` accent, `process`
 secondary), cut to the eighth of a cell at either end (`▏▎▍▌▋▊▉█`), its name written on it where
@@ -1233,27 +1234,48 @@ row.
 | `↑` / `↓`, `pageup` / `pagedown` | the row above / below (10 rows), the cursor on the span on screen nearest the moment it was at, or none |
 | `←` / `→` | the span before / after in the row, the window moved to it where it is off screen |
 | `enter` | a pane under the chart of the span under the cursor, following the cursor, or shuts it: its name; category · process · track · depth; `start <t> · lasted <t> · <ISO time>`; `[<model> · ]<n> in · <n> out` where it has either; then each of its first 12 args, `<key> <value>` on one line of at most 200 characters (`+<n> more`) |
-| `f` | zoom to the span under the cursor |
+| `p` | the pane of the process of the row under the cursor, or shuts it: its name; kind · key; `agent`, `role`, `backend`, `model` and `label`, those it has; `pid`, `parent` and `record`, those it has; `start <t> · lasted <t> · <n> track(s) · <n> span(s)` |
+| `v` | begins a range at the span under the cursor (or the moment it is at), stretching to the span the cursor goes to; again holds it there; again drops it. The ruler is drawn turned round across it, and the pane says it: `Range`; `from <t> · to <t> · lasted <t>`; `<n> span(s) · <n> in · <n> out`; then a row per category (`flow`, `session`, `turn`, `llm`, `tool`, `message`, `event`, `process`, then any other by name): its spans, its time inside the range, its tokens in and out |
+| `f` | zoom to the range, or to the span under the cursor where there is none |
 | `0` | the whole epic |
 | `space` | fold the process of the row under the cursor to its first row, hiding the processes under it, or open it out |
 | `/` | search box (`span name`): `enter` goes to the first span after the cursor whose name holds it (any case), opening out what hides it: `<i> of <n> · <words>`, or `no span named <words>` |
 | `n` / `N` | the next / previous span found |
-| `tab` | **Flame** |
+| `tab` / `shift+tab` | **Flame** / **Slices** |
 | `r` | read again |
-| `esc` | out of the search, then the pane, then back to the run |
+| `esc` | out of the search, then the range, then the pane, then back to the run |
 
 Keys line:
-`w/s zoom   a/d pan   ←/→ span   enter details   f fit   0 whole   space fold   / search   [n/N next   ]tab flame   esc back`.
+`w/s zoom   a/d pan   ←/→ span   enter details   p process   v range|hold|drop   f fit   0 whole   space fold   / search   [n/N next   ]tab flame   esc back`.
 
-**Flame**: where the time in the window went, as three rows of nested bars over a list: kind
-of process (`flow` primary, `session` secondary, `os` warning), then category, then name,
-each as wide as its share, heaviest first, cut by an eighth of a gap from the one before. Time
-is each span's own inside the window, less the spans under it in its track; `t` weighs by
-tokens in and out instead. Under it `time|tokens   spans   stack`, and a list of at most 400
-stacks, each under the one it is part of: total (as on the ruler, or tokens as
-[the status line](#the-status-line) counts them), how many spans, and its name; the stack under
-the list's cursor is drawn turned round in the bars. Under the list:
-`weighed by time|tokens · <from> · <to>`. Keys: `↑/↓ stack   t tokens|time   r refresh   tab timeline   esc back`.
+**Flame**: where the time in the range went -- or in the window, where there is none -- as
+nested bars over a list. Each agent is a stack, `<agent> (<role>)` (its label where it fills
+no role); each flow and each program is one too, by its name. Its sessions are merged into
+it; `m` puts each apart, a stack of its own under it (a program's as `<name> <pid>`), and
+merges them again. Under it, its spans as they nest, by name: a session's own span, and a
+flow's, is its stack. Each bar is as wide as its share, heaviest first, in its category's
+colour (an agent `session` secondary, a flow primary, a program warning), cut by an eighth of
+a gap from the one before; as many rows as the stacks go deep, 6 at most. `t` weighs by the
+next of time (inside the stretch), tokens in, tokens out and count of spans. A stack weighs
+what its own spans do, or what those under it do where that is more -- counts are summed --
+so a span that says what its calls came to is not weighed twice. Under it
+`time|in|out|count   spans   stack`, and a list of at most 400 stacks, each under the one it
+is part of: its weight (as on the ruler, or tokens as [the status line](#the-status-line)
+counts them), how many spans, and its name; the stack under the list's cursor is drawn turned
+round in the bars. Under the list:
+`weighed by <time|tokens in|tokens out|count> · sessions merged|apart[ · range] · <from> · <to>`.
+Keys: `↑/↓ stack   t <next weight>   m apart|merge   r refresh   tab slices   esc back`.
+
+**Slices**: every name the spans of the same stretch go by, a row per name and category, at
+most 400: `count total self avg p50 p95 max in out category name` -- how many, their time
+inside the stretch, of that what the spans under them leave, the average, the median, the
+95th percentile, the longest, and tokens in and out -- each on one line, the name cut with
+`…`. Sorted by total, the most first; `o` sorts by the next column (a number the most first,
+words from a) and `O` turns it round, the column marked `↓` or `↑`. `enter` goes to the
+timeline and to the first span of that name and category after the cursor, as a search does:
+`<i> of <n> · <name>`, `n` / `N` the next. Under the list:
+`sorted by <column>↓|↑[ · range] · <from> · <to>`. Keys:
+`↑/↓ slice   enter timeline   o sort   O reverse   r refresh   tab timeline   esc back`.
 
 ## `/resume` {#carrying-the-last-one-on-outright}
 
