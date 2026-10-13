@@ -96,6 +96,25 @@ def test_the_runs_are_this_workspaces(tmp_path: Path) -> None:
     assert Hmz(tmp_path).epics.under() == Epics(tmp_path).under()
 
 
+def test_what_a_batch_carries_is_this_machines_own_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.runtime.doing import daemons
+
+    hmz = Hmz(tmp_path)
+    seen: list[tuple[object, tuple[str, ...]]] = []
+
+    def carried(by: object, pages: tuple[str, ...]) -> list[tuple[str, dict[str, Any]]]:
+        seen.append((by, pages))
+        return [("/api/settings", {"details": True})]
+
+    monkeypatch.setattr(daemons, "carried", carried)
+
+    assert hmz.carried(("general",)) == [("/api/settings", {"details": True})]
+    assert seen == [(hmz, ("general",))]
+    assert hmz.daemons.CARRIED == ("general", "fallback", "runtimes", "backup")
+
+
 def test_every_backend_is_listed_installed_or_not(stand: Stands) -> None:
     profiles = stand(backends, "profiles", ("claude", "codex"))
 

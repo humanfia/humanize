@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import os
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Mapping, Sequence
 
     from hmz.coganchor.backends import Model, Profile
     from hmz.flows import Budget, FlowParams
@@ -156,6 +156,18 @@ class Hmz:
 
             self._daemons = Daemons()
         return self._daemons
+
+    def carried(self, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
+        """This machine's settings as another daemon's interface takes them, of some pages.
+
+        What a batch apply writes there, as `hmz.runtime.doing.daemons.carried` says it.
+
+        Args:
+          pages: Which of `Daemons.CARRIED`.
+        """
+        from hmz.runtime.doing.daemons import carried
+
+        return carried(self, pages)
 
     def backends(self) -> tuple[Profile, ...]:
         """Every coding agent CLI humanize drives, whether or not it is installed here."""

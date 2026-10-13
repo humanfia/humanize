@@ -32,7 +32,7 @@ import socket
 import subprocess
 import threading
 import time
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
@@ -263,6 +263,9 @@ def _named(alias: str) -> str:
 
 class Daemons:
     """The ssh daemons written down, and reaching them: what every frontend switches between."""
+
+    #: What a batch apply carries to them, as :data:`CARRIED`.
+    CARRIED: ClassVar = CARRIED
 
     def all(self) -> list[dict[str, Any]]:
         """Every ssh daemon written down, in order; one that cannot be one is left out."""

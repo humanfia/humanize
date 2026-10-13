@@ -180,7 +180,7 @@ class Afar(ModalScreen[None]):
     @work(group="afar")
     async def _carries(self, text: str) -> None:
         """Takes one line there, off the screen's thread, and says what refused it."""
-        from hmz.runtime import Refused
+        from hmz.daemon import Refused
 
         asking = next(
             (
