@@ -129,12 +129,18 @@ jobs:
           node release-pr.js
 
       # A pull request this workflow's token opens or updates starts no `ci-ok` of its own, and
-      # the branch rule needs one. A dispatch is the one event that token may start.
+      # the branch rule needs one. A dispatch is the one event that token may start. The pull
+      # request is found by release-please's branch, not its `autorelease: pending` label, which
+      # it may not have yet; and never dispatched without one, which would run CI on `main`.
       - name: Run CI on the release pull request
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.plan.outputs.branch }}
         run: |
-          head="$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$BRANCH" --label 'autorelease: pending' \
-            --json headRefName --jq '.[0].headRefName')"
+          head="$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$BRANCH" --state open \
+            --json headRefName --jq '[.[].headRefName | select(startswith("release-please--"))][0] // ""')"
+          if [[ -z "$head" ]]; then
+            echo "::error::No release pull request is open against $BRANCH."
+            exit 1
+          fi
           gh workflow run ci.yml --ref "$head" --repo "$GITHUB_REPOSITORY"
