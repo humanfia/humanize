@@ -122,7 +122,7 @@ export function mountSidebar(root, context, where) {
       list,
       order.map((group) => {
         const open = !shut.has(group.path)
-        const toggle = h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(open), 'aria-label': open ? 'Collapse' : 'Expand' }, icon('chevron'))
+        const toggle = h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(open), 'aria-label': open ? 'Collapse' : 'Expand' }, icon('folder'), icon('chevron'))
         toggle.addEventListener('click', () => {
           if (open) shut.add(group.path)
           else shut.delete(group.path)
@@ -133,7 +133,7 @@ export function mountSidebar(root, context, where) {
             'div',
             { class: ['side-folder', chosen === group.path && 'current'] },
             toggle,
-            h('span', { class: 'side-folder-name', title: group.path }, icon('folder'), h('span', { class: 'side-label' }, nameOf(group.path))),
+            h('span', { class: 'side-folder-name', title: group.path }, h('span', { class: 'side-label' }, nameOf(group.path))),
             iconButton('plus', `New epic in ${nameOf(group.path)}`, { class: 'side-add', onclick: () => (location.hash = hash(`/new?workspace=${encodeURIComponent(group.path)}`)) }),
           )
         const where = encodeURIComponent(group.path)
