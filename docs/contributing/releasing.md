@@ -34,18 +34,17 @@ rules as `main`. Three workflows do it:
    or, for a new line, since the line before it was cut. A pre-release counts as a last release
    only to the pre-releases after it: `0.2.0` says all that changed since `0.1.x`, not just
    since `0.2.0-rc.1`.
-2. **`ci.yml`** runs on the release pull request, approved by `release.yml`: on a pull request
-   a workflow opened, it waits for approval, and its `ci-ok` is needed to merge it. It runs
+2. **`ci.yml`** runs on the release pull request, started by `release.yml`: a pull request a
+   workflow opened starts no checks of its own, and `ci-ok` is needed to merge it. It runs
    again on every push to a `release/*` branch, the merge included, on what the push changed.
 3. **`publish.yml`**, on a push to a `release/*` branch that merged its release pull request,
    tags the merge commit `vX.Y.Z`, builds a wheel and an sdist, runs `twine check --strict`
    (which fails if PyPI could not render `README.md`), publishes both to
-   [PyPI](https://pypi.org/project/hmz/), and only then publishes the GitHub release, so it is
-   never out before its package. Beside them, on macOS, it builds [the macOS app](/user/desktop)
-   as one disk image for Apple silicon and Intel, `humanize-X.Y.Z-macos-universal.dmg`, attests
-   it, and attaches it to the release, with the app's update beside it: see
-   [The app's updates](#the-apps-updates). Those are all the release offers: the wheel and the
-   sdist are PyPI's.
+   [PyPI](https://pypi.org/project/hmz/), and only then publishes the GitHub release with
+   them attached, so the release never offers files PyPI refused. Beside them, on macOS, it
+   builds [the macOS app](/user/desktop) as one disk image for Apple silicon and Intel,
+   `humanize-X.Y.Z-macos-universal.dmg`, attests it, and attaches it to the release too, with
+   the app's update beside it: see [The app's updates](#the-apps-updates).
 
 `main` itself never says a released version: its `pyproject.toml` says `0.0.0`, and so does
 `tauri.conf.json`.
