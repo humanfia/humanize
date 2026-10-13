@@ -100,7 +100,8 @@ async def test_a_run_stopped_is_listed_with_its_task_and_how_it_ended(
 
         # Who it was run by, what it spent and how long it took, as the web lists it.
         await shows(pilot, "· chat", "hello · ", " · $0.00 · 200 out · took ")
-        await shows(pilot, "1 session · stopped")
+        # Apart: an agent's name long enough wraps the row between the two.
+        await shows(pilot, "1 session", "stopped")
         assert listed(app) == [one.name for one in epics(workspace)]
 
 
