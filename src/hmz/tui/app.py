@@ -1406,6 +1406,7 @@ class Humanize(App[None]):
         for screen in self.screen_stack:
             if isinstance(screen, Lists):
                 screen.reread()
+        self._recounts_updates()
         # And whether the last run here is of a flow that can be picked up, which is a
         # question about a flow.
         self._looks_for_resume()

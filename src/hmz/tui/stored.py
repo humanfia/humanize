@@ -35,6 +35,7 @@ from .pick import (
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from pathlib import Path
 
 __all__ = ["Stored"]
 
@@ -81,7 +82,7 @@ class Stored(Sheet[tuple[str, ...]]):
         self._target = self._targets[0]
         #: What the target holds, newest first, or None while it is fetched.
         self._held: list[Held] | None = None
-        #: The epics this machine has, by name.
+        #: The epics this machine has, by key.
         self._here: set[str] = set()
         self._was = ""
         self._said = ""
@@ -108,8 +109,13 @@ class Stored(Sheet[tuple[str, ...]]):
         self._fill()
 
         def fetched() -> tuple[Sequence[Held], set[str]]:
-            hmz = _hmz()
-            return hmz.backups.listed(target), {one.name for one in hmz.epics.every()}
+            from hmz.runtime.epic import under
+
+            held = _hmz().backups.listed(target)
+            # Here as a download would land it: that epic, under the directory it ran in.
+            return held, {
+                one.key for one in held if (under(one.workspace) / one.epic).is_dir()
+            }
 
         try:
             held, here = await asyncio.to_thread(fetched)
@@ -203,7 +209,7 @@ class Stored(Sheet[tuple[str, ...]]):
                 place = (one.machine, one.workspace)
             about = _asked_for(one.task) if one.task else "no task"
             about += f"{_DOT}{one.how or 'unfinished'}"
-            if one.epic in self._here:
+            if one.key in self._here:
                 about += f"{_DOT}here"
             options.append(
                 Option(
@@ -212,7 +218,7 @@ class Stored(Sheet[tuple[str, ...]]):
                         f"{_when(one.began)}{_DOT}{one.flow}",
                         about,
                         here=f"={one.key}" == landing,
-                        inforce=one.epic in self._here,
+                        inforce=one.key in self._here,
                     ),
                     id=f"={one.key}",
                 )
@@ -240,30 +246,39 @@ class Stored(Sheet[tuple[str, ...]]):
         one = next((each for each in self._held or [] if each.key == key), None)
         if one is None:
             return
-        if one.epic in self._here:
+        if one.key in self._here:
             self._said = f"{escape(one.epic)} is here already: open it on /epics"
             self._fill()
             return
         self._pulls(one)
 
-    @work(group="pull", exclusive=True)
+    @work(group="pull")
     async def _pulls(self, one: Held) -> None:
-        """Downloads one epic off the event loop, and says where it landed."""
+        """Downloads one epic off the event loop, one at a time, and says where it landed."""
         import asyncio
 
+        if self.opening():
+            return
         target = self._target
         self._said = f"downloading {escape(one.epic)}…"
         self._fill()
         hmz = _hmz()
+
+        def pulled() -> tuple[Path, str]:
+            at = hmz.backups.pulled(target, one.key)
+            return at, hmz.epics.foreign(at)
+
         try:
-            at = await asyncio.to_thread(hmz.backups.pulled, target, one.key)
+            at, why = await asyncio.to_thread(pulled)
         except (OSError, ValueError) as why:
             self._said = bad(escape(hmz.verses.plain(str(why))))
             self._fill()
             return
-        self._here.add(at.name)
+        finally:
+            self.opened()
+        self._here.add(one.key)
         said = f"downloaded {at.name} into {_homed(one.workspace)}; open it on /epics"
-        if why := hmz.epics.foreign(at):
+        if why:
             said += f"; it cannot be resumed here: {why}"
         self._said = escape(said)
         self._told.append(f"[dim]{escape(said)}[/dim]")

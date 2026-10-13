@@ -21,15 +21,12 @@ from hmz.coganchor.prices import money
 from hmz.runtime.watching.monitor import lasting, thousands
 
 from .dropdown import Value
-from .pick import _DOT, _DROPS, Action, Drop, Key, Pages, _chip, _hmz, _many
+from .pick import _DOT, _DROPS, Action, Drop, Key, Pages, _chip, _hmz, _many, bad
 
 if TYPE_CHECKING:
     from hmz.runtime.epic import Ran
 
-__all__ = ["USAGE", "Spends"]
-
-#: Where the usage page stands among the pages of `/settings`: after the six of `pick`.
-USAGE = 6
+__all__ = ["Spends"]
 
 #: How far back the page can look, in days, picked from.
 _RANGES = (7, 30, 90, 365)
@@ -114,21 +111,33 @@ class Spends(Pages):
             self._every_spent = picked == _EVERY
 
     @work(group="usage", exclusive=True)
-    async def _reads_usage(self) -> None:
-        """Reads what the epics spent, off the event loop: every one on the disk, maybe."""
+    async def _reads_usage(self, days: int, *, every: bool) -> None:
+        """Reads what the epics spent, off the event loop: every one on the disk, maybe.
+
+        Only the epics of those days are read: each is named for the moment it began, in UTC.
+        """
         import asyncio
+        import datetime
 
         from hmz.runtime.epic import spending
 
-        days, every = self._spent_for = (self._range, self._every_spent)
-
         def read() -> dict[str, Any]:
             epics = _hmz().epics
-            found = epics.every() if every else epics.all()
+            now = datetime.datetime.now(datetime.UTC)
+            since = (now - datetime.timedelta(days=days - 1)).strftime("%Y%m%d")
+            found = [
+                one
+                for one in (epics.every() if every else epics.all())
+                if one.name >= since
+            ]
             ran: list[Ran] = [one for one in map(epics.read, found) if one]
-            return spending(ran, days)
+            return spending(ran, days, now)
 
-        said = await asyncio.to_thread(read)
+        try:
+            said = await asyncio.to_thread(read)
+        except OSError as why:
+            said = None
+            self._said = bad(escape(str(why)))
         if (days, every) == self._spent_for:
             self._spent = said
             self._fill()
@@ -192,8 +201,9 @@ class Spends(Pages):
     def _fill_usage(self) -> None:
         """Puts the page up, reading it again where the range or the scope moved."""
         if self._spent_for != (self._range, self._every_spent):
-            self._spent = None
-            self._reads_usage()
+            self._spent, self._said = None, ""
+            self._spent_for = (self._range, self._every_spent)
+            self._reads_usage(self._range, every=self._every_spent)
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
         rows = self._usage_rows()

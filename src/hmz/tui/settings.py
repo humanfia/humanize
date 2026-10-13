@@ -74,7 +74,7 @@ from .pick import (
     complete,
     switched,
 )
-from .usage import USAGE, Spends
+from .usage import Spends
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -99,6 +99,9 @@ PAGES = (
     "workspace",
     "usage",
 )
+
+#: The page of what the epics spent, the last.
+_USAGE = PAGES.index("usage")
 
 #: The page that moved to `/flow`, still taken by `/settings` so that it can say where it went.
 MOVED = "flowverses"
@@ -414,7 +417,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Spends):
                 _MACHINES: self.MACHINES_ABOUT,
                 _FALLBACK: self.STEPS_ABOUT,
                 _BACKUP: self.BACKUP_ABOUT,
-                USAGE: self.USAGE_ABOUT,
+                _USAGE: self.USAGE_ABOUT,
             }[self._tab]
         )
         if self._home:
@@ -427,7 +430,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Spends):
             self._fill_steps()
         elif self._tab == _BACKUP:
             self._fill_backups()
-        elif self._tab == USAGE:
+        elif self._tab == _USAGE:
             self._fill_usage()
         else:
             self._fill_own()
@@ -444,7 +447,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Spends):
             return _many(len(self._saved_machines), "machine")
         if page == _BACKUP:
             return _many(len(self._repos), "target")
-        if page == USAGE:
+        if page == _USAGE:
             return self._usage_summary()
         return _many(len(self._steps), "rule")
 
@@ -688,7 +691,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Spends):
             _MACHINES: self._machine_actions,
             _FALLBACK: self._step_actions,
             _BACKUP: self._backup_actions,
-            USAGE: self._usage_actions,
+            _USAGE: self._usage_actions,
         }.get(self._tab, lambda: [self._saves_all()])()
 
     def _footed(self, *keys: Key) -> None:
@@ -745,7 +748,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Spends):
         Returns:
           True for a switch.
         """
-        if not self._home and self._tab == USAGE:
+        if not self._home and self._tab == _USAGE:
             return self._drops_usage(row)
         return (
             not self._home and self._tab in (_EVERYWHERE, _DIRECTORY) and row in _MEANS
@@ -760,7 +763,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Spends):
         Returns:
           The list, opening on the answer it is not, so that enter twice turns it round.
         """
-        if self._tab == USAGE:
+        if self._tab == _USAGE:
             return self._dropping_usage(row)
         now = self._switched(row)
         named = next(one.named for one in self._settings() if one.held == row)
@@ -774,7 +777,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Spends):
           picked: `on` or `off`.
         """
         on_ = picked == _YES
-        if self._tab == USAGE:
+        if self._tab == _USAGE:
             self._dropped_usage(row, picked)
         elif row == _SENTRY:
             self._sentry = on_

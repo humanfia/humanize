@@ -56,6 +56,7 @@ from typing import (
     get_origin,
     runtime_checkable,
 )
+from urllib.parse import unquote
 from weakref import WeakKeyDictionary
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -10113,7 +10114,9 @@ def _dropped(said: str) -> str:
     Returns:
       The path it names.
     """
-    said = said.strip().removeprefix("file://")
+    said = said.strip()
+    if said.startswith("file://"):
+        said = unquote(said.removeprefix("file://"))
     if Path(said).expanduser().exists():
         return said
     try:
