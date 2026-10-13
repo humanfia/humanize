@@ -7,6 +7,9 @@ bootstrapped and served for real, and what is checked is what came back over the
 
 from __future__ import annotations
 
+import os
+import shlex
+import stat
 import subprocess
 import sys
 import threading
@@ -140,6 +143,63 @@ def test_a_docker_container_is_bootstrapped_in_its_own_temp_and_served(
     assert found["entries"] == 2
     assert list((far.root / "tmp" / "humanize").glob("humanize-*.pyz"))
     assert all(argv[:3] == ["exec", "-i", name] for argv in far.calls("docker"))
+
+
+def test_a_container_target_naming_a_user_runs_all_as_it_with_its_variables_wrapped(
+    far: Fakes, workspace: Path, tmp_path: Path
+) -> None:
+    name = _unique(tmp_path)
+    user = f"{os.getuid()}:{os.getgid()}"
+    marks = tmp_path / "wrapped"
+    wrapper = tmp_path / "wrapper"
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        "tag=$1; shift\n"
+        f'printf "%s %s\\n" "$tag" "$HZ_PROBE" >> {shlex.quote(str(marks))}\n'
+        'exec "$@"\n'
+    )
+    wrapper.chmod(0o755)
+    target = f"docker://{name}?user={user}&env=HZ_PROBE=a%20b&exec={wrapper}&exec=t1"
+
+    found = anchor.check(AnchorConfig(target=target, workspace=str(workspace)))
+
+    assert found["entries"] == 2
+    cache = far.root / "tmp" / f"humanize-{os.getuid()}"
+    assert list(cache.glob("humanize-*.pyz"))
+    assert stat.S_IMODE(cache.lstat().st_mode) == 0o700
+    assert not list((far.root / "tmp" / "humanize").glob("*"))
+    calls = far.calls("docker")
+    assert len(calls) == 2  # install, then serve
+    for argv in calls:
+        assert argv[:9] == [
+            "exec",
+            "-i",
+            "-u",
+            user,
+            "-e",
+            "HZ_PROBE=a b",
+            name,
+            str(wrapper),
+            "t1",
+        ]
+    assert marks.read_text().splitlines() == ["t1 a b"] * len(calls)
+
+
+def test_a_container_users_directory_that_another_could_change_is_refused(
+    far: Fakes, workspace: Path, tmp_path: Path
+) -> None:
+    planted = tmp_path / "planted"
+    planted.mkdir()
+    (far.root / "tmp" / f"humanize-{os.getuid()}").symlink_to(planted)
+    target = f"docker://{_unique(tmp_path)}?user={os.getuid()}"
+
+    with pytest.raises(
+        ConnectionError,
+        match=rf"humanize-{os.getuid()} is not a directory this user owns",
+    ):
+        anchor.check(AnchorConfig(target=target, workspace=str(workspace)))
+
+    assert not list(planted.iterdir())
 
 
 def test_a_container_on_another_daemon_is_reached_there_whatever_the_environment_says(

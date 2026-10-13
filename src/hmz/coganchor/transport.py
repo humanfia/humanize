@@ -4,12 +4,14 @@ Seven ways in, and they are two kinds of thing.
 
 Five of them *start* the serving half and take the pipe they started it down. ``local[:REAL]``
 runs it as a child of this process, where ``REAL`` is the directory standing in for the
-target's copy of the workspace; ``ssh://[user@]host[:port]``, ``docker://container[@endpoint]``,
-``apple-container://container`` and ``slurm://JOBID`` ship a self-contained zipapp of coganchor
-to the far side and run it there, needing nothing installed but a Python 3. Those five differ in
-one thing only -- how a command is run over there -- so they are one road with five prefixes,
-and :class:`Road` is that road. A docker container's prefix names the daemon holding it, which
-:class:`Endpoint` is; an Apple container's names none, Apple's `container` reaching the
+target's copy of the workspace; ``ssh://[user@]host[:port]``,
+``docker://container[?options][@endpoint]``, ``apple-container://container`` and
+``slurm://JOBID`` ship a self-contained zipapp of coganchor to the far side and run it there,
+needing nothing installed but a Python 3. Those five differ in one thing only -- how a command
+is run over there -- so they are one road with five prefixes, and :class:`Road` is that road. A
+docker container's prefix names the daemon holding it, which :class:`Endpoint` is, and
+whatever its options say of the user, the variables and the wrapper each command there is run
+as, with and under; an Apple container's names none, Apple's `container` reaching the
 containers of this Mac and no other; and a Slurm job's is an `srun` sharing that job's
 allocation, on the node it was given.
 
@@ -40,7 +42,7 @@ import tempfile
 import threading
 import time
 import zipapp
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -95,6 +97,11 @@ REMOTE_MIRRORS = "$HOME/.cache/humanize-mirrors"
 
 #: And the same, in a container.
 CONTAINER_MIRRORS = "/tmp/humanize-mirrors"  # noqa: S108
+
+#: What a docker target may say after a `?` ahead of its endpoint, each `KEY=VALUE`: `user`
+#: once, the `UID[:GID]` every command there is run as; `env`, a `NAME=VALUE` each is run
+#: with; and `exec`, a word of the wrapper each is run under, in the order they are written.
+_DOCKER_OPTIONS = ("user", "env", "exec")
 
 #: Where a target may keep a Python, in the order they are tried.  ``python3`` first, which
 #: answers on every Linux and on a Mac somebody has set up; then the versioned names, which is
@@ -192,7 +199,9 @@ for one in os.scandir(cache):
 _INSTALLING = f"exec({_INSTALL_SOURCE!r})"
 
 
-def _installing(cache: str, name: str, digest: str, python: str = "") -> list[str]:
+def _installing(
+    cache: str, name: str, digest: str, python: str = "", *, owned: bool = False
+) -> list[str]:
     """The command that installs an archive arriving on its input, on the far side.
 
     Args:
@@ -200,6 +209,8 @@ def _installing(cache: str, name: str, digest: str, python: str = "") -> list[st
       name: What it is called there.
       digest: What its SHA-256 has to start with, there and on its way.
       python: The Python to try there first, or "" for the usual ones alone.
+      owned: Whether `cache` has to be the far side's user's alone before anything goes in
+        it, as :func:`python_command` says.
 
     Returns:
       The argv to run over there.
@@ -208,6 +219,7 @@ def _installing(cache: str, name: str, digest: str, python: str = "") -> list[st
         ["-c", _INSTALLING, name, digest, str(_KEPT_FOR)],
         setting=(("HUMANIZE_BUNDLES", cache),),
         python=python,
+        owned=(cache,) if owned else (),
     )
 
 
@@ -250,6 +262,7 @@ def python_command(
     bundle: str = "",
     setting: Sequence[tuple[str, str]] = (),
     python: str = "",
+    owned: Sequence[str] = (),
 ) -> list[str]:
     """The command that runs ``args`` under the target's Python, wherever it keeps one.
 
@@ -267,6 +280,9 @@ def python_command(
         `args` crosses as the word it already is.
       python: An interpreter to try before every other, for a machine whose own are all too
         old: absolute, or under `~/` for that machine's home.
+      owned: Directories that have to be the far side's user's alone before anything else
+        runs, as that machine's shell spells them: each is made, refused where it is a link
+        or another user's, and made `0700`.
 
     Returns:
       The argv to run over there.
@@ -293,6 +309,15 @@ def python_command(
     for name, value in setting:
         script = (
             f'{name}="{value}"; export {name}; mkdir -p "${name}" || exit 1; ' + script
+        )
+    # Before the settings, whose directories may be inside these. Once one is checked nobody
+    # else can move or remove it from under this user, a shared `/tmp` being sticky.
+    for path in reversed(owned):
+        script = (
+            f'mkdir -p "{path}" && [ -d "{path}" ] && [ ! -L "{path}" ] && '
+            f'[ -O "{path}" ] && chmod 700 "{path}" || '
+            f'{{ echo "humanize: {path} is not a directory this user owns" >&2; '
+            "exit 1; }; " + script
         )
     # ``/bin/sh`` by its path rather than its name, since the ``PATH`` this is reaching past
     # is the same one that would have to hold a shell.  ``$0`` is what sh prefixes its own
@@ -508,7 +533,10 @@ class Target:
       options: For an ssh target, what its `ssh` is told besides the destination, as
         `(KEYWORD, VALUE)` pairs: each an ssh_config keyword, passed as `-o KEYWORD=VALUE`,
         but for `F`, the config file ssh reads instead of the user's own (`-F VALUE`).
-        Spelled after a `?` in the target, `&` between them, each value URL-quoted.
+        Spelled after a `?` in the target, `&` between them, each value URL-quoted. For a
+        docker one, what each `docker exec` is told besides the container, as
+        :data:`_DOCKER_OPTIONS` says, in the same pairs and spelled the same way, after a `?`
+        ahead of the `@` of its endpoint.
     """
 
     scheme: str
@@ -541,14 +569,17 @@ class Target:
                 return cls("ssh", host=host, port=int(port), options=options)
             return cls("ssh", host=authority, options=options)
         if spec.startswith("docker://"):
-            # At the first `@`: a container's name cannot hold one, and an endpoint's can.
+            # At the first `@`: a container's name cannot hold one, its options are quoted
+            # so as not to, and an endpoint's can.
             container, at, where = spec[len("docker://") :].partition("@")
+            container, _, query = container.partition("?")
             if container and (where or not at):
+                options = _docker_options(query, spec)
                 # Kept as its own spelling, and none for the default -- so a target
                 # naming its daemon `local` is the same target as one naming none.
                 endpoint = Endpoint.parse(where)
                 spelled = "" if endpoint == Endpoint() else str(endpoint)
-                return cls("docker", host=container, path=spelled)
+                return cls("docker", host=container, path=spelled, options=options)
         if spec.startswith(f"{APPLE}://"):
             container = spec[len(f"{APPLE}://") :]
             if container and not set("@/?#") & set(container):
@@ -585,7 +616,13 @@ class Target:
                 said += "?" + urlencode(self.options, quote_via=quote, safe="/~:@,")
             return said
         if self.scheme == "docker":
-            return f"docker://{self.host}" + (f"@{self.path}" if self.path else "")
+            from urllib.parse import quote, urlencode
+
+            said = f"docker://{self.host}"
+            if self.options:
+                # An `@` quoted, so that the container's part still ends at the first one.
+                said += "?" + urlencode(self.options, quote_via=quote, safe="/~:,=")
+            return said + (f"@{self.path}" if self.path else "")
         if self.scheme == APPLE:
             return f"{APPLE}://{self.host}"
         if self.scheme == SLURM:
@@ -649,6 +686,50 @@ def _ssh_options(query: str, spec: str) -> tuple[tuple[str, str], ...]:
         if not _KEYWORD.match(key) or not value or set(value) & set('\n\r\0"'):
             raise ValueError(
                 f"malformed target {spec!r}; {key}={value!r} is not an ssh option"
+            )
+    return tuple(pairs)
+
+
+#: What a docker target's `user` may be: the numeric `UID[:GID]` docker's `-u` takes, numeric
+#: so that the directories humanize keeps there are named for whom they are without asking.
+_DOCKER_USER = re.compile(r"[0-9]+(?::[0-9]+)?\Z")
+
+#: What a variable a docker target's `env` sets may be called.
+_VARIABLE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+
+
+def _docker_options(query: str, spec: str) -> tuple[tuple[str, str], ...]:
+    """The options after the `?` of a docker target, read.
+
+    Raises:
+      ValueError: For one that is not one of :data:`_DOCKER_OPTIONS`, a `user` that is not
+        `UID[:GID]` or is said twice, an `env` that is not `NAME=VALUE`, an empty `exec`, or
+        any value that would be two lines or holds a NUL.
+    """
+    from urllib.parse import parse_qsl
+
+    if not query:
+        return ()
+    try:
+        pairs = parse_qsl(query, keep_blank_values=True, strict_parsing=True)
+    except ValueError as error:
+        raise ValueError(
+            f"malformed target {spec!r}; expected "
+            "docker://CONTAINER?user=UID[:GID]&env=NAME=VALUE&exec=WORD&..."
+        ) from error
+    users = 0
+    for key, value in pairs:
+        name, equals, _ = value.partition("=")
+        users += key == "user"
+        if (
+            set(value) & set("\n\r\0")
+            or (key == "user" and (users > 1 or not _DOCKER_USER.match(value)))
+            or (key == "env" and not (equals and _VARIABLE.match(name)))
+            or (key == "exec" and not value)
+            or key not in _DOCKER_OPTIONS
+        ):
+            raise ValueError(
+                f"malformed target {spec!r}; {key}={value!r} is not a docker exec option"
             )
     return tuple(pairs)
 
@@ -718,6 +799,10 @@ class Road:
       mirrors: And where a harness running there keeps its mirrors, which is somewhere else
         again -- see :data:`REMOTE_MIRRORS` for why it may not be under `cache`.
       python: The Python to try there before every other, or "" for those alone.
+      owned: Whether `cache` and `mirrors` are the far side's user's own, and so are checked
+        to be before anything goes in them or runs out of them: a container's commands run as
+        a user its target names, among others of that container's that could have made a
+        directory of that name first.
     """
 
     target: Target
@@ -726,6 +811,7 @@ class Road:
     cache: str
     mirrors: str
     python: str = ""
+    owned: bool = False
 
     @classmethod
     def to(cls, target: Target) -> Road:
@@ -762,12 +848,29 @@ class Road:
                 mirrors=REMOTE_MIRRORS,
             )
         if target.scheme == "docker":
+            # As the user the target names, with its variables, under its wrapper: every
+            # command over there, the serving half and a native CLI among them. Its own
+            # directories there then, named for that user, a container's `/tmp` being every
+            # one of its users'.
+            flags: list[str] = []
+            wrapper: list[str] = []
+            user = ""
+            for key, value in target.options:
+                if key == "user":
+                    flags += ["-u", value]
+                    user = value.partition(":")[0]
+                elif key == "env":
+                    flags += ["-e", value]
+                else:
+                    wrapper.append(value)
+            own = f"-{user}" if user else ""
             return cls(
                 target,
-                tuple(target.endpoint.docker("exec", "-i", target.host)),
+                (*target.endpoint.docker("exec", "-i", *flags, target.host), *wrapper),
                 quotes=False,
-                cache=CONTAINER_CACHE,
-                mirrors=CONTAINER_MIRRORS,
+                cache=CONTAINER_CACHE + own,
+                mirrors=CONTAINER_MIRRORS + own,
+                owned=bool(user),
             )
         if target.scheme == APPLE:
             return cls(
@@ -883,12 +986,19 @@ class Road:
         """
         if self.target.scheme == "local":
             return [*_myself(), *argv]
+        # The archive's directory, and the mirrors' where a setting puts something in it.
+        owned = [self.cache] if self.owned else []
+        if self.owned and any(
+            value.startswith(f"{self.mirrors}/") for _, value in setting
+        ):
+            owned.append(self.mirrors)
         return self.line(
             python_command(
                 list(argv),
                 bundle=self.installed(),
                 setting=setting,
                 python=self.python,
+                owned=owned,
             )
         )
 
@@ -924,7 +1034,10 @@ class Road:
             # Swept between being asked for and being read, which only an archive nothing had
             # used for weeks can be: built again, under the same name.
             carried = _rebundled().read_bytes()
-        result = self.run(_installing(self.cache, name, digest, self.python), carried)
+        result = self.run(
+            _installing(self.cache, name, digest, self.python, owned=self.owned),
+            carried,
+        )
         if result.returncode != 0:
             raise ConnectionError(
                 f"could not install humanize on {self.target.describe()}: "
@@ -939,11 +1052,14 @@ class Road:
         """Forgets that this machine was given the bundle, for one that has been replaced.
 
         A container made again under a name one had before is a new machine holding nothing,
-        and the memo would otherwise answer for it with what the old one was given.
+        and the memo would otherwise answer for it with what the old one was given -- as
+        every user a target of it named, each of whom was given one of their own.
         """
-        named = self.target.describe()
+        named = _machine(self.target.describe())
         with _PUSHED_LOCK:
-            _PUSHED.difference_update([one for one in _PUSHED if one[0] == named])
+            _PUSHED.difference_update(
+                [one for one in _PUSHED if _machine(one[0]) == named]
+            )
 
     def _said(self) -> str:
         """The tail of what a container printed, for an error that does not say enough.
@@ -978,6 +1094,18 @@ class Road:
 #: about to be asked to run. And the digest, because a rebuilt bundle is a different file.
 _PUSHED: set[tuple[str, str]] = set()
 _PUSHED_LOCK = threading.Lock()
+
+
+def _machine(spelled: str) -> str:
+    """The machine a target spelling names, whoever it names as using it.
+
+    A docker target's options say who uses a container and how, not which container it is:
+    every spelling of one container is forgotten with it when it is replaced.
+    """
+    target = Target.parse(spelled)
+    if target.scheme == "docker":
+        return replace(target, options=()).describe()
+    return spelled
 
 
 def _myself() -> list[str]:

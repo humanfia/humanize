@@ -662,7 +662,7 @@ its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER[@ENDPOINT]`, `apple-container://CONTAINER`, `slurm://JOBID[?python=PATH]`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, or `local[:DIR]`. |
+| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER[?OPTIONS][@ENDPOINT]`, `apple-container://CONTAINER`, `slurm://JOBID[?python=PATH]`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, or `local[:DIR]`. |
 | `--harness WHERE` | `$HUMANIZE_HARNESS`, else `local` | Where the agent process and its supervisor run: `local`, `same` (wherever `--target` is), or a target spelling. |
 | `--broker HOST` | `$HUMANIZE_RENDEZVOUS`, else this machine's outward-facing address | Where the two halves dial to be introduced, when harness and target differ. |
 | `--workspace PATH` | the current directory | The project directory as it exists on the target. |

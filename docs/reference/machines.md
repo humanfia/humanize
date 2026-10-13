@@ -1090,7 +1090,7 @@ it is:
 | `-e ssh@…` session, harness here | the same: the workdir's path on this machine |
 | `DockerConfig`, `AppleContainerConfig` or `SlurmConfig` machine | `<tmp>/humanize-<random>/shadow`, removed with the container or job |
 | `-e docker[@…]/…`, `-e apple-container[@…]/…` or `-e slurm[@…]/…` session, harness here | `$HUMANIZE_HOME/envs/mirrors/<container or job name>/<12 hex of the workdir>`, removed with the container or job |
-| harness on another machine, `shadow` unset | `$HOME/.cache/humanize-mirrors/<16 hex>` there (`/tmp/humanize-mirrors/<16 hex>` in a container), kept between turns |
+| harness on another machine, `shadow` unset | `$HOME/.cache/humanize-mirrors/<16 hex>` there (`/tmp/humanize-mirrors/<16 hex>` in a container, `/tmp/humanize-mirrors-<UID>/<16 hex>` for a docker target naming `user=UID`), kept between turns |
 
 A mirror path that already holds unrelated files, or was last used for another target, is
 refused unless `force` is set (see

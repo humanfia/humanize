@@ -54,6 +54,30 @@ from hmz.coganchor.transport import (
         ("docker://c@local", Target("docker", host="c")),
         ("docker://c@context:far", Target("docker", host="c", path="context:far")),
         ("docker://c@tcp://h:2376", Target("docker", host="c", path="tcp://h:2376")),
+        (
+            "docker://c?user=1000",
+            Target("docker", host="c", options=(("user", "1000"),)),
+        ),
+        (
+            "docker://c?user=1000:100&env=A=b%20c&exec=/w&exec=64@context:far",
+            Target(
+                "docker",
+                host="c",
+                path="context:far",
+                options=(
+                    ("user", "1000:100"),
+                    ("env", "A=b c"),
+                    ("exec", "/w"),
+                    ("exec", "64"),
+                ),
+            ),
+        ),
+        (
+            "docker://c?env=MAIL=a%40b&env=EMPTY=@local",
+            Target(
+                "docker", host="c", options=(("env", "MAIL=a@b"), ("env", "EMPTY="))
+            ),
+        ),
         (f"{APPLE}://box", Target(APPLE, host="box")),
         (f"{SLURM}://42", Target(SLURM, host="42")),
         (
@@ -83,6 +107,8 @@ def test_a_target_reads_as_what_it_names(spec: str, target: Target) -> None:
         "docker://c@context:far",
         "docker://c@unix:///var/run/d.sock",
         "docker://c@tcp://h:2376?tls=/certs",
+        "docker://c?user=1000:100&env=A=b%20c&exec=/w&exec=64@context:far",
+        "docker://c?env=MAIL=a%40b&exec=a%2Bb%26c@ssh://me@h?IdentityFile=/k",
         f"{APPLE}://box",
         f"{SLURM}://42",
         f"{SLURM}://42?python=/opt/py%20b",
@@ -109,6 +135,17 @@ def test_a_target_describes_itself_as_it_was_spelled(spec: str) -> None:
         "docker://@local",
         "docker://c@",
         "docker://c@nowhere",
+        "docker://c?novalue",
+        "docker://c?shell=/bin/sh",
+        "docker://c?user=me",
+        "docker://c?user=",
+        "docker://c?user=1:x",
+        "docker://c?user=1&user=2",
+        "docker://c?env=A",
+        "docker://c?env=1A=x",
+        "docker://c?env=A=a%0Ab",
+        "docker://c?exec=",
+        "docker://c?exec=a%00b",
         f"{APPLE}://",
         f"{APPLE}://a@b",
         f"{APPLE}://a/b",
@@ -139,6 +176,14 @@ def test_a_peer_target_names_its_meeting() -> None:
 def test_a_docker_target_names_its_daemon() -> None:
     assert Target.parse("docker://c@context:far").endpoint == Endpoint(context="far")
     assert Target.parse("docker://c").endpoint == Endpoint()
+    assert Target.parse("docker://c?user=1@context:far").endpoint == Endpoint(
+        context="far"
+    )
+
+
+def test_a_docker_option_that_is_not_one_is_named() -> None:
+    with pytest.raises(ValueError, match="user='me' is not a docker exec option"):
+        Target.parse("docker://c?user=me")
 
 
 @pytest.mark.parametrize(
@@ -320,6 +365,30 @@ def test_settings_are_exported_and_made_before_the_search() -> None:
     assert script.startswith(
         'HUMANIZE_SHADOW="$HOME/m"; export HUMANIZE_SHADOW; mkdir -p "$HUMANIZE_SHADOW"'
     )
+    assert "[ -O" not in script
+
+
+def test_directories_owned_are_checked_and_closed_before_the_settings() -> None:
+    script = python_command(
+        [],
+        bundle="/tmp/c-7/x.pyz",
+        setting=(("HUMANIZE_SHADOW", "/tmp/m-7/abc"),),
+        owned=("/tmp/c-7", "/tmp/m-7"),
+    )[2]
+    assert script.startswith('mkdir -p "/tmp/c-7" && [ -d "/tmp/c-7" ]')
+    for path in ("/tmp/c-7", "/tmp/m-7"):
+        assert (
+            f'[ ! -L "{path}" ] && [ -O "{path}" ] && chmod 700 "{path}" ||' in script
+        )
+        assert (
+            f'echo "humanize: {path} is not a directory this user owns" >&2' in script
+        )
+    assert (
+        script.index('[ -O "/tmp/c-7" ]')
+        < script.index('[ -O "/tmp/m-7" ]')
+        < script.index("HUMANIZE_SHADOW=")
+        < script.index("touch -c")
+    )
 
 
 # ----------------------------------------------------------------------------- roads
@@ -358,6 +427,44 @@ def test_a_container_road_carries_argv_straight_through(
     road = Road.to(Target.parse(spec))
     assert road.line(["ls", "a b"]) == [*prefix, "ls", "a b"]
     assert (road.cache, road.mirrors) == (CONTAINER_CACHE, CONTAINER_MIRRORS)
+    assert not road.owned
+
+
+def test_a_container_road_runs_as_its_user_with_its_variables_under_its_wrapper() -> (
+    None
+):
+    road = Road.to(
+        Target.parse("docker://c?user=1000:100&env=A=b%20c&exec=/w&exec=64@context:far")
+    )
+    assert road.line(["ls", "a b"])[-14:] == [
+        "docker",
+        "--context",
+        "far",
+        "exec",
+        "-i",
+        "-u",
+        "1000:100",
+        "-e",
+        "A=b c",
+        "c",
+        "/w",
+        "64",
+        "ls",
+        "a b",
+    ]
+    assert (road.cache, road.mirrors) == (
+        f"{CONTAINER_CACHE}-1000",
+        f"{CONTAINER_MIRRORS}-1000",
+    )
+    assert road.owned
+    assert road.mirror("abc") == f"{CONTAINER_MIRRORS}-1000/abc"
+
+
+def test_a_container_road_naming_no_user_keeps_the_containers_directories() -> None:
+    road = Road.to(Target.parse("docker://c?env=A=1&exec=/w"))
+    assert road.line(["ls"]) == ["docker", "exec", "-i", "-e", "A=1", "c", "/w", "ls"]
+    assert (road.cache, road.mirrors) == (CONTAINER_CACHE, CONTAINER_MIRRORS)
+    assert not road.owned
 
 
 def test_a_slurm_road_is_a_step_of_the_job_carrying_argv_straight_through() -> None:
@@ -443,6 +550,39 @@ def test_humanize_far_away_runs_the_installed_archive(
     assert f"{CONTAINER_CACHE}/humanize-0123456789abcdef.pyz" in line[-5]
     assert 'A="/b"; export A' in line[-5]
     road.forget()
+
+
+def test_each_user_of_a_container_is_given_an_archive_of_their_own(
+    archive: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran = Ran()
+    monkeypatch.setattr(subprocess, "run", ran)
+    bare = Road.to(Target.parse("docker://shared-box"))
+    one = Road.to(Target.parse("docker://shared-box?user=1000"))
+    two = Road.to(Target.parse("docker://shared-box?user=1001:1001"))
+    bare.forget()
+    name = "humanize-0123456789abcdef.pyz"
+    assert one.installed() == f"{CONTAINER_CACHE}-1000/{name}"
+    assert two.installed() == f"{CONTAINER_CACHE}-1001/{name}"
+    assert one.installed() == f"{CONTAINER_CACHE}-1000/{name}"
+    assert len(ran.asked) == 2
+    first = ran.asked[0][0]
+    assert first[:6] == ["docker", "exec", "-i", "-u", "1000", "shared-box"]
+    assert f'[ -O "{CONTAINER_CACHE}-1000" ]' in first[8]
+    assert f'HUMANIZE_BUNDLES="{CONTAINER_CACHE}-1000"' in first[8]
+    # A container replaced is replaced for every user a target of it named.
+    bare.forget()
+    one.installed()
+    two.installed()
+    assert len(ran.asked) == 4
+    serving = one.hmz(["internal", "anchor", "serve"])[8]
+    assert f'[ -O "{CONTAINER_CACHE}-1000" ]' in serving
+    assert CONTAINER_MIRRORS not in serving
+    mirror = one.mirror("abc")
+    harness = one.hmz(["internal", "anchor"], setting=(("HUMANIZE_SHADOW", mirror),))
+    assert f'[ -O "{CONTAINER_CACHE}-1000" ]' in harness[8]
+    assert f'[ -O "{CONTAINER_MIRRORS}-1000" ]' in harness[8]
+    bare.forget()
 
 
 def test_an_archive_that_would_not_install_says_why(

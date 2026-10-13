@@ -11,7 +11,7 @@ import pytest
 from hmz.coganchor import rendezvous, transport
 from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.elsewhere import HERE, SAME, afar, elsewhere, harnessed
-from hmz.coganchor.transport import REMOTE_MIRRORS, Target
+from hmz.coganchor.transport import CONTAINER_MIRRORS, REMOTE_MIRRORS, Target
 
 
 def test_the_two_words_are_local_and_same() -> None:
@@ -113,6 +113,22 @@ def test_the_same_machine_supervises_its_own_work_as_a_local_target(
     assert "--force" in words
     assert ARCHIVE in words[3]
     assert f'HUMANIZE_SHADOW="{REMOTE_MIRRORS}/' in words[3]
+    assert broker == []
+
+
+def test_a_container_user_supervises_in_a_mirror_of_their_own(
+    installed: None, broker: list[list[str]]
+) -> None:
+    config = AnchorConfig(
+        harness="same", target="docker://box?user=7&exec=/w", remote_path="/srv/w"
+    )
+    line = afar(config, ["claude"])
+    assert line[:7] == ["docker", "exec", "-i", "-u", "7", "box", "/w"]
+    assert line[7:9] == ["/bin/sh", "-c"]
+    script = line[9]
+    assert f'HUMANIZE_SHADOW="{CONTAINER_MIRRORS}-7/' in script
+    assert f'[ -O "{CONTAINER_MIRRORS}-7" ]' in script
+    assert "--target=local:/srv/w" in line
     assert broker == []
 
 
