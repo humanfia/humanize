@@ -14,6 +14,7 @@ import signal
 import socket
 import subprocess
 import time
+from importlib.metadata import version
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -106,7 +107,7 @@ def test_a_page_reads_and_writes_a_daemon_on_another_machine(host: Host) -> None
         assert listed.status == 200, listed.body
         assert str(host.home) in str(listed.json())
         state = browser.get("/api/daemons/box/state").json()
-        assert state == {"state": "up", "detail": "", "version": "0.0.0"}
+        assert state == {"state": "up", "detail": "", "version": version("hmz")}
         # Written there, and not here.
         kept = host.home / "project"
         kept.mkdir()
