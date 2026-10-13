@@ -72,6 +72,7 @@ class Runner:
     budget: Budget = field(default_factory=lambda: Budget(cost=1.0))
     profile: bool = True
     recorder: Recorder | None = None
+    agents: dict[str, object] = field(default_factory=dict[str, object])
     does: Callable[[dict[str, Any]], Any] | None = None
     blocks: bool = False
     entered: threading.Event = field(default_factory=threading.Event)
@@ -133,6 +134,19 @@ def test_the_agents_are_those_behind_the_sessions_still_open() -> None:
     run = _run(Runner(recorder=Recorder((Handle(first), Handle(), Handle(second)))))
 
     assert run.agents == (first, second)
+
+
+@dataclass
+class Driver:
+    name: str
+
+
+def test_each_agent_role_says_what_the_agent_filling_it_is_called() -> None:
+    runner = Runner(
+        agents={"builder": Driver("NeiKos496"), "critic": Driver("Golem99")}
+    )
+
+    assert _run(runner).names == {"builder": "NeiKos496", "critic": "Golem99"}
 
 
 def test_a_run_here_returns_what_the_flow_did_and_tells_everyone_listening() -> None:

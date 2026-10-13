@@ -197,28 +197,31 @@ def test_a_node_and_a_place_default_to_saying_nothing() -> None:
 
 
 def test_a_diagram_is_a_box_per_agent_in_order() -> None:
-    drawn = [Drawn("builder", runs="claude · opus", working=True), Drawn("reviewer")]
+    drawn = [
+        Drawn("NeiKos496", runs="builder · claude · opus", working=True),
+        Drawn("Ajax17"),
+    ]
     shape = _shape(
-        turns={"builder": 1, "reviewer": 2},
-        working=frozenset({"builder"}),
-        handovers={("builder", "reviewer"): 2, ("reviewer", "builder"): 1},
-        since={"builder": 75.0, "reviewer": 5.0},
-        latest=("builder", "reviewer"),
-        used={"reviewer": 1500},
+        turns={"NeiKos496": 1, "Ajax17": 2},
+        working=frozenset({"NeiKos496"}),
+        handovers={("NeiKos496", "Ajax17"): 2, ("Ajax17", "NeiKos496"): 1},
+        since={"NeiKos496": 75.0, "Ajax17": 5.0},
+        latest=("NeiKos496", "Ajax17"),
+        used={"Ajax17": 1500},
     )
 
     first, second = diagram(drawn, shape, 80)
 
     plain = [_plain(line) for line in first]
     assert plain[0].strip().startswith("┌")
-    assert "▸ ● builder" in plain[1]
+    assert "▸ ● NeiKos496" in plain[1]
     assert plain[1].rstrip().endswith("1m15s │")
-    assert "claude · opus · 1 turn" in plain[2]
+    assert "builder · claude · opus · 1 turn" in plain[2]
     assert plain[-1].strip().startswith("└")
     # The arrows say which way and how often, lit for the handover taken last.
     assert "↓ 2 · ↑ 1" in _plain(second[0])
     assert "$secondary" in second[0]
-    assert "○ reviewer" in _plain(second[2])
+    assert "○ Ajax17" in _plain(second[2])
     assert "idle 5s" in _plain(second[2])
     assert "2 turns · 1.5k tokens" in _plain(second[3])
 
@@ -291,22 +294,24 @@ def test_a_short_fleet_ends_its_branch_and_none_draws_nothing() -> None:
 
 def test_a_session_row_hangs_under_its_agent() -> None:
     shape = _shape(
-        turns={"a/1": 2},
-        since={"a/1": 3.0},
-        used={"a/1": 2000},
-        under={"a/1": (Under("x", "sub"),)},
+        turns={"NeiKos496/1": 2},
+        since={"NeiKos496/1": 3.0},
+        used={"NeiKos496/1": 2000},
+        under={"NeiKos496/1": (Under("x", "sub"),)},
     )
 
-    row = session_row(Drawn("a/1", working=True, reading=True), shape, 80, last=True)
+    row = session_row(
+        Drawn("NeiKos496/1", working=True, reading=True), shape, 80, last=True
+    )
 
     first, sub = (_plain(line) for line in row.splitlines())
-    assert "└╴● a/1 · 2 turns · 2.0k tokens" in first
+    assert "└╴● NeiKos496/1 · 2 turns · 2.0k tokens" in first
     assert first.rstrip().endswith("reading · 3s")
     assert sub.endswith("└╴◆ sub")
 
 
 def test_a_session_row_is_called_by_the_last_part_of_its_name() -> None:
-    row = session_row(Drawn("a/1", named="builder · first"), _shape(), 80)
+    row = session_row(Drawn("NeiKos496/1", named="NeiKos496 · first"), _shape(), 80)
 
     assert "├╴○ first" in _plain(row)
     assert "idle 0s" in _plain(row)
@@ -332,8 +337,8 @@ def test_a_listed_row_puts_each_figure_in_its_column() -> None:
         listed_row(
             120,
             mark="●",
-            named="builder",
-            what="claude · opus",
+            named="NeiKos496",
+            what="builder · claude · opus",
             turns="3 turns",
             clock="1m00s",
             tokens="1.2k",
@@ -343,7 +348,7 @@ def test_a_listed_row_puts_each_figure_in_its_column() -> None:
         )
     )
 
-    assert row.startswith("   ▸ ● builder unread")
+    assert row.startswith("   ▸ ● NeiKos496 unread")
     assert row.endswith("3 turns       1m00s      1.2k")
     assert len(row) == len(_plain(columns(120)))
 

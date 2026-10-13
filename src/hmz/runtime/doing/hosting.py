@@ -2,7 +2,7 @@
 
 A run used to have one person outside it: whoever was at the one interface that started it.
 The queue of lines typed at it, the questions it stopped on, who was away, which conversation
-was `builder/2` -- all of it lived in that interface, because that interface was the only one.
+was `NeiKos496/2` -- all of it lived in that interface, because that interface was the only one.
 A day's work watched by two people, or by a person and a bot, is two frontends on one run, and
 each of those things has to be answered once rather than once per frontend or the two
 disagree about what the run is doing.
@@ -21,7 +21,7 @@ What is held for them:
 - *away*: per role and not per frontend, since it is a fact about the run -- whether a question
   of that role is waited on -- and it outlives the frontend that said it.
 - *lines*: what is said to the run's agents, queued per target and handed over one at a time.
-- *keys*: which conversation is `<role>/<n>`, numbered once so every frontend names it alike.
+- *keys*: which conversation is `<agent>/<n>`, numbered once so every frontend names it alike.
 - *asides*: the side conversations `/btw` opens, read-only and invisible to the run.
 - *history*: every record of the run, in order, so a frontend arriving late reads it all.
 
@@ -108,7 +108,7 @@ def record(
       session: The conversation it was said in, or None for something the agent said for all
         of them.
       event: What was said.
-      key: The transcript it goes on: the conversation's `<role>/<n>`, or where the agent's
+      key: The transcript it goes on: the conversation's `<agent>/<n>`, or where the agent's
         words go when no one conversation said them.
       run: Which run of the host it belongs to, or 0 for none.
 
@@ -950,6 +950,9 @@ class Host:
                 "by": frontend.name,
                 "client": frontend.client,
                 "roles": [one.name for one in declared.agents if not one.auto],
+                # What the agent filling each is called, which its sessions are keyed by:
+                # the role is only the parameter it is taken as.
+                "names": run.names,
                 "outworlders": [one.name for one in declared.agents if one.auto],
                 "agents": _spoken(agents) if isinstance(agents, dict) else {},
                 "envs": _spoken(envs) if isinstance(envs, dict) else {},
@@ -1172,7 +1175,8 @@ class Host:
         board: Board | None = None
         with self._lock:
             # Numbered now, in the order the run opens them, rather than as each first
-            # speaks: `builder/2` is the second conversation a builder opened.
+            # speaks: `NeiKos496/2` is the second conversation NeiKos496 opened, whichever
+            # role it fills.
             key = self._key_of(current, agent, session)
             current.agents.append(agent)
             if person:
@@ -1223,7 +1227,7 @@ class Host:
     ) -> str:
         """The transcript a conversation's lines go on, numbering it the first time.
 
-        What no one conversation said goes on the one working, or the newest, and on the role
+        What no one conversation said goes on the one working, or the newest, and on the agent
         alone where it has none. Under the lock.
         """
         if session is None:
@@ -1386,7 +1390,7 @@ class Host:
     def _target(current: _Run, to: str) -> tuple[AgentBase, SessionBase] | None:
         """The conversation a line said on one view goes into, where one is working.
 
-        A conversation's own view is that conversation; a role's is its newest working one;
+        A conversation's own view is that conversation; an agent's is its newest working one;
         and every agent's is the first working one in the order the flow opened them.
         """
         from hmz.coganchor.agents import HumanAgent

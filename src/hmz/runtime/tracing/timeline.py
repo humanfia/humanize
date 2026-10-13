@@ -73,6 +73,15 @@ class Opened(Protocol):
     def record(self) -> str: ...
 
 
+class Drove(Protocol):
+    """One agent role of an epic, and the agent that filled it: `hmz.runtime.epic.Drove` is one."""
+
+    @property
+    def agent(self) -> str: ...
+    @property
+    def name(self) -> str: ...
+
+
 class Call(Protocol):
     """One flow an epic called, and what it called in turn: `hmz.runtime.epic.Called` is one."""
 
@@ -109,6 +118,8 @@ class Epic(Protocol):
     def how(self) -> str: ...
     @property
     def sessions(self) -> Sequence[Opened]: ...
+    @property
+    def agents(self) -> Sequence[Drove]: ...
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -224,9 +235,16 @@ def build(
     Returns:
       The document and what each of its slices carried.
     """
-    roles = {one.ident: one for one in (ran.sessions if ran is not None else ())}
+    opened = {one.ident: one for one in (ran.sessions if ran is not None else ())}
+    # What role each agent filled, by its name: a session is written down under its agent's
+    # name, the role being only the parameter it was taken as -- and an epic written before
+    # an agent had a name of its own wrote its role down as its name.
+    roles = {
+        one.name or one.agent: one.agent
+        for one in (ran.agents if ran is not None else ())
+    }
     held = [
-        _session(one, roles)
+        _session(one, opened, roles)
         for one in sorted(
             (one for one in sessions if one.actions),
             key=lambda one: (min(action.start for action in one.actions), one.key),
@@ -466,7 +484,9 @@ def _flow(ran: Epic, calls: Sequence[Call]) -> _Process:
     )
 
 
-def _session(one: Session, roles: dict[str, Any]) -> _Process:
+def _session(
+    one: Session, sessions: dict[str, Opened], roles: dict[str, str]
+) -> _Process:
     """One session as a process: a banner over everything it did, and each thing inside it."""
     start = min(action.start for action in one.actions)
     end = max(action.end for action in one.actions)
@@ -490,7 +510,7 @@ def _session(one: Session, roles: dict[str, Any]) -> _Process:
         )
         for action in one.actions
     ]
-    opened = roles.get(one.ident) if one.parent is None else None
+    opened = sessions.get(one.ident) if one.parent is None else None
     model = one.args.get("model")
     return _Process(
         "session",
@@ -499,7 +519,7 @@ def _session(one: Session, roles: dict[str, Any]) -> _Process:
         one.label or "main",
         _fields(
             agent=one.agent,
-            role=opened.agent if opened is not None else "",
+            role=roles.get(opened.agent, "") if opened is not None else "",
             backend=one.backend,
             model=model if isinstance(model, str) else "",
             label=one.label,

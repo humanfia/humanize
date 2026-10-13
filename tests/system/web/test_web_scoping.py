@@ -100,7 +100,7 @@ def test_an_epic_started_on_a_daemon_stays_on_it(project: Path, engine: str) -> 
         ).to_have_value("claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("hello there")
         page.locator("[data-hmz=composer-text]").press("Enter")
-        page.wait_for_url(re.compile(r".*#/@local/epics/[^/]+/sessions/assistant%2F1$"))
+        page.wait_for_url(re.compile(r".*#/@local/epics/[^/]+/sessions/[^/]+%2F1$"))
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: hello there")
 
         # The epic's stream, and its links, are the daemon's.

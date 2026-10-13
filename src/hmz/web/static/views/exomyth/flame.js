@@ -2,14 +2,14 @@
 // the comment at its top), over the stretch of time picked on the Timeline or the whole -- and
 // under it, every slice name in a table.
 //
-// A frame's stack is the epic, then an agent (its role) -- or a flow, or a program -- each of
-// its sessions merged into it, or apart as processes of their own, then its spans as they nest:
-// turns, then model calls, tools, messages and events by name. A session's own span is its
-// process's frame. Summed once for each stretch of time and way of merging, in one pass over
-// the spans in it -- each depth of each track binary searched to the stretch and walked beside
-// the depth over it, which holds each span's parent -- into typed columns every weight is read
-// from; laid out once for each weight; drawn on the next frame after anything changes, a frame
-// narrower than a pixel left out with all it holds.
+// A frame's stack is the epic, then an agent (by its name, the role it fills after) -- or a
+// flow, or a program -- each of its sessions merged into it, or apart as processes of their
+// own, then its spans as they nest: turns, then model calls, tools, messages and events by
+// name. A session's own span is its process's frame. Summed once for each stretch of time and
+// way of merging, in one pass over the spans in it -- each depth of each track binary searched
+// to the stretch and walked beside the depth over it, which holds each span's parent -- into
+// typed columns every weight is read from; laid out once for each weight; drawn on the next
+// frame after anything changes, a frame narrower than a pixel left out with all it holds.
 
 import { h } from '../../dom.js'
 import { clock, counted, firstEnding, lasted } from './model.js'

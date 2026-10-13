@@ -372,7 +372,7 @@ out:
 | `image` | What a container for it is started from, where the flow names one. |
 | `grants` | The capabilities the flow declared for the role: `Shell`, `Files`, `GitWorktree`, … or `nothing beyond running in it`. |
 | `needs` | What the flow asks of the machine: CPUs, memory, GPUs. |
-| `harness` | Where the run put the harnesses of the agents working in it, such as `self: on this environment's machine, with the CLI installed there` or `local: on this machine; what it runs lands here`. Where sessions went different ways, each is named: `self for builder/1 · local for reviewer/1`. See [Remote execution](/user/remote-execution). |
+| `harness` | Where the run put the harnesses of the agents working in it, such as `self: on this environment's machine, with the CLI installed there` or `local: on this machine; what it runs lands here`. Where sessions went different ways, each is named: `self for NeiKos496/1 · local for PoleMos600/1`. See [Remote execution](/user/remote-execution). |
 | `status` | How many of its sessions are working now, such as `1 of 3 sessions working`. |
 | `Sessions` | Each session working in it. <kbd>enter</kbd> or a click on one reads it. |
 

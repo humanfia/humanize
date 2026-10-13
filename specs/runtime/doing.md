@@ -94,7 +94,9 @@ class Run:
     usage: Usage; epic: Path | None; running: bool; raised: BaseException | None
     result: Any  # properties
     @property
-    def agents(self) -> tuple[AgentBase, ...]: ...  # behind each session still open, by role
+    def agents(self) -> tuple[AgentBase, ...]: ...  # behind each session still open, by name
+    @property
+    def names(self) -> dict[str, str]: ...  # what the agent filling each role is called
     def unreadable(self) -> str: ...
     def watch(self, listener: Listener) -> None: ...
     def opened(self, callback: Callable[[str, AgentBase, SessionBase], None]) -> None: ...
@@ -351,8 +353,9 @@ class Fallbacks:
   the order it happened and held to a ceiling in bytes, the oldest whole records going first and
   counted. A text too long to carry MUST be cut, and what was cut counted.
 - `record` MUST be the one shape an agent's event is written in, for every frontend and for
-  `hmz exec --json` alike, and a conversation MUST be keyed `<role>/<n>` once, as it opens, so
-  that every frontend names it alike.
+  `hmz exec --json` alike, and a conversation MUST be keyed `<agent>/<n>` once, as it opens --
+  by the agent's own name, never the role it fills -- so that every frontend names it alike.
+  A run started MUST say what the agent filling each of its agent roles is called.
 - An `Outworlder` role MUST be claimed by one frontend at a time -- refused to another unless it
   takes it over -- and given back when that frontend goes. Only its claimant MUST answer for a
   claimed role; a role nobody claims MUST be answered by whoever answers first, and a later
@@ -365,7 +368,7 @@ class Fallbacks:
   is away for a role somebody else holds, and saying it is away for everything MUST leave those
   roles as they were.
 - A line said to a run MUST go into the turn open on the view it was said on -- a conversation,
-  a role's newest, or the first working -- one at a time per agent until the agent says it has
+  an agent's newest, or the first working -- one at a time per agent until the agent says it has
   it; said while no turn is open it MUST go into whichever turn starts next for it -- unless the
   run is `chat`'s and waiting to be told what to say next, which a line said to its agent or
   conversation with no turn open MUST answer, going into no turn a second time; every other

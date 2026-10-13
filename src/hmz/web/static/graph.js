@@ -1,7 +1,7 @@
 // An epic drawn as a graph: a frame for each flow it ran, a node for each agent -- and each
 // person -- in the flow it worked in, the sessions an agent opened listed on its node, each as
 // a lane of the turns it took over the run, and an arrow for each way the run handed from one
-// role to another, as many times as it did. While the run goes, the node working is lit, the
+// agent to another, as many times as it did. While the run goes, the node working is lit, the
 // last handover is the red one, and a line on every lane says where now is.
 
 import { hash } from './api.js'
@@ -28,7 +28,7 @@ const SLOP = 4
 const BOW = 42
 
 /**
- * @param {{open: (role: string) => void}} handlers What picking an agent does.
+ * @param {{open: (name: string) => void}} handlers What picking an agent does.
  * @returns {{node: HTMLElement, draw: (model: object, focus: string, epic: string) => void}}
  */
 export function graph({ open }) {
@@ -200,7 +200,7 @@ export function graph({ open }) {
   function draw(model, focus, epic) {
     last = [model, focus, epic]
     // Drawn again only where what it is made of changed; the clocks on it move on their own.
-    const made = JSON.stringify([model.frames, model.agents.map(({ role, working, status, spec, sessions, turns, tokens, under }) => [role, working, status, spec, turns, tokens, under, sessions.map((one) => [one.key, one.working, one.unread, one.turns.length, one.turns.map((turn) => turn.end === null)])]), model.handovers, model.latest, model.live, focus])
+    const made = JSON.stringify([model.frames, model.agents.map(({ name, role, working, status, spec, sessions, turns, tokens, under }) => [name, role, working, status, spec, turns, tokens, under, sessions.map((one) => [one.key, one.working, one.unread, one.turns.length, one.turns.map((turn) => turn.end === null)])]), model.handovers, model.latest, model.live, focus])
     if (made !== shape) {
       shape = made
       build(model, focus, epic)
@@ -209,7 +209,7 @@ export function graph({ open }) {
   }
 
   function build(model, focus, epic) {
-    const byRole = Object.fromEntries(model.agents.map((one) => [one.role, one]))
+    const byName = Object.fromEntries(model.agents.map((one) => [one.name, one]))
     laidAcross = across()
     const boxes = {}
     const frames = []
@@ -217,21 +217,21 @@ export function graph({ open }) {
     let widest = 0
     for (const frame of model.frames) {
       const rows = []
-      for (let index = 0; index < frame.roles.length; index += laidAcross) rows.push(frame.roles.slice(index, index + laidAcross))
+      for (let index = 0; index < frame.names.length; index += laidAcross) rows.push(frame.names.slice(index, index + laidAcross))
       if (!rows.length) rows.push([])
       let inner = 0
       let height = LABEL
       for (const row of rows) {
-        const tall = Math.max(HEAD + FOOT, ...row.map((role) => heightOf(byRole[role])))
+        const tall = Math.max(HEAD + FOOT, ...row.map((name) => heightOf(byName[name])))
         inner = Math.max(inner, row.length * WIDE + Math.max(0, row.length - 1) * APART)
-        row.forEach((role, index) => {
-          boxes[role] = { x: INSET + index * (WIDE + APART), y: y + height, w: WIDE, h: heightOf(byRole[role]) }
+        row.forEach((name, index) => {
+          boxes[name] = { x: INSET + index * (WIDE + APART), y: y + height, w: WIDE, h: heightOf(byName[name]) }
         })
         height += tall + DOWN
       }
       height = height - DOWN + INSET
       const width = Math.max(inner, WIDE) + INSET * 2
-      frames.push({ flow: frame.flow, x: 0, y, w: width, h: height, roles: frame.roles })
+      frames.push({ flow: frame.flow, x: 0, y, w: width, h: height, names: frame.names })
       widest = Math.max(widest, width)
       y += height + DOWN * 0.6
     }
@@ -239,7 +239,7 @@ export function graph({ open }) {
     for (const frame of frames) {
       const shift = (widest - frame.w) / 2
       frame.x = shift
-      for (const role of frame.roles) boxes[role].x += shift
+      for (const name of frame.names) boxes[name].x += shift
     }
     // Room above and below for the widest bows, which reach out as far as the frames are wide.
     // Stacked one over another, they bow out to the sides instead.
@@ -268,7 +268,7 @@ export function graph({ open }) {
         h('div', { class: ['frame', index === 0 && 'root'], style: { left: `${frame.x}px`, top: `${frame.y}px`, width: `${frame.w}px`, height: `${frame.h}px` } }, h('span', { class: 'frame-label', title: frame.flow }, index === 0 ? 'flow' : 'called', h('b', {}, flowName(frame.flow)))),
       ),
       edges,
-      ...model.agents.filter((one) => boxes[one.role]).map((one) => agentNode(one, boxes[one.role], focus === one.role, epic, model.live)),
+      ...model.agents.filter((one) => boxes[one.name]).map((one) => agentNode(one, boxes[one.name], focus === one.name, epic, model.live)),
     )
     stage.style.width = `${size.width}px`
     stage.style.height = `${size.height}px`
@@ -287,14 +287,16 @@ export function graph({ open }) {
 
   function agentNode(agent, box, focused, epic, going) {
     const base = hash(`/epics/${encodeURIComponent(epic)}`)
+    // The role an agent fills is said after its name, beside what it runs as; a person's is its name.
+    const about = [agent.role !== agent.name && agent.role, agent.spec].filter(Boolean).join(' · ')
     const head = h(
       'button',
       { class: 'node-head', type: 'button', 'aria-pressed': String(focused) },
-      h('span', { class: 'node-name' }, h('i', { class: 'swatch', 'aria-hidden': 'true' }), agent.role, agent.person ? h('span', { class: 'node-tag' }, 'person') : null),
-      h('span', { class: 'node-spec mono' }, agent.spec || '—'),
+      h('span', { class: 'node-name' }, h('i', { class: 'swatch', 'aria-hidden': 'true' }), agent.name, agent.person ? h('span', { class: 'node-tag' }, 'person') : null),
+      h('span', { class: 'node-spec mono' }, about || '—'),
       h('span', { class: 'node-state' }, agent.working ? h('span', { class: 'dot live', 'aria-hidden': 'true' }) : null, [agent.status, agent.tokens ? `${agent.tokens} tokens` : ''].filter(Boolean).join(' · ')),
     )
-    head.addEventListener('click', () => open(agent.role))
+    head.addEventListener('click', () => open(agent.name))
     const sessions = agent.sessions.map((one) => {
       const track = h('span', { class: 'track', 'aria-hidden': 'true' })
       one.turns.forEach((turn, index) => {
@@ -325,20 +327,20 @@ export function graph({ open }) {
         class: ['node', agent.working && 'working', agent.person && 'person', focused && 'focused', agent.sessions.some((one) => one.unread) && 'has-unread'],
         style: { left: `${box.x}px`, top: `${box.y}px`, width: `${box.w}px`, height: `${box.h}px`, '--lane': agent.color },
         'data-hmz': 'graph-agent',
-        'data-role': agent.role,
+        'data-agent': agent.name,
       },
       head,
       h(
         'div',
         { class: 'node-sessions' },
-        h('a', { class: 'node-session node-log', href: `${base}/logs/${encodeURIComponent(agent.role)}`, 'data-hmz': 'graph-log' }, h('span', { class: 'session-key mono' }, '≡ log'), h('span', { class: 'dim' }, agent.person ? 'asked and answered' : 'every session')),
+        h('a', { class: 'node-session node-log', href: `${base}/logs/${encodeURIComponent(agent.name)}`, 'data-hmz': 'graph-log' }, h('span', { class: 'session-key mono' }, '≡ log'), h('span', { class: 'dim' }, agent.person ? 'asked and answered' : 'every session')),
         sessions,
       ),
     )
     return menuOn(made, () => [
-      { head: agent.spec ? `${agent.role} · ${agent.spec}` : agent.role },
-      agent.person ? null : { label: focused ? 'Shown' : 'Pick out', glyph: 'agent', act: () => open(agent.role), disabled: focused },
-      { label: 'Open log', glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.role)}` },
+      { head: [agent.name, about].filter(Boolean).join(' · ') },
+      agent.person ? null : { label: focused ? 'Shown' : 'Pick out', glyph: 'agent', act: () => open(agent.name), disabled: focused },
+      { label: 'Open log', glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.name)}` },
       ...agent.sessions.slice(0, 8).map((one) => ({ label: `Open ${one.key}`, glyph: 'open', href: `${base}/sessions/${encodeURIComponent(one.key)}` })),
       '-',
       agent.spec && !agent.person ? { label: 'Copy agent', glyph: 'copy', act: () => copy(agent.spec, 'Agent copied') } : null,

@@ -38,7 +38,7 @@ export function question(workspace, one, me, clients) {
 }
 
 /**
- * Says a line to the run: into one session's turn, to a role, or to the next turn to start --
+ * Says a line to the run: into one session's turn, to an agent, or to the next turn to start --
  * or, given a session, into that session alone. Made once for a page, as `asides` is, and told
  * who there is to say it to as that changes, so that a line being typed outlives every drawing
  * of the page around it. Given what the session is asked, a line typed while it is asked
@@ -59,13 +59,13 @@ export function saying(workspace, session = '', { asked = () => null, to: into =
   box.node.dataset.hmz = 'say'
   return {
     node: box.node,
-    /** Offers the roles, sessions and people there are to say a line to, keeping the one picked. */
-    offers(roles, sessions, working, outworlders) {
+    /** Offers the agents, by name, sessions and people there are to say a line to, keeping the one picked. */
+    offers(agents, sessions, working, outworlders) {
       const picked = to.value
       fill(
         to,
         h('option', { value: '' }, 'Next turn'),
-        roles.map((role) => h('option', { value: role }, role)),
+        agents.map((name) => h('option', { value: name }, name)),
         sessions.map((key) => h('option', { value: key }, `${key}${working.includes(key) ? ' (working)' : ''}`)),
         outworlders.map((role) => h('option', { value: `outworlder:${role}` }, `${role} (person)`)),
       )

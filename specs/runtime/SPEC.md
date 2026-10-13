@@ -105,11 +105,12 @@ class Session(NamedTuple):
     where: str = ""  # where it is kept: from the epic, or whole where it stayed at home
     harness: str = ""  # where its harness ran, for work elsewhere: local, self, <backend>:<name>
 class Drove(NamedTuple):  # one agent role, and what it was given
-    agent: str
+    agent: str  # the role
     backend: str
     model: str
     effort: str
     provider: str = ""
+    name: str = ""  # what the agent filling it is called, its sessions written down under it
     @property
     def spec(self) -> str: ...
 class Called(NamedTuple):
@@ -428,9 +429,9 @@ class Keeping:  # one epic's policies, as it runs
   flow over the drivers with the workspace as every `LocalEnv` role and whoever is outside
   the run as every `Outworlder` role -- nobody, away, where none was given -- MUST write the
   run down as it goes: each flow call a record under the one that made it, saying the task it
-  was called with, each session in the record of the call that opened it and named for its
-  role, and what the run spent -- holding no session past its close to count it; and
-  MUST close every driver it was given however the run ends. A run stopped from outside, or
+  was called with, each session in the record of the call that opened it and under its
+  agent's own name, and what the run spent -- holding no session past its close to count it;
+  and MUST close every driver it was given however the run ends. A run stopped from outside, or
   by its budget, MUST be written down as stopped rather than failed.
 - A run MUST read back what its budget counted as it ended -- what it cost, the output tokens
   and the seconds -- as `Ran.spent`, and nothing for a run still going or one killed before it

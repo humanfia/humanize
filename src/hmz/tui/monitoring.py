@@ -256,8 +256,9 @@ class Drawn(NamedTuple):
     """One node of a run -- an agent, or one session of one -- as the monitor draws it.
 
     Attributes:
-      who: The key the node is read under: the agent id for an agent, `<role>/<n>` for the
-        n-th session of that role. What reading it names, and what the graph counts it under.
+      who: The key the node is read under: the agent's name for an agent, `<agent>/<n>` for
+        the n-th session of that agent. What reading it names, and what the graph counts it
+        under.
       named: What to call it on its box, or "" to call it by its id cut down.
       runs: What it runs, as the line that says what each agent is says it.
       working: Whether it has a turn open right now.

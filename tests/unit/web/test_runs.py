@@ -214,3 +214,24 @@ def test_a_run_is_said_running_while_any_process_holds_it(
 
     assert listed["how"] == said
     assert listed["held"] is held
+
+
+@dataclass(frozen=True)
+class _Drove:
+    """As much of an agent a run wrote down as a row reads."""
+
+    agent: str
+    name: str
+    spec: str = "claude/opus"
+
+
+def test_a_run_lists_each_agent_by_its_own_name_and_the_role_it_filled_beside() -> None:
+    # One written before an agent had a name of its own went by its role.
+    ran = _Row(agents=(_Drove("builder", "NeiKos496"), _Drove("critic", "")))
+
+    listed = row(cast("Ran", ran), held=False)
+
+    assert [(one["name"], one["role"]) for one in listed["agents"]] == [
+        ("NeiKos496", "builder"),
+        ("critic", "critic"),
+    ]

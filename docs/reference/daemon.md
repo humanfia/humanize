@@ -290,7 +290,7 @@ An exception inside a request is refused with `str(exception)` or its type name.
 | `claim` | `role` (str, required), `take` (bool, `false`) | — | `a role to claim is named`, `<role> is <name>'s` (without `take`). Needs no run; role not checked against the flow. |
 | `release` | `role` | — | `<role> is not yours to release` |
 | `board` | `key`, `value` (`""` removes the line); acts on the last run's board as `user` | — | `this run has no board`, `<key> is not on the board`, `<key> is flow's to change, not user's` (and other `<key> is <whose>'s to change, not <by>'s` refusals) |
-| `aside` (open) | `key` (`<role>/<n>` of the last run) with `fork` (bool), **or** `runs` (an `-a` spec after `<role>=`) -- with `recall` (what its CLI called a session an earlier run kept), `kept` (where that run kept it) and `cwd`, and `fork`, for a side conversation about that session | `side` (`s<n>`), `forked` (bool) | `<key> has no conversation to ask`, `<runs> is not an agent that can be made here`, `an aside is about a conversation, or asks an agent`, `this frontend has gone` |
+| `aside` (open) | `key` (`<agent>/<n>` of the last run) with `fork` (bool), **or** `runs` (an `-a` spec after `<role>=`) -- with `recall` (what its CLI called a session an earlier run kept), `kept` (where that run kept it) and `cwd`, and `fork`, for a side conversation about that session | `side` (`s<n>`), `forked` (bool) | `<key> has no conversation to ask`, `<runs> is not an agent that can be made here`, `an aside is about a conversation, or asks an agent`, `this frontend has gone` |
 | `aside` (ask) | `side`, `prompt` | `answer` (str, stripped) | `no aside <side> is open`, `the aside is still answering the last question` |
 | `unaside` | `side` | — | `no aside <side> is open` |
 | `status` | — | [status keys](#status) without the † host keys | — |
@@ -302,8 +302,8 @@ An exception inside a request is refused with `str(exception)` or its type name.
 | `to` | The line |
 | --- | --- |
 | `""` | Answers a pending *listen* question the sender may answer, else goes to the first conversation with a turn open (in opening order). |
-| `<role>` | That role's newest conversation with a turn open; with none open, in `chat` only, answers a pending listen question the sender may answer. |
-| `<role>/<n>` | That conversation; with no turn open in it, in `chat` only, answers a pending listen question the sender may answer. |
+| `<agent>` | That agent's newest conversation with a turn open; with none open, in `chat` only, answers a pending listen question the sender may answer. |
+| `<agent>/<n>` | That conversation; with no turn open in it, in `chat` only, answers a pending listen question the sender may answer. |
 | `outworlder:<role>` | Answers that role's pending listen question only; never put into a turn. |
 
 A line enters a conversation only while a turn is open, one line per agent at a time; it
@@ -342,10 +342,10 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 
 | `type` | Fields |
 | --- | --- |
-| `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `profile` (bool), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `began` (host monotonic), `at` (Unix time) |
-| `opened` | `role`, `key` (`<role>/<n>`), `agent` (agent id), `cli`, `model`, `counts` (sorted token kinds the backend reports), `forks` (bool), `person` (bool), `kept` (directory of the session's logs; `""` for a person or the CLI's own home), `env`, `harness`, `mono`, `wall` (Unix time) |
+| `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `names` (`{role: agent name}`: what the agent filling each is called, which its conversations are keyed by), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `profile` (bool), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `began` (host monotonic), `at` (Unix time) |
+| `opened` | `role` (the role its agent fills), `key` (`<agent>/<n>`), `agent` (the agent's own name, such as `NeiKos496`), `cli`, `model`, `counts` (sorted token kinds the backend reports), `forks` (bool), `person` (bool), `kept` (directory of the session's logs; `""` for a person or the CLI's own home), `env`, `harness`, `mono`, `wall` (Unix time) |
 | `event` | `key`, `session` (`key` where the event names a conversation, else `""`), `agent`, `cli`, `model`, `ident` (backend's conversation id, `""` until named), `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono`. Same fields as [`hmz exec --json`](/reference/cli#ndjson). |
-| `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list), `mode` (`ask` where there are options or a turn is open, else `listen`), `key` (`<role>/<n>` of the one conversation with a turn open, else `""`) |
+| `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list), `mode` (`ask` where there are options or a turn is open, else `listen`), `key` (`<agent>/<n>` of the one conversation with a turn open, else `""`) |
 | `answered` | `question`, `role`, `by`, `client`, `text` (the option chosen, or the text) |
 | `withdrawn` | `question`, `why`: `away` (the role went afk) or `over` (the run ended, stopped, was forced or the host closed) |
 | `said` | `text`, `key`, `by`, `client`: a line a conversation took |

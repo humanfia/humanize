@@ -71,8 +71,8 @@ def _passes(workspace: Path) -> None:
 
 
 async def _watches(screen: Screen, model: str) -> None:
-    """Watches a run going: an agent working, and on the monitor its turns and their cost."""
-    await screen.waits("agent is working", seconds=180)
+    """Watches a run going: its agent working, by its name, and on the monitor what it spent."""
+    await screen.waits(" is working", seconds=180)
     # The monitor, with nothing typed: the agent's box, and the money under the drawing.
     await screen.press("left")
     shown = await screen.waits(
@@ -81,7 +81,7 @@ async def _watches(screen: Screen, model: str) -> None:
     assert "Flow:" in shown
     assert "ralph_loop" in shown
     await screen.press("right")
-    await screen.waits("agent is working", "ctrl+c stop")
+    await screen.waits(" is working", "ctrl+c stop")
 
 
 @pytest.mark.timeout(20 * 60)
@@ -146,7 +146,7 @@ async def test_a_run_left_going_is_found_again_by_the_next_interface(
         await screen.waits("The agent flow system")
         await screen.sets_up("ralph_loop", cli, model, BUDGET)
         await screen.starts(TASK)
-        await screen.waits("agent is working", seconds=180)
+        await screen.waits(" is working", seconds=180)
         # Leaving, and leaving it running.
         await screen.types("/exit")
         await screen.press("enter")

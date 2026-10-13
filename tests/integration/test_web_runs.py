@@ -92,10 +92,13 @@ def test_a_line_said_in_the_conversation_between_turns_is_the_next_turn(
         browser.signs_in()
         with browser.follows() as heard:
             browser.post("/api/held/start", _CHAT)
+            _, opened = until(heard, _record("opened"), "the session opening")
             _, asked = until(heard, _record("asked", mode="listen"), "chat asking")
             assert asked["key"] == ""
 
-            said = {"text": "tell me more", "to": "assistant/1"}
+            # Its conversation goes by its agent's own name, never by the role it fills.
+            assert opened["key"] == f"{opened['agent']}/1" != "assistant/1"
+            said = {"text": "tell me more", "to": opened["key"]}
             assert browser.post("/api/held/say", said).status == 200
             until(
                 heard,
@@ -154,20 +157,20 @@ def test_a_side_question_is_asked_beside_the_run_and_never_of_it(
         browser.signs_in()
         with browser.follows() as heard:
             browser.post("/api/held/start", _CHAT)
+            _, opened = until(heard, _record("opened"), "the session opening")
             until(heard, _record("asked"), "chat asking")
+            key = opened["key"]
 
             aside = browser.post("/api/btw", {"question": "what is it doing"})
             assert aside.status == 200
             assert aside.json()["answer"].startswith("did: ")
-            of_one = browser.post(
-                "/api/btw", {"question": "and you", "to": "assistant/1"}
-            )
+            of_one = browser.post("/api/btw", {"question": "and you", "to": key})
             assert of_one.json()["answer"].startswith("did: ")
             kept = browser.get("/api/btw").json()
-            assert kept["open"] == ["", "assistant/1"]
+            assert kept["open"] == ["", key]
             assert [(one["to"], one["question"]) for one in kept["said"]] == [
                 ("", "what is it doing"),
-                ("assistant/1", "and you"),
+                (key, "and you"),
             ]
             assert browser.post("/api/btw/leave").status == 200
             assert browser.get("/api/btw").json() == {"open": [], "said": []}
@@ -284,28 +287,32 @@ def test_a_session_of_an_earlier_epic_is_asked_beside_it_as_a_fork_of_its_histor
         earlier, latest = reversed(browser.get("/api/runs").json()["runs"])
         assert latest["task"] == "and then this"
 
-        kept = (
-            Path(browser.get(f"/api/runs/{earlier['name']}").json()["at"]) / "sessions"
-        )
+        written = browser.get(f"/api/runs/{earlier['name']}").json()
+        kept = Path(written["at"]) / "sessions"
         before = sorted(str(one) for one in kept.rglob("*"))
+        # Its session goes by its agent's own name, and the role it filled is said beside it.
+        (agent,) = written["agents"]
+        assert (agent["role"], written["sessions"][0]["agent"]) == (
+            "assistant",
+            agent["name"],
+        )
+        assert agent["name"] != "assistant"
 
         aside = browser.post(
             "/api/btw",
             {
                 "question": "what was the word",
-                "to": "assistant/1",
+                "to": f"{agent['name']}/1",
                 "epic": earlier["name"],
             },
         )
 
         assert aside.status == 200, aside.body
         said = aside.json()
-        assert said["to"] == f"{earlier['name']}/assistant/1"
+        assert said["to"] == f"{earlier['name']}/{agent['name']}/1"
         # A fork carries the session's history and is told it is a side copy of it.
         assert "read-only side copy of the flow session" in said["answer"]
-        ident = browser.get(f"/api/runs/{earlier['name']}").json()["sessions"][0][
-            "ident"
-        ]
+        ident = written["sessions"][0]["ident"]
         argv = started(tmp_path)[-1]["argv"]
         assert argv[argv.index("--resume") + 1] == ident
         assert "--fork-session" in argv
@@ -315,7 +322,7 @@ def test_a_session_of_an_earlier_epic_is_asked_beside_it_as_a_fork_of_its_histor
         assert (
             browser.post(
                 "/api/btw",
-                {"question": "x", "to": "assistant/9", "epic": earlier["name"]},
+                {"question": "x", "to": f"{agent['name']}/9", "epic": earlier["name"]},
             ).status
             == 404
         )

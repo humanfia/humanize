@@ -173,12 +173,12 @@ class CLI:
     built: list[CLI] = []  # noqa: RUF012 -- emptied per test
     reply: Callable[[str], str] = staticmethod(_echo)
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, *, name: str | None = None) -> None:
         if config.model == "refused":
             raise ValueError("no such model")
         self.config = config
         self.backend = "claude"
-        self.id = "coder"
+        self.id = name or "coder"
         self.hooks = Hooks()
         self.ask: Any = None
         self.loaded: list[Any] = []
@@ -346,6 +346,19 @@ async def test_a_session_opens_in_its_workdir_with_its_skills(
     assert session.coganchor.cwd == str(tmp_path)
     assert (session.id, session.driver, session.closed) == (None, driver, False)
     assert session.placement == _placed(tmp_path)
+
+
+async def test_every_session_of_an_agent_is_called_by_its_name_and_not_its_role(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    driver = open_agent(_spec())
+
+    first = await _session(driver, tmp_path)
+    second = await _session(driver, tmp_path)
+
+    assert driver.name != "coder"
+    assert _cli(first).id == _cli(second).id == driver.name
+    assert open_agent(_spec()).name != driver.name
 
 
 async def test_a_session_is_refused_where_it_cannot_open(

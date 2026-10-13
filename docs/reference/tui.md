@@ -86,7 +86,7 @@ At mount, in the background, the interface:
 | --- | --- | --- |
 | all agents (aggregate) | `""` | Every agent's lines and every outworlder's questions and answers. Default view; selected again when a run starts. |
 | one agent | `<role>` | Every conversation of that role. |
-| one conversation | `<role>/<n>` | One session. `<n>` counts from 1 per role per run, in opening order. |
+| one conversation | `<agent>/<n>` | One session, keyed by its agent's own name (such as `NeiKos496`), not the role it fills. `<n>` counts from 1 per agent per run, in opening order. |
 | one outworlder | `outworlder:<role>` | What the flow asks through that `Outworlder` role, and the answers. |
 | monitor | — | A screen of its own: [Monitor](#watching-the-run). |
 
@@ -118,7 +118,7 @@ conversation), `outworlder` and `monitor`.
 | `hmz: nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` | yellow | always, before the first turn of a run whose `cost` limit no agent's price can enforce |
 | `✻ Worked for <s>s · <agent>` | dim | always |
 | `❯ <task> · by <name>` | | a run another frontend started |
-| `<role>'s harness runs here` / `<role>'s harness runs on its environment's machine` / `<role>'s harness runs on the runtime <backend>:<name>` | dim | once per role per run, where the session reports a harness placement (`opened.harness` not empty) |
+| `<agent>'s harness runs here` / `<agent>'s harness runs on its environment's machine` / `<agent>'s harness runs on the runtime <backend>:<name>` | dim | once per agent per run, where the session reports a harness placement (`opened.harness` not empty) |
 | `— stopping the flow —` / `— <name> is stopping the flow —` | | this / another frontend stopped the run |
 | `hmz: <why>` / `hmz: stopped -- <why>` / `— the flow is done —` | red / yellow / — | run ended refused-failed-crashed / by its budget / normally |
 
@@ -276,7 +276,7 @@ Every message is red and prefixed `hmz: `.
 | `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, accounts, fallback, runtimes, backup or workspace` |
 | `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
 | `/btw` | no agent to ask | `/btw requires a coding agent` |
-| `/btw` | the session is gone | `/btw: no conversation found for <role>/<n>` |
+| `/btw` | the session is gone | `/btw: no conversation found for <agent>/<n>` |
 | `/btw <q>` | busy | `btw is still answering the last question` |
 
 ### `/flow [flow]` {#flow-command}
@@ -469,7 +469,7 @@ also in the conversation it is part of, where it is one:
 | Leave | `/btw` alone or `esc`: `btw: exited`; a run starting: `btw: exited -- a new flow started`. Side sessions are closed (`unaside`). |
 | Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the one set on [General](#general-page), else the flow's first declared role with a session, else its configured agent. |
 | Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that role. Ended sessions included. |
-| btw agent | Seeded with a snapshot (the last 32 of up to 80 observations, 600 characters each) and the list of sessions. It may reply with lines `@ask <role>/<n>: <question>` (regex `^\s*@ask\s+(\S+?)\s*:\s*(\S.*)$`); each is put to that session's side copy (`btw · asking <key>: <question>`), and answers return as `<answer from="<key>">…</answer>`. At most 4 asks per question; failures return as `(session <k> not found)`, `(could not ask: <e>)`, `(no answer)`. |
+| btw agent | Seeded with a snapshot (the last 32 of up to 80 observations, 600 characters each) and the list of sessions. It may reply with lines `@ask <agent>/<n>: <question>` (regex `^\s*@ask\s+(\S+?)\s*:\s*(\S.*)$`); each is put to that session's side copy (`btw · asking <key>: <question>`), and answers return as `<answer from="<key>">…</answer>`. At most 4 asks per question; failures return as `(session <k> not found)`, `(could not ask: <e>)`, `(no answer)`. |
 | Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. |
 | Answer | `●` (cyan) `btw · <question>` (dim), then the answer in cyan, continuation lines indented 2, on the current view. |
 | Failures | `hmz: btw is still answering the last question`, `hmz: /btw could not read flow progress: <e>`, `hmz: /btw could not start: <e>`, `hmz: /btw: <why>` (e.g. `the agent returned no answer`). |
@@ -1771,7 +1771,7 @@ In order: the all-agents node, outworlder nodes, the graph or list, the board.
 | all agents | `▣ all agents · <w> of <n> working · <t> turn(s) · <clock>[ · reading]`; `<n>` agents drawn, `<t>` all their turns, `<clock>` the run's age | reads the aggregate |
 | outworlder | `◉ <role> · outworlder: messages from the flow to you[ · yours\|<name>'s][ · reading]`; declared order, then order first asked | reads its view |
 | agent box | see [Graph](#monitor-graph) | reads the role's view |
-| session | see Graph | reads `<role>/<n>` |
+| session | see Graph | reads `<agent>/<n>` |
 | environment | `▤ <role> · <kind> · <target> · <workdir>` | opens its [page](#an-environment-s-page) |
 | board line | `◈ <name> <value>[ · flow's\|user's]` | edits it; refused for a `flow` line: `<key> can only be changed by the flow` |
 | `+ add entry` | | adds a board line |

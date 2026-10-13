@@ -1046,6 +1046,9 @@ def _manifest(
         "agents": [
             {
                 "agent": one.agent,
+                # What the agent filling that role was called, which its sessions are under:
+                # the role itself, for a run written before an agent had a name of its own.
+                "name": one.name or one.agent,
                 "backend": one.backend,
                 "model": one.model,
                 "effort": one.effort,

@@ -644,6 +644,15 @@ class AgentDriver(Protocol):
     """
 
     @property
+    def name(self) -> str:
+        """What the agent is called, which every session of it is keyed by.
+
+        Its own, and not the role it fills: a role is only the parameter a flow takes it as,
+        and the same agent handed on to a flow it calls fills another under the same name.
+        """
+        ...
+
+    @property
     def harness(self) -> HarnessKind: ...
 
     @property

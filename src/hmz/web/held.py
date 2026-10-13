@@ -224,7 +224,7 @@ class Held:
 
         Args:
           question: What was asked.
-          target: The conversation asked, `<role>/<n>`, or "" for the btw agent.
+          target: The conversation asked, `<agent>/<n>`, or "" for the btw agent.
           workspace: Where the runs are, as the question is told it.
           source: What the btw agent is opened as, given the run as the runs last said it
             and its conversations.
@@ -293,7 +293,7 @@ class Held:
         return said
 
     def sessions(self) -> list[str]:
-        """The conversations of the run in front of this interface, `<role>/<n>` apiece."""
+        """The conversations of the run in front of this interface, `<agent>/<n>` apiece."""
         with self._changed:
             return list(self._following.seen)
 
@@ -718,7 +718,7 @@ def _recalled(ran: Any, key: str) -> tuple[dict[str, Any], FlowSnapshot]:
 
     Args:
       ran: The epic.
-      key: The session, `<role>/<n>`: the n-th its role opened.
+      key: The session, `<agent>/<n>`: the n-th its agent opened.
 
     Returns:
       Its agent, conversation and where it was kept, as a link's `aside` takes them; and the
@@ -730,14 +730,17 @@ def _recalled(ran: Any, key: str) -> tuple[dict[str, Any], FlowSnapshot]:
     from hmz.runtime.epic import where
     from hmz.runtime.watching.btw import AgentProgress, FlowSnapshot
 
-    role, _, number = key.rpartition("/")
-    mine = [one for one in ran.sessions if one.agent == role]
+    agent, _, number = key.rpartition("/")
+    mine = [one for one in ran.sessions if one.agent == agent]
     if not number.isdigit() or not 0 < int(number) <= len(mine):
         raise Refusal(f"{ran.name} opened no session {key}.", 404)
     session = mine[int(number) - 1]
-    runs = next((one.spec for one in ran.agents if one.agent == role), "")
+    # One written before an agent had a name of its own went by its role.
+    runs = next(
+        (one.spec for one in ran.agents if (one.name or one.agent) == agent), ""
+    )
     if not runs:
-        raise Refusal(f"{ran.name} says nothing of what {role} ran as.", 404)
+        raise Refusal(f"{ran.name} says nothing of what {agent} ran as.", 404)
     began, ended = _moment(ran.began), _moment(ran.ended)
     about = FlowSnapshot(
         flow=ran.flow,
@@ -747,7 +750,11 @@ def _recalled(ran: Any, key: str) -> tuple[dict[str, Any], FlowSnapshot]:
         finished=True,
         agents=tuple(
             AgentProgress(
-                agent=one.agent, model=one.model, turns=0, working=False, role=one.agent
+                agent=one.name or one.agent,
+                model=one.model,
+                turns=0,
+                working=False,
+                role=one.agent,
             )
             for one in ran.agents
         ),
@@ -776,9 +783,9 @@ def _source(
 ) -> dict[str, str] | None:
     """What the btw agent is opened as, as the terminal interface opens it.
 
-    The agent `/settings` names; or the run's first role, as its conversation or as the
-    agent it was started with; or, with no run to read, as this workspace's default flow was
-    last set up.
+    The agent `/settings` names; or the agent of the run's first role, as its conversation
+    or as what it was started with; or, with no run to read, as this workspace's default flow
+    was last set up.
     """
     from hmz.runtime.kept import read_back, written
     from hmz.runtime.watching.btw import opened_as
@@ -787,7 +794,11 @@ def _source(
     said = read_back(settings.btw) if settings.btw else None
     if run and run.get("roles"):
         agents: Mapping[str, Any] = run.get("agents") or {}
-        roles = {str(role): str(agents.get(role) or "") for role in run["roles"]}
+        names: Mapping[str, Any] = run.get("names") or {}
+        roles = {
+            str(names.get(role) or role): str(agents.get(role) or "")
+            for role in run["roles"]
+        }
     elif settings.flow:
         roles = {
             role: written(runs) for role, runs in settings.agents(settings.flow).items()

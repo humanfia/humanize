@@ -137,6 +137,8 @@ class _RunSeen:
       task: What it was started on.
       by: Who started it, as that frontend is named.
       roles: Its agent roles, in the order the flow declares them.
+      names: What the agent filling each agent role is called, by role: what its sessions
+        are keyed by and what it is read as, the role being only the parameter it fills.
       outworlders: Its `Outworlder` roles, likewise.
       agents: What each agent role runs, as `-a` spells it after `<role>=`.
       envs: What each environment role was given, as `-e` spells it after `<role>=`.
@@ -148,6 +150,7 @@ class _RunSeen:
     task: str = ""
     by: str = ""
     roles: tuple[str, ...] = ()
+    names: Mapping[str, str] = field(default_factory=dict[str, str])
     outworlders: tuple[str, ...] = ()
     agents: Mapping[str, str] = field(default_factory=dict[str, str])
     envs: Mapping[str, str] = field(default_factory=dict[str, str])
@@ -162,6 +165,7 @@ class _RunSeen:
             str(said.get("task") or ""),
             str(said.get("by") or ""),
             tuple(said.get("roles") or ()),
+            dict(said.get("names") or {}),
             tuple(said.get("outworlders") or ()),
             dict(said.get("agents") or {}),
             dict(said.get("envs") or {}),
@@ -1061,7 +1065,7 @@ class Humanize(App[None]):
         #: The backup targets an epic of it here goes to, by name, or None for the defaults
         #: as it starts: chosen on `/flow`, and remembered with the budget per flow.
         self._backup = self.settings.backup(self._flow_named)
-        #: Where each role's harness went in the run going, by role: what the runtime it works
+        #: Where each agent's harness went in the run going, by its name: what the runtime it works
         #: on came to, which only the machine could say.
         self._harnessed: dict[str, str] = {}
         #: What has been typed here before, which the arrows walk. Read now rather than each
@@ -1070,10 +1074,10 @@ class Humanize(App[None]):
         self.history = History()
         #: When each agent's turn started, for the line that closes it.
         self._began: dict[str, float] = {}
-        #: What each transcript has to show: one per role, under the role, and one under
+        #: What each transcript has to show: one per agent, under its name, and one under
         #: `_EVERY` where all of them appear together. Kept by name rather than by the
-        #: object, since a role's sessions come and go under it -- a Ralph loop opens one a
-        #: turn -- and what is read is the role rather than whichever of them is open.
+        #: object, since an agent's sessions come and go under it -- a Ralph loop opens one a
+        #: turn -- and what is read is the agent rather than whichever of them is open.
         self._kept: dict[str, _Kept] = {}
         #: Which transcript is being read: what the screen shows, and which agent a typed
         #: line is said to. The one they all appear on until somebody steps off it, that
@@ -1144,6 +1148,43 @@ class Humanize(App[None]):
         if self._declared is not None:
             return self._declared.roles
         return tuple(self._models)
+
+    def _name_of(self, role: str) -> str:
+        """What the agent filling one role is called, in the run going or the last one.
+
+        Which is what its sessions are keyed by and what it is read as: the role is only the
+        parameter it fills. The role itself where no run has said -- one set up here and not
+        yet started, whose agent has no name until it is.
+        """
+        ran = self._run or self._seen_last
+        return (ran.names.get(role) if ran is not None else None) or role
+
+    def _role_named(self, agent: str) -> str:
+        """The agent role one agent of the run going or the last one fills, or "" for none."""
+        ran = self._run or self._seen_last
+        names: Mapping[str, str] = ran.names if ran is not None else {}
+        return next((role for role, name in names.items() if name == agent), "")
+
+    def _agents_named(self) -> tuple[str, ...]:
+        """Each agent role's agent as a line about it names it: by its name, then its role.
+
+        By its name from the moment the run says it, which is before it has opened anything:
+        the role is the parameter it fills, and stays the name only for a flow set up here
+        and not yet started.
+        """
+        return tuple(
+            role if (name := self._name_of(role)) == role else f"{name}{_DOT}{role}"
+            for role in self._named_by
+        )
+
+    def _runs_as(self, agent: str) -> str:
+        """What one agent runs, behind the role it fills: what its box says under its name."""
+        role = self._role_named(agent) or agent
+        return _DOT.join(
+            part
+            for part in (role if role != agent else "", self._runs_of(role).spec)
+            if part
+        )
 
     def _runs_of(self, role: str) -> Runs:
         """What one agent role runs: as the run going was started with, or as set up here."""
@@ -1576,13 +1617,13 @@ class Humanize(App[None]):
         if not whose:
             where = [self._attached]
         else:
-            role = self._role_of(whose)
+            agent = self._agent_of(whose)
             where = [
                 *([_EVERY] if shared else []),
-                *([role] if role and role != whose else []),
+                *([agent] if agent and agent != whose else []),
                 whose,
             ]
-        speaker = self._role_of(whose or "") or whose
+        speaker = self._agent_of(whose or "") or whose
         for one in where:
             kept = self._keeping(one)
             if one == _EVERY and speaker and kept.spoke != speaker:
@@ -1596,15 +1637,15 @@ class Humanize(App[None]):
             self._writes(one, _Shown(content, shrink))
 
     @staticmethod
-    def _role_of(key: str) -> str:
-        """The agent role a transcript is of: its own for a conversation's, "" for the rest.
+    def _agent_of(key: str) -> str:
+        """The agent a transcript is of: its own for a conversation's, "" for the rest.
 
         Args:
           key: The transcript, as `_now_reading` names them.
 
         Returns:
-          The role for an agent's or a conversation's, and "" for the one every agent is on
-          and for an outworlder's, neither of which is any agent's.
+          The agent's name for an agent's or a conversation's, and "" for the one every agent
+          is on and for an outworlder's, neither of which is any agent's.
         """
         if key.startswith(_OUTWORLDER):
             return ""
@@ -1624,8 +1665,8 @@ class Humanize(App[None]):
             return "all agents"
         if key.startswith(_OUTWORLDER):
             return f"outworlder {key.removeprefix(_OUTWORLDER)}"
-        role, _, count = key.partition("/")
-        return f"{short(role)}{_DOT}conversation {count}" if count else short(role)
+        agent, _, count = key.partition("/")
+        return f"{short(agent)}{_DOT}conversation {count}" if count else short(agent)
 
     def _view_kind(self) -> str:
         """Which kind of view is in front of the person, which is what a command works in.
@@ -1715,12 +1756,12 @@ class Humanize(App[None]):
         """
         return list(self._seen)
 
-    def _of(self, role: str) -> list[str]:
-        """Every session one role has opened, oldest first."""
-        return [key for key, seen in list(self._seen.items()) if seen.id == role]
+    def _of(self, agent: str) -> list[str]:
+        """Every session one agent has opened, by its name, oldest first."""
+        return [key for key, seen in list(self._seen.items()) if seen.id == agent]
 
     def _working_agents(self) -> list[str]:
-        """Which of the flow's roles have a turn open, in the order they opened sessions.
+        """Which of the flow's agents have a turn open, in the order they opened sessions.
 
         Returns:
           Their names. These are the ones tab steps between: with ten agents going, what
@@ -1735,16 +1776,16 @@ class Humanize(App[None]):
         )
 
     def _reading(self) -> str | None:
-        """The conversation being read, where one role is rather than all of them.
+        """The conversation being read, where one agent is rather than all of them.
 
         Returns:
-          The conversation read, the newest of the role read, or None on the transcript they
+          The conversation read, the newest of the agent read, or None on the transcript they
           all appear on, on an outworlder's, and for one whose flow is over -- the transcript
           stays up either way, there being nothing to say to it.
         """
         if "/" in self._attached:
             return self._attached if self._attached in self._seen else None
-        held = self._of(self._role_of(self._attached)) if self._attached else []
+        held = self._of(self._agent_of(self._attached)) if self._attached else []
         return held[-1] if held else None
 
     def _says_to(self) -> str | None:
@@ -1779,9 +1820,10 @@ class Humanize(App[None]):
         screen rather than replacing it.
 
         Args:
-          whose: Which transcript: `""` for the one every agent is on, `<role>` for one agent
-            and all of its conversations, `<role>/<n>` for the n-th conversation that role
-            opened, counting from one, and `outworlder:<role>` for what one outworlder asks.
+          whose: Which transcript: `""` for the one every agent is on, `<agent>` for one agent
+            and all of its conversations, by its name, `<agent>/<n>` for the n-th conversation
+            that agent opened, counting from one, and `outworlder:<role>` for what one
+            outworlder asks.
           stepped: Whether somebody asked for this, rather than what was being read having
             gone with the flow that held it.
         """
@@ -1797,7 +1839,7 @@ class Humanize(App[None]):
                 one.unread = False
         shown = self.query_one("#transcript", Transcript)
         shown.clear()
-        held = len(self._of(whose)) if self._role_of(whose) == whose else 0
+        held = len(self._of(whose)) if self._agent_of(whose) == whose else 0
         many = f"{_DOT}{held} conversations" if held > 1 else ""
         named = f"{escape(self._titled(whose))}{many}"
         shown.write(
@@ -1831,12 +1873,13 @@ class Humanize(App[None]):
             return []
         held: list[Held] = []
         for role in self._named_by:
-            keys = self._of(role)
+            agent = self._name_of(role)
+            keys = self._of(agent)
             held.append(
                 Held(
                     many=len(keys),
-                    reading=role == self._role_of(self._attached),
-                    unread=self._unread(role),
+                    reading=agent == self._agent_of(self._attached),
+                    unread=self._unread(agent),
                     working=any(key in self._working for key in keys),
                 )
             )
@@ -2096,7 +2139,7 @@ class Humanize(App[None]):
         # and they are read one at a time, against the name the flow calls each one by -- and
         # with the conversations each of them is holding, since one of those is what is being
         # read and what a typed line goes to.
-        lines = reads(self._named_by, self._in_order(), self._held()) or [
+        lines = reads(self._agents_named(), self._in_order(), self._held()) or [
             "no agent installed" if self._named_by else "no agent available"
         ]
         lines.extend(self._outworlder_lines())
@@ -2509,7 +2552,7 @@ class Humanize(App[None]):
                 places=self._places,
                 setup=lambda: (
                     self._run.flow if self._run is not None else self._flow_named,
-                    self._named_by,
+                    self._agents_named(),
                     self._in_order(),
                     self._params,
                 ),
@@ -2593,7 +2636,7 @@ class Humanize(App[None]):
         """
         shape = self._monitor.shape()
         drawn: list[Drawn] = []
-        for who in self._roles_seen():
+        for who in self._agents_seen():
             working = any(key in self._working for key in self._of(who))
             if not (working or shape.turns.get(who, 0)):
                 continue
@@ -2601,7 +2644,7 @@ class Humanize(App[None]):
                 Drawn(
                     who=who,
                     named=who,
-                    runs=self._runs_of(who).spec,
+                    runs=self._runs_as(who),
                     working=working,
                     reading=who == self._attached,
                     unread=self._unread(who),
@@ -2613,23 +2656,23 @@ class Humanize(App[None]):
         """The sessions that have worked, as the monitor hangs them under their agents.
 
         Returns:
-          One per session that has taken a turn, keyed `<role>/<n>`, its role's in the order
-          the flow declares its roles and each role's in the order they were opened -- each
-          saying which agent it is of and which environment it works in.
+          One per session that has taken a turn, keyed `<agent>/<n>`, its agent's in the order
+          the flow declares the roles they fill and each agent's in the order they were
+          opened -- each saying which agent it is of and which environment it works in.
         """
         shape = self._monitor.shape(sessions=True)
-        seen = self._roles_seen()
+        seen = self._agents_seen()
         return [
             Drawn(
                 who=key,
-                named=f"{role}{_DOT}session {at}",
-                runs=self._runs_of(role).spec,
+                named=f"{agent}{_DOT}session {at}",
+                runs=self._runs_as(agent),
                 working=key in shape.working,
-                # A session read on its own where it has a log of its own, and on its role's
+                # A session read on its own where it has a log of its own, and on its agent's
                 # where it does not: that is the log reading it opens.
-                reading=self._attached in (key, role),
-                unread=self._unread(key if key in self._kept else role),
-                of=role,
+                reading=self._attached in (key, agent),
+                unread=self._unread(key if key in self._kept else agent),
+                of=agent,
                 env=place_key(placed) if (placed := self._placed.get(key)) else "",
             )
             for key in sorted(
@@ -2641,14 +2684,20 @@ class Humanize(App[None]):
                     int(key.partition("/")[2] or 0),
                 ),
             )
-            for role, _, at in [key.partition("/")]
+            for agent, _, at in [key.partition("/")]
         ]
 
-    def _roles_seen(self) -> list[str]:
-        """The roles the run has opened sessions for, in the order the flow declares them."""
+    def _agents_seen(self) -> list[str]:
+        """The agents the run has opened sessions for, by name, in the order of their roles."""
         named = self._named_by
         seen = list(dict.fromkeys(one.id for one in list(self._seen.values())))
-        seen.sort(key=lambda who: named.index(who) if who in named else len(named))
+        seen.sort(
+            key=lambda who: (
+                named.index(role)
+                if (role := self._role_named(who) or who) in named
+                else len(named)
+            )
+        )
         return seen
 
     def _places(self) -> list[Placed]:
@@ -2863,8 +2912,8 @@ class Humanize(App[None]):
         """Who a side question here goes to: a session's view key, or "" for the btw agent.
 
         Returns:
-          `<role>/<n>` for a session, the newest of a role's where the view is the role's
-          own, and "" for the aggregate, the monitor and an outworlder's view.
+          `<agent>/<n>` for a session, the newest of an agent's where the view is the
+          agent's own, and "" for the aggregate, the monitor and an outworlder's view.
         """
         if self._view_kind() != "session":
             return ""
@@ -2878,10 +2927,10 @@ class Humanize(App[None]):
         """Every conversation of this run or the last, keyed as the views name them.
 
         The key its transcript and its node go by, so that a side question asked of
-        `builder/2` is asked of the conversation `builder/2` shows.
+        `NeiKos496/2` is asked of the conversation `NeiKos496/2` shows.
 
         Returns:
-          `<role>/<n>` apiece, `n` counting a role's from 1, and the person's left out --
+          `<agent>/<n>` apiece, `n` counting an agent's from 1, and the person's left out --
           theirs is this prompt.
         """
         return list(self._seen)
@@ -3007,7 +3056,9 @@ class Humanize(App[None]):
         return opened_as(
             written(said) if said is not None else "",
             {
-                role: written(runs) if (runs := self._runs_of(role)).spec else ""
+                self._name_of(role): written(runs)
+                if (runs := self._runs_of(role)).spec
+                else ""
                 for role in self._named_by
             },
             self._btw_sessions(),
@@ -4115,7 +4166,7 @@ class Humanize(App[None]):
         if self._attached != _EVERY:
             self._now_reading(_EVERY, stepped=False)
         # The conversations of the run before this one went with it, and so do their numbers
-        # and their transcripts: this run's first conversation is its role's first again.
+        # and their transcripts: this run's first conversation is its agent's first again.
         self._working, self._placed, self._asked_in = set(), {}, {}
         self._last_answer_in = ""
         # And where their harnesses went, which this run settles for itself.
@@ -4182,27 +4233,27 @@ class Humanize(App[None]):
                     **placed,
                     "harness": str(record.get("harness") or ""),
                 }
-            self._harnessed_at(str(record.get("role") or ""), record.get("harness"))
+            self._harnessed_at(str(record.get("agent") or ""), record.get("harness"))
 
-    def _harnessed_at(self, role: str, where: object) -> None:
-        """Says where a role's harness went, the first time it goes somewhere this run.
+    def _harnessed_at(self, agent: str, where: object) -> None:
+        """Says where an agent's harness went, the first time it goes somewhere this run.
 
         Only for work on another machine, which is the only work whose harness had anywhere
         else to be: a session that works here says nothing.
 
         Args:
-          role: The role, as the flow calls it.
+          agent: The agent, by its name.
           where: Where its harness runs, as the run said it, or nothing for work here.
         """
-        if not role or not isinstance(where, str) or not where:
+        if not agent or not isinstance(where, str) or not where:
             return
-        if self._harnessed.get(role) == where:
+        if self._harnessed.get(agent) == where:
             return
-        self._harnessed[role] = where
+        self._harnessed[agent] = where
         said = {"local": "here", "self": "on its environment's machine"}.get(
             where, f"on the runtime {where}"
         )
-        self.show(f"[dim]{escape(role)}'s harness runs {escape(said)}[/dim]")
+        self.show(f"[dim]{escape(short(agent))}'s harness runs {escape(said)}[/dim]")
 
     def _heard(self, record: dict[str, Any]) -> None:
         """Shows what a turn said, on the transcript of the agent that said it.
@@ -4348,19 +4399,19 @@ class Humanize(App[None]):
             )
 
     def _conversation(self, key: str) -> str:
-        """Which of a role's conversations a turn is being taken in, where it has several.
+        """Which of an agent's conversations a turn is being taken in, where it has several.
 
         Args:
           key: The conversation, or "" where the agent said it rather than one of them.
 
         Returns:
-          Which one, counting from one, and nothing at all for a role holding one -- there
+          Which one, counting from one, and nothing at all for an agent holding one -- there
           being nothing to tell it apart from.
         """
-        role, _, at = key.partition("/")
+        agent, _, at = key.partition("/")
         if not at:
             return ""
-        opened = len(self._of(role))
+        opened = len(self._of(agent))
         if opened < 2:  # noqa: PLR2004 -- one is none to tell apart
             return ""
         return f"{_DOT}conversation {at} of {opened}"

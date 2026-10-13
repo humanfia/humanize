@@ -3899,9 +3899,6 @@ class AgentBase(ABC):
         #: must outlive the conversations it spent it in.
         self._meter = Meter()
         self._id = name or codename()
-        #: Whether that name is the agent's own, rather than one to be told by whatever ends
-        #: up driving it: a flow that names the agents it takes names the ones that are not.
-        self._named = name is not None
         #: What this agent has opened, is watched by, and still holds. Every one of them is
         #: written from whichever thread a turn is running on and read from whichever thread
         #: is asking, and a flow may have ten thousand of both, so each is touched under this
@@ -4598,21 +4595,6 @@ class AgentBase(ABC):
         if (held := self.allowance) is not None:
             made.allowance = held
             held.enrol(made)
-
-    def rename(self, name: str) -> None:
-        """Calls this agent what the flow driving it calls it, if it has no name of its own.
-
-        A flow that declares its agents as a named tuple has said what each of them is for --
-        builder, reviewer -- and that is a better name than a codename out of somebody else's
-        story, which is what an agent nobody named has. One handed an agent that was named
-        where it was made says nothing: the name it was given is the name.
-
-        Args:
-          name: What the flow calls this one.
-        """
-        if not self._named:
-            self._id = name
-            self._hooks.agent = name
 
     def loads(self, skills: Iterable[Loaded]) -> None:
         """Says which skills every session this agent opens is to be given.

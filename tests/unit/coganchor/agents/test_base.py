@@ -1032,18 +1032,16 @@ def test_a_failed_goal_is_suppressed_when_asked() -> None:
 # -- the agent -------------------------------------------------------------------------
 
 
-def test_an_unnamed_agent_gets_a_codename_and_may_be_renamed() -> None:
+def test_an_unnamed_agent_gets_a_codename_of_its_own() -> None:
     first, second = Scripted(), Scripted()
     assert first.id != second.id
-    first.rename("builder")
-    assert first.id == "builder"
-    assert first.hooks.agent == "builder"
+    assert first.hooks.agent == first.id
 
 
-def test_a_named_agent_keeps_its_name() -> None:
+def test_a_named_agent_is_called_by_its_name() -> None:
     agent = Scripted(name="mine")
-    agent.rename("theirs")
     assert agent.id == "mine"
+    assert agent.hooks.agent == "mine"
 
 
 def test_the_backend_of_a_driver_in_no_table_is_its_class_name() -> None:

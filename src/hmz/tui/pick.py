@@ -284,7 +284,8 @@ def reads(
     line without it, and it says nothing there.
 
     Args:
-      named: The role each of them fills.
+      named: What each of them is called: its agent's name and the role it fills once a
+        run has said it, and the role alone before.
       runs: What each of them runs.
       holding: The conversations each of them has open, in the same order, or nothing at all
         for a flow that is not running -- which holds none.

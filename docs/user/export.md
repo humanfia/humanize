@@ -184,6 +184,7 @@ This one is a resumed run of `stateful_ralph` that was profiled, so it has both
   "agents": [
     {
       "agent": "agent",
+      "name": "NeiKos496",
       "backend": "claude",
       "model": "claude-haiku-4-5-20251001",
       "effort": "low",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 import pytest
@@ -57,7 +58,10 @@ async def test_left_goes_up_to_the_monitor_of_the_run_and_right_comes_back(
 
         await pilot.press("right")
         await until(pilot, lambda: len(app.screen_stack) == 1, "the prompt")
-        await shows(pilot, "assistant…")  # reading it stopped nothing
+        # Reading it stopped nothing: the agent is still working, by its own name.
+        working_as = re.search(r"(\S+) is working", screen(app))
+        assert working_as is not None
+        await shows(pilot, f"{working_as[1]}…", f"{working_as[1]} · assistant · ")
 
         await typed(pilot, "go on")
         await shows(pilot, "heard wait a moment then go on")

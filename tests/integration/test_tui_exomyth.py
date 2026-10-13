@@ -40,7 +40,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
     workspace = stand_in(tmp_path, monkeypatch)
     began = time.time()
     with Epic("chat", "fix the bug", workspace) as epic:
-        epic.session("assistant", "claude", "", "sess-1")
+        epic.session("NeiKos496", "claude", "", "sess-1")
     _logged(tmp_path / "claude-home", workspace, "sess-1", began)
     return workspace
 

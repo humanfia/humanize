@@ -726,6 +726,7 @@ class FakeAgentDriver:
         :class:`~hmz.flows.SessionError`.
       names_late: Whether a session says its id only once its first turn has started, as a
         real CLI's does, rather than as it opens.
+      name: What it is called, or None for a codename, as a real driver's is.
 
     Attributes:
       sessions: Every session it opened, in order.
@@ -748,7 +749,11 @@ class FakeAgentDriver:
         seconds: float = 0.0,
         forks: bool | None = None,
         names_late: bool = False,
+        name: str | None = None,
     ) -> None:
+        from hmz.coganchor.agents.codenames import codename
+
+        self.name = name or codename()
         self.harness = HarnessKind(harness)
         self.capabilities = (
             HARNESS_CAPABILITIES[self.harness]

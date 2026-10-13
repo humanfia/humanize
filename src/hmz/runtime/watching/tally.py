@@ -299,7 +299,7 @@ class Seen:
     the names are gathered as the records bring them.
 
     Attributes:
-      id: The role it was opened for, which is what its spending is reported under.
+      id: The agent's own name, which is what its spending is reported under.
       backend: The CLI that runs it, which is whose logs are read and how.
       model: What it runs at, for a row of a log that does not say for itself.
       counts: The kinds of token its backend reports, whether or not it has spent any.
@@ -310,6 +310,8 @@ class Seen:
       since: When the run opened it, in seconds since the epoch. A row its log wrote down
         before then is not this run's spending: a conversation carried on from an earlier
         run, or cut from another one, comes with that one's rows.
+      role: The role of the flow its agent fills, or "" where nobody said: only the
+        parameter the agent is taken as, never what it is called.
     """
 
     id: str
@@ -319,6 +321,7 @@ class Seen:
     idents: frozenset[str] = frozenset()
     kept: str = ""
     since: float = 0.0
+    role: str = ""
 
 
 @dataclass
@@ -354,7 +357,7 @@ class Tally:
         #: named it, for a backend whose names hold across every log: a request said again
         #: adds only what it says beyond what was already counted of it.
         self._requests: dict[tuple[str, str], Counter[str]] = {}
-        #: Which roles this has actually opened a log of, so that what the monitor is told a
+        #: Which agents this has actually opened a log of, so that what the monitor is told a
         #: backend reports is what the interface can in fact see. A rollout written on another
         #: machine, or in a container, is one nothing here reads -- and a kind claimed off a
         #: log nobody read would be a nought drawn as a fact.

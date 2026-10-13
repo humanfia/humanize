@@ -37,10 +37,12 @@ def stacked(spans: Iterable[tuple[float, float]]) -> list[tuple[int, int]]: ... 
 # tracing/timeline.py -- Exomyth
 VERSION: int
 class Opened(Protocol): ident: str; agent: str; record: str  # epic.Session is one
+class Drove(Protocol): agent: str; name: str  # epic.Drove is one
 class Call(Protocol):  # epic.Called is one
     flow: str; task: str; record: str; began: str; ended: str; how: str; calls: Sequence[Call]
 class Epic(Protocol):  # epic.Ran is one
     name: str; flow: str; task: str; began: str; ended: str; how: str; sessions: Sequence[Opened]
+    agents: Sequence[Drove]
 @dataclass(frozen=True, slots=True)
 class Timeline:
     document: dict[str, Any]
@@ -112,10 +114,12 @@ def read(at: str | os.PathLike[str]) -> list[Process]: ...
   ordered by start, programs by start then pid. Each MUST carry `id` (its index), `kind`,
   `name`, `key`, `pid` (0 but for a program), `start`, `end`, `parent` (a process id, or -1),
   `tracks` (track ids, in lane order), and `agent`, `role`, `backend`, `model`, `label` and
-  `record`. A sub-agent's parent MUST be the session that started it, a session the epic
-  opened -- and a sub-agent whose starter did nothing -- MUST hang from the `flow` process,
-  and a program's MUST be the program that held its parent's pid when it started, where that
-  was profiled.
+  `record`. A session's `role` MUST be the one its agent filled, read off the epic's agents by
+  the agent's `name` -- or by the role, for an agent written down with none -- and "" for one
+  no agent of the epic's names. A sub-agent's parent MUST be the session that started it, a
+  session the epic opened -- and a sub-agent whose starter did nothing -- MUST hang from the
+  `flow` process, and a program's MUST be the program that held its parent's pid when it
+  started, where that was profiled.
 - The `flow` process MUST hold a span for the epic and one for every flow it called, each
   inside its caller; a call that has not returned, and an epic that has not ended, MUST end at
   the last moment anything in the document did. A session's MUST hold a `session` span over

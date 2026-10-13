@@ -722,7 +722,10 @@ class Runner:
             task,
             self._workspace,
             ref=impl.ref,
-            agents=[_drove(role, spec) for role, spec in self._specs.items()],
+            agents=[
+                _drove(role, spec, self._agents[role].name)
+                for role, spec in self._specs.items()
+            ],
             envs=[f"{role}={spec}" for role, spec in self._places.items()],
             used=[f"{role}={spec}" for role, spec in self._used.items()],
             # Through JSON text rather than `mode="json"`, which leaves an infinite cost a
@@ -951,7 +954,7 @@ class Recorder:
     def spawned(
         self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
     ) -> None:
-        """A flow call opened a session: named for its role, and written into its record."""
+        """A flow call opened a session: written into its record, under its agent's own name."""
         with self._lock:
             self._live[id(session)] = session
         record = self._records.get(id(call), self._epic)
@@ -960,18 +963,24 @@ class Recorder:
             # A driver with no coganchor agent behind it -- a fake -- is written down here,
             # once it has said what it calls the session: now, or when it is `named`.
             if session.id is not None:
-                record.session(role, str(driver.harness), driver.provider, session.id)
+                record.session(
+                    driver.name, str(driver.harness), driver.provider, session.id
+                )
             return
-        # Named for its role, and written down in the record of the call that opened it
-        # once its CLI has said what it calls the conversation, which is its first turn.
-        agent.rename(role)
+        # Written down in the record of the call that opened it once its CLI has said what
+        # it calls the conversation, which is its first turn. Under the agent's own name: the
+        # role is only the parameter it fills.
         agent.epic = record
         conversation: SessionBase | None = getattr(session, "coganchor", None)
         if self._opened is not None and conversation is not None:
             self._opened(role, agent, conversation, getattr(session, "placement", None))
 
     def named(
-        self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
+        self,
+        call: LiveCall,
+        role: str,  # noqa: ARG002 -- written under the agent's name, which the role is not
+        session: SessionHandle,
+        driver: AgentDriver,
     ) -> None:
         """A session was named as a turn of it went: written into its record, if it was not.
 
@@ -981,7 +990,7 @@ class Recorder:
         if getattr(session, "agent", None) is not None or session.id is None:
             return
         record = self._records.get(id(call), self._epic)
-        record.session(role, str(driver.harness), driver.provider, session.id)
+        record.session(driver.name, str(driver.harness), driver.provider, session.id)
 
     def closed(self, session: SessionHandle) -> None:
         """A session closed, and is let go of: what it spent is already the run's."""
@@ -1152,7 +1161,7 @@ def _by_role(given: object) -> list[tuple[str, object]]:
     ]
 
 
-def _drove(role: str, spec: str) -> Drove:
+def _drove(role: str, spec: str, name: str) -> Drove:
     """One agent role as the epic writes it down, off the spec it was given as."""
     from hmz.coganchor.spelling import parted
 
@@ -1162,7 +1171,9 @@ def _drove(role: str, spec: str) -> Drove:
     runs = read_back(spec)
     cli, _, rest = (runs.spec if runs is not None else spec).partition("/")
     model, effort = parted(rest)
-    return Drove(role, cli, model, effort, runs.provider if runs is not None else "")
+    return Drove(
+        role, cli, model, effort, runs.provider if runs is not None else "", name
+    )
 
 
 def _roles(names: Iterable[str]) -> str:

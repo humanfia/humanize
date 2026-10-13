@@ -157,7 +157,11 @@ def test_chat_answers_on_stdout_and_works_in_the_project(
     assert (ran_as.flow, ran_as.task, ran_as.how) == ("chat", "hello there", "done")
     assert [one.spec for one in ran_as.agents] == [f"{AGENT}:high"]
     (session,) = ran_as.sessions
-    assert (session.agent, session.backend) == ("assistant", "claude")
+    # Under the agent's own name, which the epic says fills `assistant`.
+    (drove,) = ran_as.agents
+    assert (drove.agent, drove.name) == ("assistant", session.agent)
+    assert session.agent != "assistant"
+    assert session.backend == "claude"
     assert session.ident == start["session"]
 
 
@@ -220,11 +224,10 @@ def test_json_writes_the_run_as_one_object_per_line() -> None:
     assert said[-1]["kind"] == "ends"
     (result,) = [one for one in said if one["kind"] == "result"]
     assert result["text"] == "goal met: win"
-    assert (result["agent"], result["cli"], result["model"]) == (
-        "worker",
-        "claude",
-        MODEL,
-    )
+    # The agent's own name, never the role it fills -- and the same on every line of it.
+    assert result["agent"] != "worker"
+    assert {one["agent"] for one in said} == {result["agent"]}
+    assert (result["cli"], result["model"]) == ("claude", MODEL)
     assert result["tokens"] == {MODEL: 10 + TOKENS}
 
 

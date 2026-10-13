@@ -219,6 +219,8 @@ CAPABLE = min(HARNESS_CAPABILITIES[HarnessKind.CLAUDE], key=lambda one: one.__na
 class Agent:
     """An agent driver, as far as a runner reads one."""
 
+    #: Its own name, not the role it fills.
+    name: str = "NeiKos496"
     harness: str = "claude"
     model: str = "opus"
     effort: str = "high"
@@ -758,7 +760,10 @@ def test_a_run_is_written_down_and_returns_what_the_flow_did(
         "official/ralph",
         "done",
     )
-    assert ran["agents"] == (epic.Drove("builder", "claude", "opus", "high"),)
+    # The role, and the agent filling it under its own name.
+    assert ran["agents"] == (
+        epic.Drove("builder", "claude", "opus", "high", name="NeiKos496"),
+    )
     assert ran["envs"] == ("box=local/srv",)
     assert ran["params"] == {"rounds": 2}
     assert ran["budget"]["cost"] == 5.0
@@ -1051,11 +1056,7 @@ class Handle:
 class Named:
     """A coganchor agent, as far as what writes a run down reads one."""
 
-    renamed: list[str] = field(default_factory=list[str])
     epic: object = None
-
-    def rename(self, role: str) -> None:
-        self.renamed.append(role)
 
 
 def _events(at: Path) -> list[dict[str, Any]]:
@@ -1137,7 +1138,7 @@ def test_a_session_of_a_driver_with_no_agent_is_written_down_once_it_is_named(
     engine_: Flowing, tmp_path: Path
 ) -> None:
     top = Call()
-    driver = Agent(harness="fake", provider="me")
+    driver = Agent(name="Mydei", harness="fake", provider="me")
     unnamed, named = Handle(), Handle(id="s2")
     held: list[tuple[Any, ...]] = []
 
@@ -1154,16 +1155,20 @@ def test_a_session_of_a_driver_with_no_agent_is_written_down_once_it_is_named(
     runner, written = _recording(engine_, tmp_path, does)
 
     opened = [one for one in _events(written.journal) if one["event"] == "opened"]
-    assert [(one["session"], one["backend"], one["provider"]) for one in opened] == [
-        ("s2", "fake", "me"),
-        ("s1", "fake", "me"),
+    # Under the driver's own name, not the role the flow took it as.
+    assert [
+        (one["agent"], one["session"], one["backend"], one["provider"])
+        for one in opened
+    ] == [
+        ("Mydei", "s2", "fake", "me"),
+        ("Mydei", "s1", "fake", "me"),
     ]
     assert held == [(unnamed, named), (named,)]
     assert runner.recorder is not None
     assert runner.recorder.sessions == (named,)
 
 
-def test_a_session_with_an_agent_behind_it_is_named_for_its_role(
+def test_a_session_with_an_agent_behind_it_is_written_down_by_that_agent(
     engine_: Flowing, tmp_path: Path
 ) -> None:
     told: list[tuple[object, ...]] = []
@@ -1182,7 +1187,6 @@ def test_a_session_with_an_agent_behind_it_is_named_for_its_role(
 
     _, written = _recording(engine_, tmp_path, does, tells)
 
-    assert agent.renamed == ["builder"]
     assert isinstance(agent.epic, epic.Epic)
     assert agent.epic.path == written.path
     assert told == [("builder", agent, conversation, "here")]

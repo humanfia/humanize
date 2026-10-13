@@ -56,9 +56,9 @@ function threadOf(one) {
 
 /**
  * What a run going says, a record at a time, as one of the terminal interface's transcripts
- * says it: one session's, `<role>/<n>`; one agent's, every session of it, `agent:<role>`; one
- * person's, what is asked of them and what they answer, `person:<role>`; or every one's, the
- * shared one, where `key` is "". Kept between records, so that a transcript of thousands of
+ * says it: one session's, `<agent>/<n>`; one agent's, every session of it, `agent:<agent>`; one
+ * person's, what is asked of them and what they answer, `person:<role>`, by the role they
+ * answer; or every one's, the shared one, where `key` is "". Kept between records, so that a transcript of thousands of
  * lines is drawn once and then added to, rather than drawn again for every word.
  *
  * A chat's is read as a conversation: its session's thread opens on the task and goes on with
@@ -69,15 +69,15 @@ function threadOf(one) {
  */
 export function sayer(key, { chat = false } = {}) {
   const began = new Map()
-  const [kind, role] = key.startsWith('agent:') ? ['agent', key.slice(6)] : key.startsWith('person:') ? ['person', key.slice(7)] : ['session', '']
+  const [kind, whom] = key.startsWith('agent:') ? ['agent', key.slice(6)] : key.startsWith('person:') ? ['person', key.slice(7)] : ['session', '']
   const of = (record) => String(record.session || record.key || record.agent || '')
-  const whose = (record) => (kind === 'agent' ? of(record).split('/')[0] === role : kind === 'person' ? false : of(record) === key)
+  const whose = (record) => (kind === 'agent' ? of(record).split('/')[0] === whom : kind === 'person' ? false : of(record) === key)
   const label = !key || kind === 'agent'
   return (record) => {
     const mine = !key || whose(record)
     switch (record.type) {
       case 'said': {
-        const toPerson = kind === 'person' && (record.to === `outworlder:${role}` || record.role === role || record.by === role)
+        const toPerson = kind === 'person' && (record.to === `outworlder:${whom}` || record.role === whom || record.by === whom)
         return mine || toPerson ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
       }
       case 'asked':
@@ -85,12 +85,12 @@ export function sayer(key, { chat = false } = {}) {
         // A question asked while a turn is open is that session's, where it says whose it is.
         return !key ||
           (kind === 'person'
-            ? record.role === role
+            ? record.role === whom
             : record.key
               ? whose(record)
               : chat
                 ? kind === 'session'
-                : record.role && (kind === 'agent' ? record.role === role : key.startsWith(`${record.role}/`)))
+                : record.role && (kind === 'agent' ? record.role === whom : key.startsWith(`${record.role}/`)))
           ? [line('asks', record.text, { who: `${record.role || 'the flow'} asks` })]
           : []
       case 'answered':

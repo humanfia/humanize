@@ -191,7 +191,7 @@ def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -
     """
     lines = [
         f"You are answering a side question about the session `{compact(about, 120)}` of a "
-        "coding flow; the observations below are the ones from its role."
+        "coding flow; the observations below are the ones from its agent."
         if about
         else "You are the btw agent, answering a side question about a coding flow.",
         "The primary flow is running independently. " + _UNTOUCHED,
@@ -210,7 +210,7 @@ def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -
         agents = snapshot.agents[:_MAX_AGENTS]
         for agent in agents:
             state = "working" if agent.working else "idle"
-            named = f"{agent.role} ({agent.agent})" if agent.role else agent.agent
+            named = f"{agent.agent} ({agent.role})" if agent.role else agent.agent
             lines.append(
                 f"- {compact(named, 240) or '(unnamed)'}: {state}, "
                 f"{max(agent.turns, 0)} turn(s), "
@@ -312,15 +312,16 @@ def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -
 
 
 def opened_as(
-    chosen: str, roles: Mapping[str, str], sessions: Sequence[str]
+    chosen: str, agents: Mapping[str, str], sessions: Sequence[str]
 ) -> dict[str, str] | None:
     """What the btw agent is opened as: the one `/settings` names, or the flow's first.
 
     Args:
       chosen: The agent `/settings` names, as `-a` spells one, or "" for none.
-      roles: The flow's agent roles in the order it declares them, each with the agent it
-        runs as, as `-a` spells one -- or "" for a role nothing is set up for.
-      sessions: The run's conversations, `<role>/<n>` apiece, oldest first.
+      agents: The flow's agents in the order it declares their roles, each by its name, or
+        by its role where it has none yet, with what it runs as, as `-a` spells one -- or ""
+        for a role nothing is set up for.
+      sessions: The run's conversations, `<agent>/<n>` apiece, oldest first.
 
     Returns:
       What to open a side conversation with -- `runs`, an agent as `-a` spells one, or
@@ -329,8 +330,8 @@ def opened_as(
     """
     if chosen:
         return {"runs": chosen}
-    for role, runs in roles.items():
-        if held := [key for key in sessions if key.startswith(f"{role}/")]:
+    for name, runs in agents.items():
+        if held := [key for key in sessions if key.startswith(f"{name}/")]:
             return {"key": held[0]}
         if runs:
             return {"runs": runs}
@@ -348,11 +349,11 @@ class Btw:
     conversation opened after it was closed is closed again at once.
 
     Args:
-      target: The session asked, as `<role>/<n>`, or "" for the btw agent.
+      target: The session asked, as `<agent>/<n>`, or "" for the btw agent.
       aside: Asks the runs about a side conversation -- opens one, or takes one turn of
         one -- as a link's `aside` does, answering what the runs answered.
       unaside: Closes one side conversation, by the number the runs gave it.
-      sessions: The run's conversations a side one may be opened on, `<role>/<n>` apiece.
+      sessions: The run's conversations a side one may be opened on, `<agent>/<n>` apiece.
       source: What the btw agent is opened as (:func:`opened_as`), or None for nothing.
       asking: Told each session the btw agent asks, and what, as it asks it.
       opening: What opens the target's side conversation, as a link's `aside` takes it, for
@@ -480,11 +481,11 @@ class Btw:
             # A copy of its agent, opened afresh: for an earlier run's, without its history.
             fresh = {"runs": opening["runs"]} if opening else {"key": key}
             side = self._kept(key, str(self._aside(**fresh)["side"]))
-        role = key.rpartition("/")[0]
+        agent = key.rpartition("/")[0]
         about = replace(
             snapshot,
             observations=tuple(
-                one for one in snapshot.observations if one.agent in (role, "")
+                one for one in snapshot.observations if one.agent in (agent, "")
             ),
             sessions=(),
         )

@@ -56,6 +56,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST round the shared transcript, the conversations with a turn open and the outworlders of
   a running flow, forward on `shift+tab` and back on `tab`, a conversation that has ended
   leaving the round while staying readable from the monitor.
+- MUST call every agent of a run by its own name -- its transcript, each of its conversations
+  as `<agent>/<n>`, its node on the monitor, the line saying it is working -- from the moment the
+  run says it, before it has opened any, the role it fills only ever after that name.
 - MUST show which agent is read, how many conversations it holds, whether it is working and
   whether it has something unread — nothing unread while the shared transcript is read — and
   each outworlder of a running flow, whether it is asking, away, read or unread.
@@ -104,7 +107,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   finish -- be set and read on the page its roles are on, and whether a run is profiled as well
   as traced be switched and read beside it, off until it is switched on, and remembered with
   the budget per flow; a run started MUST be profiled exactly where that says so.
-- MUST say where a role's harness went as its first session on another machine opens: here,
+- MUST say where an agent's harness went as its first session on another machine opens: here,
   on its environment's machine, or on the runtime its affinity sent it to.
 - MUST make an agent a CLI -- or litellm, a model called directly -- an account, a model and an
   effort and nothing else, offering only CLIs installed here whose harness is the one the role names and serves what the role asks,

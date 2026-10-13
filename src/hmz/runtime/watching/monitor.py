@@ -322,7 +322,7 @@ class Monitor:
     _last: str | None = None
     #: The same graph kept a session at a time rather than an agent at a time, which is what
     #: the monitor draws an agent opened out to its sessions from: who worked, who handed to
-    #: whom, how long each has been at it and what each has spent, with `<role>/<n>` where the
+    #: whom, how long each has been at it and what each has spent, with `<agent>/<n>` where the
     #: agent was. Made when the first turn that names its session starts, and read for nothing
     #: but that -- the bill is the run's, and is read off this one, above.
     _sessions: Monitor | None = None
@@ -341,7 +341,7 @@ class Monitor:
           agent: Whose turn it is.
           model: The model that agent runs at.
           now: When, defaulting to this moment. Given only so a test can say.
-          session: Which of its sessions the turn is in, as `<role>/<n>`, or None where
+          session: Which of its sessions the turn is in, as `<agent>/<n>`, or None where
             nobody said -- which is a turn counted against the agent alone.
         """
         if session is not None:
@@ -785,7 +785,7 @@ class Monitor:
         moment of the run rather than three moments of three counters.
 
         Args:
-          sessions: Whether a node is a session, keyed `<role>/<n>`, rather than an agent.
+          sessions: Whether a node is a session, keyed `<agent>/<n>`, rather than an agent.
 
         Returns:
           The graph, which is what the monitor is drawn from.
