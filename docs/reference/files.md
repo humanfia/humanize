@@ -263,7 +263,9 @@ named and labelled the same way, on the swarm its runtime's manager manages, and
 `apple-container` environment's container likewise, less `humanize.gpus`, by Apple's `container`
 on this Mac. A `slurm` environment's job is named the same way and carries the same labels,
 with `humanize.name`, URL-encoded in its comment; nothing is mounted, its workdir being the
-same path on a shared filesystem.
+same path on a shared filesystem. A docker or swarm runtime that sets a
+[`name_prefix`](/reference/machines#a-docker-daemon) names its containers or services
+`<name_prefix>-<role>-<hex8>` instead.
 
 ### `M/harness/`
 

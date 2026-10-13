@@ -417,6 +417,16 @@ def _mirrors(name: str) -> Path:
     return home() / ENVS / "mirrors" / name
 
 
+def _called(provider: str, role: str, prefix: str = "") -> str:
+    """A name of its own for the container, service or job brought up for a role.
+
+    `<prefix>-<role>-<8 hex>`, the prefix being the runtime's `name_prefix` where it says
+    one and `humanize-<provider>` otherwise; a role of no name is left out.
+    """
+    head = (prefix,) if prefix else ("humanize", provider)
+    return "-".join(one for one in (*head, role, secrets.token_hex(4)) if one)
+
+
 def _stale(one: Allocation) -> bool:
     """Whether a container was left by a process of this user's on this host that is gone."""
     said = one.labels
@@ -481,10 +491,8 @@ class DockerMachine(SSHMachine):
         except ValueError as error:
             raise EnvUnavailable(f"docker@{provider}: {error}") from error
         role_name = role.name if role is not None else named
-        name = "-".join(
-            one
-            for one in ("humanize", provider, role_name, secrets.token_hex(4))
-            if one
+        name = _called(
+            provider, role_name, stored.name_prefix if stored is not None else ""
         )
         super().__init__(
             provider, Target.parse(f"docker://{name}@{endpoint}").describe()

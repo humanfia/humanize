@@ -450,6 +450,7 @@ class Runtime:
     gpu_resource: str = ""
     runtime: str = ""
     run_args: tuple[str, ...] = ()
+    name_prefix: str = ""
     constraints: tuple[str, ...] = ()
     nodes: Mapping[str, str] = field(default_factory=dict[str, str])
     partition: str = ""

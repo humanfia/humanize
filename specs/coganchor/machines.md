@@ -302,6 +302,7 @@ class DockerRuntime:
     image: str = ""
     runtime: str = ""
     run_args: tuple[str, ...] = ()
+    name_prefix: str = ""  # what its containers' names start with; "" for humanize-<name>
     cpus: float = 0.0  # what it may hand out; 0 for all it has
     memory: int = 0
     gpus: tuple[str, ...] = ()
@@ -324,6 +325,7 @@ class SwarmRuntime:
     tls_dir: str = ""
     image: str = ""
     run_args: tuple[str, ...] = ()  # what else `docker service create` is told
+    name_prefix: str = ""  # what its services' names start with; "" for humanize-<name>
     cpus: float = 0.0  # what its tasks may reserve all told; 0 for what the nodes have
     memory: int = 0
     gpu_resource: str = ""  # the generic resource its nodes advertise GPUs as
@@ -531,9 +533,12 @@ def hosts(
 - A runtime MUST be refused where it is made, not where it is used: an ssh runtime with
   neither a host nor an alias, a word `ssh` would read as an option, a setting it has a field
   for given as an option, a value of more than one line; a docker runtime with an endpoint
-  that is none of the kinds, certificates for one that is not `tcp://`, or a negative amount;
-  a swarm runtime with the same, or a constraint that compares nothing, a generic resource of
-  no single word, or a node reached by neither a runtime's name nor an ssh destination;
+  that is none of the kinds, certificates for one that is not `tcp://`, a negative amount, or a
+  name prefix that is not one word of letters, digits, dashes and underscores from a letter or
+  digit to a letter or digit, or that would leave a swarm service's name -- with a dash and 8
+  hex digits after it -- longer than the 63 characters docker takes; a swarm runtime with the
+  same, or a constraint that compares nothing, a generic resource of no single word, or a node
+  reached by neither a runtime's name nor an ssh destination;
   a runtime of Apple containers with an image of more than one word or a negative amount;
   a Slurm runtime with a partition, account or quality of service of more than one name, a
   time `--time` does not take, a constraint of more than one word, a Python neither absolute

@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import socket
 import sys
 from pathlib import Path, PurePosixPath
@@ -373,6 +374,47 @@ async def test_a_swarm_environment_that_is_not_linux_is_refused_and_removed(
         await driver.close()
 
     assert ["service", "rm", "svc-1"] in far.calls("docker")
+
+
+def _name_of(argv: list[str]) -> str:
+    """The name a `docker run` or a `docker service create` was told to give it."""
+    return argv[argv.index("--name") + 1]
+
+
+async def _probed(driver: MachineEnvDriver) -> None:
+    """Probes it: a fake container here, which is not linux off linux, is then refused."""
+    try:
+        if sys.platform == "linux":
+            await probe(driver)
+        else:
+            with pytest.raises(EnvUnavailable):
+                await probe(driver)
+    finally:
+        await driver.close()
+
+
+async def test_a_docker_runtime_naming_a_prefix_starts_its_containers_under_it(
+    far: Fakes, work: Path
+) -> None:
+    store.write(store.new(store.DOCKER, "team", name_prefix="team-a"))
+
+    await _probed(_opened(f"work=docker@team{work}"))
+
+    assert re.fullmatch(r"team-a-work-[0-9a-f]{8}", _name_of(_run_of(far)))
+
+
+async def test_a_swarm_runtime_naming_a_prefix_creates_its_services_under_it(
+    far: Fakes, work: Path
+) -> None:
+    _swarm(far)
+    store.write(store.new(store.SWARM, "team", name_prefix="team-a"))
+
+    await _probed(_opened(f"work=swarm@team{work}"))
+
+    (created,) = [
+        one for one in far.calls("docker") if one[:2] == ["service", "create"]
+    ]
+    assert re.fullmatch(r"team-a-work-[0-9a-f]{8}", _name_of(created))
 
 
 def _apple(far: Fakes) -> None:

@@ -30,7 +30,6 @@ import contextlib
 import hashlib
 import math
 import os
-import secrets
 import shutil
 import socket
 from dataclasses import dataclass
@@ -52,6 +51,7 @@ from .environing_docker import (
     ROLE,
     _by,  # pyright: ignore[reportPrivateUsage]
     _bytes,  # pyright: ignore[reportPrivateUsage]
+    _called,  # pyright: ignore[reportPrivateUsage]
     _held,  # pyright: ignore[reportPrivateUsage]
     _mirrors,  # pyright: ignore[reportPrivateUsage]
     _stale,  # pyright: ignore[reportPrivateUsage]
@@ -177,11 +177,7 @@ class SlurmMachine(SSHMachine):
           named: The role's name, where there is no role to read it off.
         """
         role_name = role.name if role is not None else named
-        name = "-".join(
-            one
-            for one in ("humanize", provider, role_name, secrets.token_hex(4))
-            if one
-        )
+        name = _called(provider, role_name)
         # Where the job is, which is not known until it has been submitted: until then, none.
         super().__init__(provider, "slurm://0")
         self.identity = f"slurm:{name}"

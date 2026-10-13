@@ -182,7 +182,7 @@ entry that does not validate is skipped.
 
 | Field | Type |
 | --- | --- |
-| `tls_dir`, `image`, `runtime`, `workdir` | `str` |
+| `tls_dir`, `image`, `runtime`, `name_prefix`, `workdir` | `str` |
 | `endpoint` | `local`, `unix://…`, `tcp://…`, `ssh://…`, `ssh:<ssh runtime>`, `context:<name>` |
 | `run_args`, `gpus`, `fallback`, `affinity` | `[str]` |
 | `cpus` | `float` |
@@ -193,7 +193,7 @@ entry that does not validate is skipped.
 
 | Field | Type |
 | --- | --- |
-| `tls_dir`, `image`, `gpu_resource`, `workdir` | `str` |
+| `tls_dir`, `image`, `name_prefix`, `gpu_resource`, `workdir` | `str` |
 | `endpoint` | a swarm manager, as a docker runtime's `endpoint` |
 | `run_args`, `constraints`, `fallback`, `affinity` | `[str]` |
 | `cpus` | `float` |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -133,6 +134,22 @@ def test_a_task_is_named_for_its_runtime_and_role() -> None:
     assert machine.resources(gpus=True) == Resources()
 
 
+def test_a_runtime_naming_a_prefix_names_its_services_after_it() -> None:
+    stored = runtime(
+        Runtime(name="c", endpoint="tcp://manager:2376", name_prefix="team-a")
+    )
+
+    machine = SwarmMachine("c", PurePosixPath("/srv/x"), stored=stored, role=_worker())
+
+    assert re.fullmatch(r"team-a-worker-[0-9a-f]{8}", machine.name)
+    assert machine.identity == f"swarm:{machine.name}@tcp://manager:2376"
+    assert machine.target.startswith(f"docker://{machine.name}@")
+    there = machine.placement(PurePosixPath("/srv/x")).machine
+    assert isinstance(there, AnchoredConfig)
+    assert there.anchor.shadow is not None
+    assert f"/mirrors/{machine.name}/" in there.anchor.shadow
+
+
 def test_a_runtime_whose_manager_cannot_be_reached_as_written_is_unavailable() -> None:
     with pytest.raises(EnvUnavailable, match="swarm@c"):
         SwarmMachine(
@@ -249,6 +266,20 @@ async def test_a_task_is_created_with_its_share_and_reached_where_it_landed(
 
     await driver.close()
     assert manager.stopped == 1
+
+
+async def test_a_service_is_created_under_the_name_its_runtime_prefixes(
+    manager: type[_Config],
+) -> None:
+    stored = runtime(Runtime(name="c", name_prefix="team-a"))
+    machine = SwarmMachine("c", PurePosixPath("/srv/x"), stored=stored, named="w")
+
+    await machine.probe()
+
+    (made,) = manager.made
+    assert made["name"] == machine.name
+    assert re.fullmatch(r"team-a-w-[0-9a-f]{8}", made["name"])
+    await machine.close()
 
 
 async def test_a_task_no_node_took_is_a_resource_unmet(manager: type[_Config]) -> None:

@@ -180,6 +180,11 @@ def test_a_workdir_is_absolute_or_under_home(workdir: str) -> None:
         ({"memory": -1}, "cannot be negative"),
         ({"gpu_memory": -1}, "cannot be negative"),
         ({"max_containers": -1}, "cannot be negative"),
+        ({"name_prefix": "-team"}, "invalid name prefix"),
+        ({"name_prefix": "team-"}, "invalid name prefix"),
+        ({"name_prefix": "team.a"}, "invalid name prefix"),
+        ({"name_prefix": "team a"}, "invalid name prefix"),
+        ({"name_prefix": "t" * 55}, "longer than 54 characters"),
         ({"made": IMPORTED}, "made must be typed"),
     ],
 )
@@ -219,6 +224,9 @@ def test_every_spelling_of_a_daemon_is_taken(endpoint: str) -> None:
         ({"constraints": ("node.role==x\ny",)}, "invalid constraint"),
         ({"nodes": {"-n": "gpu"}}, "invalid node host name"),
         ({"nodes": {"n": "not a destination"}}, "is neither a saved ssh host"),
+        ({"name_prefix": "_team"}, "invalid name prefix"),
+        ({"name_prefix": "team/a"}, "invalid name prefix"),
+        ({"name_prefix": "t" * 55}, "longer than 54 characters"),
         ({"made": IMPORTED}, "made must be typed"),
     ],
 )
@@ -227,6 +235,15 @@ def test_what_a_swarm_could_not_be_told_is_refused(
 ) -> None:
     with pytest.raises(ValueError, match=re.escape(why)):
         SwarmRuntime(name="sw", **said)
+
+
+@pytest.mark.parametrize("prefix", ["t", "team-a", "Team_2", "t" * 54])
+@pytest.mark.parametrize("backend", [DOCKER, SWARM])
+def test_a_name_prefix_is_kept_as_it_was_written(backend: str, prefix: str) -> None:
+    runtime = new(backend, "box", name_prefix=prefix)
+
+    assert runtime.held()["name_prefix"] == prefix
+    assert new(backend, "box", name_prefix="").held()["name_prefix"] == ""
 
 
 def test_a_swarm_takes_constraints_and_nodes_it_can_reach() -> None:

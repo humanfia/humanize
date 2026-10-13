@@ -548,7 +548,8 @@ def under() -> Path: ...  # machine()/skills
 - It MUST be given exactly the CPUs, memory and GPUs its role declares as hard limits, no GPU
   where it declares none and no limit on what else it declares none of, and the provider's
   runtime and arguments; it MUST be labelled with its provider, role, host and process beside
-  what it holds, and its driver MUST report what it was given.
+  what it holds, and named starting with its provider's name prefix where that says one; its
+  driver MUST report what it was given.
 - Before any agent starts, what the role asks MUST be held against what its provider may hand
   out -- what it was written down with, the daemon's own where that is 0 -- less what that
   provider's running containers hold, and its container limit; GPUs MUST be the first ids
@@ -575,7 +576,8 @@ def under() -> Path: ...  # machine()/skills
 - It MUST reserve exactly the CPUs and memory its role declares and be limited to them, and as
   many of its provider's GPU generic resource as the role declares GPUs, none where it declares
   none; it MUST be placed under its provider's constraints and created with its arguments, and
-  labelled as a docker environment's container is; its driver MUST report what it reserved.
+  labelled and named as a docker environment's container is; its driver MUST report what it
+  reserved.
 - Before any agent starts, what the role asks MUST be held against what its provider may hand
   out -- its task limit, and the CPUs and memory it was written down with where it was -- less
   what that provider's services hold, and a role asking for GPUs of a provider naming no GPU

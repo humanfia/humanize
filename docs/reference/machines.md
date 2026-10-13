@@ -426,7 +426,7 @@ run closes it.
 
 | Aspect | Rule |
 | --- | --- |
-| Name | `humanize-<provider>-<role>-<8 hex>` |
+| Name | `humanize-<provider>-<role>-<8 hex>`, or `<name_prefix>-<role>-<8 hex>` where the runtime sets [`name_prefix`](#a-docker-daemon); `-<role>` is left out for an environment of no role |
 | Image | the role's `_image` (`ImageEnvMixin`), else the runtime's `image`, else `python:3.12-slim` |
 | Workdir | a directory of the daemon's host, bind-mounted at its own path; what is written there outlives the container |
 | Limits | exactly the role's `_cpu_count`, `_memory` and `_gpu_count` as hard limits; nothing the role does not declare is limited; no GPU unless `GPUEnvMixin` is declared |
@@ -506,7 +506,7 @@ harness, files, derived environments -- is as for a [docker environment](#docker
 
 | Aspect | Rule |
 | --- | --- |
-| Name | `humanize-<provider>-<role>-<8 hex>`, the service's |
+| Name | the service's: `humanize-<provider>-<role>-<8 hex>`, or `<name_prefix>-<role>-<8 hex>` where the runtime sets [`name_prefix`](#a-docker-swarm) |
 | Image | the role's `_image`, else the runtime's `image`, else `python:3.12-slim`; every node it may land on must be able to pull it |
 | Workdir | a directory of the node the task lands on, bind-mounted at its own path: every node it may land on must have it at that path (a shared filesystem, or `constraints` keeping it where the directory is). The task runs as this user where the manager is this machine, else as the workdir's owner on the manager's host |
 | Reservations and limits | `--reserve-cpu`/`--limit-cpu` and `--reserve-memory`/`--limit-memory`, both exactly the role's `_cpu_count` and `_memory`; `--generic-resource <gpu_resource>=<_gpu_count>` for a role declaring GPUs; nothing the role does not declare |
@@ -754,6 +754,7 @@ Two runtimes at one host with different options use different ssh master connect
 | `image` | `str` | `""` | Default image; no whitespace. |
 | `runtime` | `str` | `""` | Container runtime, e.g. `nvidia`. |
 | `run_args` | `tuple[str, ...]` | `()` | Extra `docker run` arguments; no newlines. |
+| `name_prefix` | `str` | `""` | What a container's name starts with in place of `humanize-<name>`: `<name_prefix>-<role>-<8 hex>`. Letters, digits, `-` and `_`, starting and ending with a letter or digit; at most 54 characters. Empty for `humanize-<name>`. |
 | `cpus` | `float` | `0.0` | CPUs it may hand out; `0` for the daemon's `NCPU`. |
 | `memory` | `int` | `0` | Bytes it may hand out; `0` for the daemon's `MemTotal`. |
 | `gpus` | `tuple[str, ...]` | `()` | GPU ids it may hand out; empty for the daemon's CDI-listed NVIDIA GPUs. |
@@ -778,6 +779,7 @@ Two runtimes at one host with different options use different ssh master connect
 | `tls_dir` | `str` | `""` | For `tcp://` only, as for a docker daemon. |
 | `image` | `str` | `""` | Default image; no whitespace. |
 | `run_args` | `tuple[str, ...]` | `()` | Extra `docker service create` arguments; no newlines. |
+| `name_prefix` | `str` | `""` | What a service's name starts with in place of `humanize-<name>`: `<name_prefix>-<role>-<8 hex>`. As for a docker daemon; the 54 characters leave the name within the 63 docker takes for a service. Empty for `humanize-<name>`. |
 | `cpus` | `float` | `0.0` | CPUs its tasks may reserve all told; `0` for whatever the nodes have room for. |
 | `memory` | `int` | `0` | Bytes, likewise. |
 | `gpu_resource` | `str` | `""` | The generic resource its nodes advertise GPUs as (`NVIDIA-GPU`); empty for none handed out. |
@@ -903,6 +905,8 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | image with whitespace | `x: invalid image 'a b'` |
 | bad OCI runtime | `x: invalid OCI runtime '<value>'` |
 | bad or repeated GPU id | `x: invalid GPU id '<id>'`, `x: duplicate GPU specified` |
+| a docker or swarm `name_prefix` of another word | `x: invalid name prefix '-team': letters, digits, dashes and underscores, starting and ending with a letter or a digit` |
+| a docker or swarm `name_prefix` over 54 characters | `x: name prefix '<value>' is longer than 54 characters: with a dash and 8 hex digits after it, a swarm service's name would be longer than 63` |
 | negative amount | `x: CPUs cannot be negative: -1.0` (also `memory`, `GPU memory`, `containers`, `tasks`, `jobs`, `the wait`) |
 | a swarm constraint comparing nothing | `x: invalid constraint 'node.labels.gpu': expected <attribute>==<value> or <attribute>!=<value>` |
 | a swarm GPU resource of more than one word | `x: invalid generic resource 'NVIDIA GPU'` |

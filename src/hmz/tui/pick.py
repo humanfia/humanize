@@ -8129,6 +8129,8 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _fallback(typed.get(_FALLEN_TO, "")),
             "affinity": _affinity(typed.get(_AFFINITY, "")),
+            # Not on the form: what it was saved with, kept.
+            "name_prefix": self._one.name_prefix if self._one is not None else "",
             **self._more(typed),
         }
 

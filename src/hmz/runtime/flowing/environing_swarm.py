@@ -29,7 +29,6 @@ import contextlib
 import hashlib
 import math
 import os
-import secrets
 import shutil
 import socket
 from dataclasses import dataclass
@@ -52,6 +51,7 @@ from .environing_docker import (
     ROLE,
     _by,  # pyright: ignore[reportPrivateUsage]
     _bytes,  # pyright: ignore[reportPrivateUsage]
+    _called,  # pyright: ignore[reportPrivateUsage]
     _held,  # pyright: ignore[reportPrivateUsage]
     _info,  # pyright: ignore[reportPrivateUsage]
     _mirrors,  # pyright: ignore[reportPrivateUsage]
@@ -197,10 +197,8 @@ class SwarmMachine(SSHMachine):
         except ValueError as error:
             raise EnvUnavailable(f"swarm@{provider}: {error}") from error
         role_name = role.name if role is not None else named
-        name = "-".join(
-            one
-            for one in ("humanize", provider, role_name, secrets.token_hex(4))
-            if one
+        name = _called(
+            provider, role_name, stored.name_prefix if stored is not None else ""
         )
         # Where the task is, which is not known until it has landed: until then, the name
         # of its service on its manager, which is what tells it from every other.

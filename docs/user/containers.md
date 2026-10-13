@@ -434,6 +434,11 @@ a saved ssh host, `ssh://`, `tcp://` or a context.
   set it as the runtime's GPU resource. With none set, a role asking for a GPU is refused.
 - **A task no node has room for is refused**, with the scheduler's own words, and its service
   removed: at once where no node could ever hold it, after 30 seconds of waiting otherwise.
+- **On a swarm others use too**, give the runtime a `name_prefix` (`team-a`), in its entry of
+  `settings.yaml` or under **Runtimes** on the [web page](/user/web#settings): its services
+  are then named `team-a-<role>-<8 hex>` rather than `humanize-<runtime>-<role>-<8 hex>`, to
+  keep a naming rule the swarm has and to tell yours from others' by name. A docker host takes
+  one too, for its containers. Correcting the runtime on its form here keeps what it is set to.
 
 ### Another daemon when this one is full
 

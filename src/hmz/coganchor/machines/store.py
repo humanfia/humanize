@@ -114,6 +114,16 @@ _PORT_MAX = 65535
 #: The fields a runtime holds as a mapping of one string to another.
 _MAPPINGS = ("options", "nodes")
 
+#: What the name of a container or a service a runtime brings up may start with in place of
+#: humanize's own: one word of letters, digits, dashes and underscores, from a letter or a
+#: digit to a letter or a digit -- which a swarm takes in a service's name, as docker does in
+#: a container's.
+_PREFIX = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?\Z")
+
+#: How long a name prefix may be: what the 63 characters a swarm takes in a service's name leave
+#: once the dash and the 8 hex digits every name ends with are added.
+_PREFIX_MAX = 63 - len("-01234567")
+
 
 def _text(value: str, what: str) -> str:
     """A value that is one line of text holding no double quote, or ValueError.
@@ -170,6 +180,26 @@ def _falls_back(backend: str, name: str, fallback: tuple[str, ...]) -> None:
         if one in seen:
             raise ValueError(f"{name}: fallback {one} is named twice")
         seen.add(one)
+
+
+def _prefixed(name: str, prefix: str) -> None:
+    """Refuses a name prefix that is not one, or that leaves no room for the rest of a name.
+
+    Raises:
+      ValueError: For one that :data:`_PREFIX` does not match, or one longer than
+        :data:`_PREFIX_MAX`.
+    """
+    if prefix and not _PREFIX.match(prefix):
+        raise ValueError(
+            f"{name}: invalid name prefix {prefix!r}: letters, digits, dashes and "
+            "underscores, starting and ending with a letter or a digit"
+        )
+    if len(prefix) > _PREFIX_MAX:
+        raise ValueError(
+            f"{name}: name prefix {prefix!r} is longer than {_PREFIX_MAX} characters: "
+            "with a dash and 8 hex digits after it, a swarm service's name would be "
+            "longer than 63"
+        )
 
 
 def _named(name: str) -> str:
@@ -376,6 +406,8 @@ class DockerRuntime:
       runtime: The OCI runtime to start a container under, e.g. `nvidia`, or "" for the
         daemon's default.
       run_args: What else `docker run` is told.
+      name_prefix: What the name of a container it starts begins with, before the role's
+        name and 8 hex digits; "" for `humanize-<name>`.
       cpus: How many CPUs it may hand out, or 0 for as many as it has.
       memory: How many bytes of memory, or 0 for as many as it has.
       gpus: The GPUs it may hand out, by device id -- `("0", "1")` -- or none.
@@ -397,6 +429,7 @@ class DockerRuntime:
     image: str = ""
     runtime: str = ""
     run_args: tuple[str, ...] = ()
+    name_prefix: str = ""
     cpus: float = 0.0
     memory: int = 0
     gpus: tuple[str, ...] = ()
@@ -423,6 +456,7 @@ class DockerRuntime:
                 raise ValueError(
                     f"{self.name}: argument {said!r} cannot contain newlines"
                 )
+        _prefixed(self.name, self.name_prefix)
         for gpu in self.gpus:
             if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]*", gpu):
                 raise ValueError(f"{self.name}: invalid GPU id {gpu!r}")
@@ -486,6 +520,8 @@ class SwarmRuntime:
       image: What a task is started from where the flow says nothing. Every node it may land
         on has to be able to pull it.
       run_args: What else `docker service create` is told.
+      name_prefix: What the name of a service it creates begins with, before the role's
+        name and 8 hex digits; "" for `humanize-<name>`.
       cpus: How many CPUs its tasks may reserve all told, or 0 for as many as the swarm's
         nodes have room for.
       memory: How many bytes of memory, likewise.
@@ -512,6 +548,7 @@ class SwarmRuntime:
     tls_dir: str = ""
     image: str = ""
     run_args: tuple[str, ...] = ()
+    name_prefix: str = ""
     cpus: float = 0.0
     memory: int = 0
     gpu_resource: str = ""
@@ -537,6 +574,7 @@ class SwarmRuntime:
                 raise ValueError(
                     f"{self.name}: argument {said!r} cannot contain newlines"
                 )
+        _prefixed(self.name, self.name_prefix)
         for amount, what in (
             (self.cpus, "CPUs"),
             (self.memory, "memory"),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import PurePosixPath
 from typing import Any
@@ -249,6 +250,26 @@ def test_a_container_is_named_for_its_runtime_and_role_and_started_from_its_imag
     assert default.name.startswith("humanize-local-box-")
     assert machine.name != DockerMachine("gpubox", workdir, role=trainer).name
     assert machine.resources(gpus=True) == Resources()
+
+
+def test_a_runtime_naming_a_prefix_names_its_containers_after_it() -> None:
+    trainer, _ = _roles()
+    stored = runtime(
+        Runtime(name="gpubox", endpoint="tcp://gpubox:2376", name_prefix="team-a")
+    )
+    workdir = PurePosixPath("/srv/x")
+
+    machine = DockerMachine("gpubox", workdir, stored=stored, role=trainer)
+    unnamed = DockerMachine("gpubox", workdir, stored=stored)
+
+    assert re.fullmatch(r"team-a-trainer-[0-9a-f]{8}", machine.name)
+    assert re.fullmatch(r"team-a-[0-9a-f]{8}", unnamed.name)
+    assert machine.identity == machine.target
+    assert machine.target.startswith(f"docker://{machine.name}@")
+    there = machine.placement(workdir).machine
+    assert isinstance(there, AnchoredConfig)
+    assert there.anchor.shadow is not None
+    assert f"/mirrors/{machine.name}/" in there.anchor.shadow
 
 
 def test_a_runtime_whose_daemon_cannot_be_reached_as_written_is_unavailable() -> None:
