@@ -176,8 +176,9 @@ either: it runs the first `hmz` it finds.
 ### The release
 
 - MUST be built for every release as one disk image for both architectures,
-  `humanize-<version>-macos-universal.dmg`, laid out to drag the app into Applications, attested
-  as built by `publish.yml`, and attached to the GitHub release beside the wheel and the sdist.
+  `humanize-<version>-macos-universal.dmg`, laid out by Finder to drag the app into Applications
+  on a background that shows the way, attested as built by `publish.yml`, and attached to the
+  GitHub release. The wheel and the sdist MUST NOT be attached: they are PyPI's.
 - MUST be built for every release as its update too, where the repository holds the updater's
   key: `humanize-<version>-macos-universal.app.tar.gz`, signed with that key and attested, and
   `latest.json` offering it to both architectures, both attached to the release. Where the key

@@ -2,8 +2,8 @@
 # which release.yml opens. release-please tags it and drafts the GitHub release from
 # CHANGELOG.md; this builds the package and the macOS app -- its disk image, and the signed
 # update the installed apps fetch through the release's `latest.json` -- publishes the package to
-# PyPI, then publishes the GitHub release with all of it attached. Every other push to such a
-# branch does nothing.
+# PyPI, then publishes the GitHub release with the app's files attached. Every other push to
+# such a branch does nothing.
 # docs/contributing/releasing.md has the rest.
 #
 # PyPI trusts this file by its name and the `pypi` environment, through trusted publishing:
@@ -142,6 +142,8 @@ jobs:
           SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           SECRET_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           SECRET_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Laid out by Finder, background and icons, which the bundler skips where CI is set.
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: |
           # Only the ones set: the bundler reads an empty one as one given.
           for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
@@ -160,6 +162,9 @@ jobs:
           bundle=src-tauri/target/universal-apple-darwin/release/bundle
           mkdir -p ../dist
           mv "$bundle"/dmg/*.dmg "../dist/humanize-$version-macos-universal.dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" "../dist/humanize-$version-macos-universal.dmg"
+          test -f "$RUNNER_TEMP/dmg/.DS_Store" || { echo "::error::The disk image was not laid out."; exit 1; }
+          hdiutil detach "$RUNNER_TEMP/dmg"
           if [[ "$updater" == false ]]; then
             echo "::warning::No TAURI_SIGNING_PRIVATE_KEY: no update for the installed apps."
             exit 0
@@ -190,7 +195,7 @@ jobs:
 
   release:
     name: publish the release
-    # After PyPI, so the release never offers files PyPI refused, and after the app.
+    # After PyPI, so the release is never out before its package, and after the app.
     needs: [release-please, publish, desktop]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -203,12 +208,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: dist
-          path: dist/
-
-      # The disk image beside the wheel and the sdist, and the update with its latest.json.
+      # The disk image, and the update with its latest.json. The wheel and the sdist are
+      # PyPI's alone.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: desktop

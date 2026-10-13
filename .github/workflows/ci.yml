@@ -220,7 +220,7 @@ jobs:
           exit "$status"
 
   # The macOS app in desktop/: its Rust held to rustfmt and clippy, its tests, and the app built
-  # as a release builds it, but unoptimised and without the disk image.
+  # and its disk image as a release builds them, but unoptimised.
   desktop:
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"desktop"')) }}
@@ -265,8 +265,15 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Build the app
-        run: pnpm tauri build --debug --bundles app
+      # Laid out by Finder, which the bundler skips where CI is set unless told not to: the
+      # disk image without its .DS_Store is a bare folder, with no background and small icons.
+      - name: Build the app and the disk image
+        env:
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
+        run: |
+          pnpm tauri build --debug --bundles app,dmg
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" src-tauri/target/debug/bundle/dmg/*.dmg
+          test -f "$RUNNER_TEMP/dmg/.DS_Store" || { echo "::error::The disk image was not laid out."; exit 1; }
 
   ci-ok:
     if: always()
