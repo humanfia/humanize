@@ -66,6 +66,7 @@ from hmz.runtime.kept import read_back
 from hmz.runtime.watching.btw import Btw, FlowSnapshot, Left, compact, opened_as
 from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, tallied
+from hmz.runtime.watching.notices import Notices, preferences
 
 from .complete import VIEWS, Command, hinted, offered
 from .flows import INSTALLED, VERSES, Flows, Lists
@@ -294,6 +295,15 @@ _RULE = "─"
 
 #: The dot Claude Code separates the parts of a line with.
 _DOT = " · "
+
+#: What a card telling of a notice is titled, by its kind: as the web interface titles it.
+_TOLD = {
+    "done": "Done",
+    "failed": "Failed",
+    "stopped": "Stopped",
+    "asked": "Question",
+    "listening": "Chat turn",
+}
 
 #: The frames Claude Code spins while a turn is running, and the words it spins them beside.
 _SPINNER = ("·|·", "·/·", "·—·", "·\\·")
@@ -913,6 +923,11 @@ class Humanize(App[None]):
         #: The runs, where they are held in this process rather than by a host apart from it:
         #: what closing the interface closes. None where a host holds them.
         self._host: Host | None = None
+        #: What happened to the runs of every workspace on this machine worth telling, told as
+        #: it happens once mounted -- and the epics told of that have not been opened since,
+        #: by name, which `/epics` marks.
+        self._notices: Notices | None = None
+        self._unseen: set[str] = set()
         #: Who this interface is to the runs, as they named it: its client id and its name.
         self._me = ""
         self._named = ""
@@ -1251,6 +1266,9 @@ class Humanize(App[None]):
         threading.Thread(
             target=self._tells_of_releases, daemon=True, name="humanize-releases"
         ).start()
+        self._notices = Notices(self._statuses)
+        self._notices.heard(self._hears_notice)
+        self._notices.start()
         # The editor is the only thing to type at, so it is the only thing that takes focus:
         # a transcript or a list that could hold it would swallow the keystrokes meant for it.
         for elsewhere in self.query("#transcript, #offers"):
@@ -3175,6 +3193,8 @@ class Humanize(App[None]):
         """
         self._quitting = True
         self._close_btw()
+        if self._notices is not None:
+            self._notices.close()
         if self._linked is not None:
             self._linked.close()
         if self._host is not None:
@@ -3641,7 +3661,9 @@ class Humanize(App[None]):
         is going, on the sheet where it was asked for. Whether one is going is asked there
         rather than handed over, since this list outlives the run it was opened during.
         """
-        said = await self.push_screen_wait(Epics(running=lambda: self._run is not None))
+        said = await self.push_screen_wait(
+            Epics(running=lambda: self._run is not None, unseen=self._unseen)
+        )
         # Whatever was done there -- a run taken away, a run exported -- the last run here
         # may be another one now.
         self._looks_for_resume()
@@ -3651,6 +3673,86 @@ class Humanize(App[None]):
             self.show(one)
         if said.doing == RESUMES and said.epic is not None:
             self._carries_on(said.epic)
+
+    def _statuses(self) -> dict[str, dict[str, Any]]:
+        """How the runs of every workspace on this machine stand, attaching to none of them.
+
+        What each host the daemon holds says of itself, and what the runs held in this
+        process say, where they are.
+
+        Returns:
+          Each host's status, by the whole path of its workspace.
+        """
+        from hmz import daemon
+
+        said: dict[str, dict[str, Any]] = {}
+        with contextlib.suppress(Exception):
+            for one in daemon.daemons():
+                with contextlib.suppress(Exception):
+                    said[str(Path(one.workspace).resolve())] = one.status()
+        if self._host is not None:
+            with contextlib.suppress(Exception):
+                said[str(self.hmz.workspace.resolve())] = self._host.status()
+        return said
+
+    def _hears_notice(self, notice: dict[str, Any]) -> None:
+        """Hands a notice of a kind wanted, as it is made on the thread that looks, to the screen.
+
+        What is wanted is read here, off the screen's thread: it is a file.
+        """
+        wanted = preferences()
+        if not self._quitting and wanted["kinds"].get(str(notice.get("kind")), True):
+            self.call_from_thread(self._notified, notice, system=wanted["system"])
+
+    def _notified(self, notice: dict[str, Any], *, system: bool) -> None:
+        """Tells of one notice, where its epic is not the one on the screen.
+
+        A card in the corner, and a dot on its epic in `/epics` until that is opened; and,
+        unless the system is turned off in Notifications, the terminal's bell and a system
+        notification of it, which a terminal that knows the sequence shows.
+
+        Args:
+          notice: The notice, as `Notices` made it.
+          system: Whether the system is told too.
+        """
+        if self._shows(notice):
+            return
+        kind = str(notice.get("kind") or "")
+        epic = str(notice.get("epic") or "")
+        if epic:
+            self._unseen.add(epic)
+            if isinstance(self.screen, Epics):
+                self.screen.marks()
+        about = str(notice.get("text") or notice.get("task") or "")
+        where = Path(str(notice.get("workspace") or "")).name
+        said = _DOT.join(
+            one for one in (str(notice.get("flow") or ""), where, about) if one
+        )
+        title = _TOLD.get(kind, kind)
+        self.notify(
+            escape(said) or title,
+            title=title,
+            severity="error" if kind == "failed" else "information",
+        )
+        if system and not self.is_headless:
+            self.bell()
+            # OSC 9, which iTerm2, Ghostty, WezTerm, kitty and Windows Terminal show as one of
+            # the system's own notifications, and every other terminal ignores. Nothing an
+            # agent wrote may end it early or say anything else to the terminal.
+            told = _DOT.join(one for one in (title, said) if one)
+            shown = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", f"hmz: {told}")
+            if self._driver is not None:
+                self._driver.write(f"\x1b]9;{shown}\x07")
+
+    def _shows(self, notice: Mapping[str, Any]) -> bool:
+        """Whether a notice's epic is the one on the screen.
+
+        This workspace's, on its log or on the monitor rather than under a menu.
+        """
+        here = str(self.hmz.workspace.resolve())
+        return notice.get("workspace") == here and (
+            len(self.screen_stack) == 1 or isinstance(self.screen, Monitoring)
+        )
 
     def action_resume(self, argv: Sequence[str] = ()) -> None:
         """Carries the last run here of a flow that can be picked up on: what `/resume` is for.
@@ -4784,7 +4886,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "Every setting: general, accounts, fallback, runtimes, backup, workspace",
+        "Every setting: general, notifications, accounts, fallback, runtimes, backup, workspace",
         lambda app, argv: app.action_settings(argv[0] if argv else ""),
         takes="[page]",
         offers=_PAGES,

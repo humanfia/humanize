@@ -471,7 +471,8 @@ A daemon is heard from while it is reached: Local always, an ssh host once it is
 A browser shows system notifications only once you allow it: press the button on that page,
 which asks the browser. A kind switched off is not shown, kept or counted. These are App
 settings: they are kept in this machine's `~/.hmz/settings.yaml`, under `notifications`, and hold
-for every daemon, never one daemon apart.
+for every daemon, never one daemon apart. `hmz` reads the same settings, on its
+[Notifications page](/user/settings#notifications), and tells you of this machine's epics too.
 
 ## From another machine {#over-ssh}
 

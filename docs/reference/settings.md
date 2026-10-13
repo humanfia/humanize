@@ -55,7 +55,7 @@ daemons:                           # this machine; Settings › Daemons in the w
   identity_file: ~/.ssh/id_ed25519
   proxy_jump: ""
   options: [[ServerAliveInterval, "30"]]
-notifications:                     # this machine; Settings › Notifications in the web interface
+notifications:                     # this machine; /settings notifications, and Settings › Notifications on the web
   kinds: {done: true, failed: true, stopped: true, asked: true, listening: true}
   system: true
 spelling: 2                        # how envs are spelled; written with every change
@@ -89,7 +89,7 @@ backup:                            # this machine
 | `btw` | `str`: `cli[@account]/model:effort` | `""`: the running flow's first agent | `/settings` › General › **/btw agent** | the TUI | the next time `/btw` is entered |
 | `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
 | `daemons` | list of `{name, host, user, port, identity_file, proxy_jump, options: [[keyword, value]], alias, config}` | `[]`: Local alone | the web interface's Settings › Daemons, [`POST /api/daemons`](/reference/web#api-settings) and its `import` | `hmz web` | at once: a daemon added is reached the first time the page asks for it, one removed is let go of |
-| `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | the web interface's Settings › Notifications, [`POST /api/notifications/settings`](/reference/web#api-notifications) | `hmz web` | immediately: the next notice of a kind is told or not |
+| `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | [`/settings notifications`](/reference/tui#notifications-page), the web interface's Settings › Notifications, [`POST /api/notifications/settings`](/reference/web#api-notifications) | `hmz`, `hmz web` | immediately: the next notice of a kind is told or not |
 | <span id="spelling"></span>`spelling` | `int` | absent: written before `-e` wrote `@` only before a provider | every write of the file, as `2` | every process, as it reads the file | absent, `envs` are read as their old spelling meant and rewritten once; `2`, as written |
 
 What error reports contain and exclude is listed on `/settings` › General › **What is sent**.

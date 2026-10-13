@@ -1,5 +1,9 @@
 """Notifications: what every daemon's notices come to, on this machine's interface alone.
 
+This machine's own notices are served as they are, for another machine's interface to follow;
+what they are worked out of is `hmz.runtime.watching.notices`, which the terminal interface
+tells of too.
+
 Each `hmz web` serves its own machine's notices -- an epic ended, a chat's turn done, a flow
 asking a person or waiting for what to say next. The interface a person has open is told them
 of every daemon at once: this machine's as they are heard, and each SSH daemon's, while it is
@@ -9,7 +13,8 @@ hundred -- with whether it was read, for every page this interface serves to fol
 it last heard.
 
 Which kinds are told, and whether the system is asked to show them too, are the app's own
-settings, kept under `notifications` in this machine's `settings.yaml` and never a daemon's.
+settings, kept under `notifications` in this machine's `settings.yaml` and never a daemon's --
+the terminal interface's too.
 """
 
 from __future__ import annotations
@@ -23,18 +28,18 @@ import time
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 
+from hmz.runtime.watching.notices import KINDS, prefer, preferences
+
 from .routing import Refusal, Stream, routes
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    from hmz.runtime.watching.notices import Notices
+
     from .routing import Asked
 
 __all__ = ["KINDS", "ROUTES", "Notifications", "daemons", "preferences"]
-
-#: Every kind of notice there is: an epic or a chat's turn done, an epic failed or stopped, a
-#: person asked, and a flow listening for what to say next.
-KINDS = ("done", "failed", "stopped", "asked", "listening")
 
 #: How many notifications are kept.
 _KEPT = 200
@@ -48,30 +53,6 @@ _QUIET = 15.0
 #: How long a daemon's interface may say nothing before its stream is given up on: it says it is
 #: still there more often than this.
 _SILENT = 60.0
-
-
-def preferences(held: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Which notifications are wanted, as `settings.yaml` holds them: every one, where it is silent.
-
-    Args:
-      held: Everything `settings.yaml` holds; read afresh where None.
-
-    Returns:
-      `kinds`, whether each kind is told, and `system`, whether the system is asked to show
-      them too.
-    """
-    if held is None:
-        from hmz.coganchor import settings
-
-        held = settings.read()
-    said: object = held.get("notifications")
-    wanted = cast("dict[str, Any]", said) if isinstance(said, dict) else {}
-    kinds: object = wanted.get("kinds")
-    each = cast("dict[str, Any]", kinds) if isinstance(kinds, dict) else {}
-    return {
-        "kinds": {kind: each.get(kind) is not False for kind in KINDS},
-        "system": wanted.get("system") is not False,
-    }
 
 
 def daemons(held: dict[str, Any] | None = None) -> list[str]:
@@ -371,23 +352,31 @@ def _prefers(asked: Asked) -> dict[str, Any]:
     if "system" in said and not isinstance(said["system"], bool):
         raise Refusal("system is true or false.")
 
-    def change(held: dict[str, Any]) -> None:
-        now = preferences(held)
-        now["kinds"] |= kinds
-        if "system" in said:
-            now["system"] = said["system"]
-        held["notifications"] = now
-
-    from hmz.coganchor import settings
-
     try:
-        return preferences(settings.changes(change))
+        return prefer(kinds, system=said.get("system"))
     except OSError as why:
         raise Refusal(f"The settings cannot be written: {why}", 409) from why
 
 
-#: What a page reads of the notifications, and does to them.
+def _notices(asked: Asked) -> dict[str, Any]:
+    notices: Notices = asked.site.notices
+    try:
+        found = notices.since(asked.query.get("after", "0"))
+    except ValueError as why:
+        raise Refusal("Say after as a whole number.") from why
+    return {"notices": found, "last": notices.last}
+
+
+def _stream(asked: Asked) -> Stream:
+    notices: Notices = asked.site.notices
+    # A page that heard none hears only those made from now on.
+    return Stream(notices.events)
+
+
+#: What a page reads of this machine's notices and of the notifications, and does to them.
 ROUTES = routes(
+    ("GET", "/api/notices", _notices),
+    ("GET", "/api/notices/stream", _stream),
     ("GET", "/api/notifications", lambda asked: _held(asked).listed()),
     ("GET", "/api/notifications/stream", lambda asked: _held(asked).stream()),
     ("POST", "/api/notifications/read", _read),

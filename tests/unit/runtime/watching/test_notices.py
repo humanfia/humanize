@@ -1,4 +1,4 @@
-"""`hmz.web.notices`: what is news in how the runs stand, against how they stood."""
+"""`hmz.runtime.watching.notices`: what is news in how the runs stand, against how they stood."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
-from hmz.web.notices import Notices
-from hmz.web.routing import Refusal
+from hmz.coganchor import settings
+from hmz.runtime.watching.notices import KINDS, Notices, prefer, preferences
 
 
 class Statuses:
@@ -255,7 +255,7 @@ def test_notices_are_numbered_and_read_after_the_last_heard(
     assert [one["id"] for one in notices.since()] == [first["id"], second["id"]]
     assert notices.since(str(first["id"])) == [second]
     assert notices.since(second["id"]) == []
-    with pytest.raises(Refusal):
+    with pytest.raises(ValueError, match="soon"):
         notices.since("soon")
 
 
@@ -300,7 +300,7 @@ def test_a_stream_carries_on_after_the_last_heard(
     statuses.stands(pending=[_asked("q1")])
     (first,) = notices.look()
     going = threading.Event()
-    events = notices.stream().events("0", going)
+    events = notices.events("0", going)
 
     assert next(events) == (str(first["id"]), "notice", first)
     statuses.stands(pending=[_asked("q2")])
@@ -317,8 +317,41 @@ def test_a_stream_heard_from_nothing_starts_from_now(
     notices.look()
     statuses.stands(pending=[_asked("q1")])
     notices.look()
-    events = notices.stream().events("", threading.Event())
+    events = notices.events("", threading.Event())
     statuses.stands(pending=[_asked("q2")])
     (second,) = notices.look()
 
     assert next(events) == (str(second["id"]), "notice", second)
+
+
+def test_what_is_wanted_is_every_kind_and_the_system_where_nothing_says_otherwise() -> (
+    None
+):
+    said = {"notifications": {"kinds": {"failed": False}, "system": "no"}}
+
+    assert preferences({}) == {"kinds": dict.fromkeys(KINDS, True), "system": True}
+    assert preferences(said)["kinds"] == dict.fromkeys(KINDS, True) | {"failed": False}
+    assert preferences(said)["system"] is True
+
+
+def test_what_is_wanted_is_written_over_what_was_and_nothing_else(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    held: dict[str, Any] = {
+        "daemons": [{"name": "gpu"}],
+        "notifications": {"kinds": {"done": False}},
+    }
+
+    def changes(change: Any) -> dict[str, Any]:
+        change(held)
+        return held
+
+    monkeypatch.setattr(settings, "changes", changes)
+
+    now = prefer({"asked": False}, system=False)
+
+    assert now == preferences(held)
+    assert held["daemons"] == [{"name": "gpu"}]
+    assert now["kinds"] == dict.fromkeys(KINDS, True) | {"done": False, "asked": False}
+    assert now["system"] is False
+    assert prefer(system=True)["kinds"] == now["kinds"]

@@ -191,6 +191,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   and, turned by `ctrl+t` or a button and remembered for this machine, those of every directory
   on this machine instead, each with its directory, read without holding the screen up.
 - MUST refuse to carry on a run of another directory, saying where it ran.
+- MUST tell, of every epic on this machine, what the web interface tells of it -- each notice
+  `runtime/watching` works out of the hosts' status, never attaching -- as a card that goes
+  after a while and, unless the system is turned off, the terminal's bell and a system
+  notification; never of the epic on the screen, this directory's while its log or the
+  monitor is up; and MUST dot each epic told of on `/epics` until it is opened there.
+- MUST offer on the notifications page of `/settings` the kinds the web interface's offers,
+  each turned on or off, and whether the system is told too, kept with that page's.
 - MUST import an epic from a `.hmzepic`, by a key or a button, asking which file as a path,
   read without holding the screen up, and put the cursor on it -- listing this machine's where
   it is of another directory -- or on the one already here that it would be; MUST refuse a file
@@ -231,13 +238,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST draw the board a flow and a person share under the diagram, its lines nodes like any
   other, applying changes at once while the flow runs, taking a line away when it is saved empty,
   and refusing, where enter was pressed, to edit a line the flow owns.
-- MUST make `/settings [page]` the one menu of every setting, a screen of its own in six pages
-  from the broadest to the nearest -- general for this machine (details, the btw agent where
-  there is one, and reporting, each under a heading of what it is about), accounts, fallback,
-  runtimes, backup, and workspace for this directory, which it names across its top --
-  opening on those pages alone and going into one on `enter` or a click and back out on `esc`,
-  or straight into the one named `general`, `accounts`, `fallback`, `runtimes`, `backup` or
-  `workspace`,
+- MUST make `/settings [page]` the one menu of every setting, a screen of its own in seven
+  pages from the broadest to the nearest -- general for this machine (details, the btw agent
+  where there is one, and reporting, each under a heading of what it is about), notifications,
+  accounts, fallback, runtimes, backup, and workspace for this directory, which it names across
+  its top -- opening on those pages alone and going into one on `enter` or a click and back out
+  on `esc`, or straight into the one named `general`, `notifications`, `accounts`, `fallback`,
+  `runtimes`, `backup` or `workspace`,
   offered as it is typed, or by its old name `settings`, `everywhere`, `directory` or
   `environments`, opening `/flow` on its flowverses for `flowverses` and saying they moved
   there, refusing any other; forget this directory alone; keep what

@@ -44,7 +44,6 @@ from . import (
     fallbacks,
     flows,
     held,
-    notices,
     notifications,
     paths,
     places,
@@ -60,7 +59,8 @@ from .routing import Asked, Download, Made, Refusal, Route, Stream
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-    from .notices import Notices
+    from hmz.runtime.watching.notices import Notices
+
     from .notifications import Notifications
     from .places import Places
     from .remote import Remotes
@@ -81,7 +81,6 @@ ROUTES: tuple[Route, ...] = (
     *paths.ROUTES,
     *places.ROUTES,
     *verses.ROUTES,
-    *notices.ROUTES,
     *remote.ROUTES,
     *notifications.ROUTES,
 )

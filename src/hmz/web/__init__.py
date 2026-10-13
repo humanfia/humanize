@@ -58,8 +58,8 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
     from pathlib import Path
 
     from hmz.coganchor import releases
+    from hmz.runtime.watching.notices import Notices
 
-    from .notices import Notices
     from .notifications import Notifications
     from .places import Places
     from .remote import Remotes

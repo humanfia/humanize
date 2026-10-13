@@ -245,7 +245,7 @@ Each command's line in the completion list:
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage runs in this directory` | |
 | `/resume` | `Resume the last run in this directory` | |
-| `/settings` | `Every setting: general, accounts, fallback, runtimes, backup, workspace` | |
+| `/settings` | `Every setting: general, notifications, accounts, fallback, runtimes, backup, workspace` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
@@ -273,7 +273,7 @@ Every message is red and prefixed `hmz: `.
 | `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
 | `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
-| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, accounts, fallback, runtimes, backup or workspace` |
+| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, accounts, fallback, runtimes, backup or workspace` |
 | `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
 | `/btw` | no agent to ask | `/btw requires a coding agent` |
 | `/btw` | the session is gone | `/btw: no conversation found for <agent>/<n>` |
@@ -1079,7 +1079,7 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 | --- | --- |
 | Title | `Epics` |
 | About | `Every epic in this directory, newest first: task, status, and session count.`; on this machine, `Every epic on this machine, newest first: workspace, task, status, and session count.` |
-| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `[<workspace> · ]<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|is still going\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress -- here, under a host, or in `hmz exec` -- reads `is still going`; `was left unfinished` is one whose process went before it ended. |
+| Rows | `YYYY-MM-DD HH:MM · <flow>[ ●]` -- `●` on an epic [told of](#notifications-page) and not opened since -- about `[<workspace> · ]<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|is still going\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress -- here, under a host, or in `hmz exec` -- reads `is still going`; `was left unfinished` is one whose process went before it ended. |
 | Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t`; **Import…**, as `i` |
 | Keys | `enter open   ctrl+t this machine\|this directory   i import   / search   tab actions   esc close` |
 | Empty | `no flow has been run in this directory yet` / `no flow has been run on this machine yet`; `reading…` while a machine's are read |
@@ -1199,7 +1199,8 @@ equivalent: [`hmz exec --resume`](/reference/cli#picking-a-run-up).
 
 ## `/settings` {#what-humanize-remembers}
 
-A screen of six pages, from the broadest scope to the nearest: this machine, the accounts and
+A screen of seven pages, from the broadest scope to the nearest: this machine, what it tells
+you of, the accounts and
 what takes over when one fails, where work runs, where epics are backed up, this directory. Where flows come from is
 [`/flow`](#where-flows-come-from).
 Storage keys are in [Settings](/reference/settings).
@@ -1213,6 +1214,9 @@ Storage keys are in [Settings](/reference/settings).
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ ⚙  General                                      details off · reports on │
   │    this machine: what runs show, the /btw agent, error reports           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ♪  Notifications                                5 of 5 kinds · system on │
+  │    which epics on this machine you are told of                           │
   │──────────────────────────────────────────────────────────────────────────│
   │ ◉  Accounts                                        3 accounts  ● unsaved │
   │    what agents sign in as, under each CLI                                │
@@ -1238,6 +1242,7 @@ Storage keys are in [Settings](/reference/settings).
 | Card | Summary | `● unsaved` when |
 | --- | --- | --- |
 | ⚙ General | `details on\|off · reports on\|off\|not set` | details, btw agent or reports changed |
+| ♪ Notifications | `<n> of 5 kinds · system on\|off` | a kind or the system changed |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
 | ▦ Runtimes | `<n> machine(s)` | never |
@@ -1267,7 +1272,7 @@ Every page is drawn as any menu is ([Anatomy](#menu-anatomy)).
 
 | Page | Buttons | Search matches |
 | --- | --- | --- |
-| General, Workspace | Save | — |
+| General, Notifications, Workspace | Save | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
 | Backup | Add target · Search… · Save | name, row text |
@@ -1288,6 +1293,7 @@ in force.
 | Setting | Takes effect | Note beside the row while held |
 | --- | --- | --- |
 | Error reports, Details | at once on save | — |
+| Notifications | at once on save: the next notice of a kind is told or not | — |
 | /btw agent | next time btw mode is entered | `takes effect on next /btw` |
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
@@ -1320,6 +1326,31 @@ in this order, under the heading in the first column.
 Once answered, Error reports cannot return to *not set*. Where `HUMANIZE_SENTRY` overrides it,
 the page says `HUMANIZE_SENTRY is set, overriding this setting for this run`; the row shows the
 saved value.
+
+### Notifications page {#notifications-page}
+
+Intro: `Which epics on this machine you are told of, here and in the web interface, while you
+are not on them.` Scope: this machine, shared with the web interface's Settings ›
+Notifications. Rows in this order, every one `on` (`tell me`) or `off` (`say nothing`),
+default on.
+
+| Heading | Row | Stored as |
+| --- | --- | --- |
+| Kinds | **Done** ▾ `an epic finished, or a chat turn did` | `notifications.kinds.done` |
+| Kinds | **Failed** ▾ `an epic failed, crashed, ran out of budget or was refused` | `notifications.kinds.failed` |
+| Kinds | **Stopped** ▾ `an epic was stopped` | `notifications.kinds.stopped` |
+| Kinds | **Questions** ▾ `a flow asks you something` | `notifications.kinds.asked` |
+| Kinds | **Chat turns** ▾ `a chat waits for its next turn` | `notifications.kinds.listening` |
+| Shown | **System** ▾ `ring the terminal's bell and show a system notification too`: `on` (`ring the bell and notify the system`), `off` (`a card in hmz alone`) | `notifications.system` |
+
+Every epic on this machine is watched from the start of `hmz`, asking each host the daemon
+holds (and the runs held in this process) how it stands every 2 seconds, never attaching. A
+notice of a kind turned on is a toast at the bottom right, titled `Done`, `Failed`, `Stopped`,
+`Question` or `Chat turn`, reading `<flow> · <workspace directory> · <what it asked or said,
+else its task>`, `Failed` as an error; with **System** on, also the terminal bell and OSC 9
+(`hmz: <title> · …`). None while the notice is of this directory and the log or the monitor is
+on top. Its epic is marked `●` after its name in [`/epics`](#the-runs-that-have-already-happened)
+until opened there, for as long as `hmz` runs.
 
 ### Accounts page {#the-accounts-themselves}
 

@@ -99,8 +99,9 @@ run, the machines a flow's environments go on, and what this directory remembers
 
 ## How it works
 
-`/settings` opens on six pages and nothing else, each a card saying what is in it. They run
-from the broadest to the nearest: what is true wherever you run humanize, who your agents are
+`/settings` opens on seven pages and nothing else, each a card saying what is in it. They run
+from the broadest to the nearest: what is true wherever you run humanize and which of its epics
+it tells you of, who your agents are
 and what takes over when one fails, where their work goes and where its epics are kept, and
 last the one directory open now.
 <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one; <kbd>esc</kbd>, <kbd>backspace</kbd>,
@@ -110,6 +111,7 @@ straight into the one named, and the word is offered as you type it:
 | Page | `/settings …` | What it holds |
 | --- | --- | --- |
 | [**General**](#general) | `general` | whether the screen [shows the working](#details), which agent `/btw` talks to, and whether humanize reports what goes wrong |
+| [**Notifications**](#notifications) | `notifications` | which epics on this machine you are told of, and whether the terminal's bell and your system tell you too |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms, Apple containers and Slurm clusters |
@@ -123,7 +125,8 @@ change you have not saved yet.
 
 The [web page](/user/web#settings) has the same pages, under **Daemon**, for whichever daemon
 it reaches -- this machine or an ssh host -- with **Batch apply** to copy one to several; its
-**App** pages, themes, daemons and notifications, belong to the page and this machine alone.
+**App** pages, themes, daemons and notifications, belong to the page and this machine alone;
+its notifications are the same settings as `hmz`'s Notifications page.
 
 ### How a page is laid out {#layout}
 
@@ -280,7 +283,7 @@ and <kbd>enter</kbd> on **Save**:
 What to look at, by number:
 
 1. **The card's summary.** Each card says what it holds right now at its right-hand end, so the
-   six cards are a status page before you open any of them: `details off · reports off` here,
+   seven cards are a status page before you open any of them: `details off · reports off` here,
    the number of accounts, machines and rules on the others.
 2. **Save.** Nothing has changed yet, so it cannot be pressed.
 3. **`○ off ▾`.** The row's value; `▾` says <kbd>enter</kbd> drops its values under it.
@@ -351,6 +354,27 @@ run and its trace are the same either way.
 | When a turn takes far longer than it should | When you want each answer without scrolling past its tools |
 
 A flow can watch its agents' tool calls itself. See [Hooks](/weaver/hooks).
+
+## Notifications {#notifications}
+
+Which epics on this machine `hmz` tells you of, while you are not on them: one that ends --
+done, failed or stopped -- a flow asking you something, and a chat waiting for its next turn,
+in any directory. Each is a card in the corner of the screen for a few seconds, and a `●` on
+its epic in [`/epics`](/user/tracing) until you open it there. The epic on your screen -- this
+directory's, while its log or the monitor is up -- is never told of.
+
+| Heading | Row | What it is |
+| --- | --- | --- |
+| Kinds | Done | an epic finished, or a chat turn did |
+| Kinds | Failed | an epic failed, crashed, ran out of budget or was refused |
+| Kinds | Stopped | an epic was stopped |
+| Kinds | Questions | a flow asks you something |
+| Kinds | Chat turns | a chat waits for its next turn |
+| Shown | System | also ring the terminal's bell and show a system notification, which iTerm2, Ghostty, WezTerm, kitty and Windows Terminal show as your system's own |
+
+Every row is on until you turn it off. They are the
+[web interface's notification settings](/user/web#notifications) too, kept in
+`~/.hmz/settings.yaml` under `notifications`, so turning a kind off here turns it off there.
 
 ## Accounts
 

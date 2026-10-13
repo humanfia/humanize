@@ -190,6 +190,9 @@ _DOT = " · "
 _HERE = "❯"
 _INFORCE = "✔"
 
+#: What marks a thing told of that has not been opened since, as the bell's list marks one.
+_UNREAD = "●"
+
 #: What says a row opens onto a sheet of its own, and what says its values are dropped under
 #: it to be picked from, as a `<select>` says so on a web page. Two marks because they are the
 #: two things a row of a menu can be besides one that is written, and a reader who has to press
@@ -1651,6 +1654,7 @@ class Sheet[T](ModalScreen[T | None]):
         *,
         here: bool,
         inforce: bool,
+        unread: bool = False,
     ) -> str:
         """One thing on a list: its name and what it is, as a row of `/settings` lays one out.
 
@@ -1660,15 +1664,18 @@ class Sheet[T](ModalScreen[T | None]):
           about: The line about it, which is said quietly.
           here: Whether the cursor is on it.
           inforce: Whether it is the one already in force.
+          unread: Whether it was told of and has not been opened since, dotted after its name.
 
         Returns:
           The row, as markup.
         """
         del at
-        named = f"[b]{escape(label)}[/]" + (
-            f" {_shade('$success', _INFORCE, here=here)}" if inforce else ""
+        named = (
+            f"[b]{escape(label)}[/]"
+            + (f" {_shade('$success', _INFORCE, here=here)}" if inforce else "")
+            + (f" {_shade('$accent', _UNREAD, here=here)}" if unread else "")
         )
-        shown = len(label) + (2 if inforce else 0)
+        shown = len(label) + (2 if inforce else 0) + (2 if unread else 0)
         pad = " " * max(1, _LABEL - shown)
         # Wrapped here rather than by the list, so that a second line starts under the first
         # rather than under the name: the column of what each thing is stays a column.
@@ -4478,13 +4485,16 @@ class Leaves(Popup):
 _REPORTS, _QUIET = "on", "off"
 
 #: The pages of `/settings`, in the order they are listed on its first screen: from the
-#: broadest to the nearest. The fallbacks are beside the accounts, since what a turn falls
-#: back to is another account or model; the machines a flow's environments go on follow, then
+#: broadest to the nearest. Which epics this machine tells of follows what is true of it; the
+#: fallbacks are beside the accounts, since what a turn falls back to is another account or
+#: model; the machines a flow's environments go on follow, then
 #: the repositories epics are backed up to; this directory's own come last. Where flows come
 #: from is `/flow`'s (:mod:`hmz.tui.flows`). The menu itself is :mod:`hmz.tui.settings`; the
 #: pages are counted here because each page that is a list of things is a class of this
 #: module, and says which page it is when it says something.
-_EVERYWHERE, _ACCOUNTS, _FALLBACK, _MACHINES, _BACKUP, _DIRECTORY = range(6)
+_EVERYWHERE, _NOTIFICATIONS, _ACCOUNTS, _FALLBACK, _MACHINES, _BACKUP, _DIRECTORY = (
+    range(7)
+)
 
 
 #: How much of a directory a row says: the last of it, which is what tells one project from
@@ -10259,6 +10269,7 @@ class Epics(Sheet[Doing]):
         workspace: Path | None = None,
         *,
         running: Callable[[], bool] | None = None,
+        unseen: set[str] | None = None,
     ) -> None:
         """Reads every run of this directory, or of this machine where that was last asked for.
 
@@ -10268,6 +10279,8 @@ class Epics(Sheet[Doing]):
             read while a run goes and outlives it, and one that had taken the answer down
             as it opened would refuse to pick a run up in the name of a flow that has since
             finished. None for nothing to ask, which is nothing running.
+          unseen: The epics told of and not opened since, by name: each dotted, and taken
+            out of it as it is opened.
         """
         super().__init__()
         from hmz.daemon import Hmz
@@ -10299,6 +10312,7 @@ class Epics(Sheet[Doing]):
         self._resumes: dict[str, bool] = {}
         #: What is worth saying in the transcript once this sheet is done with.
         self._told: list[str] = []
+        self._unseen = unseen if unseen is not None else set[str]()
 
     def _ask(self) -> None:
         """Says what these are, and puts them up."""
@@ -10435,6 +10449,7 @@ class Epics(Sheet[Doing]):
                         self._about(one),
                         here=one.name == self._was,
                         inforce=False,
+                        unread=one.name in self._unseen,
                     ),
                     id=f"={one.name}",
                 )
@@ -10459,6 +10474,10 @@ class Epics(Sheet[Doing]):
     def leaving(self) -> None:
         """Leaves, saying in the transcript whatever was gathered while this was open."""
         self.dismiss(Doing(said=tuple(self._told)) if self._told else None)
+
+    def marks(self) -> None:
+        """Dots the rows again, for an epic just told of."""
+        self._fill()
 
     def _nothing(self) -> str:
         """What an empty list says: that it is being read, or that nothing has been run."""
@@ -10645,6 +10664,10 @@ class Epics(Sheet[Doing]):
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
+        # Opened, so no longer news.
+        if ran.name in self._unseen:
+            self._unseen.discard(ran.name)
+            self._fill()
         while True:
             # Read again, so that how its last backups went is how they went now.
             ran = self._runs.read(ran.at) or ran
@@ -10662,7 +10685,10 @@ class Epics(Sheet[Doing]):
                 )
             )
             if said is None:
-                return  # walked out of it, which does nothing to the run
+                # Walked out of it, which does nothing to the run -- but another may have been
+                # told of meanwhile, and dotted.
+                self._fill()
+                return
             if said == _UPLOADS:
                 self._uploads(ran)
                 return

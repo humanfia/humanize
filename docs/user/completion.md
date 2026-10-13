@@ -49,7 +49,7 @@ With no flow running, type `/`:
   <span class="p">/exit</span>              <span class="p">Exit</span>
   <span class="p">/flow</span> <span class="m">[flow]</span>       <span class="p">Switch flow</span>
   <span class="p">/resume</span>            <span class="p">Resume the last run in this directory</span><span class="n">2</span>
-  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: general, accounts, fallback, runtimes, backup, workspace</span>
+  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: general, notifications, accounts, fallback, runtimes, backup, workspace</span>
 <span class="d">────────────────────────────────────────────────────────────</span>
 <span class="d">❯</span> /
 <span class="d">────────────────────────────────────────────────────────────</span>
