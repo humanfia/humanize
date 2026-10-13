@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "release-please for release.yml, held to its lockfile",
+  "dependencies": {
+    "release-please": "17.11.2"
+  }
+}
