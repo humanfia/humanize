@@ -17,6 +17,7 @@ def test_the_pages_are_listed_in_order() -> None:
         "runtimes",
         "backup",
         "workspace",
+        "usage",
     )
 
 

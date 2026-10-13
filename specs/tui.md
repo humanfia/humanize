@@ -31,7 +31,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST fetch every flowverse's index as it starts, in the background and silently -- the
   official one included where it has never been fetched, one written into here excluded -- and
   install nothing by it; MUST then say once in the transcript which installed flows have a newer
-  release, by SemVer, and that they are updated from `/flow`. MUST NOT install, update or
+  release, by SemVer, and that they are updated from `/flow`, and keep how many on the status
+  line until none has. MUST NOT install, update or
   uninstall a flow while one runs.
 - MUST ask `coganchor.releases` which release of humanize is newest as it starts, in the
   background, and MUST then say once in the transcript where it is newer than the one running,
@@ -198,7 +199,14 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   credential hidden, its branch, when it is used, and whether it is a default -- and offer
   adding, correcting and removing one on one form: its name, URL and branch, `On session close`,
   `Every N minutes` (off, or how many), `On epic end` -- none switched on is manual only -- and
-  `Default`; refusing a name that is not one short word or is another target's, or no URL.
+  `Default`; refusing a name that is not one short word or is another target's, or no URL; and
+  offer `download` from the saved targets: every epic one holds, the target picked where there
+  is more than one, fetched afresh off the drawing path, by machine and then by directory,
+  newest first, those already here marked, one downloaded as an import lands it, saying where
+  and, where it cannot be resumed here, why.
+- MUST offer on the usage page of `/settings` what the epics spent by day and by flow -- of this
+  directory or of every one on this machine, looking back 7, 30, 90 or 365 days -- read off the
+  drawing path, holding nothing.
 - MUST list the runs of this directory newest first with when each began, its flow, its task, how
   it went and how many sessions it opened, marking which can be picked up, readable while one runs;
   and, turned by `ctrl+t` or a button and remembered for this machine, those of every directory
@@ -212,12 +220,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST offer on the notifications page of `/settings` the kinds the web interface's offers,
   each turned on or off, and whether the system is told too, kept with that page's.
 - MUST import an epic from a `.hmzepic`, by a key or a button, asking which file as a path,
-  read without holding the screen up, and put the cursor on it -- listing this machine's where
+  starting from the downloads directory and taking a file dropped onto the terminal as its
+  path, read without holding the screen up, and put the cursor on it -- listing this machine's where
   it is of another directory -- or on the one already here that it would be; MUST refuse a file
   that is not one in plain words, and say on an imported epic that cannot go on here why not.
 - MUST offer per run where it is written down, carrying it on where its flow says so, and
-  exporting it; an export MUST ask where it goes, a file or a directory to put it in, and land
-  nowhere else, MUST carry a trace of that run's own sessions and no transcript, say where it
+  exporting it; an export MUST ask where it goes, a file or a directory to put it in,
+  offering the downloads directory, and land nowhere else, MUST carry a trace of that run's own sessions and no transcript, say where it
   landed and how big it is, and replace that run's last export rather than pile up; and, where
   there is a backup target, `upload` it -- to the targets it was started with, else the
   defaults -- without holding anything up, saying where it goes, with how its last backup to
@@ -251,14 +260,14 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST draw the board a flow and a person share under the diagram, its lines nodes like any
   other, applying changes at once while the flow runs, taking a line away when it is saved empty,
   and refusing, where enter was pressed, to edit a line the flow owns.
-- MUST make `/settings [page]` the one menu of every setting, a screen of its own in eight
-  pages from the broadest to the nearest -- general for this machine (details, the btw agent
-  where there is one, and reporting, each under a heading of what it is about), notifications,
-  daemons, accounts, fallback, runtimes, backup, and workspace for this directory, which it
-  names across its top -- opening on those pages alone and going into one on `enter` or a click
-  and back out on `esc`, or straight into the one named `general`, `notifications`, `daemons`,
-  `accounts`, `fallback`,
-  `runtimes`, `backup` or `workspace`,
+- MUST make `/settings [page]` the one menu of every setting, a screen of its own in nine
+  pages, eight from the broadest to the nearest -- general for this machine (details, the btw
+  agent where there is one, and reporting, each under a heading of what it is about),
+  notifications, daemons, accounts, fallback, runtimes, backup, and workspace for this
+  directory, which it names across its top -- then usage, opening on those pages alone and
+  going into one on `enter` or a click and back out on `esc`, or straight into the one named
+  `general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`,
+  `workspace` or `usage`,
   offered as it is typed, or by its old name `settings`, `everywhere`, `directory` or
   `environments`, opening `/flow` on its flowverses for `flowverses` and saying they moved
   there, refusing any other; forget this directory alone; keep what

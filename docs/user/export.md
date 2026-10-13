@@ -12,7 +12,8 @@ timeline of the run and what each CLI was, with every credential struck out.
 ## Try it
 
 Open `/epics`, press <kbd>enter</kbd> on the run, choose **export run**, and type where the
-archive goes.
+archive goes -- or press **done** as it stands, and it goes to `~/Downloads/` (your home, where
+there is no `Downloads`), as a browser's export would.
 
 <HmzCast name="epics" alt="/epics listing the runs of this directory, newest first; enter on one shows where it is written down and offers to resume it or export it; export it reports where the archive landed, how big it is, and what the trace inside it holds" />
 
@@ -260,8 +261,9 @@ runs.bundled(epic, output="/tmp/for-the-issue.hmzepic")
 ### Importing a run
 
 Somebody sent you a `.hmzepic`? Read it back in, and it is a run like any other. In `hmz`,
-open `/epics`, press `i` (or **Import…**) and give the file; the list shows it with the cursor
-on it, turning to this machine's epics when it ran in another directory. From a script:
+open `/epics`, press `i` (or **Import…**) and give the file -- type it, press <kbd>tab</kbd> to
+take each file in `~/Downloads/` in turn, or drop it onto the terminal, which pastes its path;
+the list shows it with the cursor on it, turning to this machine's epics when it ran in another directory. From a script:
 
 ```python
 from hmz.sdk import Hmz

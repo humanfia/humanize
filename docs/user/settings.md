@@ -99,11 +99,11 @@ run, the machines a flow's environments go on, and what this directory remembers
 
 ## How it works
 
-`/settings` opens on eight pages and nothing else, each a card saying what is in it. They run
-from the broadest to the nearest: what is true wherever you run humanize and which of its epics
-it tells you of, which machines it reaches, who your agents are
-and what takes over when one fails, where their work goes and where its epics are kept, and
-last the one directory open now.
+`/settings` opens on nine pages and nothing else, each a card saying what is in it. The first
+eight run from the broadest to the nearest: what is true wherever you run humanize and which of
+its epics it tells you of, which machines it reaches, who your agents are and what takes over
+when one fails, where their work goes and where its epics are kept, and the one directory open
+now. The last is what the epics spent.
 <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one; <kbd>esc</kbd>, <kbd>backspace</kbd>,
 <kbd>←</kbd>, or a click on `/settings` across the top, comes back out. `/settings <page>` goes
 straight into the one named, and the word is offered as you type it:
@@ -118,6 +118,7 @@ straight into the one named, and the word is offered as you type it:
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms, Apple containers and Slurm clusters |
 | [**Backup**](#backup) | `backup` | the repositories epics are backed up to, and which are defaults |
 | [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, and forgetting it |
+| [**Usage**](#usage) | `usage` | what the epics spent, by day and by flow |
 
 The names they had still open them: `settings` and `everywhere` open General, `directory`
 opens Workspace, and `environments` opens Runtimes. The [flowverses](#flowverses) are on
@@ -179,7 +180,7 @@ The last line of the screen always names the keys that work where the focus is, 
 ### When a change lands {#saving}
 
 What every page holds lands together, when you save: press **Save**, on any page or on the
-eight of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and a box in the
+pages. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and a box in the
 middle of the screen asks **Save** or **Discard**; <kbd>esc</kbd> or a click off it takes you
 back. **Save** cannot be pressed until
 something is changed, and `● unsaved changes` across the top says when something is.
@@ -284,7 +285,7 @@ and <kbd>enter</kbd> on **Save**:
 What to look at, by number:
 
 1. **The card's summary.** Each card says what it holds right now at its right-hand end, so the
-   eight cards are a status page before you open any of them: `details off · reports off` here,
+   nine cards are a status page before you open any of them: `details off · reports off` here,
    the number of accounts, machines and rules on the others.
 2. **Save.** Nothing has changed yet, so it cannot be pressed.
 3. **`○ off ▾`.** The row's value; `▾` says <kbd>enter</kbd> drops its values under it.
@@ -1199,6 +1200,23 @@ directory. Back an epic up by hand from
 `/epics`: <kbd>enter</kbd> on it, then **upload**, which goes to the targets it was started
 with, else the defaults, and says how its last backup to each went. Neither holds anything up;
 `hmz` waits up to 15 seconds for the backups it started once you close it.
+
+**Download…**, under the list once a target is saved, lists every epic a target holds: under
+the machine it was backed up from, then the directory it ran in, newest first, `✔` and `here`
+on the ones this machine has. It is fetched afresh as it opens; **fetch** fetches again, and
+**target…** picks another target where there is more than one. <kbd>enter</kbd> on an epic
+downloads it as an [import](/user/export#importing-a-run) lands one, under the directory it
+ran in, and says where -- and, for a directory this machine has not got, why it cannot be
+resumed here. Open it on `/epics`.
+
+## Usage
+
+What the epics spent, as each one says: the whole of it, how many epics, their output tokens,
+how long their agents worked and how they ended; then each day with an epic in it, newest
+first, in UTC, with a bar as long as its share of the costliest day; then each flow, the
+costliest first, with its share of the whole. **Range** looks back 7, 30, 90 or 365 days, and
+**Workspace** is this directory's epics or every directory's on this machine. Nothing on it is
+saved; it is read again as either is picked. The web page's **Usage** is the same reckoning.
 
 ## Flowverses
 

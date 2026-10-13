@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from textual import events
 from textual.widgets import OptionList
 
 from hmz.runtime.epic import Epic, epics
@@ -236,3 +237,40 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
 
         await _imports(pilot, "c.txt")
         await shows(pilot, "c.txt is not a .hmzepic file")
+
+
+async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read(
+    workspace: Path,
+) -> None:
+    downloads = Path.home() / "Downloads"
+    downloads.mkdir(parents=True)
+    with Epic("chat", "here", workspace) as here:
+        pass
+    archive = downloads / f"{here.path.name}.hmzepic"
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        await pilot.press("enter")
+        await shows(pilot, "export run")
+        await pilot.press("enter")
+        await on(pilot, Exporting)
+        await shows(pilot, "~/Downloads/")
+        await pilot.click("#act-done")
+        await on(pilot, Epics)
+        await until(pilot, archive.exists, "the archive in downloads")
+
+        # Dropped onto the terminal, which pastes its path quoted.
+        dropped = Path.home() / "my epics" / archive.name
+        dropped.parent.mkdir()
+        archive.rename(dropped)
+        shutil.rmtree(here.path)
+        await pilot.press("i")
+        await on(pilot, ImportingEpic)
+        app.screen.post_message(events.Paste(f"'{dropped}'"))
+        await shows(pilot, "my epics")
+        await pilot.click("#act-done")
+        await on(pilot, Epics)
+        await until(pilot, here.path.is_dir, "the epic imported")
+        await shows(pilot, "imported")

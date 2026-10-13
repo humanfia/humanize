@@ -41,7 +41,7 @@ At mount, in the background, the interface:
 | Task | Detail |
 | --- | --- |
 | Asks installed backends for models | Each installed CLI's own account whose model list was never fetched or is older than 7 days. Failures are logged only. |
-| Fetches flowverses | Every flowverse index with a URL (cloning `official` the first time) whose clone holds no local edits, one at a time. Installed flows are not touched. A fetch that brings new commits makes open flow lists re-read. Then, where any installed flow's index lists a newer release, prints once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`. |
+| Fetches flowverses | Every flowverse index with a URL (cloning `official` the first time) whose clone holds no local edits, one at a time. Installed flows are not touched. A fetch that brings new commits makes open flow lists re-read. Then, where any installed flow's index lists a newer release, prints once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`, and keeps `<n> flow update(s)` at the front of the status line until none is left, counted again each time `/flow` closes. |
 | Looks for a run to resume | Decides whether [`/resume`](#resume) is listed. |
 | Refreshes prices | `$TMPDIR/humanize-<uid>/prices.json` from `HUMANIZE_PRICES` (default `https://openllmprices.com/data/prices.json`) when older than 24 h; at most one attempt an hour, 20 s timeout. |
 | Asks after a newer humanize | `$TMPDIR/humanize-<uid>/releases.json` from `HUMANIZE_RELEASES` (default PyPI) when older than 24 h; then, where it names a release newer than this one, prints once, dim: ``hmz <version> is out: run `hmz update` to update``. |
@@ -245,7 +245,7 @@ Each command's line in the completion list:
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage runs here, or of another daemon` | |
 | `/resume` | `Resume the last run in this directory` | |
-| `/settings` | `Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace` | |
+| `/settings` | `Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace, usage` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
@@ -273,7 +273,7 @@ Every message is red and prefixed `hmz: `.
 | `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
 | `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
-| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, daemons, accounts, fallback, runtimes, backup or workspace` |
+| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, daemons, accounts, fallback, runtimes, backup, workspace or usage` |
 | `/epics <word>` | not `@` and a daemon's name | `/epics takes a daemon as @<name>: choose @local, @<daemon>, …` |
 | `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
 | `/btw` | no agent to ask | `/btw requires a coding agent` |
@@ -305,10 +305,10 @@ See [`/resume`](#carrying-the-last-one-on-outright).
 ### `/settings [page]` {#settings-command}
 
 Opens [`/settings`](#what-humanize-remembers) on its landing screen, or inside `[page]`: one of
-`general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, or the
-aliases `settings` and `everywhere` (General), `directory` (Workspace) and `environments`
-(Runtimes); case-insensitive; only the first word is read. Completion offers the eight names,
-in that order, not the aliases. `flowverses`, the page that moved, prints `the flowverses are on /flow
+`general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`,
+`usage`, or the aliases `settings` and `everywhere` (General), `directory` (Workspace) and
+`environments` (Runtimes); case-insensitive; only the first word is read. Completion offers the
+nine names, in that order, not the aliases. `flowverses`, the page that moved, prints `the flowverses are on /flow
 now` (dim) and opens [`/flow`](#where-flows-come-from) on Flowverses.
 
 ### `/clear` {#clear-command}
@@ -1095,8 +1095,10 @@ off the screen. Which was last chosen is remembered as
 
 `i` or **Import…** opens **Import epic** (`An epic somebody exported, read back in under the
 directory it ran in.`): one row `file   the .hmzepic to import`, a
-[path](#path-completion); **Done** `imports the epic`, `~` expanded; error `the file to import
-is required`. It is then read in, as
+[path](#path-completion) holding `~/Downloads/` (`~/` where there is none) until a letter typed
+replaces it -- `tab` takes each file there in turn; **Done** `imports the epic`, `~` expanded,
+a `file://`, quoted or backslash-escaped path, as a terminal pastes a file dropped onto it, read
+as the path it names; error `the file to import is required`. It is then read in, as
 [`Hmz().epics.imported`](/user/export#importing-a-run) does, off the screen: `importing…`, then
 `imported into <workspace>`, repeated in the transcript on close, with the cursor on it. One
 of another directory turns the list to this machine's until the sheet closes, without
@@ -1122,8 +1124,9 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
 there. Credentials are struck out of every byte of it.`), `Export run` as its step of the way
 across the top: one row `to   file, or directory to put <run>.hmzepic in`, a
-[path](#path-completion); **Done** `writes the archive there`, `~` expanded; error `where to
-export to is required`. A directory, existing or ending in `/`, gets `<run>.hmzepic`;
+[path](#path-completion), holding `~/Downloads/` (`~/` where there is none) until a letter
+typed replaces it; **Done** `writes the archive there`, `~` expanded; error `where to export to
+is required`. A directory, existing or ending in `/`, gets `<run>.hmzepic`;
 anything else is the file. `esc` goes back to the run.
 
 ### Another daemon's epics {#remote-epics}
@@ -1223,9 +1226,9 @@ equivalent: [`hmz exec --resume`](/reference/cli#picking-a-run-up).
 
 ## `/settings` {#what-humanize-remembers}
 
-A screen of eight pages, from the broadest scope to the nearest: this machine, what it tells
-you of, the daemons it reaches, the accounts and
-what takes over when one fails, where work runs, where epics are backed up, this directory. Where flows come from is
+A screen of nine pages: eight from the broadest scope to the nearest -- this machine, what it
+tells you of, the daemons it reaches, the accounts and what takes over when one fails, where
+work runs, where epics are backed up, this directory -- then what the epics spent. Where flows come from is
 [`/flow`](#where-flows-come-from).
 Storage keys are in [Settings](/reference/settings).
 
@@ -1258,6 +1261,9 @@ Storage keys are in [Settings](/reference/settings).
   │──────────────────────────────────────────────────────────────────────────│
   │ ⌂  Workspace                                        work/api · flow rlar │
   │    this directory: its flow, and forgetting it                           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ $  Usage                                                 $4.20 in 30 days │
+  │    what the epics spent, by day and by flow                              │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
                                                                           Save
@@ -1275,6 +1281,7 @@ Storage keys are in [Settings](/reference/settings).
 | ▦ Runtimes | `<n> machine(s)` | never |
 | ⇪ Backup | `<n> target(s)` | targets differ from what is saved |
 | ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | forget on |
+| $ Usage | `last <n> days` until opened, then `<money> in <n> days` | never |
 
 **Save** is disabled (tooltip `nothing to save yet`) until a page holds a change (`save all
 changes`). Hints: `enter open   [tab actions   ]esc close`; `tab actions` only while something
@@ -1302,9 +1309,10 @@ Every page is drawn as any menu is ([Anatomy](#menu-anatomy)).
 | General, Notifications, Workspace | Save | — |
 | General, Workspace | Save | — |
 | Daemons | Add daemon · Import… · Search… | name, row text |
+| Usage | — | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
-| Backup | Add target · Search… · Save | name, row text |
+| Backup | Add target · Download… (a target saved) · Search… · Save | name, row text |
 | Runtimes | Add a runtime… · Import ~/.ssh/config · Search… | name, backend, row text |
 
 **Add a runtime…** drops `ssh host`, `docker host`, `docker swarm`, `apple containers` and
@@ -1759,6 +1767,34 @@ digits, - and _`, `another target is named <name>`, `URL is required`. `Every N 
 keeps the minutes. Saved as `backup` ([Settings](/reference/settings#backup)); transcript on
 save: `<n> backup target(s) saved`, or `hmz: <why>` where settings refused them.
 
+**Download…** opens `hmz › /settings › Backup › Download from <target>` on the first saved
+target, intro `Every epic the target holds, by machine and directory, newest first; enter
+downloads one here, as an import does.` It fetches the target off the drawing path (`fetching
+<target>…`), then lists under a heading per machine and a dim line per directory (`~` for home),
+newest first: `<YYYY-MM-DD HH:MM> · <flow>[ ✔]  <task> · <how>[ · here]`, `✔` and `here` on an
+epic this machine has. Buttons: **Search…** (flow, task, directory, machine), **Fetch**,
+**Target…** (more than one target; drops them). Keys: `enter download   esc back`. Enter on one
+here says `<epic> is here already: open it on /epics`; otherwise `downloading <epic>…`, then
+`downloaded <epic> into <directory>; open it on /epics[; it cannot be resumed here: <why>]`,
+also dim in the transcript on leaving. A refusal is said in red, with any credential hidden.
+Empty: `<target> holds no epic`.
+
+### Usage page {#usage-page}
+
+Intro: `What the epics spent, as each epic says: by day, in UTC, and by flow, the costliest
+first.` Holds nothing; no buttons. Read off the drawing path (`reading…`) when opened and
+again when either ▾ row changes.
+
+| Row | Value |
+| --- | --- |
+| **Range** `how far back, counting today` | ▾ `7 days`, `30 days` (default), `90 days`, `365 days` |
+| **Workspace** `this directory's epics, or every directory's` | ▾ `this directory` (default), `every directory` |
+| Spent: `<money>` | `<n> epic(s) · <tokens> output tokens · worked <time> · <count> <how>, …` |
+| By day: `<YYYY-MM-DD>` per day with an epic, newest first | `<bar> <money> · <n> epic(s) · …`, the bar up to 16 cells against the costliest day |
+| By flow: `<flow>`, costliest first | `<money> · <share>% · <n> epic(s) · …` |
+
+Empty: `no epic here in these days` (`on this machine` for every directory).
+
 ### Workspace page {#workspace-page}
 
 Intro: `What <last 2 path parts> remembers: the flow it opens on and how it was last
@@ -1970,7 +2006,7 @@ name`, `<name> can only be changed by the flow`. Changes are sent at once. See
 | --- | --- |
 | `/<partial>` (one word) | Commands available now, alphabetically, whose name starts with it. |
 | `/flow <partial>` | Flow names (no run going). |
-| `/settings <partial>` | The five page names, in page order. |
+| `/settings <partial>` | The nine page names, in page order. |
 | `$<partial>` (one word) | `$<flow>` for every flow (no run going); the flow list is cached 2 s. |
 | three or more words | Nothing. |
 

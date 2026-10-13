@@ -56,6 +56,7 @@ from typing import (
     get_origin,
     runtime_checkable,
 )
+from urllib.parse import unquote
 from weakref import WeakKeyDictionary
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -2432,6 +2433,8 @@ _ACT_ADD, _ACT_SPEAKS, _ACT_IMPORTS = "add", "speaks", "imports"
 _ACT_SEARCH, _ACT_SAVE, _ACT_DONE = "search", "save", "done"
 #: Turning `/epics` between this directory and this machine, and to another daemon's.
 _ACT_SCOPE, _ACT_DAEMON = "scope", "daemon"
+#: Downloading an epic out of a backup target.
+_ACT_DOWNLOAD = "download"
 #: Asking again what a list is of, naming an ssh host nobody saved, asking a daemon what it
 #: has, and taking away what a sheet is about.
 _ACT_AGAIN, _ACT_UNSAVED, _ACT_DETECT, _ACT_REMOVE = (
@@ -6217,7 +6220,22 @@ class Backups(Pages):
         self._repos_was = list(self._repos)
 
     def _backup_actions(self) -> list[Action]:
-        """What is done about the targets: adding one, searching them, and saving."""
+        """What is done about the targets: adding one, downloading, searching, and saving.
+
+        Downloading from the targets saved, which are the ones there is anything in.
+        """
+        downloads = (
+            [
+                Action(
+                    _ACT_DOWNLOAD,
+                    "download…",
+                    "an epic a target holds, into this machine",
+                    self._downloads,
+                )
+            ]
+            if self._repos_was
+            else []
+        )
         return [
             Action(
                 _ACT_ADD,
@@ -6225,9 +6243,28 @@ class Backups(Pages):
                 "a repository to back epics up to",
                 lambda: self._writes_backup(None),
             ),
+            *downloads,
             self._searches(),
             self._saves_all(),
         ]
+
+    @work
+    async def _downloads(self) -> None:
+        """Lists what the saved targets hold, to download one from, and says what it did."""
+        from .stored import Stored
+
+        if self.opening():
+            return
+        try:
+            told = await self._interface().push_screen_wait(
+                Stored([one.name for one in self._repos_was])
+            )
+        finally:
+            self.opened()
+        if told:
+            self._told.extend(told)
+            self._said = told[-1]
+            self._fill()
 
     def _fill_backups(self) -> None:
         """Puts the targets up, each saying where it is and when it is used."""
@@ -10595,13 +10632,44 @@ def _how(ran: Ran) -> str:
 _TO = "to"
 
 
+def _downloads() -> str:
+    """Where an archive goes and comes from unless somebody says otherwise, as a browser's do.
+
+    Returns:
+      `~/Downloads/` where there is one, else `~/`, written as a directory.
+    """
+    return "~/Downloads/" if (Path.home() / "Downloads").is_dir() else "~/"
+
+
+def _dropped(said: str) -> str:
+    """A path as typed, or as a terminal pastes a file dropped onto it: quoted or escaped.
+
+    Args:
+      said: What was written.
+
+    Returns:
+      The path it names.
+    """
+    said = said.strip()
+    if said.startswith("file://"):
+        said = unquote(said.removeprefix("file://"))
+    if Path(said).expanduser().exists():
+        return said
+    try:
+        parts = shlex.split(said)
+    except ValueError:
+        return said
+    return parts[0] if len(parts) == 1 else said
+
+
 class Exporting(Form[str]):
     """Where one run's archive goes: a file, or a directory to put it in under its own name.
 
     Asked rather than assumed. A bundle is made to be sent, and one that landed somewhere of
     its own choosing is one somebody has to go looking for -- or, landed in the project they
     are standing in, one the next commit of everything carries along. The path is finished as
-    it is typed, as every path written on a form is.
+    it is typed, as every path written on a form is, and starts as the downloads directory,
+    as a browser's export lands there: enter twice sends it there, a letter typed replaces it.
     """
 
     def __init__(self, named: str) -> None:
@@ -10612,6 +10680,7 @@ class Exporting(Form[str]):
         """
         super().__init__()
         self._named = named
+        self._fresh.add(_TO)
 
     def asked(self) -> list[Question]:
         """Where it goes."""
@@ -10659,8 +10728,16 @@ _FILE = "file"
 class ImportingEpic(Form[str]):
     """Which `.hmzepic` to read back in, as an epic of the directory it says it ran in.
 
-    Asked as an export asks where it goes: a path, finished as it is typed.
+    Asked as an export asks where it goes: a path, finished as it is typed, starting from the
+    downloads directory -- tab takes each file there in turn -- or a file dropped onto the
+    terminal, which pastes its path.
     """
+
+    def __init__(self) -> None:
+        """Initializes the form on the downloads directory, which a letter typed replaces."""
+        super().__init__()
+        self._typed_in[_FILE] = _downloads()
+        self._fresh.add(_FILE)
 
     def asked(self) -> list[Question]:
         """Which file."""
@@ -10690,7 +10767,7 @@ class ImportingEpic(Form[str]):
 
     def action_done(self) -> None:
         """Answers with the file, once there is one."""
-        said = self._typed_in.get(_FILE, "").strip()
+        said = _dropped(self._typed_in.get(_FILE, ""))
         if not said:
             self._wrong = "the file to import is required"
             self._fill()

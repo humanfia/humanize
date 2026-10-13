@@ -9,6 +9,7 @@ import pytest
 import yaml
 from textual.widgets import OptionList
 
+from hmz.runtime.epic import Epic
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.pick import Slurming
@@ -66,11 +67,13 @@ async def test_settings_opens_on_its_seven_pages_and_esc_closes_it(
             pilot,
             "General",
             "Notifications",
+            "Daemons",
             "Accounts",
             "Fallback",
             "Runtimes",
             "Backup",
             "Workspace",
+            "Usage",
         )
 
         await pilot.press("escape")
@@ -221,3 +224,35 @@ async def test_a_slurm_cluster_made_on_its_form_is_saved_listed_and_checked(
     assert isinstance(saved, dict)
     assert saved["slurm"]["gpu"]["partition"] == "gpu"
     assert saved["slurm"]["gpu"]["max_jobs"] == 4
+
+
+async def test_usage_says_what_the_epics_spent_by_day_and_by_flow(
+    workspace: Path, tmp_path: Path
+) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    for flow, cost, where in (
+        ("chat", 1.5, workspace),
+        ("ralph", 0.5, workspace),
+        ("ralph", 2.0, elsewhere),
+    ):
+        with Epic(flow, "fix it", where) as epic:
+            epic.write("usage", cost=cost, output_tokens=2000, seconds=90)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_settings(pilot)
+        await shows(pilot, "last 30 days")
+        await opens(pilot, "usage")
+
+        await shows(pilot, "$2.00", "2 epics · 4.0k output tokens", "By day", "75%")
+        await shows(
+            pilot, "chat", "ralph", "1 epic · 2.0k output tokens · worked 1m30s"
+        )
+
+        await picks(pilot, "scope", "every directory")
+        await shows(pilot, "$4.00", "3 epics")
+        await picks(pilot, "range", "7 days")
+        await shows(pilot, "7 days", "$4.00")
+        await pilot.press("escape")
+        await shows(pilot, "$4.00 in 7 days")
+        await pilot.press("escape")
+        await shows(pilot, "◉ chat")

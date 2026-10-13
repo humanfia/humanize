@@ -118,6 +118,7 @@ if TYPE_CHECKING:
     from hmz.daemon import Host, Link
     from hmz.flows import Budget
     from hmz.runtime.epic import Ran
+    from hmz.runtime.flowing import Update
     from hmz.runtime.watching.monitor import Monitor
     from hmz.runtime.watching.tally import Seen, Tally
 
@@ -1034,6 +1035,10 @@ class Humanize(App[None]):
         #: for a moment: a clipboard is written to silently, and a gesture that says nothing
         #: is one nobody knows worked.
         self._copied = 0.0
+        #: How many installed flows have a newer release, kept on the status line until none
+        #: has, as the web keeps its badge: said once in the transcript is said to whoever
+        #: was looking then.
+        self._updates = 0
         #: humanize, as the one object what the interface reads and writes on this machine
         #: goes through: the flows there are, the agents and accounts they run as, the runs
         #: already made here. Reached through the daemon, as the interface reaches everything
@@ -1385,11 +1390,7 @@ class Humanize(App[None]):
                 # Something came down, so the menus holding what the index listed before it
                 # are holding a list that is out of date.
                 self._flows_changed()
-        try:
-            newer = await asyncio.to_thread(verses.updates)
-        except Exception as why:  # noqa: BLE001 -- an index that will not read is no crash
-            self.log(f"failed to read flowverses for updates: {why}")
-            return
+        newer = await self._counts_updates()
         if newer:
             listed = ", ".join(
                 f"{one.installed.called} {one.installed.version} \N{UPWARDS ARROW} {one.version}"
@@ -1398,6 +1399,23 @@ class Humanize(App[None]):
             self.show(
                 f"[dim]updates available: {escape(listed)}; update from /flow[/dim]"
             )
+
+    async def _counts_updates(self) -> list[Update]:
+        """Counts the installed flows with a newer release, for the status line, and answers."""
+        import asyncio
+
+        try:
+            newer = await asyncio.to_thread(self.hmz.verses.updates)
+        except Exception as why:  # noqa: BLE001 -- an index that will not read is no crash
+            self.log(f"failed to read flowverses for updates: {why}")
+            return []
+        self._updates = len(newer)
+        return newer
+
+    @work(group="updates", exclusive=True)
+    async def _recounts_updates(self) -> None:
+        """Counts them again, once one may have been updated or uninstalled."""
+        await self._counts_updates()
 
     def _flows_changed(self) -> None:
         """Tells whatever is drawn that the flows and indexes on the disk are not the ones it read.
@@ -1412,6 +1430,7 @@ class Humanize(App[None]):
         for screen in self.screen_stack:
             if isinstance(screen, Lists):
                 screen.reread()
+        self._recounts_updates()
         # And whether the last run here is of a flow that can be picked up, which is a
         # question about a flow.
         self._looks_for_resume()
@@ -2145,6 +2164,10 @@ class Humanize(App[None]):
         # their own, so a marker anywhere else is one that is there until it is needed.
         # `afk` in the colour of a warning, being the one that decides whether an agent may
         # reach you at all.
+        # And how many flows have a newer release, until they are updated from `/flow`.
+        if self._updates:
+            said = "flow update" if self._updates == 1 else "flow updates"
+            left = f"[$secondary]{self._updates} {said}[/]{_DOT}{left}"
         if self._details:
             left = f"[$text-muted]details[/]{_DOT}{left}"
         if away := self._away_marker():
@@ -3304,7 +3327,7 @@ class Humanize(App[None]):
         # opened straight into another flow is handed none, and reads what that one was last
         # set up with here -- which is what turning to it would have read.
         holding = not named or named == self._flow_named
-        return await self.push_screen_wait(
+        chosen = await self.push_screen_wait(
             Flows(
                 named or self._flow_named,
                 self._models if holding else {},
@@ -3324,6 +3347,9 @@ class Humanize(App[None]):
                 page=page,
             )
         )
+        # What was updated or uninstalled there is no longer one to count.
+        self._recounts_updates()
+        return chosen
 
     @on(Flows.Told)
     def _took_flows(self, event: Flows.Told) -> None:
@@ -4922,7 +4948,7 @@ _COMMANDS: tuple[Command, ...] = (
     Command(
         "settings",
         "Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, "
-        "workspace",
+        "workspace, usage",
         lambda app, argv: app.action_settings(argv[0] if argv else ""),
         takes="[page]",
         offers=_PAGES,

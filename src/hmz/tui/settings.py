@@ -1,13 +1,13 @@
 """`/settings`: every setting humanize has, on a screen of its own, one level at a time.
 
-What opens is the eight places settings are kept and nothing else -- this machine's own, its
-notifications, the daemons, the accounts, the fallbacks, the runtimes, the backups and this
-workspace's -- each a card saying what is in it, as a phone's settings or VS Code's open on
-their categories. They stand from the broadest to the nearest: what is true wherever humanize
-runs and which of its epics it tells of, which machines it reaches, who its agents are and what
-takes over when one fails, where their work goes and where its epics are kept, and last the one
-directory open now. Where flows come from is `/flow`'s (:mod:`hmz.tui.flows`), drawn the same
-way. Enter or a
+What opens is the eight places settings are kept -- this machine's own, its notifications, the
+daemons, the accounts, the fallbacks, the runtimes, the backups and this workspace's -- and
+what the epics spent, each a card saying what is in it, as a phone's settings or VS Code's open
+on their categories. They stand from the broadest to the nearest: what is true wherever
+humanize runs and which of its epics it tells of, which machines it reaches, who its agents are
+and what takes over when one fails, where their work goes and where its epics are kept, and
+last the one directory open now. Where flows come from is `/flow`'s (:mod:`hmz.tui.flows`),
+drawn the same way. Enter or a
 click goes into one and esc or backspace comes back out, as k9s and ranger walk in and out of
 what they list; the line across the top says where you are, and its first word is a way back.
 
@@ -78,6 +78,7 @@ from .pick import (
     complete,
     switched,
 )
+from .usage import Spends
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -102,7 +103,11 @@ PAGES = (
     "runtimes",
     "backup",
     "workspace",
+    "usage",
 )
+
+#: The page of what the epics spent, the last.
+_USAGE = PAGES.index("usage")
 
 #: The page that moved to `/flow`, still taken by `/settings` so that it can say where it went.
 MOVED = "flowverses"
@@ -158,6 +163,7 @@ _PAGES = (
     ),
     _Page("Backup", "⇪", "repositories epics are backed up to"),
     _Page("Workspace", "⌂", "this directory: its flow, and forgetting it"),
+    _Page("Usage", "$", "what the epics spent, by day and by flow"),
 )
 
 #: What the first screen says it is.
@@ -233,16 +239,17 @@ _MEANS = {
 }
 
 
-class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons):
-    """Every setting humanize has: `/settings`, eight pages opened from one screen of them.
+class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
+    """Every setting humanize has: `/settings`, nine pages opened from one screen of them.
 
     General is what is true of this machine however many projects are driven from it, and the
     notifications which of its epics it tells of; the
     daemons are this machine's and the others reached from it; the accounts, the fallbacks
     and the runtimes are what agents run as, where turns go when they cannot, and the
     machines their work goes on; the backups are where epics are copied to;
-    the workspace is one directory's. One menu because they are one question -- what does
-    humanize remember -- and a command apiece was eight things to learn the names of.
+    the workspace is one directory's; the usage is what the epics spent. One menu because they
+    are one question -- what does humanize remember -- and a command apiece was nine things to
+    learn the names of.
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
     written down is written down in humanize's own words, and a person should not have to know
@@ -446,6 +453,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons):
                 _MACHINES: self.MACHINES_ABOUT,
                 _FALLBACK: self.STEPS_ABOUT,
                 _BACKUP: self.BACKUP_ABOUT,
+                _USAGE: self.USAGE_ABOUT,
             }[self._tab]
         )
         if self._home:
@@ -460,6 +468,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons):
             self._fill_steps()
         elif self._tab == _BACKUP:
             self._fill_backups()
+        elif self._tab == _USAGE:
+            self._fill_usage()
         else:
             self._fill_own()
 
@@ -480,6 +490,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons):
             return _many(len(self._saved_machines), "machine")
         if page == _BACKUP:
             return _many(len(self._repos), "target")
+        if page == _USAGE:
+            return self._usage_summary()
         return _many(len(self._steps), "rule")
 
     def _pending(self, page: int) -> bool:
@@ -747,6 +759,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons):
             _MACHINES: self._machine_actions,
             _FALLBACK: self._step_actions,
             _BACKUP: self._backup_actions,
+            _USAGE: self._usage_actions,
         }.get(self._tab, lambda: [self._saves_all()])()
 
     def _footed(self, *keys: Key) -> None:
@@ -805,6 +818,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons):
         Returns:
           True for a switch.
         """
+        if not self._home and self._tab == _USAGE:
+            return self._drops_usage(row)
         return (
             not self._home
             and self._tab in (_EVERYWHERE, _NOTIFICATIONS, _DIRECTORY)
@@ -820,6 +835,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons):
         Returns:
           The list, opening on the answer it is not, so that enter twice turns it round.
         """
+        if self._tab == _USAGE:
+            return self._dropping_usage(row)
         now = self._switched(row)
         named = next(one.named for one in self._settings() if one.held == row)
         return switched(named, _word(now) if now is not None else "", _MEANS[row])
@@ -832,7 +849,9 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons):
           picked: `on` or `off`.
         """
         on_ = picked == _YES
-        if row in self._kinds:
+        if self._tab == _USAGE:
+            self._dropped_usage(row, picked)
+        elif row in self._kinds:
             self._kinds[row] = on_
         elif row == _SYSTEM:
             self._system = on_
