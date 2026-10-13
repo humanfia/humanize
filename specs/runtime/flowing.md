@@ -483,10 +483,12 @@ def under() -> Path: ...  # machine()/skills
   or its harness cannot fork, keeps it on another machine, or keeps it as no files. Each read
   of it MUST be a new session of the call's agent of its role, whose first turn opens it as a
   fork of that copy: refused there, before the harness is started or anything is copied, where
-  the harness did not keep it, cannot fork, or the turn works on another machine, and where
-  the copy is gone or the run holds a different copy of the conversation already; until a turn
-  has named it, a move MUST cut it from that copy again. One read back and written again
-  before a turn MUST be written down as what it carries on, copying nothing.
+  the harness did not keep it, cannot fork, or the turn's CLI would run on another machine
+  (natively, or under a harness put elsewhere) or, on a harness that forks only in place, here
+  in a mirror of that machine's work apart from it, and where the copy is gone or the run holds
+  a different copy of the conversation already; until a turn has named it, a move MUST cut it
+  from that copy again. One read back and written again before a turn MUST be written down as
+  what it carries on, copying nothing.
 
 ### Refs and loading
 
