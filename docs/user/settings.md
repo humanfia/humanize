@@ -1305,8 +1305,9 @@ reporting question again.
 
 ### `hmz: /settings has no page '…'`
 
-The word after `/settings` names none of the five pages. The message lists the ones there are:
-`general`, `accounts`, `fallback`, `runtimes` and `workspace`. Type
+The word after `/settings` names none of the nine pages. The message lists the ones there are:
+`general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`,
+`workspace` and `usage`. Type
 `/settings ` with a space and pick one from the list offered.
 
 ### Save cannot be pressed

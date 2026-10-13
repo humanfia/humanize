@@ -368,8 +368,8 @@ Start `hmz web` in a project, and open **New epic**:
    to say what next.
 4. Answer it in the terminal. In the browser, your answer is a line of yours in the
    conversation, and the agent's reply follows it.
-5. Press **Stop** in the browser, then **Stop it**. The terminal says
-   `— browser is stopping the flow —`.
+5. Type `/clear` in the terminal. A chat is never stopped: `/clear` ends it, and the next line
+   you type starts another.
 
 ### Check it worked
 

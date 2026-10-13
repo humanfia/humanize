@@ -95,7 +95,7 @@ What to look at, by number:
 | --- | --- |
 | `/` | every command that would do something now, with what it takes after its name and what it is for |
 | `/flow ` | every flow you can run here, by the name it is offered under |
-| `/settings ` | its five pages: `general`, `accounts`, `fallback`, `runtimes`, `workspace` |
+| `/settings ` | its nine pages: `general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, `usage` |
 | `$` | the same flows, as `$name`. `$ralph_loop fix the build` starts that flow on that task. |
 
 The commands follow what is going on. `/stop` is listed while a flow runs and not once it is
