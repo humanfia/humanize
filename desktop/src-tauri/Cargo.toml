@@ -42,7 +42,7 @@ url = "2"
 # Installing hmz: uv's release fetched over rustls, trusting what the keychain trusts, checked
 # and unpacked; and a daemon's note read, with serde_json above.
 flate2 = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 tar = { version = "0.4", default-features = false }
 ureq = { version = "3", default-features = false, features = ["rustls", "platform-verifier"] }
 
