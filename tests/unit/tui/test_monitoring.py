@@ -18,8 +18,10 @@ from hmz.tui.monitoring import (
     Entry,
     Line,
     Placed,
+    chatting,
     columns,
     declared_places,
+    details,
     diagram,
     elsewhere,
     fleet,
@@ -394,3 +396,107 @@ def test_a_one_after_another_flow_has_nothing_said_elsewhere() -> None:
     drawn = [Drawn("a"), Drawn("b")]
 
     assert elsewhere(drawn, _shape(handovers={("a", "b"): 3, ("b", "a"): 1})) == []
+
+
+def _details(**epic: object) -> dict[str, list[tuple[str, str]]]:
+    said = details(epic, calls=(), lasted=75, tally=("input 1.2k", "$0.40 · 3 out/s"))
+    return {
+        heading: [(field, _plain(value)) for field, value in rows]
+        for heading, rows in said
+    }
+
+
+def test_the_epic_says_its_figures_and_its_budget_against_what_has_gone() -> None:
+    said = _details(
+        state="running",
+        budget={"cost": 2.0, "duration": "PT10M", "graceful": False},
+        usage={"cost": 0.6, "duration": "PT5M", "output_tokens": 10},
+    )
+
+    assert said["Figures"] == [
+        ("time", "1m15s elapsed"),
+        ("spent", "$0.40 · 3 out/s"),
+        ("tokens", "input 1.2k"),
+    ]
+    assert said["Budget"] == [
+        ("cost", "$0.60 of $2.00  ███░░░░░░░ 30%"),
+        ("time", "1m15s of 10m00s  █░░░░░░░░░ 12%"),
+        ("when spent", "cut off at once"),
+    ]
+
+
+def test_an_epic_with_no_limit_says_so_and_is_over_once_it_has_no_state() -> None:
+    said = _details(budget={"cost": "Infinity"})
+
+    assert said["Budget"] == [("limit", "none")]
+    assert said["Figures"][0] == ("time", "1m15s total")
+
+
+def test_the_epic_says_what_it_was_set_up_with() -> None:
+    said = _details(
+        flow="@local/writes",
+        task="make it so",
+        names={"coder": "ScreW"},
+        agents={"coder": "claude/opus", "critic": "codex/gpt"},
+        envs={"workspace": "local:."},
+        params={"rounds": 3},
+        profile=True,
+    )
+
+    assert said["Set up"] == [
+        ("flow", "@local/writes"),
+        ("task", "make it so"),
+        ("agents", "ScreW · coder=claude/opus"),
+        ("", "critic=codex/gpt"),
+        ("envs", "workspace=local:."),
+        ("params", "rounds=3"),
+        ("profiled", "yes"),
+    ]
+    assert said["Flows"] == [("", "@local/writes")]
+
+
+@pytest.mark.parametrize(
+    ("flags", "profiled"),
+    [
+        ({"profile_flow": True, "profile_environment": False}, "flow"),
+        ({"profile_flow": True, "profile_environment": True}, "flow, environment"),
+        ({"profile_flow": False, "profile": True}, "no"),
+        ({}, "no"),
+    ],
+)
+def test_the_epic_says_which_parts_of_it_are_profiled(
+    flags: dict[str, bool], profiled: str
+) -> None:
+    assert ("profiled", profiled) in _details(**flags)["Set up"]
+
+
+def test_the_flows_an_epic_called_are_said_under_it() -> None:
+    said = details(
+        {"flow": "outer"},
+        calls=[
+            {"ref": "outer:outer", "depth": 1, "since": 0.0},
+            {"ref": "inner:inner", "depth": 2, "since": 0.0},
+        ],
+        lasted=0,
+        tally=None,
+    )
+
+    flows = [
+        _plain(value)
+        for heading, rows in said
+        if heading == "Flows"
+        for _, value in rows
+    ]
+    assert [one.split("   ")[0] for one in flows] == ["outer", "  ▸ inner"]
+
+
+@pytest.mark.parametrize(
+    ("epic", "chat"),
+    [
+        ({"flow": "chat"}, True),
+        ({"ref": "chat:chat"}, True),
+        ({"flow": "ralph"}, False),
+    ],
+)
+def test_only_the_chat_flow_is_a_conversation(epic: dict[str, str], chat: bool) -> None:
+    assert chatting(epic) is chat

@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     import pytest
+    from textual.app import App
     from textual.pilot import Pilot
 
 #: The model the stand-in says it runs.
@@ -269,7 +270,7 @@ def trail(*steps: str) -> str:
     return " \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK} ".join(steps)
 
 
-def screen(app: Humanize) -> str:
+def screen(app: App[Any]) -> str:
     """Everything on the screen now, as plain text, one terminal row per line."""
     lines: dict[float, dict[int, str]] = {}
     for x, y, said in _TEXT.findall(app.export_screenshot()):

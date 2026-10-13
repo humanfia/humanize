@@ -893,6 +893,8 @@ class Humanize(App[None]):
         is left that a turn could still be running in, so nothing is left spinning at the
         person who has just asked twice for it to stop.
         """
+        if self._stopping is not None:
+            self._forcing.add(self._stopping)
         self._stopping = None
         self._presses = 0
         self._asks("force", then=self._forced)
@@ -1000,6 +1002,8 @@ class Humanize(App[None]):
         self._seen_last: _RunSeen | None = None
         #: The runs somebody told to stop, which have said so already and are not `done`.
         self._halted: set[int] = set()
+        #: And the ones forced, which go on unwinding but have nothing left to force.
+        self._forcing: set[int] = set()
         #: Whether this interface has asked for a run to start and not yet heard it has, or
         #: that it was refused: what is typed meanwhile is said to the run it is starting.
         self._starting = False
@@ -1015,6 +1019,11 @@ class Humanize(App[None]):
         self._following = Following()
         #: The flow calls going, as last told: the flow started and whatever it called.
         self._called: list[dict[str, Any]] = []
+        #: The run in front of us as it started -- its flow, roles, params, budget, whether
+        #: it is profiled -- and what it has spent against that budget, as last told: what
+        #: the epic's page on the monitor reads.
+        self._epic_as: dict[str, Any] = {}
+        self._usage: dict[str, Any] = {}
         #: The task of the run in front of us, which `/btw` reads once, as part of a snapshot:
         #: it never reaches into a flow's conversations for context, because doing that would
         #: make the side question a turn of the flow. The same lock holds btw mode, since its
@@ -2659,9 +2668,44 @@ class Humanize(App[None]):
                 listed=self._monitor_listed,
                 opened=self._monitor_opened,
                 turned=self._turns_monitor,
+                epic=self._epic,
+                stop=self._stops,
             ),
             self._back_from_monitor,
         )
+
+    def _epic(self) -> dict[str, Any]:
+        """The run in front of us as the epic's page reads it: as started, standing, spent.
+
+        Returns:
+          What it started as, its `state` -- `running`, `stopping`, or "" once over -- and
+          what it has spent as `usage`, or nothing before any run.
+        """
+        spent = (
+            self._usage if self._usage.get("run") == self._epic_as.get("run") else {}
+        )
+        return {
+            **self._epic_as,
+            # And over once forced, as the status line has it, however long it unwinds.
+            "state": "running"
+            if self._run is not None
+            else "stopping"
+            if self._stopping is not None and self._stopping not in self._forcing
+            else "",
+            "usage": spent.get("usage"),
+        }
+
+    def _stops(self, force: bool) -> None:  # noqa: FBT001 -- which of the two
+        """Stops the run from the epic's page, as `/stop` does, or forces it as ctrl+c does.
+
+        Args:
+          force: Whether to close every session of a run already stopping.
+        """
+        if not force:
+            self.action_stop()
+        elif self._stopping is not None:
+            self._forces()
+            self._draw()
 
     def _turns_monitor(self, listed: bool) -> None:  # noqa: FBT001 -- what it was turned to
         """Remembers whether the monitor draws a list, for the next time it opens.
@@ -4287,6 +4331,8 @@ class Humanize(App[None]):
         kind = message.get("type")
         if kind == "run":
             self._ran(message)
+        elif kind == "usage":
+            self._usage = dict(message)
         elif kind == "sessions":
             # How things stand wins over what was read back of how they came to: a turn
             # that began before this interface arrived is working whether or not the record
@@ -4342,6 +4388,8 @@ class Humanize(App[None]):
             # older than the most that is kept: it starts here instead.
             self._started(message)
         self._run = _RunSeen.of(message) if message.get("state") == "running" else None
+        if message.get("run"):
+            self._epic_as = dict(message)
         if self._run is not None:
             self._starting = False
             self._seen_last = self._run
@@ -4380,6 +4428,7 @@ class Humanize(App[None]):
           record: The run, as it started.
         """
         self._following.started(record)
+        self._epic_as = dict(record)
         # A side conversation is about the run it was opened on, and that run has gone.
         if self._btw is not None:
             self._leave_btw("a new flow started")

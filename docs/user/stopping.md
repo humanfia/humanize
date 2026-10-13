@@ -148,6 +148,7 @@ What to look at, by number:
 | --- | --- | --- |
 | <kbd>ctrl+c</kbd> <kbd>ctrl+c</kbd> | at the prompt | Two presses within 3 seconds. The first only warns. |
 | `/stop` | at the prompt, on any transcript or the monitor | Sent once. You typed it out on purpose, so it is not asked twice. Offered only while a flow runs and is not already stopping. Typed otherwise, it says why it did nothing. |
+| `Stop`, then `Force stop` | on the epic's page: <kbd>enter</kbd> on `◫ epic` on [the monitor](/user/monitor) | Each asks first. `Force stop` replaces `Stop` while the flow winds down. Not on a chat. |
 | <kbd>ctrl+c</kbd> | on an `hmz exec` line | One press. |
 | a budget | `-p budget.…` on `hmz exec`, or what a run may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
 

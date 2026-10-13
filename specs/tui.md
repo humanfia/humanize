@@ -260,10 +260,15 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST show the environment each session works in under that session, as a node that opens to a
   page of its own — its kind, where it is, what the flow declared of it, where the run put each of
   its sessions' harnesses and the sessions working in it, live — from which a session is read.
-- MUST lead the monitor with a line of how far the run has got, which is no node, then a node
-  per outworlder, the node read or its agent selected when it opens, and read any node —
-  working or ended — with enter or a click, two on an agent, the arrows moving between nodes
-  while nothing is typed.
+- MUST lead the monitor with a node for the epic, which says how far the run has got and opens
+  the epic's page once there is an epic, and reads no log, then a node per outworlder, the node
+  read or its agent selected when it opens, and read any node — working or ended — with enter
+  or a click, two on an agent, the arrows moving between nodes while nothing is typed.
+- MUST open the epic from its node to a page of it, live: its figures -- time, spend, tokens --
+  its budget against what has gone of it limit by limit, what it was set up with -- flow, task,
+  agents, environments, params, whether profiled -- and the flows it called; and, for every
+  flow but `chat`, offer stopping it there while it runs and forcing it once it is stopping, each
+  asked first.
 - MUST report spend per model, by kind of token and never as one total over the kinds, in an
   order that does not change, money beside tokens where known and tokens alone where not, marking
   a figure that is only a floor, and the rate as output tokens a second.
