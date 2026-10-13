@@ -25,6 +25,7 @@ import os
 import secrets
 import shutil
 import socket
+import socketserver
 import string
 import sys
 import tempfile
@@ -135,7 +136,21 @@ _KIND = frozenset(string.ascii_lowercase + string.digits)
 _LONGEST = 200
 
 
-class Site(ThreadingHTTPServer):
+class _Bound(ThreadingHTTPServer):
+    """A server bound without asking the network what its loopback is called.
+
+    `HTTPServer.server_bind` looks the address up by reverse DNS, for a name this interface
+    never uses -- a lookup that can hang for half a minute where the resolver is slow.
+    """
+
+    def server_bind(self) -> None:
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = str(host)
+        self.server_port = int(port)
+
+
+class Site(_Bound):
     """The server, holding what its routes are answered from.
 
     Listens on IPv4's loopback itself and on IPv6's beside it, on the same port, so that a
@@ -227,7 +242,7 @@ class Site(ThreadingHTTPServer):
             self._beside.server_close()
 
 
-class _Beside(ThreadingHTTPServer):
+class _Beside(_Bound):
     """IPv6's loopback, answered as the site it stands beside answers IPv4's.
 
     Args:
