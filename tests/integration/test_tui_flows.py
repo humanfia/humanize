@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import yaml
 
-from hmz.runtime.flowing import index
 from hmz.daemon.link import Link
+from hmz.runtime.flowing import index
 from hmz.tui import Humanize
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Agent, Clis
