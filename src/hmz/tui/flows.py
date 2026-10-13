@@ -118,13 +118,23 @@ _UP = {
 }
 
 #: The rows of the roles page that are about the run rather than any role: what the flow
-#: itself takes, what a run may spend, whether it is profiled as well as traced, and where it
-#: is backed up. Each under
+#: itself takes, what a run may spend, whether its flow and its environment are each profiled
+#: as well as traced, and where it is backed up. Each under
 #: a mark no name has, since a row id is otherwise an agent's place among the roles or an
 #: environment's name.
 _PARAMS = f"{_APART_MARK}params"
 _BUDGET = f"{_APART_MARK}budget"
-_PROFILING = f"{_APART_MARK}profile"
+_PROFILING_FLOW = f"{_APART_MARK}profile-flow"
+_PROFILING_ENVIRONMENT = f"{_APART_MARK}profile-environment"
+
+#: The two profiling switches: what each row is called, and what it means on.
+_PROFILING = {
+    _PROFILING_FLOW: ("profile flow", "samples the flow's own Python"),
+    _PROFILING_ENVIRONMENT: (
+        "profile environment",
+        "samples the programs agents start",
+    ),
+}
 _BACKING = f"{_APART_MARK}backup"
 
 #: What each button under a page is known by, beside the ones `/settings` has.
@@ -135,6 +145,9 @@ _ACT_MORE, _ACT_UPDATE, _ACT_UNINSTALL, _ACT_COPY = (
     "copy",
 )
 _ACT_INSTALL, _ACT_FETCH = "install", "fetch"
+
+#: What the menu of a flow or a flowverse opens it with, and copies of it.
+_ACT_OPEN, _ACT_NAME = "open", "copy-name"
 
 #: What says a row's flow is behind what its index lists, and what says a release is one.
 _NEWER, _PRE = "↑", "prerelease"
@@ -287,7 +300,8 @@ class Flows(Drafts[Chosen]):
         *,
         envs: Mapping[str, str] | None = None,
         budget: Budget | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         backup: tuple[str, ...] | None = None,
         unavailable: frozenset[str] = frozenset(),
         running: bool = False,
@@ -305,7 +319,9 @@ class Flows(Drafts[Chosen]):
             changes, so that turning to a flow this workspace has run finds it as it was left.
           envs: Where each of its environment roles is, by role.
           budget: What a run of it may spend here, or None for none yet.
-          profile: Whether a run of it here is profiled as well as traced.
+          profile_flow: Whether a run of it here profiles the flow's own Python.
+          profile_environment: Whether a run of it here profiles the programs its agents
+            start.
           backup: The backup targets an epic of it here goes to, by name, or None for the
             defaults.
           unavailable: The optional backends among them that still need installing.
@@ -329,13 +345,16 @@ class Flows(Drafts[Chosen]):
         self._envs: dict[str, str]
         self._params: BaseModel | None
         self._budget: Budget | None
-        self._profile: bool
+        self._profiled: dict[str, bool]
         if runs:
             self._runs = self._fitted(dict(runs))
             self._envs = dict(envs or {})
             self._params = params
             self._budget = budget
-            self._profile = profile
+            self._profiled = {
+                _PROFILING_FLOW: profile_flow,
+                _PROFILING_ENVIRONMENT: profile_environment,
+            }
         else:
             # A flow the interface is not set up on, opened straight into: what it was last
             # set up with here is what it opens holding, exactly as turning to it would be.
@@ -343,7 +362,7 @@ class Flows(Drafts[Chosen]):
             self._envs = self._placed(flow)
             self._params = params_of(flow, self._held(flow).get("params") or {})
             self._budget = budget_of(flow)
-            self._profile = _hmz().settings.profile(flow)
+            self._profiled = _remembered_profiling(flow)
             self._backup = _hmz().settings.backup(flow)
         #: What the menu opened holding, which it goes back to where the flow it is holding
         #: instead is uninstalled from under it: a draft of a flow that is gone is nothing
@@ -355,7 +374,7 @@ class Flows(Drafts[Chosen]):
             dict(self._envs),
             self._params,
             self._budget,
-            self._profile,
+            dict(self._profiled),
             self._backup,
         )
         #: Whether what the flow runs on is the whole of this menu, there being no list
@@ -953,15 +972,16 @@ class Flows(Drafts[Chosen]):
                 f"what a run may spend: {_spending(self._budget, unbounded=unbounded)}",
             )
         )
-        # Straight under the budget, the two of them about the run rather than any role: a
-        # switch, its two values dropped under it as every switch's are.
-        lines.append(
+        # Straight under the budget, the ones about the run rather than any role: two
+        # switches, each with its two values dropped under it as every switch's are.
+        lines.extend(
             (
-                _PROFILING,
-                "profiling",
-                _YES if self._profile else _NO,
-                "samples the programs agents start" if self._profile else "traced only",
+                held,
+                named,
+                _YES if self._profiled[held] else _NO,
+                means if self._profiled[held] else "traced only",
             )
+            for held, (named, means) in _PROFILING.items()
         )
         backup = self._backup if self._backup is not None else self._defaults
         lines.append(
@@ -980,7 +1000,7 @@ class Flows(Drafts[Chosen]):
             said = f"{value} {_OPENS}"
             chip = (
                 _chip(value, _DROPS, here=here, toggles=True)
-                if held == _PROFILING
+                if held in _PROFILING
                 else (
                     _shade(
                         "$text-muted" if value in ("not set", "none") else "$secondary",
@@ -1002,7 +1022,7 @@ class Flows(Drafts[Chosen]):
     def enters(self, row: str) -> bool:
         """Whether the arrow right goes into a row: every row that opens something.
 
-        Not a release, which enter installs, nor the profiling switch, whose values drop.
+        Not a release, which enter installs, nor a profiling switch, whose values drop.
 
         Args:
           row: The row, by id.
@@ -1013,15 +1033,15 @@ class Flows(Drafts[Chosen]):
         return bool(row) and self._page != RELEASES and not self.drops(row)
 
     def drops(self, row: str) -> bool:
-        """Whether a row is the profiling switch of a flow's roles page.
+        """Whether a row is one of the profiling switches of a flow's roles page.
 
         Args:
           row: The row, by id.
 
         Returns:
-          True for that switch.
+          True for either switch.
         """
-        return self._page == ROLES and row == _PROFILING
+        return self._page == ROLES and row in _PROFILING
 
     def dropping(self, row: str) -> Drop:
         """The switch's two values, what each means, and which it is held at.
@@ -1032,22 +1052,19 @@ class Flows(Drafts[Chosen]):
         Returns:
           The list, opening on the answer it is not, so that enter twice turns it round.
         """
-        del row
+        named, means = _PROFILING[row]
         return switched(
-            "profiling",
-            _YES if self._profile else _NO,
-            ("samples the programs agents start", "traced only"),
+            named, _YES if self._profiled[row] else _NO, (means, "traced only")
         )
 
     def dropped(self, row: str, picked: str) -> None:
-        """Holds profiling at the value picked.
+        """Holds one profiling switch at the value picked.
 
         Args:
           row: The switch, by id.
           picked: `on` or `off`.
         """
-        del row
-        self._profile = picked == _YES
+        self._profiled[row] = picked == _YES
         self._said = ""
 
     def _noagents(self) -> str:
@@ -1079,7 +1096,7 @@ class Flows(Drafts[Chosen]):
             self._envs = self._placed(name)
             self._params = params_of(name, self._held(name).get("params") or {})
             self._budget = budget_of(name)
-            self._profile = _hmz().settings.profile(name)
+            self._profiled = _remembered_profiling(name)
             self._backup = _hmz().settings.backup(name)
             self._cursors.pop(ROLES, None)
             self.changed()
@@ -1252,7 +1269,8 @@ class Flows(Drafts[Chosen]):
                 dict(self._envs),
                 self._params,
                 self._budget,
-                self._profile,
+                self._profiled[_PROFILING_FLOW],
+                self._profiled[_PROFILING_ENVIRONMENT],
                 self._backup,
             )
         )
@@ -1657,10 +1675,10 @@ class Flows(Drafts[Chosen]):
             return
         if called == self._flow.partition(":")[0]:
             # The flow the menu was holding is gone, and with it the draft of it.
-            flow, declared, runs, envs, params, budget, profile, backup = self._opened
+            flow, declared, runs, envs, params, budget, profiled, backup = self._opened
             self._flow, self._declared, self._runs = flow, declared, dict(runs)
             self._envs, self._params, self._budget = dict(envs), params, budget
-            self._profile, self._backup = profile, backup
+            self._profiled, self._backup = dict(profiled), backup
             self._changed = False
         if self._page == ROLES:
             # And its page: back to what there is to run, saying so.
@@ -1837,6 +1855,48 @@ class Flows(Drafts[Chosen]):
             return self._releases_actions()
         return [self._saves_all()] if self._changed else []
 
+    def menu(self) -> tuple[str, list[Action]] | None:
+        """What the installed flow or the flowverse under the cursor offers, for `m`."""
+        if self._page == INSTALLED and (one := self._under_cursor()) is not None:
+            named = one.name
+            return (
+                named,
+                [
+                    Action(
+                        _ACT_OPEN,
+                        "open",
+                        "set its agents up",
+                        lambda: self._chose(named),
+                    ),
+                    *self._tending(),
+                    Action(_ACT_NAME, "copy name", named, lambda: self.copies(named)),
+                ],
+            )
+        if self._page == VERSES and (verse := self._verse_under()) is not None:
+            called, url = verse.name, verse.url
+            return (
+                called,
+                [
+                    Action(
+                        _ACT_OPEN,
+                        "open",
+                        "the flows it lists",
+                        lambda: self._goes(VERSE, verse=called),
+                    ),
+                    *(
+                        one
+                        for one in self._verses_actions()
+                        if one.key in (_ACT_FETCH, _ACT_REMOVE)
+                    ),
+                    *(
+                        (Action(_ACT_NAME, "copy URL", url, lambda: self.copies(url)),)
+                        if url
+                        else ()
+                    ),
+                ],
+            )
+        return None
+
     def _footed(self, *keys: Key) -> None:
         """Says the keys, with esc saying whether it closes the menu or goes up a page.
 
@@ -1949,3 +2009,19 @@ def _spending(held: Budget | None, *, unbounded: bool) -> str:
             else "none set; a run needs one"
         )
     return f"stops at {spent(held)}"
+
+
+def _remembered_profiling(flow: str) -> dict[str, bool]:
+    """Whether a run of a flow here was last said to profile its flow and its environment.
+
+    Args:
+      flow: The flow.
+
+    Returns:
+      Each profiling switch, by row id, as settings holds it.
+    """
+    settings = _hmz().settings
+    return {
+        _PROFILING_FLOW: settings.profile_flow(flow),
+        _PROFILING_ENVIRONMENT: settings.profile_environment(flow),
+    }

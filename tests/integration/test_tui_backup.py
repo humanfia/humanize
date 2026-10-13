@@ -6,6 +6,7 @@ machine as any remote is; the runs are held in this process, so their backups ar
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from typing import TYPE_CHECKING, Any
 
@@ -14,11 +15,12 @@ import yaml
 
 from hmz import home
 from hmz.runtime import Hmz
-from hmz.runtime.epic import epics, read
+from hmz.runtime.epic import Epic, epics, read
 from hmz.tui import Humanize
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Backing, Does, Epics, Targets
 from hmz.tui.settings import Adjusts
+from hmz.tui.stored import Stored
 from tests.integration.doubles_tui import (
     SIZE,
     leaves,
@@ -139,8 +141,8 @@ async def test_flow_offers_the_defaults_and_starts_the_epic_on_the_targets_chose
 
         await typed(pilot, "hello")
         await shows(pilot, "heard hello")
-        await typed(pilot, "/stop")
-        await shows(pilot, "stopping the flow")
+        await typed(pilot, "/clear")
+        await shows(pilot, "◉ chat")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
 
     assert Hmz().backups.wait(60)
@@ -169,11 +171,11 @@ async def test_a_flow_saved_without_choosing_backup_follows_the_defaults(
         await typed(pilot, "/flow")
         await on(pilot, Flows)
         await opens(pilot, "chat")
-        await picks(pilot, "\x1eprofile", "on")
+        await picks(pilot, "\x1eprofile-environment", "on")
         await leaves(pilot)
         await shows(pilot, "◉ chat")
 
-    assert Hmz().settings.profile("chat")
+    assert Hmz().settings.profile_environment("chat")
     assert Hmz().settings.backup("chat") is None
 
 
@@ -186,8 +188,8 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
         await opened(pilot)
         await typed(pilot, "hello")
         await shows(pilot, "heard hello")
-        await typed(pilot, "/stop")
-        await shows(pilot, "stopping the flow")
+        await typed(pilot, "/clear")
+        await shows(pilot, "◉ chat")
         await until(pilot, lambda: bool(epics(workspace)), "the epic's record")
         assert _log(lab) == []  # no policy, so only by hand
 
@@ -208,3 +210,34 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
         await shows(pilot, "lab: backed up")
 
     assert _log(lab) == [f"Back up epic {epic.name} (manual)"]
+
+
+async def test_an_epic_downloaded_from_the_backup_page_lands_here_again(
+    workspace: Path, tmp_path: Path
+) -> None:
+    _targets({"name": "lab", "url": str(_bare(tmp_path, "lab"))})
+    with Epic("chat", "fix the build", workspace) as epic:
+        pass
+    Hmz().backups.push(epic.path, ["lab"])
+    assert Hmz().backups.wait(60)
+    shutil.rmtree(epic.path)
+    (held,) = Hmz().backups.listed("lab")
+
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/settings backup")
+        await on(pilot, Adjusts)
+        await pilot.click("#act-download")
+        await on(pilot, Stored)
+        await shows(pilot, "Download from lab", held.machine, "fix the build · done")
+
+        await opens(pilot, held.key)
+        await shows(pilot, f"downloaded {epic.path.name}")
+        await until(pilot, epic.path.is_dir, "the epic to land")
+        await shows(pilot, "fix the build · done · here")
+        await pilot.press("enter")
+        await shows(pilot, "is here already")
+
+        await leaves(pilot)
+        await shows(pilot, f"downloaded {epic.path.name} into")
+    assert epics(workspace) == [epic.path]

@@ -37,7 +37,8 @@ class Settings:
     def flows(self) -> dict[str, Any]: ...
     def params(self, flow: str) -> dict[str, Any]: ...
     def budget(self, flow: str) -> dict[str, Any]: ...  # a Budget, as JSON
-    def profile(self, flow: str) -> bool: ...  # whether a run of it is profiled
+    def profile_flow(self, flow: str) -> bool: ...  # whether a run of it profiles its Python
+    def profile_environment(self, flow: str) -> bool: ...  # and the programs its agents start
     def backup(self, flow: str) -> tuple[str, ...] | None: ...  # its targets; None: defaults
     def remember(
         self,
@@ -47,7 +48,8 @@ class Settings:
         params: dict[str, Any] | None = None,
         budget: dict[str, Any] | None = None,
         *,
-        profile: bool | None = None,
+        profile_flow: bool | None = None,
+        profile_environment: bool | None = None,
         backup: Sequence[str] | None = None,
     ) -> None: ...
     def forget(self, workspace: str = "") -> bool: ...
@@ -139,7 +141,8 @@ class Ran(NamedTuple):
     params: dict[str, Any] = {}
     budget: dict[str, Any] | None = None
     picked_up: str = ""  # the epic it was picked up from
-    profile: bool = False  # whether it was profiled as well as traced
+    profile_flow: bool = False  # whether its flow's Python was profiled as well as traced
+    profile_environment: bool = False  # and whether the programs its agents started were
     spent: dict[str, Any] | None = None  # cost, output_tokens and seconds, as its budget counted
     backup: tuple[str, ...] = ()  # the targets it is backed up to
     backed: dict[str, dict[str, Any]] = {}  # each target's last backup: at, ok, error, why
@@ -160,7 +163,8 @@ class Epic:  # a context manager, closed however the run ends
         budget: Mapping[str, Any] | None = None,
         resumable: bool = False,
         picked_up: Path | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         backup: Sequence[str] = (),
     ) -> None: ...
     @property
@@ -211,6 +215,10 @@ def harnessed(machine: MachineConfig | None) -> str: ...  # local, self, <backen
 def under(workspace: Path | str | None = None) -> Path: ...
 def epics(workspace: Path | str | None = None) -> list[Path]: ...
 def every() -> list[Path]: ...  # of every workspace on this machine, oldest first
+UNFINISHED = "unfinished"  # how a run that wrote no end down is counted
+def spending(  # days oldest first, flows costliest first, ended, whole: runs, cost, tokens, time
+    runs: Sequence[Ran], days: int, now: datetime.datetime | None = None
+) -> dict[str, Any]: ...
 def records(epic: Path) -> list[Path]: ...
 def read(epic: Path) -> Ran | None: ...
 def tree(epic: Path) -> tuple[Called, ...]: ...
@@ -238,6 +246,7 @@ def bundle(
     *,
     transcript: str | None = None,
 ) -> tuple[Path, dict[str, Any]]: ...
+def lands(epic: str, at: str | os.PathLike[str]) -> Path: ...  # where a bundle of it is written
 def unpacked(epic: Path, into: Path) -> dict[str, Any]: ...  # what a bundle holds, as files
 def unbundle(archive: str | os.PathLike[str]) -> Path: ...
 def placed(epic: Path, origin: str) -> Path: ...  # an epic laid out as `unpacked` lays it out
@@ -254,7 +263,8 @@ class Line(NamedTuple):  # an `hmz exec` line, read
     envs: tuple[EnvSpec, ...] = ()
     params: dict[str, str] = {}
     budget: Budget | None = None
-    profile: bool = False
+    profile_flow: bool = False
+    profile_environment: bool = False
     resume: bool = False
     as_json: bool = False
     backup: tuple[str, ...] | None = None  # None for the defaults
@@ -268,13 +278,15 @@ class Runner:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
         backup: Iterable[str] | None = None,  # None for the defaults
     ) -> None: ...
     flow: str; impl: FlowImpl; declaration: Declaration; agents: dict[str, AgentDriver]
-    envs: dict[str, EnvDriver]; params: FlowParams; budget: Budget; profile: bool
+    envs: dict[str, EnvDriver]; params: FlowParams; budget: Budget
+    profile_flow: bool; profile_environment: bool
     backup: tuple[str, ...]
     picked_up: Path | None; workspace: Path; recorder: Recorder | None  # properties
     used: dict[str, str]  # where each environment role was put, as `-e` spells it
@@ -436,9 +448,11 @@ class Keeping:  # one epic's policies, as it runs
 - A run MUST read back what its budget counted as it ended -- what it cost, the output tokens
   and the seconds -- as `Ran.spent`, and nothing for a run still going or one killed before it
   could say.
-- A run MUST be profiled as well as traced only where it was asked to be, as it is given its
-  budget -- never by a setting of the workspace it runs in -- and its epic MUST say that it
-  was, so that it reads back as `Ran.profile`; a record that does not say MUST read as not.
+- A run MUST profile its flow's own Python, and the programs its agents start, as well as
+  tracing them, each only where it was asked to, as it is given its budget -- never by a
+  setting of the workspace it runs in -- and its epic MUST say which, so that they read back
+  as `Ran.profile_flow` and `Ran.profile_environment`; a record that does not say MUST read as
+  not.
 - A run under a finite cost cap MUST bring a missing or stale price list up to date before its
   first turn, waiting no longer than the fetch's own timeout nor once the run is stopped, and
   on the rules every fetch is held to; every other run MUST have it refreshed without waiting.

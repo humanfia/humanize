@@ -168,8 +168,8 @@ class Places:
     def running(self) -> dict[str, dict[str, Any]]:
         """What runs in each workspace, by its path: the state, the run's number and its flow.
 
-        Out of the links held here where there is one, and what the daemon last said of the
-        rest; a workspace running nothing is left out.
+        And of a chat, its turn. Out of the links held here where there is one, and what the
+        daemon last said of the rest; a workspace running nothing is left out.
         """
         with self._lock:
             said = dict(self._running)
@@ -283,6 +283,7 @@ class Places:
                 "state": status.get("state") or "idle",
                 "run": status.get("run") or 0,
                 "flow": status.get("flow") or "",
+                **({"turn": status["turn"]} if "turn" in status else {}),
             }
             for workspace, status in self.statuses().items()
         }

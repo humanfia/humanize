@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import yaml
 
+from hmz.daemon.link import Link
+from hmz.runtime.flowing import index
 from hmz.tui import Humanize
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Agent, Clis
@@ -29,9 +31,11 @@ from tests.integration.doubles_tui import (
     started,
     trail,
     typed,
+    until,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
     from textual.pilot import Pilot
@@ -148,3 +152,59 @@ async def test_the_cli_and_model_pickers_offer_what_the_installed_agent_said_it_
         await on(pilot, Agent)
         await opens(pilot, "model")
         await shows(pilot, f"{MODEL} ✔")
+
+
+async def test_the_flows_with_a_newer_release_are_counted_on_the_status_line(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = index.Installed(
+        verse="official", name="kernel", version="1.0.0", commit="", repo=""
+    )
+    newer = [index.Update(held, "1.1.0")]
+    monkeypatch.setattr(index, "updates", lambda: newer)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await shows(
+            pilot, "kernel 1.0.0 ↑ 1.1.0; update from /flow", "1 flow update · "
+        )
+
+        newer.clear()
+        await typed(pilot, "/flow")
+        await on(pilot, Flows)
+        await leaves(pilot)
+        await until(pilot, lambda: "flow update" not in screen(app), "the count to go")
+
+
+async def test_both_profiling_switches_are_remembered_and_sent_with_the_start(
+    workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[Mapping[str, Any]] = []
+    asking = Link.asked
+
+    def spied(self: Link, said: Mapping[str, Any], **kwargs: Any) -> dict[str, Any]:
+        asked.append(said)
+        return asking(self, said, **kwargs)
+
+    monkeypatch.setattr(Link, "asked", spied)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_flows(pilot)
+        await opens(pilot, "chat")
+        await shows(pilot, "profile flow", "profile environment")
+        await picks(pilot, "\x1eprofile-flow", "on")
+        await picks(pilot, "\x1eprofile-environment", "on")
+        await shows(pilot, "samples the flow's own Python")
+        await leaves(pilot)
+        await shows(pilot, "◉ chat")
+
+        await typed(pilot, "hello")
+        await shows(pilot, "heard hello")
+
+    (start,) = [one for one in asked if one.get("do") == "start"]
+    assert (start["profile_flow"], start["profile_environment"]) == (True, True)
+    kept = remembered(tmp_path, workspace)["flows"]["chat"]
+    assert (kept["profile_flow"], kept["profile_environment"]) == (True, True)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_flows(pilot)
+        await opens(pilot, "chat")
+        await shows(pilot, "samples the flow's own Python")

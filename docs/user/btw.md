@@ -3,7 +3,7 @@ import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.v
 
 const question = 'what is the reviewer waiting for?'
 const before = [
-  '[dim]── actor[/]',
+  '[dim]─ reading actor ─[/]',
   '',
   '[dim]● actor is working[/]',
   '',
@@ -21,7 +21,7 @@ const below = (status) => [
     keys: 'shift+tab switch view · / commands · shift+enter newline · ← monitor · ctrl+c stop',
   },
 ]
-const inBtw = '[c]btw · btw agent[/][n]3[/] · [c]·|·[/] actor… [m](51s · ctrl+c twice to stop)[/]'
+const inBtw = '[c]btw · actor/1[/][n]3[/] · [c]·|·[/] actor… [m](51s · ctrl+c twice to stop)[/]'
 
 const asking = [
   {
@@ -29,7 +29,7 @@ const asking = [
     lines: [
       ...before,
       {
-        t: '[c]btw · btw agent[/][n]1[/] [dim]each line is a question; /btw or esc to exit[/][n]2[/]',
+        t: '[c]btw · actor/1[/][n]1[/] [dim]each line is a question; /btw or esc to exit[/][n]2[/]',
         hl: true,
       },
       ...below(inBtw),
@@ -41,13 +41,13 @@ const asking = [
     label: '2 · answered',
     lines: [
       ...before,
-      '[c]btw · btw agent[/] [dim]each line is a question; /btw or esc to exit[/]',
+      '[c]btw · actor/1[/] [dim]each line is a question; /btw or esc to exit[/]',
       '',
       {
         t:
           '[c]●[/] [dim]btw · ' +
           question +
-          "[/][n]4[/] [c]The actor's next turn. The reviewer has taken 5 turns and reads the repository each time the actor finishes; the actor has been on the retry in charge() for 51s.[/]",
+          "[/][n]4[/] [c]My next turn. The reviewer reads the repository each time I finish one, and I have been on the retry in charge() for 51s.[/]",
         hl: true,
       },
       ...below(inBtw),
@@ -59,9 +59,9 @@ const asking = [
     label: '3 · esc',
     lines: [
       ...before,
-      '[c]btw · btw agent[/] [dim]each line is a question; /btw or esc to exit[/]',
+      '[c]btw · actor/1[/] [dim]each line is a question; /btw or esc to exit[/]',
       '',
-      "[c]●[/] [dim]btw · " + question + "[/] [c]The actor's next turn. …[/]",
+      "[c]●[/] [dim]btw · " + question + "[/] [c]My next turn. …[/]",
       { t: '[dim]btw: exited[/][n]5[/]', hl: true },
       ...below('[c]·|·[/] actor… [m](58s · ctrl+c twice to stop)[/]'),
     ],
@@ -106,14 +106,15 @@ same side conversation, so a follow-up can say "and then?". The status line star
 
 Who answers depends on what is on the screen when you type `/btw`:
 
-- **One conversation's transcript** (`btw · NeiKos496/2`): a side copy of that conversation.
+- **An agent's or one conversation's transcript** (`btw · NeiKos496/2`): a side copy of that
+  conversation, the agent's newest.
   Where its CLI can fork a conversation (Claude Code, Codex, Grok Build, Kimi Code, MiMo Code,
   Oh My Pi, opencode, pi, Qwen Code, and a CLI you added that speaks ACP), the copy is a fork
   and knows everything the conversation knew. Otherwise, or if the fork fails, it is a fresh
   session of the same agent, given a snapshot of the run and what that role has done lately.
   This works for a conversation that has ended too, with no flow running.
-- **Every agent's transcript, or the monitor** (`btw · btw agent`): the **btw agent**. It is
-  the flow's first agent unless you chose another on the [General page of
+- **The monitor, or the screen before a run opens a conversation** (`btw · btw agent`): the
+  **btw agent**. It is the flow's first agent unless you chose another on the [General page of
   `/settings`](/user/settings#general). It is given a snapshot of the run and the list of
   its sessions, and it may put a question of its own to any session's side copy, up to 4 per
   question you ask. Each one shows as a dim `btw · asking <session>: …` line.
@@ -128,18 +129,18 @@ The snapshot holds:
 ## Example: ask what the reviewer is waiting for
 
 An [`rlar`](https://humanfia.ai/flows/rlar) run has been going a few minutes. The actor is working and the
-reviewer is idle, and you want to know why. You are on the transcript of every agent, so the
-btw agent answers. Step through it:
+reviewer is idle, and you want to know why. You are reading the actor, where the run landed,
+so a side copy of its conversation answers. Step through it:
 
 <TermScreen title="hmz · rlar" :frames="asking" />
 
 What to look at, by number:
 
-1. **`btw · btw agent`.** Who is answering. On one conversation's transcript this names that
-   conversation instead, such as `btw · PoleMos600/1`.
+1. **`btw · actor/1`.** Who is answering: a side copy of the conversation you are reading. On
+   the monitor this is `btw · btw agent` instead.
 2. **`each line is a question; /btw or esc to exit`.** You are in btw mode now. A plain line
    typed from here is a question, not a steer.
-3. **The status line** starts with `btw · btw agent` until you leave, so you cannot forget you
+3. **The status line** starts with `btw · actor/1` until you leave, so you cannot forget you
    are in it.
 4. **The answer**, in cyan, behind your question in dim. It lands in the transcript you are
    reading, among the run's own lines, and nothing about the run changed.
@@ -165,7 +166,7 @@ What to look at, by number:
   ```
 
 - **Enter first, ask after.** `/btw` on its own enters btw mode with no question yet.
-- **Choose who answers from every agent's view.** Set **/btw agent** on the General page of
+- **Choose who answers from the monitor.** Set **/btw agent** on the General page of
   `/settings`: the flow's first agent, one you chose, or `another…`, which asks for its CLI,
   account, model and effort. It takes effect the next time you enter btw mode.
 
@@ -187,8 +188,8 @@ or choose one as **/btw agent** in `/settings`.
 
 ### `hmz: /btw: no conversation found for <session>`
 
-The conversation on the screen is gone, so there is nothing to copy. Read another one, or go to
-every agent's transcript and ask the btw agent.
+The conversation on the screen is gone, so there is nothing to copy. Read another one, or go up
+to the monitor and ask the btw agent.
 
 ### `hmz: btw is still answering the last question`
 

@@ -281,7 +281,7 @@ An exception inside a request is refused with `str(exception)` or its type name.
 | `do` | Fields (type, default) | Answer | Refusals |
 | --- | --- | --- | --- |
 | `hello` | `workspace` (str: the daemon hands the frontend to its host; not read by the host), `name` (str, `""`: `<login>@<kind>`), `kind` (str, `"sdk"`), `replay` (bool, `true`; only a literal `false` disables) | `client` | `this frontend has already said hello`, `the frontend went while it was saying hello`, `this host has closed` |
-| `start` | `flow` (str, required), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile` (bool; whether the run is [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path) | `run` (int) | `a flow to start is named`, `a flow is already running`, `a flow is already starting`, `this host has closed`, any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. A run that is only *stopping* does not block `start`. |
+| `start` | `flow` (str, required), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path) | `run` (int) | `a flow to start is named`, `a flow is already running`, `a flow is already starting`, `this host has closed`, any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. A run that is only *stopping* does not block `start`. |
 | `say` | `text` (str, required), `to` (str, `""`) | — | `a line says something`, `no flow is running to say it to` (also while stopping), `<role> is <name>'s` (for `to: "outworlder:<role>"`) |
 | `answer` | `question` (id), `text` (str, required; a number `1‥n` that is not itself an option picks that option) | — | `an answer says something`, `already answered by <name>`, `no question <id> is waiting`, `<role> is <name>'s` |
 | `stop` | — | — | `the flow is already stopping: it is closing out the turn it was in`, `no flow is running, so there is nothing to stop` |
@@ -342,7 +342,7 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 
 | `type` | Fields |
 | --- | --- |
-| `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `names` (`{role: agent name}`: what the agent filling each is called, which its conversations are keyed by), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `profile` (bool), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `began` (host monotonic), `at` (Unix time) |
+| `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `names` (`{role: agent name}`: what the agent filling each is called, which its conversations are keyed by), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `began` (host monotonic), `at` (Unix time) |
 | `opened` | `role` (the role its agent fills), `key` (`<agent>/<n>`), `agent` (the agent's own name, such as `NeiKos496`), `cli`, `model`, `counts` (sorted token kinds the backend reports), `forks` (bool), `person` (bool), `kept` (directory of the session's logs; `""` for a person or the CLI's own home), `env`, `harness`, `mono`, `wall` (Unix time) |
 | `event` | `key`, `session` (`key` where the event names a conversation, else `""`), `agent`, `cli`, `model`, `ident` (backend's conversation id, `""` until named), `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono`. Same fields as [`hmz exec --json`](/reference/cli#ndjson). |
 | `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list), `mode` (`ask` where there are options or a turn is open, else `listen`), `key` (`<agent>/<n>` of the one conversation with a turn open, else `""`) |
@@ -478,8 +478,17 @@ def attach(kind: str, name: str = "", *, workspace=None) -> Link: ...
 def linked(host: Host, name: str = "", kind: str = "tui", *, replay: bool = True) -> Link: ...
 def reached(at: Path, workspace: str, name: str = "", kind: str = "sdk", *,
             replay: bool = True) -> Link: ...
+def remote(remotes: Remotes, daemon: str, workspace: str) -> Link: ...
 Hmz, Host, Refused                                  # hmz.runtime's, fetched on access
 ```
+
+`hmz.daemon.link.remote` reaches the runs of a workspace on another machine through that
+machine's `hmz web`, reached over ssh as `/epics @<name>` reaches it: each request is posted to
+`/api/held/<do>` with the workspace (a refusal answered `{"ok": false, "why": …}`, raised as
+`Refused`), and its `/api/held/stream` is told to the link -- every `record` and `standing`
+event's data, then `gone` where the stream says `gone` or `again` or ends. The link's `client`
+is the one that interface says it is; `OSError` where it says nothing within 30 s. `close()`
+stops following.
 
 `attach` is how `hmz` and `hmz web` reach runs held apart from them: it finds the host holding
 the workspace's runs, or starts the daemon and one where none is, and links to it as `kind`,

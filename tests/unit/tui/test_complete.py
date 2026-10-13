@@ -47,7 +47,7 @@ def flows(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
 def test_a_command_is_offered_in_every_view_by_default() -> None:
     one = Command("x", "about", _does)
 
-    assert one.where == VIEWS == {"monitor", "aggregate", "session", "outworlder"}
+    assert one.where == VIEWS == {"monitor", "home", "session", "outworlder"}
     assert (one.takes, one.offers, one.refuses, one.unlisted, one.now) == (
         "",
         (),

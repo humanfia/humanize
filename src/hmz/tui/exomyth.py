@@ -4,9 +4,11 @@ What the web draws on a canvas, drawn in cells. Every session is a process of it
 the session that started it, and every lane of a process is a row; a span is a bar across its
 row, cut to the eighth of a cell at either end with the block characters a terminal has for
 that, coloured by what it is in the colours of the interface's theme. Zoomed and panned around
-the span under the cursor, searched by name, and read whole in a pane under the chart. The
-other view is the same stretch of time weighed: where it went, by kind of process, by category
-and by name, as nested bars over a list of the totals.
+the span under the cursor, searched by name, and read whole in a pane under the chart -- a span,
+its process, or a stretch of time picked from one span to another, summed by category. The
+other views weigh that stretch, or the window: where it went, each agent, flow or program, its
+sessions merged or apart, then its spans as they nest, as nested bars over a list of the totals;
+and every name its spans go by, summed, in a table sorted by any column.
 
 Drawn a row at a time, and only the rows on screen: each row is a lane of spans sorted by
 start, so what falls inside the window is found by bisection, and spans narrower than a cell
@@ -59,13 +61,17 @@ __all__ = [
     "Laid",
     "Lane",
     "Row",
+    "Slice",
     "bar",
     "described",
     "flamed",
     "icicle",
     "listed",
+    "portrayed",
     "ruler",
+    "sliced",
     "spaced",
+    "summed",
 ]
 
 #: The version of the timeline document this draws (`hmz.runtime.tracing.timeline.VERSION`,
@@ -106,8 +112,14 @@ _FINEST = 0.125
 #: How many cells apart the ruler's ticks are, at least.
 _TICKS = 12
 
-#: The levels of the flame: kind of process, category, name.
-_LEVELS = 3
+#: How many levels of the flame are drawn, at most.
+_LEVELS = 6
+
+#: What the flame can be weighed by, and what each is called.
+_WEIGHTS = {"time": "time", "in": "tokens in", "out": "tokens out", "count": "count"}
+
+#: The categories, in the order a stretch of time sums them; any other after, by name.
+_CATEGORIES = ("flow", "session", "turn", "llm", "tool", "message", "event", "process")
 
 #: How many stacks the list under the flame holds, at most.
 _LISTED = 400
@@ -560,6 +572,35 @@ def ruler(t0: float, scale: float, width: int) -> str:
     return "".join(held)
 
 
+def _walked(laid: Laid, t0: float, t1: float) -> list[tuple[int, float, int, int]]:
+    """Every span in a stretch of time, each after the one it is under.
+
+    Args:
+      laid: The timeline.
+      t0: Where the stretch starts, µs.
+      t1: Where it ends.
+
+    Returns:
+      `(span, how long of it is inside the stretch, the span it is under or -1, its lane)`,
+      lane by lane, a track's in depth order.
+    """
+    held: list[tuple[int, float, int, int]] = []
+    for index, lane in enumerate(laid.lanes):
+        lo = bisect.bisect_right(lane.ends, t0)
+        hi = bisect.bisect_left(lane.starts, t1, lo)
+        over = laid.above(index)
+        parents = laid.lanes[over] if over >= 0 else None
+        for at in range(lo, hi):
+            start, end = lane.starts[at], lane.ends[at]
+            up = -1
+            if parents is not None:
+                under = bisect.bisect_right(parents.starts, start) - 1
+                if under >= 0 and parents.ends[under] >= start:
+                    up = parents.ids[under]
+            held.append((lane.ids[at], min(end, t1) - max(start, t0), up, index))
+    return held
+
+
 @dataclasses.dataclass(slots=True)
 class Flamed:
     """One stack of the flame: what is under it, and what it weighs.
@@ -567,86 +608,105 @@ class Flamed:
     Attributes:
       name: What it is.
       hue: What it is coloured as, as :class:`Cell` says.
-      weight: µs it took to itself, or tokens.
-      count: How many spans.
+      weight: What it weighs: its own spans, or those under it where they weigh more -- or
+        both, counting spans -- so that a span that says what its calls came to is not
+        weighed twice.
+      own: What its own spans weigh.
+      count: How many spans, its own and those under it.
       children: What is under it, heaviest first.
     """
 
     name: str
     hue: str
     weight: float = 0.0
+    own: float = 0.0
     count: int = 0
     children: list[Flamed] = dataclasses.field(default_factory=list["Flamed"])
 
 
-def flamed(laid: Laid, t0: float, t1: float, *, tokens: bool = False) -> Flamed:
-    """Where a stretch of time went: by kind of process, then category, then name.
+def _group(laid: Laid, process: int) -> str:
+    """The stack one process is weighed in: its agent and the role it fills, or its name."""
+    one = laid.processes[process]
+    kind, name = str(one["kind"]), laid.strings[int(one["name"])]
+    if kind != "session":
+        return name or kind
+    agent, role, label = (
+        laid.strings[int(one.get(field, 0))] for field in ("agent", "role", "label")
+    )
+    agent, by = agent or name, role or label
+    return f"{agent} ({by})" if by and by not in agent else agent
+
+
+def flamed(
+    laid: Laid, t0: float, t1: float, *, weight: str = "time", apart: bool = False
+) -> Flamed:
+    """Where a stretch of time went: each agent, flow or program, then its spans as they nest.
 
     Args:
       laid: The timeline.
       t0: Where the stretch starts, µs.
       t1: Where it ends.
-      tokens: Whether to weigh by tokens in and out rather than time.
+      weight: What a span weighs: `time` inside the stretch, tokens `in` or `out`, or `count`.
+      apart: Whether each session is a stack of its own under its agent, rather than merged.
 
     Returns:
-      The whole, whose children are the kinds. Time is each span's own, inside the stretch
-      and outside the spans under it, so nothing is weighed twice.
+      The whole, whose children are the agents (with the role each fills), flows and
+      programs. A session's own span, and a flow's, is its stack; what is under it is by name.
     """
-    own: dict[int, float] = {}
-    shown: list[tuple[Lane, int, int]] = []
-    for lane in laid.lanes:
-        lo = bisect.bisect_right(lane.ends, t0)
-        hi = bisect.bisect_left(lane.starts, t1, lo)
-        shown.append((lane, lo, hi))
-        for at in range(lo, hi):
-            ident = lane.ids[at]
-            own[ident] = (
-                laid.ins[ident] + laid.outs[ident]
-                if tokens
-                else min(lane.ends[at], t1) - max(lane.starts[at], t0)
-            )
-    if not tokens:
-        for index, (lane, lo, hi) in enumerate(shown):
-            over = laid.above(index)
-            if over < 0:
-                continue
-            parents = laid.lanes[over]
-            for at in range(lo, hi):
-                under = bisect.bisect_right(parents.starts, lane.starts[at]) - 1
-                if under >= 0 and parents.ids[under] in own:
-                    own[parents.ids[under]] -= min(lane.ends[at], t1) - max(
-                        lane.starts[at], t0
-                    )
     whole = Flamed("all", "")
-    kept: dict[tuple[str, ...], Flamed] = {}
-    for lane, lo, hi in shown:
-        kind = str(laid.processes[lane.process]["kind"])
-        for at in range(lo, hi):
-            ident = lane.ids[at]
-            weight = max(own[ident], 0.0)
-            if not weight:
-                continue
-            cat = laid.strings[laid.cats[ident]]
-            name = laid.strings[laid.names[ident]]
-            stack = (kind, cat, name)
-            node = whole
-            for depth in range(1, _LEVELS + 1):
-                key = stack[:depth]
-                held = kept.get(key)
-                if held is None:
-                    hue = f"~{kind}" if depth == 1 else cat
-                    held = kept[key] = Flamed(key[-1], hue)
-                    node.children.append(held)
-                node = held
-                node.weight += weight
-                node.count += 1
-            whole.weight += weight
-            whole.count += 1
+    kept: dict[tuple[int, str, str], Flamed] = {}
+
+    def child(up: Flamed, name: str, hue: str) -> Flamed:
+        held = kept.get((id(up), name, hue))
+        if held is None:
+            held = kept[id(up), name, hue] = Flamed(name, hue)
+            up.children.append(held)
+        return held
+
+    tops: list[Flamed] = []
+    for process, one in enumerate(laid.processes):
+        kind = str(one["kind"])
+        top = child(whole, _group(laid, process), f"~{kind}")
+        if apart and kind != "flow":
+            name = laid.strings[int(one["name"])]
+            said = f"{name} {one.get('pid', 0)}" if kind == "os" else name
+            top.children.append(top := Flamed(said, f"~{kind}"))
+        tops.append(top)
+    tokens = {"in": laid.ins, "out": laid.outs}.get(weight)
+    frames: dict[int, Flamed] = {}
+    for ident, lasting, up, lane in _walked(laid, t0, t1):
+        cat, name = laid.strings[laid.cats[ident]], laid.strings[laid.names[ident]]
+        held = laid.lanes[lane]
+        under = frames.get(up)
+        if under is not None:
+            frame = child(under, name, cat)
+        elif not held.depth and (
+            cat == "session"
+            or name == laid.strings[int(laid.processes[held.process]["name"])]
+        ):
+            frame = tops[held.process]
+        else:
+            frame = child(tops[held.process], name, cat)
+        frames[ident] = frame
+        frame.own += (
+            lasting if weight == "time" else 1 if tokens is None else tokens[ident]
+        )
+        frame.count += 1
+    walked: list[Flamed] = []
     waiting = [whole]
     while waiting:
         node = waiting.pop()
-        node.children.sort(key=lambda one: -one.weight)
+        walked.append(node)
         waiting += node.children
+    # Every stack after the one it is part of: weighed from the leaves up.
+    for node in reversed(walked):
+        under = sum(one.weight for one in node.children)
+        node.weight = node.own + under if weight == "count" else max(node.own, under)
+        node.count += sum(one.count for one in node.children)
+        node.children = sorted(
+            (one for one in node.children if one.weight > 0),
+            key=lambda one: -one.weight,
+        )
     return whole
 
 
@@ -668,6 +728,18 @@ def listed(whole: Flamed) -> list[tuple[int, Flamed]]:
     return held
 
 
+def _deepest(whole: Flamed) -> int:
+    """How many levels of the flame are drawn: as deep as its stacks go, a few at most."""
+    deep = 0
+    waiting = [(0, whole)]
+    while waiting:
+        level, node = waiting.pop()
+        deep = max(deep, level)
+        if level < _LEVELS:
+            waiting += [(level + 1, one) for one in node.children]
+    return deep
+
+
 def icicle(whole: Flamed, width: int) -> list[list[Cell]]:
     """The flame drawn: a row per level, each stack as wide as its share of the whole.
 
@@ -676,17 +748,17 @@ def icicle(whole: Flamed, width: int) -> list[list[Cell]]:
       width: How many cells.
 
     Returns:
-      A row of `width` cells per level; a cell's `span` is its stack's place in
-      :func:`listed`, or -1 past the end of it.
+      A row of `width` cells per level, as deep as the stacks go and a few at most; a
+      cell's `span` is its stack's place in :func:`listed`, or -1 past the end of it.
     """
-    rows = [[_NOTHING] * width for _ in range(_LEVELS)]
+    rows = [[_NOTHING] * width for _ in range(_deepest(whole))]
     if whole.weight <= 0:
         return rows
     order = {id(node): at for at, (_, node) in enumerate(listed(whole))}
     waiting = [(whole, 0.0, 0)]
     while waiting:
         node, x, level = waiting.pop()
-        if level >= _LEVELS:
+        if level >= len(rows):
             continue
         for child in node.children:
             wide = child.weight / whole.weight * width
@@ -703,6 +775,82 @@ def icicle(whole: Flamed, width: int) -> list[list[Cell]]:
             waiting.append((child, x, level + 1))
             x += wide
     return rows
+
+
+class Slice(NamedTuple):
+    """Every span of a stretch of time going by one name, summed.
+
+    Attributes:
+      name: Their name.
+      cat: Their category.
+      spans: How many.
+      total: µs of them inside the stretch.
+      own: µs of that outside the spans under them, none less than nothing.
+      mean: `total` a span.
+      p50: The median span's µs.
+      p95: The 95th percentile's.
+      longest: The longest's.
+      ins: Tokens in.
+      outs: Tokens out.
+    """
+
+    name: str
+    cat: str
+    spans: int
+    total: float
+    own: float
+    mean: float
+    p50: float
+    p95: float
+    longest: float
+    ins: int
+    outs: int
+
+
+def sliced(laid: Laid, t0: float, t1: float) -> list[Slice]:
+    """Every name the spans of a stretch of time go by, with what they came to.
+
+    Args:
+      laid: The timeline.
+      t0: Where the stretch starts, µs.
+      t1: Where it ends.
+
+    Returns:
+      A slice per name and category, the most time first.
+    """
+    walked = _walked(laid, t0, t1)
+    lasted = {ident: lasting for ident, lasting, _, _ in walked}
+    own = dict(lasted)
+    named: dict[tuple[int, int], list[int]] = {}
+    for ident, lasting, up, _ in walked:
+        if up in own:
+            own[up] -= lasting
+        named.setdefault((laid.names[ident], laid.cats[ident]), []).append(ident)
+    held: list[Slice] = []
+    for (name, cat), ids in named.items():
+        times = sorted(lasted[one] for one in ids)
+        total = sum(times)
+        held.append(
+            Slice(
+                laid.strings[name],
+                laid.strings[cat],
+                len(ids),
+                total,
+                sum(max(own[one], 0) for one in ids),
+                total / len(ids),
+                _rank(times, 0.5),
+                _rank(times, 0.95),
+                times[-1],
+                sum(laid.ins[one] for one in ids),
+                sum(laid.outs[one] for one in ids),
+            )
+        )
+    return sorted(held, key=lambda one: -one.total)
+
+
+def _rank(times: list[float], share: float) -> float:
+    """The time a share of some sorted times are no longer than."""
+    return times[min(max(math.ceil(share * len(times)) - 1, 0), len(times) - 1)]
 
 
 def described(laid: Laid, said: dict[str, Any]) -> str:
@@ -756,6 +904,102 @@ def described(laid: Laid, said: dict[str, Any]) -> str:
     if len(args) > _ARGS:
         lines.append(f"[$text-muted]+{len(args) - _ARGS} more[/]")
     return "\n".join(lines)
+
+
+def portrayed(laid: Laid, process: int) -> str:
+    """What the pane under the chart says of one process.
+
+    Args:
+      laid: The timeline.
+      process: The process.
+
+    Returns:
+      Lines of markup.
+    """
+    one = laid.processes[process]
+    tracks: list[int] = one["tracks"]
+    parent = int(one["parent"])
+    start, end = int(one.get("start", 0)), int(one.get("end", 0))
+    facts = [
+        f"{field} {escape(said)}"
+        for field in ("agent", "role", "backend", "model", "label")
+        if (said := laid.strings[int(one.get(field, 0))])
+    ]
+    more = [
+        *((f"pid {one['pid']}",) if one.get("pid") else ()),
+        *(
+            (f"parent {escape(laid.strings[int(laid.processes[parent]['name'])])}",)
+            if 0 <= parent < len(laid.processes)
+            else ()
+        ),
+        *(
+            (f"record {escape(said)}",)
+            if (said := laid.strings[int(one.get("record", 0))])
+            else ()
+        ),
+    ]
+    return "\n".join(
+        (
+            f"[b]{escape(laid.strings[int(one['name'])])}[/]",
+            _DOT.join((escape(str(one["kind"])), escape(laid.key(process)))),
+            *(_DOT.join(line) for line in (facts, more) if line),
+            _DOT.join(
+                (
+                    f"start {spaced(start)}",
+                    f"lasted {spaced(end - start)}",
+                    _many(len(tracks), "track"),
+                    _many(sum(int(laid.tracks[at]["count"]) for at in tracks), "span"),
+                )
+            ),
+        )
+    )
+
+
+def summed(laid: Laid, t0: float, t1: float) -> str:
+    """What the pane under the chart says of a stretch of time: what lies in it, by category.
+
+    Args:
+      laid: The timeline.
+      t0: Where the stretch starts, µs.
+      t1: Where it ends.
+
+    Returns:
+      Lines of markup: how long, how many spans and tokens, then each category's spans, time
+      inside the stretch, and tokens in and out.
+    """
+    by: dict[str, list[float]] = {}
+    for ident, lasting, _, _ in _walked(laid, t0, t1):
+        held = by.setdefault(laid.strings[laid.cats[ident]], [0, 0, 0, 0])
+        for at, value in enumerate((1, lasting, laid.ins[ident], laid.outs[ident])):
+            held[at] += value
+    count, _, ins, outs = (sum(one[at] for one in by.values()) for at in range(4))
+    order = [one for one in _CATEGORIES if one in by]
+    order += sorted(set(by) - set(order))
+    return "\n".join(
+        (
+            "[b]Range[/]",
+            _DOT.join(
+                (
+                    f"from {spaced(t0)}",
+                    f"to {spaced(t1)}",
+                    f"lasted {spaced(t1 - t0)}",
+                )
+            ),
+            _DOT.join(
+                (
+                    _many(int(count), "span"),
+                    f"{thousands(ins)} in",
+                    f"{thousands(outs)} out",
+                )
+            ),
+            f"[$text-muted]{'category':<10}{'spans':>7}{'time':>9}{'in':>9}{'out':>9}[/]",
+            *(
+                f"{escape(f'{cat:<10}')}{int(by[cat][0]):>7}{spaced(by[cat][1]):>9}"
+                f"{thousands(by[cat][2]):>9}{thousands(by[cat][3]):>9}"
+                for cat in order
+            ),
+        )
+    )
 
 
 def _many(count: int, thing: str) -> str:
@@ -969,7 +1213,7 @@ class _Icicle(Widget):
 
 
 class Exomyth(ModalScreen[None]):
-    """One epic, drawn: a timeline of its sessions, and a flame of where its time went.
+    """One epic, drawn: a timeline of its sessions, a flame of where its time went, its slices.
 
     Opened from the sheet of one epic in `/epics`, and left with esc back to it. The timeline
     is read off the screen -- it is every session log the epic opened -- and read again every
@@ -989,15 +1233,18 @@ class Exomyth(ModalScreen[None]):
     Exomyth #detail {
         display: none; height: auto; max-height: 16; padding: 0 1;
         border: round $accent; overflow-y: auto; }
-    Exomyth #heading { height: 1; padding: 1 0 0 0; height: 2; color: $text-muted; }
-    Exomyth #stacks {
+    Exomyth #heading, Exomyth #columns {
+        padding: 1 0 0 0; height: 2; color: $text-muted; }
+    Exomyth #stacks, Exomyth #sliced {
         height: 1fr; padding: 0; background: $background;
         border: round $accent; scrollbar-size: 1 1; }
-    Exomyth #stacks:focus { border: round $primary; background-tint: $background 0%; }
-    Exomyth #stacks > .option-list--option-highlighted {
+    Exomyth #sliced { text-wrap: nowrap; text-overflow: ellipsis; }
+    Exomyth #stacks:focus, Exomyth #sliced:focus {
+        border: round $primary; background-tint: $background 0%; }
+    Exomyth OptionList > .option-list--option-highlighted {
         background: $block-cursor-blurred-background;
         color: $block-cursor-blurred-foreground; text-style: none; }
-    Exomyth #stacks:focus > .option-list--option-highlighted {
+    Exomyth OptionList:focus > .option-list--option-highlighted {
         background: $block-cursor-background; color: $block-cursor-foreground;
         text-style: bold; }
     Exomyth #seek { display: none; border: round $primary; background: $background; }
@@ -1007,7 +1254,8 @@ class Exomyth(ModalScreen[None]):
 
     BINDINGS: ClassVar = [
         Binding("escape", "back", "back", show=False, priority=True),
-        Binding("tab", "turn", "turn", show=False, priority=True),
+        Binding("tab", "turn(1)", "turn", show=False, priority=True),
+        Binding("shift+tab", "turn(-1)", "turn back", show=False, priority=True),
         Binding("up", "rows(-1)", "up", show=False),
         Binding("down", "rows(1)", "down", show=False),
         Binding("pageup", "rows(-10)", "page up", show=False),
@@ -1019,6 +1267,8 @@ class Exomyth(ModalScreen[None]):
         Binding("w,plus,equals_sign", "zoom(1)", "zoom in", show=False),
         Binding("s,minus", "zoom(-1)", "zoom out", show=False),
         Binding("enter", "open", "details", show=False),
+        Binding("p", "process", "process", show=False),
+        Binding("v", "range", "range", show=False),
         Binding("f", "fit", "fit", show=False),
         Binding("0", "whole", "whole", show=False),
         Binding("space", "fold", "fold", show=False),
@@ -1026,23 +1276,54 @@ class Exomyth(ModalScreen[None]):
         Binding("n", "next(1)", "next", show=False),
         Binding("N", "next(-1)", "previous", show=False),
         Binding("r", "reread", "refresh", show=False),
-        Binding("t", "weigh", "tokens", show=False),
+        Binding("t", "weigh", "weight", show=False),
+        Binding("m", "merge", "sessions", show=False),
+        Binding("o", "sort", "sort", show=False),
+        Binding("O", "order", "order", show=False),
     ]
 
-    #: What each view's keys are, beside what the other view is.
-    _TIMELINE_ONLY: ClassVar = frozenset(
-        (
-            "rows",
-            "step",
-            "pan",
-            "zoom",
-            "open",
-            "fit",
-            "whole",
-            "fold",
-            "search",
-            "next",
-        )
+    #: The views, in the order `tab` goes round them.
+    _VIEWS: ClassVar = ("timeline", "flame", "slices")
+
+    #: The keys of one view alone, by the view.
+    _ONLY: ClassVar = {
+        **dict.fromkeys(
+            (
+                "rows",
+                "step",
+                "pan",
+                "zoom",
+                "open",
+                "process",
+                "range",
+                "fit",
+                "whole",
+                "fold",
+                "search",
+                "next",
+            ),
+            "timeline",
+        ),
+        "weigh": "flame",
+        "merge": "flame",
+        "sort": "slices",
+        "order": "slices",
+    }
+
+    #: The columns of the slices, in the order they are drawn and `o` goes round them: what
+    #: each is called, the field it says, and how wide it is.
+    _COLUMNS: ClassVar = (
+        ("count", "spans", 6),
+        ("total", "total", 6),
+        ("self", "own", 6),
+        ("avg", "mean", 6),
+        ("p50", "p50", 6),
+        ("p95", "p95", 6),
+        ("max", "longest", 6),
+        ("in", "ins", 6),
+        ("out", "outs", 6),
+        ("category", "cat", -9),
+        ("name", "name", 0),
     )
 
     def __init__(self, ran: Ran) -> None:
@@ -1056,15 +1337,33 @@ class Exomyth(ModalScreen[None]):
         self._timeline: _Timeline | None = None
         self._laid: Laid | None = None
         self._folded: set[int] = set()
-        #: Whether the flame is the view, rather than the timeline.
-        self._flaming = False
-        #: Whether the flame weighs tokens, rather than time.
-        self._tokens = False
+        #: Which view is up.
+        self._view = "timeline"
+        #: What the flame weighs, and whether it puts each session apart.
+        self._weight = "time"
+        self._apart = False
         self._whole = Flamed("all", "")
+        #: The slices, and the field they are sorted by, the most first or the least.
+        self._slices: list[Slice] = []
+        self._by = "total"
+        self._down = True
+        #: What the pane under the chart says: `span`, `process`, `range`, or "" for nothing.
+        self._pane = ""
+        #: The stretch of time a range was begun at -- the span under the cursor then -- and
+        #: whether it is held there, rather than following the cursor.
+        self._marked: tuple[float, float] | None = None
+        self._held = False
+        #: What the pane last said of a range, and of which: it is summed once.
+        self._summed: tuple[tuple[Laid | None, tuple[float, float] | None], str] = (
+            (None, None),
+            "",
+        )
         #: What is worth saying under the view.
         self._said = "reading…"
         #: The spans the last search found, and which of them the cursor is on.
         self._sought = ""
+        #: The category of the slice the search was picked as, or "" for words typed.
+        self._exact = ""
         self._found: list[int] = []
         self._finding = -1
         self._again: Timer | None = None
@@ -1086,6 +1385,9 @@ class Exomyth(ModalScreen[None]):
                     yield _Icicle(id="icicle")
                     yield Label(id="heading")
                     yield OptionList(id="stacks")
+                with Vertical(id="slices"):
+                    yield Label(id="columns")
+                    yield OptionList(id="sliced")
             yield Input(placeholder="span name", id="seek")
             yield Label(id="tuning")
             yield Label(id="keys")
@@ -1100,7 +1402,10 @@ class Exomyth(ModalScreen[None]):
         ]
         # The epic's own sheet, which is put away while this is up and back once it is not.
         ran = self._ran
-        steps.append(escape(f"{ran.began[:16].replace('T', ' ')}{_DOT}{ran.flow}"))
+        named = escape(f"{ran.began[:16].replace('T', ' ')}{_DOT}{ran.flow}")
+        # Or the sheet of its graph, which is named as that sheet is and is still up.
+        if steps[-1:] != [named]:
+            steps.append(named)
         self.query_one("#trail", Label).update(
             "".join(
                 f"{one} \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK} "
@@ -1147,7 +1452,7 @@ class Exomyth(ModalScreen[None]):
         self._said = ""
         chart.forget()
         chart.drawn(laid, laid.rows(self._folded))
-        self._found = laid.found(self._sought) if self._sought else []
+        self._found = self._finds()
         self._finding = min(self._finding, len(self._found) - 1)
         if was is None:
             self._whole_view()
@@ -1164,8 +1469,7 @@ class Exomyth(ModalScreen[None]):
                     chart.row,
                 )
             self._moved()
-        if self._flaming:
-            self._weighs()
+        self._weighs()
         self._drawn()
         if laid.live:
             self._again = self.set_timer(_LIVE, self._reads)
@@ -1190,35 +1494,38 @@ class Exomyth(ModalScreen[None]):
             return action == "back" or not isinstance(self.focused, Input)
         if isinstance(self.focused, Input) or self._laid is None:
             return False
-        if action == "weigh":
-            return self._flaming
-        return not self._flaming or action not in self._TIMELINE_ONLY
+        return self._ONLY.get(action, self._view) == self._view
 
     def action_back(self) -> None:
-        """Comes out of the search, then the details, then leaves."""
+        """Comes out of the search, then the range, then the pane, then leaves."""
         seek = self.query_one("#seek", Input)
-        detail = self.query_one("#detail", Static)
+        timeline = self._view == "timeline"
         if seek.display:
             seek.display = False
             self._chart.focus()
-        elif detail.display and not self._flaming:
-            detail.display = False
+        elif self._marked is not None and timeline:
+            self.action_range(drop=True)
+            return
+        elif self._pane and timeline:
+            self._pane = ""
         else:
             self.dismiss(None)
             return
         self._drawn()
 
-    def action_turn(self) -> None:
-        """Turns between the timeline and the flame."""
-        self._flaming = not self._flaming
-        self.query_one("#views", ContentSwitcher).current = (
-            "flame" if self._flaming else "timeline"
-        )
-        if self._flaming:
-            self._weighs()
-            self.query_one("#stacks", OptionList).focus()
-        else:
-            self._chart.focus()
+    def action_turn(self, by: int) -> None:
+        """Turns to the view after this one, or before it.
+
+        Args:
+          by: On, or back.
+        """
+        self._view = self._VIEWS[
+            (self._VIEWS.index(self._view) + by) % len(self._VIEWS)
+        ]
+        self.query_one("#views", ContentSwitcher).current = self._view
+        self._weighs()
+        focus = {"flame": "#stacks", "slices": "#sliced"}.get(self._view)
+        (self._chart if focus is None else self.query_one(focus)).focus()
         self._drawn()
 
     def _whole_view(self) -> None:
@@ -1274,11 +1581,17 @@ class Exomyth(ModalScreen[None]):
         self._moved()
 
     def action_fit(self) -> None:
-        """Zooms to the span under the cursor."""
-        laid, chart = self._laid, self._chart
-        if laid is None or chart.chosen < 0:
-            return
-        start, dur = laid.starts[chart.chosen], max(laid.durs[chart.chosen], 1)
+        """Zooms to the range, or to the span under the cursor where there is none."""
+        picked = self._range()
+        if picked is not None and picked[1] > picked[0]:
+            self._fits(*picked)
+        elif self._laid is not None and self._chart.chosen >= 0:
+            self._fits(*self._here())
+
+    def _fits(self, start: float, end: float) -> None:
+        """Zooms to a stretch of time, with a little on either side."""
+        chart = self._chart
+        dur = max(end - start, 1)
         chart.scale = dur * 1.1 / chart.cells
         chart.t0 = start - dur * 0.05
         self._moved()
@@ -1298,7 +1611,7 @@ class Exomyth(ModalScreen[None]):
         chart.at = (start + end) / 2
         if follow and (end < chart.t0 or start > chart.t0 + self._span()):
             if end - start > self._span():
-                self.action_fit()
+                self._fits(start, end)
                 return
             chart.t0 = chart.at - self._span() / 2
         self._moved()
@@ -1370,11 +1683,54 @@ class Exomyth(ModalScreen[None]):
         # On to a span of the row the cursor is left on: the one it was on may be folded away.
         self.action_rows(0)
 
+    # -- The pane ------------------------------------------------------------------------------
+
+    def _shows(self, pane: str) -> None:
+        """Opens the pane on one thing, or shuts it where it is open on that already."""
+        self._pane = "" if self._pane == pane else pane
+        self._drawn()
+
     def action_open(self) -> None:
         """Opens the pane of the span under the cursor, or shuts it."""
-        detail = self.query_one("#detail", Static)
-        detail.display = not detail.display and self._chart.chosen >= 0
+        self._shows("span" if self._chart.chosen >= 0 else "")
+
+    def action_process(self) -> None:
+        """Opens the pane of the process of the row under the cursor, or shuts it."""
+        self._shows("process" if self._chart.rows else "")
+
+    def _here(self) -> tuple[float, float]:
+        """The stretch of the span under the cursor, or the moment it is at."""
+        laid, chart = self._laid, self._chart
+        if laid is None or chart.chosen < 0:
+            return (chart.at, chart.at)
+        start = laid.starts[chart.chosen]
+        return (start, start + laid.durs[chart.chosen])
+
+    def _range(self) -> tuple[float, float] | None:
+        """The range: from where it was begun to the span under the cursor, or where held."""
+        if self._marked is None or self._held:
+            return self._marked
+        here = self._here()
+        return (min(self._marked[0], here[0]), max(self._marked[1], here[1]))
+
+    def action_range(self, *, drop: bool = False) -> None:
+        """Begins a range at the span under the cursor, holds it, or lets it go.
+
+        Args:
+          drop: Whether to let it go, however far it has got.
+        """
+        if self._marked is None and not drop:
+            self._marked, self._held, self._pane = self._here(), False, "range"
+        elif not self._held and not drop:
+            self._marked, self._held = self._range(), True
+        else:
+            self._marked = None
+            self._pane = "" if self._pane == "range" else self._pane
         self._drawn()
+
+    def _stretch(self) -> tuple[float, float]:
+        """What the flame and the slices weigh: the range, or the window where there is none."""
+        return self._range() or (self._chart.t0, self._chart.t0 + self._span())
 
     # -- Searching -----------------------------------------------------------------------------
 
@@ -1392,11 +1748,28 @@ class Exomyth(ModalScreen[None]):
         seek = self.query_one("#seek", Input)
         seek.display = False
         self._chart.focus()
+        self._sought, self._exact = event.value.strip(), ""
+        self._found = self._finds()
+        self._goes()
+
+    def _finds(self) -> list[int]:
+        """The spans the search finds: named what was typed, or of the slice picked."""
+        laid, sought = self._laid, self._sought
+        if laid is None or not sought:
+            return []
+        found = laid.found(sought)
+        if not self._exact:
+            return found
+        return [
+            ident
+            for ident in found
+            if laid.strings[laid.names[ident]] == sought
+            and laid.strings[laid.cats[ident]] == self._exact
+        ]
+
+    def _goes(self) -> None:
+        """Goes to the first span found after the cursor."""
         laid = self._laid
-        self._sought = event.value.strip()
-        self._found = (
-            laid.found(self._sought) if laid is not None and self._sought else []
-        )
         self._finding = -1
         if self._found and laid is not None:
             at = bisect.bisect_left(
@@ -1430,40 +1803,55 @@ class Exomyth(ModalScreen[None]):
         )
         self._choose(ident, follow=True)
 
-    # -- The flame -----------------------------------------------------------------------------
+    # -- The flame and the slices --------------------------------------------------------------
 
     def _weighs(self) -> None:
-        """Weighs the window, and puts the flame and its list up."""
-        laid, chart = self._laid, self._chart
-        if laid is None:
+        """Weighs the range or the window, for the view up: the flame, or the slices."""
+        laid = self._laid
+        if laid is None or self._view == "timeline":
+            return
+        if self._view == "slices":
+            self._slices = sliced(laid, *self._stretch())
+            self._sorts()
             return
         self._whole = flamed(
-            laid, chart.t0, chart.t0 + self._span(), tokens=self._tokens
+            laid, *self._stretch(), weight=self._weight, apart=self._apart
         )
-        self.query_one("#icicle", _Icicle).whole = self._whole
-        stacks = self.query_one("#stacks", OptionList)
-        was = stacks.highlighted or 0
-        stacks.set_options(
+        icicle = self.query_one("#icicle", _Icicle)
+        icicle.whole = self._whole
+        icicle.styles.height = _deepest(self._whole)
+        self._listed(
+            "#stacks",
             [
-                Option(
-                    f"{self._weight(node.weight):>9}  {node.count:>7}  "
-                    f"{'  ' * level}{escape(node.name)}",
-                    id=f"={at}",
-                )
-                for at, (level, node) in enumerate(listed(self._whole))
-            ]
+                f"{self._weighed(node.weight):>9}  {node.count:>7}  "
+                f"{'  ' * level}{escape(node.name)}"
+                for level, node in listed(self._whole)
+            ],
         )
-        count = stacks.option_count
-        stacks.highlighted = min(was, count - 1) if count else None
         self._lights()
 
-    def _weight(self, weight: float) -> str:
+    def _listed(self, where: str, lines: list[str]) -> None:
+        """Puts lines up in a list, its cursor kept where it was."""
+        listing = self.query_one(where, OptionList)
+        was = listing.highlighted or 0
+        listing.set_options(Option(one) for one in lines)
+        listing.highlighted = min(was, len(lines) - 1) if lines else None
+
+    def _weighed(self, weight: float) -> str:
         """A weight, as the flame says one."""
-        return thousands(weight) if self._tokens else spaced(weight)
+        if self._weight == "time":
+            return spaced(weight)
+        return f"{weight:.0f}" if self._weight == "count" else thousands(weight)
 
     def action_weigh(self) -> None:
-        """Weighs by tokens rather than time, or by time again."""
-        self._tokens = not self._tokens
+        """Weighs the flame by the next of time, tokens in, tokens out and count."""
+        self._weight = _after(list(_WEIGHTS), self._weight)
+        self._weighs()
+        self._drawn()
+
+    def action_merge(self) -> None:
+        """Puts each session apart under its agent, or merges them again."""
+        self._apart = not self._apart
         self._weighs()
         self._drawn()
 
@@ -1474,16 +1862,67 @@ class Exomyth(ModalScreen[None]):
         icicle.chosen = self.query_one("#stacks", OptionList).highlighted or 0
         icicle.refresh()
 
+    def _sorts(self) -> None:
+        """Sorts the slices by their column, and puts them up."""
+        by = self._by
+        self._slices.sort(key=lambda one: -one.total)
+        self._slices.sort(key=lambda one: getattr(one, by), reverse=self._down)
+        say = {
+            "spans": str,
+            "ins": thousands,
+            "outs": thousands,
+            "cat": str,
+            "name": str,
+        }
+        self._listed(
+            "#sliced",
+            [
+                " ".join(
+                    escape(_aligned(say.get(field, spaced)(getattr(one, field)), wide))
+                    for _, field, wide in self._COLUMNS
+                )
+                for one in self._slices[:_LISTED]
+            ],
+        )
+
+    def action_sort(self) -> None:
+        """Sorts the slices by the next column: a number the most first, words from a."""
+        self._by = _after([field for _, field, _ in self._COLUMNS], self._by)
+        self._down = self._by not in ("cat", "name")
+        self._sorts()
+        self._drawn()
+
+    def action_order(self) -> None:
+        """Sorts the slices the other way round."""
+        self._down = not self._down
+        self._sorts()
+        self._drawn()
+
+    @on(OptionList.OptionSelected, "#sliced")
+    def _shown(self, event: OptionList.OptionSelected) -> None:
+        """Finds the spans of the slice picked on the timeline, the first after the cursor."""
+        event.stop()
+        laid = self._laid
+        if laid is None or event.option_index >= len(self._slices):
+            return
+        one = self._slices[event.option_index]
+        self._sought, self._exact = one.name, one.cat
+        self._found = self._finds()
+        self.action_turn(-self._VIEWS.index(self._view))
+        self._goes()
+
     # -- Saying --------------------------------------------------------------------------------
 
     def _drawn(self) -> None:
         """Says what the view is, what is under the cursor, and the keys."""
         laid, chart = self._laid, self._chart
-        flaming = self._flaming
+        view = self._view
         self.query_one("#tabs", Label).update(
             "   ".join(
-                f"[b $primary]{one}[/]" if now else f"[$text-muted]{one}[/]"
-                for one, now in (("Timeline", not flaming), ("Flame", flaming))
+                f"[b $primary]{one.title()}[/]"
+                if one == view
+                else f"[$text-muted]{one.title()}[/]"
+                for one in self._VIEWS
             )
         )
         about = escape(f"{self._ran.name}")
@@ -1498,34 +1937,43 @@ class Exomyth(ModalScreen[None]):
                 )
             )
         self.query_one("#about", Label).update(about)
+        picked = self._range()
         if laid is not None:
             self.query_one("#ruler", Static).update(
-                " " * chart.names + ruler(chart.t0, chart.scale, chart.cells)
+                " " * chart.names + _ruled(chart.t0, chart.scale, chart.cells, picked)
             )
         said = self._said
-        if not said and self._sought and not flaming:
+        if not said and self._sought and view == "timeline":
             said = (
                 f"{self._finding + 1} of {len(self._found)}{_DOT}{escape(self._sought)}"
                 if self._found
                 else f"no span named {escape(self._sought)}"
             )
-        if not said and flaming:
-            said = (
-                f"weighed by {'tokens' if self._tokens else 'time'}{_DOT}"
-                + _DOT.join((spaced(chart.t0), spaced(chart.t0 + self._span())))
+        self.query_one("#heading", Label).update(
+            f"{_WEIGHTS[self._weight].split()[-1]:>9}  {'spans':>7}  stack"
+        )
+        self.query_one("#columns", Label).update(
+            escape(
+                " ".join(
+                    _aligned(self._heading(field), wide)
+                    for _, field, wide in self._COLUMNS
+                )
             )
-            self.query_one("#heading", Label).update(
-                f"{'tokens' if self._tokens else 'time':>9}  {'spans':>7}  stack"
+        )
+        if not said and view != "timeline":
+            lo, hi = self._stretch()
+            how = (
+                (f"weighed by {_WEIGHTS[self._weight]}", f"sessions {self._manner}")
+                if view == "flame"
+                else (f"sorted by {self._heading(self._by)}",)
+            )
+            said = _DOT.join(
+                (*how, *(("range",) if picked else ()), spaced(lo), spaced(hi))
             )
         self.query_one("#tuning", Label).update(
             said if said.startswith("[") or not said else f"[$text-muted]{said}[/]"
         )
-        detail = self.query_one("#detail", Static)
-        if detail.display and laid is not None and self._timeline is not None:
-            if chart.chosen >= 0:
-                detail.update(described(laid, self._timeline.span(chart.chosen)))
-            else:
-                detail.display = False
+        self._paned()
         self.query_one("#keys", Label).update(
             "   ".join(
                 f"[b $accent]{escape(one.key)}[/] {escape(one.does)}"
@@ -1533,36 +1981,107 @@ class Exomyth(ModalScreen[None]):
             )
         )
 
+    @property
+    def _manner(self) -> str:
+        """How the flame has sessions: `merged`, or `apart`."""
+        return "apart" if self._apart else "merged"
+
+    def _heading(self, field: str) -> str:
+        """What a column of the slices is called, with which way it is sorted where it is."""
+        name = next(said for said, one, _ in self._COLUMNS if one == field)
+        return f"{name}{('↓' if self._down else '↑') if field == self._by else ''}"
+
+    def _paned(self) -> None:
+        """Says in the pane under the chart what it is open on, or shuts it."""
+        laid, chart, timeline = self._laid, self._chart, self._timeline
+        detail = self.query_one("#detail", Static)
+        picked = self._range()
+        said = ""
+        if laid is not None and timeline is not None:
+            if self._pane == "range" and picked is not None:
+                if self._summed[0] != (laid, picked):
+                    self._summed = ((laid, picked), summed(laid, *picked))
+                said = self._summed[1]
+            elif self._pane == "span" and chart.chosen >= 0:
+                said = described(laid, timeline.span(chart.chosen))
+            elif self._pane == "process" and chart.rows:
+                said = portrayed(laid, chart.rows[chart.row].process)
+        self._pane = self._pane if said else ""
+        detail.display = bool(said)
+        if said:
+            detail.update(said)
+
     def _keys(self) -> list[Key]:
         """The keys of the view as it is."""
         if isinstance(self.focused, Input):
             return [Key("enter", "find"), Key("esc", "clear")]
-        if self._flaming:
+        after = _after(list(self._VIEWS), self._view)
+        if self._view == "flame":
             return [
                 Key("↑/↓", "stack"),
-                Key("t", "time" if self._tokens else "tokens"),
+                Key("t", _WEIGHTS[_after(list(_WEIGHTS), self._weight)]),
+                Key("m", "merge" if self._apart else "apart"),
                 Key("r", "refresh"),
-                Key("tab", "timeline"),
+                Key("tab", after),
+                Key("esc", "back"),
+            ]
+        if self._view == "slices":
+            return [
+                Key("↑/↓", "slice"),
+                Key("enter", "timeline"),
+                Key("o", "sort"),
+                Key("O", "reverse"),
+                Key("r", "refresh"),
+                Key("tab", after),
                 Key("esc", "back"),
             ]
         found = [Key("n/N", "next")] if self._found else []
+        ranging = (
+            "range" if self._marked is None else "hold" if not self._held else "drop"
+        )
         return [
             Key("w/s", "zoom"),
             Key("a/d", "pan"),
             Key("←/→", "span"),
             Key("enter", "details"),
+            Key("p", "process"),
+            Key("v", ranging),
             Key("f", "fit"),
             Key("0", "whole"),
             Key("space", "fold"),
             Key("/", "search"),
             *found,
-            Key("tab", "flame"),
+            Key("tab", after),
             Key("esc", "back"),
         ]
 
     def on_resize(self) -> None:
         """Draws the ruler again across a screen that changed width."""
         self._drawn()
+
+
+def _aligned(text: str, wide: int) -> str:
+    """Words in a column: to the right of one so wide, to the left of one less than none."""
+    return f"{text:>{wide}}" if wide > 0 else f"{text:<{-wide}}"
+
+
+def _after(ones: list[str], one: str) -> str:
+    """The one after one, round the end."""
+    return ones[(ones.index(one) + 1) % len(ones)]
+
+
+def _ruled(
+    t0: float, scale: float, width: int, picked: tuple[float, float] | None
+) -> str:
+    """The ruler as markup, the range picked turned round on it where it is on screen."""
+    said = ruler(t0, scale, width)
+    if picked is None:
+        return escape(said)
+    a = min(max(math.floor((picked[0] - t0) / scale), 0), width)
+    b = min(max(math.ceil((picked[1] - t0) / scale), a + 1), width)
+    if a >= width or (picked[1] - t0) / scale < 0:
+        return escape(said)
+    return f"{escape(said[:a])}[reverse]{escape(said[a:b])}[/]{escape(said[b:])}"
 
 
 def _app(widget: Widget) -> App[Any]:

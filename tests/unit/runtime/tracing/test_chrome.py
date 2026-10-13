@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from hmz.runtime.tracing.chrome import build
-from hmz.runtime.tracing.profile import Process, Thread
+from hmz.runtime.tracing.profile import Process, Sample, Thread
 from hmz.runtime.tracing.session import Action, Session
 
 T0 = 1_767_225_600.0
@@ -211,6 +211,23 @@ def test_profiled_programs_are_processes_with_a_track_per_thread() -> None:
     other = document["otherData"]
     assert other["programs"] == "2"
     assert other["end"] == "2026-01-01T00:00:12+00:00"
+
+
+def test_a_profiled_flow_is_a_process_of_nested_frames_on_one_track() -> None:
+    sampled = [
+        Sample(T0 + 1, 0.5, ("run", "load")),
+        Sample(T0 + 1.5, 1.0, ("run", "ask")),
+    ]
+    document = build([], None, None, [], sampled)
+    events = document["traceEvents"]
+    assert named(events, "process_name") == {(1, 0): "python"}
+    assert named(events, "thread_name") == {(1, 100): "flow"}
+    assert [(e["name"], e["cat"], e["ts"], e["dur"]) for e in slices(events)] == [
+        ("run", "sample", round((T0 + 1) * 1e6), 1_500_000),
+        ("load", "sample", round((T0 + 1) * 1e6), 500_000),
+        ("ask", "sample", round((T0 + 1.5) * 1e6), 1_000_000),
+    ]
+    assert document["otherData"]["end"] == "2026-01-01T00:00:02.500000+00:00"
 
 
 def test_programs_alone_still_make_a_trace() -> None:

@@ -15,7 +15,7 @@ from playwright.sync_api import expect
 
 from tests.integration.doubles_core import AGENT, install, write_flow
 from tests.integration.doubles_web import Browser, served, until
-from tests.system.web.doubles_browser import ENGINES, go, opened
+from tests.system.web.doubles_browser import ENGINES, go, opened, stop
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -153,11 +153,7 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
         page.wait_for_url(re.compile(r".*#/epics/[^/]+$"))
         folder = page.locator(f"[data-hmz=workspace][data-path='{other}']")
         expect(folder.locator("[data-hmz=epic]")).to_contain_text("over there")
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
-        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
-            re.compile("stopped")
-        )
+        stop(page)
 
 
 #: A flow of a project's own: one agent, one turn.

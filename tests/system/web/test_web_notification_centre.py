@@ -238,3 +238,77 @@ def test_the_app_shows_one_through_its_own_notifications(engine: str) -> None:
                 "address": "#/live?workspace=%2Fw",
             }
         ]
+
+
+#: A page looked at, on the epic `e7`.
+_ON_E7 = """
+history.replaceState(null, '', '#/epics/e7')
+document.hasFocus = () => true
+"""
+
+
+def _listed(page: Page) -> None:
+    """Answers the sidebar's list of epics with `e7` and `e8`, both of the workspace `/w`."""
+    runs: list[dict[str, Any]] = [
+        {
+            "name": name,
+            "workspace": "/w",
+            "task": f"Fix {name}",
+            "flow": "chat",
+            "how": "done",
+            "held": False,
+            "began": "2026-10-12T09:00:00Z",
+            "agents": [],
+        }
+        for name in ("e8", "e7")
+    ]
+    page.route(
+        re.compile(r".*/api/runs\?.*"),
+        lambda route: route.fulfill(json={"runs": runs, "total": len(runs)}),
+    )
+
+
+def test_none_is_told_of_the_epic_the_page_is_on(engine: str) -> None:
+    feed = Feed(heard=[_item(7, "done"), _item(9, "asked", epic="e7")])
+
+    def routed(page: Page) -> None:
+        feed.routes(page)
+        _listed(page)
+
+    with (
+        served() as site,
+        opened(site, engine=engine, init=_ON_E7, routed=routed) as page,
+    ):
+        expect(page.locator("[data-hmz=epic]")).to_have_count(2)
+        while {id_ for _, said in feed.sent for id_ in said["ids"]} != {7, 9}:
+            page.wait_for_timeout(50)
+        expect(page.locator("[data-hmz=notification-toast]")).to_have_count(0)
+        expect(page.locator("[data-hmz=notification-count]")).to_be_hidden()
+        expect(page.locator("[data-hmz=unread]")).to_have_count(0)
+
+
+def test_an_unread_one_marks_its_epic_until_it_is_opened(engine: str) -> None:
+    feed = Feed(heard=[_item(8, "done")])
+
+    def routed(page: Page) -> None:
+        feed.routes(page)
+        _listed(page)
+
+    with served() as site, opened(site, engine=engine, routed=routed) as page:
+        expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
+        row = page.locator("[data-hmz=epics] .side-item[data-epic=e8]")
+        expect(row.locator("[data-hmz=unread]")).to_have_count(1)
+        expect(page.locator("[data-hmz=unread]")).to_have_count(1)
+
+        # Folded, its workspace carries the mark instead.
+        group = page.locator("[data-hmz=workspace][data-path='/w']")
+        group.locator(".side-folder .side-toggle").click()
+        expect(group.locator(".side-folder [data-hmz=unread]")).to_have_count(1)
+        group.locator(".side-folder .side-toggle").click()
+
+        row.locator("[data-hmz=epic]").click()
+        expect(page.locator("[data-hmz=unread]")).to_have_count(0)
+        expect(page.locator("[data-hmz=notification-count]")).to_be_hidden()
+        while not feed.sent:
+            page.wait_for_timeout(50)
+        assert feed.sent == [("read", {"ids": [8]})]

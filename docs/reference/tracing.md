@@ -59,6 +59,7 @@ With the lower-level [agent API](/reference/agents), each `AgentBase` has `id` a
 | `sessions` | `None`: every session. A comma-separated string or an iterable of ids: only those. An **empty** iterable: none. Each id matches a session whose key, key without `<backend>:`, or short id **starts with** it. A kept session brings the sub-agents it started. |
 | `start`, `end` | Any wording [dateparser](https://dateparser.readthedocs.io/) reads (`"3 days ago"`, `"2026-08-09 09:00"`), made timezone-aware. Records outside the window are dropped. Default: unbounded. |
 | `profile` | A `profile.jsonl` path (or its epic directory), or the records; programs overlapping the window are drawn. |
+| `flow_profile` | A `flow-profile.jsonl` path (or its epic directory), or the samples; drawn as one more process, `python`, whose one track `flow` nests each frame in the one that called it. Samples overlapping the window are drawn. |
 | `kept` | Directories humanize kept sessions in, each holding `<cli>/` laid out as that CLI's home, read beside every CLI's own home. |
 
 A trace of a **run** (`Epics.traced`) names exactly the ids the run's epic recorded, with no
@@ -161,7 +162,8 @@ Every value is a string.
 The same epic laid out for a viewer of its own rather than for Perfetto: compact, columnar, and
 without the payloads, which are asked for one span at a time. Built by
 `hmz.runtime.tracing.timeline.build` from the sessions a [trace](#document) of the epic would
-be drawn from, the epic itself, the tree of flows it called and its `profile.jsonl`; served as
+be drawn from, the epic itself, the tree of flows it called, its `profile.jsonl` and its
+`flow-profile.jsonl`; served as
 [`GET /api/runs/<name>/timeline`](/reference/web#api-runs) and from Python as
 [`Epics.timeline`](#epics-timeline). Unlike a Chrome trace, **every session is its own
 process**, under the session that started it.
@@ -194,7 +196,7 @@ a process's `kind`.
 | `strings` | The string table. |
 | `processes` | Lanes of the chart's first level, by `id` (= index). |
 | `tracks` | Lanes of the second level, by index, each one process's. |
-| `spawns` | Arrows: columns `span` (the span that started it) and `process` (what it started), sorted by span. A sub-agent's comes from the action that started it; every other session's from the flow call that opened it, or the epic's own span. |
+| `spawns` | What started each process: columns `span` (the span that started it) and `process` (what it started), sorted by span. A sub-agent's comes from the action that started it; every other session's from the flow call that opened it, or the epic's own span. |
 | `summary` | `start` (0), `end` (µs; the last moment anything did), counts of `processes`, `tracks`, `spans`, and `categories`: `{<category>: {count, time, in, out}}` (`time` = durations summed, µs; `in`/`out` = tokens). |
 
 ### Processes {#timeline-processes}
@@ -202,15 +204,15 @@ a process's `kind`.
 | Field | Is |
 | --- | --- |
 | `id` | Its index in `processes`. |
-| `kind` | `flow` (the epic and the flows it called; first, where there is an epic), `session` (one agent or sub-agent conversation, ordered by start), or `os` (one program of a [profiled](#profiling-a-run) epic, ordered by start then pid). |
-| `name` | `<label> · <title>` for a session (≤ 120 characters), the flow for `flow`, `<program> · <pid>` for `os`. |
-| `parent` | A process id, or `-1`. A sub-agent hangs from the session that started it, a session the epic opened (or a sub-agent whose starter did nothing) from the `flow` process (0), a program from the program that held its parent's pid when it started, where that was profiled. |
-| `key` | The session key (`<backend>:<id>`); `epic:<name>` for `flow`; `pid:<pid>:<start>` for `os`. |
+| `kind` | `flow` (the epic and the flows it called; first, where there is an epic; and, next, `python`, where the epic's [flow was profiled](#flow-profile-jsonl)), `session` (one agent or sub-agent conversation, ordered by start), or `os` (one program of a [profiled](#profiling-a-run) epic, ordered by start then pid). |
+| `name` | `<label> · <title>` for a session (≤ 120 characters), the flow for `flow` (`python` for its profiled Python), `<program> · <pid>` for `os`. |
+| `parent` | A process id, or `-1`. A sub-agent hangs from the session that started it, a session the epic opened (or a sub-agent whose starter did nothing) from the `flow` process (0), as does `python`, a program from the program that held its parent's pid when it started, where that was profiled. |
+| `key` | The session key (`<backend>:<id>`); `epic:<name>` for `flow`, `python:epic:<name>` for `python`; `pid:<pid>:<start>` for `os`. |
 | `pid` | The operating system's pid for `os`, else 0. |
 | `agent` | The agent it ran on, as [a trace names one](#what-counts-as-one-agent). |
 | `role` | The flow's role that opened it (root sessions the epic recorded), else `""`. |
 | `backend`, `model` | The CLI, and the model the session logged. |
-| `label` | `main` or what a sub-agent was started as; how the epic ended for `flow`; the program's name for `os`. |
+| `label` | `main` or what a sub-agent was started as; how the epic ended for `flow`, `python` for `python`; the program's name for `os`. |
 | `record` | The epic's record of the call that opened it (`epic.jsonl` or `epic.<flow>_<id>.jsonl`); `""` for `flow` and `os`. |
 | `start`, `end` | µs, over its spans. |
 | `tracks` | Its track ids, in lane order. |
@@ -256,19 +258,33 @@ with ids moved, is `409` rather than some other span.
 
 `args`: an action's own `args` and `session` (its key); a session banner's session `args`,
 `agent`, `parent`, `session`; a flow's `flow`, `task`, `how`, `record`; a thread's `pid`,
-`ppid`, `tid`, `argv` (joined), `cpu` (seconds). An id the timeline does not have is `404` (a
+`ppid`, `tid`, `argv` (joined), `cpu` (seconds); a frame of the flow's Python (category
+`sample`), its `frame`. An id the timeline does not have is `404` (a
 `KeyError` from Python).
 
 ## Profiling a run {#profiling-a-run}
 
-A run asked to be profiled -- [`hmz exec --profile`](/reference/cli#hmz-exec),
-`profile=True` to `Hmz().run`, `Runner` or `Link.start`, or the **profiling** row of the
-[`/flow`](/reference/tui#roles-page) menu, beside the budget -- samples every descendant process of
-the process running the flow, every 0.05 s (psutil, on a daemon thread), from the epic's opening until it closes.
-Sampling never stops a run: an unreadable process is skipped, a machine whose processes
-cannot be read gives an empty profile. A process that lives less than one interval may be
-missed. Off unless asked; the epic's `began` record carries `profile: true` for a run that was,
-and `/resume` profiles the run it picks up the same way.
+A run is profiled two ways, each asked for apart -- with
+[`hmz exec`](/reference/cli#hmz-exec)'s `--profile-flow` and `--profile-environment`,
+`profile_flow=True` and `profile_environment=True` to `Hmz().run`, `Runner` or `Link.start`,
+or the **profile flow** and **profile environment** rows of the
+[`/flow`](/reference/tui#roles-page) menu, beside the budget:
+
+- **The environment** samples every descendant process of the process running the flow, every
+  0.05 s (psutil, on a daemon thread), from the epic's opening until it closes, into
+  [`profile.jsonl`](#profile-jsonl). An unreadable process is skipped, a machine whose
+  processes cannot be read gives an empty profile, and a process that lives less than one
+  interval may be missed.
+- **The flow** samples the flow's own Python every 0.001 s with
+  [pyinstrument](https://pyinstrument.readthedocs.io/), on the thread and in the asyncio task
+  the flow runs in and every task it starts, from the epic's opening until it closes, into
+  [`flow-profile.jsonl`](#flow-profile-jsonl), written as it closes. Time a task spends
+  awaiting something is a frame `[await]` under what awaited it; a thread something else is
+  already profiling gives no profile.
+
+Profiling never stops a run. Each is off unless asked; the epic's `began` record carries
+`profile_flow: true` and `profile_environment: true` for a run that was, and `/resume` profiles
+the run it picks up the same way.
 
 ### `profile.jsonl` {#profile-jsonl}
 
@@ -294,6 +310,26 @@ Read back per `(pid, began)`, the last record winning. Start times are then shif
 smallest `seen − began` in the profile (never negative) to put them on the clock the rest of
 the trace uses.
 
+### `flow-profile.jsonl` {#flow-profile-jsonl}
+
+JSON Lines in the epic, one per stretch of time the flow's Python spent in one place.
+
+```json
+{"t": 1790000000.12, "dt": 0.409,
+ "stack": ["run_flow /…/hmz/runtime/flowing/engine.py:1722", "chat /…/flows/chat.py:12", "[await]"]}
+```
+
+| Field | Type | |
+| --- | --- | --- |
+| `t` | `float` | when it began, epoch seconds |
+| `dt` | `float` | how long, seconds |
+| `stack` | `[str]` | each frame `function file:line` (the line it is defined on), outermost first |
+
+The frames every stack shares with where sampling started -- the event loop and the runner
+calling the flow -- are left off, and a stack held over several samples running is one line.
+Drawn, a frame held over consecutive lines under the same frames is one slice, with what it
+called nested under it.
+
 ## Epics {#epics}
 
 Every run of a flow writes one **epic**: a directory created when the run starts and closed
@@ -304,7 +340,8 @@ H/epics/<ws>/<stamp>-<hex6>/
     epic.jsonl                      the run's record
     epic.<flow>_<hex6>.jsonl        one record per flow call
     resume.jsonl                    the journal of a resumable run
-    profile.jsonl                   programs, for a profiled run
+    profile.jsonl                   programs, for a run whose environment was profiled
+    flow-profile.jsonl              the flow's own Python, for a run whose flow was profiled
     sessions/<cli>/…                the run's sessions, laid out as the CLI's home
     traces/export.trace.json        written by "export run" on /epics, replaced each time
     traces/<%Y%m%dT%H%M%SZ>.trace.json   written by Epics.traced, one per call
@@ -322,7 +359,7 @@ JSON Lines, one line per event, appended and flushed as it happens. Every line h
 
 | `event` | When | Fields |
 | --- | --- | --- |
-| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider, name}`, one per role: `agent` is the role, `name` what the agent filling it is called; `name` is absent from an epic written before agents had names of their own, whose sessions were written under the role), `envs` (list of `role=<-e spec>`, as given; in a record with no `spelling`, one written in a spelling `-e` now refuses, `local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets, is read back as `-e` spells it), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited), `profile` (`true`, only for a [profiled](#profiling-a-run) run), `spelling` (`2`: `envs` and `used` are spelled as `-e` writes `@` only before a provider) |
+| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider, name}`, one per role: `agent` is the role, `name` what the agent filling it is called; `name` is absent from an epic written before agents had names of their own, whose sessions were written under the role), `envs` (list of `role=<-e spec>`, as given; in a record with no `spelling`, one written in a spelling `-e` now refuses, `local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets, is read back as `-e` spells it), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited), `profile_flow`, `profile_environment` (`true`, only for a run [profiled](#profiling-a-run) that way), `spelling` (`2`: `envs` and `used` are spelled as `-e` writes `@` only before a provider) |
 | `opened` | a session's CLI has given it an id (when it opens, or during its first turn); a session whose CLI never started is not written | `agent` (the agent's own name, such as `NeiKos496`, never the role it fills), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<agent>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `self`, or the `<backend>:<name>` of the runtime an affinity sent it to; only when its work was on another machine) |
 | `called` | the flow calls a flow | `flow` (callee's canonical ref), `task`, `epic` (the callee's record file name) |
 | `returned` | that call ends, however | `flow`, `epic` |
@@ -410,7 +447,7 @@ one), then the archive, and reports `<path> · <size> · <n> sessions, <n> slice
 **Members**, under `<epic>/`, each scrubbed (below):
 
 1. `epic.jsonl` and every `epic.*.jsonl`;
-2. `resume.jsonl`, `profile.jsonl` where present;
+2. `resume.jsonl`, `profile.jsonl`, `flow-profile.jsonl` where present;
 3. `traces/*`;
 4. `sessions/<session name>/<path>`: every file each session was logged to, found by the CLI's
    log globs (e.g. `projects/*/<id>.jsonl` for Claude Code), under the session's `name` from
@@ -489,7 +526,7 @@ def traced(self, epic: Path, *, output: str | os.PathLike[str] | None = None,
 
 Collects exactly the ids the run recorded, named by role (`opened`), reading the epic's
 `sessions/` and every other directory a session says humanize kept it in, with the epic's
-`profile.jsonl`. Returns the path written and the document.
+`profile.jsonl` and `flow-profile.jsonl`. Returns the path written and the document.
 
 ### `Epics.trace`
 
@@ -499,6 +536,7 @@ def trace(self, *, sessions: str | Iterable[str] | None = None,
           output: str | os.PathLike[str] | None = None,
           start: str | None = None, end: str | None = None,
           profile: str | os.PathLike[str] | None = None,
+          flow_profile: str | os.PathLike[str] | None = None,
           kept: Iterable[str | os.PathLike[str]] | None = None) -> dict[str, Any]
 ```
 
@@ -509,6 +547,7 @@ def trace(self, *, sessions: str | Iterable[str] | None = None,
 | `output` | nothing written | A file to write, parent directories created. |
 | `start`, `end` | unbounded | Window. |
 | `profile` | none | A `profile.jsonl` to draw. |
+| `flow_profile` | none | A `flow-profile.jsonl` to draw. |
 | `kept` | every epic's `sessions/` (of this workspace; of every workspace for an `Hmz()` with no workspace) | Where humanize kept sessions. |
 
 The workspace is the `Hmz` workspace; with `Hmz()` and named sessions, sessions are collected
@@ -522,7 +561,8 @@ def timeline(self, epic: Path) -> Timeline
 ```
 
 Gathers what [`traced`](#epics-traced) gathers -- the ids the run recorded, where it kept
-them -- with the run, the tree of flows it called and its `profile.jsonl`, and lays them out as
+them -- with the run, the tree of flows it called, its `profile.jsonl` and its
+`flow-profile.jsonl`, and lays them out as
 an [Exomyth timeline](#timeline). Writes nothing. `Timeline.document` is the document;
 `Timeline.span(id)` one span, whole.
 
@@ -538,7 +578,7 @@ Writes the [export](#export) archive; returns its path and the manifest as writt
 ### `collect` <Badge type="info" text="internal" />
 
 `hmz.runtime.tracing.collect(workspace=None, *, sessions=None, agents=None, output=None,
-start=None, end=None, profile=None, kept=None) -> dict`: what `traced` and `trace` call. `hmz.runtime.tracing.collector.gather(workspace=None, *, sessions=None, agents=None,
+start=None, end=None, profile=None, flow_profile=None, kept=None) -> dict`: what `traced` and `trace` call. `hmz.runtime.tracing.collector.gather(workspace=None, *, sessions=None, agents=None,
 start=None, end=None, kept=None) -> list[Session]`: the sessions `collect` would draw, which
 `timeline` lays out.
 

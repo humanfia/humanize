@@ -33,6 +33,9 @@ class Hmz:
     def epics(self) -> Epics: ...
     @property
     def backups(self) -> Backups: ...
+    @property
+    def daemons(self) -> Daemons: ...
+    def carried(self, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]: ...  # daemons.carried
     def backends(self) -> tuple[Profile, ...]: ...
     def installed(self) -> dict[str, tuple[Model, ...]]: ...  # what each here last said it runs
     def installable(self) -> dict[str, tuple[Model, ...]]: ...  # its program here, its extra not
@@ -47,7 +50,8 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         backup: Iterable[str] | None = None,  # the targets; None for the defaults
     ) -> Runner: ...
@@ -60,7 +64,8 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
         backup: Iterable[str] | None = None,
@@ -90,7 +95,7 @@ class Run:
         self, runner: Runner, task: str, *, outworlder: OutworlderDriver | None = None
     ) -> None: ...
     flow: str; ref: str; chats: bool; task: str; declaration: Declaration; budget: Budget
-    profile: bool; backup: tuple[str, ...]
+    profile_flow: bool; profile_environment: bool; backup: tuple[str, ...]
     usage: Usage; epic: Path | None; running: bool; raised: BaseException | None
     result: Any  # properties
     @property
@@ -148,6 +153,7 @@ class Epics:
         start: str | None = None,
         end: str | None = None,
         profile: str | os.PathLike[str] | None = None,
+        flow_profile: str | os.PathLike[str] | None = None,
         kept: Iterable[str | os.PathLike[str]] | None = None,
     ) -> dict[str, Any]: ...
 
@@ -162,6 +168,33 @@ class Backups:
     def wait(self, seconds: float | None = None) -> bool: ...
     def listed(self, name: str) -> list[Stored]: ...  # blocks for the fetch
     def pulled(self, name: str, key: str) -> Path: ...  # Epics.foreign says if it resumes
+
+# daemons.py -- the daemons of other machines a frontend switches between, each an ssh host
+# kept under `daemons` in humanize's settings, and reaching them (web.md, "Daemons")
+LOCAL = "local"
+class Unreached(RuntimeError):  # not up, or refused there
+    seen: dict[str, str]; status: int
+class Daemons:
+    CARRIED: ClassVar[tuple[str, ...]]  # as CARRIED below
+    def all(self) -> list[dict[str, Any]]: ...
+    def find(self, name: str) -> dict[str, Any] | None: ...
+    def write(self, name: str, fields: dict[str, Any], *, replace: bool = False) -> dict[str, Any]: ...
+    def remove(self, name: str) -> None: ...
+    def offered(self) -> dict[str, dict[str, Any]]: ...  # ssh config hosts not added, by Host
+    def imported(self, wanted: Sequence[str]) -> list[str]: ...
+    def remotes(self, version: str | None = None) -> Remotes: ...
+class Remotes:
+    def state(self, name: str) -> dict[str, str]: ...  # {state, detail, version}
+    def connect(self, name: str) -> dict[str, str]: ...
+    def reached(self, name: str) -> tuple[int, str]: ...  # its port forwarded here, its key
+    def asks(self, name: str) -> tuple[int, dict[str, str]]: ...  # port, headers to send
+    def asked(self, name: str, path: str, body: dict[str, Any] | None = None, *,
+              into: Path | None = None) -> Any: ...  # its interface's answer, or bytes written
+    def followed(self, name: str, path: str, going: threading.Event
+                 ) -> Iterator[tuple[str, Any]]: ...  # each server-sent event, name and data
+    def close(self) -> None: ...
+CARRIED: tuple[str, ...]  # general, fallback, runtimes, backup: what a batch apply carries
+def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]: ...  # address, body
 
 # flows.py -- the flows there are, and the places they come from. What each of these answers
 # is `hmz.runtime.flowing`'s to say, and flowing.md carries the contract.
@@ -335,7 +368,10 @@ class Fallbacks:
   that run kept, and a trace asked for without saying where MUST read the sessions every run
   kept.
 - A timeline of one run MUST be gathered from exactly what a trace of it is, with the run, the
-  tree of flows it called and its profile, and MUST NOT be written anywhere.
+  tree of flows it called and its profiles, and MUST NOT be written anywhere.
+- The daemons of other machines MUST be written down, checked and reached here once, as
+  web.md's "Daemons" says, for every frontend that switches between them; a question to one
+  MUST be asked of its own web interface, reached over ssh, with the key it lets in.
 
 ### Hosting
 
@@ -379,8 +415,10 @@ class Fallbacks:
   it chose none, and how it was started MUST say which.
 - `status` MUST say, beside what is running, every question waiting on a person --
   `{question, role, text, mode}`, `mode` being `ask`, or `listen` for a chat waiting on its next
-  turn -- how the last run ended, `{how, why, epic, at}` or null, and the epic and task of the
-  run going or the last, so that a frontend can tell what happened without attaching.
+  turn -- how the last run ended, `{how, why, epic, at}` or null, the epic and task of the
+  run going or the last, and of a chat its `turn`: `running` while its agent answers, `done`
+  between turns and once it is over, which the run's standing also says -- so that a frontend
+  can tell what happened without attaching.
 - One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST
   close every conversation of a stopping run under whatever turn is open, and say how many.
 - An aside MUST be read-only, carry no skills, say nothing to the run, answer only the frontend

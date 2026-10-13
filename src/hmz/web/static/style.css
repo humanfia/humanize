@@ -460,7 +460,7 @@ code {
   opacity: 1;
 }
 
-.side-run:is(:hover, :has(.side-toggle:focus-visible)) .side-mark {
+.side-run:has(> .side-toggle):is(:hover, :has(.side-toggle:focus-visible)) .side-mark {
   visibility: hidden;
 }
 
@@ -502,6 +502,14 @@ code {
   flex: none;
   font: 11px var(--mono);
   color: var(--ink-3);
+}
+
+/* A notification unread of the epic, or of a folded workspace: the bell's menu's square. */
+.side-unread {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  background: var(--cyan);
 }
 
 /* The line down an epic opened out runs under the slot's middle, and its agents' icons stand
@@ -3157,7 +3165,10 @@ details.said-more summary {
   overflow-wrap: anywhere;
 }
 
+/* Top-aligned, so a name over several lines lines up with its fact by its first, not its last,
+   and is not drawn up over the fact above it. */
 .exo-link {
+  vertical-align: top;
   padding: 0;
   border: 0;
   background: none;

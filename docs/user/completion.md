@@ -45,11 +45,11 @@ With no flow running, type `/`:
 <pre>  <span class="p">/afk</span> <span class="m">[on|off]</span>      <span class="p">Toggle whether an agent may ask you</span><span class="n">1</span>
   <span class="p">/btw</span> <span class="m">[question]</span>    <span class="p">Ask side questions; press esc or /btw to stop</span>
   <span class="p">/clear</span>             <span class="p">Clear the screen</span>
-  <span class="p">/epics</span>             <span class="p">View and manage runs in this directory</span>
+  <span class="p">/epics</span>             <span class="p">View and manage runs here, or of another daemon</span>
   <span class="p">/exit</span>              <span class="p">Exit</span>
   <span class="p">/flow</span> <span class="m">[flow]</span>       <span class="p">Switch flow</span>
   <span class="p">/resume</span>            <span class="p">Resume the last run in this directory</span><span class="n">2</span>
-  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: general, accounts, fallback, runtimes, backup, workspace</span>
+  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace</span>
 <span class="d">────────────────────────────────────────────────────────────</span>
 <span class="d">❯</span> /
 <span class="d">────────────────────────────────────────────────────────────</span>
@@ -95,7 +95,7 @@ What to look at, by number:
 | --- | --- |
 | `/` | every command that would do something now, with what it takes after its name and what it is for |
 | `/flow ` | every flow you can run here, by the name it is offered under |
-| `/settings ` | its five pages: `general`, `accounts`, `fallback`, `runtimes`, `workspace` |
+| `/settings ` | its nine pages: `general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, `usage` |
 | `$` | the same flows, as `$name`. `$ralph_loop fix the build` starts that flow on that task. |
 
 The commands follow what is going on. `/stop` is listed while a flow runs and not once it is

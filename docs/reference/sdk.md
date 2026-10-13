@@ -113,14 +113,15 @@ def run(
     envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
     params: Mapping[str, Any] | FlowParams | None = None,
     budget: Budget | Mapping[str, Any] | None = None,
-    profile: bool = False,
+    profile_flow: bool = False,
+    profile_environment: bool = False,
     resume: bool | str | os.PathLike[str] = False,
     outworlder: OutworlderDriver | None = None,
 ) -> Run
 ```
 
-Equivalent to `Run(self.runner(flow, agents=…, envs=…, params=…, budget=…, profile=…, resume=…), task,
-outworlder=outworlder)`. Nothing starts. Where each agent's harness runs is not a parameter:
+Equivalent to `Run(self.runner(flow, agents=…, envs=…, params=…, budget=…, profile_flow=…,
+profile_environment=…, resume=…), task, outworlder=outworlder)`. Nothing starts. Where each agent's harness runs is not a parameter:
 it is the `affinity` of the [runtime](#runtimes) its work is on.
 
 | Parameter | Accepts | Default |
@@ -131,7 +132,8 @@ it is the `affinity` of the [runtime](#runtimes) its work is on.
 | `envs` | `{role: spec}` with an [`-e` spec](/reference/cli#writing-an-environment) without `<role>=`, or an `EnvDriver`; or an iterable of `EnvSpec`. | `()` |
 | `params` | A mapping (strings read as `-p` reads them) or an instance of the flow's `FlowParams`. `None`: defaults. | `None` |
 | `budget` | A [`Budget`](/reference/flows#what-a-run-may-spend), or a mapping validated by `Budget.model_validate` (`{"cost": 5}`, `{"duration": 3600}`, `{"duration": "PT1H"}`; `"1h"` is **not** accepted). `None`: `Budget(cost=inf)` for `chat`, else refused. | `None` |
-| `profile` | Whether to [profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them; as `--profile`. | `False` |
+| `profile_flow` | Whether to [profile](/reference/tracing#profiling-a-run) the flow's own Python, as well as tracing the run; as `--profile-flow`. | `False` |
+| `profile_environment` | Whether to [profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them; as `--profile-environment`. | `False` |
 | `resume` | `False`: from the top. `True`: the newest resumable epic of this flow here. A path: that epic. | `False` |
 | `outworlder` | The driver filling `Outworlder` roles (e.g. `fakes.FakeOutworlder`). `None`: always away, as under `hmz exec`. | `None` |
 
@@ -156,8 +158,8 @@ except Refused as why:
 ### `Hmz.runner` {#hmz-runner}
 
 ```python
-def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, profile=False,
-           resume=False) -> Runner
+def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, profile_flow=False,
+           profile_environment=False, resume=False) -> Runner
 ```
 
 Parameters and refusals as [`run`](#hmz-run), without `task` and `outworlder`. Returns the
@@ -180,8 +182,8 @@ hmz = Hmz()
 line = hmz.read(["-f", "ralph_loop", "-a", "agent=claude/claude-opus-5:high",
                  "-p", "budget.duration=6h,budget.cost=50", "fix the build"])
 run = hmz.run(line.flow, line.task, agents=line.agents, envs=line.envs,
-              params=line.params, budget=line.budget, profile=line.profile,
-              resume=line.resume)
+              params=line.params, budget=line.budget, profile_flow=line.profile_flow,
+              profile_environment=line.profile_environment, resume=line.resume)
 ```
 
 ### `Hmz.exec` {#hmz-exec}
@@ -213,7 +215,7 @@ One run of one flow. Made by [`Hmz.run`](#hmz-run). Constructing one starts noth
 | `task` | `str` | |
 | `declaration` | [`Declaration`](#declaration) | What the flow declares. |
 | `budget` | `Budget` | What the run may spend. |
-| `profile` | `bool` | Whether the run is [profiled](/reference/tracing#profiling-a-run) as well as traced. |
+| `profile_flow`, `profile_environment` | `bool` | Whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run) as well as traced. |
 | `usage` | `hmz.flows.Usage` | Spent so far: `duration: timedelta`, `cost: float`, `output_tokens: int`. |
 | `agents` | `tuple[AgentBase, ...]` | The coganchor agent behind each **open** session, oldest first. Empty for fake drivers. |
 | `epic` | `Path \| None` | The epic directory, once started. |
@@ -390,7 +392,8 @@ places tried after it, in order.
 | `foreign(epic)` | `str` | Why an imported run cannot be picked up here (its workspace is not at that path, or lacks the commit its bundle recorded), or `""`. |
 | `state(epic, flow: str = "")` | `dict[str, Any]` | A resumable flow's kept `ctx.state`: the run's own flow, or another by canonical ref. |
 | `traced(epic, *, output=None, start=None, end=None)` | `tuple[Path, dict]` | Gathers the run's own sessions into a Chrome trace. Default `output`: the epic's `traces/`, named for the moment. `start`/`end`: any wording `dateparser` reads. [Tracing](/reference/tracing#from-python). |
-| `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None, kept=None)` | `dict` | The same collector for any sessions. `sessions=None`: every session of the workspace; empty iterable: none. `kept`: directories of kept sessions to read (default: everywhere humanize keeps them). |
+| `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None, flow_profile=None, kept=None)` | `dict` | The same collector for any sessions. `sessions=None`: every session of the workspace; empty iterable: none. `kept`: directories of kept sessions to read (default: everywhere humanize keeps them). |
+| `transcripts(epic)` | `list[dict]` | What each session of the run said and did, read back out of its logs: per session that did anything, `key` (`<cli>:<id>`), `agent` and `actions` -- each `category`, `name`, `at`, `start`, `seconds` and `args` -- in order. Writes nothing. |
 | `timeline(epic)` | `Timeline` | The run as an [Exomyth timeline](/reference/tracing#timeline): `.document`, and `.span(id)` for one span whole. Writes nothing. |
 | `bundled(epic, *, output, transcript=None)` | `tuple[Path, dict]` | One `.hmzepic` of the whole run, credentials struck out. `output` (required): a file, or a directory to put it in. Returns the path and its manifest. [Exporting a run](/user/export). |
 | `imported(archive)` | `Path` | Reads a `.hmzepic` back in as an epic of the workspace it ran in, wherever that is. `ValueError` for anything else, an unsafe member, or an epic already here. [Importing a run](/user/export#importing-a-run). |
@@ -471,8 +474,8 @@ class Link:
     def asked(self, said: Mapping[str, Any], *, seconds: float | None = None) -> dict[str, Any]
     def start(self, flow: str | os.PathLike[str], task: str, *,
               agents: Mapping[str, Any] | None = None, envs: Mapping[str, Any] | None = None,
-              params: Any = None, budget: Any = None, profile: bool = False,
-              resume: bool | str | os.PathLike[str] = False) -> dict[str, Any]
+              params: Any = None, budget: Any = None, profile_flow: bool = False,
+              profile_environment: bool = False, resume: bool | str | os.PathLike[str] = False) -> dict[str, Any]
     def say(self, text: str, *, to: str = "") -> dict[str, Any]
     def answer(self, question: str, text: str) -> dict[str, Any]
     def stop(self) -> dict[str, Any]
@@ -498,7 +501,7 @@ in this process.
 | `heard(listener)` | Delivers every message, already-queued ones first, to `listener` on a thread of the link's own, in order. `RuntimeError` if a listener is already set. |
 | `__iter__` | Yields every message in order until `gone` or `close()`. `RuntimeError` if a listener is set. |
 | `asked(said, *, seconds=None)` | Sends one [request](/reference/daemon#requests) and waits (`seconds=None`: indefinitely; ignored in process). Returns the reply (`ok: true`). Raises [`Refused`](#refused) with the reply's `why`, or `TimeoutError("no answer to '<do>' in <s>s")`. |
-| `start(…)` | `start` request. `agents`/`envs`: specs as `-a`/`-e` after `<role>=`. `params`, `budget`: mappings or models (serialised). `profile`: whether the run is [profiled](/reference/tracing#profiling-a-run). Reply carries `run`. |
+| `start(…)` | `start` request. `agents`/`envs`: specs as `-a`/`-e` after `<role>=`. `params`, `budget`: mappings or models (serialised). `profile_flow`, `profile_environment`: whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run). Reply carries `run`. |
 | `say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board`, `aside` | The request of the same name. |
 | `close()` | Lets go of the host; runs continue. |
 
@@ -552,7 +555,8 @@ declaration order.
 | `envs` | `tuple[EnvSpec, ...]` | `()` | every `-e`, in order |
 | `params` | `dict[str, str]` | `{}` | every `-p` but `budget.*`, values unparsed |
 | `budget` | `Budget \| None` | `None` | every `-p budget.<limit>=`, parsed |
-| `profile` | `bool` | `False` | `--profile` |
+| `profile_flow` | `bool` | `False` | `--profile-flow` |
+| `profile_environment` | `bool` | `False` | `--profile-environment` |
 | `resume` | `bool` | `False` | `--resume` |
 | `as_json` | `bool` | `False` | `--json` |
 
@@ -614,7 +618,7 @@ them.
 
 | Type | Fields |
 | --- | --- |
-| `Ran` | `at: Path`, `flow`, `task`, `workspace`, `began`, `ended` (`""` while running or abandoned), `how` (`done`, `failed`, `stopped`, or `""`), `agents: tuple[Drove, ...]`, `sessions: tuple[Session, ...]`, `called: tuple[Called, ...]`, `resumable: bool`, `ref`, `envs: tuple[str, ...]` (as `-e` spells them, a run's kept in an older spelling included), `params: dict`, `budget: dict \| None`, `picked_up: str` (epic name or `""`), `profile: bool` (whether it was [profiled](/reference/tracing#profiling-a-run)); property `name` |
+| `Ran` | `at: Path`, `flow`, `task`, `workspace`, `began`, `ended` (`""` while running or abandoned), `how` (`done`, `failed`, `stopped`, or `""`), `agents: tuple[Drove, ...]`, `sessions: tuple[Session, ...]`, `called: tuple[Called, ...]`, `resumable: bool`, `ref`, `envs: tuple[str, ...]` (as `-e` spells them, a run's kept in an older spelling included), `params: dict`, `budget: dict \| None`, `picked_up: str` (epic name or `""`), `profile_flow: bool`, `profile_environment: bool` (whether its flow, and the programs its agents started, were [profiled](/reference/tracing#profiling-a-run)); property `name` |
 | `Drove` | `agent` (the role), `backend`, `model`, `effort` (`""` = auto), `provider` (`""` = as local), `name` (what the agent filling it is called; `""` in an epic written before agents had names); property `spec` (`-a` spelling after `<role>=`) |
 | `Called` | `flow`, `task`, `record` (file in the epic), `began`, `ended`, `how`, `calls: tuple[Called, ...]` |
 | `Session` | `agent`, `backend`, `provider` (`local` = as local), `ident` (backend's id), `name`, `at`, `flow`, `parent` (forked-from id or `""`), `record`, `where` (kept-session path), `harness` (`local`, `self`, the `<backend>:<name>` of a runtime an affinity sent it to, or `""` for work on this machine) |

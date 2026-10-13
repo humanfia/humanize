@@ -11,7 +11,7 @@ import pydantic
 import pytest
 
 from hmz.daemon import where
-from hmz.daemon.link import Link, linked, reached
+from hmz.daemon.link import Link, linked, reached, remote
 from hmz.daemon.proto import GONE, MESSAGE, frame, spoken
 from hmz.runtime import Refused
 from tests.unit.daemon.wire_u1 import Wire
@@ -79,7 +79,8 @@ def test_start_writes_out_the_whole_request(params: Any, plain: Any) -> None:
         envs={"box": "local"},
         params=params,
         budget={"cost": 5},
-        profile=True,
+        profile_flow=True,
+        profile_environment=True,
     )
     assert held.said == [
         {
@@ -90,7 +91,8 @@ def test_start_writes_out_the_whole_request(params: Any, plain: Any) -> None:
             "envs": {"box": "local"},
             "params": plain,
             "budget": {"cost": 5},
-            "profile": True,
+            "profile_flow": True,
+            "profile_environment": True,
             "resume": False,
             "backup": None,
         }
@@ -357,3 +359,49 @@ def test_reached_refuses_what_cannot_be_sent(wires: list[Wire], tmp_path: Path) 
     with pytest.raises(Refused, match="could not be reached"):
         link.say("hi")
     wire.say(b"")
+
+
+class _Afar:
+    """Another machine's interface, as `Remotes` reaches it: what it was asked, what it says."""
+
+    def __init__(self) -> None:
+        self.asked: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    def followed(
+        self, name: str, path: str, going: threading.Event
+    ) -> Iterable[tuple[str, Any]]:
+        del going
+        self.asked.append((name, path, None))
+        yield "hello", {"epoch": "e", "me": "c7"}
+        yield "record", {"type": "started", "seq": 1, "task": "hi"}
+        yield "standing", {"type": "run", "state": "running"}
+        yield "gone", {"why": "closing"}
+
+    def asked_of(self, name: str, path: str, body: dict[str, Any] | None = None) -> Any:
+        self.asked.append((name, path, body))
+        if body and body.get("text") == "no":
+            from hmz.runtime.doing.daemons import Unreached
+
+            raise Unreached("refused there", status=409)
+        return {"ok": True, "run": 3}
+
+
+def test_a_remote_link_asks_that_interface_and_is_told_its_stream() -> None:
+    afar = _Afar()
+    remotes = mock.Mock(followed=afar.followed, asked=afar.asked_of)
+
+    link = remote(remotes, "box", "/w s")
+    told = list(link)
+
+    assert link.client == "c7"
+    assert [one["type"] for one in told] == ["started", "run", "gone"]
+    assert told[-1]["why"] == "closing"
+    assert link.say("hello")["run"] == 3
+    with pytest.raises(Refused, match="refused there"):
+        link.say("no")
+    assert afar.asked[0] == ("box", "/api/held/stream?workspace=/w%20s", None)
+    assert afar.asked[1] == (
+        "box",
+        "/api/held/say",
+        {"text": "hello", "to": "", "workspace": "/w s"},
+    )

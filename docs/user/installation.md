@@ -229,7 +229,7 @@ Qwen Code signed in:
 <span class="d">──────────────────────────────────────────────────────────────────────</span>
 <span class="p">❯</span>
 <span class="d">──────────────────────────────────────────────────────────────────────</span>
-  <span class="a">◉</span> chat · ~/src/demo <span class="n">3</span>   <span class="d">/ commands · shift+enter newline · ← monitor · ctrl+c exit</span></pre>
+  <span class="a">◉</span> chat · ~/src/demo <span class="n">3</span>   <span class="d">/ commands · shift+enter newline · ctrl+c exit</span></pre>
 
 </Term>
 

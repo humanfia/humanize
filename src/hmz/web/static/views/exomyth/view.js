@@ -63,7 +63,6 @@ export function mount(root, name, query) {
 
   const finding = h('input', { type: 'search', class: 'exo-find', placeholder: 'Find', 'aria-label': 'Find', 'data-hmz': 'exomyth-find', spellcheck: 'false' })
   const counter = h('span', { class: 'exo-found mono', 'data-hmz': 'exomyth-found', 'aria-live': 'polite' })
-  const arrows = h('button', { type: 'button', class: 'btn small', 'aria-pressed': 'true', 'data-hmz': 'exomyth-arrows' }, 'Arrows')
 
   function drawTools() {
     fill(
@@ -82,7 +81,6 @@ export function mount(root, name, query) {
         h('div', { class: 'exo-search' }, icon('search'), finding, counter, iconButton('up', 'Previous', { onclick: () => step(-1) }), iconButton('down', 'Next', { onclick: () => step(1) })),
         tab === 'timeline'
           ? [
-              arrows,
               h('button', { type: 'button', class: 'btn small', onclick: () => chart.foldAll(false) }, 'Expand'),
               h('button', { type: 'button', class: 'btn small', onclick: () => chart.foldAll(true) }, 'Collapse'),
               h('button', { type: 'button', class: 'btn small', onclick: () => chart.reset() }, icon('fit'), 'Reset'),
@@ -91,12 +89,6 @@ export function mount(root, name, query) {
       ),
     )
   }
-
-  arrows.addEventListener('click', () => {
-    const on = arrows.getAttribute('aria-pressed') !== 'true'
-    arrows.setAttribute('aria-pressed', String(on))
-    chart.arrows(on)
-  })
 
   /** Shows a tab. */
   function shownAs(key) {

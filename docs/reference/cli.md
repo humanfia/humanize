@@ -111,7 +111,8 @@ with no interface. The run's [outworlder](#nobody-is-at-the-prompt) is always aw
 
 ```text
 usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
-                [-p KEY=VALUE[,...]] [--profile] [--resume] [--json]
+                [-p KEY=VALUE[,...]] [--profile-flow] [--profile-environment]
+                [--resume] [--json]
                 [--backup NAME]
                 task
 ```
@@ -124,7 +125,8 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | <span id="exec-agents"></span>`-a`, `--agents` | [`<agent>`](#writing-an-agent) list | 0‥n, merged | none | One agent per agent role. |
 | <span id="exec-envs"></span>`-e`, `--envs` | [`<env>`](#writing-an-environment) list | 0‥n, merged | none | One environment per environment role. |
 | <span id="exec-params"></span>`-p`, `--params` | [`<param>`](#writing-params) list | 0‥n, merged | the flow's defaults | Fields of the flow's `FlowParams`, and, as [`budget.<limit>`](#writing-a-budget), what the run may spend: **required** except for `chat`. |
-| <span id="exec-profile"></span>`--profile` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them. |
+| <span id="exec-profile"></span>`--profile-flow` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the flow's own Python, as well as tracing the run. |
+| `--profile-environment` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them. |
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
 | <span id="exec-json"></span>`--json` | flag | 0‥1 | off | Write the run as [NDJSON](#ndjson) on stdout. |
 | <span id="exec-backup"></span>`--backup` | a [backup target](/reference/settings#backup) name, or `none` | 0‥n, merged | `backup.defaults` | Where the epic is [backed up](/user/backups); `none` anywhere: nowhere. A name settings has none of exits `2`. Once the run has said how it went, `hmz exec` waits up to 60 s for the epic's backups, saying `hmz exec: backing the epic up` on stderr, and says where it left one. |
@@ -902,7 +904,7 @@ Every command is a shell around [`hmz.sdk.Hmz`](/reference/sdk#hmz):
 | --- | --- |
 | `hmz exec <argv>` | [`Hmz().exec(argv)`](/reference/sdk#hmz-exec) |
 | reading an `hmz exec` line | [`Hmz().read(argv)`](/reference/sdk#hmz-read) → `Line` |
-| `hmz exec` without the line | [`Hmz().run(flow, task, agents=…, envs=…, params=…, budget=…, profile=…, resume=…)`](/reference/sdk#hmz-run) |
+| `hmz exec` without the line | [`Hmz().run(flow, task, agents=…, envs=…, params=…, budget=…, profile_flow=…, profile_environment=…, resume=…)`](/reference/sdk#hmz-run) |
 | `hmz` (as a frontend of held runs) | [`Daemons().host().link()`](/reference/sdk#daemons) |
 
 `hmz web` is a frontend of held runs as `hmz` is; in Python it is `hmz.web.serve()`, which is

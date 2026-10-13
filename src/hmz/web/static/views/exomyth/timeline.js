@@ -65,7 +65,6 @@ export function timeline(told) {
   let range = null
   let hover = null
   let pointer = null
-  let arrows = true
   let found = null
   /** The agents, in the order they first appear: each its lane's colour. */
   let agents = []
@@ -256,7 +255,6 @@ export function timeline(told) {
       if (row.track < 0) heads(row, y)
       else spans(model.tracks[row.track], row.depth, y + 1, ROW - 2, 1)
     }
-    if (arrows) spawned(scroll)
     marked(scroll)
     ctx.restore()
     gutters(scroll)
@@ -448,33 +446,6 @@ export function timeline(told) {
     return { x, y: RULER + trackAt[at.track] + track.depth[at.index] * ROW - scroll + ROW / 2, at }
   }
 
-  /** An arrow from each span that started a process to where that process starts. */
-  function spawned(scroll) {
-    const { span, process } = model.spawns
-    ctx.lineWidth = 1.25
-    for (let k = 0; k < span.length; k++) {
-      const from = centre(span[k], scroll)
-      const target = model.processes[process[k]]
-      if (!from || !target) continue
-      const to = { x: xOf(target.start), y: RULER + headAt[target.id] - scroll + HEAD / 2 }
-      if ((from.y < RULER && to.y < RULER) || (from.y > height && to.y > height)) continue
-      if ((from.x < gutter && to.x < gutter) || (from.x > width && to.x > width)) continue
-      const lit = picked && (picked.span === span[k] || picked.process === target.id)
-      ctx.strokeStyle = ctx.fillStyle = lit ? colours.pink : colours.ink2
-      const bend = Math.max(12, Math.min(60, Math.abs(to.x - from.x) / 2))
-      ctx.beginPath()
-      ctx.moveTo(from.x, from.y)
-      ctx.bezierCurveTo(from.x + bend, from.y, to.x - bend, to.y, to.x - 1, to.y)
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.moveTo(to.x, to.y)
-      ctx.lineTo(to.x - 6, to.y - 3.5)
-      ctx.lineTo(to.x - 6, to.y + 3.5)
-      ctx.closePath()
-      ctx.fill()
-    }
-  }
-
   /** The span picked and the one pointed at, outlined; the stretch picked, washed. */
   function marked(scroll) {
     const outline = (it, colour) => {
@@ -628,7 +599,8 @@ export function timeline(told) {
     tip.textContent = `${said(track.name_[i])}\n${said(track.cat[i])} · ${lasted(track.dur[i])} at ${clock(track.start[i], 1000)}${said(track.model[i]) ? ` · ${said(track.model[i])}` : ''}${tokens}`
     tip.hidden = false
     const box = tip.getBoundingClientRect()
-    tip.style.left = `${Math.min(x + 14, innerWidth - box.width - 4)}px`
+    // Kept over the chart, clear of the panel beside it.
+    tip.style.left = `${Math.max(4, Math.min(x + 14, canvas.getBoundingClientRect().right - box.width - 4))}px`
     tip.style.top = `${y + 18 + box.height > innerHeight ? y - box.height - 8 : y + 18}px`
   }
 
@@ -919,10 +891,6 @@ export function timeline(told) {
       folded.clear()
       if (all) for (const one of model.processes) folded.add(one.id)
       laid()
-    },
-    arrows(on) {
-      arrows = on
-      draw()
     },
     /** Forgets the stretch of time picked. */
     unrange() {

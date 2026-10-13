@@ -46,13 +46,12 @@ const afk = [
 
 const one = [
   {
-    label: 'on an outworlder',
+    label: 'in a chat',
     lines: [
-      '[dim]─ reading outworlder human ─[/]',
-      '[g]●[/] Hey, what shall we build next?',
-      '[dim]   type an answer, or /afk to stop being asked[/][n]1[/]',
+      '[dim]❯[/] hey',
+      '[g]●[/] Hey, what shall we build next?[n]1[/]',
       '[dim]❯[/] /afk on',
-      { t: '[dim]away as human: agents that ask are told nobody is here[/][n]2[/]', hl: true },
+      { t: '[dim]away: agents that ask are told nobody is here[/][n]2[/]', hl: true },
       '[dim]— the flow is done —[/][n]3[/]',
       '',
       { r: '[m]assistant · claude/claude-opus-5-5:high · ○ 1[/]' },
@@ -60,8 +59,8 @@ const one = [
       { prompt: '' },
       { rule: true },
       {
-        l: '[y]afk human[/][n]4[/] · [c]◉[/] chat[m] · ~/work/api[/]',
-        keys: '/ commands · shift+enter newline · ← monitor · ctrl+c exit',
+        l: '[y]afk[/][n]4[/] · [c]◉[/] chat[m] · ~/work/api[/]',
+        keys: '/ commands · shift+enter newline · ctrl+c exit',
         hl: true,
       },
     ],
@@ -145,22 +144,21 @@ A flow may have more than one outworlder, each with a transcript of its own that
 | Where | `/afk` sets |
 | --- | --- |
 | an outworlder's transcript | that outworlder alone; the status line names it, `afk human` |
-| every agent's transcript, or the monitor | every outworlder at once, undoing what was set for one |
-| one conversation's transcript | nothing: it is not offered there, and says where it works |
+| anywhere else: an agent's or a conversation's transcript, or the monitor | every outworlder at once, undoing what was set for one |
 
-Here is `/afk on` typed on the outworlder's transcript of a [`chat`](https://humanfia.ai/flows/chat), recorded
-from a real run:
+A [`chat`](https://humanfia.ai/flows/chat) has one outworlder, you, and no transcript of it apart
+from the conversation, so `/afk on` is typed in the conversation itself:
 
 <TermScreen title="hmz · chat" :frames="one" />
 
-1. **`type an answer, or /afk to stop being asked`**: the question waiting on you.
-2. **`away as human: …`**: the confirmation names the outworlder it is about.
+1. **`Hey, what shall we build next?`**: the assistant's reply, waiting on your next message.
+2. **`away: …`**: the confirmation.
 3. **`— the flow is done —`**: an empty next message ends the chat. This is why
    `/afk` belongs off in a flow built around talking to you.
-4. **`afk human`**: away for that outworlder alone.
+4. **`afk`**: away, on the status line.
 
 Where somebody else has [claimed](/reference/tui#several-people-on-one-run) an outworlder,
-`/afk` from every agent's transcript leaves theirs as they left it, and `/afk` on their
+`/afk` from anywhere but an outworlder's transcript leaves theirs as they left it, and `/afk` on their
 outworlder's transcript is refused, saying whose it is.
 
 ::: tip `/afk` is about questions, not approvals
@@ -179,11 +177,6 @@ A flow's agents never wait for approval, whether you are here or away. See
 
 ## Troubleshooting
 
-### `hmz: /afk is only available on the monitor, the all-agents transcript and an outworlder's transcript, not on one agent's transcript`
-
-You are reading one conversation. Press <kbd>shift+tab</kbd> until you are on every agent's
-transcript, or on the outworlder's, and type it again.
-
 ### The chat ended as soon as I turned it on
 
 In [`chat`](https://humanfia.ai/flows/chat), every reply waits for your next message, and being away answers it
@@ -191,8 +184,8 @@ with nothing, which ends the conversation. Leave `/afk` off in any flow built ar
 
 ### I came back and the run is waiting on me
 
-`/afk` was off, or was set for another outworlder. Answer the question, or type `/afk on` on
-every agent's transcript to cover them all.
+`/afk` was off, or was set for another outworlder. Answer the question, or type `/afk on`
+anywhere but an outworlder's transcript to cover them all.
 
 ### I came back and a decision was made without me
 

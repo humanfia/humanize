@@ -1,12 +1,16 @@
 """What happened to the runs of this machine worth telling somebody about, as notices.
 
-An epic ending, a question for a person, a chat waiting for its next turn: each is a notice,
+An epic ending, a question for a person, a chat's turn done: each is a notice,
 worked out of how every workspace's runs stand -- asked of each host every couple of seconds,
-as `Places` asks what runs, and never by attaching to it, which would keep a host that would
+as a frontend asks what runs, and never by attaching to it, which would keep a host that would
 otherwise go. What stood when this started is where it starts from rather than news. The last
 few are kept, each numbered after the one before and after any this machine numbered before it
 was started again, so that a page -- or another machine's interface -- carries on from the last
 one it heard.
+
+Written once here rather than in each way in: the web interface and the terminal interface tell
+of the same runs, and which kinds a person wants told -- kept under `notifications` in this
+machine's `settings.yaml` -- is one answer for both.
 """
 
 from __future__ import annotations
@@ -15,16 +19,16 @@ import collections
 import contextlib
 import threading
 import time
-from typing import TYPE_CHECKING, Any
-
-from .routing import Refusal, Stream, routes
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
-    from .routing import Asked
+__all__ = ["KINDS", "Notices", "prefer", "preferences"]
 
-__all__ = ["ROUTES", "Notices"]
+#: Every kind of notice there is: an epic or a chat's turn done, an epic failed or stopped, a
+#: person asked, and a flow listening for what to say next.
+KINDS = ("done", "failed", "stopped", "asked", "listening")
 
 #: How often how the runs stand is asked, in seconds.
 _EVERY = 2.0
@@ -113,6 +117,7 @@ class Notices:
                     "host": (status.get("pid"), status.get("started")),
                     "ended": status.get("ended"),
                     "pending": list(status.get("pending") or []),
+                    "turn": status.get("turn"),
                 }
             self._stood = stood
             for one in made:
@@ -134,12 +139,9 @@ class Notices:
           after: The id of the last one heard, or 0 for every one kept.
 
         Raises:
-          Refusal: If `after` is not a whole number.
+          ValueError: If `after` is not a whole number.
         """
-        try:
-            heard = int(after or 0)
-        except ValueError as why:
-            raise Refusal("Say after as a whole number.") from why
+        heard = int(after or 0)
         with self._changed:
             return [dict(one) for one in self._kept if one["id"] > heard]
 
@@ -161,22 +163,25 @@ class Notices:
 
         return unheard
 
-    def stream(self) -> Stream:
-        """Every notice after the last one a page heard, then each as it comes.
-
-        A page that heard none hears only those made from now on.
-        """
-        return Stream(self._events)
-
     def close(self) -> None:
         """Stops looking, and ends every stream."""
         self._closed.set()
         with self._changed:
             self._changed.notify_all()
 
-    def _events(
+    def events(
         self, last: str, going: threading.Event
     ) -> Iterator[tuple[str, str, Any] | None]:
+        """Every notice after the last one heard, then each as it comes, as server-sent events.
+
+        Args:
+          last: The id of the last one heard, or "" for none: then only those made from now on.
+          going: Set once whoever hears them has gone.
+
+        Yields:
+          Each one's id, `notice` and the notice; or None after a while of nothing, to say it
+          is still there.
+        """
         # Where it starts from is as it is asked for, not as it is first read.
         return self._after(int(last) if last.isdigit() else self.last, going)
 
@@ -217,21 +222,27 @@ def _noticed(
     """
     made: list[dict[str, Any]] = []
     ended = now.get("ended")
+    # A host says the turn of a chat alone, and of the run it shows: the one going, or the last.
+    chat = "turn" in now
     if ended and ended != was.get("ended") and float(ended.get("at") or began) >= began:
         why = str(ended.get("why") or "").strip()
-        made.append(
-            {
-                "kind": _ENDED.get(str(ended.get("how")), "failed"),
-                "workspace": workspace,
-                "epic": ended.get("epic") or "",
-                "flow": ended.get("flow") or now.get("flow") or "",
-                "task": ended.get("task") or now.get("task") or "",
-                "role": "",
-                # Why in a line: of a crash, the last of its traceback.
-                "text": why.splitlines()[-1] if why else "",
-                "at": ended.get("at") or time.time(),
-            }
-        )
+        kind = _ENDED.get(str(ended.get("how")), "failed")
+        # A chat left is no news, nor one whose last turn was told done already.
+        left = kind == "stopped" or (kind == "done" and was.get("turn") == "done")
+        if not (chat and now.get("run") == ended.get("run") and left):
+            made.append(
+                {
+                    "kind": kind,
+                    "workspace": workspace,
+                    "epic": ended.get("epic") or "",
+                    "flow": ended.get("flow") or now.get("flow") or "",
+                    "task": ended.get("task") or now.get("task") or "",
+                    "role": "",
+                    # Why in a line: of a crash, the last of its traceback.
+                    "text": why.splitlines()[-1] if why else "",
+                    "at": ended.get("at") or time.time(),
+                }
+            )
     same = was.get("host") == (now.get("pid"), now.get("started"))
     stood: list[dict[str, Any]] = (was.get("pending") or []) if same else []
     pending: list[dict[str, Any]] = now.get("pending") or []
@@ -242,7 +253,8 @@ def _noticed(
             continue
         made.append(
             {
-                "kind": kind,
+                # A chat asking what to say next is its turn done.
+                "kind": "done" if chat and kind == "listening" else kind,
                 "workspace": workspace,
                 "epic": now.get("epic") or "",
                 "flow": now.get("flow") or "",
@@ -255,19 +267,53 @@ def _noticed(
     return made
 
 
-def _notices(asked: Asked) -> dict[str, Any]:
-    notices: Notices = asked.site.notices
-    found = notices.since(asked.query.get("after", "0"))
-    return {"notices": found, "last": notices.last}
+def preferences(held: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Which notifications are wanted, as `settings.yaml` holds them: every one, where it is silent.
+
+    Args:
+      held: Everything `settings.yaml` holds; read afresh where None.
+
+    Returns:
+      `kinds`, whether each kind is told, and `system`, whether the system is asked to show
+      them too.
+    """
+    if held is None:
+        from hmz.coganchor import settings
+
+        held = settings.read()
+    said: object = held.get("notifications")
+    wanted = cast("dict[str, Any]", said) if isinstance(said, dict) else {}
+    kinds: object = wanted.get("kinds")
+    each = cast("dict[str, Any]", kinds) if isinstance(kinds, dict) else {}
+    return {
+        "kinds": {kind: each.get(kind) is not False for kind in KINDS},
+        "system": wanted.get("system") is not False,
+    }
 
 
-def _stream(asked: Asked) -> Stream:
-    notices: Notices = asked.site.notices
-    return notices.stream()
+def prefer(
+    kinds: dict[str, bool] | None = None, *, system: bool | None = None
+) -> dict[str, Any]:
+    """Writes which notifications are wanted into `settings.yaml`, leaving the rest as it was.
 
+    Args:
+      kinds: Whether each kind named is told; the kinds not named are left as they are.
+      system: Whether the system is asked to show them too, or None to leave it.
 
-#: What a page reads of the notices.
-ROUTES = routes(
-    ("GET", "/api/notices", _notices),
-    ("GET", "/api/notices/stream", _stream),
-)
+    Returns:
+      As `preferences`, once written.
+
+    Raises:
+      OSError: If the settings cannot be written.
+    """
+
+    def change(held: dict[str, Any]) -> None:
+        now = preferences(held)
+        now["kinds"] |= kinds or {}
+        if system is not None:
+            now["system"] = system
+        held["notifications"] = now
+
+    from hmz.coganchor import settings
+
+    return preferences(settings.changes(change))

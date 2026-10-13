@@ -14,8 +14,13 @@ if TYPE_CHECKING:
     from hmz.runtime.epic import Ran
 
 
+#: What every epic offers last: copying what it is called, what it was asked, and where it is.
+_COPIES = ["copy-name", "copy-task", "copy-path"]
+
+
 def _does(
     *,
+    flow: str = "ralph",
     resumable: bool,
     foreign: str = "",
     uploads: bool = False,
@@ -24,7 +29,7 @@ def _does(
     ran = SimpleNamespace(
         at=Path("/epics/one"),
         began="2026-10-12T01:02:03Z",
-        flow="ralph",
+        flow=flow,
         how="done",
         agents={},
         sessions=[],
@@ -38,17 +43,17 @@ def _does(
 @pytest.mark.parametrize(
     ("resumable", "foreign", "rows", "said"),
     [
-        (True, "", ["resume", "export", "exomyth"], ""),
+        (True, "", ["resume", "graph", "export", "exomyth", *_COPIES], ""),
         (
             False,
             "",
-            ["export", "exomyth"],
+            ["graph", "export", "exomyth", *_COPIES],
             "ralph is not resumable, so this run cannot be resumed",
         ),
         (
             True,
             "the workspace it ran in, /w, is not on this machine",
-            ["export", "exomyth"],
+            ["graph", "export", "exomyth", *_COPIES],
             (
                 "this epic cannot be resumed here: "
                 "the workspace it ran in, /w, is not on this machine"
@@ -75,8 +80,31 @@ def test_does_offers_upload_where_there_is_a_target_and_says_how_backups_went() 
         },
     )
 
-    assert [one[0] for one in does.rows()] == ["export", "exomyth", "upload"]
+    assert [one[0] for one in does.rows()] == [
+        "graph",
+        "export",
+        "exomyth",
+        "upload",
+        *_COPIES,
+    ]
     assert does.about.splitlines()[-2:] == [
         "lab: backed up 2026-10-12 01:05",
         "home: failed 2026-10-12 01:06: denied",
     ]
+
+
+@pytest.mark.parametrize("flow", ["chat", "./flows/chat", "git+https://x/flows#chat"])
+def test_a_chat_is_not_offered_in_exomyth_which_draws_no_conversation(
+    flow: str,
+) -> None:
+    assert pick.chatting(flow)
+    assert [one[0] for one in _does(resumable=False, flow=flow).rows()] == [
+        "graph",
+        "export",
+        *_COPIES,
+    ]
+
+
+def test_a_flow_merely_named_like_chat_is_not_a_chat() -> None:
+    assert not pick.chatting("chatter")
+    assert not pick.chatting("./chat/ralph")

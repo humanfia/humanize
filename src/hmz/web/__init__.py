@@ -58,11 +58,10 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
     from pathlib import Path
 
     from hmz.coganchor import releases
+    from hmz.runtime.watching.notices import Notices
 
-    from .notices import Notices
     from .notifications import Notifications
     from .places import Places
-    from .remote import Remotes
     from .runs import Runs
     from .site import Site
     from .verses import fetches
@@ -78,7 +77,7 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
         releases.refresh()
         held_open.callback(site.server_close)
         # Every daemon on another machine let go of as the block ends, and what reached it.
-        site.remotes = Remotes()
+        site.remotes = places.hmz.daemons.remotes()
         held_open.callback(site.remotes.close)
         # Every daemon's notices, as this machine's interface tells them.
         site.notifications = Notifications(site)

@@ -31,8 +31,9 @@ if TYPE_CHECKING:
     from types import TracebackType
 
     from hmz.runtime import Host
+    from hmz.runtime.doing.daemons import Remotes
 
-__all__ = ["Link", "linked", "reached"]
+__all__ = ["Link", "linked", "reached", "remote"]
 
 #: How long a host is given to say hello back.
 _PATIENCE = 10.0
@@ -157,7 +158,8 @@ class Link:
         envs: Mapping[str, Any] | None = None,
         params: Any = None,
         budget: Any = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         backup: Iterable[str] | None = None,
     ) -> dict[str, Any]:
@@ -170,7 +172,9 @@ class Link:
           envs: What each environment role is, as `-e` spells it.
           params: The flow's params, as a mapping or its model, or None for its defaults.
           budget: What the run may spend, as a mapping or a `Budget`.
-          profile: Whether to profile the programs its agents start, as well as trace them.
+          profile_flow: Whether to sample the flow's own Python while it runs.
+          profile_environment: Whether to profile the programs its agents start, as well as
+            trace them.
           resume: Whether to pick up the newest run of it, or the epic to pick up.
           backup: The backup targets its epic goes to, by name, or None for the defaults.
 
@@ -186,7 +190,8 @@ class Link:
                 "envs": dict(envs or {}),
                 "params": _plain(params),
                 "budget": _plain(budget),
-                "profile": profile,
+                "profile_flow": profile_flow,
+                "profile_environment": profile_environment,
                 "resume": resume if isinstance(resume, bool) else str(resume),
                 "backup": None if backup is None else list(backup),
             }
@@ -422,4 +427,81 @@ def reached(
         carried.leaves()
         raise OSError(str(why)) from why
     link.client = str(said.get("client") or "")
+    return link
+
+
+#: How long another machine's interface is given to say who this end is.
+_HELLO = 30.0
+
+
+def remote(remotes: Remotes, daemon: str, workspace: str) -> Link:
+    """A frontend of the runs of one workspace on another machine, through its web interface.
+
+    What its web page reaches them by, reached over ssh: what is asked is posted as the page
+    posts it, and what the runs say is the page's stream of them, records and how each thing
+    stands, told to this end in order. It reads them as that interface's own page does, and
+    answers as that interface.
+
+    Args:
+      remotes: The daemons of other machines, as they are reached here.
+      daemon: Which, by name.
+      workspace: The workspace there whose runs these are.
+
+    Returns:
+      The link, following them.
+
+    Raises:
+      OSError: If that machine's interface would not say who this end is.
+    """
+    from urllib.parse import quote
+
+    from hmz.runtime.doing.daemons import Unreached
+
+    going = threading.Event()
+    hello: queue.SimpleQueue[str | BaseException] = queue.SimpleQueue()
+
+    def asks(said: dict[str, Any], seconds: float | None) -> dict[str, Any]:
+        del seconds  # as long as that interface takes, which bounds it itself
+        do = str(said.pop("do"))
+        try:
+            answer = remotes.asked(
+                daemon, f"/api/held/{quote(do)}", {**said, "workspace": workspace}
+            )
+        except (Unreached, LookupError, OSError) as why:
+            return {"ok": False, "why": str(why)}
+        return {"ok": True, **(answer if isinstance(answer, dict) else {})}
+
+    link = Link(asks, going.set)
+
+    def follows() -> None:
+        why = f"{daemon} stopped saying how its runs stand"
+        try:
+            for event, data in remotes.followed(
+                daemon, f"/api/held/stream?workspace={quote(workspace)}", going
+            ):
+                if event == "hello":
+                    hello.put(str(data.get("me") or ""))
+                elif event in ("record", "standing"):
+                    link.told(data)
+                elif event == "gone":
+                    why = str(data.get("why") or why)
+                    break
+                elif event == "again":
+                    why = f"{daemon} let its runs go and took them again"
+                    break
+        except (Unreached, LookupError, OSError, ValueError) as error:
+            why = str(error)
+            hello.put(error)
+        if not going.is_set():
+            link.told({"type": "gone", "why": why})
+
+    threading.Thread(target=follows, daemon=True, name="humanize-remote").start()
+    try:
+        me = hello.get(timeout=_HELLO)
+    except queue.Empty as why:
+        going.set()
+        raise OSError(f"{daemon} did not say who this end is") from why
+    if isinstance(me, BaseException):
+        raise OSError(str(me)) from me
+    link.client = me
     return link

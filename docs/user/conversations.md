@@ -31,52 +31,46 @@ const said = {
 
 const reading = [
   {
-    label: 'reading every agent',
+    label: 'reading builder',
     lines: [
-      '[dim]── builder[/][n]1[/]',
-      ...said.builder.slice(0, 2),
+      { t: '[dim]─ reading builder ─[/][n]1[/]', hl: true },
       '',
-      '[dim]── tester[/]',
-      ...said.tester.slice(0, 2),
-      '',
-      '[dim]── builder[/]',
-      ...said.builder.slice(2),
-      '',
-      '[dim]── tester[/]',
-      ...said.tester.slice(2),
-      '',
-      { r: `[m]${b}[/][n]2[/]` },
-      { r: `[m]${t}[/]` },
-      ...below,
-    ],
-    caption:
-      "Where the screen opens: every agent's work in the order it happens, with a <code>── name</code> line wherever the speaker changes.",
-  },
-  {
-    label: 'reading builder · conversation 1',
-    lines: [
-      { t: '[dim]─ reading builder · conversation 1 ─[/][n]3[/]', hl: true },
+      '[dim]❯[/] take nested lists in the parser',
       ...said.builder,
       '',
-      { r: `[m]${b} · reading[/][n]4[/]`, hl: true },
-      { r: `[m]${t} · unread[/][n]5[/]` },
+      { r: `[m]${b} · reading[/][n]2[/]`, hl: true },
+      { r: `[m]${t} · unread[/][n]3[/]` },
       ...below,
     ],
     caption:
-      "One conversation's own transcript, drawn from the top. <code>unread</code> marks the other agent: it has said something you have not seen.",
+      "Where a run lands: the agent of the first conversation it opens, drawn from the top. <code>unread</code> marks the other agent: it has said something you have not seen.",
   },
   {
     label: 'reading tester · conversation 1',
     lines: [
-      { t: '[dim]─ reading tester · conversation 1 ─[/]', hl: true },
+      { t: '[dim]─ reading tester · conversation 1 ─[/][n]4[/]', hl: true },
       ...said.tester,
       '',
       { r: `[m]${b}[/]` },
       { r: `[m]${t} · reading[/]`, hl: true },
       ...below,
     ],
+    caption: 'The next conversation that is running, its own transcript.',
+  },
+  {
+    label: 'reading builder · conversation 1',
+    lines: [
+      { t: '[dim]─ reading builder · conversation 1 ─[/]', hl: true },
+      '',
+      '[dim]❯[/] take nested lists in the parser',
+      ...said.builder,
+      '',
+      { r: `[m]${b} · reading[/]`, hl: true },
+      { r: `[m]${t}[/]` },
+      ...below,
+    ],
     caption:
-      'The next conversation that is running. One more <kbd>shift+tab</kbd> goes back to every agent.',
+      "One more <kbd>shift+tab</kbd> goes round to the builder's conversation. No transcript holds every agent at once: the monitor is where the whole run is watched.",
   },
 ]
 </script>
@@ -84,15 +78,15 @@ const reading = [
 # Many conversations at once
 
 When a flow drives several agents, each conversation they hold gets a transcript of its own,
-each [outworlder](/user/questions) gets one of what it asks you, and there is one more where
-all of it appears together. The screen opens on that one, and goes back to it when a flow
-starts. Press <kbd>shift+tab</kbd> to read one at a time.
+and each [outworlder](/user/questions) gets one of what it asks you. No transcript holds every
+agent's lines at once. A run lands on the agent of the first conversation it opens; press
+<kbd>shift+tab</kbd> to read the others one at a time, and <kbd>←</kbd> for [the
+monitor](/user/monitor), where the whole run is watched.
 
 ::: info At a glance
-- **You will** switch between the transcript of every agent and the transcript of one
-  conversation, and read the marks that say who is working and who has news.
-- **Use it when** a flow drives two or more agents, or one agent opens many conversations, and
-  the combined transcript is hard to follow.
+- **You will** switch between the transcripts of the agents and conversations of a run, and
+  read the marks that say who is working and who has news.
+- **Use it when** a flow drives two or more agents, or one agent opens many conversations.
 - **You need** a flow running in `hmz`. A flow with two agents, such as [`rlar`](https://humanfia.ai/flows/rlar),
   shows it best.
 :::
@@ -109,15 +103,16 @@ decides how many each agent holds: a reviewer that starts fresh every round open
 each time, and a fan-out holds several at once. Every conversation gets a transcript of its
 own, and so does each agent, with all of its conversations running down it.
 
-On top of those is the transcript of **every agent**: everything anybody says, in the order it
-happens. It is where the screen opens and where a run is usually watched from.
+When a run starts, the screen lands on the agent of the first conversation it opens, with what
+you started it on at the top, and follows that agent into its later conversations. Before any
+conversation opens, the screen shows only the interface's own lines.
 
 What you are reading decides more than what is on the screen:
 
 - **The transcript**, drawn from the top with a line saying whose it is.
 - **Where a line you type goes.** See [Talking to a running turn](/user/steering).
 - **Who answers [`/btw`](/user/btw)**: a side copy of that conversation, or the btw agent
-  while you read every agent.
+  on the monitor.
 - **What `/clear` clears**: only that transcript.
 
 ## Example: follow a builder and a tester
@@ -129,28 +124,26 @@ transcripts, as <kbd>shift+tab</kbd> does:
 
 What to look at, by number:
 
-1. **`── builder`.** On the transcript of every agent, a line with the agent's name marks each
-   place the speaker changes. Without it, two agents' lines would read as one voice.
+1. **`─ reading builder ─`.** You are on the builder's transcript, where the run landed,
+   drawn from the top so it reads as a whole.
 2. **One line per agent above the editor.** The name the flow gives it, what it runs as
    `cli/model:effort`, and `●` while it has a turn open. These stay whatever you read.
-3. **`─ reading builder · conversation 1 ─`.** You are on one conversation's own transcript,
-   drawn from the top, so it reads as a whole.
-4. **`· reading`** marks the agent whose transcript is on the screen.
-5. **`· unread`** marks an agent that has said something since you last read it: the tester
+   `· reading` marks the agent whose transcript is on the screen.
+3. **`· unread`** marks an agent that has said something since you last read it: the tester
    has been working while you read the builder.
+4. **`─ reading tester · conversation 1 ─`.** One conversation's own transcript.
 
 ### Check it worked
 
 - The line at the top of the transcript names the conversation you meant to read.
 - The agent you are reading carries `· reading` above the editor.
-- A line you type now goes to that conversation. On every agent's transcript it goes to
-  whichever turn is open.
+- A line you type now goes to that conversation, or to the open turn of the agent you read.
 
 ## The keys
 
 | Key | Reads |
 | --- | --- |
-| <kbd>shift+tab</kbd> | The next conversation that is running, then each outworlder of the flow, then round to every agent again. |
+| <kbd>shift+tab</kbd> | The next conversation that is running, then each outworlder of the flow, then round again. |
 | <kbd>tab</kbd> | The one before. |
 | <kbd>←</kbd>, then <kbd>enter</kbd> on a node | Any agent or conversation, working or not, picked on [the monitor](/user/monitor). |
 
@@ -173,8 +166,6 @@ then what it is holding.
 | `○ 2` | It is between turns, and holds two conversations. |
 | `reading` | Its transcript is the one on the screen. |
 | `unread` | It has said something since you last read it. |
-
-Nothing is marked `unread` while you read every agent, since everything is on that screen.
 
 ## One agent, many conversations
 
@@ -206,14 +197,14 @@ or not.
 ### The transcript I was reading stopped moving
 
 You are still on that conversation, and its turn has ended. A Ralph loop's next round is a new
-conversation. Press <kbd>shift+tab</kbd> to go on to the one that is running, or go back to
-every agent.
+conversation. Press <kbd>shift+tab</kbd> to go on to the one that is running, or read the
+agent itself from the monitor, which follows it into each new conversation.
 
 ### A line I typed is still on the pin
 
 A line typed on one conversation's transcript waits for that conversation's next turn, which a
-loop that starts fresh every round never takes. Go to every agent's transcript and type it
-again. See [Talking to a running turn](/user/steering#my-line-stays-on-the-pin-and-never-goes).
+loop that starts fresh every round never takes. Read the agent itself from the monitor,
+which says to whichever of its conversations has a turn open, and type it again. See [Talking to a running turn](/user/steering#my-line-stays-on-the-pin-and-never-goes).
 
 ## Next steps
 

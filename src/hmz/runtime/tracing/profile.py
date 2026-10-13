@@ -1,4 +1,4 @@
-"""What else was running while the agents were: the programs a run started, sampled.
+"""What else was running while the agents were: the programs a run started, and the flow itself.
 
 An agent's turn is mostly other programs. It runs the tests, it builds the thing, it greps the
 repository, and the minutes a run takes are mostly minutes those took -- none of which appears
@@ -15,6 +15,11 @@ Sampled rather than intercepted: nothing here is between the agent and what it r
 that missed a process that lived for thirty milliseconds has missed thirty milliseconds, and a
 sampler that could not read `/proc` at all has missed everything -- neither of which is a
 reason for a run to stop.
+
+The flow's own Python is the other half, profiled apart: the code between the turns -- what
+it parsed, what it waited on, what it decided -- sampled by pyinstrument on the thread the
+flow runs on, and written down as one stack per stretch of time. Drawn as a lane of nested
+frames, the way a profiler draws its samples, beside the turns those frames waited on.
 """
 
 from __future__ import annotations
@@ -29,13 +34,36 @@ import psutil
 
 if TYPE_CHECKING:
     import os
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
     from pathlib import Path
 
-__all__ = ["PROFILE", "Process", "Profiler", "Thread", "read"]
+__all__ = [
+    "FLOW_PROFILE",
+    "PROFILE",
+    "Frame",
+    "Process",
+    "Profiler",
+    "Sample",
+    "Sampler",
+    "Thread",
+    "frames",
+    "read",
+    "samples",
+]
 
-#: What a run's profile is written to, inside the epic it was taken in.
+#: What a run's profile of the programs its agents start is written to, inside its epic.
 PROFILE = "profile.jsonl"
+
+#: What a run's profile of the flow's own Python is written to, beside it.
+FLOW_PROFILE = "flow-profile.jsonl"
+
+#: How often the flow's Python is sampled, in seconds: pyinstrument's own default.
+INTERVAL = 0.001
+
+#: How far apart, in seconds, one sample's end and the next one's start may be and the two
+#: still be one stretch: what adding up epoch seconds in floats is out by, and far less than
+#: an interval.
+_JOINED = 1e-5
 
 #: How often the processes under a run are looked at. Fast enough to catch a `grep` and slow
 #: enough to cost a run nothing: reading a process tree is a directory listing and a handful
@@ -93,6 +121,36 @@ class Process(NamedTuple):
     def label(self) -> str:
         """What to call it where it is drawn: what it is, and which one it was."""
         return f"{self.name} · {self.pid}"
+
+
+class Sample(NamedTuple):
+    """One stretch of time the flow's Python spent in one place.
+
+    Attributes:
+      t: When it began, in epoch seconds.
+      dt: How long it lasted, in seconds.
+      stack: Where it was, each frame as `function file:line`, the outermost first.
+    """
+
+    t: float
+    dt: float
+    stack: tuple[str, ...]
+
+
+class Frame(NamedTuple):
+    """One frame the flow's Python was in, for as long as it stayed there.
+
+    Attributes:
+      name: The frame, as `function file:line`.
+      began: When the flow entered it, in epoch seconds.
+      ended: When it left.
+      depth: How many frames are outside it, from 0.
+    """
+
+    name: str
+    began: float
+    ended: float
+    depth: int
 
 
 class Profiler:
@@ -286,6 +344,155 @@ class Profiler:
             self._at.parent.mkdir(parents=True, exist_ok=True)
             with self._at.open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(said) + "\n")
+
+
+class Sampler:
+    """Samples the flow's own Python, and writes down where it was.
+
+    Started on the thread the flow runs on, in the task that runs it -- pyinstrument follows
+    that task and every task it starts, and says of the time it spent awaiting something
+    that it was awaiting it -- and stopped there when the run ends. What it saw is written
+    once, as it stops: a stack a sample is nothing until the next one says how long it lasted.
+    """
+
+    def __init__(self, at: str | os.PathLike[str], interval: float = INTERVAL) -> None:
+        """Holds where to write and how often to look.
+
+        Args:
+          at: The file to write, which is `flow-profile.jsonl` in the run's own epic.
+          interval: How often to look, in seconds.
+        """
+        import pathlib
+
+        import pyinstrument
+
+        self._at = pathlib.Path(at)
+        self._profiler = pyinstrument.Profiler(interval=interval, async_mode="enabled")
+
+    def start(self) -> None:
+        """Begins sampling the thread and the task this is called from."""
+        self._profiler.start()
+
+    def stop(self) -> None:
+        """Stops sampling, and writes down what was seen -- or nothing, where that fails."""
+        with contextlib.suppress(Exception):
+            # Anything at all: a profile is not a thing to fail a run over.
+            self._wrote(self._profiler.stop())
+
+    def _wrote(self, session: Any) -> None:
+        """Writes one pyinstrument session down, a line per stretch spent in one place.
+
+        Each of its records is a stack and how long it was held, in order from the moment
+        it started; the frames every stack shares with where sampling was started -- the
+        loop, and the runner that called the flow -- are left off the top, and a stack held
+        over several records running is one line.
+        """
+        start = [_key(one) for one in session.start_call_stack]
+        held: list[Sample] = []
+        t = float(session.start_time)
+        for stack, dt in session.frame_records:
+            shared = 0
+            while (
+                shared < min(len(stack), len(start))
+                and _key(stack[shared]) == start[shared]
+            ):
+                shared += 1
+            own = tuple(_named(one) for one in stack[shared:])
+            if own and held and held[-1].stack == own and _joined(held[-1], t):
+                held[-1] = held[-1]._replace(dt=held[-1].dt + dt)
+            elif own:
+                held.append(Sample(t, dt, own))
+            t += dt
+        self._at.parent.mkdir(parents=True, exist_ok=True)
+        with self._at.open("a", encoding="utf-8") as stream:
+            stream.writelines(
+                json.dumps({"t": one.t, "dt": one.dt, "stack": list(one.stack)}) + "\n"
+                for one in held
+            )
+
+
+def _joined(one: Sample, t: float) -> bool:
+    """Whether a sample at one moment carries straight on from another, nothing between."""
+    return abs(one.t + one.dt - t) <= _JOINED
+
+
+def _key(frame: str) -> str:
+    """A frame pyinstrument names, as where it is rather than which line of it was running."""
+    return frame.partition("\x01")[0]
+
+
+def _named(frame: str) -> str:
+    """A frame pyinstrument names, as `function file:line` -- the line it was defined on."""
+    function, _, rest = _key(frame).partition("\x00")
+    file, _, line = rest.partition("\x00")
+    return f"{function} {file}:{line}" if file else function
+
+
+def samples(at: str | os.PathLike[str]) -> list[Sample]:
+    """The stretches one profile of a flow's Python holds, in order.
+
+    Args:
+      at: The profile, or the epic it is in.
+
+    Returns:
+      One apiece, and nothing at all for a run whose flow was not profiled.
+    """
+    import pathlib
+
+    where = pathlib.Path(at)
+    if where.is_dir():
+        where = where / FLOW_PROFILE
+    held: list[Sample] = []
+    for said in _lines(where):
+        with contextlib.suppress(KeyError, TypeError, ValueError):
+            held.append(
+                Sample(
+                    float(said["t"]),
+                    float(said["dt"]),
+                    tuple(str(one) for one in said["stack"]),
+                )
+            )
+    return sorted(held, key=lambda one: one.t)
+
+
+def frames(held: Iterable[Sample]) -> list[Frame]:
+    """The frames a run of samples was in, each held for as long as it stayed there.
+
+    A frame that is in one sample and in the next, under the same frames, is one frame across
+    both -- as a profiler's sample track draws them: a function that ran for a second is one
+    bar a second wide, with whatever it called nested under it.
+
+    Args:
+      held: The samples, in order.
+
+    Returns:
+      Every frame, each before the ones nested in it.
+    """
+    out: list[Frame] = []
+    open_: list[int] = []
+    last: Sample | None = None
+    for one in held:
+        if last is not None and not _joined(last, one.t):
+            open_.clear()  # time nothing was sampled in, which no frame was held over
+        for at in open_:
+            # Up to where this one starts, exactly: a frame left here must not overlap the
+            # one beside it by what the floats were out by, or it would not read as nested.
+            out[at] = out[at]._replace(ended=one.t)
+        last = one
+        shared = 0
+        while (
+            shared < min(len(open_), len(one.stack))
+            and out[open_[shared]].name == one.stack[shared]
+        ):
+            shared += 1
+        del open_[shared:]
+        for depth in range(shared, len(one.stack)):
+            open_.append(len(out))
+            out.append(Frame(one.stack[depth], one.t, one.t, depth))
+        end = one.t + one.dt
+        for at in open_:
+            out[at] = out[at]._replace(ended=end)
+    return out
 
 
 def read(at: str | os.PathLike[str]) -> list[Process]:

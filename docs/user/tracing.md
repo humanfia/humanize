@@ -25,8 +25,16 @@ end of this page you will have found a run, exported its trace and read it.
 To read a run without leaving the terminal, choose **Exomyth** instead of **export run**: every
 session is a row of bars under the session that started it. <kbd>w</kbd> <kbd>s</kbd> zoom,
 <kbd>a</kbd> <kbd>d</kbd> pan, <kbd>←</kbd> <kbd>→</kbd> step from span to span, <kbd>enter</kbd>
-shows the one under the cursor whole, and <kbd>tab</kbd> turns it into a flame of where the time
-went. Every key is in [Exomyth](/reference/tui#exomyth).
+shows the one under the cursor whole, <kbd>p</kbd> its process, and <kbd>v</kbd> picks a stretch
+from one span to another and sums it by category. <kbd>tab</kbd> turns it into a flame of
+where that stretch went, each agent with its sessions merged or apart, weighed by time, tokens
+in or out, or count; and again into a table of every slice name, sorted by any column. Every
+key is in [Exomyth](/reference/tui#exomyth). The run going opens there from the
+[monitor](/user/monitor) as well, with <kbd>ctrl+e</kbd>.
+
+Or choose **graph**: its agents as the monitor draws them, who handed to whom, the flows it
+called, and its sessions under each agent. <kbd>enter</kbd> on a session reads what it did, turn
+by turn, read back out of its log.
 
 ## Before you start
 
@@ -41,7 +49,8 @@ went. Every key is in [Exomyth](/reference/tui#exomyth).
 
 humanize keeps a record of every run of a flow, called an **epic**, whether the run finished or
 not. `/epics` lists them for the directory you are in: when each ran, which flow, what it was
-asked to do, how many sessions it opened, and how it ended if it did not finish.
+asked to do, its agents, what it spent and how long it took, where it is backed up, how many
+sessions it opened, and how it ended if it did not finish.
 
 A run ends one of three ways: **done**, **failed**, or **stopped**, which covers a
 [stop by hand](/user/stopping), <kbd>ctrl+c</kbd>, and a spent budget. <kbd>enter</kbd> goes
@@ -59,14 +68,15 @@ session of Claude Code. Its `/epics` list:
 
 ```text
   hmz › Epics
-  Every epic in this directory, newest first: task, status, and session
-  count.
+  Every epic in this directory, newest first: task, agents, spend,
+  duration, session count, and status.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · 1 session · stopped        │
+  │                               slug.py only. · Ralph · 1 session · stopped│
   │ 2026-09-30 05:37 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · 3 sessions · stopped       │  ①
+  │                               slug.py only. · Ralph · 3 sessions ·       │  ①
+  │                               stopped                                    │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
   Search…                                                                       ②
@@ -148,7 +158,10 @@ where the budget is:
   │ budget                                                                 set ▸ │
   │   what a run may spend: stops at 20m, $0.50                                  │
   │──────────────────────────────────────────────────────────────────────────────│
-  │ profiling                                                             ● on ▾ │  ①
+  │ profile flow                                                         ○ off ▾ │
+  │   traced only                                                                │
+  │──────────────────────────────────────────────────────────────────────────────│
+  │ profile environment                                                   ● on ▾ │  ①
   │   samples the programs agents start                                          │
   ╰──────────────────────────────────────────────────────────────────────────────╯
 
@@ -157,14 +170,24 @@ where the budget is:
   enter choose   tab actions   esc back
 ```
 
-1. **`profiling`**, just under `budget` on [`/flow`](/reference/tui#roles-page): a switch.
+1. **`profile environment`**, just under `budget` and `profile flow` on
+   [`/flow`](/reference/tui#roles-page): a switch. **`profile flow`** above it is the same
+   switch for the flow's own Python. On the web page they are the **Profile flow** and
+   **Profile environment** boxes under **Options**.
    <kbd>enter</kbd> drops `on` and `off` under it, the cursor already on the other one, so
    <kbd>enter</kbd> twice turns it round. It is off until you turn it on.
 2. **Save**: kept with the rest of the flow's setup in this directory, so the next run of the
    flow here is profiled too until you turn it off.
 
-From the command line, add `--profile` to [`hmz exec`](/reference/cli#exec-profile); from
-Python, `profile=True` to [`Hmz().run`](/reference/sdk#hmz-run).
+From the command line, add `--profile-environment` to
+[`hmz exec`](/reference/cli#exec-profile); from Python, `profile_environment=True` to
+[`Hmz().run`](/reference/sdk#hmz-run).
+
+The flow's own Python can be profiled too, apart: `--profile-flow`, or `profile_flow=True`.
+Its trace then has one more process, `python`, whose one track is the flow's code as a
+sampling profiler draws it -- each function a slice as long as the flow stayed in it, what it
+called nested under it, and the time it spent waiting on a turn an `[await]` under the call
+that waited.
 
 A trace of a profiled run shows each program as a process of its own, on the same clock as the
 sessions, and its summary counts them. The same Ralph loop, resumed once profiling was on:
@@ -177,7 +200,7 @@ sessions, and its summary counts them. The same Ralph loop, resumed once profili
 
 A run already going is not profiled halfway through, and `/resume` profiles the run it picks
 up exactly as the run it goes on from was. An `hmz exec` line is profiled only when it says
-`--profile`.
+`--profile-environment` or `--profile-flow`.
 
 ## Which CLIs a trace can read
 
@@ -229,7 +252,7 @@ See [SDK reference](/reference/sdk) and the [Tracing reference](/reference/traci
 - **Fewer sessions in the trace than `/epics` counted.** Some agents ran on Cursor Agent,
   which a trace cannot read. Everything else is still there.
 - **No programs in a profiled trace.** The run was started before profiling was turned on, or
-  by an `hmz exec` line without `--profile`. Run the flow again with it on.
+  by an `hmz exec` line without `--profile-environment`. Run the flow again with it on.
 
 ## Next steps
 

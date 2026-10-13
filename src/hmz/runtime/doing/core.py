@@ -22,12 +22,13 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import os
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Mapping, Sequence
 
     from hmz.coganchor.backends import Model, Profile
     from hmz.flows import Budget, FlowParams
     from hmz.runtime.doing.accounts import Accounts
     from hmz.runtime.doing.backups import Backups
+    from hmz.runtime.doing.daemons import Daemons
     from hmz.runtime.doing.epics import Epics
     from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
@@ -63,6 +64,7 @@ class Hmz:
         self._fallbacks: Fallbacks | None = None
         self._epics: Epics | None = None
         self._backups: Backups | None = None
+        self._daemons: Daemons | None = None
 
     @property
     def workspace(self) -> Path:
@@ -145,6 +147,27 @@ class Hmz:
 
             self._backups = Backups()
         return self._backups
+
+    @property
+    def daemons(self) -> Daemons:
+        """The daemons of other machines a frontend may switch to, and reaching them."""
+        if self._daemons is None:
+            from hmz.runtime.doing.daemons import Daemons
+
+            self._daemons = Daemons()
+        return self._daemons
+
+    def carried(self, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
+        """This machine's settings as another daemon's interface takes them, of some pages.
+
+        What a batch apply writes there, as `hmz.runtime.doing.daemons.carried` says it.
+
+        Args:
+          pages: Which of `Daemons.CARRIED`.
+        """
+        from hmz.runtime.doing.daemons import carried
+
+        return carried(self, pages)
 
     def backends(self) -> tuple[Profile, ...]:
         """Every coding agent CLI humanize drives, whether or not it is installed here."""
@@ -255,7 +278,8 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         backup: Iterable[str] | None = None,
     ) -> Runner:
@@ -268,7 +292,9 @@ class Hmz:
           envs: What each environment role is, likewise with `-e`.
           params: The flow's params, or None for its defaults.
           budget: What the run may spend; only `chat` runs without one.
-          profile: Whether to profile the programs its agents start, as well as trace them.
+          profile_flow: Whether to sample the flow's own Python while it runs.
+          profile_environment: Whether to profile the programs its agents start, as well as
+            trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           backup: The backup targets the epic goes to, by name, or None for the defaults.
 
@@ -287,7 +313,8 @@ class Hmz:
             envs=envs,
             params=params,
             budget=budget,
-            profile=profile,
+            profile_flow=profile_flow,
+            profile_environment=profile_environment,
             resume=resume,
             workspace=self._workspace,
             backup=backup,
@@ -302,7 +329,8 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
         backup: Iterable[str] | None = None,
@@ -316,7 +344,9 @@ class Hmz:
           envs: What each environment role is; see :meth:`runner`.
           params: The flow's params, or None for its defaults.
           budget: What the run may spend; only `chat` runs without one.
-          profile: Whether to profile the programs its agents start, as well as trace them.
+          profile_flow: Whether to sample the flow's own Python while it runs.
+          profile_environment: Whether to profile the programs its agents start, as well as
+            trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           outworlder: Whoever is outside the run, or None for nobody.
           backup: The backup targets the epic goes to, by name, or None for the defaults.
@@ -337,7 +367,8 @@ class Hmz:
                 envs=envs,
                 params=params,
                 budget=budget,
-                profile=profile,
+                profile_flow=profile_flow,
+                profile_environment=profile_environment,
                 resume=resume,
                 backup=backup,
             ),
@@ -369,7 +400,8 @@ class Hmz:
             envs=line.envs,
             params=line.params,
             budget=line.budget,
-            profile=line.profile,
+            profile_flow=line.profile_flow,
+            profile_environment=line.profile_environment,
             resume=line.resume,
             backup=line.backup,
         ).run()

@@ -9,7 +9,7 @@
 // way, in the order they were opened, so an address to a session stays one as its run ends.
 
 import { get, poll } from './api.js'
-import { lane, lasting } from './dom.js'
+import { flowName, lane, lasting } from './dom.js'
 import { current, follow } from './held.js'
 
 /**
@@ -54,9 +54,11 @@ export function watch(name, workspace, told) {
       tell()
     })
   } else {
-    // The epic going has its record as soon as it starts; it is named once the list says which.
-    stop = poll(`/api/runs?status=running&limit=1&workspace=${encodeURIComponent(workspace)}`, 2000, (data) => {
-      const one = data && data.runs[0]
+    // The epic going has its record as soon as it starts; it is named once the list says which:
+    // the one a host holds -- a chat between turns among them, which is done rather than running
+    // -- or else one running.
+    stop = poll(`/api/runs?limit=5&workspace=${encodeURIComponent(workspace)}`, 2000, (data) => {
+      const one = data && (data.runs.find((each) => each.held) || data.runs.find((each) => each.how === 'running'))
       seen.none = Boolean(data) && !one
       if (one && (!seen.detail || seen.detail.name !== one.name)) {
         get(`/api/runs/${encodeURIComponent(one.name)}`).then((found) => {
@@ -80,6 +82,19 @@ function same(detail, started) {
 
 /** How far apart, in seconds, the host's start and the epic's own may be and be one start. */
 const SAME = 120
+
+/** Whether an epic is the built-in chat, read as a conversation rather than as a flow. */
+export function chatting(epic) {
+  return flowName(epic.flow) === 'chat'
+}
+
+/**
+ * How a chat stands, as a chat app says it: running while its agent answers, done otherwise --
+ * by the turn said where it is, else by how the epic stands.
+ */
+export function chatState(how, turn) {
+  return (turn || how) === 'running' ? 'running' : 'done'
+}
 
 /** The run in front of the held records, where they hold one, and how it stands. */
 export function going(held) {

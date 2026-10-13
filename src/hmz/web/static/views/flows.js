@@ -1,9 +1,10 @@
 // The flows, in the two pages `/flow` opens on in the terminal interface. Installed: a card for
 // each flow on offer in a workspace, by where it came from, each installed out of an index with
 // its release and any newer one -- and, one opened, what it declares, with starting it, updating
-// it, uninstalling it and copying it into the workspace whole. Flowverses: every place flows come
-// from, fetched or written into, and -- one opened -- every flow its index lists, every release
-// of each, installing, switching and uninstalling one; with adding, fetching and removing one.
+// it, uninstalling it and copying it into the workspace whole. Flowverses: every index flows are
+// installed out of, fetched or written into -- not this project's flows or yours, which are no
+// index -- and, one opened, every flow it lists, every release of each, installing, switching
+// and uninstalling one; with adding, fetching and removing one. Nothing opens until chosen.
 
 import { get, hash, poll, post, refresh } from '../api.js'
 import { stays } from '../app.js'
@@ -64,11 +65,9 @@ export function mount(root, { query }) {
       }
     } else {
       stop = () => {}
+      // Nothing of a flowverse is shown, nor the form adding one, until its card is chosen.
       if (verse) openVerse(verse)
-      else {
-        shown.hidden = false
-        fill(shown, addVerse())
-      }
+      else close()
     }
   }
 
@@ -225,7 +224,8 @@ export function mount(root, { query }) {
             ),
             h('span', { class: 'card-about' }, one.url || 'local', one.installed ? ` · ${one.installed} installed` : ''),
           )
-          card.addEventListener('click', () => openVerse(one.name))
+          // The one open closes when chosen again.
+          card.addEventListener('click', () => (one.name === verse ? close() : openVerse(one.name)))
           return menuOn(card, () => [
             { head: one.url || one.name },
             { label: 'Open', glyph: 'open', act: () => openVerse(one.name) },
@@ -233,13 +233,37 @@ export function mount(root, { query }) {
             one.url ? { label: 'Copy URL', glyph: 'copy', act: () => copy(one.url, 'URL copied') } : null,
           ])
         }),
-        h('button', { class: 'card card-add', type: 'button', 'data-hmz': 'add-verse', onclick: () => {
-          verse = ''
-          stays({ tab: 'verses', workspace })
+        // Its form, too, closes when chosen again.
+        h('button', { class: 'card card-add', type: 'button', 'data-hmz': 'add-verse', 'aria-pressed': String(adding()), onclick: (event) => {
+          const was = adding()
+          close()
+          if (was) return
+          event.currentTarget.setAttribute('aria-pressed', 'true')
+          shown.hidden = false
           fill(shown, addVerse())
         } }, h('span', { class: 'card-mark', 'aria-hidden': 'true' }, icon('plus')), h('span', { class: 'card-name' }, 'Add flowverse')),
       ),
     )
+  }
+
+  /** Whether the form adding a flowverse is what is shown. */
+  const adding = () => Boolean(shown.querySelector('[data-hmz=add-verse-form]'))
+
+  /** Marks the card of the flowverse called `name` chosen, and no other: Add flowverse's neither. */
+  function choose(name) {
+    for (const card of list.querySelectorAll('.card[data-verse], [data-hmz=add-verse]')) {
+      card.classList.toggle('chosen', card.dataset.verse === name)
+      card.setAttribute('aria-pressed', String(card.dataset.verse === name))
+    }
+  }
+
+  /** Shows no flowverse, and nothing in its place. */
+  function close() {
+    verse = ''
+    stays({ tab: 'verses', workspace })
+    choose('')
+    shown.hidden = true
+    fill(shown)
   }
 
   function addVerse() {
@@ -269,7 +293,7 @@ export function mount(root, { query }) {
   async function openVerse(name) {
     verse = name
     stays({ tab: 'verses', workspace, verse: name })
-    for (const card of list.querySelectorAll('.card[data-verse]')) card.classList.toggle('chosen', card.dataset.verse === name)
+    choose(name)
     shown.hidden = false
     fill(shown, h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
     let index
@@ -287,8 +311,7 @@ export function mount(root, { query }) {
     }, { kind: 'btn', busy: 'Fetching…' }))
     if (!index.fixed) actions.push(confirming({ label: 'Remove', ask: `Remove ${name} and every flow installed out of it?`, yes: 'Remove', no: 'Cancel', act: async () => {
       await change('/api/flowverses/remove', { name })
-      verse = ''
-      fill(shown, addVerse())
+      close()
     } }))
     fill(
       shown,

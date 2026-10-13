@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import itertools
 import json
+import time
 import types
 from typing import TYPE_CHECKING, Any
 
@@ -8,7 +10,19 @@ import psutil
 import pytest
 
 from hmz.runtime.tracing import profile
-from hmz.runtime.tracing.profile import PROFILE, Process, Profiler, Thread, read
+from hmz.runtime.tracing.profile import (
+    FLOW_PROFILE,
+    PROFILE,
+    Frame,
+    Process,
+    Profiler,
+    Sample,
+    Sampler,
+    Thread,
+    frames,
+    read,
+    samples,
+)
 from tests.unit.runtime.tracing.logs import jsonl
 
 if TYPE_CHECKING:
@@ -192,3 +206,80 @@ def test_profiler_with_nothing_under_it_writes_nothing(
     profiler.stop()  # stopping twice is harmless
     assert not at.exists()
     assert read(at) == []
+
+
+def _spinning(seconds: float) -> None:
+    """Holds the processor, in a frame of its own, for a sampler to find."""
+    until = time.perf_counter() + seconds
+    while time.perf_counter() < until:
+        pass
+
+
+def test_sampler_writes_where_the_flow_was_and_for_how_long(tmp_path: Path) -> None:
+    at = tmp_path / "epic" / FLOW_PROFILE
+    sampler = Sampler(at, interval=0.0005)
+
+    sampler.start()
+    _spinning(0.05)
+    sampler.stop()
+
+    held = samples(at.parent)
+    assert held
+    assert all(one.dt > 0 and one.stack for one in held)
+    assert [one.t for one in held] == sorted(one.t for one in held)
+    # One line per stretch: the same stack twice running is one line, not two.
+    assert all(a.stack != b.stack for a, b in itertools.pairwise(held))
+    # Where sampling was started from is left off the top: the test's own frame is not.
+    here = next(one for one in held if "_spinning" in one.stack[0])
+    assert here.stack[0] == (
+        f"_spinning {__file__}:{_spinning.__code__.co_firstlineno}"
+    )
+
+
+def test_sampler_that_cannot_stop_writes_nothing(tmp_path: Path) -> None:
+    sampler = Sampler(tmp_path / FLOW_PROFILE)
+
+    sampler.stop()  # never started, which pyinstrument refuses
+
+    assert not (tmp_path / FLOW_PROFILE).exists()
+
+
+def test_samples_skip_what_is_not_one(tmp_path: Path) -> None:
+    path = jsonl(
+        tmp_path / FLOW_PROFILE,
+        [
+            {"t": 2.0, "dt": 1.0, "stack": ["b x:1"]},
+            {"t": 1.0, "dt": 1.0, "stack": ["a x:1"]},
+            {"t": "never", "dt": 1.0, "stack": []},
+            {"dt": 1.0},
+        ],
+    )
+
+    assert samples(path) == [
+        Sample(1.0, 1.0, ("a x:1",)),
+        Sample(2.0, 1.0, ("b x:1",)),
+    ]
+    assert samples(tmp_path / "nowhere") == []
+
+
+def test_frames_merge_what_stayed_and_nest_what_it_called() -> None:
+    held = [
+        Sample(0.0, 1.0, ("main", "load")),
+        Sample(1.0, 1.0, ("main", "ask", "[await]")),
+        Sample(2.0, 1.0, ("main", "ask", "parse")),
+        Sample(3.0, 1.0, ("main", "load")),
+        Sample(4.0, 1.0, ("other",)),
+        # Nothing sampled between: the same frame again is another stretch of it.
+        Sample(9.0, 1.0, ("other",)),
+    ]
+
+    assert frames(held) == [
+        Frame("main", 0.0, 4.0, 0),
+        Frame("load", 0.0, 1.0, 1),
+        Frame("ask", 1.0, 3.0, 1),
+        Frame("[await]", 1.0, 2.0, 2),
+        Frame("parse", 2.0, 3.0, 2),
+        Frame("load", 3.0, 4.0, 1),
+        Frame("other", 4.0, 5.0, 0),
+        Frame("other", 9.0, 10.0, 0),
+    ]

@@ -42,6 +42,7 @@ import os
 import re
 import shlex
 import textwrap
+import threading
 from functools import partial
 from pathlib import Path
 from typing import (
@@ -56,6 +57,7 @@ from typing import (
     get_origin,
     runtime_checkable,
 )
+from urllib.parse import unquote
 from weakref import WeakKeyDictionary
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -77,7 +79,7 @@ from hmz.flows import Budget
 from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
-from hmz.runtime.watching.monitor import thousands
+from hmz.runtime.watching.monitor import lasting, thousands
 
 from .complete import paths
 from .dropdown import Dropdown, Value, anchor
@@ -108,13 +110,13 @@ if TYPE_CHECKING:
     )
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
+    from hmz.daemon.link import Link
     from hmz.runtime.epic import Ran
     from hmz.runtime.flowing import AgentRole, EnvRole
 
 
 __all__ = [
     "DETACHES",
-    "EVERY",
     "EXPORTED",
     "RESUMES",
     "STAYS",
@@ -150,6 +152,7 @@ __all__ = [
     "Targets",
     "budget_of",
     "called",
+    "chatting",
     "complete",
     "declared_of",
     "named_as",
@@ -189,6 +192,9 @@ _DOT = " · "
 #: The marker against the choice under the cursor, and against the one already in force.
 _HERE = "❯"
 _INFORCE = "✔"
+
+#: What marks a thing told of that has not been opened since, as the bell's list marks one.
+_UNREAD = "●"
 
 #: What says a row opens onto a sheet of its own, and what says its values are dropped under
 #: it to be picked from, as a `<select>` says so on a web page. Two marks because they are the
@@ -654,6 +660,9 @@ class Sheet[T](ModalScreen[T | None]):
         # a file manager and a browser.
         Binding("backspace", "up", "up", show=False),
         Binding("slash", "search", "search", show=False),
+        # What the row under the cursor offers, as a click with the other button does on
+        # the web page: a letter, so taken as typing wherever something is being typed.
+        Binding("m", "menu", "menu", show=False),
     ]
 
     #: Which row the cursor was last drawn on. Putting the rows up moves the cursor, which
@@ -746,6 +755,8 @@ class Sheet[T](ModalScreen[T | None]):
             return not typing and not self._on_written()
         if action == "search":
             return not typing and self._searchable()
+        if action == "menu":
+            return not typing
         if action in ("walk", "enter"):
             return bool(self.query("#choices"))
         return True
@@ -1552,6 +1563,12 @@ class Sheet[T](ModalScreen[T | None]):
                 Key("enter", said),
                 *(one for one in listed if one.key != "enter"),
             ]
+        if (
+            under
+            and all(one.does != "menu" for one in listed)
+            and self.menu() is not None
+        ):
+            listed.append(Key("m", "menu"))
         if self._searchable():
             listed.append(Key("/", "search"))
         if any(one.able() for one in self._acts):
@@ -1651,6 +1668,7 @@ class Sheet[T](ModalScreen[T | None]):
         *,
         here: bool,
         inforce: bool,
+        unread: bool = False,
     ) -> str:
         """One thing on a list: its name and what it is, as a row of `/settings` lays one out.
 
@@ -1660,15 +1678,18 @@ class Sheet[T](ModalScreen[T | None]):
           about: The line about it, which is said quietly.
           here: Whether the cursor is on it.
           inforce: Whether it is the one already in force.
+          unread: Whether it was told of and has not been opened since, dotted after its name.
 
         Returns:
           The row, as markup.
         """
         del at
-        named = f"[b]{escape(label)}[/]" + (
-            f" {_shade('$success', _INFORCE, here=here)}" if inforce else ""
+        named = (
+            f"[b]{escape(label)}[/]"
+            + (f" {_shade('$success', _INFORCE, here=here)}" if inforce else "")
+            + (f" {_shade('$accent', _UNREAD, here=here)}" if unread else "")
         )
-        shown = len(label) + (2 if inforce else 0)
+        shown = len(label) + (2 if inforce else 0) + (2 if unread else 0)
         pad = " " * max(1, _LABEL - shown)
         # Wrapped here rather than by the list, so that a second line starts under the first
         # rather than under the name: the column of what each thing is stays a column.
@@ -1785,6 +1806,51 @@ class Sheet[T](ModalScreen[T | None]):
         if at is None or not 0 <= at < listing.option_count:
             return ""
         return str(listing.get_option_at_index(at).id or "").removeprefix("=")
+
+    def menu(self) -> tuple[str, list[Action]] | None:
+        """What the row under the cursor offers, for `m`, which each sheet says for itself.
+
+        The web page's menu on a click with the other button, as a sheet of its own: every
+        list of things -- epics, flows, flowverses, daemons -- offers on one key whatever is
+        done to the one under the cursor, so that nothing about one is a walk away.
+
+        Returns:
+          What the row is, as the sheet's question, and what it offers, in the order they
+          stand -- or None for a sheet, or a row, that offers nothing.
+        """
+        return None
+
+    @work
+    async def action_menu(self) -> None:
+        """Opens what the row under the cursor offers, and does the one taken."""
+        offered = self.menu() if self.under() else None
+        if offered is None or self.opening():
+            return
+        named, acts = offered
+        acts = [one for one in acts if one.able()]
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            taken = await showing.push_screen_wait(Acts(named, acts))
+        finally:
+            self.opened()
+        chosen = next((one for one in acts if one.key == taken), None)
+        if chosen is not None:
+            chosen.does()
+
+    def copies(self, what: str) -> None:
+        """Puts something on the clipboard, as the terminal lets it be.
+
+        Args:
+          what: What is copied.
+        """
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        showing.copy_to_clipboard(what)
 
     def opening(self) -> bool:
         """Whether a walk out of this sheet is already open, so this press is a second at it.
@@ -1930,8 +1996,10 @@ class Chosen(NamedTuple):
         and one that was left at its defaults.
       budget: What a run of it may spend, or None for none -- which only `chat` may be run
         with.
-      profile: Whether a run of it profiles the programs its agents start, as well as
-        tracing them.
+      profile_flow: Whether a run of it profiles the flow's own Python, as well as tracing
+        it.
+      profile_environment: Whether a run of it profiles the programs its agents start, as
+        well as tracing them.
       backup: The backup targets an epic of it goes to, by name, or None for the defaults.
     """
 
@@ -1940,7 +2008,8 @@ class Chosen(NamedTuple):
     envs: dict[str, str] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     params: BaseModel | None = None
     budget: Budget | None = None
-    profile: bool = False
+    profile_flow: bool = False
+    profile_environment: bool = False
     backup: tuple[str, ...] | None = None
 
 
@@ -2367,8 +2436,11 @@ class Action(NamedTuple):
 #: list and its id cannot be taken for a name somebody chose.
 _ACT_ADD, _ACT_SPEAKS, _ACT_IMPORTS = "add", "speaks", "imports"
 _ACT_SEARCH, _ACT_SAVE, _ACT_DONE = "search", "save", "done"
-#: Turning `/epics` between this directory and this machine.
-_ACT_SCOPE = "scope"
+#: Turning `/epics` between this directory and this machine, to another daemon's, and a page
+#: newer or older.
+_ACT_SCOPE, _ACT_DAEMON, _ACT_NEWER, _ACT_OLDER = "scope", "daemon", "newer", "older"
+#: Downloading an epic out of a backup target.
+_ACT_DOWNLOAD = "download"
 #: Asking again what a list is of, naming an ssh host nobody saved, asking a daemon what it
 #: has, and taking away what a sheet is about.
 _ACT_AGAIN, _ACT_UNSAVED, _ACT_DETECT, _ACT_REMOVE = (
@@ -3681,6 +3753,31 @@ class Picks(Sheet[str]):
         self.dismiss(str(event.option.id).removeprefix("="))
 
 
+class Acts(Picks):
+    """What one row of a list offers, opened on it with `m`: its menu, as a sheet."""
+
+    SEARCHES: ClassVar = False
+
+    def __init__(self, named: str, acts: Sequence[Action]) -> None:
+        """Opens on one row's offers.
+
+        Args:
+          named: What the row is, said across the top.
+          acts: What it offers, in the order they stand.
+        """
+        super().__init__()
+        self.asked = escape(named)
+        self._offers = list(acts)
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Each offer, as its button would say it."""
+        return [(one.key, one.label, one.about) for one in self._offers]
+
+    def nothing(self) -> str:
+        """That there is nothing to do with it, where there is not."""
+        return "" if self._offers else "nothing to do with this one now"
+
+
 def _hmz() -> Hmz:
     """humanize, as the one object every sheet reaches a store through.
 
@@ -4478,13 +4575,24 @@ class Leaves(Popup):
 _REPORTS, _QUIET = "on", "off"
 
 #: The pages of `/settings`, in the order they are listed on its first screen: from the
-#: broadest to the nearest. The fallbacks are beside the accounts, since what a turn falls
-#: back to is another account or model; the machines a flow's environments go on follow, then
+#: broadest to the nearest. Which epics this machine tells of follows what is true of it, and
+#: the daemons -- this machine's and other machines' -- come after. The fallbacks are beside
+#: the accounts, since what a turn falls back to is another account or model; the machines a
+#: flow's environments go on follow, then
 #: the repositories epics are backed up to; this directory's own come last. Where flows come
 #: from is `/flow`'s (:mod:`hmz.tui.flows`). The menu itself is :mod:`hmz.tui.settings`; the
 #: pages are counted here because each page that is a list of things is a class of this
 #: module, and says which page it is when it says something.
-_EVERYWHERE, _ACCOUNTS, _FALLBACK, _MACHINES, _BACKUP, _DIRECTORY = range(6)
+(
+    _EVERYWHERE,
+    _NOTIFICATIONS,
+    _DAEMONS,
+    _ACCOUNTS,
+    _FALLBACK,
+    _MACHINES,
+    _BACKUP,
+    _DIRECTORY,
+) = range(8)
 
 
 #: How much of a directory a row says: the last of it, which is what tells one project from
@@ -6118,7 +6226,22 @@ class Backups(Pages):
         self._repos_was = list(self._repos)
 
     def _backup_actions(self) -> list[Action]:
-        """What is done about the targets: adding one, searching them, and saving."""
+        """What is done about the targets: adding one, downloading, searching, and saving.
+
+        Downloading from the targets saved, which are the ones there is anything in.
+        """
+        downloads = (
+            [
+                Action(
+                    _ACT_DOWNLOAD,
+                    "download…",
+                    "an epic a target holds, into this machine",
+                    self._downloads,
+                )
+            ]
+            if self._repos_was
+            else []
+        )
         return [
             Action(
                 _ACT_ADD,
@@ -6126,9 +6249,28 @@ class Backups(Pages):
                 "a repository to back epics up to",
                 lambda: self._writes_backup(None),
             ),
+            *downloads,
             self._searches(),
             self._saves_all(),
         ]
+
+    @work
+    async def _downloads(self) -> None:
+        """Lists what the saved targets hold, to download one from, and says what it did."""
+        from .stored import Stored
+
+        if self.opening():
+            return
+        try:
+            told = await self._interface().push_screen_wait(
+                Stored([one.name for one in self._repos_was])
+            )
+        finally:
+            self.opened()
+        if told:
+            self._told.extend(told)
+            self._said = told[-1]
+            self._fill()
 
     def _fill_backups(self) -> None:
         """Puts the targets up, each saying where it is and when it is used."""
@@ -9818,6 +9960,548 @@ class Machines(Pages):
         self._fill()
 
 
+class Daemoning(Form["dict[str, Any] | str"]):
+    """One daemon of another machine, on one form: what it is called, and what reaches it.
+
+    What `ssh` is told on top of the user's own config, each blank for what that config says,
+    as an ssh runtime's form asks it; a host the config already knows is its `Host` alone.
+    Written as it is answered, as the daemons page writes everything.
+    """
+
+    def __init__(
+        self, one: dict[str, Any] | None = None, *, taken: frozenset[str]
+    ) -> None:
+        """Initializes the form on a daemon, or on nothing for one being added.
+
+        Args:
+          one: The daemon as it is written down, or None to add one.
+          taken: What the others are called, which a new one may not be.
+        """
+        super().__init__()
+        self._one = one
+        self._taken = taken
+        held = one or {}
+        self._typed_in = {
+            _CALLED: str(held.get("name", "")),
+            _HOST: str(held.get("host", "")),
+            _USER: str(held.get("user", "")),
+            _PORT: str(held.get("port") or ""),
+            _KEY: str(held.get("identity_file", "")),
+            _JUMP: str(held.get("proxy_jump", "")),
+            _OPTIONS: ", ".join(
+                f"{key}={value}" for key, value in held.get("options", [])
+            ),
+            _ALIAS: str(held.get("alias", "")),
+        }
+
+    def asked(self) -> list[Question]:
+        """Its name, where it is new, then what ssh is told to reach it."""
+        typed = self._typed_in
+        reached = bool(typed[_HOST].strip() or typed[_ALIAS].strip())
+        return [
+            *(
+                ()
+                if self._one is not None
+                else (
+                    Question(
+                        _CALLED,
+                        "name",
+                        "what /epics @<name> calls it",
+                        needed=not typed[_CALLED].strip(),
+                    ),
+                )
+            ),
+            Question(
+                _HOST,
+                "host",
+                "hostname or IP address; blank for the alias's",
+                needed=not reached,
+            ),
+            Question(_ALIAS, "alias", "the Host entry of your ssh config, if any"),
+            Question(_USER, "user", "username; leave blank to use your ssh config"),
+            Question(_PORT, "port", "leave blank to use your ssh config, or 22"),
+            Question(_KEY, "identity file", "path to private key", path=True),
+            Question(_JUMP, "proxy jump", "jump host to connect through, if any"),
+            Question(_OPTIONS, "options", "additional ssh options: KEYWORD=VALUE, …"),
+        ]
+
+    def beside(self) -> list[Action]:
+        """Taking it away, for a daemon already written."""
+        if self._one is None:
+            return []
+        return [
+            Action(
+                _ACT_REMOVE,
+                "remove",
+                "removes this daemon",
+                partial(self.dismiss, _TAKES_AWAY),
+                variant="error",
+            )
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "saves this daemon"
+
+    def _ask(self) -> None:
+        """Says which daemon this is, and what one is."""
+        self.query_one("#asked", Label).update(
+            "Add daemon" if self._one is None else escape(self._typed_in[_CALLED])
+        )
+        self.query_one("#about", Label).update(
+            "Another machine's hmz, reached over ssh: its epics are listed with "
+            "/epics @<name>, and hmz is installed there where it is missing."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the daemon, once it is named and reached somehow."""
+        typed = {key: value.strip() for key, value in self._typed_in.items()}
+        self._wrong = ""
+        try:
+            options = _options(typed[_OPTIONS])
+        except ValueError as why:
+            self._wrong = str(why)
+            options = {}
+        if not typed[_CALLED]:
+            self._wrong = "name is required"
+        elif self._one is None and typed[_CALLED] in self._taken:
+            self._wrong = f"another daemon is named {typed[_CALLED]}"
+        elif not (typed[_HOST] or typed[_ALIAS]):
+            self._wrong = "host or alias is required"
+        elif typed[_PORT] and not typed[_PORT].isdigit():
+            self._wrong = "port is a number"
+        if self._wrong:
+            self._fill()
+            return
+        self.dismiss(
+            {
+                "name": typed[_CALLED],
+                "host": typed[_HOST],
+                "user": typed[_USER],
+                "port": int(typed[_PORT] or 0),
+                "identity_file": typed[_KEY],
+                "proxy_jump": typed[_JUMP],
+                "options": [[key, value] for key, value in options.items()],
+                "alias": typed[_ALIAS],
+                "config": str((self._one or {}).get("config", "")),
+            }
+        )
+
+
+class Bringing(Form[tuple[str, ...]]):
+    """Which hosts of the ssh config to bring in as daemons: a switch per host not added yet."""
+
+    def __init__(self, offered: Mapping[str, dict[str, Any]]) -> None:
+        """Initializes the form with every host switched off.
+
+        Args:
+          offered: Each host not added yet, by its Host, as the daemon it would be.
+        """
+        super().__init__()
+        self._offered = dict(offered)
+        self._typed_in = dict.fromkeys(self._offered, _NO)
+
+    def asked(self) -> list[Question]:
+        """A switch per host."""
+        return [
+            Question(alias, alias, f"as {one['name']}", _STEPS)
+            for alias, one in self._offered.items()
+        ]
+
+    def choices(self, held: str) -> Sequence[str]:
+        """On and off."""
+        del held
+        return (_YES, _NO)
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "adds each host switched on as a daemon"
+
+    def _ask(self) -> None:
+        """Says what this is for."""
+        self.query_one("#asked", Label).update("Import daemons")
+        self.query_one("#about", Label).update(
+            "Hosts of your ssh config, each reached as its Host says. Your ssh config "
+            "is never written."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the hosts switched on."""
+        self.dismiss(tuple(one for one, said in self._typed_in.items() if said == _YES))
+
+
+#: Writing this machine's settings to other daemons, from the daemons page.
+_ACT_BATCH = "batch"
+
+#: What a row of the batch apply form is of: a page carried, or a daemon it is carried to.
+_PAGE_ROW, _DAEMON_ROW = "page:", "daemon:"
+
+
+class Batching(Form[tuple[tuple[str, ...], tuple[str, ...]]]):
+    """What this machine's settings are copied to other daemons with, as the web's Batch apply.
+
+    A switch per page that can be carried -- on -- and one per daemon to carry it to -- off --
+    each answered as every switch on a form is. Never the accounts, which only a secret sets.
+    """
+
+    def __init__(self, daemons: Sequence[str]) -> None:
+        """Initializes the form on every page carried, to no daemon yet.
+
+        Args:
+          daemons: Every daemon there is to carry them to, by name.
+        """
+        super().__init__()
+        self._pages: tuple[str, ...] = _hmz().daemons.CARRIED
+        self._daemons = tuple(daemons)
+        self._typed_in = {
+            **{f"{_PAGE_ROW}{one}": _YES for one in self._pages},
+            **{f"{_DAEMON_ROW}{one}": _NO for one in self._daemons},
+        }
+
+    def asked(self) -> list[Question]:
+        """A switch per page, then one per daemon."""
+        return [
+            *(
+                Question(f"{_PAGE_ROW}{one}", one, "carried", _STEPS)
+                for one in self._pages
+            ),
+            *(
+                Question(f"{_DAEMON_ROW}{one}", one, "written to", _STEPS)
+                for one in self._daemons
+            ),
+        ]
+
+    def choices(self, held: str) -> Sequence[str]:
+        """On and off."""
+        del held
+        return (_YES, _NO)
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "writes the pages switched on to each daemon switched on"
+
+    def _ask(self) -> None:
+        """Says what this is for."""
+        self.query_one("#asked", Label).update("Batch apply")
+        self.query_one("#about", Label).update(
+            "This machine's settings, written to other daemons as each of their pages saves "
+            "them. Accounts stay put: only a secret sets them."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the pages and the daemons switched on, once one of each is."""
+        on = [held for held, said in self._typed_in.items() if said == _YES]
+        pages = tuple(
+            one.removeprefix(_PAGE_ROW) for one in on if one.startswith(_PAGE_ROW)
+        )
+        daemons = tuple(
+            one.removeprefix(_DAEMON_ROW) for one in on if one.startswith(_DAEMON_ROW)
+        )
+        if not pages or not daemons:
+            self._wrong = "switch on a page and a daemon"
+            self._fill()
+            return
+        self.dismiss((pages, daemons))
+
+
+#: What can be done to one daemon of another machine, which is its menu.
+_CONNECTS, _EDITS = "connect", "edit"
+
+
+class Daemons(Pages):
+    """The daemons page of `/settings`: this machine's, and each reached over ssh.
+
+    Written as each is changed rather than held until the menu is saved: what is written is
+    a machine `/epics @<name>` reaches, and reaching one runs ssh. How each stands is asked
+    of the reach this interface holds, and drawn again as it changes.
+    """
+
+    #: What the page says it is.
+    DAEMONS_ABOUT = (
+        "This machine's daemon, and other machines' reached over ssh. /epics @<name> "
+        "lists the epics of one; m on one is its menu."
+    )
+
+    def __init__(self) -> None:
+        """Holds no daemons until the menu reads them."""
+        super().__init__()
+        self._daemons: list[dict[str, Any]] = []
+        #: How each stood as the page was last drawn, which it is drawn again as it changes.
+        self._standing: list[str] = []
+
+    def _read_daemons(self) -> None:
+        """Reads the daemons written down, and watches how each stands from now on."""
+        self._daemons = _hmz().daemons.all()
+        self.set_interval(1.0, self._daemons_move)
+
+    def _daemons_move(self) -> None:
+        """Draws the page again where a daemon stands otherwise than it was drawn."""
+        if self._on_daemons() and self._daemon_rows() != self._standing:
+            self._fill()
+
+    def _on_daemons(self) -> bool:
+        """Whether the daemons page is the one drawn."""
+        return not getattr(self, "_home", False) and self._tab == _DAEMONS
+
+    def _daemon_rows(self) -> list[str]:
+        """Each daemon's row, Local first: what reaches it, and how it stands."""
+        reach = remotes()
+        return [
+            "this machine",
+            *(
+                f"{_reached_at(one)}{_DOT}{_stands(reach.state(one['name']))}"
+                for one in self._daemons
+            ),
+        ]
+
+    def _daemon_actions(self) -> list[Action]:
+        """What is done about the daemons: adding one, importing some, searching them."""
+        return [
+            Action(
+                _ACT_ADD,
+                "add daemon",
+                "another machine, reached over ssh",
+                lambda: self._writes_daemon(None),
+            ),
+            Action(
+                _ACT_IMPORTS,
+                "import…",
+                "hosts of your ssh config",
+                self._brings_daemons,
+            ),
+            Action(
+                _ACT_BATCH,
+                "batch apply…",
+                "this machine's settings, written to other daemons",
+                self._batches,
+                lambda: bool(self._daemons),
+            ),
+            self._searches(),
+        ]
+
+    @work
+    async def _batches(self) -> None:
+        """Asks which settings go to which daemons, writes them there, and says how each went."""
+        import asyncio
+
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            chosen = await showing.push_screen_wait(
+                Batching([one["name"] for one in self._daemons])
+            )
+        finally:
+            self.opened()
+        if chosen is None:
+            return
+        pages, daemons = chosen
+        sent = _hmz().carried(pages)
+        self._said = f"applying to {', '.join(daemons)}…"
+        self._fill()
+
+        def applies(name: str) -> str:
+            try:
+                for path, body in sent:
+                    remotes().asked(name, path, body)
+            except (LookupError, OSError, RuntimeError) as why:
+                return f"{name}: {why}"
+            return f"{name}: applied"
+
+        said = await asyncio.gather(
+            *(asyncio.to_thread(applies, one) for one in daemons)
+        )
+        self._said = escape(_DOT.join(said))
+        self._told.append(f"[dim]{self._said}[/dim]")
+        self._fill()
+
+    def _fill_daemons(self) -> None:
+        """Puts the daemons up, each saying what reaches it and how it stands."""
+        listing = self.query_one("#choices", OptionList)
+        self._follows(listing)
+        self._standing = self._daemon_rows()
+        rows = [
+            (name, about)
+            for name, about in zip(
+                ["Local", *(one["name"] for one in self._daemons)],
+                self._standing,
+                strict=True,
+            )
+            if self.fits(name, about)
+        ]
+        landing = self._lands([name for name, _ in rows])
+        self._put(
+            listing,
+            [
+                Option(
+                    self._row(seen, name, about, here=name == landing, inforce=False),
+                    id=f"={name}",
+                )
+                for seen, (name, about) in enumerate(rows)
+            ],
+            landing,
+        )
+        self._drawn = listing.highlighted
+        said = self._said or (
+            "" if self._daemons else "no other daemons yet: add one, or import some"
+        )
+        self.query_one("#tuning", Label).update(
+            f"[$text-muted]{said}[/]" if said else ""
+        )
+        self._footed(Key("enter", "menu"), Key("esc", "close"))
+
+    def menu(self) -> tuple[str, list[Action]] | None:
+        """What can be done to the daemon under the cursor: Local is only ever there."""
+        if not self._on_daemons():
+            return None
+        one = next((one for one in self._daemons if one["name"] == self.under()), None)
+        if one is None:
+            return None
+        name = one["name"]
+        return (
+            name,
+            [
+                Action(
+                    _CONNECTS,
+                    "connect",
+                    "reach it now, installing hmz there where it must",
+                    lambda: self._connects(name),
+                ),
+                Action(
+                    _EDITS, "edit…", "what reaches it", lambda: self._writes_daemon(one)
+                ),
+                Action(
+                    _ACT_REMOVE,
+                    "remove",
+                    "take it away",
+                    lambda: self._removes_daemon(name),
+                    variant="error",
+                ),
+                Action(
+                    _COPY_NAME,
+                    "copy name",
+                    name,
+                    lambda: self.copies(name),
+                ),
+            ],
+        )
+
+    def _took_daemon(self, named: str) -> None:
+        """Opens the menu of the daemon chosen, or says what Local is.
+
+        Args:
+          named: The row chosen, by its id.
+        """
+        if named == "Local":
+            self._said = "Local is this machine's daemon, always there"
+            self._fill()
+            return
+        self.action_menu()
+
+    def _connects(self, name: str) -> None:
+        """Reaches one daemon now, or again at once where it failed."""
+        try:
+            remotes().connect(name)
+        except (LookupError, RuntimeError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            # How it stands is its row's to say.
+            self._said = ""
+        self._fill()
+
+    def _removes_daemon(self, name: str) -> None:
+        """Takes one daemon away, at once."""
+        try:
+            _hmz().daemons.remove(name)
+        except (LookupError, OSError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            self._said = iffy(f"{escape(name)} removed")
+            self._told.append(f"[dim]daemon {escape(name)} removed[/dim]")
+        self._read_daemons_again()
+
+    def _read_daemons_again(self) -> None:
+        """Reads the daemons written down again, and draws them."""
+        self._daemons = _hmz().daemons.all()
+        self._fill()
+
+    @work
+    async def _writes_daemon(self, one: dict[str, Any] | None) -> None:
+        """Asks what one daemon is, on one form, and writes it down at once.
+
+        Args:
+          one: The daemon as it is written down, or None for one being added.
+        """
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        taken = frozenset(each["name"] for each in self._daemons)
+        try:
+            chosen = await showing.push_screen_wait(Daemoning(one, taken=taken))
+        finally:
+            self.opened()
+        if chosen is None:
+            return
+        if isinstance(chosen, str):
+            if chosen == _TAKES_AWAY and one is not None:
+                self._removes_daemon(one["name"])
+            return
+        name = chosen.pop("name")
+        try:
+            _hmz().daemons.write(name, chosen, replace=one is not None)
+        except (OSError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            self._aim, self._said = name, f"{escape(name)} saved"
+            self._told.append(f"[dim]daemon {escape(name)} saved[/dim]")
+        self._read_daemons_again()
+
+    @work
+    async def _brings_daemons(self) -> None:
+        """Asks which hosts of the ssh config to bring in, and writes them down at once."""
+        try:
+            offered = _hmz().daemons.offered()
+        except OSError as why:
+            self._said = bad(escape(f"the ssh config could not be read: {why}"))
+            self._fill()
+            return
+        if not offered:
+            self._said = "every host of your ssh config is added already"
+            self._fill()
+            return
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            chosen = await showing.push_screen_wait(Bringing(offered))
+        finally:
+            self.opened()
+        if not chosen:
+            return
+        try:
+            added = _hmz().daemons.imported(chosen)
+        except (LookupError, OSError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            self._said = escape(f"{_many(len(added), 'daemon')} imported")
+            self._told.append(f"[dim]{self._said}[/dim]")
+            if added:
+                self._aim = added[0]
+        self._read_daemons_again()
+
+
 class Adjusted(NamedTuple):
     """What the settings menu answers with: what was changed, and what happened.
 
@@ -9857,6 +10541,15 @@ _UPLOADS = "upload"
 #: And reading it as a timeline, which is a screen of its own (:mod:`hmz.tui.exomyth`).
 _EXOMYTH = "exomyth"
 
+#: Copying what an epic is called, what it was asked, and where it is written down.
+_COPY_NAME, _COPY_TASK, _COPY_PATH = "copy-name", "copy-task", "copy-path"
+
+#: And reading it as its graph, its called flows and its sessions (:mod:`hmz.tui.epic`).
+_GRAPH = "graph"
+
+#: The flow that is a conversation rather than a flow, which has no timeline to draw.
+_CHAT = "chat"
+
 #: What the trace an export gathers is filed as, inside the run's own `traces/`. Named for
 #: what made it rather than for the moment it was made: a trace gathered by hand keeps both
 #: when it is gathered twice, and this one is of a run that is over and will not read any
@@ -9877,11 +10570,13 @@ class Doing(NamedTuple):
         sheet did it itself.
       said: What happened while the sheet was open, for the transcript: a menu that wrote an
         archive and said nothing afterwards is one nobody can read back.
+      daemon: The daemon whose epics to list instead, by name, or "" to stay on this one.
     """
 
     epic: Path | None = None
     doing: str = ""
     said: tuple[str, ...] = ()
+    daemon: str = ""
 
 
 def _many(count: int, thing: str) -> str:
@@ -9922,6 +10617,50 @@ def _homed(said: str) -> str:
 def _ran_in(ran: Ran) -> str:
     """Where one run ran, as a row says it: an older one may not have written it down."""
     return _homed(ran.workspace) if ran.workspace else "an unknown directory"
+
+
+def _figures(ran: Ran) -> list[str]:
+    """What one run came to, as its row and its graph say it.
+
+    Args:
+      ran: The run.
+
+    Returns:
+      Its agents, what it spent and how long it took, where it said, and the targets it is
+      backed up to, each a part of a line: none for a part it has nothing to say for.
+    """
+    spent = ran.spent or {}
+    cost, tokens = spent.get("cost"), spent.get("output_tokens")
+    backed = [name for name, said in ran.backed.items() if said.get("ok")]
+    took = _took(ran) if ran.ended else ""
+    return [
+        part
+        for part in (
+            ", ".join(one.name or one.agent for one in ran.agents),
+            money(float(cost)) if isinstance(cost, (int, float)) else "",
+            f"{thousands(float(tokens))} out"
+            if isinstance(tokens, (int, float)) and tokens
+            else "",
+            f"took {took}" if took else "",
+            f"backed up to {', '.join(backed)}" if backed else "",
+        )
+        if part
+    ]
+
+
+def _took(ran: Ran) -> str:
+    """How long one run that ended took, from its start to its end, or "" where unsaid."""
+    try:
+        began = datetime.datetime.fromisoformat(ran.began)
+        ended = datetime.datetime.fromisoformat(ran.ended)
+    except ValueError:
+        return ""
+    return lasting((ended - began).total_seconds())
+
+
+def chatting(flow: str) -> bool:
+    """Whether a flow, as a run named it, is the conversation that has no timeline."""
+    return re.split(r"[/#]", flow.rstrip("/#"))[-1] == _CHAT
 
 
 def _when(said: str) -> str:
@@ -10003,17 +10742,29 @@ class Does(Picks):
                 )
             )
         held.append(
+            (_GRAPH, "graph", "its agents, called flows and sessions, read back")
+        )
+        held.append(
             (
                 _EXPORTS,
                 "export run",
                 "the entire run as an archive, with its trace",
             )
         )
-        held.append((_EXOMYTH, "Exomyth", "the epic as a timeline of its sessions"))
+        # Not for a chat, which is one conversation rather than a flow of them to lay out.
+        if not chatting(self._ran.flow):
+            held.append((_EXOMYTH, "Exomyth", "the epic as a timeline of its sessions"))
         if self._uploads:
             held.append(
                 (_UPLOADS, "upload", "back the epic up to its targets, or the defaults")
             )
+        held.extend(
+            [
+                (_COPY_NAME, "copy name", "what the epic is called"),
+                (_COPY_TASK, "copy task", "what the epic was asked to do"),
+                (_COPY_PATH, "copy path", "where the epic is written down"),
+            ]
+        )
         return held
 
     def nothing(self) -> str:
@@ -10059,23 +10810,56 @@ def _how(ran: Ran) -> str:
 _TO = "to"
 
 
+def _downloads() -> str:
+    """Where an archive goes and comes from unless somebody says otherwise, as a browser's do.
+
+    Returns:
+      `~/Downloads/` where there is one, else `~/`, written as a directory.
+    """
+    return "~/Downloads/" if (Path.home() / "Downloads").is_dir() else "~/"
+
+
+def _dropped(said: str) -> str:
+    """A path as typed, or as a terminal pastes a file dropped onto it: quoted or escaped.
+
+    Args:
+      said: What was written.
+
+    Returns:
+      The path it names.
+    """
+    said = said.strip()
+    if said.startswith("file://"):
+        said = unquote(said.removeprefix("file://"))
+    if Path(said).expanduser().exists():
+        return said
+    try:
+        parts = shlex.split(said)
+    except ValueError:
+        return said
+    return parts[0] if len(parts) == 1 else said
+
+
 class Exporting(Form[str]):
     """Where one run's archive goes: a file, or a directory to put it in under its own name.
 
     Asked rather than assumed. A bundle is made to be sent, and one that landed somewhere of
     its own choosing is one somebody has to go looking for -- or, landed in the project they
     are standing in, one the next commit of everything carries along. The path is finished as
-    it is typed, as every path written on a form is.
+    it is typed, as every path written on a form is, and starts as the downloads directory,
+    as a browser's export lands there: enter twice sends it there, a letter typed replaces it.
     """
 
-    def __init__(self, ran: Ran) -> None:
+    def __init__(self, named: str) -> None:
         """Initializes the form on nowhere: where it goes is somebody's to say.
 
         Args:
-          ran: The run, which the archive is named after.
+          named: What the run is called, which the archive is named after.
         """
         super().__init__()
-        self._ran = ran
+        self._named = named
+        self._typed_in[_TO] = _downloads()
+        self._fresh.add(_TO)
 
     def asked(self) -> list[Question]:
         """Where it goes."""
@@ -10085,7 +10869,7 @@ class Exporting(Form[str]):
             Question(
                 _TO,
                 "to",
-                f"file, or directory to put {BUNDLE.format(epic=self._ran.name)} in",
+                f"file, or directory to put {BUNDLE.format(epic=self._named)} in",
                 needed=not self._typed_in.get(_TO, "").strip(),
                 path=True,
             )
@@ -10123,8 +10907,16 @@ _FILE = "file"
 class ImportingEpic(Form[str]):
     """Which `.hmzepic` to read back in, as an epic of the directory it says it ran in.
 
-    Asked as an export asks where it goes: a path, finished as it is typed.
+    Asked as an export asks where it goes: a path, finished as it is typed, starting from the
+    downloads directory -- tab takes each file there in turn -- or a file dropped onto the
+    terminal, which pastes its path.
     """
+
+    def __init__(self) -> None:
+        """Initializes the form on the downloads directory, which a letter typed replaces."""
+        super().__init__()
+        self._typed_in[_FILE] = _downloads()
+        self._fresh.add(_FILE)
 
     def asked(self) -> list[Question]:
         """Which file."""
@@ -10154,7 +10946,7 @@ class ImportingEpic(Form[str]):
 
     def action_done(self) -> None:
         """Answers with the file, once there is one."""
-        said = self._typed_in.get(_FILE, "").strip()
+        said = _dropped(self._typed_in.get(_FILE, ""))
         if not said:
             self._wrong = "the file to import is required"
             self._fill()
@@ -10231,6 +11023,22 @@ def _counted(said: dict[str, Any], of: str) -> int:
         return 0
 
 
+#: What each copy row of an epic copies, and what the line under the list calls it.
+_COPIED: dict[str, Callable[[Ran], tuple[str, str]]] = {
+    _COPY_NAME: lambda ran: (ran.name, "name"),
+    _COPY_TASK: lambda ran: (ran.task, "task"),
+    _COPY_PATH: lambda ran: (str(ran.at), "path"),
+}
+
+#: What `/epics` is found by, each a row above its list whose values drop under it: how an
+#: epic went, its flow, and -- of a list of more than one directory -- its directory. Words
+#: without the `=` an epic's row carries, so that no epic is taken for one.
+_BY_HOW, _BY_FLOW, _BY_WORKSPACE = "status", "flow", "workspace"
+
+#: How many epics one page of `/epics` holds, as a page of the web's list does.
+_PAGE = 50
+
+
 class Epics(Sheet[Doing]):
     """Every run of a flow here or on this machine, newest first, and what to do with one.
 
@@ -10247,6 +11055,10 @@ class Epics(Sheet[Doing]):
     by where it ran as often as by when, and somebody who has forgotten which checkout it was
     in is somebody this directory's alone would tell nothing. Which of the two was last asked
     for is remembered, as how somebody likes to look back rather than as anything about here.
+
+    Found as the web's list is found -- by how each went, its flow and its directory, rows
+    above the list whose values drop under them, and by its task with `/` -- and read a page
+    at a time, the buttons under it turning to a newer page or an older one.
     """
 
     BINDINGS: ClassVar = [
@@ -10259,6 +11071,7 @@ class Epics(Sheet[Doing]):
         workspace: Path | None = None,
         *,
         running: Callable[[], bool] | None = None,
+        unseen: set[str] | None = None,
     ) -> None:
         """Reads every run of this directory, or of this machine where that was last asked for.
 
@@ -10268,6 +11081,8 @@ class Epics(Sheet[Doing]):
             read while a run goes and outlives it, and one that had taken the answer down
             as it opened would refuse to pick a run up in the name of a flow that has since
             finished. None for nothing to ask, which is nothing running.
+          unseen: The epics told of and not opened since, by name: each dotted, and taken
+            out of it as it is opened.
         """
         super().__init__()
         from hmz.daemon import Hmz
@@ -10299,6 +11114,17 @@ class Epics(Sheet[Doing]):
         self._resumes: dict[str, bool] = {}
         #: What is worth saying in the transcript once this sheet is done with.
         self._told: list[str] = []
+        self._unseen = unseen if unseen is not None else set[str]()
+        #: What the list is found by, by the row it is picked on; missing or "" for any.
+        self._by: dict[str, str] = {}
+        #: Which of those rows the cursor is on, or "" where it is on an epic.
+        self._on = ""
+        #: Where the page shown starts, or None for the page the cursor's epic is on.
+        self._from: int | None = 0
+        #: How many epics the search and the rows above the list leave, every page of them.
+        self._total = 0
+        #: How each epic went, by its directory, asked once a read: one going is asked of its lock.
+        self._went: dict[Path, str] = {}
 
     def _ask(self) -> None:
         """Says what these are, and puts them up."""
@@ -10324,15 +11150,16 @@ class Epics(Sheet[Doing]):
         """Reads the list again for the scope it is now, off the event loop."""
         import asyncio
 
-        every, was = self._every, self._was
+        every, was, start = self._every, self._was, self._from
         self._ran = []
+        self._went = {}
         self._reading = True
         self._fill()
         ran = await asyncio.to_thread(self._read, every=every)
         if every == self._every:
             self._ran = ran
             self._reading = False
-            self._was = was
+            self._was, self._from = was, start
             self._fill()
 
     def action_scope(self) -> None:
@@ -10340,6 +11167,8 @@ class Epics(Sheet[Doing]):
         self._every = not self._every
         self._settings.every_epic = self._every
         self._said = ""
+        self._by.pop(_BY_WORKSPACE, None)
+        self._from = 0
         self._rereads()
 
     def _scope(self) -> Action:
@@ -10369,7 +11198,7 @@ class Epics(Sheet[Doing]):
         said = _asked_for(ran.task) if ran.task else "no task"
         if self._every:
             said = f"{_ran_in(ran)}{_DOT}{said}"
-        held = f"{said}{_DOT}{_many(len(ran.sessions), 'session')}"
+        held = _DOT.join([said, *_figures(ran), _many(len(ran.sessions), "session")])
         if ran.how != "done":
             held += f"{_DOT}{_how(ran)}"
         # Asked of the flow rather than read off the run, for the reason the menu asks it of
@@ -10382,7 +11211,11 @@ class Epics(Sheet[Doing]):
         return "/epics"
 
     def actions(self) -> list[Action]:
-        """Searching the runs, turning them between this directory and this machine, importing."""
+        """Searching the runs, turning them between this directory and this machine, importing.
+
+        And a page newer or older, where what is found is more than a page.
+        """
+        start = self._from or 0
         return [
             self._searches(),
             self._scope(),
@@ -10392,10 +11225,55 @@ class Epics(Sheet[Doing]):
                 "an epic from a .hmzepic file",
                 self.action_imports,
             ),
+            _switching(self, LOCAL_DAEMON, self._told),
+            *(
+                [
+                    Action(
+                        _ACT_NEWER,
+                        "newer",
+                        "the page of newer epics",
+                        partial(self._pages, -1),
+                        lambda: start > 0,
+                    ),
+                    Action(
+                        _ACT_OLDER,
+                        "older",
+                        "the page of older epics",
+                        partial(self._pages, 1),
+                        lambda: start + _PAGE < self._total,
+                    ),
+                ]
+                if self._total > _PAGE
+                else []
+            ),
         ]
 
+    def menu(self) -> tuple[str, list[Action]] | None:
+        """The epic under the cursor, whose sheet is its menu."""
+        ran = self._under()
+        return None if ran is None else (ran.name, [])
+
+    @work
+    async def action_menu(self) -> None:
+        """Goes into the epic under the cursor, as enter does: its sheet is what it offers."""
+        ran = self._under()
+        if ran is not None:
+            self._doing(ran)
+
+    def _pages(self, by: int) -> None:
+        """Turns the list a page newer or older, the cursor on its first epic.
+
+        Or on the row the list is found by that it was on, which a page does not move.
+
+        Args:
+          by: One older, or one newer.
+        """
+        self._from = max(0, (self._from or 0) + by * _PAGE)
+        self._on = ""
+        self._fill()
+
     def enters(self, row: str) -> bool:
-        """Every row is a run, which the arrow right goes into.
+        """Every row below the ones it is found by is a run, which the arrow right goes into.
 
         Args:
           row: The row, by id.
@@ -10403,49 +11281,175 @@ class Epics(Sheet[Doing]):
         Returns:
           True for a run.
         """
-        return bool(row)
+        return bool(row) and not self.drops(row)
+
+    def _finders(self) -> tuple[str, ...]:
+        """The rows the list is found by now: by directory only where it is of more than one."""
+        return (
+            (_BY_HOW, _BY_FLOW, _BY_WORKSPACE) if self._every else (_BY_HOW, _BY_FLOW)
+        )
+
+    def drops(self, row: str) -> bool:
+        """The rows the list is found by drop their values under them.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for one of them.
+        """
+        return row in self._finders()
+
+    def dropping(self, row: str) -> Drop:
+        """Every value one row the list is found by can take, each with how many epics it finds.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          `all`, and every value of it there is among the epics read -- every way an epic
+          can go, where the row is how it went -- the one in force ticked.
+        """
+        from collections import Counter
+
+        from hmz.runtime.epic import ENDINGS
+
+        counts = Counter(self._value(one, row) for one in self._ran)
+        values = list(ENDINGS) if row == _BY_HOW else sorted(counts)
+        return Drop(
+            row,
+            [
+                Value("", "all", str(len(self._ran))),
+                *(Value(one, one, str(counts[one])) for one in values),
+            ],
+            self._by.get(row, ""),
+        )
+
+    def dropped(self, row: str, picked: str) -> None:
+        """Finds the list by the value picked, from its first page.
+
+        Args:
+          row: The row, by id.
+          picked: The value.
+        """
+        self._by[row] = picked
+        self._from = 0
+
+    def _value(self, ran: Ran, row: str) -> str:
+        """What one epic is, as one row the list is found by says it.
+
+        Args:
+          ran: The epic.
+          row: The row, by id.
+        """
+        if row == _BY_FLOW:
+            return ran.flow
+        if row == _BY_WORKSPACE:
+            return _ran_in(ran)
+        if ran.at not in self._went:
+            self._went[ran.at] = self._runs.ending(ran)
+        return self._went[ran.at]
+
+    def _finds(self, ran: Ran) -> bool:
+        """Whether one epic is one the rows above the list and the search leave in it."""
+        from hmz.runtime.epic import found
+
+        how = self._by.get(_BY_HOW, "")
+        return (
+            found(
+                ran,
+                self._value(ran, _BY_HOW) if how else "",
+                how=how,
+                flow=self._by.get(_BY_FLOW, ""),
+            )
+            and (
+                not self._every or self._by.get(_BY_WORKSPACE, "") in ("", _ran_in(ran))
+            )
+            and self.fits(
+                ran.flow, ran.task, ran.name, _ran_in(ran) if self._every else ""
+            )
+        )
 
     def _fill(self) -> None:
         """Puts the runs up, the first a search found or the one the cursor was on."""
         self.query_one("#about", Label).update(
             f"Every epic {'on this machine' if self._every else 'in this directory'}, "
-            f"newest first: {'workspace, ' if self._every else ''}task, status, and "
-            "session count."
+            f"newest first: {'workspace, ' if self._every else ''}task, agents, spend, "
+            "duration, session count, and status."
         )
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
-        shown = [
-            one
-            for one in self._ran
-            if self.fits(
-                one.flow, one.task, one.name, _ran_in(one) if self._every else ""
-            )
-        ]
-        sought = self._sought([one.name for one in shown])
+        shown = [one for one in self._ran if self._finds(one)]
+        names = [one.name for one in shown]
+        sought = self._sought(names)
         if sought is not None:
-            self._was = sought
-        if all(one.name != self._was for one in shown):
-            self._was = shown[0].name if shown else ""
+            self._was, self._on, self._from = sought, "", None
+        if self._from is None:
+            self._from = (
+                names.index(self._was) // _PAGE * _PAGE if self._was in names else 0
+            )
+        self._from = min(self._from, max(len(shown) - 1, 0) // _PAGE * _PAGE)
+        self._total = len(shown)
+        page = shown[self._from : self._from + _PAGE]
+        if all(one.name != self._was for one in page):
+            self._was = page[0].name if page else ""
+        # Nothing to find a list by that has nothing in it.
+        finders = self._finders() if self._ran else ()
+        if self._on not in finders:
+            self._on = ""
         listing.set_options(
             [
-                Option(
-                    self._row(
-                        seen,
-                        f"{_when(one.began)}{_DOT}{one.flow}",
-                        self._about(one),
-                        here=one.name == self._was,
-                        inforce=False,
-                    ),
-                    id=f"={one.name}",
-                )
-                for seen, one in enumerate(shown)
+                *(
+                    Option(
+                        self._setting(
+                            row,
+                            _chip(
+                                self._by.get(row) or "all", _DROPS, here=row == self._on
+                            ),
+                            "",
+                            here=row == self._on,
+                        ),
+                        id=row,
+                    )
+                    for row in finders
+                ),
+                *([None] if finders else []),
+                *(
+                    Option(
+                        self._row(
+                            seen,
+                            f"{_when(one.began)}{_DOT}{one.flow}",
+                            self._about(one),
+                            here=not self._on and one.name == self._was,
+                            inforce=False,
+                            unread=one.name in self._unseen,
+                        ),
+                        id=f"={one.name}",
+                    )
+                    for seen, one in enumerate(page)
+                ),
             ]
         )
-        listing.highlighted = next(
-            (at for at, one in enumerate(shown) if one.name == self._was), None
+        listing.highlighted = (
+            finders.index(self._on)
+            if self._on
+            else next(
+                (
+                    len(finders) + at
+                    for at, one in enumerate(page)
+                    if one.name == self._was
+                ),
+                None,
+            )
         )
         self._drawn = listing.highlighted
-        said = self._said or ("" if self._ran else self._nothing())
+        said = self._said or (
+            self._nothing()
+            if not shown
+            else f"{self._from + 1}\N{EN DASH}{self._from + len(page)} of {len(shown)}"
+            if len(shown) > _PAGE
+            else ""
+        )
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
@@ -10460,10 +11464,16 @@ class Epics(Sheet[Doing]):
         """Leaves, saying in the transcript whatever was gathered while this was open."""
         self.dismiss(Doing(said=tuple(self._told)) if self._told else None)
 
+    def marks(self) -> None:
+        """Dots the rows again, for an epic just told of."""
+        self._fill()
+
     def _nothing(self) -> str:
-        """What an empty list says: that it is being read, or that nothing has been run."""
+        """What an empty list says: that it is being read, that nothing found, or nothing ran."""
         if self._reading:
             return "reading…"
+        if self._ran:
+            return "no epic is like that"
         if self._every:
             return "no flow has been run on this machine yet"
         return "no flow has been run in this directory yet"
@@ -10566,7 +11576,9 @@ class Epics(Sheet[Doing]):
         """
         from textual.worker import WorkerCancelled
 
-        self._was = epic.name
+        self._was, self._on, self._from = epic.name, "", None
+        # Found by nothing, so that what it is found by cannot hide it.
+        self._by.clear()
         if epic.parent != self._here:
             self._every = True
         # Onto the list once it is read: a list that was empty had the focus on its buttons.
@@ -10575,12 +11587,14 @@ class Epics(Sheet[Doing]):
             self._settles_focus()
 
     def _follows(self, listing: OptionList) -> None:
-        """Takes which run the cursor is on off the list, by the directory it is written in."""
+        """Takes which run or which row it is found by the cursor is on off the list."""
         at = listing.highlighted
         if at is not None and 0 <= at < listing.option_count:
-            named = str(listing.get_option_at_index(at).id or "").removeprefix("=")
-            if named:
-                self._was = named
+            named = str(listing.get_option_at_index(at).id or "")
+            if named.startswith("="):
+                self._was, self._on = named.removeprefix("="), ""
+            elif named:
+                self._on = named
 
     def _under(self) -> Ran | None:
         """The run the cursor is on, or None where the list has nothing in it."""
@@ -10645,6 +11659,10 @@ class Epics(Sheet[Doing]):
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
+        # Opened, so no longer news.
+        if ran.name in self._unseen:
+            self._unseen.discard(ran.name)
+            self._fill()
         while True:
             # Read again, so that how its last backups went is how they went now.
             ran = self._runs.read(ran.at) or ran
@@ -10662,18 +11680,32 @@ class Epics(Sheet[Doing]):
                 )
             )
             if said is None:
-                return  # walked out of it, which does nothing to the run
+                # Walked out of it, which does nothing to the run -- but another may have been
+                # told of meanwhile, and dotted.
+                self._fill()
+                return
             if said == _UPLOADS:
                 self._uploads(ran)
+                return
+            if said in _COPIED:
+                what, named = _COPIED[said](ran)
+                self.copies(what)
+                self._said = f"{named} copied"
+                self._fill()
                 return
             if said == _EXOMYTH:
                 from .exomyth import Exomyth
 
                 await showing.push_screen_wait(Exomyth(ran))
                 continue
+            if said == _GRAPH:
+                from .epic import Graph
+
+                await showing.push_screen_wait(Graph(ran))
+                continue
             if said != _EXPORTS:
                 break
-            to = await showing.push_screen_wait(Exporting(ran))
+            to = await showing.push_screen_wait(Exporting(ran.name))
             # Walked out of where it goes is back to the run it was going to be of, as esc
             # on any sheet is one step back.
             if to is not None:
@@ -10699,11 +11731,626 @@ class Epics(Sheet[Doing]):
         self.dismiss(Doing(ran.at, said, tuple(self._told)))
 
 
-#: The transcript every agent's work appears on, which is what the first node of the monitor
-#: reads and what the log opens on. Written down once, here, and read from `hmz.tui.app` and
-#: `hmz.tui.monitoring` rather than said again there: two names for it are two that could come
-#: apart.
-#:
-#: Nobody's, since it is not an agent's: an agent id is what every other transcript is kept
-#: under, and no agent is called this.
-EVERY = ""
+#: This machine's daemon, which `/epics` lists the epics of until another is picked.
+LOCAL_DAEMON = "local"
+
+#: The daemons of other machines, reached as each is first asked for: one reach for the
+#: whole interface, let go of as it closes (:func:`let_go`).
+_REACH: list[Any] = []
+_REACHING = threading.Lock()
+
+
+def remotes() -> Any:
+    """Every daemon of another machine, as this interface reaches each."""
+    # Asked from the screen's thread and from workers alike: one reach, however many ask.
+    with _REACHING:
+        if not _REACH:
+            _REACH.append(_hmz().daemons.remotes())
+        return _REACH[0]
+
+
+def let_go() -> None:
+    """Stops reaching every daemon of another machine, where any was reached."""
+    while _REACH:
+        _REACH.pop().close()
+
+
+def daemon_names() -> list[str]:
+    """Every daemon there is to switch to, by name: Local first, then each written down."""
+    return [LOCAL_DAEMON, *(one["name"] for one in _hmz().daemons.all())]
+
+
+def _stands(said: dict[str, str]) -> str:
+    """How one daemon stands, as a row says it."""
+    state = said.get("state", "")
+    word = {"idle": "not connected"}.get(state, state)
+    if said.get("detail"):
+        word += f": {said['detail']}"
+    elif state == "up" and said.get("version"):
+        word += f", hmz {said['version']}"
+    return word
+
+
+def _reached_at(one: dict[str, Any]) -> str:
+    """Where a daemon is reached, as ssh is told it: its Host, or its login."""
+    if one.get("alias") and not one.get("host"):
+        return str(one["alias"])
+    login = f"{one['user']}@{one['host']}" if one.get("user") else str(one["host"])
+    return f"{login}:{one['port']}" if one.get("port") else login
+
+
+class Daemoned(Picks):
+    """Which daemon's epics `/epics` lists: this machine's, or one reached over ssh."""
+
+    asked = "Daemon"
+    about = "Whose epics to list: this machine's, or another's reached over ssh."
+    SEARCHES: ClassVar = False
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Local, then every daemon written down, each with how it stands."""
+        reach = remotes()
+        return [
+            (LOCAL_DAEMON, "Local", "this machine"),
+            *(
+                (
+                    one["name"],
+                    one["name"],
+                    f"{_reached_at(one)}{_DOT}{_stands(reach.state(one['name']))}",
+                )
+                for one in _hmz().daemons.all()
+            ),
+        ]
+
+    def nothing(self) -> str:
+        """Where more are added, where there are none."""
+        return "" if len(self.rows()) > 1 else "add daemons on /settings daemons"
+
+
+def _field(said: object, key: str) -> Any:
+    """One field of what a daemon's interface answered, or None where it said none."""
+    return cast("dict[str, Any]", said).get(key) if isinstance(said, dict) else None
+
+
+def _switching(sheet: Sheet[Doing], current: str, told: list[str]) -> Action:
+    """The button a list of epics is turned to another daemon's from.
+
+    Args:
+      sheet: The list.
+      current: The daemon it lists the epics of.
+      told: What it has gathered for the transcript, which goes with it.
+    """
+
+    async def switches() -> None:
+        if sheet.opening():
+            return
+        showing = cast(
+            "App[None]",
+            sheet.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            picked = await showing.push_screen_wait(Daemoned(current))
+        finally:
+            sheet.opened()
+        if picked is not None and picked != current:
+            sheet.dismiss(Doing(said=tuple(told), daemon=picked))
+
+    return Action(
+        _ACT_DAEMON,
+        "daemon…",
+        "list the epics of another daemon",
+        lambda: sheet.run_worker(switches()),
+    )
+
+
+#: Starting an epic on another daemon, and following one going there.
+_ACT_STARTS, _ATTACHES = "start", "follow"
+
+#: The rows a new epic on another daemon is asked on: where it runs there, which flow, what it
+#: is to do, and what its agents run.
+_THERE, _RUNS, _TASK, _GIVEN = "workspace", "flow", "task", "agents"
+
+
+class Starting(Form[tuple[str, str, str, dict[str, str]]]):
+    """A new epic on another daemon: the directory there it runs in, its flow, task and agents.
+
+    Set up there as that directory last ran the flow, as its web page starts one, but for the
+    agents said here as `-a` spells them.
+    """
+
+    def __init__(self, daemon: str, workspace: str) -> None:
+        """Initializes the form on the directory that daemon's interface started in, and chat.
+
+        Args:
+          daemon: The daemon, by name.
+          workspace: Where it runs unless another directory there is said.
+        """
+        super().__init__()
+        self._daemon = daemon
+        self._typed_in = {_THERE: workspace, _RUNS: _CHAT, _TASK: "", _GIVEN: ""}
+        # Each a guess, which the first letter typed into it replaces.
+        self._fresh |= {_THERE, _RUNS}
+
+    def asked(self) -> list[Question]:
+        """Where, which flow, what to do, and what runs it."""
+        typed = self._typed_in
+        return [
+            Question(
+                _THERE,
+                "workspace",
+                f"a directory on {self._daemon}",
+                needed=not typed[_THERE].strip(),
+            ),
+            Question(
+                _RUNS,
+                "flow",
+                "the flow, as -f names it",
+                needed=not typed[_RUNS].strip(),
+            ),
+            Question(
+                _TASK, "task", "what it is to do", needed=not typed[_TASK].strip()
+            ),
+            Question(
+                _GIVEN,
+                "agents",
+                "role=cli/model:effort, …; blank for what that directory last ran",
+            ),
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return f"starts the epic on {self._daemon}"
+
+    def _ask(self) -> None:
+        """Says what this is."""
+        self.query_one("#asked", Label).update("New epic")
+        self.query_one("#about", Label).update(
+            f"An epic on {escape(self._daemon)}, set up as that directory last ran the flow, "
+            "and followed here once it starts."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with where, which flow, what and what runs it, once each is said."""
+        typed = {key: value.strip() for key, value in self._typed_in.items()}
+        missing = [key for key in (_THERE, _RUNS, _TASK) if not typed[key]]
+        given = [one.strip() for one in typed[_GIVEN].split(",") if one.strip()]
+        self._wrong = ""
+        if missing:
+            self._wrong = f"{missing[0]} is required"
+        elif wrong := next((one for one in given if "=" not in one), ""):
+            self._wrong = f"agents: '{wrong}' is not role=agent"
+        if self._wrong:
+            self._fill()
+            return
+        roles = dict(one.split("=", 1) for one in given)
+        self.dismiss((typed[_THERE], typed[_RUNS], typed[_TASK], roles))
+
+
+def _started_afar(
+    daemon: str, workspace: str, flow: str, task: str, given: Mapping[str, str]
+) -> Link:
+    """Starts an epic on another daemon as its web page does, and follows that directory.
+
+    Args:
+      daemon: The daemon, by name.
+      workspace: The directory there.
+      flow: The flow.
+      task: What it is to do.
+      given: What some of its agent roles run, by role, over what that directory last ran.
+
+    Returns:
+      The link the epic is followed by, the epic started.
+
+    Raises:
+      OSError: If that daemon would not follow or start it, saying why.
+    """
+    import urllib.parse
+
+    from hmz.daemon import Refused
+    from hmz.daemon.link import remote
+
+    reach = remotes()
+    set_up = reach.asked(
+        daemon,
+        "/api/flow?" + urllib.parse.urlencode({"name": flow, "workspace": workspace}),
+    )
+    kept: dict[str, Any] = dict(_field(set_up, "remembered") or {})
+    agents = {**dict(kept.get("agents") or {}), **given}
+    for role in cast("list[dict[str, Any]]", _field(set_up, "agents") or []):
+        if (
+            role.get("required")
+            and not role.get("auto")
+            and not agents.get(role["name"])
+        ):
+            raise OSError(
+                f"{role['name']} runs nothing there yet: say it as "
+                f"{role['name']}=<cli>/<model>:<effort>"
+            )
+    link = remote(reach, daemon, workspace)
+    try:
+        link.start(
+            flow,
+            task,
+            agents=agents,
+            envs=kept.get("envs") or {},
+            params=kept.get("params"),
+            budget=kept.get("budget") or None,
+            profile_flow=bool(kept.get("profile_flow")),
+            profile_environment=bool(kept.get("profile_environment")),
+            backup=kept.get("backup"),
+        )
+    except Refused as why:
+        link.close()
+        raise OSError(str(why)) from why
+    return link
+
+
+class RemoteEpics(Sheet[Doing]):
+    """Every epic of a daemon on another machine, newest first, and what to do with one.
+
+    Read through that machine's own web interface, reached over ssh, off the event loop:
+    what an epic there offers is what can be done from here -- its archive brought here,
+    backing it up there, and copying what it is -- and the rest is that machine's own.
+    """
+
+    BINDINGS: ClassVar = [Binding("n", "starts", "new epic", show=False)]
+
+    def __init__(self, daemon: str) -> None:
+        """Reads the epics of one daemon.
+
+        Args:
+          daemon: The daemon, by name.
+        """
+        super().__init__()
+        self._daemon = daemon
+        self._ran: list[dict[str, Any]] = []
+        self._reading = True
+        self._was = ""
+        self._said = ""
+        self._told: list[str] = []
+
+    def _ask(self) -> None:
+        """Says whose these are, and reads them."""
+        self.query_one("#asked", Label).update(f"Epics on {escape(self._daemon)}")
+        self._fill()
+        self._rereads()
+
+    def crumb(self) -> str:
+        """What the sheet an epic is gone into on was opened from: the command."""
+        return "/epics"
+
+    @work(group="epics", exclusive=True)
+    async def _rereads(self) -> None:
+        """Reads the list off the daemon, off the event loop."""
+        import asyncio
+
+        self._reading = True
+        self._fill()
+        try:
+            self._ran = await asyncio.to_thread(self._read)
+        except (LookupError, OSError, RuntimeError) as why:
+            self._said = bad(escape(str(why)))
+            self._ran = []
+        self._reading = False
+        self._fill()
+        self._settles_focus()
+
+    def _read(self) -> list[dict[str, Any]]:
+        """Every epic the daemon holds, newest first, a page of them at a time."""
+        ran: list[dict[str, Any]] = []
+        while True:
+            said = remotes().asked(
+                self._daemon, f"/api/runs?limit=200&offset={len(ran)}"
+            )
+            page = _field(said, "runs")
+            if not isinstance(page, list) or not page:
+                return ran
+            ran += [
+                cast("dict[str, Any]", one)
+                for one in cast("list[object]", page)
+                if isinstance(one, dict)
+            ]
+            if len(ran) >= int(_field(said, "total") or 0):
+                return ran
+
+    def actions(self) -> list[Action]:
+        """Searching them, starting one there, reading them again, and turning to another daemon."""
+        return [
+            self._searches(),
+            Action(
+                _ACT_STARTS,
+                "new epic…",
+                f"start an epic on {self._daemon} and follow it",
+                self.action_starts,
+            ),
+            Action(_ACT_AGAIN, "refresh", "read the epics again", self._rereads),
+            _switching(self, self._daemon, self._told),
+        ]
+
+    @work
+    async def action_starts(self) -> None:
+        """Asks what to start there, starts it, and follows it here."""
+        import asyncio
+
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            here = await asyncio.to_thread(remotes().asked, self._daemon, "/api/held")
+        except (LookupError, OSError, RuntimeError) as why:
+            self.opened()
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        try:
+            chosen = await showing.push_screen_wait(
+                Starting(self._daemon, str(_field(here, "here") or ""))
+            )
+        finally:
+            self.opened()
+        if chosen is None:
+            return
+        workspace, flow, task, given = chosen
+        self._said = f"starting {escape(flow)} on {escape(self._daemon)}…"
+        self._fill()
+        try:
+            link = await asyncio.to_thread(
+                _started_afar, self._daemon, workspace, flow, task, given
+            )
+        except (LookupError, OSError, RuntimeError) as why:
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        self._said = ""
+        await self._follows(workspace, link)
+
+    async def _attaches(self, workspace: str) -> None:
+        """Follows the runs of one directory there, the epic going in it among them."""
+        import asyncio
+
+        from hmz.daemon.link import remote
+
+        try:
+            link = await asyncio.to_thread(remote, remotes(), self._daemon, workspace)
+        except OSError as why:
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        await self._follows(workspace, link)
+
+    async def _follows(self, workspace: str, link: Link) -> None:
+        """Opens what a link follows there, and reads the list again once it is left."""
+        from .afar import Afar
+
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        await showing.push_screen_wait(Afar(self._daemon, workspace, link))
+        self._rereads()
+
+    def enters(self, row: str) -> bool:
+        """Every row is an epic, which the arrow right opens the menu of."""
+        return bool(row)
+
+    def _under(self) -> dict[str, Any] | None:
+        """The epic the cursor is on, or None where the list has nothing in it."""
+        return next((one for one in self._ran if one.get("name") == self._was), None)
+
+    def _fill(self) -> None:
+        """Puts the epics up, the first a search found or the one the cursor was on."""
+        self.query_one("#about", Label).update(
+            f"Every epic {escape(self._daemon)} holds, newest first: workspace, task, "
+            "status, and session count."
+        )
+        listing = self.query_one("#choices", OptionList)
+        at = listing.highlighted
+        if at is not None and 0 <= at < listing.option_count:
+            self._was = str(listing.get_option_at_index(at).id or "").removeprefix("=")
+        shown = [
+            one
+            for one in self._ran
+            if self.fits(
+                str(one.get("flow", "")),
+                str(one.get("task", "")),
+                str(one.get("name", "")),
+                str(one.get("workspace", "")),
+            )
+        ]
+        names = [str(one.get("name", "")) for one in shown]
+        sought = self._sought(names)
+        if sought is not None:
+            self._was = sought
+        if self._was not in names:
+            self._was = names[0] if names else ""
+        listing.set_options(
+            [
+                Option(
+                    self._row(
+                        seen,
+                        f"{_when(str(one.get('began', '')))}{_DOT}{one.get('flow', '')}",
+                        _DOT.join(
+                            [
+                                _homed(str(one.get("workspace") or "")),
+                                _asked_for(str(one.get("task") or "")) or "no task",
+                                _many(int(one.get("sessions") or 0), "session"),
+                                str(one.get("how") or ""),
+                            ]
+                        ),
+                        here=one.get("name") == self._was,
+                        inforce=False,
+                    ),
+                    id=f"={one.get('name', '')}",
+                )
+                for seen, one in enumerate(shown)
+            ]
+        )
+        listing.highlighted = names.index(self._was) if self._was in names else None
+        self._drawn = listing.highlighted
+        said = self._said or (
+            f"reaching {escape(self._daemon)}…"
+            if self._reading
+            else ""
+            if self._ran
+            else f"no epic on {escape(self._daemon)} yet"
+        )
+        self.query_one("#tuning", Label).update(
+            f"[$text-muted]{said}[/]" if said else ""
+        )
+        self._footed(Key("enter", "menu"), Key("esc", "close"))
+
+    def menu(self) -> tuple[str, list[Action]] | None:
+        """What can be done from here with the epic under the cursor."""
+        one = self._under()
+        if one is None:
+            return None
+        name = str(one.get("name", ""))
+        return (
+            name,
+            [
+                *(
+                    [
+                        Action(
+                            _ATTACHES,
+                            "follow",
+                            "read it as it goes, and say something to it",
+                            lambda: self.run_worker(
+                                self._attaches(str(one.get("workspace", "")))
+                            ),
+                        )
+                    ]
+                    if one.get("held")
+                    else []
+                ),
+                Action(
+                    _EXPORTS,
+                    "export",
+                    "the entire epic as an archive, brought here",
+                    lambda: self.run_worker(self._exports(name)),
+                    lambda: one.get("how") != "running",
+                ),
+                Action(
+                    _UPLOADS,
+                    "upload",
+                    "back the epic up there, to its targets or the defaults",
+                    lambda: self.run_worker(self._uploads(name)),
+                ),
+                Action(
+                    _COPY_NAME,
+                    "copy name",
+                    name,
+                    lambda: self._copies(name, "name"),
+                ),
+                Action(
+                    _COPY_TASK,
+                    "copy task",
+                    "what the epic was asked to do",
+                    lambda: self.run_worker(self._copies_task(name)),
+                ),
+                Action(
+                    _COPY_PATH,
+                    "copy workspace",
+                    "where the epic ran, there",
+                    lambda: self._copies(str(one.get("workspace", "")), "workspace"),
+                ),
+            ],
+        )
+
+    @on(OptionList.OptionSelected)
+    def _took(self, _event: OptionList.OptionSelected) -> None:
+        """Opens the menu of the epic chosen, which is all there is to do with one here."""
+        self.action_menu()
+
+    def _copies(self, what: str, named: str) -> None:
+        """Copies something of an epic, and says so under the list."""
+        self.copies(what)
+        self._said = f"{named} copied"
+        self._fill()
+
+    async def _copies_task(self, name: str) -> None:
+        """Copies the whole of what one epic was asked, which its row has only the start of."""
+        import asyncio
+        import urllib.parse
+
+        try:
+            said = await asyncio.to_thread(
+                remotes().asked,
+                self._daemon,
+                f"/api/runs/{urllib.parse.quote(name, safe='')}",
+            )
+        except (LookupError, OSError, RuntimeError) as why:
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        self._copies(str(_field(said, "task") or ""), "task")
+
+    def leaving(self) -> None:
+        """Leaves, saying in the transcript whatever was gathered while this was open."""
+        self.dismiss(Doing(said=tuple(self._told)) if self._told else None)
+
+    async def _exports(self, name: str) -> None:
+        """Asks where one epic's archive goes, and brings it there off the event loop.
+
+        Args:
+          name: The epic.
+        """
+        import asyncio
+        import urllib.parse
+
+        from hmz.runtime.exporting import lands, sized
+
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        to = await showing.push_screen_wait(Exporting(name))
+        if to is None:
+            return
+        self._said = f"exporting {escape(name)}…"
+        self._fill()
+
+        def brings() -> tuple[Path, int]:
+            at = lands(name, to)
+            at.parent.mkdir(parents=True, exist_ok=True)
+            size = remotes().asked(
+                self._daemon,
+                f"/api/runs/{urllib.parse.quote(name, safe='')}/bundle",
+                into=at,
+            )
+            return at, size
+
+        try:
+            at, size = await asyncio.to_thread(brings)
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            self._said = f"{escape(str(at))}{_DOT}{sized(size)}"
+            self._told.append(f"[dim]{self._said}[/dim]")
+        self._fill()
+
+    async def _uploads(self, name: str) -> None:
+        """Backs one epic up there, behind everything else, and says where it went.
+
+        Args:
+          name: The epic.
+        """
+        import asyncio
+        import urllib.parse
+
+        try:
+            said = await asyncio.to_thread(
+                remotes().asked,
+                self._daemon,
+                f"/api/runs/{urllib.parse.quote(name, safe='')}/backup",
+                {},
+            )
+        except (LookupError, OSError, RuntimeError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            queued = cast("list[object]", _field(said, "queued") or [])
+            self._said = escape(f"backing {name} up to {', '.join(map(str, queued))}")
+            self._told.append(f"[dim]{self._said}[/dim]")
+        self._fill()

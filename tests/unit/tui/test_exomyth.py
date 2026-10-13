@@ -9,14 +9,19 @@ from textual.content import Content
 
 from hmz.runtime.tracing.timeline import VERSION
 from hmz.tui.exomyth import (
+    Flamed,
     Laid,
+    Slice,
     bar,
     described,
     flamed,
     icicle,
     listed,
+    portrayed,
     ruler,
+    sliced,
     spaced,
+    summed,
 )
 
 _STRINGS = [
@@ -35,6 +40,8 @@ _STRINGS = [
     "claude-x",
     "agent · s2",
     "threads",
+    "NeiKos",
+    "coder",
 ]
 
 
@@ -105,6 +112,10 @@ def _document(**changed: Any) -> dict[str, Any]:
                 "parent": 0,
                 "tracks": [1],
                 "key": "claude:s1",
+                "agent": 15,
+                "role": 16,
+                "start": 0,
+                "end": 800,
             },
             {
                 "id": 2,
@@ -113,6 +124,8 @@ def _document(**changed: Any) -> dict[str, Any]:
                 "parent": 1,
                 "tracks": [2],
                 "key": "claude:s2",
+                "agent": 15,
+                "label": 16,
             },
         ],
         "tracks": tracks,
@@ -279,19 +292,44 @@ def test_the_ruler_ticks_at_round_times_and_says_only_whole_ones() -> None:
     assert ruler(0, 100_000, 22).rstrip().endswith("│")
 
 
-def test_the_flame_weighs_each_spans_own_time_in_the_window() -> None:
+def _named(whole: Flamed) -> dict[str, Flamed]:
+    return {one.name: one for one in whole.children}
+
+
+def test_the_flame_is_each_agent_its_sessions_merged_then_its_spans_as_they_nest() -> (
+    None
+):
     laid = Laid(_document())
 
     whole = flamed(laid, 0, 1000)
 
-    kinds = {one.name: one for one in whole.children}
-    assert kinds["flow"].weight == 1000
-    session = kinds["session"]
-    cats = {one.name: (one.weight, one.count) for one in session.children}
-    # The banner and the turn hold each other and the two below: only what is their own.
-    assert cats == {"turn": (200.0, 1), "llm": (200.0, 1), "tool": (500.0, 2)}
-    assert [one.name for one in whole.children] == ["flow", "session"]
-    assert session.children[0].name == "tool"
+    # The session and the sub-agent fill one agent's role: one stack, the flow's beside it.
+    assert [(one.name, one.weight) for one in whole.children] == [
+        ("chat", 1000),
+        ("NeiKos (coder)", 900),
+    ]
+    agent = _named(whole)["NeiKos (coder)"]
+    assert (agent.own, agent.count, agent.hue) == (800, 5, "~session")
+    assert [(one.name, one.weight) for one in agent.children] == [
+        ("turn", 800),
+        ("Bash: ls", 100),
+    ]
+    assert [(one.name, one.hue) for one in agent.children[0].children] == [
+        ("Bash: ls", "tool"),
+        ("think", "llm"),
+    ]
+
+
+def test_sessions_apart_are_each_a_stack_of_their_own_under_their_agent() -> None:
+    laid = Laid(_document())
+
+    agent = _named(flamed(laid, 0, 1000, apart=True))["NeiKos (coder)"]
+
+    assert [(one.name, one.weight) for one in agent.children] == [
+        ("main · s1", 800),
+        ("agent · s2", 100),
+    ]
+    assert agent.own == 0
 
 
 def test_the_flame_weighs_only_what_is_inside_the_window() -> None:
@@ -299,25 +337,33 @@ def test_the_flame_weighs_only_what_is_inside_the_window() -> None:
 
     whole = flamed(laid, 550, 1000)
 
-    session = next(one for one in whole.children if one.name == "session")
-    assert {one.name: one.weight for one in session.children} == {
-        "tool": 200.0,
-        "turn": 100.0,
+    agent = _named(whole)["NeiKos (coder)"]
+    assert agent.weight == 300
+    assert {one.name: one.weight for one in agent.children} == {
+        "turn": 250,
+        "Bash: ls": 50,
     }
-    assert next(one for one in whole.children if one.name == "flow").weight == 450
+    assert _named(whole)["chat"].weight == 450
 
 
-def test_the_flame_weighs_tokens_where_asked() -> None:
+@pytest.mark.parametrize(
+    ("weight", "weighed"),
+    [("in", 50), ("out", 7), ("count", 5)],
+)
+def test_the_flame_weighs_tokens_in_or_out_or_spans_where_asked(
+    weight: str, weighed: int
+) -> None:
     laid = Laid(_document())
 
-    whole = flamed(laid, 0, 1000, tokens=True)
+    whole = flamed(laid, 0, 1000, weight=weight)
 
-    assert [(one.name, one.weight) for one in whole.children] == [("session", 57)]
-    assert [(level, one.name) for level, one in listed(whole)] == [
-        (0, "session"),
-        (1, "llm"),
-        (2, "think"),
-    ]
+    assert _named(whole)["NeiKos (coder)"].weight == weighed
+    if weight != "count":
+        assert [(level, one.name) for level, one in listed(whole)] == [
+            (0, "NeiKos (coder)"),
+            (1, "turn"),
+            (2, "think"),
+        ]
 
 
 def test_the_flame_is_drawn_a_level_a_row_each_stack_its_share_wide() -> None:
@@ -341,6 +387,75 @@ def test_nothing_weighed_draws_no_flame() -> None:
     rows = icicle(flamed(laid, 5000, 6000), 10)
 
     assert all(not one.how for row in rows for one in row)
+
+
+def test_a_lane_of_nested_slices_on_any_process_is_drawn_and_weighed() -> None:
+    # A flow sampled into a lane of its own: a call, and one inside it.
+    document = _document()
+    document["tracks"].append(_track(0, 14, 6, (0, 600, 0, 5, 4), (100, 200, 1, 5, 11)))
+    document["processes"][0]["tracks"] = [0, 3]
+    laid = Laid(document)
+
+    rows = laid.rows(set())
+
+    assert [one.label for one in rows[:3]] == ["▾ chat", "  threads", ""]
+    assert _plain(bar(laid, laid.lanes[rows[2].lane], 0, 10, 100))[10:17] == " think "
+    flow = _named(flamed(laid, 0, 1000))["chat"]
+    assert [
+        (one.name, [two.name for two in one.children]) for one in flow.children
+    ] == [("main", ["think"])]
+
+
+def test_slices_sum_every_name_in_the_stretch() -> None:
+    laid = Laid(_document())
+
+    slices = sliced(laid, 0, 1000)
+
+    assert [one.name for one in slices] == [
+        "chat",
+        "main · s1",
+        "turn",
+        "Bash: ls",
+        "think",
+    ]
+    assert slices[3] == Slice("Bash: ls", "tool", 2, 500, 500, 250, 100, 400, 400, 0, 0)
+    # A turn's own time is what its model call and its tool leave of it; tokens are summed.
+    assert (slices[2].own, slices[1].own) == (200, 0)
+    assert (slices[4].ins, slices[4].outs) == (50, 7)
+
+
+def test_a_range_is_summed_by_category() -> None:
+    laid = Laid(_document())
+
+    said = Content.from_markup(summed(laid, 0, 1000)).plain.splitlines()
+
+    assert said[:3] == [
+        "Range",
+        "from 0s · to 1ms · lasted 1ms",
+        "6 spans · 50 in · 7 out",
+    ]
+    assert said[3].split() == ["category", "spans", "time", "in", "out"]
+    assert [one.split() for one in said[4:]] == [
+        ["flow", "1", "1ms", "0", "0"],
+        ["session", "1", "800µs", "0", "0"],
+        ["turn", "1", "800µs", "0", "0"],
+        ["llm", "1", "200µs", "50", "7"],
+        ["tool", "2", "500µs", "0", "0"],
+    ]
+
+
+def test_a_process_pane_says_what_it_is_whose_and_when() -> None:
+    laid = Laid(_document())
+
+    said = Content.from_markup(portrayed(laid, 1)).plain
+
+    assert said.splitlines() == [
+        "main · s1",
+        "session · claude:s1",
+        "agent NeiKos · role coder",
+        "parent chat",
+        "start 0s · lasted 800µs · 1 track · 4 spans",
+    ]
 
 
 def test_a_spans_pane_says_what_it_is_where_it_is_and_what_it_carried() -> None:

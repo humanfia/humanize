@@ -15,6 +15,7 @@ from tests.integration.doubles_tui import (
     PATIENCE,
     RUNS,
     SIZE,
+    TALKS,
     heard,
     on,
     shows,
@@ -48,9 +49,19 @@ def host(workspace: Path) -> Iterator[Host]:
 
 @pytest.fixture
 def running(host: Host, workspace: Path) -> Iterator[Link]:
+    """Another frontend of the runs, which has started a flow on a turn held open."""
+    yield from _started(host, workspace, TALKS)
+
+
+@pytest.fixture
+def chatting(host: Host, workspace: Path) -> Iterator[Link]:
     """Another frontend of the runs, which has started chat on a turn held open."""
+    yield from _started(host, workspace, "chat")
+
+
+def _started(host: Host, workspace: Path, flow: str) -> Iterator[Link]:
     with linked(host, kind="sdk") as other:
-        other.start("chat", "wait for it", agents={"assistant": RUNS})
+        other.start(flow, "wait for it", agents={"assistant": RUNS})
         _waits(lambda: heard(workspace) == ["wait for it"], "the turn to start")
         yield other
 
@@ -101,6 +112,24 @@ async def test_leaving_an_attached_interface_detached_leaves_the_run_going(
 
     assert host.status()["state"] == "running"
     await asyncio.to_thread(running.say, "still there?")
+    await asyncio.to_thread(
+        _waits, lambda: heard(workspace)[-1:] == ["still there?"], "the run to hear"
+    )
+
+
+async def test_exit_leaves_a_chat_a_host_holds_going_without_asking(
+    host: Host, chatting: Link, workspace: Path
+) -> None:
+    app = Humanize(link=linked(host))
+    async with app.run_test(size=SIZE) as pilot:
+        await shows(pilot, "still on it", "running…")
+
+        await typed(pilot, "/exit")
+
+        await until(pilot, lambda: not app.is_running, "the interface to close")
+
+    assert host.status()["state"] == "running"
+    await asyncio.to_thread(chatting.say, "still there?")
     await asyncio.to_thread(
         _waits, lambda: heard(workspace)[-1:] == ["still there?"], "the run to hear"
     )

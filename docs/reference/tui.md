@@ -41,7 +41,7 @@ At mount, in the background, the interface:
 | Task | Detail |
 | --- | --- |
 | Asks installed backends for models | Each installed CLI's own account whose model list was never fetched or is older than 7 days. Failures are logged only. |
-| Fetches flowverses | Every flowverse index with a URL (cloning `official` the first time) whose clone holds no local edits, one at a time. Installed flows are not touched. A fetch that brings new commits makes open flow lists re-read. Then, where any installed flow's index lists a newer release, prints once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`. |
+| Fetches flowverses | Every flowverse index with a URL (cloning `official` the first time) whose clone holds no local edits, one at a time. Installed flows are not touched. A fetch that brings new commits makes open flow lists re-read. Then, where any installed flow's index lists a newer release, prints once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`, and keeps `<n> flow update(s)` at the front of the status line until none is left, counted again each time `/flow` closes. |
 | Looks for a run to resume | Decides whether [`/resume`](#resume) is listed. |
 | Refreshes prices | `$TMPDIR/humanize-<uid>/prices.json` from `HUMANIZE_PRICES` (default `https://openllmprices.com/data/prices.json`) when older than 24 h; at most one attempt an hour, 20 s timeout. |
 | Asks after a newer humanize | `$TMPDIR/humanize-<uid>/releases.json` from `HUMANIZE_RELEASES` (default PyPI) when older than 24 h; then, where it names a release newer than this one, prints once, dim: ``hmz <version> is out: run `hmz update` to update``. |
@@ -84,23 +84,37 @@ At mount, in the background, the interface:
 
 | View | Key | Holds |
 | --- | --- | --- |
-| all agents (aggregate) | `""` | Every agent's lines and every outworlder's questions and answers. Default view; selected again when a run starts. |
+| home | `""` | The interface's own lines from before any conversation is read: the welcome box, commands and their answers. Default view; gone back to when a run starts, until it [lands](#views) on its first conversation. No agent's lines go here, and no view holds every agent's. |
 | one agent | `<role>` | Every conversation of that role. |
 | one conversation | `<agent>/<n>` | One session, keyed by its agent's own name (such as `NeiKos496`), not the role it fills. `<n>` counts from 1 per agent per run, in opening order. |
 | one outworlder | `outworlder:<role>` | What the flow asks through that `Outworlder` role, and the answers. |
 | monitor | — | A screen of its own: [Monitor](#watching-the-run). |
 
-For command availability the view kinds are `aggregate`, `session` (one agent or one
+For command availability the view kinds are `home`, `session` (one agent or one
 conversation), `outworlder` and `monitor`.
 
 | Rule | |
 | --- | --- |
-| Where a line goes | A conversation's line: the aggregate, its role's view, its own. An outworlder's line: its own view and the aggregate. Lines the interface itself shows (`hmz: …`, confirmations): the view being read only, and the monitor's last line. |
-| Speaker marker | On the aggregate, a blank line and `── <title>` whenever the speaker changes (`── outworlder <role>` for an outworlder). |
-| Switching header | The new view is redrawn from the top under `─ reading <title>[ · <n> conversations] ─`. Titles: `all agents`, `<role>`, `<role> · conversation <n>`, `outworlder <role>`. When a new run starts while another view was read: `─ that flow has gone, now reading all agents ─`. |
-| Unread | Set on a view other than the one read when a line is written there; never on or while reading the aggregate. Reading the aggregate clears every unread mark. |
-| Retention | At most 32 transcripts of at most 2 000 lines each. Over the limit, the oldest are dropped, conversations before others, never the aggregate, the one being read, or the one just opened. A new run deletes every conversation transcript of the previous run. |
-| Round | [`shift+tab`](#key-tab) steps forward, `tab` back, wrapping, through: the aggregate, every conversation with a turn open (in first-seen order), every outworlder of the running flow. A view not in the round starts from the aggregate. An ended conversation stays readable once read, and from the monitor. |
+| Where a line goes | A conversation's line: its role's view and its own. An outworlder's line: its own view, and the view being read where it is part of no conversation. Lines the interface itself shows (`hmz: …`, confirmations): the view being read only, and the monitor's last line. |
+| Switching header | The new view is redrawn from the top under `─ reading <title>[ · <n> conversations] ─`. Titles: `<role>`, `<role> · conversation <n>`, `outworlder <role>`. When a new run starts while another view was read, home under `─ that flow has gone ─`. |
+| Landing | When a run opens its first conversation and home is still read, the view becomes that conversation's agent (`─ reading <agent> ─`), which follows the agent's later conversations. The run's task is put in that conversation as `❯ <task>` either way. |
+| Unread | Set on a view other than the one read when a line is written there. |
+| Retention | At most 32 transcripts of at most 2 000 lines each. Over the limit, the oldest are dropped, conversations before others, never home, the one being read, or the one just opened. A new run deletes every conversation transcript of the previous run. |
+| Round | [`shift+tab`](#key-tab) steps forward, `tab` back, wrapping, through: every conversation with a turn open (in first-seen order), every outworlder of the running flow. An agent's view stands where its newest conversation does; any other view not in the round steps onto either end. Nothing to step round with no run going. An ended conversation stays readable once read, and from the monitor. |
+
+### Chat {#chat}
+
+A run of the flow named `chat` (a path or ref whose last part is `chat` included) -- or, with
+none running, `chat` set up -- is one conversation, read as Claude Code reads one:
+
+| | |
+| --- | --- |
+| View | Its conversation alone, landed on as any run's first is but with no `─ reading <agent> ─` line: no round, and [`←`](#key-left) opens no monitor. |
+| Above the prompt | No outworlder line, and its agent's line marks neither `reading` nor `unread`. |
+| Status line | `running` while a turn is open, `done` once it waits for you ([left side](#status-left)). |
+| Stopping | None: `/stop` is refused, and [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) ends the chat; the next line starts another. |
+| Leaving | [`/exit`](#leaving-and-letting-go) and `ctrl+q` ask nothing. |
+| `/epics` | No `Exomyth` row for a chat's epic. |
 
 ### Turn lines {#turn-lines}
 
@@ -140,6 +154,7 @@ State: the first row that holds.
 
 | # | Condition | Text |
 | --- | --- | --- |
+| 0 | A [chat](#chat) going | `◉ done` with no turn open and a *listen* question pending; else `<spinner> running… (<s>s)`, as row 2 without the names and the stop hint. |
 | 1 | A run going, no turn open, a *listen* question pending | `·\|· waiting for <you\|name> · ctrl+c twice to stop` (muted, not animated). `you` where some such question is unowned or owned by this frontend; else the first owner's name. |
 | 2 | A turn open, or a run going | `<spinner> <names>… (<s>s · ctrl+c twice to stop)`. Spinner `·\|·` `·/·` `·—·` `·\·`, a frame per 0.5 s, cyan. `<names>`: the working agents, comma-separated; with none, the flows running joined by ` ▸ ` (innermost last), else the flow set up. `<s>`: since the oldest open turn began, else since the run began. |
 | 3 | Otherwise | `◉ <flow> · <cwd>`, with `$HOME` as `~`. |
@@ -153,10 +168,10 @@ Hints joined by ` · `, in this order; each only when its condition holds.
 | 1 | `↑↓ move`, `tab select`, `esc cancel` | The offers list is open. **Nothing else is shown.** |
 | 2 | `enter run` | The line starts with `/` and its first word is a command available in this view and not refused now. |
 | 2 | `enter ask` · `enter answer` · `enter send` · `enter start` | Some other text: btw on · a question is answerable here · a run is going · otherwise. |
-| 3 | `shift+tab switch view` | The round holds more than one view. |
+| 3 | `shift+tab switch view` | The round holds a view other than the one read and its agent's newest conversation. |
 | 4 | `/ commands` | Always. |
 | 5 | `shift+enter newline` | Always. |
-| 6 | `← monitor` | The editor is empty. |
+| 6 | `← monitor` | The editor is empty, outside a [chat](#chat). |
 | 7 | `ctrl+c clear` · `ctrl+c again to stop` · `ctrl+c again to exit` · `ctrl+c stop` · `ctrl+c force stop` · `ctrl+c exit` | What the next [`ctrl+c`](#ctrl-c) does. |
 
 Where the hints are wider than the width left, hints are dropped **from the front** until they
@@ -217,7 +232,7 @@ A `/` line is echoed as `❯ /…` and then, in order:
 | 4 | Check the state (`refuses`). | `hmz: <why>`; the `ctrl+c` count is reset. |
 | 5 | Run it. | |
 
-View names in messages: `the monitor`, `the all-agents transcript`, `one agent's transcript`,
+View names in messages: `the monitor`, `the home transcript`, `one agent's transcript`,
 `an outworlder's transcript`, joined `a, b and c`.
 
 <RefFilter label="Filter commands">
@@ -226,13 +241,13 @@ View names in messages: `the monitor`, `the all-agents transcript`, `one agent's
 | --- | --- | --- | --- | --- |
 | <span id="cmd-flow"></span>`/flow` | `[flow]` | all | never; `[flow]` itself is refused while a run is going | — |
 | <span id="cmd-btw"></span>`/btw` | `[question]` | all | nobody to ask (see [btw](#btw)) | — |
-| <span id="cmd-epics"></span>`/epics` | — | all | never | — |
+| <span id="cmd-epics"></span>`/epics` | `[@daemon]` | all | never | — |
 | <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing |
 | <span id="cmd-settings"></span>`/settings` | `[page]` | all | never | — |
 | <span id="cmd-clear"></span>`/clear` | — | all | never | — |
-| <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all but `session` | on an outworlder another frontend holds | — |
+| <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all | on an outworlder another frontend holds | — |
 | <span id="cmd-claim"></span>`/claim` | `[on\|off]` | `outworlder` | on an outworlder another frontend holds | — |
-| <span id="cmd-stop"></span>`/stop` | — | `monitor`, `aggregate` | no run going, or it is stopping | — |
+| <span id="cmd-stop"></span>`/stop` | — | all | no run going, a [chat](#chat) going, or it is stopping | — |
 | <span id="cmd-exit"></span>`/exit` | — | all | never | — |
 
 </RefFilter>
@@ -243,14 +258,14 @@ Each command's line in the completion list:
 | --- | --- | --- |
 | `/flow` | `Switch flow` | `Set up the running flow's agents` — a run is going |
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
-| `/epics` | `View and manage runs in this directory` | |
+| `/epics` | `View and manage runs here, or of another daemon` | |
 | `/resume` | `Resume the last run in this directory` | |
-| `/settings` | `Every setting: general, accounts, fallback, runtimes, backup, workspace` | |
+| `/settings` | `Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace, usage` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
 | `/stop` | `Stop the flow without confirmation` | |
-| `/exit` | `Exit` | `Exit; a running flow can be left running` (daemon) or `Exit; asks before stopping the running flow` (in process) — a run is going |
+| `/exit` | `Exit` | `Exit; a running flow can be left running` (daemon) or `Exit; asks before stopping the running flow` (in process) — a run but a [chat](#chat) is going |
 
 The completion list shows the commands that are available in the view, not refused and not
 unlisted, alphabetically. Availability and about texts are re-evaluated whenever the view, the
@@ -268,12 +283,15 @@ Every message is red and prefixed `hmz: `.
 | `/afk`, `/claim` | argument not `on`/`off` | `expected 'on' or 'off', not '<word>'` |
 | `/claim off` | not held by this frontend | `<role> is not yours to release` |
 | `/stop` | nothing running | `no flow is running` |
+| `/stop` | a [chat](#chat) going | `a chat is not stopped: /clear ends it` |
 | `/stop` | stopping | `the flow is already stopping: it is finishing the turn it was in` |
 | `/resume` | a run going | `cannot resume a run while a flow is running: press ctrl+c twice to stop it first` |
+| `/resume` | a [chat](#chat) going | `cannot resume a run while a chat is going: /clear ends it first` |
 | `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
 | `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
-| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, accounts, fallback, runtimes, backup or workspace` |
+| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, daemons, accounts, fallback, runtimes, backup, workspace or usage` |
+| `/epics <word>` | not `@` and a daemon's name | `/epics takes a daemon as @<name>: choose @local, @<daemon>, …` |
 | `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
 | `/btw` | no agent to ask | `/btw requires a coding agent` |
 | `/btw` | the session is gone | `/btw: no conversation found for <agent>/<n>` |
@@ -291,9 +309,11 @@ changes will apply to the next run`.
 Enters [btw mode](#btw), asking `[question]` if given. In btw mode, `/btw` alone leaves and
 `/btw <q>` asks. The question is the `shlex`-split words joined by one space.
 
-### `/epics` {#epics-command}
+### `/epics [@daemon]` {#epics-command}
 
-Opens [`/epics`](#the-runs-that-have-already-happened).
+Opens [`/epics`](#the-runs-that-have-already-happened) on the daemon last listed -- this
+machine's (`@local`) until another is turned to -- or on `@<daemon>`, one of those on the
+[Daemons page](#daemons-page), which it lists from then on.
 
 ### `/resume` {#resume}
 
@@ -302,15 +322,17 @@ See [`/resume`](#carrying-the-last-one-on-outright).
 ### `/settings [page]` {#settings-command}
 
 Opens [`/settings`](#what-humanize-remembers) on its landing screen, or inside `[page]`: one of
-`general`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, or the aliases `settings`
-and `everywhere` (General), `directory` (Workspace) and `environments` (Runtimes);
-case-insensitive; only the first word is read. Completion offers the six names, in that
-order, not the aliases. `flowverses`, the page that moved, prints `the flowverses are on /flow
+`general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`,
+`usage`, or the aliases `settings` and `everywhere` (General), `directory` (Workspace) and
+`environments` (Runtimes); case-insensitive; only the first word is read. Completion offers the
+nine names, in that order, not the aliases. `flowverses`, the page that moved, prints `the flowverses are on /flow
 now` (dim) and opens [`/flow`](#where-flows-come-from) on Flowverses.
 
 ### `/clear` {#clear-command}
 
-Clears the view being read (only), resets its speaker marker, and redraws the opening box.
+Clears the view being read (only), resets its speaker marker, and redraws the opening box. In a
+[chat](#chat) it first ends the chat, saying nothing of it, and resets the `ctrl+c` count: the
+next line starts another.
 
 ### `/afk [on|off]` {#afk-command}
 
@@ -341,7 +363,8 @@ stopping, the next `ctrl+c` [forces](#ctrl-c) it.
 
 ### `/exit` {#leaving-and-letting-go}
 
-Same as `ctrl+q`.
+Same as `ctrl+q`. In a [chat](#chat) it asks nothing: a chat held in process ends with the
+interface, and one a host holds is left to it.
 
 | State | Effect |
 | --- | --- |
@@ -389,7 +412,7 @@ Paths are not names: use `/flow ./path`.
 | Condition | Result |
 | --- | --- |
 | btw on | Asked as a side question. |
-| a question is answerable here (aggregate, monitor, the asking outworlder's view, or the conversation it is part of) | Taken as the answer. |
+| a question is answerable here (home, monitor, the asking outworlder's view, the conversation it is part of, or the view it was shown on) | Taken as the answer. |
 | `<name>` not among the offered flows | `hmz: no such flow: <name>`, and for a name said as before the `@` (`local/x`) ` -- a flow of local is called @local/x now` |
 | a run going | `hmz: cannot choose a flow while one is running` |
 | the flow is [set up](#set-up) | Chosen; with a task, the run starts. Without a task, `enter a task to start the flow`. |
@@ -439,8 +462,8 @@ Lines said and not yet taken are **pinned** on the left above the editor:
 ## Questions, and being away {#questions-and-being-away}
 
 A question comes from a flow's `Outworlder` role, or from an agent asking its user through a
-hook the flow hung. It is shown on the asking outworlder's view and on the aggregate, and
-also in the conversation it is part of, where it is one:
+hook the flow hung. It is shown on the asking outworlder's view, and also in the conversation it is part of
+where it is one, else on the view being read:
 
 ```text
 ● Which region?
@@ -453,8 +476,8 @@ also in the conversation it is part of, where it is one:
 | --- | --- |
 | Options | `      <n>. <option>` (6 spaces). |
 | Footer | `   <name>'s to answer` (held by another), else `   [yours to answer: ]type an answer, or /afk to stop being asked`. |
-| Part of a conversation | A question asked while one conversation has a turn open (the asked record's `key`, else the only conversation working), and a `listen` question whose text is the last answer a conversation gave (a conversation asking what next, as `chat` does after every turn). The first is shown in that conversation as well (its question line left out where the agent's own `●` line already says it), and reaches the aggregate from there rather than from the outworlder's view; the second is not shown at all, its footer on the outworlder's view only. The answer is echoed in that conversation too. |
-| Answerable here | On the aggregate or monitor: the oldest pending question of any role; on an outworlder view: the oldest of that role; on a `session` view: the oldest part of the conversation read (the newest of the agent read). Only questions unowned or owned by this frontend, and not already being answered. |
+| Part of a conversation | A question asked while one conversation has a turn open (the asked record's `key`, else the only conversation working), and a `listen` question whose text is the last answer a conversation gave (a conversation asking what next, as `chat` does after every turn). The first is shown in that conversation instead of the view being read (its question line left out where the agent's own `●` line already says it); the second is not shown at all, its footer on the outworlder's view only. The answer is echoed in that conversation too. |
+| Answerable here | On home or the monitor: the oldest pending question of any role; on an outworlder view: the oldest of that role; on a `session` view: the oldest part of the conversation read (the newest of the agent read), or of no conversation and shown on that view. Only questions unowned or owned by this frontend, and not already being answered. |
 | Answer | The next line typed. A bare number `1‥n` that is not itself an option picks that option (resolved by the host). Echoed as `❯ <text>[ · by <name>]`. |
 | Refusals | `hmz: already answered by <name>`, `hmz: <role> is <name>'s`, `hmz: no question <id> is waiting`. |
 | Away | While a role is away its questions are answered at once: `""` for text, a schema's defaults, or `OutworlderAway` for a field with none; an agent's question is told nobody answered. A question pending when away is set is withdrawn (the flow sees `OutworlderAway`). |
@@ -500,9 +523,9 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | --- | --- | --- | --- |
 | app | <span id="key-ctrl-c"></span><kbd>ctrl+c</kbd> | always, including over menus | [State machine](#ctrl-c). |
 | app | <kbd>ctrl+q</kbd> | always | [`/exit`](#leaving-and-letting-go). |
-| app | <span id="key-tab"></span><kbd>shift+tab</kbd> | the log is the only screen | Next view in the [round](#views). Also over the offers list. |
+| app | <span id="key-tab"></span><kbd>shift+tab</kbd> | the log is the only screen | Next view in the [round](#views); nothing in a [chat](#chat). Also over the offers list. |
 | app | <kbd>tab</kbd> | the log is the only screen, offers closed | Previous view. |
-| app | <span id="key-left"></span><kbd>←</kbd> | the log is the only screen, editor empty, offers closed | Opens the [monitor](#watching-the-run). Otherwise moves the editor's cursor. |
+| app | <span id="key-left"></span><kbd>←</kbd> | the log is the only screen, editor empty, offers closed, not a [chat](#chat) | Opens the [monitor](#watching-the-run). Otherwise moves the editor's cursor. |
 | editor | <span id="key-enter"></span><kbd>enter</kbd> | offers open with a highlight | Takes the offer: replaces the last word, appends a space; does not send. |
 | editor | <kbd>enter</kbd> | otherwise | Sends the line (if not blank). |
 | editor | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | | Inserts a newline. |
@@ -515,6 +538,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | every menu | <kbd>↑</kbd> <kbd>↓</kbd> | list focused | Previous / next row, wrapping, stepping over headings, rules and spacers. |
 | every menu | <kbd>enter</kbd> · click | list focused | On a `▾` row: drops its values (see dropdown). On a written row: begins writing it; again: keeps it. On a row that opens something: opens it. On a pick list: takes the row. |
 | every menu | <kbd>→</kbd> | list focused | Into what the row under the cursor opens, as `enter`: a card, a page or a listed thing of `/settings` and `/flow` (not a release, which `enter` installs), a `▸` row of a flow's roles, the agent sheet's `cli`, `account` and `model`, a form's `▸` row, a run of `/epics`. Nothing on other rows: no value is stepped with them. |
+| every menu | <span id="key-m"></span><kbd>m</kbd> | list focused, on a row with a menu | Opens the row's menu, as a click with the other button does on the web page: a pick list of what can be done to it, the row as its step across the top. A run of `/epics` opens its own sheet, as `enter`; an installed flow of `/flow` offers **open**, **update**, **uninstall**, **copy here** and **copy name**; a flowverse **open**, **fetch**, **remove** and **copy URL**; a daemon **connect**, **edit…**, **remove** and **copy name**; an epic of another daemon **export**, **upload**, **copy name**, **copy task** and **copy workspace**. Only what can be done now is offered. The row of keys says `m menu` where `enter` does not open the same menu. |
 | every menu | <kbd>←</kbd> <kbd>backspace</kbd> | list focused | Up out of the menu to the one it was opened from, leaving it as `esc` would. Nothing on a menu opened from the prompt, nor on a written row, where they are the row's. |
 | every menu | <kbd>esc</kbd> | | Puts back the row being written; else clears and hides the search box; else leaves (asking [Save?](#save-box) if the menu holds changes). |
 | every menu | <kbd>tab</kbd> <kbd>shift+tab</kbd> | | Next / previous of: the search box (while shown), the list, each enabled button. |
@@ -535,7 +559,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | /settings | <kbd>enter</kbd> <kbd>→</kbd> · click | landing | Opens the page. |
 | /settings | <kbd>esc</kbd> | landing | Leaves, asking [Save?](#save-box) if anything is held. |
 | /settings | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click `/settings` | a page, list focused | Back to the landing screen. |
-| /flow | <kbd>enter</kbd> · click | list focused | Goes into the row: a card, a flow's roles (Installed), a flowverse, a flow's releases; on a role, `params` or `budget` opens its sheet; on `profiling` drops `on` and `off`; on a release installs it. |
+| /flow | <kbd>enter</kbd> · click | list focused | Goes into the row: a card, a flow's roles (Installed), a flowverse, a flow's releases; on a role, `params` or `budget` opens its sheet; on `profile flow` or `profile environment` drops `on` and `off`; on a release installs it. |
 | /flow | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click a step across the top | a page, list focused | Out to the page above (`esc` ends a search first). On the first screen, and on the roles of a flow `/flow` was opened on, they leave as on any menu. |
 | dropdown | <kbd>↑</kbd> <kbd>↓</kbd> | | Moves. An on/off dropdown opens on the value not in force. |
 | dropdown | <kbd>enter</kbd> · click | | Picks the value. |
@@ -548,6 +572,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | monitor | <kbd>space</kbd> | editor empty | Opens an agent out to its sessions, or shuts it. |
 | monitor | <kbd>→</kbd> | editor empty, offers closed | Back to the log last read. |
 | monitor | <kbd>ctrl+t</kbd> | always | Graph ↔ list. |
+| monitor | <kbd>ctrl+e</kbd> · click `Exomyth` | editor empty, an epic going that is not a chat | The epic going in [Exomyth](#exomyth). |
 | environment page | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>enter</kbd> · click | | Walk and read its sessions. |
 | environment page | <kbd>esc</kbd> <kbd>←</kbd> <kbd>backspace</kbd> · click `monitor` | | Back to the monitor. |
 | anywhere | drag · double click · triple click | | [Copies](#selecting-and-copying). |
@@ -563,6 +588,8 @@ Every menu says the keys that work where its focus is on its bottom row, and onl
 | --- | --- | --- |
 | 1 | The prompt in front (the monitor's, if up) has text | Clears it; resets the count. |
 | 2 | Otherwise the count becomes `count + 1` if the last press was within 3.0 s, else `1`. | |
+| 2a | A [chat](#chat), count 1 | `— press ctrl+c again to exit —`, whether or not a turn is open. |
+| 2b | A [chat](#chat), count 2 | Leaves at once, as [`/exit`](#leaving-and-letting-go). |
 | 3 | A run going, count 1 | `— press ctrl+c again to stop the flow —` |
 | 4 | A run going, count 2 | Stops the run as [`/stop`](#stop); resets the count. |
 | 5 | A run stopping (by anybody) | Any press, no time limit: sends `force`; prints `— closed <n> conversation(s) mid-turn —` where `n > 0`; resets the count. |
@@ -676,7 +703,7 @@ form's `workdir` on this machine -- complete as they are written, as a shell doe
 
 | Menu | Held until saved | Applied at once |
 | --- | --- | --- |
-| `/flow`, roles, agent sheet, params, budget, backup, environment form, unsaved host | the flow, its roles, params, budget, profiling and backup targets | installing, updating, uninstalling; adding, fetching and removing a flowverse |
+| `/flow`, roles, agent sheet, params, budget, backup, environment form, unsaved host | the flow, its roles, params, budget, both profiling switches and backup targets | installing, updating, uninstalling; adding, fetching and removing a flowverse |
 | `/settings` General, Workspace, Fallback, Backup | everything | — |
 | `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
 | `/settings` Runtimes; `/epics` | — | everything (an upload is queued, not waited on) |
@@ -713,7 +740,7 @@ A screen of its own, drawn and keyed as every menu is ([Anatomy](#menu-anatomy))
 among them: the way here across the top (`hmz › /flow › Installed › <flow>`), every step of it
 but the last a click back; the list in a box with a block cursor; the line under it; a bar of
 buttons, **Save** at the far end; the keys. `/flow` opens on **Installed**. What it holds -- the flow and its roles, params, budget
-and profiling -- lands together on **Save**; installing, updating, uninstalling, fetching, adding and
+and both profiling switches -- lands together on **Save**; installing, updating, uninstalling, fetching, adding and
 removing happen at once.
 
 ```text
@@ -792,12 +819,13 @@ top, `esc` leaves, and params are not asked.
 | each environment role | the `-e` spec after `<role>=`, or `not set`, then `▸`; under it `environment` | [environment form](#where-each-agent-works) |
 | `params` (flows that take any) | the params changed from their defaults, or `defaults`, then `▸` | [params sheet](#setting-a-flow-up) |
 | `budget` | `set ▸` or `none ▸`; under it `what a run may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
-| <span id="profiling-row"></span>`profiling` (straight under `budget`) | a switch, `● on ▾` or `○ off ▾`: the flow's remembered value, else off; under it `samples the programs agents start` or `traced only` | nothing: `enter` drops `on` and `off` (see dropdown); a run started is [profiled](/reference/tracing#profiling-a-run) where it is on |
-| <span id="backup-row"></span>`backup` (straight under `profiling`) | the targets an epic goes to, `<a>, <b> ▸`, or `none ▸`; under it `where each epic is backed up`, with ` (the defaults)` until others are chosen | **Backup**: a switch per [target](#backup-page), named, its URL under it; **Done** `backs each epic up to the targets switched on`. With no target, nothing opens: `no backup targets: add one on /settings backup`. Remembered per flow on save as `workspaces.<dir>.flows.<flow>.backup` (untouched, nothing is written, so the defaults go on applying); a run started passes those settings still has as `backup`. |
+| <span id="profiling-row"></span>`profile flow` (straight under `budget`) | a switch, `● on ▾` or `○ off ▾`: the flow's remembered value, else off; under it `samples the flow's own Python` or `traced only` | nothing: `enter` drops `on` and `off` (see dropdown); a run started profiles the flow's own Python where it is on, sent as `profile_flow` |
+| `profile environment` (straight under `profile flow`) | the same switch; under it `samples the programs agents start` or `traced only` | the same; a run started is [profiled](/reference/tracing#profiling-a-run) where it is on, sent as `profile_environment`. Both remembered per flow on save as `workspaces.<dir>.flows.<flow>.profile_flow` and `.profile_environment` |
+| <span id="backup-row"></span>`backup` (straight under `profile environment`) | the targets an epic goes to, `<a>, <b> ▸`, or `none ▸`; under it `where each epic is backed up`, with ` (the defaults)` until others are chosen | **Backup**: a switch per [target](#backup-page), named, its URL under it; **Done** `backs each epic up to the targets switched on`. With no target, nothing opens: `no backup targets: add one on /settings backup`. Remembered per flow on save as `workspaces.<dir>.flows.<flow>.backup` (untouched, nothing is written, so the defaults go on applying); a run started passes those settings still has as `backup`. |
 
 Buttons: **Update**, **Uninstall** and **Copy here**, as on [Installed](#flow-list) for this
 flow (not when the page is opened on it alone); then **Save** (`run this flow, set up as it is
-here`), which applies flow, roles, params, budget, profiling and backup together. Keys `enter open` (`enter choose` on `profiling`) `  tab actions   esc <back|close>`. Roles filled by the runtime
+here`), which applies flow, roles, params, budget, profiling and backup together. Keys `enter open` (`enter choose` on either profiling switch) `  tab actions   esc <back|close>`. Roles filled by the runtime
 (`Outworlder`, `LocalEnv`) are not rows. Messages:
 `<flow> has no roles to configure; it interacts only with you`, `<flow> failed to load: <e>;
 nothing can be configured`.
@@ -1078,9 +1106,11 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 | Element | Value |
 | --- | --- |
 | Title | `Epics` |
-| About | `Every epic in this directory, newest first: task, status, and session count.`; on this machine, `Every epic on this machine, newest first: workspace, task, status, and session count.` |
-| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `[<workspace> · ]<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|is still going\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress -- here, under a host, or in `hmz exec` -- reads `is still going`; `was left unfinished` is one whose process went before it ended. |
-| Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t`; **Import…**, as `i` |
+| About | `Every epic in this directory, newest first: task, agents, spend, duration, session count, and status.`; on this machine, `Every epic on this machine, newest first: workspace, task, agents, spend, duration, session count, and status.` |
+| Filters | Rows above the epics, each ▾ `all` until a value is picked from the list it drops (each value with how many of the epics listed have it, whatever else is picked): `status` (`running` `done` `failed` `stopped` `unfinished`), `flow` (each flow listed), and, on this machine, `workspace` (each directory listed). Absent while nothing is listed. Picking one goes back to the first page; `ctrl+t` clears `workspace`; an import clears them all. |
+| Rows | `YYYY-MM-DD HH:MM · <flow>[ ●]` -- `●` on an epic [told of](#notifications-page) and not opened since -- about `[<workspace> · ]<task (≤ 60 chars)\|no task>[ · <agent>, <agent>][ · <money>][ · <k> out][ · took <duration>][ · backed up to <target>, <target>] · <n> session(s)[ · failed\|stopped\|is still going\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress -- here, under a host, or in `hmz exec` -- reads `is still going`; `was left unfinished` is one whose process went before it ended. |
+| Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t`; **Import…**, as `i`; **Daemon…**, a pick list of `Local` and every [daemon](#daemons-page) with how it stands, the one picked listed instead; **Newer** and **Older**, a page of 50 epics each way, where more than 50 are found |
+| Under the list | `<first>–<last> of <n>` where more than 50 are found; `no epic is like that` where the filters and search find none |
 | Keys | `enter open   ctrl+t this machine\|this directory   i import   / search   tab actions   esc close` |
 | Empty | `no flow has been run in this directory yet` / `no flow has been run on this machine yet`; `reading…` while a machine's are read |
 
@@ -1091,8 +1121,10 @@ off the screen. Which was last chosen is remembered as
 
 `i` or **Import…** opens **Import epic** (`An epic somebody exported, read back in under the
 directory it ran in.`): one row `file   the .hmzepic to import`, a
-[path](#path-completion); **Done** `imports the epic`, `~` expanded; error `the file to import
-is required`. It is then read in, as
+[path](#path-completion) holding `~/Downloads/` (`~/` where there is none) until a letter typed
+replaces it -- `tab` takes each file there in turn; **Done** `imports the epic`, `~` expanded,
+a `file://`, quoted or backslash-escaped path, as a terminal pastes a file dropped onto it, read
+as the path it names; error `the file to import is required`. It is then read in, as
 [`Hmz().epics.imported`](/user/export#importing-a-run) does, off the screen: `importing…`, then
 `imported into <workspace>`, repeated in the transcript on close, with the cursor on it. One
 of another directory turns the list to this machine's until the sheet closes, without
@@ -1110,33 +1142,106 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).`, then a line per target it was backed up to: `<target>: backed up <when>` or `<target>: failed <when>: <error>` |
 | Keys | `enter choose   esc back` |
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
+| `graph` | `its agents, called flows and sessions, read back`. Opens its [graph](#an-epic-s-graph). |
 | `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
 | `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
-| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. |
+| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for a [chat](#chat). |
+| `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
+
+Rows in order: `resume run`, `graph`, `export run`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
+
+### An epic's graph {#an-epic-s-graph}
+
+The epic as the [monitor](#monitor-graph) draws a run, read back out of what it wrote down and
+its sessions' logs, finished or going: `hmz › /epics › <when> · <flow>` across the top, then
+`[<agent>, <agent> · ][<money> · ][<k> out · ][took <duration> · ][backed up to <target> · ]<n> session(s)`.
+Its logs are read off the screen (`reading its logs…`; an error in red; `its logs held nothing
+said` where they held nothing).
+
+| Element | Value |
+| --- | --- |
+| Boxes | One per agent, in the order it was given them: `<agent>`, then `<cli>/<model>:<effort> · <n> turn(s) · <n> session(s)` (the turns once read). Above each but the first, the handovers between it and the one above, as on the monitor. |
+| Rows | Under each box, its sessions: `<agent>/<n>`, about `<cli>@<account> · <n> action(s)` (the actions once read). |
+| Called flows | Under a heading `called flows`, the tree of flows it called, each `<flow> · <how> · <task>` indented under its caller. |
+| Buttons | **Exomyth**, opening it in [Exomyth](#exomyth); not for a `chat`. |
+| Keys | `enter read   tab actions   esc back` |
+
+`enter`, `→` or a click on a session reads it: `<agent>/<n>` as its step across the top, `<n>
+action(s), oldest first, read back from its log.`, and a row per action -- `turn` and what it was
+asked, `model` and its thinking, the tool's name with what went in and `⎿ ` what came out
+(`✕ failed` where it failed), `said` and what it said -- each cut to 6 lines and 400 characters
+until `enter` says it whole (and again cuts it). **Search…** or `/` narrows them. Keys `enter whole   /
+search   tab actions   esc back`.
 
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
 there. Credentials are struck out of every byte of it.`), `Export run` as its step of the way
 across the top: one row `to   file, or directory to put <run>.hmzepic in`, a
-[path](#path-completion); **Done** `writes the archive there`, `~` expanded; error `where to
-export to is required`. A directory, existing or ending in `/`, gets `<run>.hmzepic`;
+[path](#path-completion), holding `~/Downloads/` (`~/` where there is none) until a letter
+typed replaces it; **Done** `writes the archive there`, `~` expanded; error `where to export to
+is required`. A directory, existing or ending in `/`, gets `<run>.hmzepic`;
 anything else is the file. `esc` goes back to the run.
+
+### Another daemon's epics {#remote-epics}
+
+On a daemon of another machine, `/epics` reads that machine's own web interface, reached over
+ssh as the [Daemons page](#daemons-page) reaches it, off the screen.
+
+| Element | Value |
+| --- | --- |
+| Title | `Epics on <daemon>` |
+| About | `Every epic <daemon> holds, newest first: workspace, task, status, and session count.` |
+| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `<workspace> · <task\|no task> · <n> session(s) · <how>` |
+| Buttons | **Search…** (flow, task, run name, workspace); **New epic…**, as `n`; **Refresh**; **Daemon…**, as above |
+| Keys | `enter menu   / search   tab actions   esc close` |
+| Empty | `reaching <daemon>…` while it is read; `no epic on <daemon> yet`; or why it was not reached, in red |
+
+`enter`, `m` or a click opens the epic's menu: **export** (not while it runs: the
+[Export run](#the-runs-that-have-already-happened) form, the archive that daemon makes brought
+here, `<path> · <size>`), **upload** (backs it up there: `backing <name> up to <a>, <b>`),
+**copy name**, **copy task** and **copy workspace**; and first, on an epic a host there holds,
+**follow** (`read it as it goes, and say something to it`).
+
+**New epic…** opens **New epic**: `workspace` (`a directory on <daemon>`, the directory that
+daemon's interface started in until a letter is typed), `flow` (`the flow, as -f names it`,
+`chat` until a letter is typed), `task` (`what it is to do`) and `agents` (`role=cli/model:effort,
+…; blank for what that directory last ran`); **Done** `starts the epic on <daemon>`. Errors:
+`<row> is required`, `agents: '<one>' is not role=agent`; under the list in red, why it did not
+start -- `<role> runs nothing there yet: say it as <role>=<cli>/<model>:<effort>`, or what that
+daemon refused. Set up otherwise as that directory last ran the flow there, the epic starts
+and is followed.
+
+#### Following an epic there {#afar}
+
+`<workspace> · <daemon>` across the top, then `The runs of this directory on <daemon>, as its
+own web page reads them. A line typed is said to the run, or answers what it asks.` The
+transcript: `— <flow> started —`, `❯ <task>` and each line said or answer given, `⏺ <words>`
+of each agent's turn, `⏺ <agent> is working` as one begins, `? <question>` (not what a flow
+waiting on its next line says back), `hmz: <failure>` in red, `— the flow is <how> —`; the whole
+run so far first. Under it how it stands: `waiting for you`, a chat's `running` or `done`, the
+run's state, `nothing running`, or why that daemon let it go, in red. Then the line: `enter`
+answers what the run asks of whoever this end answers as, else says it to the run; what is
+refused is said in red. `esc` comes back to the list, leaving the run going there. Keys `enter
+send   esc back`.
 
 ### Exomyth {#exomyth}
 
 The epic as a timeline of its sessions, as [the Exomyth timeline](/reference/tracing#timeline)
-lays it out, on a screen of its own: `hmz › /epics › <when> · <flow> › Exomyth` across the
-top, **Timeline** and **Flame** at the right of it (the one shown in bold), then
+lays it out, on a screen of its own -- opened from an epic's sheet or [graph](#an-epic-s-graph),
+or, for the epic going, from the monitor -- `hmz › /epics › <when> · <flow> › Exomyth` (or
+`hmz › monitor › <when> · <flow> › Exomyth`) across the
+top, **Timeline**, **Flame** and **Slices** at the right of it (the one shown in bold), then
 `<epic> · <n> session(s) · <n> span(s) · <length>[ · live]`. It is read off the screen (`reading…`;
 an error in red); while the epic is `live` it is read again every 3 seconds, a failed read
-included, keeping the window, the search, what is folded (by process key) and the span under
-the cursor (by process, track, depth and start). A timeline of a version this hmz does not
+included, keeping the window, the search, the range, what is folded (by process key) and the
+span under the cursor (by process, track, depth and start). A timeline of a version this hmz does not
 know is refused: `timeline version <n> is not 1`.
 
 **Timeline**: a ruler of time (`│0s   │2s …`, a tick every 12 cells or more, at 1, 2 or 5 of a
 unit), then a row per lane. On the left, as wide as a third of the screen and at most 28
 cells, each process under the one it hangs from, two cells deeper, `▾` (open) or `▸`
 (folded) before one with more than one lane or a process under it; a track's second and later
-lanes are its name or blank. The row under the cursor is marked `❯`. A span is a bar across
+lanes are its name or blank. Every lane of every process is drawn alike, whatever its kind: a
+flow, a session, a program, or a lane of slices nested in one another. The row under the cursor is marked `❯`. A span is a bar across
 its row in its category's colour of the theme (`flow` primary, `session` accent, `turn`
 secondary, `llm` success, `tool` warning, `message` primary, `event` accent, `process`
 secondary), cut to the eighth of a cell at either end (`▏▎▍▌▋▊▉█`), its name written on it where
@@ -1152,34 +1257,55 @@ row.
 | `↑` / `↓`, `pageup` / `pagedown` | the row above / below (10 rows), the cursor on the span on screen nearest the moment it was at, or none |
 | `←` / `→` | the span before / after in the row, the window moved to it where it is off screen |
 | `enter` | a pane under the chart of the span under the cursor, following the cursor, or shuts it: its name; category · process · track · depth; `start <t> · lasted <t> · <ISO time>`; `[<model> · ]<n> in · <n> out` where it has either; then each of its first 12 args, `<key> <value>` on one line of at most 200 characters (`+<n> more`) |
-| `f` | zoom to the span under the cursor |
+| `p` | the pane of the process of the row under the cursor, or shuts it: its name; kind · key; `agent`, `role`, `backend`, `model` and `label`, those it has; `pid`, `parent` and `record`, those it has; `start <t> · lasted <t> · <n> track(s) · <n> span(s)` |
+| `v` | begins a range at the span under the cursor (or the moment it is at), stretching to the span the cursor goes to; again holds it there; again drops it. The ruler is drawn turned round across it, and the pane says it: `Range`; `from <t> · to <t> · lasted <t>`; `<n> span(s) · <n> in · <n> out`; then a row per category (`flow`, `session`, `turn`, `llm`, `tool`, `message`, `event`, `process`, then any other by name): its spans, its time inside the range, its tokens in and out |
+| `f` | zoom to the range, or to the span under the cursor where there is none |
 | `0` | the whole epic |
 | `space` | fold the process of the row under the cursor to its first row, hiding the processes under it, or open it out |
 | `/` | search box (`span name`): `enter` goes to the first span after the cursor whose name holds it (any case), opening out what hides it: `<i> of <n> · <words>`, or `no span named <words>` |
 | `n` / `N` | the next / previous span found |
-| `tab` | **Flame** |
+| `tab` / `shift+tab` | **Flame** / **Slices** |
 | `r` | read again |
-| `esc` | out of the search, then the pane, then back to the run |
+| `esc` | out of the search, then the range, then the pane, then back to the run |
 
 Keys line:
-`w/s zoom   a/d pan   ←/→ span   enter details   f fit   0 whole   space fold   / search   [n/N next   ]tab flame   esc back`.
+`w/s zoom   a/d pan   ←/→ span   enter details   p process   v range|hold|drop   f fit   0 whole   space fold   / search   [n/N next   ]tab flame   esc back`.
 
-**Flame**: where the time in the window went, as three rows of nested bars over a list: kind
-of process (`flow` primary, `session` secondary, `os` warning), then category, then name,
-each as wide as its share, heaviest first, cut by an eighth of a gap from the one before. Time
-is each span's own inside the window, less the spans under it in its track; `t` weighs by
-tokens in and out instead. Under it `time|tokens   spans   stack`, and a list of at most 400
-stacks, each under the one it is part of: total (as on the ruler, or tokens as
-[the status line](#the-status-line) counts them), how many spans, and its name; the stack under
-the list's cursor is drawn turned round in the bars. Under the list:
-`weighed by time|tokens · <from> · <to>`. Keys: `↑/↓ stack   t tokens|time   r refresh   tab timeline   esc back`.
+**Flame**: where the time in the range went -- or in the window, where there is none -- as
+nested bars over a list. Each agent is a stack, `<agent> (<role>)` (its label where it fills
+no role); each flow and each program is one too, by its name. Its sessions are merged into
+it; `m` puts each apart, a stack of its own under it (a program's as `<name> <pid>`), and
+merges them again. Under it, its spans as they nest, by name: a session's own span, and a
+flow's, is its stack. Each bar is as wide as its share, heaviest first, in its category's
+colour (an agent `session` secondary, a flow primary, a program warning), cut by an eighth of
+a gap from the one before; as many rows as the stacks go deep, 6 at most. `t` weighs by the
+next of time (inside the stretch), tokens in, tokens out and count of spans. A stack weighs
+what its own spans do, or what those under it do where that is more -- counts are summed --
+so a span that says what its calls came to is not weighed twice. Under it
+`time|in|out|count   spans   stack`, and a list of at most 400 stacks, each under the one it
+is part of: its weight (as on the ruler, or tokens as [the status line](#the-status-line)
+counts them), how many spans, and its name; the stack under the list's cursor is drawn turned
+round in the bars. Under the list:
+`weighed by <time|tokens in|tokens out|count> · sessions merged|apart[ · range] · <from> · <to>`.
+Keys: `↑/↓ stack   t <next weight>   m apart|merge   r refresh   tab slices   esc back`.
+
+**Slices**: every name the spans of the same stretch go by, a row per name and category, at
+most 400: `count total self avg p50 p95 max in out category name` -- how many, their time
+inside the stretch, of that what the spans under them leave, the average, the median, the
+95th percentile, the longest, and tokens in and out -- each on one line, the name cut with
+`…`. Sorted by total, the most first; `o` sorts by the next column (a number the most first,
+words from a) and `O` turns it round, the column marked `↓` or `↑`. `enter` goes to the
+timeline and to the first span of that name and category after the cursor, as a search does:
+`<i> of <n> · <name>`, `n` / `N` the next. Under the list:
+`sorted by <column>↓|↑[ · range] · <from> · <to>`. Keys:
+`↑/↓ slice   enter timeline   o sort   O reverse   r refresh   tab timeline   esc back`.
 
 ## `/resume` {#carrying-the-last-one-on-outright}
 
 Picks up the newest run in this directory of a flow that can be picked up. Runs are scanned
 newest first; the scan stops at the first run that is unreadable, was recorded resumable, or
 whose flow is resumable now. On success: `resuming <run>: running <flow> from saved state`,
-and the run's flow, agents, environments, params, budget, whether it was profiled and task
+and the run's flow, agents, environments, params, budget, whether its flow and its environment were profiled and task
 are used; the budget counts from zero.
 
 | Message (`hmz: `, red) | Condition |
@@ -1199,8 +1325,9 @@ equivalent: [`hmz exec --resume`](/reference/cli#picking-a-run-up).
 
 ## `/settings` {#what-humanize-remembers}
 
-A screen of six pages, from the broadest scope to the nearest: this machine, the accounts and
-what takes over when one fails, where work runs, where epics are backed up, this directory. Where flows come from is
+A screen of nine pages: eight from the broadest scope to the nearest -- this machine, what it
+tells you of, the daemons it reaches, the accounts and what takes over when one fails, where
+work runs, where epics are backed up, this directory -- then what the epics spent. Where flows come from is
 [`/flow`](#where-flows-come-from).
 Storage keys are in [Settings](/reference/settings).
 
@@ -1213,6 +1340,11 @@ Storage keys are in [Settings](/reference/settings).
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ ⚙  General                                      details off · reports on │
   │    this machine: what runs show, the /btw agent, error reports           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ♪  Notifications                                5 of 5 kinds · system on │
+  │    which epics on this machine you are told of                           │
+  │ ⇄  Daemons                                                     2 daemons │
+  │    this machine's and other machines', reached over ssh                  │
   │──────────────────────────────────────────────────────────────────────────│
   │ ◉  Accounts                                        3 accounts  ● unsaved │
   │    what agents sign in as, under each CLI                                │
@@ -1228,6 +1360,9 @@ Storage keys are in [Settings](/reference/settings).
   │──────────────────────────────────────────────────────────────────────────│
   │ ⌂  Workspace                                        work/api · flow rlar │
   │    this directory: its flow, and forgetting it                           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ $  Usage                                                 $4.20 in 30 days │
+  │    what the epics spent, by day and by flow                              │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
                                                                           Save
@@ -1238,11 +1373,14 @@ Storage keys are in [Settings](/reference/settings).
 | Card | Summary | `● unsaved` when |
 | --- | --- | --- |
 | ⚙ General | `details on\|off · reports on\|off\|not set` | details, btw agent or reports changed |
+| ♪ Notifications | `<n> of 5 kinds · system on\|off` | a kind or the system changed |
+| ⇄ Daemons | `<n> daemon(s)` (Local included) | never |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
 | ▦ Runtimes | `<n> machine(s)` | never |
 | ⇪ Backup | `<n> target(s)` | targets differ from what is saved |
 | ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | forget on |
+| $ Usage | `last <n> days` until opened, then `<money> in <n> days` | never |
 
 **Save** is disabled (tooltip `nothing to save yet`) until a page holds a change (`save all
 changes`). Hints: `enter open   [tab actions   ]esc close`; `tab actions` only while something
@@ -1267,10 +1405,13 @@ Every page is drawn as any menu is ([Anatomy](#menu-anatomy)).
 
 | Page | Buttons | Search matches |
 | --- | --- | --- |
+| General, Notifications, Workspace | Save | — |
 | General, Workspace | Save | — |
+| Daemons | Add daemon · Import… · Search… | name, row text |
+| Usage | — | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
-| Backup | Add target · Search… · Save | name, row text |
+| Backup | Add target · Download… (a target saved) · Search… · Save | name, row text |
 | Runtimes | Add a runtime… · Import ~/.ssh/config · Search… | name, backend, row text |
 
 **Add a runtime…** drops `ssh host`, `docker host`, `docker swarm`, `apple containers` and
@@ -1288,12 +1429,14 @@ in force.
 | Setting | Takes effect | Note beside the row while held |
 | --- | --- | --- |
 | Error reports, Details | at once on save | — |
+| Notifications | at once on save: the next notice of a kind is told or not | — |
 | /btw agent | next time btw mode is entered | `takes effect on next /btw` |
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Fallback rules | next failed turn | — |
 | Backup targets | the next backup | — |
 | Runtimes | at once | — |
+| Daemons | at once | — |
 
 Leaving `/settings` writes a dim transcript line per change: first the pages' own (in the
 order done, including things done at once, even after a discard), then:
@@ -1320,6 +1463,65 @@ in this order, under the heading in the first column.
 Once answered, Error reports cannot return to *not set*. Where `HUMANIZE_SENTRY` overrides it,
 the page says `HUMANIZE_SENTRY is set, overriding this setting for this run`; the row shows the
 saved value.
+
+### Notifications page {#notifications-page}
+
+Intro: `Which epics on this machine you are told of, here and in the web interface, while you
+are not on them.` Scope: this machine, shared with the web interface's Settings ›
+Notifications. Rows in this order, every one `on` (`tell me`) or `off` (`say nothing`),
+default on.
+
+| Heading | Row | Stored as |
+| --- | --- | --- |
+| Kinds | **Done** ▾ `an epic finished, or a chat turn did` | `notifications.kinds.done` |
+| Kinds | **Failed** ▾ `an epic failed, crashed, ran out of budget or was refused` | `notifications.kinds.failed` |
+| Kinds | **Stopped** ▾ `an epic was stopped` | `notifications.kinds.stopped` |
+| Kinds | **Questions** ▾ `a flow asks you something` | `notifications.kinds.asked` |
+| Kinds | **Chat turns** ▾ `a chat waits for its next turn` | `notifications.kinds.listening` |
+| Shown | **System** ▾ `ring the terminal's bell and show a system notification too`: `on` (`ring the bell and notify the system`), `off` (`a card in hmz alone`) | `notifications.system` |
+
+Every epic on this machine is watched from the start of `hmz`, asking each host the daemon
+holds (and the runs held in this process) how it stands every 2 seconds, never attaching. A
+notice of a kind turned on is a toast at the bottom right, titled `Done`, `Failed`, `Stopped`,
+`Question` or `Chat turn`, reading `<flow> · <workspace directory> · <what it asked or said,
+else its task>`, `Failed` as an error; with **System** on, also the terminal bell and OSC 9
+(`hmz: <title> · …`). None while the notice is of this directory and the log or the monitor is
+on top. Its epic is marked `●` after its name in [`/epics`](#the-runs-that-have-already-happened)
+until opened there, for as long as `hmz` runs.
+
+### Daemons page {#daemons-page}
+
+Intro: `This machine's daemon, and other machines' reached over ssh. /epics @<name> lists the
+epics of one; m on one is its menu.` Kept in this machine's [settings](/reference/settings) as
+`daemons`, the [web page](/user/web#settings) reading and writing the same list; every change
+is written at once.
+
+| Row | About |
+| --- | --- |
+| `Local` | `this machine`; `enter` says `Local is this machine's daemon, always there` |
+| `<name>` | `<user@host:port\|alias> · <not connected\|connecting\|installing\|up, hmz <version>\|failed>[: <detail>]`, drawn again as it changes |
+
+`enter`, `m` or a click on a daemon opens its menu: **connect** (reaches it now, installing
+this `hmz` there where it is missing or another version, as the web page does), **edit…**,
+**remove** and **copy name**. **Add daemon** and **edit…** open one form: `name` (new only;
+`what /epics @<name> calls it`), `host`, `alias` (`the Host entry of your ssh config, if
+any`), `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options`
+(`KEYWORD=VALUE, …`); **Done** `saves this daemon`, **remove** on one already written. Errors:
+`name is required`, `another daemon is named <name>`, `host or alias is required`, `port is a
+number`, `options: '<one>' is not KEYWORD=VALUE`; what the store refuses is said under the
+list in red. **Import…** opens **Import daemons**, a switch per host of your ssh config not
+added yet (`as <name>`), or says `every host of your ssh config is added already`; **Done**
+`adds each host switched on as a daemon`. Each change is said under the list and, on close,
+in the transcript: `daemon <name> saved`, `daemon <name> removed`, `<n> daemon(s) imported`.
+
+**Batch apply…** (with a daemon added) opens **Batch apply**: `This machine's settings, written
+to other daemons as each of their pages saves them. Accounts stay put: only a secret sets them.`
+A switch per page carried -- `general`, `fallback`, `runtimes`, `backup`, each `carried`, on --
+then one per daemon, `written to`, off. **Done** `writes the pages switched on to each daemon
+switched on`; error `switch on a page and a daemon`. Each daemon is reached as **connect**
+reaches it and written as its web page's Settings saves each page, a backup target's URL with
+nothing signed into it (so one that signs in is refused there). Said under the list and in the
+transcript: `<daemon>: applied` or `<daemon>: <why>`, for each, `·` between.
 
 ### Accounts page {#the-accounts-themselves}
 
@@ -1673,6 +1875,34 @@ digits, - and _`, `another target is named <name>`, `URL is required`. `Every N 
 keeps the minutes. Saved as `backup` ([Settings](/reference/settings#backup)); transcript on
 save: `<n> backup target(s) saved`, or `hmz: <why>` where settings refused them.
 
+**Download…** opens `hmz › /settings › Backup › Download from <target>` on the first saved
+target, intro `Every epic the target holds, by machine and directory, newest first; enter
+downloads one here, as an import does.` It fetches the target off the drawing path
+(`fetching <target>…`), then lists under a heading per machine and a dim line per directory (`~` for home),
+newest first: `<YYYY-MM-DD HH:MM> · <flow>[ ✔]  <task> · <how>[ · here]`, `✔` and `here` on an
+epic this machine has. Buttons: **Search…** (flow, task, directory, machine), **Fetch**,
+**Target…** (more than one target; drops them). Keys: `enter download   esc back`. Enter on one
+here says `<epic> is here already: open it on /epics`; otherwise `downloading <epic>…`, then
+`downloaded <epic> into <directory>; open it on /epics[; it cannot be resumed here: <why>]`,
+also dim in the transcript on leaving. A refusal is said in red, with any credential hidden.
+Empty: `<target> holds no epic`.
+
+### Usage page {#usage-page}
+
+Intro: `What the epics spent, as each epic says: by day, in UTC, and by flow, the costliest
+first.` Holds nothing; no buttons. Read off the drawing path (`reading…`) when opened and
+again when either ▾ row changes.
+
+| Row | Value |
+| --- | --- |
+| **Range** `how far back, counting today` | ▾ `7 days`, `30 days` (default), `90 days`, `365 days` |
+| **Workspace** `this directory's epics, or every directory's` | ▾ `this directory` (default), `every directory` |
+| Spent: `<money>` | `<n> epic(s) · <tokens> output tokens · worked <time> · <count> <how>, …` |
+| By day: `<YYYY-MM-DD>` per day with an epic, newest first | `<bar> <money> · <n> epic(s) · …`, the bar up to 16 cells against the costliest day |
+| By flow: `<flow>`, costliest first | `<money> · <share>% · <n> epic(s) · …` |
+
+Empty: `no epic here in these days` (`on this machine` for every directory).
+
 ### Workspace page {#workspace-page}
 
 Intro: `What <last 2 path parts> remembers: the flow it opens on and how it was last
@@ -1721,17 +1951,17 @@ box leaves it unanswered, to be asked again at the next start.
 A screen over the log's prompt showing the run as a graph or a list. Reached by `←` with the
 editor empty, the offers closed and no menu up; never refused; never reached by `esc` or a
 command. `→` (editor empty) returns to the view last read; picking a node returns to that
-node's view. Commands work from its prompt as on the aggregate (view kind `monitor`), so
-`/claim` is refused there. `tab`/`shift+tab` do nothing on it. The cursor opens on
-`▣ all agents`. Redrawn every 0.5 s; when a run ends, every clock stops at its end.
+node's view. Commands work from its prompt as on home (view kind `monitor`), so
+`/claim` is refused there. `tab`/`shift+tab` do nothing on it. The cursor opens on the
+node being read, else the agent it is of, else the first node. Redrawn every 0.5 s; when a run ends, every clock stops at its end.
 
 ```text
    graph  list
-❯ ▣ all agents · 1 of 2 working · 17 turns · 7m11s · reading
+❯ ◫ epic · running · 1 of 2 working · 17 turns · 7m11s · cost $1.34 of $5.00 · time 7m11s of 1h00m
   ◉ human · outworlder: messages from the flow to you · yours
   ┌──────────────────────────────────────────────────────────────────────┐
-  │ ▸ ● builder                                                      43s │
-  │ claude/claude-opus-5:high · 12 turns · 48.2k tokens                  │
+❯ │ ▸ ● builder                                                      43s │
+  │ claude/claude-opus-5:high · 12 turns · 48.2k tokens          reading │
   │ ▤ repo docker                                                        │
   └──────────────────────────────────────────────────────────────────────┘
     ├╴◆ read the tests
@@ -1764,11 +1994,12 @@ Kinds:            input                         1.2k
 
 ### Nodes {#monitor-nodes}
 
-In order: the all-agents node, outworlder nodes, the graph or list, the board.
+In order: the epic line, outworlder nodes, the graph or list, the board. No node reads every
+agent at once.
 
 | Node | Format | `enter` / click |
 | --- | --- | --- |
-| all agents | `▣ all agents · <w> of <n> working · <t> turn(s) · <clock>[ · reading]`; `<n>` agents drawn, `<t>` all their turns, `<clock>` the run's age | reads the aggregate |
+| epic | `◫ epic[ · running\|stopping\|over] · <w> of <n> working · <t> turn(s) · <clock>[ · <limit> <spent> of <allowed> …]`; `<n>` agents drawn, `<t>` all their turns, `<clock>` the run's age, a limit for each one the budget sets; the state and limits once a run has started | opens its [page](#the-epic-s-page) once a run has started; before that the cursor never lands on it |
 | outworlder | `◉ <role> · outworlder: messages from the flow to you[ · yours\|<name>'s][ · reading]`; declared order, then order first asked | reads its view |
 | agent box | see [Graph](#monitor-graph) | reads the role's view |
 | session | see Graph | reads `<agent>/<n>` |
@@ -1796,7 +2027,10 @@ the [cost readout](#cost-readout).
 ### List {#monitor-list}
 
 `ctrl+t` or a click on `graph`/`list` switches; the choice and the opened agents persist for
-the process, not across launches.
+the process, not across launches. `Exomyth`, at the right of the same line, opens the epic going
+in [Exomyth](#exomyth), as `ctrl+e` does, the epic being the one the host says the run writes
+(`the run has not written its epic yet`, dim, before it has). It is there only while a run
+goes, and never for a `chat`; the status line then also offers `ctrl+e Exomyth`.
 
 | Element | Rule |
 | --- | --- |
@@ -1863,6 +2097,24 @@ run: `This environment is not in the run.`
 
 Empty rows are omitted.
 
+### Epic page {#the-epic-s-page}
+
+A menu over the monitor: `monitor › <task>`. About: `Running.`, `Stopping.` or `Over.`.
+Redrawn every 0.5 s. `↑` `↓` walk its rows; `esc`, `←`, `backspace` or a click on `monitor` go
+back. The same content as the web's epic panel:
+
+| Heading | Rows |
+| --- | --- |
+| `Figures` | `time` (`<clock> elapsed`, or `total` once over), `spent` (`$<cost> · <n> out/s`, as the [cost readout](#cost-readout)'s second line, or `nothing yet`), `tokens` (by kind, its first line, or `none yet`) |
+| `Budget` | per limit set -- `cost`, `output`, `time` -- `<spent> of <allowed>` and a ten-cell meter with its share, red once spent; then `when spent`: `the last turn finishes` or `cut off at once`. A budget with no measurable limit: `limit none`. |
+| `Set up` | `flow`, `task`, `agents` (`[<name> · ]<role>=<spec>` each), `envs` (`<role>=<spec>`), `params` (`<name>=<JSON>`), `profiled` (`flow`, `environment`, both, `yes` or `no`) |
+| `Flows` | the flow started and each it called, innermost last, with how long each has run |
+
+Buttons, for every flow but `chat`: `Stop` while the run is running, `Force stop` while it is
+stopping. Each asks first in a [box](#boxes) -- `Stop this epic?` (`Stop` / `Cancel`), `Close
+every session now?` (`Force stop` / `Cancel`) -- and then does what [`/stop`](#stop) or the
+[`ctrl+c`](#ctrl-c) that forces does.
+
 ### Board {#the-board}
 
 Drawn only where the run keeps a board: a blank row, `Board · shared by you and the flow`, one
@@ -1884,7 +2136,7 @@ name`, `<name> can only be changed by the flow`. Changes are sent at once. See
 | --- | --- |
 | `/<partial>` (one word) | Commands available now, alphabetically, whose name starts with it. |
 | `/flow <partial>` | Flow names (no run going). |
-| `/settings <partial>` | The five page names, in page order. |
+| `/settings <partial>` | The nine page names, in page order. |
 | `$<partial>` (one word) | `$<flow>` for every flow (no run going); the flow list is cached 2 s. |
 | three or more words | Nothing. |
 

@@ -4,8 +4,8 @@ import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
 import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
 
 const said = [
+  '[dim]─ reading agent ─[/]',
   '[dim]❯[/] Run the test suite until it is green. Do not commit.',
-  '[dim]── agent[/]',
   '[dim]● agent is working[/]',
 ]
 const agent = (mark) => ({ r: `[m]agent · claude/claude-haiku-4-5-20251001:high · ${mark} 1[/]` })
@@ -147,7 +147,8 @@ What to look at, by number:
 | | Where | How |
 | --- | --- | --- |
 | <kbd>ctrl+c</kbd> <kbd>ctrl+c</kbd> | at the prompt | Two presses within 3 seconds. The first only warns. |
-| `/stop` | at the prompt, reading every agent, or on the monitor | Sent once. You typed it out on purpose, so it is not asked twice. Offered only while a flow runs and is not already stopping, and not on one conversation's or one outworlder's transcript. Typed there anyway, it says why it did nothing. |
+| `/stop` | at the prompt, on any transcript or the monitor | Sent once. You typed it out on purpose, so it is not asked twice. Offered only while a flow runs and is not already stopping. Typed otherwise, it says why it did nothing. |
+| `Stop`, then `Force stop` | on the epic's page: <kbd>enter</kbd> on `◫ epic` on [the monitor](/user/monitor) | Each asks first. `Force stop` replaces `Stop` while the flow winds down. Not on a chat. |
 | <kbd>ctrl+c</kbd> | on an `hmz exec` line | One press. |
 | a budget | `-p budget.…` on `hmz exec`, or what a run may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
 
@@ -225,13 +226,28 @@ See [Picking a run up](/user/resuming).
 `$name` line are refused. `/flow` on its own opens the agents of the running flow instead. What
 you save there is what the next run starts with; the running one keeps what it started with.
 
+## A chat is not stopped
+
+[`chat`](https://humanfia.ai/flows/chat), the flow `hmz` opens on, is one conversation and
+reads as Claude Code does. Its status line says `running` while the assistant answers and
+`done` once it waits for you, and nothing on it stops the chat:
+
+- <kbd>ctrl+c</kbd> clears the line. On an empty one, it says `— press ctrl+c again to exit —`,
+  and a second press leaves `hmz`.
+- `/stop` is not offered. Typed anyway, it says `hmz: a chat is not stopped: /clear ends it`.
+- `/clear` ends the chat: the next line you type starts another.
+- `/exit` and <kbd>ctrl+q</kbd> leave without asking.
+
+There is no monitor, no <kbd>shift+tab</kbd> between views, and no Exomyth in `/epics` for a
+chat either: the transcript is the whole of it.
+
 ## What does not stop a flow
 
 | | What it does instead |
 | --- | --- |
 | <kbd>←</kbd> | With nothing typed, goes up to [the monitor](/user/monitor). |
 | <kbd>esc</kbd> | Puts away a list or a menu, or leaves [btw mode](/user/btw). The flow keeps running. |
-| `/clear` | Clears the transcript you are reading. The flow keeps running. |
+| `/clear` | Clears the transcript you are reading. The flow keeps running; a [chat](#a-chat-is-not-stopped) ends. |
 | a line you type | Goes into the running turn. See [Talking to a running turn](/user/steering). |
 | a question the flow asked you | Ends with the flow when it stops. It never holds a stop up. |
 | a second `/stop` | No longer offered. Typed anyway, says `hmz: the flow is already stopping: …`. A <kbd>ctrl+c</kbd> is what hurries it. |

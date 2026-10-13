@@ -1,9 +1,10 @@
 // The notifications, of every daemon at once rather than the one shown: a bell with how many are
 // unread, a menu of them newest first, a card for each as it comes, and -- while the page is not
 // looked at -- one the system shows, by the macOS app or by the browser. Each opens what it is
-// about: the epic going, for a question or a chat's next turn, or the epic that ended.
+// about: the epic going, for a question or a chat's next turn, or the epic that ended. None is
+// told of the epic the page is on while it is looked at: that one is read as it comes.
 
-import { get, post } from './api.js'
+import { daemon, get, post } from './api.js'
 import { ago, fill, h, headline, icon, iconButton } from './dom.js'
 import { inApp, menu, section } from './shell.js'
 
@@ -26,10 +27,17 @@ let button = null
 let count = null
 let drawMenu = null
 let cards = null
+/** Where the page is, as the sidebar is told it. */
+let where = null
 
-/** The bell, made once and the feed started with it: hidden while the server has no notifications. */
-export function bell() {
+/**
+ * The bell, made once and the feed started with it: hidden while the server has no notifications.
+ *
+ * @param {() => {parts: string[], query: URLSearchParams}} at Where the page is.
+ */
+export function bell(at) {
   if (button) return button
+  where = at
   count = h('span', { class: 'notify-count', 'data-hmz': 'notification-count', hidden: true })
   button = h('button', { class: 'icon-btn notify-bell', type: 'button', 'aria-label': 'Notifications', title: 'Notifications', 'data-hmz': 'notifications', hidden: true }, icon('bell'), count)
   menu(button, (close) => {
@@ -67,6 +75,29 @@ async function start() {
   // looked at again, for what another tab read or cleared.
   stream.addEventListener('open', () => reread().catch(() => {}))
   document.addEventListener('visibilitychange', () => document.hidden || reread().catch(() => {}))
+  // What is of the epic the page comes to, or is looked at again on, is read there.
+  addEventListener('hashchange', seen)
+  addEventListener('focus', seen)
+}
+
+/** Whether a notification is of the epic the page is on, while it is looked at. */
+function here(item) {
+  if (document.hidden || !document.hasFocus() || (item.daemon || 'local') !== daemon()) return false
+  const { parts, query } = where()
+  if (parts[0] === 'live') return Boolean(item.workspace) && query.get('workspace') === item.workspace
+  return parts[0] === 'epics' && Boolean(item.epic) && parts[1] === item.epic
+}
+
+/** Reads every notification of the epic the page is on. */
+function seen() {
+  const ids = items.filter((one) => !one.read && here(one)).map((one) => one.id)
+  if (ids.length) markRead(ids)
+}
+
+/** The epics, and the workspaces they are of, that a notification unread is of on a daemon. */
+export function unreadOn(name) {
+  const mine = items.filter((one) => !one.read && (one.daemon || 'local') === name)
+  return { epics: new Set(mine.map((one) => one.epic)), workspaces: new Set(mine.map((one) => one.workspace)) }
 }
 
 async function reread() {
@@ -75,12 +106,14 @@ async function reread() {
   const known = new Set((answer.items || []).map((one) => one.id))
   items = [...[...fresh.values()].reverse().filter((one) => !known.has(one.id)), ...(answer.items || [])]
   draw()
+  seen()
 }
 
 function heard(item) {
   fresh.set(item.id, item)
   if (items.some((one) => one.id === item.id)) return
   items.unshift(item)
+  if (here(item)) return markRead([item.id])
   draw()
   card(item)
   system(item)
@@ -91,6 +124,8 @@ function draw() {
   count.hidden = !unread
   count.textContent = unread > 99 ? '99+' : String(unread)
   if (drawMenu && button.getAttribute('aria-expanded') === 'true') drawMenu()
+  // For the sidebar's marks of what is unread.
+  window.dispatchEvent(new CustomEvent('hmz:notifications'))
 }
 
 function drawList(list, close) {

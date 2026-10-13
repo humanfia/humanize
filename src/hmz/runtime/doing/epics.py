@@ -109,6 +109,12 @@ class Epics:
 
         return going(epic)
 
+    def ending(self, ran: Ran) -> str:
+        """How one run went, as a list of them is found by: `running` while it is still going."""
+        from hmz.runtime.epic import ending, going
+
+        return ending(ran, going=not ran.how and going(ran.at))
+
     def state(self, epic: Path, flow: str = "") -> dict[str, Any]:
         """What a resumable flow kept in one run: the run's own flow, or one it called by ref."""
         from hmz.runtime.epic import state
@@ -144,7 +150,7 @@ class Epics:
         import datetime
 
         from hmz.runtime.epic import TRACES
-        from hmz.runtime.tracing.profile import PROFILE
+        from hmz.runtime.tracing.profile import FLOW_PROFILE, PROFILE
 
         agents = self.opened(epic)
         where = Path(output) if output is not None else None
@@ -160,12 +166,36 @@ class Epics:
             start=start,
             end=end,
             profile=epic / PROFILE,
+            flow_profile=epic / FLOW_PROFILE,
             kept=self._kept(epic),
         )
         return where, document
 
+    def transcripts(self, epic: Path) -> list[dict[str, Any]]:
+        """What each session of one run said and did, read back out of the logs it kept.
+
+        Gathered as a trace of the run is, somewhere nothing keeps it: reading a run must not
+        leave a file in it. Slow -- every log the run kept is read.
+
+        Args:
+          epic: The run, by the directory it is written in.
+
+        Returns:
+          Each session that did anything, in the order it first did: its key in the trace --
+          `<cli>:<id>` -- the agent it was of as the trace names agents, and its actions --
+          turns, model calls, tools, words and the rest -- each with when it started, how
+          long it took, and what it carried.
+        """
+        import tempfile
+
+        from hmz import machine
+
+        with tempfile.TemporaryDirectory(dir=machine()) as scratch:
+            _, document = self.traced(epic, output=Path(scratch) / "trace.json")
+        return _sessions_of(document)
+
     def timeline(self, epic: Path) -> Timeline:
-        """Lays one run out as an Exomyth timeline: its sessions, its flows and its programs.
+        """Lays one run out as an Exomyth timeline: its sessions, flows, Python and programs.
 
         Gathered from exactly what a trace of the run is gathered from, and written nowhere:
         a timeline is drawn and thrown away, where a trace is a file somebody keeps.
@@ -191,6 +221,7 @@ class Epics:
             ran=self.read(epic),
             calls=self.tree(epic),
             profiled=profile.read(epic / profile.PROFILE),
+            sampled=profile.samples(epic / profile.FLOW_PROFILE),
         )
 
     def _kept(self, epic: Path) -> list[Path]:
@@ -272,6 +303,7 @@ class Epics:
         start: str | None = None,
         end: str | None = None,
         profile: str | os.PathLike[str] | None = None,
+        flow_profile: str | os.PathLike[str] | None = None,
         kept: Iterable[str | os.PathLike[str]] | None = None,
     ) -> dict[str, Any]:
         """Gathers what a run left behind into one Chrome trace.
@@ -285,7 +317,9 @@ class Epics:
           output: Where to write it, or None to gather it without writing.
           start: The earliest session time to include, in any wording dateparser understands.
           end: The latest.
-          profile: Where the run's own profile was written, for a run that was profiled.
+          profile: Where the run's profile of its programs was written, for a run that
+            profiled them.
+          flow_profile: Where its profile of the flow's own Python was, likewise.
           kept: Where humanize kept the sessions to read besides each CLI's own home, a
             directory per CLI inside each, or None for everywhere it keeps them: every
             epic's, an agent no run was driving keeping its own in its CLI's home.
@@ -311,5 +345,51 @@ class Epics:
             start=start,
             end=end,
             profile=profile,
+            flow_profile=flow_profile,
             kept=kept,
         )
+
+
+def _sessions_of(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """What each session of a trace said and did, in the order it did it.
+
+    Args:
+      document: The trace, as :meth:`Epics.traced` gathers one.
+
+    Returns:
+      Each session that did anything, as :meth:`Epics.transcripts` says them.
+    """
+    agents: dict[int, str] = {}
+    held: dict[str, dict[str, Any]] = {}
+    acted: dict[str, list[dict[str, Any]]] = {}
+    events: list[dict[str, Any]] = list(document.get("traceEvents") or ())
+    for event in events:
+        if event.get("ph") == "M" and event.get("name") == "process_name":
+            named: dict[str, Any] = event.get("args") or {}
+            agents[int(event.get("pid") or 0)] = str(named.get("name") or "")
+    for event in events:
+        args: dict[str, Any] = dict(event.get("args") or {})
+        if event.get("ph") != "X" or event.get("cat") in ("session", "process"):
+            continue
+        key = str(args.pop("session", "") or "")
+        if not key:
+            continue
+        if key not in held:
+            held[key] = {
+                "key": key,
+                "agent": agents.get(int(event.get("pid") or 0), ""),
+            }
+        acted.setdefault(key, []).append(
+            {
+                "category": str(event.get("cat") or ""),
+                "name": str(event.get("name") or ""),
+                "at": str(args.pop("at", "") or ""),
+                "start": float(event.get("ts") or 0) / 1e6,
+                "seconds": float(event.get("dur") or 0) / 1e6,
+                "args": args,
+            }
+        )
+    for key, actions in acted.items():
+        actions.sort(key=lambda action: float(action["start"]))
+        held[key]["actions"] = actions
+    return sorted(held.values(), key=lambda one: one["actions"][0]["start"])

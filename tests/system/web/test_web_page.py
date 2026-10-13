@@ -23,7 +23,7 @@ from playwright.sync_api import expect
 import hmz.coganchor.models
 from tests.integration.doubles_core import install
 from tests.integration.doubles_web import backed_up_elsewhere, elsewhere, served
-from tests.system.web.doubles_browser import ENGINES, go, opened
+from tests.system.web.doubles_browser import ENGINES, go, opened, stop
 
 if TYPE_CHECKING:
     from playwright.sync_api import FloatRect, Locator, Page
@@ -69,6 +69,73 @@ def _start_chat(page: Page, task: str) -> None:
     page.locator("[data-hmz=composer-text]").fill(task)
     page.locator("[data-hmz=composer-text]").press("Enter")
     page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+
+
+#: A flow of the project's own that talks as chat does, but is a flow: drawn as a graph of its
+#: agents, and stopped from its page.
+_TALK = '''
+from hmz.flows import (
+    Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, LocalEnv, Outworlder,
+    flow,
+)
+
+
+class Agents(AgentCollection):
+    """An agent and its person."""
+
+    assistant: Agent
+    human: Outworlder
+
+
+class Envs(EnvCollection):
+    """The workspace."""
+
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def talk(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """Says each line to the agent, until its person says nothing."""
+    assistant, human = agents["assistant"], agents["human"]
+    conversation, person = await assistant.spawn(), await human.spawn()
+    said = task
+    while said:
+        said = await human.run(
+            await assistant.run(said, session=conversation, env=envs["workspace"]),
+            session=person,
+        )
+'''
+
+
+@pytest.fixture
+def talking(project: Path) -> None:
+    """The project's own `talk`, offered from the start."""
+    flows = project / ".hmz" / "flows" / "talk"
+    flows.mkdir(parents=True)
+    (flows / "__init__.py").write_text(_TALK)
+
+
+def _start_talk(page: Page, task: str) -> None:
+    """Starts the project's own `talk` from the API, as a page would, and opens its graph."""
+    started = page.evaluate(
+        """async (task) => {
+          const answer = await fetch('/api/held/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({flow: '@local/talk', task,
+              budget: {cost: 5, duration: 600, output_tokens: 100000},
+              agents: {assistant: 'claude/claude-haiku-4-5'}}),
+          })
+          return [answer.status, await answer.text()]
+        }""",
+        task,
+    )
+    assert started[0] == 200, started[1]
+    go(page, "/live")
+    page.wait_for_url(re.compile(r".*#/epics/[^/]+$"))
+    expect(page.locator("[data-hmz=graph-session]").first).to_be_visible()
 
 
 def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
@@ -136,13 +203,12 @@ def _box(node: Locator) -> FloatRect:
     return box
 
 
+@pytest.mark.usefixtures("talking")
 def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
-    project: Path, engine: str
+    engine: str,
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _start_chat(page, "move me")
-        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: move me")
-        page.locator("[data-hmz=bar] .crumbs a").click()
+        _start_talk(page, "move me")
         agent = page.locator("[data-hmz=graph-agent]").filter(has_text="assistant")
         expect(agent.locator("[data-hmz=graph-session]")).to_be_visible()
         # Stopped, so nothing it goes on to do redraws the graph while it is moved.
@@ -220,7 +286,7 @@ def test_a_model_no_cli_would_list_is_typed(
         )
 
 
-def test_an_epic_started_from_the_page_is_drawn_answered_read_and_stopped(
+def test_a_chat_is_its_conversation_alone_answered_and_read(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
@@ -231,7 +297,8 @@ def test_an_epic_started_from_the_page_is_drawn_answered_read_and_stopped(
         thread = page.locator("[data-hmz=thread]")
         expect(thread.locator(".said.you .body")).to_have_text(["hello there"])
         expect(thread).to_contain_text("did: hello there")
-        expect(page.locator("[data-hmz=epic] .pill-live")).to_be_visible()
+        # Running or done, as a chat app says it, never live or held.
+        expect(page.locator("[data-hmz=epic] .pill-live")).to_have_count(0)
         say = page.locator("[data-hmz=say] textarea")
         # Its conversation goes by its agent's own name, not by the role it fills.
         expect(say).to_have_attribute("placeholder", re.compile(r"^Message \w+/1$"))
@@ -244,23 +311,38 @@ def test_an_epic_started_from_the_page_is_drawn_answered_read_and_stopped(
         )
         expect(page.locator("[data-hmz=waiting]")).to_have_count(0)
 
-        page.locator("[data-hmz=bar] .crumbs a").click()
-        agent = page.locator("[data-hmz=graph-agent]").filter(has_text="assistant")
-        expect(agent).to_be_visible()
-        expect(agent.locator("[data-hmz=graph-session] .unread")).to_have_count(0)
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
-        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
-            re.compile("stopped")
-        )
-        expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("■")
+        # Only the conversation, as a chat app draws one: no graph, nothing under its row,
+        # no Exomyth, and nothing to stop it by -- running while it answers, else done.
+        bar = page.locator("[data-hmz=bar]")
+        expect(bar.locator(".badge")).to_have_text(re.compile("running|done"))
+        expect(bar.locator(".crumbs")).to_have_count(0)
+        expect(page.get_by_role("button", name="Stop")).to_have_count(0)
+        expect(page.locator("[data-hmz=exomyth-open]")).to_have_count(0)
+        expect(page.locator("[data-hmz=graph]")).to_have_count(0)
+        row = page.locator("[data-hmz=sidebar] .side-item").first
+        expect(row.locator(".side-toggle, .side-tree")).to_have_count(0)
+        expect(row.locator(".side-mark")).to_have_text(re.compile("[●✔]"))
+        expect(page.get_by_role("tab", name="People")).to_have_count(0)
+        bar.locator(".bar-title").click(button="right")
+        expect(page.get_by_role("menuitem", name="Open")).to_be_visible()
+        expect(page.get_by_role("menuitem", name="Exomyth")).to_have_count(0)
+        expect(page.get_by_role("menuitem", name="Stop")).to_have_count(0)
+        page.keyboard.press("Escape")
+
+        # Opened again from its row, it is its conversation again, never a graph.
+        page.locator("[data-hmz=epic]").first.click()
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+        expect(thread).to_contain_text("did: and again")
+
+        stop(page)
+        expect(bar.locator(".badge")).to_have_text(re.compile("done"))
+        expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("✔")
 
 
 def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "find me later")
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
+        stop(page)
 
         page.keyboard.press("Control+k")
         search = page.get_by_role("searchbox", name="Find")
@@ -359,8 +441,6 @@ def test_a_chat_asks_in_its_conversation_and_is_answered_there(
         say.fill("more")
         say.press("Enter")
         expect(thread).to_contain_text("did: more")
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
 
 
 @pytest.mark.parametrize("name", _PAGES)
@@ -751,12 +831,47 @@ def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -
         expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
 
 
-def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(
+def test_the_flow_and_its_environment_are_profiled_apart(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _start_chat(page, "log me")
-        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: log me")
+        go(page, "/new?flow=chat")
+        page.get_by_role("button", name="Options").click()
+        flow = page.get_by_label("Profile flow")
+        environment = page.get_by_label("Profile environment")
+        expect(flow).not_to_be_checked()
+        expect(environment).not_to_be_checked()
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_value("claude-haiku-4-5")
+        flow.check()
+        page.locator("[data-hmz=options]").get_by_role("button", name="Save").click()
+        expect(
+            page.locator("[data-hmz=options]").get_by_role("button", name="Saved")
+        ).to_be_visible()
+        page.reload()
+        go(page, "/new?flow=chat")
+        page.get_by_role("button", name="Options").click()
+        expect(flow).to_be_checked()
+        expect(environment).not_to_be_checked()
+        environment.check()
+
+        with page.expect_request(
+            lambda asked: asked.url.endswith("/api/held/start")
+        ) as started:
+            page.locator("[data-hmz=composer-text]").fill("profile me")
+            page.locator("[data-hmz=composer-text]").press("Enter")
+        said = json.loads(started.value.post_data or "{}")
+        assert (said["profile_flow"], said["profile_environment"]) == (True, True)
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+
+
+@pytest.mark.usefixtures("talking")
+def test_an_epic_is_read_by_its_agents_logs_and_its_agents_as_a_list(
+    engine: str,
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _start_talk(page, "log me")
 
         inspector = page.locator("[data-hmz=inspector]")
         expect(inspector.locator("[data-hmz=spending]")).to_contain_text(
@@ -764,21 +879,34 @@ def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(
         )
         expect(inspector.locator("[data-hmz=frontends]")).to_contain_text("this page")
 
-        page.locator("[data-hmz=sidebar] [data-hmz=log]").click()
-        thread = page.locator("[data-hmz=thread]")
-        expect(thread).to_contain_text("did: log me")
-        # What a chat asks next is the reply said back, which is not said twice.
-        expect(thread).not_to_contain_text("human asks")
-        expect(page.locator("[data-hmz=bar] .crumbs")).to_contain_text("Log")
+        # No log of every session, and no Exomyth, under the epic in the sidebar: Exomyth is
+        # opened from the epic's menu or its bar, and a log is one agent's.
+        side = page.locator("[data-hmz=sidebar]")
+        expect(side.locator("[data-hmz=agent]").first).to_be_visible()
+        expect(side.locator("[data-hmz=log], [data-hmz=exomyth-link]")).to_have_count(0)
+        page.locator("[data-hmz=bar] .bar-title").click(button="right")
+        menu = page.locator(".popover.context")
+        expect(menu.get_by_role("menuitem", name="Exomyth")).to_be_visible()
+        expect(menu.get_by_role("menuitem", name="Open log")).to_have_count(0)
+        page.keyboard.press("Escape")
+        # Where that log was, the epic's graph is.
+        found = re.search(r"#/epics/([^/]+)", page.url)
+        assert found is not None
+        name = found[1]
+        go(page, f"/epics/{name}/logs")
+        page.wait_for_url(re.compile(rf"#/epics/{name}$"))
+        expect(page.locator("[data-hmz=thread]")).to_have_count(0)
+        expect(page.locator("[data-hmz=bar] .crumbs")).to_have_count(0)
 
-        page.locator("[data-hmz=bar] .crumbs a").click()
         page.locator(".shape-switch").get_by_role("button", name="List").click()
         listed = page.locator("[data-hmz=agent-list] [data-agent]").filter(
             has_text="assistant"
         )
         expect(listed).to_contain_text(re.compile(r"\w+/1"))
         listed.get_by_role("link", name="≡ log").click()
-        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: log me")
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("did: log me")
+        expect(page.locator("[data-hmz=bar] .crumbs")).to_contain_text("log")
         page.locator("[data-hmz=bar] .crumbs a").click()
         page.locator(".shape-switch").get_by_role("button", name="Graph").click()
         page.get_by_role("button", name="Stop").click()
@@ -790,11 +918,7 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "keep me")
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
-        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
-            re.compile("stopped")
-        )
+        stop(page)
 
         with page.expect_download() as saving:
             page.get_by_role("link", name="Export").click()
@@ -845,11 +969,7 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
         page.locator("[data-hmz=composer-text]").fill("back me up")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
-        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
-            re.compile("stopped")
-        )
+        stop(page)
 
         page.locator("[data-hmz=bar] .bar-title").click(button="right")
         page.get_by_role("menuitem", name="Upload").click()
@@ -927,19 +1047,13 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
         expect(page.locator("[data-hmz=thread]")).to_contain_text(
             "did: remember papaya"
         )
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
+        # A new epic ends the chat going, as a new chat leaves the last.
         _start_chat(page, "and then this")
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: and then this")
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
+        stop(page)
 
         page.locator("[data-hmz=epic]", has_text="remember papaya").click()
-        page.locator(".graph-note").get_by_role("button", name="Read turns").click()
-        agent = page.locator("[data-hmz=graph-agent]").filter(has_text="assistant")
-        expect(agent.locator(".capsule")).to_have_count(1)
-
-        agent.locator("[data-hmz=graph-session]").click()
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
         expect(page.locator("[data-hmz=thread]")).to_contain_text(
             "did: remember papaya"
         )
@@ -999,11 +1113,7 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "take me home")
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
-        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
-            re.compile("stopped")
-        )
+        stop(page)
         found = re.search(r"#/epics/([^/]+)", page.url)
         assert found is not None
         name = found[1]

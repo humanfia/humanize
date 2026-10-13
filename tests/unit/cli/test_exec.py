@@ -59,7 +59,8 @@ _LINE = SimpleNamespace(
     envs={"box": "local"},
     params={"rounds": 2},
     budget={"cost": 5.0},
-    profile=False,
+    profile_flow=False,
+    profile_environment=False,
     resume=False,
     backup=None,
 )
@@ -96,7 +97,8 @@ def test_exec_runs_the_flow_the_line_names(
         envs={"box": "local"},
         params={"rounds": 2},
         budget={"cost": 5.0},
-        profile=False,
+        profile_flow=False,
+        profile_environment=False,
         resume=False,
         backup=None,
     )

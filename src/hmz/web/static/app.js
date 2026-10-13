@@ -101,6 +101,8 @@ async function route() {
 
 async function routing(mine) {
   const { parts, query } = where()
+  // An epic's log of every session is no more: its old address opens the epic, in its place.
+  if (parts[0] === 'epics' && parts[2] === 'logs' && !parts[3]) return location.replace(location.hash.replace(/\/logs\/?(?=$|\?)/, ''))
   const dialog = DIALOGS[parts[0]]
   if (dialog) {
     if (!shown) await view(mine, ['new'], new URLSearchParams(), '/new')

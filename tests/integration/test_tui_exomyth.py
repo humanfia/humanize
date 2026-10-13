@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import datetime
-import json
 import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from textual.widgets import OptionList
 
 from hmz.runtime.doing.epics import Epics as Kept
 from hmz.runtime.epic import Epic
@@ -17,6 +16,7 @@ from hmz.tui.exomyth import Exomyth
 from hmz.tui.pick import Does, Epics
 from tests.integration.doubles_tui import (
     SIZE,
+    claude_logged,
     on,
     opened,
     opens,
@@ -39,68 +39,10 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
     del asking
     workspace = stand_in(tmp_path, monkeypatch)
     began = time.time()
-    with Epic("chat", "fix the bug", workspace) as epic:
+    with Epic("ralph_loop", "fix the bug", workspace) as epic:
         epic.session("NeiKos496", "claude", "", "sess-1")
-    _logged(tmp_path / "claude-home", workspace, "sess-1", began)
+    claude_logged(tmp_path / "claude-home", workspace, "sess-1", began)
     return workspace
-
-
-def _logged(home: Path, workspace: Path, ident: str, began: float) -> None:
-    """Writes one session as Claude Code logs one: a prompt, a thought, a tool, an answer."""
-
-    def at(offset: float) -> str:
-        return datetime.datetime.fromtimestamp(began + offset, datetime.UTC).isoformat()
-
-    def assistant(
-        offset: float, request: str, *blocks: dict[str, Any]
-    ) -> dict[str, Any]:
-        return {
-            "type": "assistant",
-            "timestamp": at(offset),
-            "requestId": request,
-            "message": {
-                "model": "claude-x",
-                "usage": {"input_tokens": 1000, "output_tokens": 200},
-                "content": list(blocks),
-            },
-        }
-
-    folder = "".join(one if one.isalnum() else "-" for one in str(workspace))
-    rows = [
-        {
-            "type": "user",
-            "timestamp": at(0),
-            "promptId": "p1",
-            "cwd": str(workspace),
-            "sessionId": ident,
-            "message": {"content": "fix the bug"},
-        },
-        assistant(2, "r1", {"type": "thinking", "thinking": "hmm"}),
-        assistant(
-            3,
-            "r1",
-            {
-                "type": "tool_use",
-                "id": "t1",
-                "name": "Bash",
-                "input": {"command": "pytest"},
-            },
-        ),
-        {
-            "type": "user",
-            "timestamp": at(6),
-            "promptId": "p1",
-            "message": {
-                "content": [
-                    {"type": "tool_result", "tool_use_id": "t1", "content": "ok"}
-                ]
-            },
-        },
-        assistant(8, "r2", {"type": "text", "text": "fixed"}),
-    ]
-    log = home / "projects" / folder / f"{ident}.jsonl"
-    log.parent.mkdir(parents=True)
-    log.write_text("".join(json.dumps(one) + "\n" for one in rows))
 
 
 async def _exomyth(pilot: Pilot[None]) -> Exomyth:
@@ -108,7 +50,7 @@ async def _exomyth(pilot: Pilot[None]) -> Exomyth:
     await opened(pilot)
     await typed(pilot, "/epics")
     await on(pilot, Epics)
-    await shows(pilot, "· chat")
+    await shows(pilot, "· ralph_loop")
     await pilot.press("enter")
     await on(pilot, Does)
     await shows(pilot, "Exomyth", "the epic as a timeline of its sessions")
@@ -129,9 +71,9 @@ async def test_an_epic_is_drawn_as_its_sessions_spans_and_read_span_by_span(
         await _exomyth(pilot)
         await shows(
             pilot,
-            "· chat \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK}",
+            "· ralph_loop \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK}",
             "1 session · 8 spans",
-            "▾ chat",
+            "▾ ralph_loop",
             "▾ main · sess-1",
             "turn: fix the bug",
             "Bash: pytest",
@@ -157,7 +99,7 @@ async def test_an_epic_is_drawn_as_its_sessions_spans_and_read_span_by_span(
 
         # The cursor opens on the epic itself: its pane says what it is.
         await pilot.press("enter")
-        await shows(pilot, "flow · chat", "lasted", "task fix the bug")
+        await shows(pilot, "flow · ralph_loop", "lasted", "task fix the bug")
         await pilot.press("escape")
 
         await pilot.press("slash", *"pytest", "enter")
@@ -166,14 +108,70 @@ async def test_an_epic_is_drawn_as_its_sessions_spans_and_read_span_by_span(
         await shows(pilot, "tool · ", "command", "pytest")
 
         await pilot.press("tab")
-        await shows(pilot, "weighed by time", "stack", "session", "tool")
+        await shows(
+            pilot, "weighed by time · sessions merged", "stack", "NeiKos496", "Bash"
+        )
         await pilot.press("t")
-        await shows(pilot, "weighed by tokens", "llm")
+        await shows(pilot, "weighed by tokens in", "think")
 
         await pilot.press("escape")
         await on(pilot, Does)
         await pilot.press("escape")
         await on(pilot, Epics)
+
+
+async def test_a_range_is_summed_and_weighed_in_the_flame_and_the_slices(
+    workspace: Path,
+) -> None:
+    del workspace
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await _exomyth(pilot)
+        await shows(pilot, "Bash: pytest")
+
+        # The process of the row under the cursor, whole.
+        await pilot.press("down", "p")
+        await shows(pilot, "session · ", "agent NeiKos496", "parent ralph_loop")
+        await pilot.press("p")
+        await until(pilot, lambda: "agent NeiKos" not in screen(app), "the pane shut")
+
+        # From the first thought to the tool two spans on, held, and summed by category.
+        await pilot.press("down", "down", "v", "right", "right", "v")
+        await shows(pilot, "Range", "lasted 6s", "category", "llm", "tool", "v drop")
+        whole = _ruler(app)
+        await pilot.press("f")
+        await until(pilot, lambda: _ruler(app) != whole, "the range to fill the window")
+
+        await pilot.press("tab")
+        await shows(pilot, "weighed by time · sessions merged · range", "NeiKos496")
+        for weight in ("tokens in", "tokens out", "count", "time"):
+            await pilot.press("t")
+            await shows(pilot, f"weighed by {weight} · ")
+        await pilot.press("m")
+        await shows(pilot, "sessions apart", "main · sess-1")
+
+        await pilot.press("tab")
+        await shows(pilot, "sorted by total↓", "category", "Bash: pytest")
+        await pilot.press("o")
+        await shows(pilot, "sorted by self↓")
+        await pilot.press("O")
+        await shows(pilot, "sorted by self↑")
+
+        # A slice picked is found on the timeline.
+        sliced = app.screen.query_one("#sliced", OptionList)
+        at = next(
+            at
+            for at in range(sliced.option_count)
+            if "Bash: pytest" in str(sliced.get_option_at_index(at).prompt)
+        )
+        await pilot.press(*["down"] * (at - (sliced.highlighted or 0)), "enter")
+        await shows(pilot, "1 of 1 · Bash: pytest", "v drop")
+        await pilot.press("escape")
+        await until(pilot, lambda: "Range" not in screen(app), "the range let go")
+        await pilot.press("shift+tab")
+        await shows(pilot, "sorted by self↑")
+        await pilot.press("escape")
+        await on(pilot, Does)
 
 
 async def test_an_epic_of_fifty_thousand_spans_is_drawn_and_zoomed_at_once(
@@ -192,14 +190,23 @@ async def test_an_epic_of_fifty_thousand_spans_is_drawn_and_zoomed_at_once(
         await shows(pilot, "50 sessions", "50000 spans", "main · session 0")
         # Each press is drawn before the next is taken: a second apiece is a ceiling a
         # loaded machine stays under, where drawing every span would not.
-        for keys in (("w",) * 6, ("d",) * 4, ("s",) * 6, ("down",) * 45, ("0", "tab")):
+        for keys in (
+            ("w",) * 6,
+            ("d",) * 4,
+            ("s",) * 6,
+            ("down",) * 45,
+            ("0", "tab"),
+            ("tab",),
+        ):
             began = time.perf_counter()
             await pilot.press(*keys)
             screen(app)
             took = time.perf_counter() - began
             assert took < len(keys), f"{keys[0]} took {took:.2f}s"
+        await shows(pilot, "sorted by total↓", "Bash: ls")
+        await pilot.press("shift+tab")
         await shows(pilot, "weighed by time", "Bash: ls")
-        await pilot.press("tab")
+        await pilot.press("shift+tab")
         # Walked down past the bottom of the screen, which scrolled to keep up.
         await until(
             pilot,

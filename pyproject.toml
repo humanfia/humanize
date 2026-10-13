@@ -37,6 +37,7 @@ dependencies = [
     # refuses are all written once, where the flow declares them.
     "pydantic>=2.13.5",
     "pyfiglet>=1.0",
+    "pyinstrument>=5.1.3",
     "pyyaml>=6.0.3",
     # Named because the interface imports it directly. It arrives with textual either
     # way, but a dependency you import is one you declare.

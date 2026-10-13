@@ -34,7 +34,7 @@ const turn = [
     label: 'details off',
     lines: screen(
       [
-        '[dim]── actor[/]',
+        '[dim]─ reading actor ─[/]',
         '',
         '[dim]● actor is working[/]',
         '',
@@ -50,7 +50,7 @@ const turn = [
     label: 'details on',
     lines: screen(
       [
-        '[dim]── actor[/]',
+        '[dim]─ reading actor ─[/]',
         '',
         '[dim]● actor is working[/]',
         '',
@@ -99,10 +99,11 @@ run, the machines a flow's environments go on, and what this directory remembers
 
 ## How it works
 
-`/settings` opens on six pages and nothing else, each a card saying what is in it. They run
-from the broadest to the nearest: what is true wherever you run humanize, who your agents are
-and what takes over when one fails, where their work goes and where its epics are kept, and
-last the one directory open now.
+`/settings` opens on nine pages and nothing else, each a card saying what is in it. The first
+eight run from the broadest to the nearest: what is true wherever you run humanize and which of
+its epics it tells you of, which machines it reaches, who your agents are and what takes over
+when one fails, where their work goes and where its epics are kept, and the one directory open
+now. The last is what the epics spent.
 <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one; <kbd>esc</kbd>, <kbd>backspace</kbd>,
 <kbd>←</kbd>, or a click on `/settings` across the top, comes back out. `/settings <page>` goes
 straight into the one named, and the word is offered as you type it:
@@ -110,11 +111,14 @@ straight into the one named, and the word is offered as you type it:
 | Page | `/settings …` | What it holds |
 | --- | --- | --- |
 | [**General**](#general) | `general` | whether the screen [shows the working](#details), which agent `/btw` talks to, and whether humanize reports what goes wrong |
+| [**Notifications**](#notifications) | `notifications` | which epics on this machine you are told of, and whether the terminal's bell and your system tell you too |
+| [**Daemons**](#daemons) | `daemons` | this machine's daemon and other machines', reached over ssh, and how each stands |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms, Apple containers and Slurm clusters |
 | [**Backup**](#backup) | `backup` | the repositories epics are backed up to, and which are defaults |
 | [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, and forgetting it |
+| [**Usage**](#usage) | `usage` | what the epics spent, by day and by flow |
 
 The names they had still open them: `settings` and `everywhere` open General, `directory`
 opens Workspace, and `environments` opens Runtimes. The [flowverses](#flowverses) are on
@@ -123,7 +127,8 @@ change you have not saved yet.
 
 The [web page](/user/web#settings) has the same pages, under **Daemon**, for whichever daemon
 it reaches -- this machine or an ssh host -- with **Batch apply** to copy one to several; its
-**App** pages, themes, daemons and notifications, belong to the page and this machine alone.
+**App** pages, themes, daemons and notifications, belong to the page and this machine alone;
+its notifications are the same settings as `hmz`'s Notifications page.
 
 ### How a page is laid out {#layout}
 
@@ -175,13 +180,13 @@ The last line of the screen always names the keys that work where the focus is, 
 ### When a change lands {#saving}
 
 What every page holds lands together, when you save: press **Save**, on any page or on the
-six of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and a box in the
+pages. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and a box in the
 middle of the screen asks **Save** or **Discard**; <kbd>esc</kbd> or a click off it takes you
 back. **Save** cannot be pressed until
 something is changed, and `● unsaved changes` across the top says when something is.
 
 A few things happen as you ask rather than on save: making an account, signing one in, and
-everything on the Runtimes page. And a few that are saved cannot take hold
+everything on the Daemons and Runtimes pages. And a few that are saved cannot take hold
 at once, because something already running started without them. The row says when while the
 change is held, and the transcript says it again once saved:
 
@@ -280,7 +285,7 @@ and <kbd>enter</kbd> on **Save**:
 What to look at, by number:
 
 1. **The card's summary.** Each card says what it holds right now at its right-hand end, so the
-   six cards are a status page before you open any of them: `details off · reports off` here,
+   nine cards are a status page before you open any of them: `details off · reports off` here,
    the number of accounts, machines and rules on the others.
 2. **Save.** Nothing has changed yet, so it cannot be pressed.
 3. **`○ off ▾`.** The row's value; `▾` says <kbd>enter</kbd> drops its values under it.
@@ -351,6 +356,53 @@ run and its trace are the same either way.
 | When a turn takes far longer than it should | When you want each answer without scrolling past its tools |
 
 A flow can watch its agents' tool calls itself. See [Hooks](/weaver/hooks).
+
+## Notifications {#notifications}
+
+Which epics on this machine `hmz` tells you of, while you are not on them: one that ends --
+done, failed or stopped -- a flow asking you something, and a chat waiting for its next turn,
+in any directory. Each is a card in the corner of the screen for a few seconds, and a `●` on
+its epic in [`/epics`](/user/tracing) until you open it there. The epic on your screen -- this
+directory's, while its log or the monitor is up -- is never told of.
+
+| Heading | Row | What it is |
+| --- | --- | --- |
+| Kinds | Done | an epic finished, or a chat turn did |
+| Kinds | Failed | an epic failed, crashed, ran out of budget or was refused |
+| Kinds | Stopped | an epic was stopped |
+| Kinds | Questions | a flow asks you something |
+| Kinds | Chat turns | a chat waits for its next turn |
+| Shown | System | also ring the terminal's bell and show a system notification, which iTerm2, Ghostty, WezTerm, kitty and Windows Terminal show as your system's own |
+
+Every row is on until you turn it off. They are the
+[web interface's notification settings](/user/web#notifications) too, kept in
+`~/.hmz/settings.yaml` under `notifications`, so turning a kind off here turns it off there.
+
+## Daemons
+
+Every other machine whose epics you want to read from here, each reached over ssh: `Local`,
+this machine, is always first. A daemon is set up a part at a time on one form -- its name,
+host or the `Host` of your ssh config, user, port, identity file, proxy jump and ssh options --
+or brought in with **Import…** from your ssh config, those added already left out. It is
+written at once, to the same list the [web page](/user/web#settings) keeps.
+
+Each row says what reaches it and how it stands: `not connected` until it is asked for, then
+`connecting`, `installing` while this `hmz` is put there, `up, hmz <version>`, or `failed`
+with why. <kbd>m</kbd>, <kbd>enter</kbd> or a click on one is its menu: **connect**, **edit…**,
+**remove** and **copy name**.
+
+`/epics @<name>` lists that daemon's epics, and goes on listing them until you turn the list
+back with its **Daemon…** button, or with `/epics @local`. From another daemon's list an epic
+is exported here, backed up there, or has its name, task or workspace copied. <kbd>n</kbd>
+there starts a new epic on that machine -- a directory there, a flow, a task, and its agents
+where that directory has not run the flow before -- and follows it; **follow** on one going
+there does the same for it. You read what it says, answer what it asks or say a line to it,
+and <kbd>esc</kbd> leaves it going there.
+
+**Batch apply…** writes this machine's settings to other daemons: switch on the pages --
+general, fallback, runtimes, backup -- and the daemons, and each says whether they were
+applied. Accounts stay where they are, since only a secret sets them, and a backup target
+whose URL signs in has to be added there by hand.
 
 ## Accounts
 
@@ -1157,6 +1209,23 @@ directory. Back an epic up by hand from
 with, else the defaults, and says how its last backup to each went. Neither holds anything up;
 `hmz` waits up to 15 seconds for the backups it started once you close it.
 
+**Download…**, under the list once a target is saved, lists every epic a target holds: under
+the machine it was backed up from, then the directory it ran in, newest first, `✔` and `here`
+on the ones this machine has. It is fetched afresh as it opens; **fetch** fetches again, and
+**target…** picks another target where there is more than one. <kbd>enter</kbd> on an epic
+downloads it as an [import](/user/export#importing-a-run) lands one, under the directory it
+ran in, and says where -- and, for a directory this machine has not got, why it cannot be
+resumed here. Open it on `/epics`.
+
+## Usage
+
+What the epics spent, as each one says: the whole of it, how many epics, their output tokens,
+how long their agents worked and how they ended; then each day with an epic in it, newest
+first, in UTC, with a bar as long as its share of the costliest day; then each flow, the
+costliest first, with its share of the whole. **Range** looks back 7, 30, 90 or 365 days, and
+**Workspace** is this directory's epics or every directory's on this machine. Nothing on it is
+saved; it is read again as either is picked. The web page's **Usage** is the same reckoning.
+
 ## Flowverses
 
 The [flowverses](/weaver/flowverses), the indexes flows are installed from, are on `/flow` now,
@@ -1216,14 +1285,16 @@ why. You fix it in the menu, not half an hour into a run.
 ### Whether a run of it is profiled
 
 Profiling is not a setting of this page. It is chosen per run, like the budget, on the
-**profiling** row of `/flow` just under **budget**, and remembered with the rest of that
-flow's setup here. An `hmz exec` run is profiled only with `--profile`. What is recorded, and
+**profile flow** and **profile environment** rows of `/flow` just under **budget** -- the
+flow's own Python, and the programs its agents start -- and remembered with the rest of that
+flow's setup here. An `hmz exec` run is profiled only with `--profile-flow` or
+`--profile-environment`. What is recorded, and
 how to read it, is [Tracing](/user/tracing#profiling-a-run).
 
 ### `hmz exec` starts from none of this
 
-What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e`, `-p` and
-`--profile`. An unattended run inherits nothing from how this directory was last set up. It
+What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e`, `-p`,
+`--profile-flow` and `--profile-environment`. An unattended run inherits nothing from how this directory was last set up. It
 reads only one thing from here: whether you said yes to [reporting](/user/reporting).
 
 ### The first time
@@ -1242,8 +1313,9 @@ reporting question again.
 
 ### `hmz: /settings has no page '…'`
 
-The word after `/settings` names none of the five pages. The message lists the ones there are:
-`general`, `accounts`, `fallback`, `runtimes` and `workspace`. Type
+The word after `/settings` names none of the nine pages. The message lists the ones there are:
+`general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`,
+`workspace` and `usage`. Type
 `/settings ` with a space and pick one from the list offered.
 
 ### Save cannot be pressed

@@ -39,6 +39,19 @@ def _record(of: str, **said: Any) -> Callable[[str, Any], bool]:
     return wanted
 
 
+def _turn(turn: str) -> Callable[[str, Any], bool]:
+    """Whether an event says a chat's turn stands so."""
+
+    def wanted(event: str, data: Any) -> bool:
+        return (
+            event == "standing"
+            and data.get("type") == "run"
+            and data.get("turn") == turn
+        )
+
+    return wanted
+
+
 def test_a_run_started_from_a_page_is_followed_answered_and_stopped(
     project: Path,
 ) -> None:
@@ -52,6 +65,10 @@ def test_a_run_started_from_a_page_is_followed_answered_and_stopped(
             _, said = until(heard, _record("event", kind="text"), "what the agent said")
             assert said["text"] == "did: hello there"
             _, asked = until(heard, _record("asked", role="human"), "chat asking")
+            # Asking what to say next, the chat's turn is done, though it goes on.
+            until(heard, _turn("done"), "the turn done")
+            (going,) = browser.get("/api/runs").json()["runs"]
+            assert (going["held"], going["how"]) == (True, "done")
             refused = browser.post("/api/held/answer", {"question": "q0", "text": "x"})
             assert refused.status == 409
             assert refused.json()["error"]
@@ -65,12 +82,13 @@ def test_a_run_started_from_a_page_is_followed_answered_and_stopped(
             until(heard, _record("ended", how="stopped"), "the run ending")
 
         listed = browser.get("/api/runs").json()
-        assert listed["counts"] == {"stopped": 1}
+        # A chat left is done, however it was left.
+        assert listed["counts"] == {"done": 1}
         (run,) = listed["runs"]
         assert (run["flow"], run["task"], run["how"]) == (
             "chat",
             "hello there",
-            "stopped",
+            "done",
         )
         one = browser.get(f"/api/runs/{run['name']}").json()
         assert [agent["runs"] for agent in one["agents"]] == [f"{AGENT}:auto"]

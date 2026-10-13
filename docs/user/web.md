@@ -55,15 +55,16 @@ That has three consequences:
 
 The page is laid out as a desktop chat app is. In it, every run of a flow is an **epic**, the
 way every conversation of an agent is a session: the sidebar lists your epics as a chat app
-lists its chats, and an epic opens out into its agents and the sessions each opened.
+lists its chats, and an epic opens out into its agents and the sessions each opened -- but a
+`chat`, which is its one conversation and opens into nothing.
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first: how each ended, or `live`; `●` without `live` is one another process goes with, such as `hmz exec`, read as it writes itself down | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
+| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first: how each ended, or `live`; `●` without `live` is one another process goes with, such as `hmz exec`, read as it writes itself down; a `chat` only `●` while its agent answers, else `✔` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
 | **New epic** | A box for the task, the directory and the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
-| **An epic** | Its graph: who handed to whom -- a `chat` opens on its conversation instead | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
+| **An epic** | Its graph: who handed to whom -- a `chat` is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
-| **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: every place flows come from, and every release each index lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
+| **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
 | **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
@@ -80,7 +81,7 @@ daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same mach
 `@` is Local's.
 
 **Right-click** anything for what can be done to it: a folder in the sidebar (new epic here, its
-flows, search it, copy its path, settings), an epic (open, its log, resume, copy its link or task,
+flows, search it, copy its path, settings), an epic (open, its Exomyth, resume, copy its link or task,
 export, stop), an agent or a session, a node on the graph, a flow or flowverse card, a search
 result, a line of a thread (copy it, or the whole thread). Where there is text to read or write,
 selected text keeps the browser's own menu. **Hover** over anything cut short -- a folder's name,
@@ -143,14 +144,18 @@ And under the graph, while it goes:
 A session opens as its thread, drawn as the terminal draws it: an agent's words on a dot, your
 lines set apart on the right, a tool on a mark of its own, and `✻ Worked for …` closing a turn.
 
-A `chat` reads as a chat app's conversation, and is where one started from the page opens: your
-task, then each reply and each line you typed under it, on the right. The box under it is how
-you answer -- between turns it is your next turn, and while the agent asks something mid-turn
-it answers that, the answers it offers buttons at the end of the conversation.
+A `chat` is only its conversation, as a chat app's is, wherever it is opened: your task, then
+each reply and each line you typed under it, on the right. The box under it is how you answer --
+between turns it is your next turn, and while the agent asks something mid-turn it answers
+that, the answers it offers buttons at the end of the conversation. It has no graph, no agents
+or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and no
+**Stop**: it is `running` while its agent answers and `done` once the turn ends, and a new
+epic started in its directory ends it, as a new chat leaves the last.
 
-**Log**, first under an epic in the sidebar, is the transcript every agent and person appears
-on; each node's **log** row is that agent's across its sessions, and a person's node opens what
-they were asked and answered. A line typed under one goes to whose it is.
+Each node's **log** row is that agent's transcript across its sessions, and a person's node
+opens what they were asked and answered. A line typed under one goes to whose it is. There is
+no log of every session at once: under an epic in the sidebar are its agents and their
+sessions.
 
 **List**, at the top right of the graph, draws the agents as a list instead, the working first;
 your choice is kept in this browser.
@@ -174,17 +179,16 @@ spent, and how long it took, with how much of that was spent working.
 
 ### Exomyth {#exomyth}
 
-**Exomyth** (the chart at the top of an epic, its row under the epic in the sidebar, or its
-menu) lays the epic out over time, as [Perfetto](https://ui.perfetto.dev) lays out a trace --
-but with **every session its own process**, under the session or the flow that started it. It
-reads the epic's [timeline](/reference/tracing#timeline) out of the logs its agents kept; an
-epic still going is read again every two seconds while the tab is shown.
+**Exomyth** (the chart at the top of an epic, or its menu) lays the epic out over time, as
+[Perfetto](https://ui.perfetto.dev) lays out a trace -- but with **every session its own
+process**, under the session or the flow that started it. It reads the epic's
+[timeline](/reference/tracing#timeline) out of the logs its agents kept; an epic still going is
+read again every two seconds while the tab is shown.
 
 - **Timeline.** The epic's flows, each session and each program a [profiled](/user/tracing)
   epic ran, a row each, with a track per lane of its spans: sessions, turns, model calls,
   tools, messages and events, each category in its colour. The triangle by a name folds a
-  process to one row; **Expand** and **Collapse** do every one. **Arrows** shows what started
-  each process.
+  process to one row; **Expand** and **Collapse** do every one.
 - **Flame.** The same spans as a flame graph, over the stretch picked on the Timeline or the
   whole epic: under the epic, each agent (its role) with its sessions merged -- **Merge
   sessions** off puts each session apart -- or each flow or program, then its turns and what
@@ -247,7 +251,7 @@ directory last set it up:
 - **Environments.** Per role: the **Backend**, the **Runtime** of it (or **Add runtime…**, or
   for ssh **Other host…**), and the **Directory**, completed as you type on this machine.
 - **Parameters**, the **Budget**, **Backup** -- the [targets](/user/backups) the epic is backed
-  up to, the defaults ticked until a choice is saved -- and **Profile**. **Save** keeps them all for that directory
+  up to, the defaults ticked until a choice is saved -- and **Profile flow** and **Profile environment**. **Save** keeps them all for that directory
   without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set. Every flow but `chat`
 needs at least one limit. The page goes to the epic once it starts -- a `chat` to its
 conversation.
@@ -364,13 +368,14 @@ Start `hmz web` in a project, and open **New epic**:
    to say what next.
 4. Answer it in the terminal. In the browser, your answer is a line of yours in the
    conversation, and the agent's reply follows it.
-5. Press **Stop** in the browser, then **Stop it**. The terminal says
-   `— browser is stopping the flow —`.
+5. Type `/clear` in the terminal. A chat is never stopped: `/clear` ends it, and the next line
+   you type starts another.
 
 ### Check it worked
 
 - The terminal's transcript shows the task you typed in the browser, marked `· by browser`.
-- The sidebar lists the epic, `stopped`; **Search epics** shows what it spent.
+- The sidebar lists the epic, `done`: a chat is `running` only while its agent answers;
+  **Search epics** shows what it spent.
 
 ## Daemons {#daemons}
 
@@ -445,11 +450,11 @@ not only the one showing:
 
 | Kind | When |
 | --- | --- |
-| **done** | An epic ended, done. |
+| **done** | An epic ended, done; or a `chat` finished a turn and waits for your next line. |
 | **failed** | An epic failed, crashed, ran out of its budget, or was refused. |
-| **stopped** | An epic was stopped. |
+| **stopped** | An epic was stopped. Never a `chat`: leaving one is no news. |
 | **asked** | A flow put a question to a person: the outworlder. See [Questions](/user/questions). |
-| **listening** | A `chat` finished a turn and waits for your next line. |
+| **listening** | A flow other than `chat` waits for what to say next. |
 
 Each says which daemon, which directory and which epic it came from, and what was asked or how
 it ended.
@@ -463,6 +468,11 @@ it ended.
 - **System notifications.** While the page is hidden or not focused, a notification is also
   one of your system's: the browser's, or, in [the macOS app](/user/desktop#notifications), a
   macOS one. Clicking it brings the page back on what it is about.
+- **Sidebar marks.** An epic with a notification unread has a square beside it in the
+  sidebar, and so does its workspace while folded. Opening the epic reads them.
+
+None is shown of the epic you are looking at -- a question or a chat turn there included: it is
+read as it comes.
 
 A daemon is heard from while it is reached: Local always, an ssh host once it is `up`.
 
@@ -470,7 +480,8 @@ A daemon is heard from while it is reached: Local always, an ssh host once it is
 A browser shows system notifications only once you allow it: press the button on that page,
 which asks the browser. A kind switched off is not shown, kept or counted. These are App
 settings: they are kept in this machine's `~/.hmz/settings.yaml`, under `notifications`, and hold
-for every daemon, never one daemon apart.
+for every daemon, never one daemon apart. `hmz` reads the same settings, on its
+[Notifications page](/user/settings#notifications), and tells you of this machine's epics too.
 
 ## From another machine {#over-ssh}
 

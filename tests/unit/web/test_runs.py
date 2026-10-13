@@ -8,13 +8,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.web.runs import held_by, refused, row, sessions_of, spending
+from hmz.web.runs import held_by, refused, row
 
 if TYPE_CHECKING:
     from hmz.runtime.epic import Ran
-
-#: Today, as the tests see it.
-_NOW = datetime.datetime(2026, 10, 8, 12, 0, tzinfo=datetime.UTC)
 
 
 @dataclass(frozen=True)
@@ -33,40 +30,6 @@ class _Ran:
 
 def _runs(*runs: _Ran) -> list[Ran]:
     return cast("list[Ran]", list(runs))
-
-
-def test_spending_counts_each_day_and_flow_and_how_each_run_ended() -> None:
-    said = spending(
-        _runs(
-            _Ran(how="done", spent={"cost": 1.5, "output_tokens": 300, "seconds": 60}),
-            _Ran(
-                flow="goal",
-                began="2026-10-07T23:59:00+00:00",
-                how="failed",
-                spent={"cost": 2.0, "output_tokens": 100, "seconds": 30},
-            ),
-            # Still going: a run, and nothing spent yet.
-            _Ran(began="2026-10-08T11:00:00+00:00"),
-            # Before the days asked about.
-            _Ran(began="2026-10-01T10:00:00+00:00", how="done", spent={"cost": 9.0}),
-            _Ran(began="not a moment", how="done", spent={"cost": 9.0}),
-        ),
-        days=2,
-        now=_NOW,
-    )
-
-    assert [(one["day"], one["runs"], one["cost"]) for one in said["days"]] == [
-        ("2026-10-07", 1, 2.0),
-        ("2026-10-08", 2, 1.5),
-    ]
-    assert [(one["flow"], one["runs"]) for one in said["flows"]] == [
-        ("goal", 1),  # the costliest first
-        ("ralph", 2),
-    ]
-    assert said["ended"] == {"done": 1, "failed": 1, "unfinished": 1}
-    whole = said["whole"]
-    assert (whole["runs"], whole["cost"], whole["output_tokens"]) == (3, 3.5, 400)
-    assert whole["seconds"] == 90.0
 
 
 @pytest.mark.parametrize(
@@ -98,58 +61,15 @@ def test_the_run_going_is_the_one_opened_for_it_as_it_started(
 
     held = held_by(runs, running)
 
-    assert held == ({runs[found].at} if found is not None else set())
+    assert set(held) == ({runs[found].at} if found is not None else set())
 
 
-def test_a_trace_is_read_as_each_sessions_actions_in_the_order_they_happened() -> None:
-    document: dict[str, Any] = {
-        "traceEvents": [
-            {"ph": "M", "name": "process_name", "pid": 7, "args": {"name": "builder"}},
-            {"ph": "X", "cat": "session", "pid": 7, "ts": 0, "dur": 9e6},
-            {
-                "ph": "X",
-                "cat": "tool",
-                "name": "Bash",
-                "pid": 7,
-                "ts": 3e6,
-                "dur": 1e6,
-                "args": {"session": "claude:s1", "at": "t3", "command": "ls"},
-            },
-            {
-                "ph": "X",
-                "cat": "turn",
-                "name": "turn 1",
-                "pid": 7,
-                "ts": 1e6,
-                "dur": 5e6,
-                "args": {"session": "claude:s1"},
-            },
-            {
-                "ph": "X",
-                "cat": "turn",
-                "name": "turn 1",
-                "pid": 8,
-                "ts": 2e6,
-                "dur": 1e6,
-                "args": {"session": "codex:s2"},
-            },
-            {"ph": "X", "cat": "turn", "pid": 7, "ts": 0, "dur": 1, "args": {}},
-        ]
-    }
+@pytest.mark.parametrize("turn", ["running", "done", ""])
+def test_the_run_going_carries_where_a_chat_is_in_its_turn(turn: str) -> None:
+    runs = _runs(_Ran(flow="chat", at="going"))
+    standing = {"state": "running", "flow": "chat"} | ({"turn": turn} if turn else {})
 
-    sessions = sessions_of(document)
-
-    assert [(one["key"], one["agent"]) for one in sessions] == [
-        ("claude:s1", "builder"),
-        ("codex:s2", ""),
-    ]
-    first = sessions[0]["actions"]
-    assert [(one["category"], one["start"], one["seconds"]) for one in first] == [
-        ("turn", 1.0, 5.0),
-        ("tool", 3.0, 1.0),
-    ]
-    assert first[1]["at"] == "t3"
-    assert first[1]["args"] == {"command": "ls"}
+    assert held_by(runs, {"/work/one": standing}) == {"going": turn}
 
 
 @pytest.mark.parametrize(
@@ -214,6 +134,31 @@ def test_a_run_is_said_running_while_any_process_holds_it(
 
     assert listed["how"] == said
     assert listed["held"] is held
+
+
+@pytest.mark.parametrize(
+    ("how", "held", "going", "turn", "said"),
+    [
+        # The agent is answering.
+        ("", True, True, "running", "running"),
+        # Between turns: the turn is done, though the chat goes on.
+        ("", True, True, "done", "done"),
+        # Going where no host says where its turn is.
+        ("", False, True, "", "running"),
+        # Over: however it was ended but failing, it is done.
+        ("", False, False, "", "done"),
+        ("stopped", False, False, "", "done"),
+        ("done", False, False, "", "done"),
+        ("failed", False, False, "", "failed"),
+        ("crashed", False, False, "", "crashed"),
+    ],
+)
+def test_a_chat_is_said_running_only_while_its_agent_answers(
+    how: str, held: bool, going: bool, turn: str, said: str
+) -> None:
+    ran = cast("Ran", _Row(flow="chat", how=how))
+
+    assert row(ran, held=held, going=going, turn=turn)["how"] == said
 
 
 @dataclass(frozen=True)

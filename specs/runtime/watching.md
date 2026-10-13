@@ -84,6 +84,20 @@ class Btw:
                  opening: Mapping[str, Any] | None = None) -> None: ...  # an earlier run's
     def ask(self, question: str, snapshot: FlowSnapshot) -> str: ...
     def close(self, *, unasking: bool = True) -> None: ...
+# notices.py -- what this machine's runs did that a person would want told
+KINDS: tuple[str, ...]  # done, failed, stopped, asked, listening
+class Notices:
+    def __init__(self, statuses: Callable[[], dict[str, dict[str, Any]]], *,
+                 every: float = 2.0) -> None: ...  # each host's status, by workspace
+    last: int  # property: the newest one's id, or 0
+    def start(self) -> None: ...
+    def look(self) -> list[dict[str, Any]]: ...  # what is new since the last look
+    def since(self, after: int | str = 0) -> list[dict[str, Any]]: ...  # each numbered after
+    def heard(self, listener: Callable[[dict[str, Any]], None]) -> Callable[[], None]: ...
+    def events(self, last: str, going: threading.Event) -> Iterator[...]: ...  # as SSE
+    def close(self) -> None: ...
+def preferences(held: dict[str, Any] | None = None) -> dict[str, Any]: ...  # {kinds, system}
+def prefer(kinds: dict[str, bool] | None = None, *, system: bool | None = None) -> dict[str, Any]: ...
 ```
 
 ## Requirements
@@ -119,3 +133,6 @@ class Btw:
   conversation; and none where there is none of these.
 - A mode left MUST close every side conversation it opened, and one that opens after it was
   left MUST be closed at once, the question that opened it raising `Left`.
+- What is news of the runs MUST be worked out here once, for the web interface and the terminal
+  interface alike, out of each host's status and never by attaching; which kinds of it are
+  wanted, and whether the system is told too, MUST be one setting of this machine's for both.

@@ -316,7 +316,7 @@ const scene = useScene({
     cam.shot(l.shots.push, T3, 1.4)
     tl.to(one('.divider'), { autoAlpha: 1, duration: 0.01 }, T3 + 0.4)
     tl.to(one('.divider-line'), { drawSVG: '100%', duration: 0.8, ease: 'cine' }, T3 + 0.4)
-    // Only a run started with `--profile` records its programs.
+    // Only a run started with `--profile-environment` records its programs.
     tl.fromTo(one('.profile'), { autoAlpha: 0, x: 14 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: 'back.out(1.8)' }, T3 + 0.5)
     tl.fromTo(q('.profile rect'), { strokeWidth: 1.2 }, { strokeWidth: 3, duration: 0.2, yoyo: true, repeat: 1, ease: 'power2.out' }, T3 + 0.9)
     STARTED.forEach((link, k) => {
@@ -425,8 +425,8 @@ const scene = useScene({
 
         <!-- Only a run started with it records its programs: over the links, so it reads. -->
         <g class="profile">
-          <rect :x="L.x1 - 150" :y="L.divider - 10" width="150" height="20" rx="10" />
-          <text :x="L.x1 - 75" :y="L.divider + 4" text-anchor="middle">hmz exec … --profile</text>
+          <rect :x="L.x1 - 230" :y="L.divider - 10" width="230" height="20" rx="10" />
+          <text :x="L.x1 - 115" :y="L.divider + 4" text-anchor="middle">hmz exec … --profile-environment</text>
         </g>
 
         <!-- The rows. -->

@@ -32,7 +32,7 @@ from .readers import (
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
-    from .profile import Process
+    from .profile import Process, Sample
     from .session import Session
 
 #: Which reader reads which backend's logs. Where those logs are, and in what order the
@@ -80,6 +80,32 @@ def _profiled(
     return [one for one in held if one.ended >= window[0] and one.began <= window[1]]
 
 
+def _sampled(
+    said: str | os.PathLike[str] | Iterable[Sample] | None,
+    window: tuple[float, float],
+) -> list[Sample]:
+    """Where a run's flow was, read back and cut down to the window asked for.
+
+    Args:
+        said: The profile of the flow an epic holds, by path, or the samples
+            themselves, or None for a trace without it.
+        window: The times the trace was narrowed to.
+
+    Returns:
+        Every sample inside the window, and nothing at all for a run whose
+        flow was not profiled.
+    """
+    if said is None:
+        return []
+    if isinstance(said, (str, os.PathLike)):
+        from .profile import samples
+
+        held = samples(said)
+    else:
+        held = list(said)
+    return [one for one in held if one.t + one.dt >= window[0] and one.t <= window[1]]
+
+
 def collect(
     workspace: str | os.PathLike[str] | None = None,
     *,
@@ -89,6 +115,7 @@ def collect(
     start: str | None = None,
     end: str | None = None,
     profile: str | os.PathLike[str] | Iterable[Process] | None = None,
+    flow_profile: str | os.PathLike[str] | Iterable[Sample] | None = None,
     kept: Iterable[str | os.PathLike[str]] | None = None,
 ) -> dict[str, Any]:
     """Aggregates agent trajectories into a Chrome trace.
@@ -127,6 +154,10 @@ def collect(
             the trace with a track per thread, beside the agents' own: a turn
             is mostly other programs, and one timeline is what makes that
             visible.
+        flow_profile: Where the flow's own Python was while the run ran, as
+            the profile of it an epic holds or the samples themselves, drawn
+            as one more process: a track of nested frames, the way a sampling
+            profiler draws its samples.
         kept: Where humanize kept the sessions it ran, each holding a
             directory per CLI laid out as that CLI's home is -- an epic's
             `sessions/` -- read beside every CLI's own home, which holds the
@@ -143,7 +174,7 @@ def collect(
         workspace, sessions=sessions, agents=agents, start=start, end=end, kept=kept
     )
     ran = list(_profiled(profile, window))
-    document = chrome.build(collected, root, names, ran)
+    document = chrome.build(collected, root, names, ran, _sampled(flow_profile, window))
     if output is not None:
         destination = pathlib.Path(output)
         destination.parent.mkdir(parents=True, exist_ok=True)

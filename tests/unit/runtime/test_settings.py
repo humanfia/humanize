@@ -40,7 +40,8 @@ def test_a_workspace_nothing_was_run_in_remembers_nothing(
     assert said.envs("ralph") == {}
     assert said.params("ralph") == {}
     assert said.budget("ralph") == {}
-    assert said.profile("ralph") is False
+    assert said.profile_flow("ralph") is False
+    assert said.profile_environment("ralph") is False
     assert said.flows() == {}
     # Reading writes nothing.
     assert held.writes == 0
@@ -55,7 +56,8 @@ def test_what_was_remembered_reads_back_in_another_reading(
         envs={"box": "docker/srv"},
         params={"rounds": 3},
         budget={"cost": 5.0},
-        profile=True,
+        profile_flow=True,
+        profile_environment=True,
     )
 
     again = Settings(tmp_path)
@@ -68,7 +70,8 @@ def test_what_was_remembered_reads_back_in_another_reading(
     assert again.envs("ralph") == {"box": "docker/srv"}
     assert again.params("ralph") == {"rounds": 3}
     assert again.budget("ralph") == {"cost": 5.0}
-    assert again.profile("ralph") is True
+    assert again.profile_flow("ralph") is True
+    assert again.profile_environment("ralph") is True
     assert set(again.flows()) == {"ralph"}
     assert _entry(held, tmp_path)["flows"]["ralph"]["agents"] == {
         "builder": "claude@work/opus:high",
@@ -85,7 +88,8 @@ def test_choosing_agents_again_keeps_what_else_was_kept(
         envs={"box": "local/x"},
         params={"rounds": 3},
         budget={"cost": 1.0},
-        profile=True,
+        profile_flow=True,
+        profile_environment=True,
     )
 
     Settings(tmp_path).remember("ralph", {"builder": Runs("codex/o3:low")})
@@ -95,7 +99,8 @@ def test_choosing_agents_again_keeps_what_else_was_kept(
     assert again.envs("ralph") == {"box": "local/x"}
     assert again.params("ralph") == {"rounds": 3}
     assert again.budget("ralph") == {"cost": 1.0}
-    assert again.profile("ralph") is True
+    assert again.profile_flow("ralph") is True
+    assert again.profile_environment("ralph") is True
 
 
 def test_what_another_writer_set_meanwhile_is_kept_rather_than_written_over(
@@ -109,19 +114,32 @@ def test_what_another_writer_set_meanwhile_is_kept_rather_than_written_over(
     assert Settings(tmp_path).params("ralph") == {"rounds": 9}
 
 
-def test_an_empty_value_or_profile_off_erases_it(
+def test_an_empty_value_or_profiling_off_erases_it(
     held: doubles.Store, tmp_path: Path
 ) -> None:
     Settings(tmp_path).remember(
-        "ralph", {}, envs={"box": "local/x"}, budget={"cost": 1.0}, profile=True
+        "ralph",
+        {},
+        envs={"box": "local/x"},
+        budget={"cost": 1.0},
+        profile_flow=True,
+        profile_environment=True,
     )
 
-    Settings(tmp_path).remember("ralph", {}, envs={}, budget={}, profile=False)
+    Settings(tmp_path).remember(
+        "ralph",
+        {},
+        envs={},
+        budget={},
+        profile_flow=False,
+        profile_environment=False,
+    )
 
     again = Settings(tmp_path)
     assert again.envs("ralph") == {}
     assert again.budget("ralph") == {}
-    assert again.profile("ralph") is False
+    assert again.profile_flow("ralph") is False
+    assert again.profile_environment("ralph") is False
     assert set(_entry(held, tmp_path)["flows"]["ralph"]) == {"agents"}
 
 

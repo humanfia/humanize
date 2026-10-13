@@ -24,18 +24,8 @@ def serve(
 class Site(ThreadingHTTPServer):
     port: int  # property
     address: str  # property: http://127.0.0.1:<port>/?key=<key>
-    notices: Notices
-    remotes: Remotes
-# notices.py -- what this machine's runs did that a person would want told
-class Notices:
-    def since(self, after: int = 0) -> list[dict[str, Any]]: ...  # each numbered after `after`
-    def heard(self, callback: Callable[[dict[str, Any]], None]) -> None: ...  # each as it comes
-# remote.py -- the daemons of other machines, each reached over ssh
-class Remotes:
-    def state(self, name: str) -> dict[str, Any]: ...  # {state, detail, version}
-    def reached(self, name: str) -> tuple[int, str]: ...  # its port forwarded here, and its key
-    def connect(self, name: str) -> None: ...
-    def close(self) -> None: ...
+    notices: Notices  # `runtime/watching`'s: what this machine's runs did worth telling
+    remotes: Remotes  # Hmz.daemons.remotes(), runtime/doing.md
 ```
 
 ```text
@@ -143,7 +133,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   background, and where it is newer than the one serving, MUST mark the machine and offer
   `Update` in its menu, which copies `hmz update`.
 - MUST offer every workspace as a folder of its runs, newest first -- how each ended or that it
-  is going, its task, flow and agents, what it spent and how long it took, how many sessions it
+  is going, a chat `running` while its agent answers and `done` otherwise, short of failing --
+  its task, flow and agents, what it spent and how long it took, how many sessions it
   opened, whether it can be picked up and where it is written down -- found by how it went, by
   workspace, by flow and by its task, a page at a time.
 - MUST draw the run going as it happens: its sessions as lanes of turns over time, what each
@@ -156,16 +147,19 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   MUST offer, while it goes, every thing a person may do to it, never drawing over what somebody
   is typing while what it is about stands.
 - MUST offer the transcripts the terminal interface keeps: one per session, one per agent
-  across its sessions, one per person of what they are asked and answer, and one they all
-  appear on -- a line said in one going to whose it is, and answering instead what that
-  session's open turn asks.
+  across its sessions, and one per person of what they are asked and answer -- never one they
+  all appear on, an old address of which opens the epic -- a line said in one going to whose
+  it is, and answering instead what that session's open turn asks.
 - MUST name every agent of a run, going or written down, by its own name -- its sessions
   `<agent>/<n>`, its node, its transcript, its address and what is said to it -- the role it
   fills said only after the name, as the parameter it is; and a person by the role they answer.
-- MUST open a chat started from it on its conversation, read as a chat app reads one: the task
-  and every answer as the person's lines among the agent's, a line typed under it the next
-  turn, what to say next never drawn as a question, and what the agent asks mid-turn asked at
-  the end of the conversation with its answers there to pick.
+- MUST draw a chat as its conversation alone, wherever it is opened, read as a chat app reads
+  one: the task and every answer as the person's lines among the agent's, a line typed under
+  it the next turn, what to say next never drawn as a question, and what the agent asks
+  mid-turn asked at the end of the conversation with its answers there to pick; and never its
+  graph, its agents or sessions, its Exomyth, its people or a way to stop it -- said only as
+  running while its agent answers and done otherwise, and ended by a new epic started in its
+  workspace.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
@@ -191,8 +185,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   `layout` that is not that timeline's MUST be refused as a conflict.
 - MUST draw any epic, going or written down, as its Exomyth: its timeline's processes as rows
   of their tracks under a ruler of time, each under the process that started it, folded or
-  opened, with an arrow from each span that started one; moved over by keys, a wheel and a
-  pinch as Perfetto is moved over; a span pointed at said in brief and one picked said whole
+  opened, and no arrow drawn between them; moved over by keys, a wheel and a pinch as
+  Perfetto is moved over; a span pointed at said in brief and one picked said whole
   with what it carried; a stretch of time picked summed by category; spans found by their
   words, one after the next; and, beside it, a flame graph of the stretch picked or the whole --
   each agent its stack, its sessions merged or apart, then its spans as they nest -- weighed by
@@ -216,7 +210,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   where it is on this machine. Each MUST come to what `-a` or `-e` spells.
 - MUST offer the flows on offer in a workspace and what each declares, each installed out of
   an index with its release and the newer one its index lists, with updating, uninstalling and
-  copying it into that workspace whole; and every flowverse -- whether its index is fetched or
+  copying it into that workspace whole; and every flowverse but this project's and yours,
+  nothing of one shown until it or adding one is chosen -- whether its index is fetched or
   written into, the flows it lists, every release of each newest first, prereleases marked and
   the installed one marked -- with installing, switching to and uninstalling a release, and
   adding, fetching and removing a flowverse, removing what was installed out of it, asked
@@ -296,7 +291,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 
 - MUST tell, of this machine's runs, every epic that ends -- `done`, `stopped`, or `failed`
   where it failed, crashed, ran out of budget or was refused -- every question a flow asks a
-  person, `asked`, and every chat waiting on its next turn, `listening`: each a notice, numbered
+  person, `asked`, and every other flow waiting on what to say next, `listening`; of a chat,
+  each turn done as `done` and its end only where it failed or ended a turn not yet told,
+  never `stopped`: each a notice, numbered
   in order and kept to a bound, served after a number and as server-sent events resumed from the
   last heard, `hmz web` reached over ssh included. It MUST work them out of each host's status as
   the daemon answers it, never by attaching, so that no host is kept for them.
@@ -306,6 +303,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST offer them, whichever daemon is shown, behind a bell with how many are unread: each
   opening its epic on its daemon, marked read one or all, and cleared; and each new one as a card
   that goes after a while.
+- MUST mark, in the sidebar, each epic with one unread, and each workspace folded that has such
+  an epic; and MUST read every one of the epic the page is on while it is looked at, a new one
+  read as it comes, with no card nor the system told of it.
 - MUST tell the system of a new one where the page is hidden or not focused, unless that is
   turned off: in the desktop app by its `notify`, and in a browser by its notifications, leave
   for which is asked only by a click in Settings.

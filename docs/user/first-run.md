@@ -8,9 +8,9 @@ const running = [
   {
     label: 'round 1',
     lines: [
-      '[dim]❯[/] Fix the bug in calc.py.',
+      '[dim]─ reading agent ─[/][n]1[/]',
       '',
-      '[dim]── agent[/][n]1[/]',
+      '[dim]❯[/] Fix the bug in calc.py.',
       '',
       '[dim]● agent is working[/]',
       '',
@@ -197,8 +197,8 @@ install it; from then on it is listed here, with its version at the end of its r
 
 ## 4. Give the role an agent
 
-The flow opens on its **roles**: a row for each agent it drives, then `budget` and
-`profiling`, and buttons under them, **Save** last. `ralph_loop` has one role, `agent`. humanize
+The flow opens on its **roles**: a row for each agent it drives, then `budget`,
+`profile flow` and `profile environment`, and buttons under them, **Save** last. `ralph_loop` has one role, `agent`. humanize
 fills it with the first CLI it found, so the row already names one.
 
 <Term title="hmz · /flow › ralph_loop">
@@ -214,7 +214,10 @@ fills it with the first CLI it found, so the row already names one.
    <b>budget</b>                                                           <span class="m">none ▸</span> <span class="n">2</span>
      <span class="m">what a run may spend: none set; a run needs one</span>
    ────────────────────────────────────────────────────────────────────────
-   <b>profiling</b>                                                       <span class="m">○ off ▾</span> <span class="n">3</span>
+   <b>profile flow</b>                                                    <span class="m">○ off ▾</span> <span class="n">3</span>
+     <span class="m">traced only</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>profile environment</b>                                             <span class="m">○ off ▾</span>
      <span class="m">traced only</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
@@ -226,7 +229,8 @@ fills it with the first CLI it found, so the row already names one.
 
 1. **`agent`**, the flow's one role, and the agent filling it as `cli/model:effort`.
 2. **`budget`**: none yet. You set it in step 5.
-3. **`profiling`** stays off here: it is for when you want the programs a run starts in its
+3. **`profile flow`** and **`profile environment`** stay off here: they are for when you want
+   the flow's own Python, or the programs a run starts, in its
    [trace](/user/tracing#profiling-a-run).
 4. **Save**: nothing you change is kept until you press it. `● unsaved changes` says something
    is waiting.
@@ -351,8 +355,9 @@ it says it:
 
 What to look at, by number:
 
-1. **`── agent`** marks whose words follow. With several agents, a new one appears wherever the
-   speaker changes.
+1. **`─ reading agent ─`** says whose transcript this is: a run lands on the agent of the first
+   conversation it opens, with what you said at the top, and follows that agent into each new
+   conversation.
 2. **`✻ Worked for 7s · agent`** closes a turn: the first round is done, and `calc.py` is
    already fixed.
 3. **`conversation 2 of 2`**: a Ralph loop starts a fresh conversation every round, so the

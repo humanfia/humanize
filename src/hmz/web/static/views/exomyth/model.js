@@ -27,7 +27,6 @@
 //       rows: Int32Array[],                 // per depth: indices of its spans, by start -- and,
 //                                           // since spans of one depth never overlap, by end
 //     }],
-//     spawns: {span: Int32Array, process: Int32Array},  // sorted by span
 //     categories: string[],                 // the categories it holds, in a fixed order
 //   }
 //
@@ -118,7 +117,6 @@ export function load(doc) {
     processes,
     order,
     tracks,
-    spawns: { span: Int32Array.from(doc.spawns.span), process: Int32Array.from(doc.spawns.process) },
     categories: [...CATEGORIES.filter((one) => present.has(one)), ...[...present].filter((one) => one && !CATEGORIES.includes(one)).sort()],
   }
 }

@@ -82,6 +82,7 @@ __all__ = [
     "STRUCK",
     "TRANSCRIPT",
     "bundle",
+    "lands",
     "logged",
     "placed",
     "plain",
@@ -220,9 +221,9 @@ def bundle(
     """Writes one whole run as one archive, credentials struck out of every byte of it.
 
     Everything the run wrote goes in -- its own record, a record per flow it called, the
-    state a resumable flow left, the profile of the programs it ran, every trace gathered of
-    it -- and beside those the session logs themselves, each filed under the session it is a
-    log of.
+    state a resumable flow left, the profiles of the programs it ran and of the flow's own
+    Python, every trace gathered of it -- and beside those the session logs themselves, each
+    filed under the session it is a log of.
 
     Args:
       epic: The run, by the directory it is written in.
@@ -246,7 +247,7 @@ def bundle(
     ran = read(epic)
     if ran is None:
         raise ValueError(f"{epic} is not a run")
-    landed = _lands(epic, at)
+    landed = lands(epic.name, at)
     landed.parent.mkdir(parents=True, exist_ok=True)
     # Written whole under a name of its own and moved into place: an archive read while it
     # is being written is one nothing can open, and two exports of one run at once would
@@ -724,11 +725,11 @@ def _now() -> str:
     )
 
 
-def _lands(epic: Path, at: str | os.PathLike[str]) -> Path:
+def lands(epic: str, at: str | os.PathLike[str]) -> Path:
     """Where one bundle is written, out of what was asked for.
 
     Args:
-      epic: The run, by the directory it is written in.
+      epic: What the run is called, which is what its bundle is called after.
       at: A file, or a directory to put it in under its own name, from the home a leading
         `~` names where it starts with one.
 
@@ -737,7 +738,7 @@ def _lands(epic: Path, at: str | os.PathLike[str]) -> Path:
       path somebody is about to attach something to, and a relative one is a path they then
       have to remember which directory they were standing in for.
     """
-    named = BUNDLE.format(epic=epic.name)
+    named = BUNDLE.format(epic=epic)
     said = os.fspath(at)
     try:
         asked = Path(said).expanduser().absolute()
@@ -755,7 +756,8 @@ def _files(epic: Path) -> Iterator[tuple[str, Path]]:
     """Everything one run wrote down about itself, by the name it goes in the archive under.
 
     The run's own record first, then a record per flow it called, then the journal a
-    resumable flow kept, the profile of the programs it ran, and every trace gathered of it.
+    resumable flow kept, the profiles of the programs it ran and of the flow's own Python, and
+    every trace gathered of it.
     Each is absent from a run that never wrote one -- a flow that is not resumable, a run
     nobody profiled -- and an absent one is left out rather than carried as an empty file.
 
@@ -765,11 +767,11 @@ def _files(epic: Path) -> Iterator[tuple[str, Path]]:
     Yields:
       What to call it inside the archive, and where to read it from.
     """
-    from hmz.runtime.tracing.profile import PROFILE
+    from hmz.runtime.tracing.profile import FLOW_PROFILE, PROFILE
 
     for one in records(epic):
         yield one.name, one
-    for name in (RESUME, PROFILE):
+    for name in (RESUME, PROFILE, FLOW_PROFILE):
         if (epic / name).is_file():
             yield name, epic / name
     with contextlib.suppress(OSError):

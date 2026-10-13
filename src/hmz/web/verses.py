@@ -1,12 +1,13 @@
 """Where flows come from, as a page reads it and changes it: the flowverses, and installing.
 
 The flowverses page `/flow` opens in the terminal interface, through the same object and into
-the same directories: every flowverse, whether its index was fetched or has something written
-into it, the flows it lists at their newest release with what of each is installed, every
-release of one, and installing, updating, switching or uninstalling one -- and adding, fetching
-and removing a flowverse. A URL is never handed a page with anything signed into it. Nothing is
-installed, updated or uninstalled while an epic runs anywhere on the machine, as the terminal
-interface does nothing of it while its flow runs.
+the same directories: every flowverse -- but this project's flows and yours, places read where
+they stand rather than indexes, which are listed with what is installed -- whether its index
+was fetched or has something written into it, the flows it lists at their newest release with
+what of each is installed, every release of one, and installing, updating, switching or
+uninstalling one -- and adding, fetching and removing a flowverse. A URL is never handed a page
+with anything signed into it. Nothing is installed, updated or uninstalled while an epic runs
+anywhere on the machine, as the terminal interface does nothing of it while its flow runs.
 
 Every flowverse's index is fetched once as the interface starts, in the background and saying
 nothing -- `official` too where it was never fetched, and never one with something written
@@ -32,6 +33,11 @@ __all__ = ["ROUTES", "fetches"]
 _OFFICIAL = "official"
 
 
+def _indexed(one: Any) -> bool:
+    """Whether flows are installed out of this place's index: not this project's, nor yours."""
+    return not one.fixed or one.name == _OFFICIAL
+
+
 def fetches(hmz: Any) -> threading.Thread:
     """Fetches every flowverse's index, on a thread of its own, saying nothing of how it went.
 
@@ -46,9 +52,7 @@ def fetches(hmz: Any) -> threading.Thread:
         verses = hmz.flows.verses
         for one in verses.all():
             # A place nothing is fetched from, or one somebody wrote into, is left as it is.
-            if (one.fixed and one.name != _OFFICIAL) or (
-                one.fetched and verses.edited(one)
-            ):
+            if not _indexed(one) or (one.fetched and verses.edited(one)):
                 continue
             with contextlib.suppress(Exception):
                 verses.fetch(one.name)
@@ -73,6 +77,7 @@ def listed(hmz: Any) -> dict[str, Any]:
                 "installed": sum(1 for each in installed if each.verse == one.name),
             }
             for one in verses.all()
+            if _indexed(one)
         ],
         "installed": [_installed(one) for one in installed],
         "updates": [

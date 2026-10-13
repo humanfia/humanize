@@ -70,7 +70,8 @@ class Runner:
     impl: Impl = field(default_factory=Impl)
     declaration: object = field(default_factory=object)
     budget: Budget = field(default_factory=lambda: Budget(cost=1.0))
-    profile: bool = True
+    profile_flow: bool = True
+    profile_environment: bool = True
     recorder: Recorder | None = None
     agents: dict[str, object] = field(default_factory=dict[str, object])
     does: Callable[[dict[str, Any]], Any] | None = None
@@ -116,7 +117,7 @@ def test_a_run_says_what_it_is_a_run_of() -> None:
     assert run.task == "fix it"
     assert run.declaration is runner.declaration
     assert run.budget == Budget(cost=1.0)
-    assert run.profile is True
+    assert (run.profile_flow, run.profile_environment) == (True, True)
     assert run.usage == Usage(cost=2.0)
     assert run.epic is None
     assert (run.running, run.raised, run.result) == (False, None, None)

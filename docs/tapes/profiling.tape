@@ -20,19 +20,19 @@ Show
 Sleep 400ms
 
 # The flow this directory is set up on, opened inside: its roles, then what a run of it may
-# spend and whether it is profiled, one under the other.
+# spend and whether its flow and its environment are profiled, one under the other.
 Type "/flow @local/twice" Enter
-Wait+Screen /profiling/
+Wait+Screen /profile environment/
 Sleep 1400ms
 Screenshot "/out/profiling.png"
 Sleep 400ms
 
 # A switch, as every `▾` row is: enter drops `on` and `off` under it, the one in force ticked.
 # Esc takes neither, and leaves it as it was.
-Down 2
+Down 3
 Sleep 500ms
 Enter
-Wait+Screen /╭─ profiling/
+Wait+Screen /╭─ profile environment/
 Sleep 1600ms
 Escape
 Sleep 1200ms

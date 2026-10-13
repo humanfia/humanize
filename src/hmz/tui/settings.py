@@ -1,13 +1,13 @@
 """`/settings`: every setting humanize has, on a screen of its own, one level at a time.
 
-What opens is the six places settings are kept and nothing else -- this machine's own, the
-accounts, the fallbacks, the runtimes, the backups and this workspace's -- each a card saying
-what is in it,
-as a phone's settings or VS Code's open on their categories. They stand from the broadest to
-the nearest: what is true wherever humanize runs, who its agents are and what takes over when
-one fails, where their work goes and where its epics are kept, and last the one directory open
-now. Where flows come from
-is `/flow`'s (:mod:`hmz.tui.flows`), drawn the same way. Enter or a
+What opens is the eight places settings are kept -- this machine's own, its notifications, the
+daemons, the accounts, the fallbacks, the runtimes, the backups and this workspace's -- and
+what the epics spent, each a card saying what is in it, as a phone's settings or VS Code's open
+on their categories. They stand from the broadest to the nearest: what is true wherever
+humanize runs and which of its epics it tells of, which machines it reaches, who its agents are
+and what takes over when one fails, where their work goes and where its epics are kept, and
+last the one directory open now. Where flows come from is `/flow`'s (:mod:`hmz.tui.flows`),
+drawn the same way. Enter or a
 click goes into one and esc or backspace comes back out, as k9s and ranger walk in and out of
 what they list; the line across the top says where you are, and its first word is a way back.
 
@@ -42,12 +42,14 @@ from textual.widgets.option_list import Option
 from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs, read_back, written
 from hmz.runtime.telemetry import KEPT, SAYS, SENT
+from hmz.runtime.watching.notices import KINDS, prefer, preferences
 
 from .dropdown import Dropdown, Value
 from .pick import (
     _ACCOUNTS,
     _APART_MARK,
     _BACKUP,
+    _DAEMONS,
     _DIRECTORY,
     _DOT,
     _DROPS,
@@ -55,12 +57,14 @@ from .pick import (
     _FALLBACK,
     _MACHINES,
     _NO,
+    _NOTIFICATIONS,
     _OPENS,
     _YES,
     Action,
     Adjusted,
     Agent,
     Backups,
+    Daemons,
     Drop,
     Fallbacks,
     Key,
@@ -74,6 +78,7 @@ from .pick import (
     complete,
     switched,
 )
+from .usage import Spends
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -91,12 +96,18 @@ __all__ = ["MOVED", "PAGES", "Adjusts", "page_of"]
 #: its card, lower case, so that the word typed is the word read.
 PAGES = (
     "general",
+    "notifications",
+    "daemons",
     "accounts",
     "fallback",
     "runtimes",
     "backup",
     "workspace",
+    "usage",
 )
+
+#: The page of what the epics spent, the last.
+_USAGE = PAGES.index("usage")
 
 #: The page that moved to `/flow`, still taken by `/settings` so that it can say where it went.
 MOVED = "flowverses"
@@ -143,6 +154,8 @@ _PAGES = (
     _Page(
         "General", "⚙", "this machine: what runs show, the /btw agent, error reports"
     ),
+    _Page("Notifications", "♪", "which epics on this machine you are told of"),
+    _Page("Daemons", "⇄", "this machine's and other machines', reached over ssh"),
     _Page("Accounts", "◉", "what agents sign in as, under each CLI"),
     _Page("Fallback", "↻", "where a turn goes when its agent fails"),
     _Page(
@@ -150,6 +163,7 @@ _PAGES = (
     ),
     _Page("Backup", "⇪", "repositories epics are backed up to"),
     _Page("Workspace", "⌂", "this directory: its flow, and forgetting it"),
+    _Page("Usage", "$", "what the epics spent, by day and by flow"),
 )
 
 #: What the first screen says it is.
@@ -162,6 +176,17 @@ _DETAILS = "details"
 _BTW = "btw"
 _RUNS = "flow"
 _FORGET = "forget"
+_SYSTEM = "system"
+
+#: What the notifications page calls each kind of notice, as the web interface's does, and
+#: what it is told of.
+_KINDS = {
+    "done": ("Done", "an epic finished, or a chat turn did"),
+    "failed": ("Failed", "an epic failed, crashed, ran out of budget or was refused"),
+    "stopped": ("Stopped", "an epic was stopped"),
+    "asked": ("Questions", "a flow asks you something"),
+    "listening": ("Chat turns", "a chat waits for its next turn"),
+}
 
 #: The kinds of row those are: a switch, turned on or off from the two dropped under it; a
 #: value picked out of a list; one that says something when it is opened; and one that is
@@ -209,17 +234,22 @@ _MEANS = {
     _SENTRY: ("send error reports", "send nothing"),
     _DETAILS: ("show tool calls and thinking", "show turn responses only"),
     _FORGET: ("clear saved settings here", "keep them"),
+    _SYSTEM: ("ring the bell and notify the system", "a card in hmz alone"),
+    **dict.fromkeys(KINDS, ("tell me", "say nothing")),
 }
 
 
-class Adjusts(Providers, Machines, Fallbacks, Backups):
-    """Every setting humanize has: `/settings`, six pages opened from one screen of them.
+class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
+    """Every setting humanize has: `/settings`, nine pages opened from one screen of them.
 
-    General is what is true of this machine however many projects are driven from it; the
-    accounts, the fallbacks and the runtimes are what agents run as, where turns go when they
-    cannot, and the machines their work goes on; the backups are where epics are copied to;
-    the workspace is one directory's. One menu because they are one question -- what does
-    humanize remember -- and a command apiece was six things to learn the names of.
+    General is what is true of this machine however many projects are driven from it, and the
+    notifications which of its epics it tells of; the
+    daemons are this machine's and the others reached from it; the accounts, the fallbacks
+    and the runtimes are what agents run as, where turns go when they cannot, and the
+    machines their work goes on; the backups are where epics are copied to;
+    the workspace is one directory's; the usage is what the epics spent. One menu because they
+    are one question -- what does humanize remember -- and a command apiece was nine things to
+    learn the names of.
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
     written down is written down in humanize's own words, and a person should not have to know
@@ -274,6 +304,13 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         self._details = self._details_was = settings.details
         #: The agent `/btw` talks to outside a session, or "" for the flow's first.
         self._btw = self._btw_was = settings.btw
+        #: Which kinds of notice are told, and whether the system shows them too: kept with the
+        #: web interface's, under `notifications` in this machine's `settings.yaml`.
+        wanted = preferences()
+        self._kinds: dict[str, bool] = dict(wanted["kinds"])
+        self._kinds_was = dict(self._kinds)
+        self._system: bool = wanted["system"]
+        self._system_was = self._system
         self._unavailable = unavailable
         self._workspace = str(Path.cwd())
         self._flow = settings.flow
@@ -295,6 +332,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         """Reads the pages that are lists, and puts up whichever is open."""
         self._read_accounts()
         self._read_machines()
+        self._read_daemons()
         self._fill()
 
     # -- Going in and out ----------------------------------------------------------------------
@@ -373,7 +411,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
           True for a card, and for a row of a page that is a list.
         """
         return bool(row) and (
-            self._home or self._tab in (_ACCOUNTS, _MACHINES, _FALLBACK, _BACKUP)
+            self._home
+            or self._tab in (_DAEMONS, _ACCOUNTS, _MACHINES, _FALLBACK, _BACKUP)
         )
 
     # -- The way across the top -----------------------------------------------------------
@@ -405,16 +444,22 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
             if self._home
             else {
                 _EVERYWHERE: "How humanize behaves on this machine, in every directory.",
+                _NOTIFICATIONS: "Which epics on this machine you are told of, here and in "
+                "the web interface, while you are not on them.",
                 _DIRECTORY: f"What {_shortly(self._workspace)} remembers: the flow it "
                 "opens on and how it was last configured.",
+                _DAEMONS: self.DAEMONS_ABOUT,
                 _ACCOUNTS: self.ACCOUNTS_ABOUT,
                 _MACHINES: self.MACHINES_ABOUT,
                 _FALLBACK: self.STEPS_ABOUT,
                 _BACKUP: self.BACKUP_ABOUT,
+                _USAGE: self.USAGE_ABOUT,
             }[self._tab]
         )
         if self._home:
             self._fill_home()
+        elif self._tab == _DAEMONS:
+            self._fill_daemons()
         elif self._tab == _ACCOUNTS:
             self._fill_accounts()
         elif self._tab == _MACHINES:
@@ -423,6 +468,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
             self._fill_steps()
         elif self._tab == _BACKUP:
             self._fill_backups()
+        elif self._tab == _USAGE:
+            self._fill_usage()
         else:
             self._fill_own()
 
@@ -430,14 +477,21 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         """What one page's card says is in it, in a few words."""
         if page == _EVERYWHERE:
             return f"details {_word(self._details)}{_DOT}reports {_word(self._sentry)}"
+        if page == _NOTIFICATIONS:
+            told = sum(self._kinds.values())
+            return f"{told} of {len(KINDS)} kinds{_DOT}system {_word(self._system)}"
         if page == _DIRECTORY:
             return f"{_shortly(self._workspace)}{_DOT}flow {self._flow or 'none'}"
+        if page == _DAEMONS:
+            return _many(len(self._daemons) + 1, "daemon")
         if page == _ACCOUNTS:
             return _many(len([one for one in self._accounts if one.name]), "account")
         if page == _MACHINES:
             return _many(len(self._saved_machines), "machine")
         if page == _BACKUP:
             return _many(len(self._repos), "target")
+        if page == _USAGE:
+            return self._usage_summary()
         return _many(len(self._steps), "rule")
 
     def _pending(self, page: int) -> bool:
@@ -448,6 +502,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
                 self._details_was,
                 self._btw_was,
             )
+        if page == _NOTIFICATIONS:
+            return (self._kinds, self._system) != (self._kinds_was, self._system_was)
         if page == _DIRECTORY:
             return self._forget
         if page == _ACCOUNTS:
@@ -513,6 +569,28 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         no row: it is not set here, and the page says it across the top. Forgetting goes last,
         apart, as what undoes the rest does in any settings.
         """
+        if self._tab == _NOTIFICATIONS:
+            return [
+                *(
+                    _Setting(
+                        kind,
+                        named,
+                        _word(self._kinds[kind]),
+                        about,
+                        _SWITCH,
+                        group="Kinds",
+                    )
+                    for kind, (named, about) in _KINDS.items()
+                ),
+                _Setting(
+                    _SYSTEM,
+                    "System",
+                    _word(self._system),
+                    "ring the terminal's bell and show a system notification too",
+                    _SWITCH,
+                    group="Shown",
+                ),
+            ]
         if self._tab == _DIRECTORY:
             return [
                 _Setting(
@@ -676,10 +754,12 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         if self._home:
             return [self._saves_all()]
         return {
+            _DAEMONS: self._daemon_actions,
             _ACCOUNTS: self._account_actions,
             _MACHINES: self._machine_actions,
             _FALLBACK: self._step_actions,
             _BACKUP: self._backup_actions,
+            _USAGE: self._usage_actions,
         }.get(self._tab, lambda: [self._saves_all()])()
 
     def _footed(self, *keys: Key) -> None:
@@ -712,7 +792,9 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         Args:
           held: The row, by the id it answers with.
         """
-        if self._tab == _ACCOUNTS:
+        if self._tab == _DAEMONS:
+            self._took_daemon(held)
+        elif self._tab == _ACCOUNTS:
             self._took_account(held)
         elif self._tab == _MACHINES:
             self._took_machine(held)
@@ -736,8 +818,12 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         Returns:
           True for a switch.
         """
+        if not self._home and self._tab == _USAGE:
+            return self._drops_usage(row)
         return (
-            not self._home and self._tab in (_EVERYWHERE, _DIRECTORY) and row in _MEANS
+            not self._home
+            and self._tab in (_EVERYWHERE, _NOTIFICATIONS, _DIRECTORY)
+            and row in _MEANS
         )
 
     def dropping(self, row: str) -> Drop:
@@ -749,6 +835,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         Returns:
           The list, opening on the answer it is not, so that enter twice turns it round.
         """
+        if self._tab == _USAGE:
+            return self._dropping_usage(row)
         now = self._switched(row)
         named = next(one.named for one in self._settings() if one.held == row)
         return switched(named, _word(now) if now is not None else "", _MEANS[row])
@@ -761,7 +849,13 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
           picked: `on` or `off`.
         """
         on_ = picked == _YES
-        if row == _SENTRY:
+        if self._tab == _USAGE:
+            self._dropped_usage(row, picked)
+        elif row in self._kinds:
+            self._kinds[row] = on_
+        elif row == _SYSTEM:
+            self._system = on_
+        elif row == _SENTRY:
             self._sentry = on_
         elif row == _DETAILS:
             self._details = on_
@@ -775,6 +869,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
             _SENTRY: self._sentry,
             _DETAILS: self._details,
             _FORGET: self._forget,
+            _SYSTEM: self._system,
+            **self._kinds,
         }[held]
 
     @work
@@ -824,6 +920,19 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         self._applies_accounts(told)
         self._applies_steps(told)
         self._applies_backups(told)
+        if self._pending(_NOTIFICATIONS):
+            try:
+                # What was changed here alone: the web interface may have changed the rest.
+                prefer(
+                    {
+                        kind: on
+                        for kind, on in self._kinds.items()
+                        if on != self._kinds_was[kind]
+                    },
+                    system=self._system if self._system != self._system_was else None,
+                )
+            except OSError as why:
+                told.append(f"hmz: notifications not saved: {escape(str(why))}")
         self.dismiss(
             Adjusted(
                 enable_sentry=self._sentry

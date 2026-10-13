@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import functools
 import itertools
+import json
+import math
 import time
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
@@ -35,7 +37,7 @@ from textual.widgets.option_list import Option
 
 from hmz.coganchor.agents import ANYONE, FLOW
 from hmz.coganchor.prices import money
-from hmz.runtime.watching.monitor import Shape, lasting, short, thousands
+from hmz.runtime.watching.monitor import Shape, lasting, short, tallied, thousands
 
 from .pick import (
     _DOT,
@@ -46,10 +48,11 @@ from .pick import (
     _LABEL,
     _LIVE,
     _WORKING,
-    EVERY,
     Action,
     Key,
+    Popup,
     Sheet,
+    _popup,
     _shade,
     named_as,
     reads,
@@ -68,16 +71,19 @@ if TYPE_CHECKING:
     from hmz.runtime.watching.monitor import Counted, Monitor, Under
 
 __all__ = [
-    "EVERY",
     "OUTWORLDER",
     "BoardSeen",
+    "Details",
     "Drawn",
     "Entry",
+    "Halts",
     "Line",
     "Monitoring",
     "Place",
     "Placed",
+    "chatting",
     "declared_places",
+    "details",
     "needs",
     "place_key",
 ]
@@ -143,6 +149,13 @@ _AT = "\x04"
 
 #: The row naming the columns of the list, which nothing lands on.
 _COLUMNS = "\x05"
+
+#: The epic's own row, which leads the graph and opens its page: a character nothing else is
+#: called by either.
+_EPIC = "\x06"
+
+#: How many cells a meter of the budget is drawn across: enough to read a tenth off.
+_METER = 10
 
 #: What an agent wears in front of its name: shut, with its sessions folded into its box, and
 #: open, with them hanging under it.
@@ -1194,6 +1207,322 @@ class Place(Sheet[str]):
         self.dismiss(str(event.option.id or "").removeprefix("="))
 
 
+def _meters(
+    epic: Mapping[str, Any], lasted: float
+) -> list[tuple[str, float, float, str, str]]:
+    """What an epic may spend against what it has spent, one limit at a time.
+
+    Args:
+      epic: The epic, as :func:`details` reads it.
+      lasted: How long it has been going: what its time limit, a deadline from its start, is
+        against -- not the time its agents spent in turns, which a flow waiting on somebody
+        does not add to.
+
+    Returns:
+      Per limit it sets that can be measured -- cost, output tokens, time -- its name, what
+      has gone, what may go, and those two as a row says them. Nothing for an epic with no
+      limit, which is what a conversation's infinite cost is.
+    """
+    from hmz.flows import Budget, Usage
+
+    try:
+        budget = Budget.model_validate(epic.get("budget"))
+        usage = Usage.model_validate(epic.get("usage") or {})
+    except ValueError:
+        return []
+    limits: list[tuple[str, float, float | None, Callable[[float], str]]] = [
+        ("cost", usage.cost, budget.cost, money),
+        ("output", usage.output_tokens, budget.output_tokens, thousands),
+        (
+            "time",
+            lasted,
+            budget.duration.total_seconds() if budget.duration is not None else None,
+            lasting,
+        ),
+    ]
+    return [
+        (named, have, may, said(have), said(may))
+        for named, have, may, said in limits
+        if may is not None and 0 < may < math.inf
+    ]
+
+
+def details(
+    epic: Mapping[str, Any],
+    *,
+    calls: Sequence[Mapping[str, Any]],
+    lasted: float,
+    tally: tuple[str, str] | None,
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """What the epic's own page says, under the headings the web's panel says it under.
+
+    Args:
+      epic: The epic: what it started as, how it stands as `state` -- `running`, `stopping`,
+        or "" once over -- and what it has spent so far as `usage`.
+      calls: The flow calls going, oldest first.
+      lasted: How long it has been going, or went, in seconds.
+      tally: What it has cost, as every frontend draws it, or None before anything has.
+
+    Returns:
+      Each heading with its rows, a row a field and its value as markup: the figures, the
+      budget against what has gone of it, what it was set up with, and the flows called.
+    """
+    meters = _meters(epic, lasted)
+    budget: list[tuple[str, str]] = []
+    for named, have, may, has, of in meters:
+        full = min(1.0, have / may)
+        filled = round(full * _METER)
+        budget.append(
+            (
+                named,
+                (
+                    f"{has} of {of}  [{'$error' if full >= 1 else '$secondary'}]"
+                    f"{'█' * filled}[/][$text-muted]{'░' * (_METER - filled)} "
+                    f"{full:.0%}[/]"
+                ),
+            )
+        )
+    if meters:
+        graceful = dict(epic.get("budget") or {}).get("graceful", True)
+        budget.append(
+            ("when spent", "the last turn finishes" if graceful else "cut off at once")
+        )
+    # Which of the two parts it profiles, as it started.
+    profiled = (
+        ", ".join(
+            part for part in ("flow", "environment") if epic.get(f"profile_{part}")
+        )
+        or "no"
+    )
+    names = dict(epic.get("names") or {})
+    flow = str(epic.get("flow") or "")
+    listed = [
+        (
+            "agents",
+            [
+                f"{names[role]} · {role}={runs}"
+                if names.get(role, role) != role
+                else f"{role}={runs}"
+                for role, runs in dict(epic.get("agents") or {}).items()
+            ],
+        ),
+        (
+            "envs",
+            [f"{role}={given}" for role, given in dict(epic.get("envs") or {}).items()],
+        ),
+        (
+            "params",
+            [
+                f"{name}={json.dumps(value)}"
+                for name, value in dict(epic.get("params") or {}).items()
+            ],
+        ),
+    ]
+    return [
+        (
+            "Figures",
+            [
+                (
+                    "time",
+                    f"{lasting(lasted)} {'elapsed' if epic.get('state') else 'total'}",
+                ),
+                ("spent", escape(tally[1]) if tally else "nothing yet"),
+                ("tokens", escape(tally[0]) if tally else "none yet"),
+            ],
+        ),
+        ("Budget", budget or [("limit", "none")]),
+        (
+            "Set up",
+            [
+                ("flow", escape(named_as(flow))),
+                ("task", escape(_task(epic, _WIDEST))),
+                *(
+                    ("" if at else field, escape(value))
+                    for field, values in listed
+                    for at, value in enumerate(values)
+                ),
+                ("profiled", profiled),
+            ],
+        ),
+        ("Flows", [("", line) for line in _flowing(named_as(flow), calls)]),
+    ]
+
+
+def _task(epic: Mapping[str, Any], room: int) -> str:
+    """What an epic was started on, as one line cut to the room there is: a task is pages."""
+    return _fits(" ".join(str(epic.get("task") or "").split()), room)
+
+
+def chatting(epic: Mapping[str, Any]) -> bool:
+    """Whether an epic is the built-in chat: a conversation, which nothing stops.
+
+    Args:
+      epic: The epic, as :func:`details` reads it.
+
+    Returns:
+      Whether its flow is `chat`.
+    """
+    return named_as(str(epic.get("ref") or epic.get("flow") or "")) == "chat"
+
+
+class Halts(Popup):
+    """Whether to stop the epic, or to close every session of one stopping, asked first.
+
+    A box over the epic's page, as every question that arrives is: a day's work is behind the
+    button, and it stops the epic for every frontend reading it.
+    """
+
+    CSS = _popup("Halts")
+
+    ESC: ClassVar = "cancel"
+
+    def __init__(self, *, force: bool) -> None:
+        """Initializes the question.
+
+        Args:
+          force: Whether it is an epic already stopping whose sessions are to close now.
+        """
+        super().__init__()
+        self._force = force
+        self.asked = "Close every session now?" if force else "Stop this epic?"
+        self.about = (
+            "Each turn under way fails rather than finishing."
+            if force
+            else "It stops for every frontend reading it."
+        )
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Stopping it, or leaving it be."""
+        return [
+            (
+                "yes",
+                "force stop" if self._force else "stop",
+                "close every session now" if self._force else "stop the epic",
+            ),
+            ("no", "cancel", "leave it going"),
+        ]
+
+
+class Details(Sheet[None]):
+    """The epic itself, opened: its figures, its budget against what has gone, its set-up.
+
+    A reading, as an environment's page is, kept live while it is up -- and where an epic is
+    stopped by a button rather than a key: `Stop` while it runs and `Force stop` once it is
+    stopping, each asked first. Neither on a conversation, which nobody stops.
+    """
+
+    def __init__(
+        self,
+        epic: Callable[[], Mapping[str, Any]],
+        monitor: Callable[[], Monitor],
+        calls: Callable[[], Sequence[Mapping[str, Any]]],
+        stop: Callable[[bool], None],
+    ) -> None:
+        """Opens the epic.
+
+        Args:
+          epic: The epic, as :func:`details` reads it, asked afresh each time it is drawn.
+          monitor: The run, likewise.
+          calls: The flow calls going, oldest first, likewise.
+          stop: Stops the epic, or, given True, closes every session of one stopping.
+        """
+        super().__init__()
+        self._epic = epic
+        self._monitor = monitor
+        self._calls = calls
+        self._stop = stop
+
+    def crumb(self) -> str:
+        """What this page is, across the top of anything opened over it."""
+        return "epic"
+
+    def _ask(self) -> None:
+        """Says which epic this is, and keeps saying how it stands."""
+        self._fill()
+        self.set_interval(_LIVE, self._fill)
+
+    def actions(self) -> list[Action]:
+        """Stop while the epic runs, Force stop while it is stopping, and nothing otherwise."""
+        epic = self._epic()
+        state = str(epic.get("state") or "")
+        if chatting(epic) or state not in ("running", "stopping"):
+            return []
+        force = state == "stopping"
+        return [
+            Action(
+                "force" if force else "stop",
+                "force stop" if force else "stop",
+                "close every session now" if force else "stop the epic for everybody",
+                functools.partial(self._halts, force=force),
+                variant="error",
+            )
+        ]
+
+    @work
+    async def _halts(self, *, force: bool) -> None:
+        """Asks whether to stop the epic, or force it, and does so on a yes.
+
+        Args:
+          force: Whether to close every session of an epic already stopping.
+        """
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        asked = (self._epic().get("run"), force)
+        if await showing.push_screen_wait(Halts(force=force)) != "yes":
+            return
+        # Only the epic the box was about, as it stood: another may have started meanwhile.
+        now = self._epic()
+        if (now.get("run"), now.get("state") == "stopping") == asked:
+            self._stop(force)
+        self._fill()
+
+    def _fill(self) -> None:
+        """Puts up what the epic is now, heading by heading, the cursor kept where it was.
+
+        A clock in it moves every second, so a row whose words changed is put back where it
+        stands, as the monitor's are, and the list is only put up again when its rows change.
+        """
+        epic = self._epic()
+        monitor = self._monitor()
+        state = str(epic.get("state") or "")
+        self.query_one("#asked", Label).update(escape(_task(epic, _WIDEST) or "epic"))
+        self.query_one("#about", Label).update(
+            {"running": "Running.", "stopping": "Stopping."}.get(state, "Over.")
+        )
+        rows: list[Option] = []
+        for heading, said in details(
+            epic,
+            calls=self._calls(),
+            lasted=(monitor.until or time.monotonic()) - monitor.began,
+            tally=tallied(monitor),
+        ):
+            if rows:
+                rows.append(Option("", disabled=True))
+            rows.append(Option(f" [$primary]{heading}[/]", disabled=True))
+            # Rows the cursor walks, so that a page longer than the screen is read with the
+            # keys; enter on one does nothing, there being nothing under it to open.
+            rows += [
+                Option(
+                    f" [$text-muted]{field:<{_FIELD}}[/]{value}",
+                    id=f"{heading}\x1f{at}",
+                )
+                for at, (field, value) in enumerate(said)
+            ]
+        listing = self.query_one("#choices", OptionList)
+        ids = [one.id for one in rows]
+        if ids != [
+            listing.get_option_at_index(at).id for at in range(listing.option_count)
+        ]:
+            listing.set_options(rows)
+        else:
+            for at, one in enumerate(rows):
+                if str(listing.get_option_at_index(at).prompt) != str(one.prompt):
+                    listing.replace_option_prompt_at_index(at, one.prompt)
+        self._footed(Key("esc", "back"))
+
+
 #: What the row that puts a new line on the board is put up under: the board's own mark with
 #: no name after it, there being no line yet.
 _NEW = _ON_BOARD
@@ -1244,6 +1573,20 @@ class _Switch(Static):
             screen.view(listed=self.listed)
 
 
+class _Exomyth(Static):
+    """The epic going opened in Exomyth, beside the switch above the graph: clicked, as `ctrl+e`."""
+
+    def __init__(self) -> None:
+        """Makes it."""
+        super().__init__("Exomyth", id="exomyth")
+
+    def on_click(self) -> None:
+        """Opens the epic going in Exomyth."""
+        screen = self.screen
+        if isinstance(screen, Monitoring):
+            screen.action_exomyth()
+
+
 class _Row(NamedTuple):
     """One row of the graph: what it is about, what it draws, and whether it is landed on.
 
@@ -1278,9 +1621,10 @@ class Monitoring(Screen[str | None]):
     handed to whom and puts whatever is working at the top -- the question a run of twelve
     agents is watched to answer, and one a picture of twelve boxes answers slowly.
 
-    It is where a log is picked to be read. The first node is every agent's log, selected
-    when this opens, so enter reads the run whole; each node under it reads its own; `→` goes
-    back to whichever was read last. A node stays for the rest of the run, working or not.
+    It is where a log is picked to be read. The first row says how far the run has got and is
+    no node, there being no log every agent is on; each node under it reads its own, the one
+    being read selected when this opens; `→` goes back to whichever was read last. A node
+    stays for the rest of the run, working or not.
 
     And the prompt is under it, the same prompt as the log's: every command works here, and a
     line typed goes where it would have gone from the log. The arrows, space and enter are
@@ -1294,6 +1638,7 @@ class Monitoring(Screen[str | None]):
     #views { height: 1; padding: 0 2; background: $surface; }
     #views > Static { width: auto; padding: 0 1; color: $text-muted; }
     #views > Static.on { color: $primary; text-style: bold reverse; }
+    #views > #exomyth { dock: right; }
     #graph { height: 1fr; padding: 0 1; border: none; background: $surface; }
     #graph:focus { border: none; }
     #graph > .option-list--option-highlighted { background: $surface; text-style: none; }
@@ -1311,6 +1656,7 @@ class Monitoring(Screen[str | None]):
         Binding("space", "fold", "sessions", show=False, priority=True),
         Binding("right", "back", "back to the log", show=False, priority=True),
         Binding("ctrl+t", "turn", "graph or list", show=False, priority=True),
+        Binding("ctrl+e", "exomyth", "Exomyth", show=False, priority=True),
     ]
 
     def __init__(
@@ -1319,7 +1665,7 @@ class Monitoring(Screen[str | None]):
         monitor: Callable[[], Monitor],
         drawn: Callable[[], Sequence[Drawn]],
         setup: Callable[[], tuple[str, tuple[str, ...], list[Runs], BaseModel | None]],
-        reading: Callable[[], str] = lambda: EVERY,
+        reading: Callable[[], str] = lambda: "",
         board: Callable[[], BoardSeen | None] = lambda: None,
         outworlders: Callable[[], Sequence[str]] = tuple,
         calls: Callable[[], Sequence[Mapping[str, Any]]] = tuple,
@@ -1330,6 +1676,10 @@ class Monitoring(Screen[str | None]):
         listed: bool = False,
         opened: MutableSet[str] | None = None,
         turned: Callable[[bool], None] = lambda _: None,
+        epic: Callable[[], Mapping[str, Any]] = dict,
+        stop: Callable[[bool], None] = lambda _: None,
+        timelined: Callable[[], bool] = lambda: False,
+        exomyth: Callable[[], None] = lambda: None,
     ) -> None:
         """Watches the run, asking about it afresh each time it is drawn.
 
@@ -1356,6 +1706,11 @@ class Monitoring(Screen[str | None]):
           opened: The agents opened out to their sessions. Held by whoever opens this and
             changed where it stands, so the monitor opens again the way it was left.
           turned: Told which of the two `ctrl+t` turned it to, for the same reason.
+          epic: The epic, as :func:`details` reads it, or nothing before there is one.
+          stop: Stops the epic, or, given True, closes every session of one stopping.
+          timelined: Whether there is a run going to open in Exomyth: not a chat, which has
+            no timeline.
+          exomyth: Opens it there, as the epic's own sheet in `/epics` does.
         """
         super().__init__()
         self._monitoring = monitor
@@ -1368,8 +1723,12 @@ class Monitoring(Screen[str | None]):
         self._whose = whose
         self._frontends = frontends
         self._turned = turned
+        self._timelined = timelined
+        self._exomyth = exomyth
         self._placing = places
         self._branching = sessions
+        self._epic = epic
+        self._stop = stop
         self._boxes: list[Drawn] = []
         #: Every session that has worked, and by key, as the graph was last drawn.
         self._sessions: list[Drawn] = []
@@ -1389,8 +1748,8 @@ class Monitoring(Screen[str | None]):
         self._said = ""
         #: Which row the cursor is on, by node: the rows are put up again twice a second,
         #: and a row number would move under it as the flow opens and drops agents. The
-        #: first node, which is every agent's log, to begin with.
-        self._was = EVERY
+        #: node being read to begin with, or the agent it is of, else the first node.
+        self._was = reading()
         #: The rows as they were last drawn, by id and as markup. A clock in a box moves
         #: every second, so something changes on nearly every redraw -- and a list cleared
         #: and rebuilt that often is one that loses the click somebody is making on it and
@@ -1413,7 +1772,9 @@ class Monitoring(Screen[str | None]):
         from .app import _YOURS, Editor
 
         # A switch across the top, the way it is drawn now lit: clicked, as `ctrl+t` turns it.
-        yield Horizontal(_Switch(listed=False), _Switch(listed=True), id="views")
+        yield Horizontal(
+            _Switch(listed=False), _Switch(listed=True), _Exomyth(), id="views"
+        )
         yield _Graph(id="graph")
         yield Static(id="under")
         yield Choices(id="offers")
@@ -1475,6 +1836,8 @@ class Monitoring(Screen[str | None]):
         """
         if action == "turn":
             return True
+        if action == "exomyth" and not self._timelined():
+            return False
         offering = any(
             one.has_class("offering")
             for one in self.query("#offers").results(OptionList)
@@ -1498,9 +1861,9 @@ class Monitoring(Screen[str | None]):
         """Reads the node under the cursor, or writes the line of the board it is on."""
         listing = self.query_one("#graph", OptionList)
         if listing.highlighted is not None:
-            self._took(
-                str(listing.get_option_at_index(listing.highlighted).id or EVERY)
-            )
+            picked = listing.get_option_at_index(listing.highlighted)
+            if not picked.disabled:
+                self._took(str(picked.id or ""))
 
     def action_back(self) -> None:
         """Goes back to the log that was being read, which is what `→` is."""
@@ -1519,6 +1882,11 @@ class Monitoring(Screen[str | None]):
             return
         self._left = True
         self.dismiss(reading)
+
+    def action_exomyth(self) -> None:
+        """Opens the run going in Exomyth, as the epic's own sheet in `/epics` does."""
+        if self._timelined():
+            self._exomyth()
 
     def action_turn(self) -> None:
         """Draws the run as a list where it was a graph, and the other way round."""
@@ -1594,7 +1962,7 @@ class Monitoring(Screen[str | None]):
         listing = self.query_one("#graph", OptionList)
         at = listing.highlighted
         if self._ids and at is not None and 0 <= at < listing.option_count:
-            self._was = str(listing.get_option_at_index(at).id or EVERY)
+            self._was = str(listing.get_option_at_index(at).id or "")
         self._boxes = list(self._boxing())
         self._sessions = list(self._branching())
         self._keyed = {one.who: one for one in self._sessions}
@@ -1606,18 +1974,15 @@ class Monitoring(Screen[str | None]):
         ids = [one.who for one in rows]
         if ids != self._ids:
             owner = self._owner(self._was)
+            landing = [one for one, row in enumerate(rows) if row.landing]
             landed = next(
-                (one for one, who in enumerate(ids) if who == self._was),
+                (one for one in landing if ids[one] == self._was),
                 next(
-                    (
-                        one
-                        for one, row in enumerate(rows)
-                        if row.landing and row.who and self._owner(row.who) == owner
-                    ),
-                    0,
+                    (one for one in landing if self._owner(ids[one]) == owner),
+                    landing[0] if landing else None,
                 ),
             )
-            if ids[landed] != self._was:
+            if landed is not None and ids[landed] != self._was:
                 # Moved to another node, so the markers are drawn against that one.
                 self._was = ids[landed]
                 rows = self._rows(monitor, shape)
@@ -1638,6 +2003,7 @@ class Monitoring(Screen[str | None]):
             self._shown = said
         for half in self.query(_Switch).results(_Switch):
             half.set_class(half.listed == self._listed, "on")
+        self.query_one(_Exomyth).display = self._timelined()
         self._says(monitor, shape)
         self._status()
 
@@ -1649,45 +2015,60 @@ class Monitoring(Screen[str | None]):
           shape: The run as a graph, taken at the same moment the boxes were.
 
         Returns:
-          The first node, the outworlders, the diagram or the list, and the board.
+          How far the run has got, the outworlders, the diagram or the list, and the board.
         """
         return [
-            self._every(monitor, shape),
+            self._epic_row(monitor, shape),
             *self._outworlders(),
             *(self._list(shape) if self._listed else self._agents(shape)),
             *self._lines(),
         ]
 
-    def _every(self, monitor: Monitor, shape: Shape) -> _Row:
-        """The first node: the log every agent is on, and the run in one line beside it.
+    def _epic_row(self, monitor: Monitor, shape: Shape) -> _Row:
+        """The first row: the epic in one line, which opens its page once there is one.
+
+        No log is read from it: there is no transcript every agent is on, each node under it
+        being where one of them is read. What it opens is the epic itself -- how it stands,
+        its budget, what it was set up with -- which is no agent's.
 
         Args:
           monitor: The run.
           shape: The run as a graph, taken at the same moment the boxes were.
 
         Returns:
-          The node, with how far the run has got beside it -- how many of the nodes below
-          are working, how many turns they have taken between them, and how long it has all
-          been going.
+          How the epic stands, how many of the nodes below are working, how many turns they
+          have taken between them, how long it has all been going, and its budget gone --
+          landed on only once there is an epic to open.
         """
+        epic = self._epic()
         working = sum(1 for one in self._boxes if one.working)
         over = (monitor.until or time.monotonic()) - monitor.began
         turns = sum(shape.turns.values())
+        said = [
+            *([str(epic.get("state") or "") or "over"] if epic.get("run") else []),
+            f"{working} of {len(self._boxes)} working",
+            f"{turns} turn{'' if turns == 1 else 's'}",
+            lasting(over),
+            *(
+                f"{named} {has} of {of}"
+                for named, _, _, has, of in (
+                    _meters(epic, over) if epic.get("run") else []
+                )
+            ),
+        ]
         return _Row(
-            EVERY,
-            f"{_marked(here=self._was == EVERY)}"
-            f"[{'$secondary' if working else '$text-muted'}]▣[/] all agents"
-            f"{_DOT}[$text-muted]{working} of {len(self._boxes)} working"
-            f"{_DOT}{turns} turn{'' if turns == 1 else 's'}"
-            f"{_DOT}{lasting(over)}[/]"
-            + (f"{_DOT}[$primary]reading[/]" if self._reading() == EVERY else ""),
+            _EPIC,
+            f"{_marked(here=self._was == _EPIC)}"
+            f"[{'$secondary' if working else '$primary'}]◫[/] epic"
+            f"{_DOT}[$text-muted]{_DOT.join(said)}[/]",
+            landing=bool(epic.get("run")),
         )
 
     def _outworlders(self) -> list[_Row]:
         """A node per outworlder: the person, as each role of the run that is them.
 
         Returns:
-          One row apiece, under the first node and above the agents: a person is not an
+          One row apiece, under the first row and above the agents: a person is not an
           agent the flow drives, and reading what the flow says to them is where they answer.
         """
         return [
@@ -1988,7 +2369,7 @@ class Monitoring(Screen[str | None]):
     def _status(self) -> None:
         """The status line under the prompt, which is the graph's where the log's would be.
 
-        What the log's says about the run is on the first node here, so this says which
+        What the log's says about the run is on the first row here, so this says which
         screen this is and how its nodes are drawn, and the keys that do something now --
         space among them only where the cursor is on something it opens or shuts.
         """
@@ -2016,6 +2397,7 @@ class Monitoring(Screen[str | None]):
                 "enter open",
                 "→ back",
                 f"ctrl+t {_VIEWS[not self._listed]}",
+                *(["ctrl+e Exomyth"] if self._timelined() else []),
                 "/ commands",
             ]
         # Measured as drawn: the mark and a space ahead of the words, and the padding.
@@ -2095,7 +2477,7 @@ class Monitoring(Screen[str | None]):
         Args:
           event: The click, as the list says it.
         """
-        named = str(event.option.id or EVERY)
+        named = str(event.option.id or "")
         clicked = self.query_one("#graph", _Graph).clicked
         if not any(one.who == named for one in self._boxes) or clicked is None:
             self._took(named)
@@ -2109,13 +2491,23 @@ class Monitoring(Screen[str | None]):
             self._fill()  # picked out, which the marker says
 
     def _took(self, named: str) -> None:
-        """Reads a node, opens an environment, or writes a line of the board.
+        """Reads a node, opens an environment or the epic, or writes a line of the board.
 
         Args:
           named: The row's id.
         """
         if named.startswith(_PLACE):
             self._visits(named.removeprefix(_PLACE).partition(_AT)[0])
+            return
+        if named == _EPIC:
+            showing = cast(
+                "App[None]",
+                self.app,  # pyright: ignore[reportUnknownMemberType]
+            )
+            if showing.screen is self:  # not again, on the second of two clicks
+                showing.push_screen(
+                    Details(self._epic, self._monitoring, self._calling, self._stop)
+                )
             return
         if not named.startswith(_ON_BOARD):
             self._leaves(named)

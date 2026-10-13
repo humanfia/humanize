@@ -17,7 +17,7 @@ from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
 from tests.integration.doubles_web import served
-from tests.system.web.doubles_browser import ENGINES, go, opened
+from tests.system.web.doubles_browser import ENGINES, go, opened, stop
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -108,11 +108,7 @@ def test_an_epic_started_on_a_daemon_stays_on_it(project: Path, engine: str) -> 
         expect(page.locator("[data-hmz=epic]").first).to_have_attribute(
             "href", re.compile(r"^#/@local/epics/")
         )
-        page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
-        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
-            re.compile("stopped")
-        )
+        stop(page)
 
 
 def test_another_daemon_is_switched_to_and_back(project: Path, engine: str) -> None:
