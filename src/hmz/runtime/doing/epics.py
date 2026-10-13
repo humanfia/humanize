@@ -171,6 +171,29 @@ class Epics:
         )
         return where, document
 
+    def transcripts(self, epic: Path) -> list[dict[str, Any]]:
+        """What each session of one run said and did, read back out of the logs it kept.
+
+        Gathered as a trace of the run is, somewhere nothing keeps it: reading a run must not
+        leave a file in it. Slow -- every log the run kept is read.
+
+        Args:
+          epic: The run, by the directory it is written in.
+
+        Returns:
+          Each session that did anything, in the order it first did: its key in the trace --
+          `<cli>:<id>` -- the agent it was of as the trace names agents, and its actions --
+          turns, model calls, tools, words and the rest -- each with when it started, how
+          long it took, and what it carried.
+        """
+        import tempfile
+
+        from hmz import machine
+
+        with tempfile.TemporaryDirectory(dir=machine()) as scratch:
+            _, document = self.traced(epic, output=Path(scratch) / "trace.json")
+        return _sessions_of(document)
+
     def timeline(self, epic: Path) -> Timeline:
         """Lays one run out as an Exomyth timeline: its sessions, flows, Python and programs.
 
@@ -325,3 +348,48 @@ class Epics:
             flow_profile=flow_profile,
             kept=kept,
         )
+
+
+def _sessions_of(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """What each session of a trace said and did, in the order it did it.
+
+    Args:
+      document: The trace, as :meth:`Epics.traced` gathers one.
+
+    Returns:
+      Each session that did anything, as :meth:`Epics.transcripts` says them.
+    """
+    agents: dict[int, str] = {}
+    held: dict[str, dict[str, Any]] = {}
+    acted: dict[str, list[dict[str, Any]]] = {}
+    events: list[dict[str, Any]] = list(document.get("traceEvents") or ())
+    for event in events:
+        if event.get("ph") == "M" and event.get("name") == "process_name":
+            named: dict[str, Any] = event.get("args") or {}
+            agents[int(event.get("pid") or 0)] = str(named.get("name") or "")
+    for event in events:
+        args: dict[str, Any] = dict(event.get("args") or {})
+        if event.get("ph") != "X" or event.get("cat") in ("session", "process"):
+            continue
+        key = str(args.pop("session", "") or "")
+        if not key:
+            continue
+        if key not in held:
+            held[key] = {
+                "key": key,
+                "agent": agents.get(int(event.get("pid") or 0), ""),
+            }
+        acted.setdefault(key, []).append(
+            {
+                "category": str(event.get("cat") or ""),
+                "name": str(event.get("name") or ""),
+                "at": str(args.pop("at", "") or ""),
+                "start": float(event.get("ts") or 0) / 1e6,
+                "seconds": float(event.get("dur") or 0) / 1e6,
+                "args": args,
+            }
+        )
+    for key, actions in acted.items():
+        actions.sort(key=lambda action: float(action["start"]))
+        held[key]["actions"] = actions
+    return sorted(held.values(), key=lambda one: one["actions"][0]["start"])

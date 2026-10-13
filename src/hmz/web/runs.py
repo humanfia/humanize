@@ -167,14 +167,7 @@ class Runs:
             kept = self._traced.get(ran.at)
         if kept is not None and kept[0] == stamp:
             return kept[1]
-        from hmz import machine
-
-        # Gathered where nothing keeps it: reading a run must not leave a file in it.
-        with tempfile.TemporaryDirectory(dir=machine()) as scratch:
-            _, document = self.hmz(ran).epics.traced(
-                ran.at, output=Path(scratch) / "trace.json"
-            )
-        said = sessions_of(document)
+        said = self.hmz(ran).epics.transcripts(ran.at)
         # Kept only for a run that has ended, whose logs are done being written, and only the
         # last few: what a page reads it holds itself.
         if ran.ended:
@@ -444,53 +437,6 @@ def calls(called: tuple[Called, ...]) -> list[dict[str, Any]]:
         }
         for one in called
     ]
-
-
-def sessions_of(document: dict[str, Any]) -> list[dict[str, Any]]:
-    """What each session of a trace said and did, in the order it did it.
-
-    Args:
-      document: The trace, as `Epics.traced` gathers one.
-
-    Returns:
-      Each session that did anything: its key, the agent it was of as the trace names
-      agents, and its actions -- turns, model calls, tools, words and the rest -- each with
-      when it started, how long it took, and what it carried.
-    """
-    agents: dict[int, str] = {}
-    held: dict[str, dict[str, Any]] = {}
-    acted: dict[str, list[dict[str, Any]]] = {}
-    events: list[dict[str, Any]] = list(document.get("traceEvents") or ())
-    for event in events:
-        if event.get("ph") == "M" and event.get("name") == "process_name":
-            named: dict[str, Any] = event.get("args") or {}
-            agents[int(event.get("pid") or 0)] = str(named.get("name") or "")
-    for event in events:
-        args: dict[str, Any] = dict(event.get("args") or {})
-        if event.get("ph") != "X" or event.get("cat") in ("session", "process"):
-            continue
-        key = str(args.pop("session", "") or "")
-        if not key:
-            continue
-        if key not in held:
-            held[key] = {
-                "key": key,
-                "agent": agents.get(int(event.get("pid") or 0), ""),
-            }
-        acted.setdefault(key, []).append(
-            {
-                "category": str(event.get("cat") or ""),
-                "name": str(event.get("name") or ""),
-                "at": str(args.pop("at", "") or ""),
-                "start": float(event.get("ts") or 0) / 1e6,
-                "seconds": float(event.get("dur") or 0) / 1e6,
-                "args": args,
-            }
-        )
-    for key, actions in acted.items():
-        actions.sort(key=lambda action: float(action["start"]))
-        held[key]["actions"] = actions
-    return sorted(held.values(), key=lambda one: one["actions"][0]["start"])
 
 
 def _said(one: dict[str, Any]) -> dict[str, Any]:

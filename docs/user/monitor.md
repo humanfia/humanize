@@ -424,6 +424,7 @@ drawing, above the prompt.
 | a click | What <kbd>enter</kbd> does. On an agent: on its `▸`, or on the one already picked, open it out or shut it; elsewhere, pick it; twice, read it. |
 | <kbd>→</kbd> | With nothing typed: back to the log you were reading. |
 | <kbd>ctrl+t</kbd> | The graph, or the list. |
+| <kbd>ctrl+e</kbd> | With nothing typed: the run in [Exomyth](/reference/tui#exomyth), as a click on `Exomyth` above the graph does. Not for a chat. |
 | <kbd>←</kbd> | On the log, with nothing typed: up to the monitor. |
 
 The status line offers only the keys that do something on the node under the cursor:

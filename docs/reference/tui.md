@@ -572,6 +572,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | monitor | <kbd>space</kbd> | editor empty | Opens an agent out to its sessions, or shuts it. |
 | monitor | <kbd>→</kbd> | editor empty, offers closed | Back to the log last read. |
 | monitor | <kbd>ctrl+t</kbd> | always | Graph ↔ list. |
+| monitor | <kbd>ctrl+e</kbd> · click `Exomyth` | editor empty, an epic going that is not a chat | The epic going in [Exomyth](#exomyth). |
 | environment page | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>enter</kbd> · click | | Walk and read its sessions. |
 | environment page | <kbd>esc</kbd> <kbd>←</kbd> <kbd>backspace</kbd> · click `monitor` | | Back to the monitor. |
 | anywhere | drag · double click · triple click | | [Copies](#selecting-and-copying). |
@@ -1105,9 +1106,9 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 | Element | Value |
 | --- | --- |
 | Title | `Epics` |
-| About | `Every epic in this directory, newest first: task, status, and session count.`; on this machine, `Every epic on this machine, newest first: workspace, task, status, and session count.` |
+| About | `Every epic in this directory, newest first: task, agents, spend, duration, session count, and status.`; on this machine, `Every epic on this machine, newest first: workspace, task, agents, spend, duration, session count, and status.` |
 | Filters | Rows above the epics, each ▾ `all` until a value is picked from the list it drops (each value with how many of the epics listed have it, whatever else is picked): `status` (`running` `done` `failed` `stopped` `unfinished`), `flow` (each flow listed), and, on this machine, `workspace` (each directory listed). Absent while nothing is listed. Picking one goes back to the first page; `ctrl+t` clears `workspace`; an import clears them all. |
-| Rows | `YYYY-MM-DD HH:MM · <flow>[ ●]` -- `●` on an epic [told of](#notifications-page) and not opened since -- about `[<workspace> · ]<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|is still going\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress -- here, under a host, or in `hmz exec` -- reads `is still going`; `was left unfinished` is one whose process went before it ended. |
+| Rows | `YYYY-MM-DD HH:MM · <flow>[ ●]` -- `●` on an epic [told of](#notifications-page) and not opened since -- about `[<workspace> · ]<task (≤ 60 chars)\|no task>[ · <agent>, <agent>][ · <money>][ · <k> out][ · took <duration>][ · backed up to <target>, <target>] · <n> session(s)[ · failed\|stopped\|is still going\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress -- here, under a host, or in `hmz exec` -- reads `is still going`; `was left unfinished` is one whose process went before it ended. |
 | Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t`; **Import…**, as `i`; **Daemon…**, a pick list of `Local` and every [daemon](#daemons-page) with how it stands, the one picked listed instead; **Newer** and **Older**, a page of 50 epics each way, where more than 50 are found |
 | Under the list | `<first>–<last> of <n>` where more than 50 are found; `no epic is like that` where the filters and search find none |
 | Keys | `enter open   ctrl+t this machine\|this directory   i import   / search   tab actions   esc close` |
@@ -1141,10 +1142,36 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).`, then a line per target it was backed up to: `<target>: backed up <when>` or `<target>: failed <when>: <error>` |
 | Keys | `enter choose   esc back` |
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
+| `graph` | `its agents, called flows and sessions, read back`. Opens its [graph](#an-epic-s-graph). |
 | `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
 | `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 | `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for a [chat](#chat). |
 | `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
+
+Rows in order: `resume run`, `graph`, `export run`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
+
+### An epic's graph {#an-epic-s-graph}
+
+The epic as the [monitor](#monitor-graph) draws a run, read back out of what it wrote down and
+its sessions' logs, finished or going: `hmz › /epics › <when> · <flow>` across the top, then
+`[<agent>, <agent> · ][<money> · ][<k> out · ][took <duration> · ][backed up to <target> · ]<n> session(s)`.
+Its logs are read off the screen (`reading its logs…`; an error in red; `its logs held nothing
+said` where they held nothing).
+
+| Element | Value |
+| --- | --- |
+| Boxes | One per agent, in the order it was given them: `<agent>`, then `<cli>/<model>:<effort> · <n> turn(s) · <n> session(s)` (the turns once read). Above each but the first, the handovers between it and the one above, as on the monitor. |
+| Rows | Under each box, its sessions: `<agent>/<n>`, about `<cli>@<account> · <n> action(s)` (the actions once read). |
+| Called flows | Under a heading `called flows`, the tree of flows it called, each `<flow> · <how> · <task>` indented under its caller. |
+| Buttons | **Exomyth**, opening it in [Exomyth](#exomyth); not for a `chat`. |
+| Keys | `enter read   tab actions   esc back` |
+
+`enter`, `→` or a click on a session reads it: `<agent>/<n>` as its step across the top, `<n>
+action(s), oldest first, read back from its log.`, and a row per action -- `turn` and what it was
+asked, `model` and its thinking, the tool's name with what went in and `⎿ ` what came out
+(`✕ failed` where it failed), `said` and what it said -- each cut to 6 lines and 400 characters
+until `enter` says it whole (and again cuts it). **Search…** or `/` narrows them. Keys `enter whole   /
+search   tab actions   esc back`.
 
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
 there. Credentials are struck out of every byte of it.`), `Export run` as its step of the way
@@ -1176,7 +1203,9 @@ here, `<path> · <size>`), **upload** (backs it up there: `backing <name> up to 
 ### Exomyth {#exomyth}
 
 The epic as a timeline of its sessions, as [the Exomyth timeline](/reference/tracing#timeline)
-lays it out, on a screen of its own: `hmz › /epics › <when> · <flow> › Exomyth` across the
+lays it out, on a screen of its own -- opened from an epic's sheet or [graph](#an-epic-s-graph),
+or, for the epic going, from the monitor -- `hmz › /epics › <when> · <flow> › Exomyth` (or
+`hmz › monitor › <when> · <flow> › Exomyth`) across the
 top, **Timeline** and **Flame** at the right of it (the one shown in bold), then
 `<epic> · <n> session(s) · <n> span(s) · <length>[ · live]`. It is read off the screen (`reading…`;
 an error in red); while the epic is `live` it is read again every 3 seconds, a failed read
@@ -1944,7 +1973,10 @@ the [cost readout](#cost-readout).
 ### List {#monitor-list}
 
 `ctrl+t` or a click on `graph`/`list` switches; the choice and the opened agents persist for
-the process, not across launches.
+the process, not across launches. `Exomyth`, at the right of the same line, opens the epic going
+in [Exomyth](#exomyth), as `ctrl+e` does, the epic being the one the host says the run writes
+(`the run has not written its epic yet`, dim, before it has). It is there only while a run
+goes, and never for a `chat`; the status line then also offers `ctrl+e Exomyth`.
 
 | Element | Rule |
 | --- | --- |

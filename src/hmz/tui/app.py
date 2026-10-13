@@ -96,6 +96,7 @@ from .pick import (
     Runs,
     asks,
     budget_of,
+    chatting,
     daemon_names,
     declared_of,
     let_go,
@@ -2575,7 +2576,7 @@ class Humanize(App[None]):
         # And the one stopping, where one is: what is unwinding is that flow, not the one
         # set up here.
         run = self._run or (self._seen_last if self._stopping is not None else None)
-        return (run.flow if run is not None else self._flow_named) == _STARTS_ON
+        return chatting(run.flow if run is not None else self._flow_named)
 
     def held_apart(self) -> bool:
         """Whether the runs are held by a host this interface closing leaves running."""
@@ -2670,6 +2671,8 @@ class Humanize(App[None]):
                 turned=self._turns_monitor,
                 epic=self._epic,
                 stop=self._stops,
+                timelined=self._timelined,
+                exomyth=self._exomyth,
             ),
             self._back_from_monitor,
         )
@@ -2706,6 +2709,29 @@ class Humanize(App[None]):
         elif self._stopping is not None:
             self._forces()
             self._draw()
+
+    def _timelined(self) -> bool:
+        """Whether a run is going that Exomyth can draw: any but a chat, which has no timeline."""
+        return self._run is not None and not self.chatting()
+
+    def _exomyth(self) -> None:
+        """Opens the epic of the run going in Exomyth, as its host names it.
+
+        Asked rather than looked for: two runs of one flow may be going here, and the host
+        says which epic is this one's.
+        """
+
+        def opens(answer: dict[str, Any]) -> None:
+            from .exomyth import Exomyth
+
+            named = str(answer.get("epic") or "")
+            ran = self.hmz.epics.read(self.hmz.epics.under() / named) if named else None
+            if ran is None:
+                self.show("the run has not written its epic yet", "dim")
+            else:
+                self.push_screen(Exomyth(ran))
+
+        self._asks("status", opens)
 
     def _turns_monitor(self, listed: bool) -> None:  # noqa: FBT001 -- what it was turned to
         """Remembers whether the monitor draws a list, for the next time it opens.

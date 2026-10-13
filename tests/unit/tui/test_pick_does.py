@@ -43,17 +43,17 @@ def _does(
 @pytest.mark.parametrize(
     ("resumable", "foreign", "rows", "said"),
     [
-        (True, "", ["resume", "export", "exomyth", *_COPIES], ""),
+        (True, "", ["resume", "graph", "export", "exomyth", *_COPIES], ""),
         (
             False,
             "",
-            ["export", "exomyth", *_COPIES],
+            ["graph", "export", "exomyth", *_COPIES],
             "ralph is not resumable, so this run cannot be resumed",
         ),
         (
             True,
             "the workspace it ran in, /w, is not on this machine",
-            ["export", "exomyth", *_COPIES],
+            ["graph", "export", "exomyth", *_COPIES],
             (
                 "this epic cannot be resumed here: "
                 "the workspace it ran in, /w, is not on this machine"
@@ -80,14 +80,31 @@ def test_does_offers_upload_where_there_is_a_target_and_says_how_backups_went() 
         },
     )
 
-    assert [one[0] for one in does.rows()] == ["export", "exomyth", "upload", *_COPIES]
+    assert [one[0] for one in does.rows()] == [
+        "graph",
+        "export",
+        "exomyth",
+        "upload",
+        *_COPIES,
+    ]
     assert does.about.splitlines()[-2:] == [
         "lab: backed up 2026-10-12 01:05",
         "home: failed 2026-10-12 01:06: denied",
     ]
 
 
-def test_a_chat_is_no_timeline() -> None:
-    does = _does(flow="chat", resumable=False)
+@pytest.mark.parametrize("flow", ["chat", "./flows/chat", "git+https://x/flows#chat"])
+def test_a_chat_is_not_offered_in_exomyth_which_draws_no_conversation(
+    flow: str,
+) -> None:
+    assert pick.chatting(flow)
+    assert [one[0] for one in _does(resumable=False, flow=flow).rows()] == [
+        "graph",
+        "export",
+        *_COPIES,
+    ]
 
-    assert [one[0] for one in does.rows()] == ["export", *_COPIES]
+
+def test_a_flow_merely_named_like_chat_is_not_a_chat() -> None:
+    assert not pick.chatting("chatter")
+    assert not pick.chatting("./chat/ralph")

@@ -1575,6 +1575,20 @@ class _Switch(Static):
             screen.view(listed=self.listed)
 
 
+class _Exomyth(Static):
+    """The epic going opened in Exomyth, beside the switch above the graph: clicked, as `ctrl+e`."""
+
+    def __init__(self) -> None:
+        """Makes it."""
+        super().__init__("Exomyth", id="exomyth")
+
+    def on_click(self) -> None:
+        """Opens the epic going in Exomyth."""
+        screen = self.screen
+        if isinstance(screen, Monitoring):
+            screen.action_exomyth()
+
+
 class _Row(NamedTuple):
     """One row of the graph: what it is about, what it draws, and whether it is landed on.
 
@@ -1626,6 +1640,7 @@ class Monitoring(Screen[str | None]):
     #views { height: 1; padding: 0 2; background: $surface; }
     #views > Static { width: auto; padding: 0 1; color: $text-muted; }
     #views > Static.on { color: $primary; text-style: bold reverse; }
+    #views > #exomyth { dock: right; }
     #graph { height: 1fr; padding: 0 1; border: none; background: $surface; }
     #graph:focus { border: none; }
     #graph > .option-list--option-highlighted { background: $surface; text-style: none; }
@@ -1643,6 +1658,7 @@ class Monitoring(Screen[str | None]):
         Binding("space", "fold", "sessions", show=False, priority=True),
         Binding("right", "back", "back to the log", show=False, priority=True),
         Binding("ctrl+t", "turn", "graph or list", show=False, priority=True),
+        Binding("ctrl+e", "exomyth", "Exomyth", show=False, priority=True),
     ]
 
     def __init__(
@@ -1664,6 +1680,8 @@ class Monitoring(Screen[str | None]):
         turned: Callable[[bool], None] = lambda _: None,
         epic: Callable[[], Mapping[str, Any]] = dict,
         stop: Callable[[bool], None] = lambda _: None,
+        timelined: Callable[[], bool] = lambda: False,
+        exomyth: Callable[[], None] = lambda: None,
     ) -> None:
         """Watches the run, asking about it afresh each time it is drawn.
 
@@ -1692,6 +1710,9 @@ class Monitoring(Screen[str | None]):
           turned: Told which of the two `ctrl+t` turned it to, for the same reason.
           epic: The epic, as :func:`details` reads it, or nothing before there is one.
           stop: Stops the epic, or, given True, closes every session of one stopping.
+          timelined: Whether there is a run going to open in Exomyth: not a chat, which has
+            no timeline.
+          exomyth: Opens it there, as the epic's own sheet in `/epics` does.
         """
         super().__init__()
         self._monitoring = monitor
@@ -1704,6 +1725,8 @@ class Monitoring(Screen[str | None]):
         self._whose = whose
         self._frontends = frontends
         self._turned = turned
+        self._timelined = timelined
+        self._exomyth = exomyth
         self._placing = places
         self._branching = sessions
         self._epic = epic
@@ -1751,7 +1774,9 @@ class Monitoring(Screen[str | None]):
         from .app import _YOURS, Editor
 
         # A switch across the top, the way it is drawn now lit: clicked, as `ctrl+t` turns it.
-        yield Horizontal(_Switch(listed=False), _Switch(listed=True), id="views")
+        yield Horizontal(
+            _Switch(listed=False), _Switch(listed=True), _Exomyth(), id="views"
+        )
         yield _Graph(id="graph")
         yield Static(id="under")
         yield Choices(id="offers")
@@ -1813,6 +1838,8 @@ class Monitoring(Screen[str | None]):
         """
         if action == "turn":
             return True
+        if action == "exomyth" and not self._timelined():
+            return False
         offering = any(
             one.has_class("offering")
             for one in self.query("#offers").results(OptionList)
@@ -1857,6 +1884,11 @@ class Monitoring(Screen[str | None]):
             return
         self._left = True
         self.dismiss(reading)
+
+    def action_exomyth(self) -> None:
+        """Opens the run going in Exomyth, as the epic's own sheet in `/epics` does."""
+        if self._timelined():
+            self._exomyth()
 
     def action_turn(self) -> None:
         """Draws the run as a list where it was a graph, and the other way round."""
@@ -1973,6 +2005,7 @@ class Monitoring(Screen[str | None]):
             self._shown = said
         for half in self.query(_Switch).results(_Switch):
             half.set_class(half.listed == self._listed, "on")
+        self.query_one(_Exomyth).display = self._timelined()
         self._says(monitor, shape)
         self._status()
 
@@ -2366,6 +2399,7 @@ class Monitoring(Screen[str | None]):
                 "enter open",
                 "→ back",
                 f"ctrl+t {_VIEWS[not self._listed]}",
+                *(["ctrl+e Exomyth"] if self._timelined() else []),
                 "/ commands",
             ]
         # Measured as drawn: the mark and a space ahead of the words, and the padding.

@@ -78,7 +78,7 @@ from hmz.flows import Budget
 from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
-from hmz.runtime.watching.monitor import thousands
+from hmz.runtime.watching.monitor import lasting, thousands
 
 from .complete import paths
 from .dropdown import Dropdown, Value, anchor
@@ -150,6 +150,7 @@ __all__ = [
     "Targets",
     "budget_of",
     "called",
+    "chatting",
     "complete",
     "declared_of",
     "named_as",
@@ -10420,7 +10421,10 @@ _EXOMYTH = "exomyth"
 #: Copying what an epic is called, what it was asked, and where it is written down.
 _COPY_NAME, _COPY_TASK, _COPY_PATH = "copy-name", "copy-task", "copy-path"
 
-#: The flow that is a conversation rather than a run of a flow: nothing to read as a timeline.
+#: And reading it as its graph, its called flows and its sessions (:mod:`hmz.tui.epic`).
+_GRAPH = "graph"
+
+#: The flow that is a conversation rather than a flow, which has no timeline to draw.
 _CHAT = "chat"
 
 #: What the trace an export gathers is filed as, inside the run's own `traces/`. Named for
@@ -10490,6 +10494,50 @@ def _homed(said: str) -> str:
 def _ran_in(ran: Ran) -> str:
     """Where one run ran, as a row says it: an older one may not have written it down."""
     return _homed(ran.workspace) if ran.workspace else "an unknown directory"
+
+
+def _figures(ran: Ran) -> list[str]:
+    """What one run came to, as its row and its graph say it.
+
+    Args:
+      ran: The run.
+
+    Returns:
+      Its agents, what it spent and how long it took, where it said, and the targets it is
+      backed up to, each a part of a line: none for a part it has nothing to say for.
+    """
+    spent = ran.spent or {}
+    cost, tokens = spent.get("cost"), spent.get("output_tokens")
+    backed = [name for name, said in ran.backed.items() if said.get("ok")]
+    took = _took(ran) if ran.ended else ""
+    return [
+        part
+        for part in (
+            ", ".join(one.name or one.agent for one in ran.agents),
+            money(float(cost)) if isinstance(cost, (int, float)) else "",
+            f"{thousands(float(tokens))} out"
+            if isinstance(tokens, (int, float)) and tokens
+            else "",
+            f"took {took}" if took else "",
+            f"backed up to {', '.join(backed)}" if backed else "",
+        )
+        if part
+    ]
+
+
+def _took(ran: Ran) -> str:
+    """How long one run that ended took, from its start to its end, or "" where unsaid."""
+    try:
+        began = datetime.datetime.fromisoformat(ran.began)
+        ended = datetime.datetime.fromisoformat(ran.ended)
+    except ValueError:
+        return ""
+    return lasting((ended - began).total_seconds())
+
+
+def chatting(flow: str) -> bool:
+    """Whether a flow, as a run named it, is the conversation that has no timeline."""
+    return re.split(r"[/#]", flow.rstrip("/#"))[-1] == _CHAT
 
 
 def _when(said: str) -> str:
@@ -10571,14 +10619,17 @@ class Does(Picks):
                 )
             )
         held.append(
+            (_GRAPH, "graph", "its agents, called flows and sessions, read back")
+        )
+        held.append(
             (
                 _EXPORTS,
                 "export run",
                 "the entire run as an archive, with its trace",
             )
         )
-        # Not for a chat, which is one conversation rather than sessions to lay out in time.
-        if self._ran.flow != _CHAT:
+        # Not for a chat, which is one conversation rather than a flow of them to lay out.
+        if not chatting(self._ran.flow):
             held.append((_EXOMYTH, "Exomyth", "the epic as a timeline of its sessions"))
         if self._uploads:
             held.append(
@@ -11024,7 +11075,7 @@ class Epics(Sheet[Doing]):
         said = _asked_for(ran.task) if ran.task else "no task"
         if self._every:
             said = f"{_ran_in(ran)}{_DOT}{said}"
-        held = f"{said}{_DOT}{_many(len(ran.sessions), 'session')}"
+        held = _DOT.join([said, *_figures(ran), _many(len(ran.sessions), "session")])
         if ran.how != "done":
             held += f"{_DOT}{_how(ran)}"
         # Asked of the flow rather than read off the run, for the reason the menu asks it of
@@ -11200,8 +11251,8 @@ class Epics(Sheet[Doing]):
         """Puts the runs up, the first a search found or the one the cursor was on."""
         self.query_one("#about", Label).update(
             f"Every epic {'on this machine' if self._every else 'in this directory'}, "
-            f"newest first: {'workspace, ' if self._every else ''}task, status, and "
-            "session count."
+            f"newest first: {'workspace, ' if self._every else ''}task, agents, spend, "
+            "duration, session count, and status."
         )
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
@@ -11523,6 +11574,11 @@ class Epics(Sheet[Doing]):
                 from .exomyth import Exomyth
 
                 await showing.push_screen_wait(Exomyth(ran))
+                continue
+            if said == _GRAPH:
+                from .epic import Graph
+
+                await showing.push_screen_wait(Graph(ran))
                 continue
             if said != _EXPORTS:
                 break

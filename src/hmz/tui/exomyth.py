@@ -1100,7 +1100,10 @@ class Exomyth(ModalScreen[None]):
         ]
         # The epic's own sheet, which is put away while this is up and back once it is not.
         ran = self._ran
-        steps.append(escape(f"{ran.began[:16].replace('T', ' ')}{_DOT}{ran.flow}"))
+        named = escape(f"{ran.began[:16].replace('T', ' ')}{_DOT}{ran.flow}")
+        # Or the sheet of its graph, which is named as that sheet is and is still up.
+        if steps[-1:] != [named]:
+            steps.append(named)
         self.query_one("#trail", Label).update(
             "".join(
                 f"{one} \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK} "

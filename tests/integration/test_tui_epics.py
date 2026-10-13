@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import tarfile
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,20 +12,28 @@ import pytest
 from textual import events
 from textual.widgets import OptionList
 
-from hmz.runtime.epic import Epic, epics
+from hmz.runtime.doing.epics import Epics as Kept
+from hmz.runtime.epic import Epic, Ran, epics, read
 from hmz.tui import Humanize
-from hmz.tui.pick import Epics, Exporting, ImportingEpic
+from hmz.tui.epic import Graph, SessionRead
+from hmz.tui.exomyth import Exomyth
+from hmz.tui.monitoring import Monitoring
+from hmz.tui.pick import Does, Epics, Exporting, ImportingEpic
 from tests.integration.doubles_tui import (
     OWN,
     SIZE,
+    claude_logged,
     on,
     opened,
+    opens,
     own_flow,
     picks,
     rows,
+    screen,
     set_up_own_flow,
     shows,
     stand_in,
+    trail,
     typed,
     until,
 )
@@ -80,12 +89,18 @@ async def test_a_run_stopped_is_listed_with_its_task_and_how_it_ended(
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await chatted(pilot)
-        await until(pilot, lambda: bool(epics(workspace)), "the run's record")
+        await until(
+            pilot,
+            lambda: any((read(one) or Ran(one)).how for one in epics(workspace)),
+            "the run's end",
+        )
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
 
-        await shows(pilot, "· chat", "hello · 1 session · stopped")
+        # Who it was run by, what it spent and how long it took, as the web lists it.
+        await shows(pilot, "· chat", "hello · ", " · $0.00 · 200 out · took ")
+        await shows(pilot, "1 session · stopped")
         assert listed(app) == [one.name for one in epics(workspace)]
 
 
@@ -113,7 +128,7 @@ async def test_a_run_exported_from_epics_is_an_archive_where_it_was_asked_for(
         await pilot.press("enter")
         await shows(pilot, "export run", "chat is not resumable")
 
-        await pilot.press("enter")
+        await opens(pilot, "export")
         await on(pilot, Exporting)
         await pilot.press(*"out.hmzepic", "enter", "enter")
 
@@ -182,6 +197,90 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
         await typed(pilot, "/epics")
         await on(pilot, Epics)
         await until(pilot, lambda: len(listed(app)) == 2, "the scope remembered")
+
+
+async def test_an_epic_opened_from_epics_is_its_graph_its_sessions_and_what_each_said(
+    workspace: Path, tmp_path: Path
+) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await set_up_own_flow(pilot)
+        began = time.time()
+        await typed(pilot, "make it so")
+        await shows(pilot, "the flow is done")
+        (epic,) = epics(workspace)
+        (session,) = Kept(workspace).sessions(epic)
+        claude_logged(tmp_path / "claude-home", workspace, session.ident, began)
+
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        await shows(pilot, f"· {OWN}", "make it so · ", " · took ", "resumable")
+
+        await pilot.press("enter")
+        await on(pilot, Does)
+        await shows(pilot, "graph", "Exomyth")
+        await opens(pilot, "graph")
+        await on(pilot, Graph)
+        # Its agent as the monitor draws one, its turn read back, its one session under it.
+        await shows(pilot, "1 turn · 1 session", f"{session.agent}/1", "6 actions")
+        await shows(pilot, trail("hmz", "/epics"), "Exomyth")
+
+        await opens(pilot, f"claude:{session.ident}")
+        await on(pilot, SessionRead)
+        await shows(
+            pilot, f"{session.agent}/1", "turn", "fix the bug", "pytest", "fixed"
+        )
+        await pilot.press("slash", *"pytest")
+        await until(pilot, lambda: len(rows(app)) == 1, "the one tool found")
+        await pilot.press("escape", "escape")
+        await on(pilot, Graph)
+
+        # The button under it, as the graph of the run going has it across its top.
+        await pilot.press("tab", "enter")
+        await on(pilot, Exomyth)
+        await shows(pilot, "1 session")
+        await pilot.press("escape")
+        await on(pilot, Graph)
+
+
+async def test_a_chat_has_no_exomyth_to_open(workspace: Path) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await chatted(pilot)
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        await shows(pilot, "stopped")
+        await pilot.press("enter")
+        await shows(pilot, "graph", "export run")
+        assert "Exomyth" not in screen(_app_of(pilot))
+        await opens(pilot, "graph")
+        await on(pilot, Graph)
+        await shows(pilot, "1 session")
+        assert "Exomyth" not in screen(_app_of(pilot))
+
+
+async def test_the_epic_going_opens_in_exomyth_from_the_monitor(
+    workspace: Path,
+) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await set_up_own_flow(pilot)
+        await typed(pilot, "wait for it")
+        await shows(pilot, "still on it")
+
+        await pilot.press("left")
+        await on(pilot, Monitoring)
+        await shows(pilot, "Exomyth", "ctrl+e Exomyth")
+        await pilot.press("ctrl+e")
+        await on(pilot, Exomyth)
+        await shows(pilot, trail("hmz", "monitor"), OWN)
+        await pilot.press("escape")
+        await on(pilot, Monitoring)
+
+
+def _app_of(pilot: Pilot[None]) -> Humanize:
+    app = pilot.app
+    assert isinstance(app, Humanize)
+    return app
 
 
 def _exported(epic: Path, name: str) -> None:
@@ -265,7 +364,7 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
         await on(pilot, Epics)
         await pilot.press("enter")
         await shows(pilot, "export run")
-        await pilot.press("enter")
+        await pilot.press("down", "enter")
         await on(pilot, Exporting)
         await shows(pilot, "~/Downloads/")
         await pilot.click("#act-done")
