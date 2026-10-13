@@ -1277,7 +1277,8 @@ why. You fix it in the menu, not half an hour into a run.
 ### Whether a run of it is profiled
 
 Profiling is not a setting of this page. It is chosen per run, like the budget, on the
-**profiling** row of `/flow` just under **budget**, and remembered with the rest of that
+**profile flow** and **profile environment** rows of `/flow` just under **budget** -- the
+flow's own Python, and the programs its agents start -- and remembered with the rest of that
 flow's setup here. An `hmz exec` run is profiled only with `--profile-flow` or
 `--profile-environment`. What is recorded, and
 how to read it, is [Tracing](/user/tracing#profiling-a-run).

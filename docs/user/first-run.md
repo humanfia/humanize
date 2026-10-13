@@ -197,8 +197,8 @@ install it; from then on it is listed here, with its version at the end of its r
 
 ## 4. Give the role an agent
 
-The flow opens on its **roles**: a row for each agent it drives, then `budget` and
-`profiling`, and buttons under them, **Save** last. `ralph_loop` has one role, `agent`. humanize
+The flow opens on its **roles**: a row for each agent it drives, then `budget`,
+`profile flow` and `profile environment`, and buttons under them, **Save** last. `ralph_loop` has one role, `agent`. humanize
 fills it with the first CLI it found, so the row already names one.
 
 <Term title="hmz · /flow › ralph_loop">
@@ -214,7 +214,10 @@ fills it with the first CLI it found, so the row already names one.
    <b>budget</b>                                                           <span class="m">none ▸</span> <span class="n">2</span>
      <span class="m">what a run may spend: none set; a run needs one</span>
    ────────────────────────────────────────────────────────────────────────
-   <b>profiling</b>                                                       <span class="m">○ off ▾</span> <span class="n">3</span>
+   <b>profile flow</b>                                                    <span class="m">○ off ▾</span> <span class="n">3</span>
+     <span class="m">traced only</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>profile environment</b>                                             <span class="m">○ off ▾</span>
      <span class="m">traced only</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
@@ -226,7 +229,8 @@ fills it with the first CLI it found, so the row already names one.
 
 1. **`agent`**, the flow's one role, and the agent filling it as `cli/model:effort`.
 2. **`budget`**: none yet. You set it in step 5.
-3. **`profiling`** stays off here: it is for when you want the programs a run starts in its
+3. **`profile flow`** and **`profile environment`** stay off here: they are for when you want
+   the flow's own Python, or the programs a run starts, in its
    [trace](/user/tracing#profiling-a-run).
 4. **Save**: nothing you change is kept until you press it. `● unsaved changes` says something
    is waiting.

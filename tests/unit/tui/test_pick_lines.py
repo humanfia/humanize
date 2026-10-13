@@ -205,12 +205,13 @@ def test_spent_says_each_cap_shortest_first(budget: Budget, said: str) -> None:
 def test_chosen_defaults_to_no_envs_params_budget_or_profiling() -> None:
     chosen = pick.Chosen("chat", {"you": Runs("claude/opus:high")})
 
-    assert (chosen.envs, chosen.params, chosen.budget, chosen.profile) == (
-        {},
-        None,
-        None,
-        False,
-    )
+    assert (
+        chosen.envs,
+        chosen.params,
+        chosen.budget,
+        chosen.profile_flow,
+        chosen.profile_environment,
+    ) == ({}, None, None, False, False)
 
 
 def test_held_defaults_to_holding_nothing() -> None:

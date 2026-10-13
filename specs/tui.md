@@ -78,7 +78,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   permission with no skills, seeded with a snapshot and the sessions, which reaches a session's
   side conversation by `@ask <session>: <question>`, at most 4 per question.
 - MUST carry the last run of this directory of a flow that can be picked up on for `/resume` —
-  its flow, roles, params, budget, whether it was profiled and task, picking up its journal, saying which — say why there
+  its flow, roles, params, budget, whether its flow and its environment were profiled and task, picking up its journal, saying which — say why there
   is none to carry on, and refuse it, as it refuses picking any run up, while a flow is running
   or stopping.
 - MUST let a flow's agents be set up whatever is happening, but offer a flow choice only when idle.
@@ -99,15 +99,16 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST set a flow up by its roles: one row per agent role and one per environment role the flow
   declares, leaving out the ones the runtime fills -- an `Outworlder`, a `LocalEnv` -- then its
   params, asked with the flow's own params model as it is chosen and from a row of their own,
-  what a run may spend, whether it is profiled, and the backup targets an epic goes to -- the
+  what a run may spend, whether its flow and its environment are each profiled, and the backup targets an epic goes to -- the
   defaults until others are switched on there and saved, then remembered with the budget per
   flow, "none" where there are no targets. A saved menu MUST take
   effect from the next run, and MUST refuse to save a flow whose agent role names no model, or --
   for every flow but `chat` -- one that has no budget.
 - MUST let what a run may spend -- a duration, a cost, output tokens, and whether a turn is let
-  finish -- be set and read on the page its roles are on, and whether a run is profiled as well
-  as traced be switched and read beside it, off until it is switched on, and remembered with
-  the budget per flow; a run started MUST be profiled exactly where that says so.
+  finish -- be set and read on the page its roles are on, and whether a run profiles its flow's
+  own Python and whether it profiles the programs its agents start each be switched and read
+  beside it, as two switches, off until switched on, and remembered with the budget per flow;
+  a run started MUST be profiled exactly where those say so.
 - MUST say where an agent's harness went as its first session on another machine opens: here,
   on its environment's machine, or on the runtime its affinity sent it to.
 - MUST make an agent a CLI -- or litellm, a model called directly -- an account, a model and an

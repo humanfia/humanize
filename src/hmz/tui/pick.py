@@ -1994,8 +1994,10 @@ class Chosen(NamedTuple):
         and one that was left at its defaults.
       budget: What a run of it may spend, or None for none -- which only `chat` may be run
         with.
-      profile: Whether a run of it profiles the programs its agents start, as well as
-        tracing them.
+      profile_flow: Whether a run of it profiles the flow's own Python, as well as tracing
+        it.
+      profile_environment: Whether a run of it profiles the programs its agents start, as
+        well as tracing them.
       backup: The backup targets an epic of it goes to, by name, or None for the defaults.
     """
 
@@ -2004,7 +2006,8 @@ class Chosen(NamedTuple):
     envs: dict[str, str] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     params: BaseModel | None = None
     budget: Budget | None = None
-    profile: bool = False
+    profile_flow: bool = False
+    profile_environment: bool = False
     backup: tuple[str, ...] | None = None
 
 

@@ -171,7 +171,7 @@ async def test_a_flow_saved_without_choosing_backup_follows_the_defaults(
         await typed(pilot, "/flow")
         await on(pilot, Flows)
         await opens(pilot, "chat")
-        await picks(pilot, "\x1eprofile", "on")
+        await picks(pilot, "\x1eprofile-environment", "on")
         await leaves(pilot)
         await shows(pilot, "◉ chat")
 

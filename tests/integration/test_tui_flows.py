@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from hmz.runtime.flowing import index
+from hmz.daemon.link import Link
 from hmz.tui import Humanize
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Agent, Clis
@@ -34,6 +35,7 @@ from tests.integration.doubles_tui import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
     from textual.pilot import Pilot
@@ -172,3 +174,37 @@ async def test_the_flows_with_a_newer_release_are_counted_on_the_status_line(
         await on(pilot, Flows)
         await leaves(pilot)
         await until(pilot, lambda: "flow update" not in screen(app), "the count to go")
+
+
+async def test_both_profiling_switches_are_remembered_and_sent_with_the_start(
+    workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[Mapping[str, Any]] = []
+    asking = Link.asked
+
+    def spied(self: Link, said: Mapping[str, Any], **kwargs: Any) -> dict[str, Any]:
+        asked.append(said)
+        return asking(self, said, **kwargs)
+
+    monkeypatch.setattr(Link, "asked", spied)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_flows(pilot)
+        await opens(pilot, "chat")
+        await shows(pilot, "profile flow", "profile environment")
+        await picks(pilot, "\x1eprofile-flow", "on")
+        await picks(pilot, "\x1eprofile-environment", "on")
+        await shows(pilot, "samples the flow's own Python")
+        await leaves(pilot)
+        await shows(pilot, "◉ chat")
+
+        await typed(pilot, "hello")
+        await shows(pilot, "heard hello")
+
+    (start,) = [one for one in asked if one.get("do") == "start"]
+    assert (start["profile_flow"], start["profile_environment"]) == (True, True)
+    kept = remembered(tmp_path, workspace)["flows"]["chat"]
+    assert (kept["profile_flow"], kept["profile_environment"]) == (True, True)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_flows(pilot)
+        await opens(pilot, "chat")
+        await shows(pilot, "samples the flow's own Python")

@@ -322,7 +322,10 @@ leaves it out. Nothing is left to answer, so the focus moves on to **Done**:
   │ budget                                                             set ▸ │
   │   what a run may spend: stops at 10m                                     │
   │──────────────────────────────────────────────────────────────────────────│
-  │ profiling                                                        ○ off ▾ │
+  │ profile flow                                                     ○ off ▾ │
+  │   traced only                                                            │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ profile environment                                              ○ off ▾ │
   │   traced only                                                            │
   ╰──────────────────────────────────────────────────────────────────────────╯
 

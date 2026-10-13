@@ -700,7 +700,9 @@ function facts(detail) {
     h('dt', {}, 'sessions'),
     h('dd', {}, detail.sessions.length ? sessionsOf(detail).map((one) => h('div', {}, h('span', { class: 'mono' }, one.key), ` · ${one.backend}`, one.provider ? `@${one.provider}` : '', h('div', { class: 'dim mono' }, one.ident))) : 'none'),
     detail.picked_up ? [h('dt', {}, 'resumed from'), h('dd', {}, h('a', { href: hash(`/epics/${encodeURIComponent(detail.picked_up)}`) }, detail.picked_up))] : null,
-    detail.profile ? [h('dt', {}, 'profiled'), h('dd', {}, 'yes')] : null,
+    detail.profile_flow || detail.profile_environment
+      ? [h('dt', {}, 'profiled'), h('dd', {}, [detail.profile_flow && 'flow', detail.profile_environment && 'environment'].filter(Boolean).join(' · '))]
+      : null,
   )
 }
 

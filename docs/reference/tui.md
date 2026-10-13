@@ -539,7 +539,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | /settings | <kbd>enter</kbd> <kbd>→</kbd> · click | landing | Opens the page. |
 | /settings | <kbd>esc</kbd> | landing | Leaves, asking [Save?](#save-box) if anything is held. |
 | /settings | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click `/settings` | a page, list focused | Back to the landing screen. |
-| /flow | <kbd>enter</kbd> · click | list focused | Goes into the row: a card, a flow's roles (Installed), a flowverse, a flow's releases; on a role, `params` or `budget` opens its sheet; on `profiling` drops `on` and `off`; on a release installs it. |
+| /flow | <kbd>enter</kbd> · click | list focused | Goes into the row: a card, a flow's roles (Installed), a flowverse, a flow's releases; on a role, `params` or `budget` opens its sheet; on `profile flow` or `profile environment` drops `on` and `off`; on a release installs it. |
 | /flow | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click a step across the top | a page, list focused | Out to the page above (`esc` ends a search first). On the first screen, and on the roles of a flow `/flow` was opened on, they leave as on any menu. |
 | dropdown | <kbd>↑</kbd> <kbd>↓</kbd> | | Moves. An on/off dropdown opens on the value not in force. |
 | dropdown | <kbd>enter</kbd> · click | | Picks the value. |
@@ -680,7 +680,7 @@ form's `workdir` on this machine -- complete as they are written, as a shell doe
 
 | Menu | Held until saved | Applied at once |
 | --- | --- | --- |
-| `/flow`, roles, agent sheet, params, budget, backup, environment form, unsaved host | the flow, its roles, params, budget, profiling and backup targets | installing, updating, uninstalling; adding, fetching and removing a flowverse |
+| `/flow`, roles, agent sheet, params, budget, backup, environment form, unsaved host | the flow, its roles, params, budget, both profiling switches and backup targets | installing, updating, uninstalling; adding, fetching and removing a flowverse |
 | `/settings` General, Workspace, Fallback, Backup | everything | — |
 | `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
 | `/settings` Runtimes; `/epics` | — | everything (an upload is queued, not waited on) |
@@ -717,7 +717,7 @@ A screen of its own, drawn and keyed as every menu is ([Anatomy](#menu-anatomy))
 among them: the way here across the top (`hmz › /flow › Installed › <flow>`), every step of it
 but the last a click back; the list in a box with a block cursor; the line under it; a bar of
 buttons, **Save** at the far end; the keys. `/flow` opens on **Installed**. What it holds -- the flow and its roles, params, budget
-and profiling -- lands together on **Save**; installing, updating, uninstalling, fetching, adding and
+and both profiling switches -- lands together on **Save**; installing, updating, uninstalling, fetching, adding and
 removing happen at once.
 
 ```text
@@ -796,12 +796,13 @@ top, `esc` leaves, and params are not asked.
 | each environment role | the `-e` spec after `<role>=`, or `not set`, then `▸`; under it `environment` | [environment form](#where-each-agent-works) |
 | `params` (flows that take any) | the params changed from their defaults, or `defaults`, then `▸` | [params sheet](#setting-a-flow-up) |
 | `budget` | `set ▸` or `none ▸`; under it `what a run may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
-| <span id="profiling-row"></span>`profiling` (straight under `budget`) | a switch, `● on ▾` or `○ off ▾`: the flow's remembered value, else off; under it `samples the programs agents start` or `traced only` | nothing: `enter` drops `on` and `off` (see dropdown); a run started is [profiled](/reference/tracing#profiling-a-run) where it is on |
-| <span id="backup-row"></span>`backup` (straight under `profiling`) | the targets an epic goes to, `<a>, <b> ▸`, or `none ▸`; under it `where each epic is backed up`, with ` (the defaults)` until others are chosen | **Backup**: a switch per [target](#backup-page), named, its URL under it; **Done** `backs each epic up to the targets switched on`. With no target, nothing opens: `no backup targets: add one on /settings backup`. Remembered per flow on save as `workspaces.<dir>.flows.<flow>.backup` (untouched, nothing is written, so the defaults go on applying); a run started passes those settings still has as `backup`. |
+| <span id="profiling-row"></span>`profile flow` (straight under `budget`) | a switch, `● on ▾` or `○ off ▾`: the flow's remembered value, else off; under it `samples the flow's own Python` or `traced only` | nothing: `enter` drops `on` and `off` (see dropdown); a run started profiles the flow's own Python where it is on, sent as `profile_flow` |
+| `profile environment` (straight under `profile flow`) | the same switch; under it `samples the programs agents start` or `traced only` | the same; a run started is [profiled](/reference/tracing#profiling-a-run) where it is on, sent as `profile_environment`. Both remembered per flow on save as `workspaces.<dir>.flows.<flow>.profile_flow` and `.profile_environment` |
+| <span id="backup-row"></span>`backup` (straight under `profile environment`) | the targets an epic goes to, `<a>, <b> ▸`, or `none ▸`; under it `where each epic is backed up`, with ` (the defaults)` until others are chosen | **Backup**: a switch per [target](#backup-page), named, its URL under it; **Done** `backs each epic up to the targets switched on`. With no target, nothing opens: `no backup targets: add one on /settings backup`. Remembered per flow on save as `workspaces.<dir>.flows.<flow>.backup` (untouched, nothing is written, so the defaults go on applying); a run started passes those settings still has as `backup`. |
 
 Buttons: **Update**, **Uninstall** and **Copy here**, as on [Installed](#flow-list) for this
 flow (not when the page is opened on it alone); then **Save** (`run this flow, set up as it is
-here`), which applies flow, roles, params, budget, profiling and backup together. Keys `enter open` (`enter choose` on `profiling`) `  tab actions   esc <back|close>`. Roles filled by the runtime
+here`), which applies flow, roles, params, budget, profiling and backup together. Keys `enter open` (`enter choose` on either profiling switch) `  tab actions   esc <back|close>`. Roles filled by the runtime
 (`Outworlder`, `LocalEnv`) are not rows. Messages:
 `<flow> has no roles to configure; it interacts only with you`, `<flow> failed to load: <e>;
 nothing can be configured`.
@@ -1208,7 +1209,7 @@ the list's cursor is drawn turned round in the bars. Under the list:
 Picks up the newest run in this directory of a flow that can be picked up. Runs are scanned
 newest first; the scan stops at the first run that is unreadable, was recorded resumable, or
 whose flow is resumable now. On success: `resuming <run>: running <flow> from saved state`,
-and the run's flow, agents, environments, params, budget, whether it was profiled and task
+and the run's flow, agents, environments, params, budget, whether its flow and its environment were profiled and task
 are used; the budget counts from zero.
 
 | Message (`hmz: `, red) | Condition |

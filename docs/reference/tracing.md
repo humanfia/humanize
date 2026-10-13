@@ -267,7 +267,8 @@ with ids moved, is `409` rather than some other span.
 A run is profiled two ways, each asked for apart -- with
 [`hmz exec`](/reference/cli#hmz-exec)'s `--profile-flow` and `--profile-environment`,
 `profile_flow=True` and `profile_environment=True` to `Hmz().run`, `Runner` or `Link.start`,
-or the [`/flow`](/reference/tui#roles-page) menu, beside the budget:
+or the **profile flow** and **profile environment** rows of the
+[`/flow`](/reference/tui#roles-page) menu, beside the budget:
 
 - **The environment** samples every descendant process of the process running the flow, every
   0.05 s (psutil, on a daemon thread), from the epic's opening until it closes, into

@@ -148,7 +148,10 @@ where the budget is:
   │ budget                                                                 set ▸ │
   │   what a run may spend: stops at 20m, $0.50                                  │
   │──────────────────────────────────────────────────────────────────────────────│
-  │ profiling                                                             ● on ▾ │  ①
+  │ profile flow                                                         ○ off ▾ │
+  │   traced only                                                                │
+  │──────────────────────────────────────────────────────────────────────────────│
+  │ profile environment                                                   ● on ▾ │  ①
   │   samples the programs agents start                                          │
   ╰──────────────────────────────────────────────────────────────────────────────╯
 
@@ -157,7 +160,10 @@ where the budget is:
   enter choose   tab actions   esc back
 ```
 
-1. **`profiling`**, just under `budget` on [`/flow`](/reference/tui#roles-page): a switch.
+1. **`profile environment`**, just under `budget` and `profile flow` on
+   [`/flow`](/reference/tui#roles-page): a switch. **`profile flow`** above it is the same
+   switch for the flow's own Python. On the web page they are the **Profile flow** and
+   **Profile environment** boxes under **Options**.
    <kbd>enter</kbd> drops `on` and `off` under it, the cursor already on the other one, so
    <kbd>enter</kbd> twice turns it round. It is off until you turn it on.
 2. **Save**: kept with the rest of the flow's setup in this directory, so the next run of the

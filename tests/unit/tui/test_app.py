@@ -33,6 +33,7 @@ def opened(monkeypatch: pytest.MonkeyPatch) -> _Opened:
     settings.agents.return_value = {}
     settings.envs.return_value = {}
     settings.params.return_value = {}
+    settings.profile_flow.return_value = False
     settings.profile_environment.return_value = False
     held = _Opened(settings)
 

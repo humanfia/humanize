@@ -114,7 +114,7 @@ def test_what_another_writer_set_meanwhile_is_kept_rather_than_written_over(
     assert Settings(tmp_path).params("ralph") == {"rounds": 9}
 
 
-def test_an_empty_value_or_profile_off_erases_it(
+def test_an_empty_value_or_profiling_off_erases_it(
     held: doubles.Store, tmp_path: Path
 ) -> None:
     Settings(tmp_path).remember(

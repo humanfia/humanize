@@ -247,7 +247,7 @@ directory last set it up:
 - **Environments.** Per role: the **Backend**, the **Runtime** of it (or **Add runtime…**, or
   for ssh **Other host…**), and the **Directory**, completed as you type on this machine.
 - **Parameters**, the **Budget**, **Backup** -- the [targets](/user/backups) the epic is backed
-  up to, the defaults ticked until a choice is saved -- and **Profile**. **Save** keeps them all for that directory
+  up to, the defaults ticked until a choice is saved -- and **Profile flow** and **Profile environment**. **Save** keeps them all for that directory
   without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set. Every flow but `chat`
 needs at least one limit. The page goes to the epic once it starts -- a `chat` to its
 conversation.

@@ -751,6 +751,41 @@ def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -
         expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
 
 
+def test_the_flow_and_its_environment_are_profiled_apart(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new?flow=chat")
+        page.get_by_role("button", name="Options").click()
+        flow = page.get_by_label("Profile flow")
+        environment = page.get_by_label("Profile environment")
+        expect(flow).not_to_be_checked()
+        expect(environment).not_to_be_checked()
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_value("claude-haiku-4-5")
+        flow.check()
+        page.locator("[data-hmz=options]").get_by_role("button", name="Save").click()
+        expect(
+            page.locator("[data-hmz=options]").get_by_role("button", name="Saved")
+        ).to_be_visible()
+        page.reload()
+        go(page, "/new?flow=chat")
+        page.get_by_role("button", name="Options").click()
+        expect(flow).to_be_checked()
+        expect(environment).not_to_be_checked()
+        environment.check()
+
+        with page.expect_request(
+            lambda asked: asked.url.endswith("/api/held/start")
+        ) as started:
+            page.locator("[data-hmz=composer-text]").fill("profile me")
+            page.locator("[data-hmz=composer-text]").press("Enter")
+        said = json.loads(started.value.post_data or "{}")
+        assert (said["profile_flow"], said["profile_environment"]) == (True, True)
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+
+
 def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(
     project: Path, engine: str
 ) -> None:

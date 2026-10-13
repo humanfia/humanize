@@ -1,8 +1,9 @@
 // A new run, as a new chat opens: the flow picked in the bar as a model is picked, and the task
 // typed into the box in the middle. The rest a flow is set up with -- an agent for each role,
-// where each environment works, its params, its budget, where it is backed up and whether it is profiled -- is under
-// Options on the box, set up as this directory last ran that flow, the way `/flow` in the
-// terminal interface sets one up. Picking a run up again is the same box, on that run.
+// where each environment works, its params, its budget, where it is backed up and whether its flow
+// and its environment are profiled -- is under Options on the box, set up as this directory last
+// ran that flow, the way `/flow` in the terminal interface sets one up. Picking a run up again is
+// the same box, on that run.
 
 import { get, hash, post } from '../api.js'
 import { covered, go, stays } from '../app.js'
@@ -154,7 +155,8 @@ export function mount(root, { query }) {
           envs: Object.fromEntries(ran.envs.map((one) => one.split('=')).map(([role, ...spec]) => [role, spec.join('=')])),
           params: ran.params,
           budget: ran.budget || {},
-          profile: ran.profile,
+          profile_flow: ran.profile_flow,
+          profile_environment: ran.profile_environment,
         }
       : { ...flow.remembered }
     const agents = flow.agents.filter((one) => !one.auto)
@@ -178,7 +180,8 @@ export function mount(root, { query }) {
     })
     const params = schemaForm(flow.params, kept.params || {})
     const budget = budgetFields(kept.budget || {}, summarise)
-    const profile = h('input', { type: 'checkbox', checked: Boolean(kept.profile) })
+    const profileFlow = h('input', { type: 'checkbox', checked: Boolean(kept.profile_flow), 'data-hmz': 'profile-flow' })
+    const profileEnvironment = h('input', { type: 'checkbox', checked: Boolean(kept.profile_environment), 'data-hmz': 'profile-environment' })
     // Where the epic is backed up: as the one picked up was, else as saved, else the defaults.
     const goesTo = ran ? ran.backup : (kept.backup ?? backup.defaults)
     const targets = backup.targets.map((one) => h('label', { class: 'check', title: one.url }, h('input', { type: 'checkbox', value: one.name, checked: goesTo.includes(one.name) }), one.name))
@@ -191,7 +194,7 @@ export function mount(root, { query }) {
       const backupSaid = targets.map((one) => one.firstChild).filter((one) => one.checked).map((one) => one.value)
       // The defaults left as they are go on following the defaults, rather than being kept.
       const followed = kept.backup == null && backupSaid.length === backup.defaults.length && backupSaid.every((one) => backup.defaults.includes(one))
-      return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile: profile.checked, backup: targets.length && !followed ? backupSaid : undefined }
+      return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile_flow: profileFlow.checked, profile_environment: profileEnvironment.checked, backup: targets.length && !followed ? backupSaid : undefined }
     }
     for (const one of Object.values(leaving)) one()
     leaving = Object.values(pickers).map((one) => one.leave)
@@ -203,7 +206,7 @@ export function mount(root, { query }) {
         params.fields.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Parameters'), h('div', { class: 'grid' }, params.fields)) : null,
         h('section', { class: 'option-group' }, h('h3', {}, 'Budget'), budget.fields, h('span', { class: 'hint' }, flow.name === 'chat' ? 'Optional for chat.' : 'At least one limit.')),
         targets.length ? h('section', { class: 'option-group', 'data-hmz': 'backup' }, h('h3', {}, 'Backup'), h('div', { class: 'row' }, targets)) : null,
-        h('label', { class: 'check' }, profile, 'Profile'),
+        h('div', { class: 'row' }, h('label', { class: 'check' }, profileFlow, 'Profile flow'), h('label', { class: 'check' }, profileEnvironment, 'Profile environment')),
         // Set up without starting, as `/flow` saves it: what a new epic here opens on.
         h('div', { class: 'row' }, acting('Save', () => post('/api/flows/setup', { workspace, flow: flow.name, ...readAll() }), { kind: 'btn small', busy: 'Saving…', done: 'Saved' })),
       ),
