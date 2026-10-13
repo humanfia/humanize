@@ -61,8 +61,12 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   the assistant's under the prompt, with no monitor, no views to round, no outworlder above the
   prompt and no Exomyth for its epic; its status line `running` while the assistant answers and
   `done` once it waits for you; never stopped -- no `/stop`, nothing about stopping on
-  `ctrl+c` -- `/clear` ending it so that the next line starts another, and `/exit`, `ctrl+q`
-  or `ctrl+c` twice leaving without asking, where a host holds it leaving it held.
+  `ctrl+c` -- `/clear` starting another without ending it, and `/exit`, `ctrl+q` or `ctrl+c`
+  twice leaving without asking, where a host holds it leaving it held. Every chat MUST run on a
+  host of its own, its own epic, beside every other chat and the flow of this directory: a flow
+  MUST be started and `/resume`d while a chat goes, and a chat left between turns folds away.
+- MUST offer `continue` on a chat's epic in `/epics`: one a host holds is read where it is, and
+  one folded away is carried on, in the same epic, by the next line said.
 - MUST call every agent of a run by its own name -- its transcript, each of its conversations
   as `<agent>/<n>`, its node on the monitor, the line saying it is working -- from the moment the
   run says it, before it has opened any, the role it fills only ever after that name.
@@ -86,7 +90,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST carry the last run of this directory of a flow that can be picked up on for `/resume` —
   its flow, roles, params, budget, whether its flow and its environment were profiled and task, picking up its journal, saying which — say why there
   is none to carry on, and refuse it, as it refuses picking any run up, while a flow is running
-  or stopping.
+  or stopping; a chat's is never carried on by it, but continued from `/epics`.
 - MUST let a flow's agents be set up whatever is happening, but offer a flow choice only when idle.
 - MUST make `/flow` a menu of pages, as `/settings` is, its first screen two pages -- what is
   installed, and the flowverses -- opening on what is installed, or inside a flow named to it.
@@ -232,8 +236,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST tell, of every epic on this machine, what the web interface tells of it -- each notice
   `runtime/watching` works out of the hosts' status, never attaching -- as a card that goes
   after a while and, unless the system is turned off, the terminal's bell and a system
-  notification; never of the epic on the screen, this directory's while its log or the
-  monitor is up; and MUST dot each epic told of on `/epics` until it is opened there.
+  notification; never of the epic on the screen, the one the host read here is going with,
+  while its log or the monitor is up; and MUST dot each epic told of on `/epics` until it is
+  opened there.
 - MUST offer on the notifications page of `/settings` the kinds the web interface's offers,
   each turned on or off, and whether the system is told too, kept with that page's.
 - MUST import an epic from a `.hmzepic`, by a key or a button, asking which file as a path,

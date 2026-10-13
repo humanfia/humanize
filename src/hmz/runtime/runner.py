@@ -711,7 +711,7 @@ class Runner:
             ParamsError,
             RequirementError,
         )
-        from hmz.runtime.flowing import local_env, open_outworlder, run_flow
+        from hmz.runtime.flowing import local_env, open_outworlder, privileged, run_flow
 
         from .backing import Keeping
         from .epic import Epic
@@ -752,6 +752,8 @@ class Runner:
             budget=json.loads(self._budget.model_dump_json()),
             resumable=impl.resumable,
             picked_up=self._picked_up,
+            # A chat carried on is the same conversation, and so the same epic.
+            reopened=privileged(impl),
             profile_flow=self._profile_flow,
             profile_environment=self._profile_environment,
             backup=self._backup,

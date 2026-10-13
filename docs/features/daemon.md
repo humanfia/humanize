@@ -14,8 +14,9 @@ import { withBase } from 'vitepress'
 
 <div class="hmz-facts">
 
-- **One run per directory.** Another checkout of the same project is another directory, with a
-  run of its own.
+- **One flow per directory, any number of chats.** Another checkout of the same project is
+  another directory, with a flow of its own; every chat is held beside the flow, and a chat
+  nobody is reading folds away until you say something in it again.
 - **Leaving is not stopping.** Exiting with a flow running asks: leave it going, or stop it for
   everybody.
 - **A reboot ends it.** The run lives on its machine. A flow that can be

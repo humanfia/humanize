@@ -107,7 +107,11 @@ def test_each_chat_turn_done_and_an_epic_ending_are_notices(project: Path) -> No
                 "task": "hello there",
                 "agents": {"assistant": AGENT},
             }
-            assert browser.post("/api/held/start", chat).status == 200
+            started = browser.post("/api/held/start", chat)
+            assert started.status == 200
+            # A chat of its own, beside the workspace's flows.
+            slot = started.json()["slot"]
+            assert slot.startswith("chat:")
             _, turned = _until(heard, "done")
             assert (turned["workspace"], turned["flow"]) == (str(project), "chat")
             assert (turned["task"], turned["role"]) == ("hello there", "human")
@@ -115,13 +119,14 @@ def test_each_chat_turn_done_and_an_epic_ending_are_notices(project: Path) -> No
             assert turned["epic"]
 
             # Each turn of it done is a notice of its own.
-            assert browser.post("/api/held/say", {"text": "and again"}).status == 200
+            said = {"text": "and again", "slot": slot}
+            assert browser.post("/api/held/say", said).status == 200
             _, again = _until(heard, "done")
             assert (again["epic"], again["text"]) == (turned["epic"], "did: and again")
 
             # And the chat left is none.
             stopped_at = str(browser.get("/api/notices").json()["last"])
-            assert browser.post("/api/held/stop").status == 200
+            assert browser.post("/api/held/stop", {"slot": slot}).status == 200
             started = browser.post(
                 "/api/held/start",
                 {

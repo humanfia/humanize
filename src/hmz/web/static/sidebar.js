@@ -333,7 +333,7 @@ export function epicMenu(run) {
     going ? null : { label: 'Export', glyph: 'download', act: () => (location.href = scoped(`/api/runs/${encodeURIComponent(run.name)}/bundle`)) },
     { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run.name) },
     run.held && !chat ? '-' : null,
-    run.held && !chat ? { label: 'Stop', glyph: 'stop', danger: true, act: () => ask(run.workspace, 'stop').then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
+    run.held && !chat ? { label: 'Stop', glyph: 'stop', danger: true, act: () => ask({ workspace: run.workspace, slot: run.slot }, 'stop').then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
   ]
 }
 

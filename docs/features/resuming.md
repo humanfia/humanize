@@ -17,8 +17,8 @@ import { withBase } from 'vitepress'
 - **Nothing carries on by itself.** Running a flow again starts it fresh unless you ask to pick
   it up.
 - **The flow has to say so.** [Each flow's page](https://humanfia.ai/flows/) says whether it can be picked up.
-- **Never reopened.** Each pickup is a run of its own, so a week of stops reads as one run per
-  stretch.
+- **Never reopened, but a chat.** Each pickup is a run of its own, so a week of stops reads as
+  one run per stretch. A `chat` is one conversation, so it goes on in its own epic.
 - **From the terminal or the command line.** Pick any run from this directory's list, or the
   newest.
 - **Called flows pick up too,** when called again with the same task, agents, environments and

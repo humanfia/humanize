@@ -82,6 +82,7 @@ from .monitoring import (
     place_key,
 )
 from .pick import (
+    CONTINUES,
     DETACHES,
     LOCAL_DAEMON,
     RESUMES,
@@ -764,9 +765,9 @@ class Humanize(App[None]):
         which is what `stop it, then leave` asks for, and are otherwise left alone.
         """
         self._quitting = True
-        if self._host is not None:
+        if self._hosts:
             # This process is where they are, so closing them is the only way they end.
-            self._host.close()
+            self._closes_held()
         elif self._run is not None or self._stopping is not None:
             # Asked here rather than in the background: this process is about to go, and a
             # request on a thread of its own would go with it before it was sent.
@@ -791,7 +792,7 @@ class Humanize(App[None]):
         if self._run is None or self.chatting():
             self._leaves()
             return
-        said = await self.push_screen_wait(Leaves(held=self._host is None))
+        said = await self.push_screen_wait(Leaves(held=not self._hosts))
         if said == STOPS:
             self.action_quit()
         elif said == DETACHES:
@@ -804,7 +805,7 @@ class Humanize(App[None]):
         to ask -- and what `/exit` does once it has been told to leave a flow running. A run
         a host holds goes on for whoever else reads it; one held here goes with the process.
         """
-        if self._run is None or self._host is not None:
+        if self._run is None or self._hosts:
             self.action_quit()
             return
         self._quitting = True
@@ -948,9 +949,24 @@ class Humanize(App[None]):
         #: it, and everything it does to a run is a request asked through it. Made as it
         #: mounts where none was handed over, on runs held in this process.
         self._linked: Link | None = link
-        #: The runs, where they are held in this process rather than by a host apart from it:
-        #: what closing the interface closes. None where a host holds them.
-        self._host: Host | None = None
+        #: Which of the workspace's hosts that is: "" for its own, which runs its flows one at
+        #: a time, or `chat:<hex>` for one chat's -- every conversation is a host of its own,
+        #: and so an epic of its own, beside the flows and beside every other conversation.
+        self._slot = ""
+        #: The runs, where they are held in this process rather than by a host apart from it,
+        #: by slot: what closing the interface closes, every chat had here among them. Empty
+        #: where a host holds them.
+        self._hosts: dict[str, Host] = {}
+        #: The link whose messages are taken, which is the one attached to -- or None while
+        #: this interface is moving from one host to another: what the one let go of still
+        #: says on its way out is about runs nobody here is reading any more.
+        self._hearing: Link | None = link
+        #: The chat epic the next line typed carries on, as `/epics` was asked to continue it,
+        #: or None for a line that starts a conversation of its own.
+        self._continuing: Path | None = None
+        #: The epic the run in front of us writes, once it has one: what a notice is told
+        #: apart from the one on the screen by.
+        self._epic_now = ""
         #: What happened to the runs of every workspace on this machine worth telling, told as
         #: it happens once mounted -- and the epics told of that have not been opened since,
         #: by name, which `/epics` marks.
@@ -978,7 +994,7 @@ class Humanize(App[None]):
         #: What the runs have said and the screen has not taken yet, oldest first, and
         #: whether the screen has been asked to take it.
         self._arriving = threading.Lock()
-        self._arrived: deque[dict[str, Any]] = deque()
+        self._arrived: deque[tuple[Link | None, dict[str, Any]]] = deque()
         self._draining = False
         #: Whether this interface is on its way out, so that the runs letting it go is not
         #: news to say.
@@ -986,7 +1002,8 @@ class Humanize(App[None]):
         #: Whose epics `/epics` lists: this machine's daemon until another is turned to.
         self._daemon = LOCAL_DAEMON
         #: Requests waiting to be asked, in order, on the one thread that asks them: a line
-        #: typed twice is two lines in the order they were typed.
+        #: typed twice is two lines in the order they were typed -- and moving to another host
+        #: is one of them, so that what is asked after it is asked of that one.
         self._requests: queue.SimpleQueue[
             tuple[
                 dict[str, Any],
@@ -994,6 +1011,7 @@ class Humanize(App[None]):
                 Callable[[], object] | None,
                 bool,
             ]
+            | Callable[[], object]
             | None
         ] = queue.SimpleQueue()
         #: The run going now, or None: which is what `a flow is running` means here.
@@ -1295,10 +1313,11 @@ class Humanize(App[None]):
         # before there is a screen to say it on: runs held in this process where no host was
         # handed over, and the run so far first however they are held.
         if self._linked is None:
-            self._host = self.hmz.host()
-            self._linked = self._links(self._host)
+            self._hosts[""] = self.hmz.host()
+            self._linked = self._links(self._hosts[""])
+        self._hearing = self._linked
         self._me = self._linked.client
-        self._linked.heard(self._told)
+        self._linked.heard(self._hears(self._linked))
         threading.Thread(
             target=self._requested, daemon=True, name="humanize-requests"
         ).start()
@@ -1348,6 +1367,123 @@ class Humanize(App[None]):
         from hmz.daemon import linked
 
         return linked(host, kind="tui")
+
+    def _hears(self, link: Link) -> Callable[[dict[str, Any]], None]:
+        """What takes the messages of one link: each one, as long as it is the one heard."""
+        return lambda message: self._told(message, link)
+
+    def _relinks(self, slot: str) -> None:
+        """Moves this interface onto another of the workspace's hosts, and reads it from the top.
+
+        Which is what a conversation of its own is: every chat is a host of its own, so that a
+        new one is a new host and going back to one is going back to its host. The one let go
+        of goes on without this interface -- a flow for whoever else reads it, a chat until
+        nobody has looked at it for a while, when it folds away -- and nothing it said is kept
+        here: what is drawn is the host attached to now, told afresh, as it is to an interface
+        just opened on it.
+
+        Forgotten at once, so that what is done next -- a line typed, a flow started -- is
+        done against the host it goes to; reached on the one thread that asks the runs
+        anything, so that it is reached before whatever is asked of it after.
+
+        Args:
+          slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
+        """
+        self._hearing = None
+        self._forgets()
+        self._slot = slot
+        self._requests.put(lambda: self._reattaches(slot))
+
+    def _reattaches(self, slot: str) -> None:
+        """Lets go of the host attached to for another, on the thread that asks the runs.
+
+        Args:
+          slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
+        """
+        was = self._linked
+        try:
+            link = self._reaches(slot)
+        except Exception as why:  # noqa: BLE001 -- a host that will not come up is said
+            self._hearing = was
+            self._on_screen(self.show, f"hmz: {why}", "red")
+            return
+        self._linked = self._hearing = link
+        self._me = link.client
+        link.heard(self._hears(link))
+        if was is not None:
+            was.close()
+        if self._quitting:
+            # Gone while it was being reached, which nothing else is left to let go of.
+            link.close()
+
+    def _reaches(self, slot: str) -> Link:
+        """This interface's end of one of the workspace's hosts, as the runs are held.
+
+        In this process where they always have been, each host kept for closing on the way
+        out; by the daemon otherwise, which starts one where none is.
+
+        Args:
+          slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
+
+        Returns:
+          The link, attached as an interface.
+        """
+        if self._hosts:
+            held = self._hosts.get(slot) or self.hmz.host(slot)
+            self._hosts[slot] = held
+            return self._links(held)
+        from hmz import daemon
+
+        return daemon.attach("tui", workspace=self.hmz.workspace, slot=slot)
+
+    def _forgets(self) -> None:
+        """Forgets everything one host said, for another to say how its own runs stand.
+
+        Everything that is about runs rather than about this interface: the run in front of
+        us and the last one, their transcripts and the screen they were read on, the questions
+        and the lines waiting, who else reads them. What is set up to run is this interface's
+        own, and stays.
+        """
+        self._close_btw()
+        self._following.close()
+        self._following = Following()
+        self._me = self._named = ""
+        self._frontends, self._claims = {}, {}
+        self._pending, self._queued, self._given = [], [], []
+        self._boarded = None
+        self._live = self._starting = self._afk = False
+        self._run = self._seen_last = self._stopping = None
+        self._halted, self._forcing, self._answering = set(), set(), set()
+        self._working, self._monitor_opened = set(), set()
+        self._placed, self._harnessed, self._began = {}, {}, {}
+        self._called, self._outworlders = [], []
+        self._epic_as, self._usage, self._afk_of = {}, {}, {}
+        self._asked_in, self._shown_on = {}, {}
+        self._last_answer = self._last_asked = self._last_answer_in = ""
+        self._started_by = self._epic_now = ""
+        self._continuing = None
+        with self._btw_lock:
+            self._flow_task = ""
+        self._presses = 0
+        self._kept = {}
+        self._attached = _HOME
+        self.query_one("#transcript", Transcript).clear()
+        self._welcome()
+
+    def _closes_held(self) -> None:
+        """Closes every host held in this process, at once rather than one after another.
+
+        Each waits a while for what its runs made to be let go of, and a dozen chats had here
+        would otherwise be a dozen waits on the way out.
+        """
+        closing = [
+            threading.Thread(target=one.close, daemon=True)
+            for one in list(self._hosts.values())
+        ]
+        for one in closing:
+            one.start()
+        for one in closing:
+            one.join()
 
     @work
     async def _asks_what_runs(self) -> None:
@@ -2151,8 +2287,7 @@ class Humanize(App[None]):
         # anything is, else where this is. Right, the usage. The two ends are pushed apart.
         working = self._monitor.now_working()
         # A chat is running or done, by its turn: running while the assistant answers, done
-        # once it has and waits for you. Nothing about stopping, which a chat is not -- and
-        # one ended by `/clear` is at rest while it unwinds, its screen already cleared.
+        # once it has and waits for you. Nothing about stopping, which a chat is not.
         chat = self.chatting()
         waits = self._waits_on() if self._run is not None and not working else ""
         if chat and waits:
@@ -2549,7 +2684,8 @@ class Humanize(App[None]):
           Why it is turned down, or "" where it is not.
         """
         if self._run is not None and self.chatting():
-            return f"{what} while a chat is going: /clear ends it first"
+            # One on a host of its own takes no flow's turn: what starts goes on the workspace's.
+            return "" if self._slot else f"{what} while a chat is going here"
         if self._run is not None:
             return (
                 f"{what} while a flow is running: press ctrl+c twice to stop it first"
@@ -2580,7 +2716,7 @@ class Humanize(App[None]):
 
     def held_apart(self) -> bool:
         """Whether the runs are held by a host this interface closing leaves running."""
-        return self._host is None
+        return not self._hosts
 
     def refused_stop(self) -> str:
         """Why `/stop` has nothing to do now, or "" while a flow runs for it to stop.
@@ -2596,7 +2732,7 @@ class Humanize(App[None]):
         as a command that did not work.
         """
         if self._run is not None and self.chatting():
-            return "a chat is not stopped: /clear ends it"
+            return "a chat is not stopped: /clear starts another"
         if self._run is not None:
             return ""
         if self._stopping is not None:
@@ -3270,10 +3406,12 @@ class Humanize(App[None]):
         self.show(f"hmz: /btw: {failure}", "red")
 
     def action_clear(self) -> None:
-        """Clears the screen, and in a chat ends the conversation, as Claude Code's does.
+        """Clears the screen, and in a chat starts another conversation, as Claude Code's does.
 
-        A chat is never stopped, so this is how one is put down for the next: the line typed
-        after it starts another conversation, and once it has gone a `$` or `/resume` runs.
+        Without ending the one on the screen, which is never stopped: it goes on on a host of
+        its own, folds away once nobody has looked at it for a while, and is there to be
+        continued from `/epics`. This interface moves to a host of the next conversation's,
+        and the line typed after it starts that one.
 
         Outside a chat there is nothing else for it to clear. A turn carries no context across
         an epic: a flow is handed agents that were made for that run and drops them at the end
@@ -3284,8 +3422,14 @@ class Humanize(App[None]):
         would be `/clear` reaching into ones nobody was looking at.
         """
         if self.chatting():
-            self.action_stop_flow()
-            self._presses = 0  # as `/stop` leaves none standing, for the same reason
+            self._continuing = None
+            if self._epic_as:
+                from hmz.daemon import where
+
+                # Which clears the screen, and opens it as it opens.
+                self._relinks(where.chat())
+                self._draw()
+                return
         kept = self._keeping(self._attached)
         kept.lines.clear()
         # And what it was in the middle of saying, which is gone with the lines it was said
@@ -3348,8 +3492,7 @@ class Humanize(App[None]):
         let_go()
         if self._linked is not None:
             self._linked.close()
-        if self._host is not None:
-            self._host.close()
+        self._closes_held()
         self._requests.put(None)
 
     def _asks(
@@ -3380,6 +3523,9 @@ class Humanize(App[None]):
     def _requested(self) -> None:
         """Asks every request put in, in order, until the interface goes: the one thread."""
         while (asked := self._requests.get()) is not None:
+            if callable(asked):
+                asked()  # moving to another host, before whatever is asked of it
+                continue
             request, answered, refused, hushed = asked
             try:
                 answer = self._link.asked(request)
@@ -3411,7 +3557,9 @@ class Humanize(App[None]):
           page: Which page to open on where no flow is named: what is installed, or the
             flowverses.
         """
-        running = self._run is not None
+        # A chat going on a host of its own is no flow running: choosing one goes to the
+        # workspace's host, and the chat goes on by itself.
+        running = self._run is not None and not self._slot
         if named and running:
             self.show("hmz: cannot choose a flow while one is running", "red")
             return
@@ -3514,7 +3662,7 @@ class Humanize(App[None]):
             why = f" -- a flow of {whose} is called {now} now" if now != named else ""
             self.show(f"hmz: no such flow: {named}{why}", "red")
             return
-        if self._run is not None:
+        if self._run is not None and not self._slot:
             # The same answer `/flow <name>` gives while one runs, since it is the same thing
             # being asked for: two ways of choosing a flow that did opposite things would be
             # one of them ending a day's work on a line meant to queue the next one up.
@@ -3631,6 +3779,9 @@ class Humanize(App[None]):
         self._profile_flow = chosen.profile_flow
         self._profile_environment = chosen.profile_environment
         self._backup = chosen.backup
+        if self._slot and not running and not chatting(chosen.flow):
+            # Off a chat's own host, which goes on by itself, to where the flow starts.
+            self._relinks("")
         self.settings.remember(
             chosen.flow,
             self._models,
@@ -3843,7 +3994,10 @@ class Humanize(App[None]):
             self._daemon = LOCAL_DAEMON
         while True:
             said = await self.push_screen_wait(
-                Epics(running=lambda: self._run is not None, unseen=self._unseen)
+                Epics(
+                    running=lambda: self._run is not None and not self._slot,
+                    unseen=self._unseen,
+                )
                 if self._daemon == LOCAL_DAEMON
                 else RemoteEpics(self._daemon)
             )
@@ -3861,15 +4015,18 @@ class Humanize(App[None]):
             self.show(one)
         if said.doing == RESUMES and said.epic is not None:
             self._carries_on(said.epic)
+        elif said.doing == CONTINUES and said.epic is not None:
+            self._continues(said.epic)
 
     def _statuses(self) -> dict[str, dict[str, Any]]:
-        """How the runs of every workspace on this machine stand, attaching to none of them.
+        """How the runs of every host on this machine stand, attaching to none of them.
 
-        What each host the daemon holds says of itself, and what the runs held in this
-        process say, where they are.
+        What each host the daemon holds says of itself -- a workspace's own and each chat's
+        beside it -- and what every host held in this process says, where they are.
 
         Returns:
-          Each host's status, by the whole path of its workspace.
+          Each host's status, with the whole path of its workspace as `workspace`: by that
+          and its slot, which tell two hosts apart.
         """
         from hmz import daemon
 
@@ -3877,10 +4034,15 @@ class Humanize(App[None]):
         with contextlib.suppress(Exception):
             for one in daemon.daemons():
                 with contextlib.suppress(Exception):
-                    said[str(Path(one.workspace).resolve())] = one.status()
-        if self._host is not None:
+                    there = str(Path(one.workspace).resolve())
+                    said[f"{there}\0{getattr(one, 'slot', '')}"] = {
+                        **one.status(),
+                        "workspace": there,
+                    }
+        here = str(self.hmz.workspace.resolve())
+        for slot, held in list(self._hosts.items()):
             with contextlib.suppress(Exception):
-                said[str(self.hmz.workspace.resolve())] = self._host.status()
+                said[f"{here}\0{slot}"] = {**held.status(), "workspace": here}
         return said
 
     def _hears_notice(self, notice: dict[str, Any]) -> None:
@@ -3935,11 +4097,15 @@ class Humanize(App[None]):
     def _shows(self, notice: Mapping[str, Any]) -> bool:
         """Whether a notice's epic is the one on the screen.
 
-        This workspace's, on its log or on the monitor rather than under a menu.
+        The epic of the host attached to, on its log or on the monitor rather than under a
+        menu -- by the epic rather than the workspace, since every chat is an epic of its own
+        and one turn done in another of them is news here.
         """
-        here = str(self.hmz.workspace.resolve())
-        return notice.get("workspace") == here and (
-            len(self.screen_stack) == 1 or isinstance(self.screen, Monitoring)
+        epic = str(notice.get("epic") or "")
+        return (
+            bool(epic)
+            and epic == self._epic_now
+            and (len(self.screen_stack) == 1 or isinstance(self.screen, Monitoring))
         )
 
     def action_resume(self, argv: Sequence[str] = ()) -> None:
@@ -3998,6 +4164,8 @@ class Humanize(App[None]):
             )
         for epic in reversed(runs):
             ran = epics.read(epic)
+            if ran is not None and chatting(ran.flow):
+                continue  # carried on from `/epics` or by talking in it, never by `/resume`
             if ran is None or ran.resumable or self._picks_up(ran.flow):
                 break
         else:
@@ -4101,9 +4269,10 @@ class Humanize(App[None]):
     def _carries_on(self, epic: Path, ran: Ran | None = None) -> None:
         """Runs the flow of one run again, picking up what that run left behind.
 
-        Which is a run of its own: an epic is one run and is never reopened, so this is the
-        flow started again from the journal of the run being picked up, writing into an epic
-        of its own that says which one it came from.
+        Which is a run of its own: a flow's epic is one run and is never reopened -- a chat's
+        is, which `_continues` carries on -- so this is the flow started again from the
+        journal of the run being picked up, writing into an epic of its own that says which
+        one it came from.
 
         The flow, what its roles were given, its params, its budget and what it was asked to
         do all come from the run rather than from what the interface happens to be set up
@@ -4128,6 +4297,23 @@ class Humanize(App[None]):
             if ran is None or why:
                 self.show(f"hmz: {why}", "red")
                 return
+        self._set_up_as(ran)
+        if self._slot:
+            self._relinks(
+                ""
+            )  # off a chat's own host, to the workspace's, where flows run
+        self.show(
+            f"[dim]resuming {escape(ran.name)}: running {escape(ran.flow)} "
+            "from saved state[/dim]"
+        )
+        self._flow(ran.task, resume=epic)
+
+    def _set_up_as(self, ran: Ran) -> None:
+        """Sets this interface up to run what one run ran: its flow, its agents, everything.
+
+        Args:
+          ran: The run, as it was written down.
+        """
         # Named here rather than at the top of the file: `backends` is a local elsewhere in
         # this class, and an agent at no rung has to be written back out as `auto` or the
         # spec it goes into is `MODEL:`, which nothing can read again.
@@ -4157,11 +4343,64 @@ class Humanize(App[None]):
         self._profile_flow = ran.profile_flow
         self._profile_environment = ran.profile_environment
         self._backup = self.settings.backup(ran.flow)
-        self.show(
-            f"[dim]resuming {escape(ran.name)}: running {escape(ran.flow)} "
-            "from saved state[/dim]"
+
+    def _continues(self, epic: Path) -> None:
+        """Goes back to one chat chosen on `/epics`, to carry the conversation on.
+
+        To the host holding it where one still is, which is the conversation as it stands,
+        read from the top. Otherwise it has folded away -- or ended some other way -- and the
+        line typed next carries it on: in the same epic, on a host of its own, by an agent
+        that remembers what was said in it, which is what talking to it again is.
+
+        Args:
+          epic: The chat, by the directory it is written in.
+        """
+        from hmz.daemon import where
+
+        slot = self._holding(epic.name)
+        if slot is not None:
+            if slot != self._slot:
+                self._relinks(slot)
+            return
+        ran, why = self._unresumable(epic)
+        if ran is None or why:
+            self.show(f"hmz: {why}", "red")
+            return
+        self._set_up_as(ran)
+        self._relinks(where.chat())
+        self._continuing = epic
+        self.show(f"[dim]say something to continue {escape(ran.name)}[/dim]")
+
+    def _holding(self, epic: str) -> str | None:
+        """Which of this workspace's hosts has one epic going, if one does.
+
+        Args:
+          epic: The epic, by name.
+
+        Returns:
+          The host's slot, or None where none of them is running it.
+        """
+        found: list[tuple[str, dict[str, Any]]] = []
+        for slot, held in list(self._hosts.items()):
+            with contextlib.suppress(Exception):
+                found.append((slot, held.status()))
+        if not self._hosts:
+            from hmz import daemon
+
+            here = str(self.hmz.workspace.resolve())
+            with contextlib.suppress(Exception):
+                for one in daemon.daemons():
+                    if str(Path(one.workspace).resolve()) == here:
+                        with contextlib.suppress(Exception):
+                            found.append((one.slot, one.status()))
+        return next(
+            (
+                slot
+                for slot, status in found
+                if status.get("state") == "running" and status.get("epic") == epic
+            ),
+            None,
         )
-        self._flow(ran.task, resume=epic)
 
     def _on_screen(
         self, doing: Callable[..., None], *said: object, **and_so: object
@@ -4199,6 +4438,19 @@ class Humanize(App[None]):
           resume: The run to pick up, for a flow that says it can be picked up, or None for
             a run from the top.
         """
+        from hmz.daemon import where
+
+        # A chat on a host of its own, and every other flow on the workspace's: a conversation
+        # takes no flow's turn, nor one conversation another's. A chat's host that has had its
+        # chat already is that conversation's, so the next is a host of its own as well.
+        chat = chatting(self._flow_named)
+        if chat and (not self._slot or self._epic_as):
+            self._relinks(where.chat())
+        elif not chat and self._slot:
+            self._relinks("")
+        if chat and resume is None:
+            resume = self._continuing
+        self._continuing = None
         if self._run is not None or self._starting:
             self.show("hmz: a flow is already running", "red")
             return
@@ -4251,7 +4503,7 @@ class Humanize(App[None]):
         self._starting = False
         self._draw()
 
-    def _told(self, message: dict[str, Any]) -> None:
+    def _told(self, message: dict[str, Any], by: Link | None = None) -> None:
         """Takes one message about the runs, which is everything the interface draws them from.
 
         Called on the link's own thread, and taken on the screen's: what is drawn and what it
@@ -4262,9 +4514,11 @@ class Humanize(App[None]):
 
         Args:
           message: What was told, as JSON; see `hmz.runtime.doing.hosting`.
+          by: The link it was told on, which it is taken from only while that is the one
+            heard, or None for one told here.
         """
         with self._arriving:
-            self._arrived.append(message)
+            self._arrived.append((by, message))
             if self._draining:
                 return
             self._draining = True
@@ -4291,7 +4545,9 @@ class Humanize(App[None]):
                 if not taking or not self.is_running:
                     self._draining = False
                     break
-            for message in taking:
+            for by, message in taking:
+                if by is not None and by is not self._hearing:
+                    continue  # of a host let go of, since it was told
                 try:
                     self._takes(message)
                 except Exception as why:  # noqa: BLE001 -- one message is not all of them
@@ -4341,6 +4597,7 @@ class Humanize(App[None]):
             self.show(f"hmz: {message.get('text') or ''}", "yellow")
         elif kind == "welcome":
             self._me, self._named = message["client"], message["name"]
+            self._slot = str(message.get("slot") or "")
         elif kind == "live":
             self._live = True
         elif kind == "gone":
@@ -4416,6 +4673,8 @@ class Humanize(App[None]):
         self._run = _RunSeen.of(message) if message.get("state") == "running" else None
         if message.get("run"):
             self._epic_as = dict(message)
+        if "epic" in message:
+            self._epic_now = str(message.get("epic") or "")
         if self._run is not None:
             self._starting = False
             self._seen_last = self._run
@@ -4486,11 +4745,11 @@ class Humanize(App[None]):
           record: The run, as it was told to stop.
         """
         self._halted.add(int(record["run"]))
-        # Not a chat this interface ended, which is `/clear` -- the screen it would say so on
-        # has just been cleared.
+        # Not a chat that ended here, which is never stopped from here: it ends as its host
+        # closes, and there is nobody left here then to say so to.
         client = str(record.get("client") or "")
-        cleared = self.chatting() and client in ("", self._me)
-        if record["run"] == self._generation and not cleared:
+        quiet = self.chatting() and client in ("", self._me)
+        if record["run"] == self._generation and not quiet:
             who = (
                 "" if client in ("", self._me) else f"{record.get('by') or client} is "
             )

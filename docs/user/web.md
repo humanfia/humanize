@@ -149,8 +149,11 @@ each reply and each line you typed under it, on the right. The box under it is h
 between turns it is your next turn, and while the agent asks something mid-turn it answers
 that, the answers it offers buttons at the end of the conversation. It has no graph, no agents
 or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and no
-**Stop**: it is `running` while its agent answers and `done` once the turn ends, and a new
-epic started in its directory ends it, as a new chat leaves the last.
+**Stop**: it is `running` while its agent answers and `done` once the turn ends. Every chat is
+its own, beside every other chat and flow of its directory: a new chat, or a new epic, leaves
+the last one going, as a chat app's new chat does. A chat nobody has looked at for a minute
+between turns folds away; say something in it and it carries on, in the same epic, with what
+was said before still above and an agent that remembers it.
 
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
 opens what they were asked and answered. A line typed under one goes to whose it is. There is
@@ -368,8 +371,8 @@ Start `hmz web` in a project, and open **New epic**:
    to say what next.
 4. Answer it in the terminal. In the browser, your answer is a line of yours in the
    conversation, and the agent's reply follows it.
-5. Type `/clear` in the terminal. A chat is never stopped: `/clear` ends it, and the next line
-   you type starts another.
+5. Type `/clear` in the terminal. A chat is never stopped: `/clear` starts another, and the
+   first goes on in the browser until nobody reads it, when it folds away.
 
 ### Check it worked
 

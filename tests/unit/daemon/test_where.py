@@ -174,3 +174,20 @@ def test_alive_counts_a_process_somebody_else_owns(
 
     monkeypatch.setattr(os, "kill", refuses)
     assert where.alive(12345) is expected
+
+
+@pytest.mark.parametrize("said", ["", None, "chat:0a1b", f"chat:{'f' * 32}"])
+def test_a_slot_is_the_workspaces_own_or_a_chats(said: str | None) -> None:
+    assert where.slot(said) == (said or "")
+
+
+@pytest.mark.parametrize("said", ["chat:", "chat:XYZ", "flow", 3, f"chat:{'f' * 33}"])
+def test_anything_else_is_no_slot(said: object) -> None:
+    with pytest.raises(ValueError, match="no such host"):
+        where.slot(said)
+
+
+def test_each_new_chat_has_a_slot_of_its_own() -> None:
+    made = {where.chat() for _ in range(50)}
+    assert len(made) == 50
+    assert all(where.slot(one) == one for one in made)

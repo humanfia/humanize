@@ -9,7 +9,6 @@ import { address, get, hash, post } from '../api.js'
 import { covered, go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
-import { chatting } from '../epic.js'
 import { ask } from '../held.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
 import { workspacePicker, workspaces } from '../places.js'
@@ -233,27 +232,10 @@ export function mount(root, { query }) {
       optionsChip.setAttribute('aria-expanded', 'true')
       throw error
     }
-    const starting = () => ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false })
-    try {
-      await starting()
-    } catch (error) {
-      // A chat going here has no Stop of its own: a new epic ends it, as a chat app's new chat
-      // leaves the last -- the one a host holds here, whatever was written down since.
-      const front = /already running/.test(error.message) ? (await get(address('/api/runs', { workspace, limit: 10 }))).runs.find((one) => one.held) : null
-      if (!front || !chatting(front)) throw error
-      await ask(workspace, 'stop')
-      // Started once it has unwound, which takes a moment.
-      for (let tries = 0; ; tries += 1) {
-        try {
-          await starting()
-          break
-        } catch (again) {
-          if (tries >= 20 || !/already running/.test(again.message)) throw again
-          await new Promise((settled) => setTimeout(settled, 250))
-        }
-      }
-    }
-    go(`/live?workspace=${encodeURIComponent(workspace)}`)
+    // A chat is a new chat's, on a host of its own beside every other epic here, as a chat app's
+    // new chat leaves the last one going; the answer says which host, which the page follows.
+    const started = await ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false })
+    go(address('/live', { workspace, slot: started.slot }))
   }
 
   // Back from making an account or a runtime, the pickers offer it.

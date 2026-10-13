@@ -68,9 +68,12 @@ def test_a_chat_on_another_machine_is_told_here(host: Host) -> None:
 
         read = browser.post("/api/notifications/read", {"all": True}).json()
         assert read["unread"] == 0
-        said = {"workspace": str(there), "text": "and again"}
+        slot = started.json()["slot"]
+        said = {"workspace": str(there), "text": "and again", "slot": slot}
         assert browser.post("/d/box/api/held/say", said).status == 200
         again = _told(browser, "done", 2)
         assert (again["daemon"], again["read"]) == ("box", False)
-        stop = browser.post("/d/box/api/held/stop", {"workspace": str(there)})
+        stop = browser.post(
+            "/d/box/api/held/stop", {"workspace": str(there), "slot": slot}
+        )
         assert stop.status == 200

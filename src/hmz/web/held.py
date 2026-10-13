@@ -1,6 +1,7 @@
 """The runs held for a workspace, as the web interface follows them and acts on them.
 
-One link to the host of a workspace's runs, as every frontend holds one: what it tells is
+One link to a host of a workspace's runs, as every frontend holds one -- the workspace's own,
+or one chat's beside it, by its `slot` -- and what it tells is
 kept here -- the records of the runs it has told of, in order, how each thing stands now, and
 the figures worked out of them -- and handed to every page that listens, from wherever that
 page last heard. What a page asks of the runs goes back down the same link, and what the runs
@@ -13,6 +14,7 @@ from __future__ import annotations
 import bisect
 import contextlib
 import functools
+import re
 import secrets
 import sys
 import threading
@@ -110,12 +112,15 @@ class Held:
     Args:
       linking: What makes a link to them, attached: the first one, and another each time the
         runs let one go.
+      again: Whether to reach them again once they let this go -- not a chat's, which goes
+        when it folds away and is carried on by a host of its own.
     """
 
-    def __init__(self, linking: Callable[[], Link]) -> None:
+    def __init__(self, linking: Callable[[], Link], *, again: bool = True) -> None:
         from hmz.runtime.watching.following import Following
 
         self._linking = linking
+        self._reaches = again
         self._changed = threading.Condition()
         self._closed = False
         # Everything below is one link's, and is made again with the next.
@@ -430,7 +435,7 @@ class Held:
         # Kept first and followed after: what is worked out of a record is the page's figures,
         # and a record that cannot be worked out is still a record a page reads.
         self._follows(kind, message)
-        if kind == "gone":
+        if kind == "gone" and self._reaches:
             threading.Thread(target=self._again, daemon=True, name="hmz-web").start()
 
     def _trims(self) -> None:
@@ -666,21 +671,50 @@ def _workspace(asked: Asked) -> str:
     return said
 
 
+def _slot(asked: Asked) -> str:
+    """Which of the workspace's hosts a request is about: its `slot`, "" for the workspace's own."""
+    from hmz.daemon import where
+
+    said = asked.body["slot"] if "slot" in asked.body else asked.query.get("slot", "")
+    try:
+        return where.slot(said)
+    except ValueError as why:
+        raise Refusal(f"{why}.") from why
+
+
+def _chats(flow: object) -> bool:
+    """Whether a flow named to start is the built-in chat, however it was named."""
+    return isinstance(flow, str) and re.split(r"[/#:]", flow.rstrip("/#"))[-1] == "chat"
+
+
 def _streams(asked: Asked) -> Stream:
-    return asked.site.places.stream(_workspace(asked))
+    return asked.site.places.stream(_workspace(asked), _slot(asked))
 
 
 def _acts(asked: Asked) -> dict[str, Any]:
-    said = {name: value for name, value in asked.body.items() if name != "workspace"}
+    said = {
+        name: value
+        for name, value in asked.body.items()
+        if name not in ("workspace", "slot")
+    }
     workspace = _workspace(asked)
-    if asked.matched["do"] == "start":
-        from .flows import remembered
+    slot = _slot(asked)
+    if asked.matched["do"] != "start":
+        return asked.site.places.held(workspace, slot).asks(asked.matched["do"], said)
+    from hmz.daemon import where
 
-        # Started as it is set up is set up so from then on, as `/flow` saves it -- and
-        # somewhere an epic was started is somewhere to offer the next.
-        place = asked.site.places.of(workspace)
-        remembered(place.hmz, said)
-    return asked.site.places.held(workspace).asks(asked.matched["do"], said)
+    from .flows import remembered
+
+    # Started as it is set up is set up so from then on, as `/flow` saves it -- and
+    # somewhere an epic was started is somewhere to offer the next.
+    place = asked.site.places.of(workspace)
+    remembered(place.hmz, said)
+    if "slot" not in asked.body and _chats(said.get("flow")):
+        # A chat started without saying where is a new chat's, on a host of its own: it takes
+        # no flow's turn, and starting one ends no other.
+        slot = where.chat()
+    held = asked.site.places.held(workspace, slot, starts=True)
+    return held.asks("start", said) | {"slot": slot}
 
 
 def _btw(asked: Asked) -> dict[str, Any]:
@@ -689,11 +723,13 @@ def _btw(asked: Asked) -> dict[str, Any]:
     place = places.of(workspace)
     question = " ".join(asked.text("question").split())
     to, epic = asked.text("to", required=False), asked.text("epic", required=False)
+    # Asked through the workspace's own host, of an epic's session as it was kept: a chat's,
+    # held by a host of its own or folded away, included.
     held = places.held(workspace)
     opening: dict[str, Any] | None = None
     about = None
     target = to
-    if epic and to and not _held_still(asked, held, epic, to):
+    if epic and to and not _held_still(held, epic, to):
         # A session of an earlier epic, which the runs hold no more: carried on from where
         # that epic kept it, and told that epic rather than the run going.
         opening, about = _recalled(asked.site.runs.named(epic), to)
@@ -708,10 +744,10 @@ def _btw(asked: Asked) -> dict[str, Any]:
     )
 
 
-def _held_still(asked: Asked, held: Held, epic: str, to: str) -> bool:
-    """Whether a session of an epic is one the runs still hold: of the latest, and known."""
-    latest = asked.site.runs.all(_workspace(asked))
-    return bool(latest) and latest[0].name == epic and to in held.sessions()
+def _held_still(held: Held, epic: str, to: str) -> bool:
+    """Whether a session of an epic is one the runs still hold: of their epic, and known."""
+    run = held.standing("run") or {}
+    return run.get("epic") == epic and to in held.sessions()
 
 
 def _recalled(ran: Any, key: str) -> tuple[dict[str, Any], FlowSnapshot]:

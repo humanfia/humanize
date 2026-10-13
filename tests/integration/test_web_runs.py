@@ -10,14 +10,22 @@ import pytest
 
 from hmz import machine
 from hmz.runtime.epic import Epic
-from tests.integration.doubles_core import AGENT, install, started
+from tests.integration.doubles_core import AGENT, install, started, write_flow
+from tests.integration.doubles_daemon import WAITS
+from tests.integration.doubles_daemon import until as wait
 from tests.integration.doubles_web import Browser, elsewhere, served, until
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-#: Chat, on the stand-in, as a page starts it.
-_CHAT = {"flow": "chat", "task": "hello there", "agents": {"assistant": AGENT}}
+#: Chat, on the stand-in, as a page starts it -- on the workspace's own host, which these
+#: follow from before it starts; one started without saying where is a new chat's own.
+_CHAT = {
+    "flow": "chat",
+    "task": "hello there",
+    "agents": {"assistant": AGENT},
+    "slot": "",
+}
 
 
 @pytest.fixture
@@ -369,7 +377,8 @@ def test_an_exported_epic_is_imported_back_by_its_bytes_or_its_path(
         assert sent.json() == {
             "name": name,
             "workspace": str(project.resolve()),
-            "resumable": False,
+            # A chat, which is carried on from where it was left.
+            "resumable": True,
             "why": "",
         }
         assert browser.get(f"/api/runs/{name}").json()["foreign"] == ""
@@ -409,3 +418,50 @@ def test_an_exported_epic_is_imported_back_by_its_bytes_or_its_path(
         assert browser.sends("/api/runs/import", b"", "x.hmzepic", **huge).status == 413
         # Nothing sent is kept.
         assert not [*machine().glob("tmp*/x.hmzepic")]
+
+
+def test_chats_are_each_their_own_beside_a_flow_and_one_left_is_carried_on(
+    project: Path, tmp_path: Path
+) -> None:
+    write_flow(project / ".hmz" / "flows", "waits", WAITS)
+    chat = {"flow": "chat", "agents": {"assistant": AGENT}}
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        # Started without saying where, each chat is a new one, on a host of its own.
+        first = browser.post("/api/held/start", chat | {"task": "first"}).json()
+        second = browser.post("/api/held/start", chat | {"task": "second"}).json()
+        flow = {"flow": "@local/waits", "task": "forever", "budget": {"cost": 5}}
+        going = browser.post("/api/held/start", flow)
+        assert going.status == 200, going.body
+        assert going.json()["slot"] == ""
+        assert len({first["slot"], second["slot"], ""}) == 3
+
+        def rows() -> dict[str, dict[str, Any]]:
+            return {one["task"]: one for one in browser.get("/api/runs").json()["runs"]}
+
+        assert wait(lambda: sum(one["held"] for one in rows().values()) == 3)
+        listed = rows()
+        assert (listed["first"]["slot"], listed["second"]["slot"]) == (
+            first["slot"],
+            second["slot"],
+        )
+        assert wait(lambda: rows()["first"]["how"] == "done")
+
+        # Left, the first chat is done and held no more; said something, it goes on in
+        # its own epic, on a host of its own again.
+        assert browser.post("/api/held/stop", {"slot": first["slot"]}).status == 200
+        assert wait(lambda: not rows()["first"]["held"])
+        epic = rows()["first"]["name"]
+        at = browser.get(f"/api/runs/{epic}").json()["at"]
+        again = browser.post(
+            "/api/held/start", chat | {"task": "and on", "resume": at}
+        ).json()
+        assert wait(lambda: rows()["first"]["held"])
+        assert rows()["first"]["slot"] == again["slot"] != first["slot"]
+        assert len(rows()) == 3
+        detail = browser.get(f"/api/runs/{epic}").json()
+        assert detail["earlier"] == 1
+        assert "--resume" in started(tmp_path)[-1]["argv"]
+        for slot in (again["slot"], second["slot"], ""):
+            browser.post("/api/held/stop", {"slot": slot})

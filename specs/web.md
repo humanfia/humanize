@@ -31,7 +31,7 @@ class Site(ThreadingHTTPServer):
 ```text
 GET  /api/notices?after=<id>          {notices, last}, of this machine's runs alone
 GET  /api/notices/stream              `notice` events, resumed from Last-Event-ID
-     a notice                         {id, kind, workspace, epic, flow, task, role, text, at}
+     a notice                         {id, kind, workspace, slot, epic, flow, task, role, text, at}
      its kind                         done | failed | stopped | asked | listening
 GET  /api/daemons                     Local, then each SSH daemon, with how it stands
 POST /api/daemons                     one added or changed
@@ -99,12 +99,16 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   each written down in humanize's settings, and any a page opens by its path, which is then
   written down there -- the one it was started in offered first -- and MUST NOT take a path
   that is not a directory as one.
-- MUST attach through `daemon` as every frontend does -- to the host holding a workspace's
-  runs, starting one where none is, or to runs held in its own process where they are not held
-  apart -- only while a page follows that workspace's runs or acts on them, refusing runs held
-  by an older humanize, MUST attach again whenever the runs let it go while it is followed, and
-  MUST let go of a link no page has used for a while whose runs are idle, so that a host goes as
-  it would with nobody reading; what runs where it holds no link MUST be asked of the daemon,
+- MUST attach through `daemon` as every frontend does -- to the host a request names by its
+  workspace and `slot`, the workspace's own where it names none, starting the workspace's own
+  where none is, or to runs held in its own process where they are not held apart -- only while
+  a page follows those runs or acts on them, refusing runs held by an older humanize. A chat
+  started without a slot MUST be started on a host of its own, a new slot, which the answer
+  names; a chat's host MUST be started only to start its chat, one that has gone being a chat
+  folded away. MUST attach again whenever the workspace's own runs let it go while they are
+  followed, never a chat's, and MUST let go of a link no page has used for a while whose runs
+  are idle, or whose chat is between turns, so that a host goes, or a chat folds away, as it
+  would with nobody reading; what runs where it holds no link MUST be asked of the daemon,
   which starts nothing.
 - MUST ask for everything a page does to a run through its link -- starting and picking up,
   saying, answering, stopping and forcing, away, claiming and releasing, the board, side
@@ -133,7 +137,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   background, and where it is newer than the one serving, MUST mark the machine and offer
   `Update` in its menu, which copies `hmz update`.
 - MUST offer every workspace as a folder of its runs, newest first -- how each ended or that it
-  is going, a chat `running` while its agent answers and `done` otherwise, short of failing --
+  is going, a chat `running` while its agent answers and `done` otherwise, short of failing, and
+  of one a host is going with which host, by the epic that host says it writes --
   its task, flow and agents, what it spent and how long it took, how many sessions it
   opened, whether it can be picked up and where it is written down -- found by how it went, by
   workspace, by flow and by its task, a page at a time.
@@ -158,8 +163,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   it the next turn, what to say next never drawn as a question, and what the agent asks
   mid-turn asked at the end of the conversation with its answers there to pick; and never its
   graph, its agents or sessions, its Exomyth, its people or a way to stop it -- said only as
-  running while its agent answers and done otherwise, and ended by a new epic started in its
-  workspace.
+  running while its agent answers and done otherwise. Every chat MUST be one of its own, beside
+  every other chat and flow of its workspace, none ending another; one folded away MUST be
+  carried on by saying something in it, in its own epic, with what was said before drawn above.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.

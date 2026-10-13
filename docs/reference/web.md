@@ -52,14 +52,20 @@ hmz web: http://127.0.0.1:<port>/?key=<key>
 
 | Condition | Runs |
 | --- | --- |
-| `HUMANIZE_DAEMON` stripped and lower-cased is `off`, `0` or `no` | Held in this process, a host per workspace; `hmz web` stopping closes them. |
-| anything else | Held by each workspace's host process, found or started through [`hmz.daemon.attach`](/reference/daemon#module), tried **3** times **0.5 s** apart. They outlive `hmz web`. |
+| `HUMANIZE_DAEMON` stripped and lower-cased is `off`, `0` or `no` | Held in this process, a host per workspace and one per chat; `hmz web` stopping closes them. |
+| anything else | Held by each host's process, found or started through [`hmz.daemon.attach`](/reference/daemon#module), tried **3** times **0.5 s** apart. They outlive `hmz web`. |
+
+A workspace has its own host, which runs its flows one at a time, and every chat a host of its
+own beside it, named by its [slot](/reference/daemon#slots) (`chat:<hex>`): a chat never waits
+on a flow, nor a flow on a chat, and starting one ends none. Every `/api/held` request and
+stream takes `slot` beside `workspace`; without one it is the workspace's own host.
 
 `hmz web` serves every workspace wherever it is started; the directory it started in is only the
 one a new epic is offered first. It attaches to a workspace's host as one frontend, named
 `browser` (`#2`, `#3`… beside another of that name), of `kind` `web`, only while a page follows
 that workspace or asks its runs something, and lets go **60 s** after the last of that once its
-runs are idle -- so that a host with nothing to do goes, as it would with nobody reading. What
+runs are idle, or its chat is between turns -- so that a host with nothing to do goes, and a
+chat [folds away](/reference/daemon#lifecycle), as it would with nobody reading. What
 runs where it holds no link it asks of the daemon every **5 s**, which starts nothing. Whenever a
 followed host lets it go, it attaches again **2 s** later; a page following the stream is then
 told to [start over](#stream).
@@ -132,7 +138,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | Address | View |
 | --- | --- |
 | `#/new[?workspace=&flow=&resume=<name>]` | A new epic: in the workspace picked (where `hmz web` started by default), the flow picked, or the epic named picked up. The page opens here. |
-| `#/live` | The epic going; its address becomes `#/epics/<name>` once it is written down -- a `chat`'s, its conversation's, `#/epics/<name>/sessions/<agent>%2F1`, once that opens. |
+| `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own, or a chat's; its address becomes `#/epics/<name>` once it is written down -- a `chat`'s, its conversation's, `#/epics/<name>/sessions/<agent>%2F1`, once that opens. |
 | `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path on this machine, as [`POST /api/runs/import`](#api-import) does -- in the desktop app as it is opened; in a browser, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>/exomyth`, its [Exomyth](/user/web#exomyth) -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
 | `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. A `chat`, and any other address of one but its Exomyth's, stands in for its conversation's, `#/epics/<name>/sessions/<agent>%2F1`. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
@@ -168,9 +174,9 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/held` | | `machine` (this machine's name), `here` (where `hmz web` started), `version`, `newer` (a newer release of `hmz` PyPI lists, asked as `hmz web` starts and at most once a day, or `""`), `running` (`{workspace: run}`: the [`run` snapshot](/reference/daemon#snapshots) of each workspace whose epic is going, or what its host's `status` says of it) |
-| `GET /api/held/stream` | `?workspace=`; `Last-Event-ID` header, or `?last=` | [The stream](#stream) of that workspace's runs, attaching to them |
-| `POST /api/held/start` | `workspace`; `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile_flow`, `profile_environment` (bool); `resume` (bool, or an epic); `backup` (target names, `[]` for none; `null`, the default, for the defaults) | The host's answer: `run` |
+| `GET /api/held` | | `machine` (this machine's name), `here` (where `hmz web` started), `version`, `newer` (a newer release of `hmz` PyPI lists, asked as `hmz web` starts and at most once a day, or `""`), `running` (`[run]`: the [`run` snapshot](/reference/daemon#snapshots) of each host whose epic is going, or what its `status` says of it, each with its `workspace` and `slot`) |
+| `GET /api/held/stream` | `?workspace=&slot=`; `Last-Event-ID` header, or `?last=` | [The stream](#stream) of that host's runs, attaching to them; `409` for a chat's host that has gone, its chat folded away |
+| `POST /api/held/start` | `workspace`, `slot`; `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile_flow`, `profile_environment` (bool); `resume` (bool, or an epic); `backup` (target names, `[]` for none; `null`, the default, for the defaults) | The host's answer: `run`; and `slot`, the host it started on -- a `chat` started without `slot` is a new chat's, on a host of its own. A `chat` picked up (`resume` its epic) goes on in that epic |
 | `POST /api/held/say` | `text`; `to` (`""`, an agent, `<agent>/<n>`, or `outworlder:<role>`, routed as [`say` routes it](/reference/daemon#say-routing)) | The host's answer |
 | `POST /api/held/answer` | `question`, `text` | The host's answer |
 | `POST /api/held/stop`, `/force` | | The host's answer |
@@ -198,7 +204,7 @@ asks one, through the same side conversations: a second question to one still an
 | Method and path | Takes | Answers |
 | --- | --- | --- |
 | `GET /api/runs` | `workspace` (only its runs; every workspace's without), `status`, `flow`, `q` (in its task, flow or name), `offset` (`0`), `limit` (`50`, at most `200`) | `runs` (rows, newest first), `total`, `offset`, `limit`, `counts` (`{how: n}` over every run), `flows` |
-| `GET /api/runs/<name>` | | Of whichever workspace it ran in: the row (`workspace` among it), and `at`, the whole `task`, `ref`, `agents` (`role`, `runs`, `backend`, `model`, `effort`, `provider`), `sessions`, `envs`, `used`, `params`, `budget`, `picked_up`, `profile_flow`, `profile_environment`, `picks_up` (whether it can be picked up), `foreign` (why one [imported](/user/export#importing-a-run) cannot be picked up here, or `""`), `calls` (the tree of flows it called) |
+| `GET /api/runs/<name>` | | Of whichever workspace it ran in: the row (`workspace` among it), and `at`, the whole `task`, `ref`, `agents` (`role`, `runs`, `backend`, `model`, `effort`, `provider`), `sessions`, `envs`, `used`, `params`, `budget`, `picked_up`, `profile_flow`, `profile_environment`, `earlier` (of a chat carried on, how many of its sessions it opened before it last was), `picks_up` (whether it can be picked up), `foreign` (why one [imported](/user/export#importing-a-run) cannot be picked up here, or `""`), `calls` (the tree of flows it called) |
 | `GET /api/runs/<name>/trace` | | `sessions`: each with its `key`, `agent` and `actions` (`category`, `name`, `at`, `start`, `seconds`, `args`), read out of the run's logs as [tracing](/reference/tracing) reads them; the last **4** of runs that have ended kept, until the run's journal changes |
 | `GET /api/runs/<name>/timeline` | | The run's [Exomyth timeline](/reference/tracing#timeline): compact JSON, with an `ETag`. A run that has ended is laid out once, the last **4** kept until its journal changes; a run going is laid out again on every request |
 | `GET /api/runs/<name>/timeline/span/<id>` | `layout` (the timeline's own) | [One span](/reference/tracing#timeline-span) of the last timeline laid out of the run, whole; `404` for an id it does not have, `409` where `layout` is not the last timeline's |
@@ -213,7 +219,9 @@ A row is `name`, `flow`, `task` (its first line, cut at 240 characters), `began`
 `how` (as the run ended; `running` for a run going -- held by a host, or by another process such
 as `hmz exec` -- and `unfinished` for one whose process went before it said),
 `agents` (`[{role, runs}]`), `sessions` (a count), `resumable`, `held` (whether it is the run a
-host is going with, which the page follows live and can stop), `spent`: what its budget counted as it ended, or `null`, `backup` (the targets it was
+host is going with -- the epic that host says it writes -- which the page follows live and can
+stop), `slot` (that host's, `""` for the workspace's own), `spent`: what its budget counted
+across every time it was opened, or `null`, `backup` (the targets it was
 started with) and `backed` (`{target: {at, ok, error, why}}`: how its last backup to each
 went). A run of no such name is `404`.
 
@@ -308,8 +316,9 @@ any host, so a host goes as it would with nobody reading. Anything already stand
 | `GET /api/notices/stream` | `Last-Event-ID` header, or `?last=` | `text/event-stream`: each `notice` event's `id` is its `id` and its data the notice, from after the one named (without one, from now on), then each as it comes; `: quiet` after **15 s** of nothing |
 
 A notice is `id` (a whole number, larger than any before it, on this machine too after
-`hmz web` starts again), `kind`, `workspace`, `epic`, `flow`, `task`, `role`, `text` and `at`
-(Unix seconds):
+`hmz web` starts again), `kind`, `workspace`, `slot` (the host's), `epic`, `flow`, `task`,
+`role`, `text` and `at` (Unix seconds). Each host is told of apart, so each chat's turns are
+notices of their own:
 
 | `kind` | When | `role`, `text` |
 | --- | --- | --- |

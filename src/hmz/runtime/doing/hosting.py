@@ -1,4 +1,4 @@
-"""One workspace's runs, shared by every frontend attached to them.
+"""One workspace's runs -- or one chat's -- shared by every frontend attached to them.
 
 A run used to have one person outside it: whoever was at the one interface that started it.
 The queue of lines typed at it, the questions it stopped on, who was away, which conversation
@@ -13,6 +13,12 @@ messages -- what the run's agents said, what was asked and answered, who holds w
 and asks for everything as requests, one reply apiece. Nothing here knows whether a frontend
 is in this process or on the other end of a socket: the daemon carries the same messages both
 ways and hands a frontend the same :class:`hmz.daemon.link.Link` either way.
+
+A workspace's flows are one host's, run one at a time; each chat is a host of its own beside it
+(its slot, `chat:<hex>`), so that a conversation never waits on a flow nor a flow on one. A
+chat's host that nobody reads, between turns, for :data:`FOLD` seconds folds the chat away: it
+ends as a conversation nobody answers does, keeping where it stood, and saying something in it
+again carries it on in the same epic.
 
 What is held for them:
 
@@ -55,7 +61,7 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.running import Run
     from hmz.runtime.flowing.spi import Placement
 
-__all__ = ["PROTOCOL", "Host", "record"]
+__all__ = ["FOLD", "PROTOCOL", "Host", "record"]
 
 #: Which version of the messages this speaks, said to every frontend as it arrives.
 PROTOCOL = 2
@@ -87,6 +93,10 @@ _OUTWORLDER = "outworlder:"
 
 #: What a flow told to stop and not yet gone is doing, in the interface's own words.
 _UNWINDING = "it is closing out the turn it was in"
+
+#: How long a chat's host waits, between turns and with nobody attached, before the chat
+#: folds away: long enough to step away to another view and come back to it still going.
+FOLD = 60.0
 
 #: How long closing waits for the runs it stopped to let go of what they made -- a container
 #: taken down, a session closed -- before whoever closed the host goes on without them.
@@ -324,15 +334,22 @@ class _Run:
 
 
 class Host:
-    """One workspace's runs, shared by every frontend attached to them."""
+    """One workspace's runs, or one chat's, shared by every frontend attached to them."""
 
-    def __init__(self, hmz: Hmz) -> None:
+    def __init__(self, hmz: Hmz, slot: str = "") -> None:
         """Holds the workspace and no run, with nobody attached.
 
         Args:
           hmz: The workspace, which runs are started in.
+          slot: Which of its hosts this is: "" for its own, `chat:<hex>` for a chat's -- which
+            folds its chat away once nobody has read it between turns for a while.
         """
         self._hmz = hmz
+        self._slot = slot
+        #: Since when a chat here has been between turns with nobody attached, and whether
+        #: it has been folded away for it.
+        self._alone: float | None = None
+        self._folded = False
         self._lock = threading.RLock()
         #: What a question being waited on waits on, woken whenever a line or an answer
         #: arrives, somebody goes away, or the run it belongs to is over.
@@ -452,6 +469,7 @@ class Host:
                 "name": named,
                 "kind": kind,
                 "workspace": str(self._hmz.workspace),
+                "slot": self._slot,
                 "pid": os.getpid(),
                 "protocol": PROTOCOL,
             }
@@ -601,6 +619,7 @@ class Host:
         return {
             "attached": len(clients),
             "clients": clients,
+            "slot": self._slot,
             "state": state,
             "run": shown.number if shown is not None else 0,
             "flow": shown.run.flow if shown is not None else "",
@@ -814,6 +833,9 @@ class Host:
             state=self._state(),
             **(shown.started if shown is not None else {"run": 0}),
             stopping=self._stopping.number if self._stopping is not None else None,
+            # Which epic it writes, once it has one: what a frontend addresses it by.
+            epic=_epic_of(shown),
+            slot=self._slot,
             **self._turn(shown),
         )
 
@@ -876,6 +898,38 @@ class Host:
             self._snap("calls", calls=calls)
             if spent is not None and self._current is running:
                 self._snap("usage", **spent)
+            # The epic is named a moment after the run starts, and nothing announces it.
+            self._snap_run()
+            self._folds()
+
+    def _folds(self) -> None:
+        """Folds a chat away that has been between turns with nobody attached for long enough.
+
+        Folded as a conversation nobody answers ends: everybody away, so the question it waits
+        on is answered with nothing and the chat returns, keeping where it stood. Only a chat's
+        own host does. Under the lock.
+        """
+        current = self._current
+        if (
+            not self._slot
+            or self._folded
+            or current is None
+            or not current.run.chats
+            or self._frontends
+            or self._turn(current).get("turn") != "done"
+        ):
+            self._alone = None
+            return
+        now = time.monotonic()
+        if self._alone is None:
+            self._alone = now
+        if now - self._alone < FOLD:
+            return
+        self._folded = True
+        self._away_all = True
+        self._away_of.clear()
+        self._snap("away", all=True, of={})
+        self._spoke.notify_all()
 
     def _calls(self, now: float | None = None) -> list[dict[str, Any]]:
         """Every flow call going here, oldest first: since when, or how long for `now`."""
@@ -941,6 +995,8 @@ class Host:
                 return _no("a flow is already running")
             if self._starting:
                 return _no("a flow is already starting")
+            if self._folded:
+                return _no("this chat has folded away; carry it on from its epic")
             self._starting = True
             number = self._runs + 1
         try:
@@ -1076,8 +1132,8 @@ class Host:
                 self._releases(current.number)
                 self._drops(current.number, "ended")
                 # Nobody was there to see it end, and nobody asked for it to: the next to
-                # arrive is the one it ended for.
-                if not self._frontends and not current.stopped_by:
+                # arrive is the one it ended for. A chat folded away ended for nobody.
+                if not self._frontends and not current.stopped_by and not self._folded:
                     self._keeps = True
             self._ended = {
                 "how": how,

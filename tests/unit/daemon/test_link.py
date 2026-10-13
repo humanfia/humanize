@@ -403,5 +403,5 @@ def test_a_remote_link_asks_that_interface_and_is_told_its_stream() -> None:
     assert afar.asked[1] == (
         "box",
         "/api/held/say",
-        {"text": "hello", "to": "", "workspace": "/w s"},
+        {"text": "hello", "to": "", "workspace": "/w s", "slot": ""},
     )

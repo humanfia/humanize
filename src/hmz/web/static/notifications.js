@@ -84,7 +84,7 @@ async function start() {
 function here(item) {
   if (document.hidden || !document.hasFocus() || (item.daemon || 'local') !== daemon()) return false
   const { parts, query } = where()
-  if (parts[0] === 'live') return Boolean(item.workspace) && query.get('workspace') === item.workspace
+  if (parts[0] === 'live') return Boolean(item.workspace) && query.get('workspace') === item.workspace && (query.get('slot') || '') === (item.slot || '')
   return parts[0] === 'epics' && Boolean(item.epic) && parts[1] === item.epic
 }
 
@@ -155,7 +155,7 @@ const about = (item) => [item.flow, item.text || (item.task ? headline(item.task
 /** Where a notification opens: the epic going for what waits on a person, else the epic itself. */
 export function addressOf(item) {
   const at = !item.daemon || item.daemon === 'local' ? '#/' : `#/@${encodeURIComponent(item.daemon)}/`
-  if ((item.kind === 'asked' || item.kind === 'listening' || !item.epic) && item.workspace) return `${at}live?${new URLSearchParams({ workspace: item.workspace })}`
+  if ((item.kind === 'asked' || item.kind === 'listening' || !item.epic) && item.workspace) return `${at}live?${new URLSearchParams({ workspace: item.workspace, ...(item.slot ? { slot: item.slot } : {}) })}`
   return item.epic ? `${at}epics/${encodeURIComponent(item.epic)}` : `${at}live`
 }
 

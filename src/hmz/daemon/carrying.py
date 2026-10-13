@@ -678,27 +678,32 @@ def keeps(reading: int, host: Host) -> None:
                 os.close(writing)
 
 
-def serves(host: Host, workspace: str, telling: int | None = None) -> None:
+def serves(
+    host: Host, workspace: str, telling: int | None = None, *, slot: str = ""
+) -> None:
     """Holds a workspace's runs for this machine's daemon to hand frontends to, until done.
 
-    Says to the daemon which workspace this is, and keeps the connection it said so on: that
-    is what the daemon hands down every socket reaching for this workspace, and what tells
-    each of the two the other has gone.
+    Says to the daemon which workspace and slot this is, and keeps the connection it said so
+    on: that is what the daemon hands down every socket reaching for them, and what tells each
+    of the two the other has gone.
 
     Args:
       host: The runs.
       workspace: The workspace they are held in, as :func:`hmz.daemon.where.workspace` says it.
       telling: A descriptor to say on that it is being reached, and then close, or None.
+      slot: Which of the workspace's hosts this is: "" for its own, `chat:<hex>` for a chat's.
 
     Raises:
       OSError: If this machine's daemon cannot be reached, or another host is already
-        holding this workspace -- the one failure whoever asked for a host has to hear about.
+        holding this slot of this workspace -- the one failure whoever asked for a host has to
+        hear about.
     """
     handing = where.connects(where.at())
     try:
         said: dict[str, Any] = {
             "pid": os.getpid(),
             "workspace": workspace,
+            "slot": slot,
             "started": where.now(),
             "kind": "host",
             "protocol": PROTOCOL,
@@ -709,7 +714,10 @@ def serves(host: Host, workspace: str, telling: int | None = None) -> None:
         # answer read a buffer at a time would take the first of them with it.
         handing.settimeout(_FLUSHING)
         if handing.recv(1) != TAKEN:
-            raise OSError(errno.EADDRINUSE, f"the runs in {workspace} are already held")
+            raise OSError(
+                errno.EADDRINUSE,
+                f"the runs in {workspace}{f' for {slot}' if slot else ''} are already held",
+            )
         handing.settimeout(None)
         if telling is not None:
             # Said and left open: the descriptor is whoever forked this one's to close, and

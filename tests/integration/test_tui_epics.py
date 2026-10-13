@@ -24,6 +24,7 @@ from tests.integration.doubles_tui import (
     OWN,
     SIZE,
     claude_logged,
+    folds_fast,
     on,
     opened,
     opens,
@@ -49,16 +50,23 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
     del asking
     workspace = stand_in(tmp_path, monkeypatch)
     own_flow(workspace)
+    folds_fast(monkeypatch)
     return workspace
 
 
 async def chatted(pilot: Pilot[None]) -> None:
-    """Runs chat for one turn, and ends it with `/clear`."""
+    """Runs chat for one turn, and leaves it with `/clear` to fold away, which ends it."""
     await opened(pilot)
     await typed(pilot, "hello")
     await shows(pilot, "heard hello")
     await typed(pilot, "/clear")
     await shows(pilot, "◉ chat")
+    workspace = Path.cwd()
+    await until(
+        pilot,
+        lambda: any((read(one) or Ran(one)).how for one in epics(workspace)),
+        "the chat to fold away",
+    )
 
 
 def listed(app: Humanize) -> list[str]:
@@ -84,17 +92,12 @@ async def test_with_no_runs_epics_and_resume_say_there_is_nothing(
         await shows(pilot, "no flow has been run in this directory yet")
 
 
-async def test_a_run_stopped_is_listed_with_its_task_and_how_it_ended(
+async def test_a_run_ended_is_listed_with_its_task_and_what_it_came_to(
     workspace: Path,
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await chatted(pilot)
-        await until(
-            pilot,
-            lambda: any((read(one) or Ran(one)).how for one in epics(workspace)),
-            "the run's end",
-        )
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
@@ -102,7 +105,7 @@ async def test_a_run_stopped_is_listed_with_its_task_and_how_it_ended(
         # Who it was run by, what it spent and how long it took, as the web lists it.
         await shows(pilot, "· chat", "hello · ", " · $0.00 · 200 out · took ")
         # Apart: an agent's name long enough wraps the row between the two.
-        await shows(pilot, "1 session", "stopped")
+        await shows(pilot, "1 session")
         assert listed(app) == [one.name for one in epics(workspace)]
 
 
@@ -126,9 +129,9 @@ async def test_a_run_exported_from_epics_is_an_archive_where_it_was_asked_for(
         await chatted(pilot)
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "stopped")
+        await shows(pilot, "1 session")
         await pilot.press("enter")
-        await shows(pilot, "export run", "chat is not resumable")
+        await shows(pilot, "continue", "export run")
 
         await opens(pilot, "export")
         await on(pilot, Exporting)
@@ -250,7 +253,7 @@ async def test_a_chat_has_no_exomyth_to_open(workspace: Path) -> None:
         await chatted(pilot)
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "stopped")
+        await shows(pilot, "1 session")
         await pilot.press("enter")
         await shows(pilot, "graph", "export run")
         assert "Exomyth" not in screen(_app_of(pilot))
@@ -332,7 +335,7 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
         assert _cursor(app) == here.path.name
 
         await pilot.press("enter")
-        await shows(pilot, "export run", "chat is not resumable")
+        await shows(pilot, "continue", "export run")
         await pilot.press("escape")
         await on(pilot, Epics)
 
@@ -366,7 +369,7 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
         await on(pilot, Epics)
         await pilot.press("enter")
         await shows(pilot, "export run")
-        await pilot.press("down", "enter")
+        await opens(pilot, "export")
         await on(pilot, Exporting)
         await shows(pilot, "~/Downloads/")
         await pilot.click("#act-done")

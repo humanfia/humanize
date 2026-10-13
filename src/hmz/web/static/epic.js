@@ -10,65 +10,70 @@
 
 import { get, poll } from './api.js'
 import { flowName, lane, lasting } from './dom.js'
-import { current, follow } from './held.js'
+import { current, follow, placed } from './held.js'
 
 /**
- * Follows one epic, or -- named "" -- the one going in a workspace: what it wrote down, read
- * again every so often, and the records of its workspace's runs while it is the one going
- * there -- and after, for as long as they are still of it. An epic written down long ago reaches
- * no runs at all.
+ * Follows one epic, or -- named "" -- the one going on a host: what it wrote down, read again
+ * every so often, and the records of the host going with it while one is -- and after, for as
+ * long as they are still of it. An epic written down long ago reaches no runs at all.
  *
  * @param {string} name The epic, or "" for the one going.
- * @param {string} workspace Where to look for the one going, for an epic not named.
+ * @param {string|{workspace: string, slot: string}} where The host to look for the one going on,
+ *   for an epic not named: a workspace's own, or a chat's.
  * @param {(seen: {detail: object|null, error: Error|null, held: object|null, going: object|null, none: boolean, workspace: string}) => void} told
  * @returns {() => void} What stops following.
  */
-export function watch(name, workspace, told) {
-  const seen = { detail: null, error: null, held: null, going: null, none: false, workspace }
+export function watch(name, where, told) {
+  const seen = { detail: null, error: null, held: null, going: null, none: false, workspace: placed(where).workspace }
   let unfollow = null
-  let following = false
+  let followed = ''
+  /** Follows a host's runs in place of whichever were followed: whether it was another. */
+  const follows = (host) => {
+    const key = `${host.workspace}\n${host.slot || ''}`
+    if (key === followed) return false
+    if (unfollow) unfollow()
+    // Marked first: following tells what it holds at once, which comes back through here.
+    followed = key
+    unfollow = follow(host, (state) => {
+      seen.held = state
+      tell()
+    })
+    return true
+  }
+  let named = ''
   const tell = () => {
     if (seen.detail) seen.workspace = seen.detail.workspace
-    // The runs of its workspace are followed once it is the one going there, or not named.
-    if (!following && seen.workspace && (!name || (seen.detail && seen.detail.held))) {
-      // Marked first: following tells what it holds at once, which comes back through here.
-      following = true
-      unfollow = follow(seen.workspace, (state) => {
-        seen.held = state
-        tell()
-      })
-      return
-    }
+    // The host going with the epic is followed once it is, and the host asked of until then --
+    // a chat carried on, on a host of its own -- or for an epic not named.
+    const asked = placed(where)
+    const host = name && seen.detail && seen.detail.held ? { workspace: seen.detail.workspace, slot: seen.detail.slot } : !name || asked.slot ? asked : null
+    if (host && follows(host)) return
     const run = seen.held ? going(seen.held) : null
+    const standing = seen.held && seen.held.standing.run
+    // Named by the host once it writes one: the epic going there.
+    if (!name && run && run.live && standing.epic && standing.epic !== named) {
+      named = standing.epic
+      get(`/api/runs/${encodeURIComponent(named)}`).then((found) => {
+        if (named !== found.name) return
+        seen.detail = found
+        tell()
+      }, () => {})
+    }
+    seen.none = !name && Boolean(seen.held && (seen.held.connected || seen.held.gone)) && !(run && run.live)
     // The records of the epic going are this one's while it goes, and still once it has ended,
     // for as long as the records held are of it rather than of one started since.
-    const ours = Boolean(seen.detail && run && (seen.detail.held || same(seen.detail, run.started)))
+    const ours = Boolean(seen.detail && run && ((standing && standing.epic === seen.detail.name) || seen.detail.held || same(seen.detail, run.started)))
     seen.going = !name || ours ? run : null
     told(seen)
   }
-  let stop
-  if (name) {
-    stop = poll(`/api/runs/${encodeURIComponent(name)}`, 4000, (data, error) => {
-      seen.error = error
-      if (data) seen.detail = data
-      tell()
-    })
-  } else {
-    // The epic going has its record as soon as it starts; it is named once the list says which:
-    // the one a host holds -- a chat between turns among them, which is done rather than running
-    // -- or else one running.
-    stop = poll(`/api/runs?limit=5&workspace=${encodeURIComponent(workspace)}`, 2000, (data) => {
-      const one = data && (data.runs.find((each) => each.held) || data.runs.find((each) => each.how === 'running'))
-      seen.none = Boolean(data) && !one
-      if (one && (!seen.detail || seen.detail.name !== one.name)) {
-        get(`/api/runs/${encodeURIComponent(one.name)}`).then((found) => {
-          seen.detail = found
-          tell()
-        }, () => {})
-      }
-      tell()
-    })
-  }
+  const stop = name
+    ? poll(`/api/runs/${encodeURIComponent(name)}`, 4000, (data, error) => {
+        seen.error = error
+        if (data) seen.detail = data
+        tell()
+      })
+    : () => {}
+  tell()
   return () => {
     stop()
     if (unfollow) unfollow()

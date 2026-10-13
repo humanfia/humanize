@@ -112,9 +112,10 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 | View | Its conversation alone, landed on as any run's first is but with no `─ reading <agent> ─` line: no round, and [`←`](#key-left) opens no monitor. |
 | Above the prompt | No outworlder line, and its agent's line marks neither `reading` nor `unread`. |
 | Status line | `running` while a turn is open, `done` once it waits for you ([left side](#status-left)). |
-| Stopping | None: `/stop` is refused, and [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) ends the chat; the next line starts another. |
+| Stopping | None: `/stop` is refused, and [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) starts another chat and leaves this one going. |
 | Leaving | [`/exit`](#leaving-and-letting-go) and `ctrl+q` ask nothing. |
-| `/epics` | No `Exomyth` row for a chat's epic. |
+| Beside it | Each chat runs on a host of its own, its own epic, beside every other chat and the flow of this directory, which may be started or `/resume`d while chats go. A chat nobody reads for **60 s** between turns folds away. |
+| `/epics` | No `Exomyth` row for a chat's epic; `continue` in place of `resume run`: one still going is read where it is, one folded away is carried on, in the same epic, by the next line you say. |
 
 ### Turn lines {#turn-lines}
 
@@ -283,10 +284,10 @@ Every message is red and prefixed `hmz: `.
 | `/afk`, `/claim` | argument not `on`/`off` | `expected 'on' or 'off', not '<word>'` |
 | `/claim off` | not held by this frontend | `<role> is not yours to release` |
 | `/stop` | nothing running | `no flow is running` |
-| `/stop` | a [chat](#chat) going | `a chat is not stopped: /clear ends it` |
+| `/stop` | a [chat](#chat) going | `a chat is not stopped: /clear starts another` |
 | `/stop` | stopping | `the flow is already stopping: it is finishing the turn it was in` |
 | `/resume` | a run going | `cannot resume a run while a flow is running: press ctrl+c twice to stop it first` |
-| `/resume` | a [chat](#chat) going | `cannot resume a run while a chat is going: /clear ends it first` |
+
 | `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
 | `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
@@ -331,8 +332,8 @@ now` (dim) and opens [`/flow`](#where-flows-come-from) on Flowverses.
 ### `/clear` {#clear-command}
 
 Clears the view being read (only), resets its speaker marker, and redraws the opening box. In a
-[chat](#chat) it first ends the chat, saying nothing of it, and resets the `ctrl+c` count: the
-next line starts another.
+[chat](#chat) it moves to a new chat, leaving the last one going on its own host -- it folds
+away once nobody reads it -- and resets the `ctrl+c` count: the next line starts the new one.
 
 ### `/afk [on|off]` {#afk-command}
 
@@ -1148,7 +1149,9 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for a [chat](#chat). |
 | `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
 
-Rows in order: `resume run`, `graph`, `export run`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
+A [chat](#chat)'s epic offers `continue` (`carry the conversation on`) in place of `resume run`: the one a host still holds is read where it is, and one folded away is set up and carried on, in the same epic, by the next line said; one of another directory, or that cannot be, is refused `this chat cannot be continued here`.
+
+Rows in order: `resume run` or `continue`, `graph`, `export run`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
 
 ### An epic's graph {#an-epic-s-graph}
 

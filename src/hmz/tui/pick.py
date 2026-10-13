@@ -116,6 +116,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "CONTINUES",
     "DETACHES",
     "EXPORTED",
     "RESUMES",
@@ -10535,6 +10536,10 @@ class Adjusted(NamedTuple):
 #: names would be two things to learn.
 RESUMES, _EXPORTS = "resume", "export"
 
+#: And going back to a chat, which is carried on rather than picked up: the conversation goes on
+#: in the same epic, by an agent that remembers it. Answered outside this module, as resuming is.
+CONTINUES = "continue"
+
 #: Backing a run up by hand, to the targets it was started with or else the defaults.
 _UPLOADS = "upload"
 
@@ -10733,7 +10738,9 @@ class Does(Picks):
         somebody who was not there is a bundle with the timeline already in it.
         """
         held: list[tuple[str, str, str]] = []
-        if self._resumable:
+        if self._resumable and chatting(self._ran.flow):
+            held.append((CONTINUES, "continue", "carry the conversation on"))
+        elif self._resumable:
             held.append(
                 (
                     RESUMES,
@@ -10771,8 +10778,12 @@ class Does(Picks):
         """Why carrying on is not one of the things there are to do, where it is not."""
         if self._resumable:
             return ""
+        chat = chatting(self._ran.flow)
         if self._foreign:
-            return f"this epic cannot be resumed here: {escape(self._foreign)}"
+            what = "chat cannot be continued" if chat else "epic cannot be resumed"
+            return f"this {what} here: {escape(self._foreign)}"
+        if chat:
+            return "this chat cannot be continued here"
         return (
             f"{escape(self._ran.flow)} is not resumable, so this run cannot be resumed"
         )
@@ -11611,6 +11622,8 @@ class Epics(Sheet[Doing]):
         """
         return (
             self._ours(ran)
+            # A chat is continued rather than resumed, which its own sheet offers.
+            and not chatting(ran.flow)
             and self._picks_up(ran.flow)
             and _hmz().epics.picks_up(ran.at)
         )
@@ -11670,8 +11683,10 @@ class Epics(Sheet[Doing]):
                 Does(
                     ran,
                     # Of another directory, what it recorded: a flow named here is not
-                    # necessarily the one it ran, and carrying it on is refused anyway.
-                    resumable=self._picks_up(ran.flow)
+                    # necessarily the one it ran, and carrying it on is refused anyway. A
+                    # chat here is always offered, the one going included: whether one gone
+                    # can be carried on is said as it is asked to be.
+                    resumable=(chatting(ran.flow) or self._picks_up(ran.flow))
                     if self._ours(ran)
                     else ran.resumable,
                     # Of this directory but brought from elsewhere: why it cannot go on here.
@@ -11711,11 +11726,11 @@ class Epics(Sheet[Doing]):
             if to is not None:
                 await self._exports(ran, to)
                 return
-        if said == RESUMES and not self._ours(ran):
+        if said in (RESUMES, CONTINUES) and not self._ours(ran):
             # Refused rather than picked up here: a flow carries on in the directory it
             # works in, and this is not the one this epic's work is in.
             self._said = (
-                f"this epic ran in {escape(_ran_in(ran))}; resume it from hmz there"
+                f"this epic ran in {escape(_ran_in(ran))}; {said} it from hmz there"
             )
             self._fill()
             return
