@@ -8,9 +8,10 @@ use tauri::{
     LogicalPosition, Manager, Runtime, TitleBarStyle, WebviewWindow, WebviewWindowBuilder, Window,
 };
 
-/// Where the traffic lights stand: centred on the page's top row, 57 pixels tall, and inset from
-/// its left edge as far as from the top.
-const LIGHTS: LogicalPosition<f64> = LogicalPosition { x: 20.0, y: 21.0 };
+/// Where the traffic lights stand: centred on the page's top row, 57 pixels tall with the rule
+/// under it, so 28 down; the close button centred on the sidebar's column of icons, 26 in. `y` is
+/// where the title bar is made to end, and AppKit keeps its 14-point buttons 9 points above that.
+const LIGHTS: LogicalPosition<f64> = LogicalPosition { x: 19.0, y: 30.0 };
 
 /// What WKWebView says it is where it is not told otherwise.
 const WEBKIT: &str =

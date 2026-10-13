@@ -265,11 +265,12 @@ code {
   background: linear-gradient(90deg, var(--green) 0 50%, var(--cyan) 50%);
 }
 
+/* As tall as the bar over the view, its rule included, and centred on the same line. */
 .side-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 8px 6px calc(var(--side-in) - 2px);
+  padding: 8px 8px 13px calc(var(--side-in) - 2px);
 }
 
 .brand {
@@ -3755,7 +3756,7 @@ pre.exo-args {
 }
 
 :root[data-shell='macos']:not([data-fullscreen]) .side-top {
-  padding: 7px 10px 13px calc(var(--lights) + 6px);
+  padding-left: calc(var(--lights) + 8px);
 }
 
 :root[data-shell='macos']:not([data-fullscreen]) .side-folded .bar {
