@@ -88,8 +88,13 @@ jobs:
                   sys.exit(f"::error::{branch} would start a line before {'.'.join(map(str, max(lines)))}")
               if earlier := [other for other in branches if other < line]:
                   cut = git("merge-base", "origin/main", f"origin/{branches[max(earlier)]}")[0]
+          # A release's notes start at the release before it, never at one of its pre-releases:
+          # at its line's newest, or, for a `.0`, where the line was cut (0.0.0, none at all).
+          previous = ""
+          if not m[4]:
+              previous = max((t for t in ours if "-" not in t), key=pep440, default="0.0.0")
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              print(f"branch={branch}", f"cut={line not in branches and 'true' or 'false'}", f"since={cut}", sep="\n", file=out)
+              print(f"branch={branch}", f"cut={line not in branches and 'true' or 'false'}", f"since={cut}", f"previous={previous}", sep="\n", file=out)
           PY
 
       # A new line's changes are those since the line before it was cut from `main`, which is
@@ -113,13 +118,15 @@ jobs:
           git push "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
 
       - name: Open the release pull request
+        working-directory: .github/release-please
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.plan.outputs.branch }}
           VERSION: ${{ inputs.version }}
+          PREVIOUS: ${{ steps.plan.outputs.previous }}
         run: |
-          npx --yes release-please@17.11.2 release-pr --token "$GH_TOKEN" \
-            --repo-url "$GITHUB_REPOSITORY" --target-branch "$BRANCH" --release-as "$VERSION"
+          npm ci --no-audit --no-fund
+          node release-pr.js
 
       # A pull request this workflow's token opens or updates starts no `ci-ok` of its own, and
       # the branch rule needs one. A dispatch is the one event that token may start.

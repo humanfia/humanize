@@ -90,3 +90,17 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: docs
+
+  # The release-please release.yml opens release pull requests with.
+  - package-ecosystem: npm
+    directory: /.github/release-please
+    labels: []
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      release-please:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

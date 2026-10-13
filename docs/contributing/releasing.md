@@ -31,7 +31,9 @@ rules as `main`. Three workflows do it:
    request bumps `version` in `pyproject.toml`, `uv.lock` and the macOS app's `tauri.conf.json`,
    and adds the release's section
    to `CHANGELOG.md`, written from the pull request titles since the last release of that line,
-   or, for a new line, since the line before it was cut.
+   or, for a new line, since the line before it was cut. A pre-release counts as a last release
+   only to the pre-releases after it: `0.2.0` says all that changed since `0.1.x`, not just
+   since `0.2.0-rc.1`.
 2. **`ci.yml`** runs on the release pull request, started by `release.yml`: a pull request a
    workflow opened starts no checks of its own, and `ci-ok` is needed to merge it. It runs
    again on every push to a `release/*` branch, the merge included, on what the push changed.
