@@ -673,6 +673,10 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
             expect(page.locator(row)).to_have_attribute(
                 "data-tauri-drag-region", "deep"
             )
+        # The view itself, whose strip over what it draws is all of it not covered.
+        expect(page.locator("[data-hmz=page]")).to_have_attribute(
+            "data-tauri-drag-region", ""
+        )
         expect(page.locator(f":is({clicked})[data-tauri-drag-region]")).to_have_count(0)
         # A menu opened in a row is not what the window is dragged by.
         page.locator("[data-hmz=daemon-bar]").click()
@@ -681,19 +685,21 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         )
         page.keyboard.press("Escape")
 
+        # Across the whole window: the view is drawn under the strip too.
         page.locator(".side-fold").click()
-        assert left(page, "[data-hmz=bar] .bar-side") >= lights
+        assert top(page, "[data-hmz=bar] .bar-side") >= strip
+        assert left(page, "[data-hmz=bar] .bar-side") < lights
         # Full screen, where they are gone, it is drawn as in a browser.
         page.evaluate(
             "document.documentElement.toggleAttribute('data-fullscreen', true)"
         )
-        assert left(page, "[data-hmz=bar] .bar-side") < lights
+        assert top(page, "[data-hmz=bar] .bar-side") < strip
 
         page.set_viewport_size({"width": 700, "height": 800})
         page.evaluate(
             "document.documentElement.toggleAttribute('data-fullscreen', false)"
         )
-        assert left(page, "[data-hmz=bar] .bar-side") >= lights
+        assert top(page, "[data-hmz=bar] .bar-side") >= strip
 
 
 def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:

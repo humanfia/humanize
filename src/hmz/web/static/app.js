@@ -8,7 +8,7 @@
 import { daemon, get, hash } from './api.js'
 import { fill, h, problem } from './dom.js'
 import { mountSidebar } from './sidebar.js'
-import { kept, toggleSidebar } from './shell.js'
+import { dragged, kept, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
 import './importing.js'
@@ -28,7 +28,8 @@ const DIALOGS = {
   settings: () => import('./views/settings.js'),
 }
 
-const page = document.getElementById('page')
+// The strip kept across its top for the window's traffic lights moves the window, as a title bar.
+const page = dragged(document.getElementById('page'), '')
 const overlay = document.querySelector('.overlay')
 /** The view drawn, what it was loaded by, and how it is left or moved within. */
 let mounted = null
