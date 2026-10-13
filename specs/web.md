@@ -300,6 +300,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST offer them, whichever daemon is shown, behind a bell with how many are unread: each
   opening its epic on its daemon, marked read one or all, and cleared; and each new one as a card
   that goes after a while.
+- MUST mark, in the sidebar, each epic with one unread, and each workspace folded that has such
+  an epic; and MUST read every one of the epic the page is on while it is looked at, a new one
+  read as it comes, with no card nor the system told of it.
 - MUST tell the system of a new one where the page is hidden or not focused, unless that is
   turned off: in the desktop app by its `notify`, and in a browser by its notifications, leave
   for which is asked only by a click in Settings.

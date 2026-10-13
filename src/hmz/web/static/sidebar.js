@@ -11,7 +11,7 @@ import { pick } from './importing.js'
 import { copy, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.js'
 import { sessionsOf } from './epic.js'
-import { bell } from './notifications.js'
+import { bell, unreadOn } from './notifications.js'
 import { nameOf } from './places.js'
 import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSidebar } from './shell.js'
 
@@ -45,7 +45,7 @@ export function mountSidebar(root, context, where) {
         'div',
         { class: 'side-top' },
         h('a', { class: 'brand', href: hash('/new'), 'aria-label': 'humanize, a new epic' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
-        bell(),
+        bell(where),
         iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
       ),
     ),
@@ -118,6 +118,7 @@ export function mountSidebar(root, context, where) {
     const order = [...groups.values()].sort((a, b) => rank(b) - rank(a))
     const scrolled = list.parentElement.scrollTop
     const chosen = parts[0] === 'new' ? query.get('workspace') || '' : ''
+    const unread = unreadOn(daemon())
     fill(
       list,
       order.map((group) => {
@@ -134,6 +135,7 @@ export function mountSidebar(root, context, where) {
             { class: ['side-folder', chosen === group.path && 'current'] },
             toggle,
             h('span', { class: 'side-folder-name', title: group.path }, h('span', { class: 'side-label' }, nameOf(group.path))),
+            !open && unread.workspaces.has(group.path) ? marked() : null,
             iconButton('plus', `New epic in ${nameOf(group.path)}`, { class: 'side-add', onclick: () => (location.hash = hash(`/new?workspace=${encodeURIComponent(group.path)}`)) }),
           )
         const where = encodeURIComponent(group.path)
@@ -154,7 +156,7 @@ export function mountSidebar(root, context, where) {
           'section',
           { class: 'side-group', 'data-hmz': 'workspace', 'data-path': group.path },
           folder,
-          open ? (group.runs.length ? h('ul', { role: 'list' }, group.runs.map((run) => item(run, here, parts))) : h('p', { class: 'side-quiet nested' }, 'No epics')) : null,
+          open ? (group.runs.length ? h('ul', { role: 'list' }, group.runs.map((run) => item(run, here, parts, unread.epics.has(run.name)))) : h('p', { class: 'side-quiet nested' }, 'No epics')) : null,
         )
       }),
     )
@@ -168,7 +170,7 @@ export function mountSidebar(root, context, where) {
     return live + last
   }
 
-  function item(run, here, parts) {
+  function item(run, here, parts, unseen) {
     const shown = (opened.has(run.name) || run.name === here) && !folded.has(run.name)
     const link = hash(`/epics/${encodeURIComponent(run.name)}`)
     const toggle = h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(shown), 'aria-label': shown ? 'Collapse' : 'Expand' }, icon('chevron'))
@@ -195,6 +197,7 @@ export function mountSidebar(root, context, where) {
         { href: link, 'aria-current': run.name === here && !parts[2] ? 'page' : null, title: `${run.task}\n${flowName(run.flow)} · ${how} · ${when(run.began)}`, 'data-hmz': 'epic' },
         h('span', { class: ['side-mark', `tone-${tone(how)}`], 'aria-label': how }, MARKS[how] || '·'),
         h('span', { class: 'side-label' }, headline(run.task)),
+        unseen ? marked() : null,
         h('span', { class: 'side-meta' }, run.held ? h('span', { class: 'pill-live' }, 'live') : ago(run.began)),
       ),
     )
@@ -286,6 +289,7 @@ export function mountSidebar(root, context, where) {
     for (const link of root.querySelectorAll('.side-top .brand, .side-nav a')) link.setAttribute('href', hash(`/${link.dataset.nav || 'new'}`))
     if (data) draw()
   })
+  window.addEventListener('hmz:notifications', () => data && draw())
   // Another daemon's epics and workspaces: nothing of the last one's is drawn until they are read.
   window.addEventListener('hmz:daemon', () => {
     data = null
@@ -295,6 +299,11 @@ export function mountSidebar(root, context, where) {
     fill(list, h('p', { class: 'side-quiet', role: 'status' }, 'Reading the epics…'))
     watch()
   })
+}
+
+/** The mark of a notification unread, on its epic and on the folded workspace of it. */
+function marked() {
+  return h('span', { class: 'side-unread', 'data-hmz': 'unread', role: 'img', 'aria-label': 'Unread', title: 'Unread' })
 }
 
 /** What can be done to one epic, from wherever it is listed. */

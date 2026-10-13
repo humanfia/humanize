@@ -464,6 +464,11 @@ it ended.
 - **System notifications.** While the page is hidden or not focused, a notification is also
   one of your system's: the browser's, or, in [the macOS app](/user/desktop#notifications), a
   macOS one. Clicking it brings the page back on what it is about.
+- **Sidebar marks.** An epic with a notification unread has a square beside it in the
+  sidebar, and so does its workspace while folded. Opening the epic reads them.
+
+None is shown of the epic you are looking at -- a question or a chat turn there included: it is
+read as it comes.
 
 A daemon is heard from while it is reached: Local always, an ssh host once it is `up`.
 
