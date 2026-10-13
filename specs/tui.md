@@ -57,6 +57,12 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST round the conversations with a turn open and the outworlders of a running flow, forward
   on `shift+tab` and back on `tab`, a conversation that has ended leaving the round while
   staying readable from the monitor.
+- MUST read a `chat` as Claude Code reads its one conversation: one transcript of your lines and
+  the assistant's under the prompt, with no monitor, no views to round, no outworlder above the
+  prompt and no Exomyth for its epic; its status line `running` while the assistant answers and
+  `done` once it waits for you; never stopped -- no `/stop`, nothing about stopping on
+  `ctrl+c` -- `/clear` ending it so that the next line starts another, and `/exit`, `ctrl+q`
+  or `ctrl+c` twice leaving without asking, where a host holds it leaving it held.
 - MUST call every agent of a run by its own name -- its transcript, each of its conversations
   as `<agent>/<n>`, its node on the monitor, the line saying it is working -- from the moment the
   run says it, before it has opened any, the role it fills only ever after that name.
@@ -146,8 +152,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   one was left.
 - MUST offer and run a command only where it works -- `/claim` only on an outworlder's
   transcript -- and refuse it elsewhere, saying where it works.
-- MUST offer and run a command only while it would do something -- `/stop` while a flow runs
-  and is not stopping, `/resume` while none is going and there is a run here to carry on,
+- MUST offer and run a command only while it would do something -- `/stop` while a flow but a
+  chat runs and is not stopping, `/resume` while none is going and there is a run here to carry on,
   `/btw` while there is somebody to ask, `/claim` and `/afk` not on an outworlder another
   frontend holds, a flow to choose while none runs -- and refuse it otherwise, saying why; MUST
   say what a command does, and which keys work, as things stand, and reconsider both the moment
@@ -243,7 +249,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   seconds while the run goes, drawing only the rows on screen, responsive at fifty thousand spans.
 - MUST make the monitor the parent screen and the log its child: a full-screen graph of the run
   over the log's own prompt, where every command works, with a graph status line in place of the
-  log's; reached by `←` on an empty prompt and never by `esc` or a command, and left by `→` on an
+  log's; reached by `←` on an empty prompt outside a chat and never by `esc` or a command, and left by `→` on an
   empty prompt for the log last read.
 - MUST draw the run on the monitor as a graph — a box per agent in the flow's order with the
   handovers between them, each opened out to its sessions and shut again by `space` or a click
@@ -323,18 +329,18 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | typing | forms | on a written row, begin writing it |
 | `tab` | forms | on a path being written, finish it, or take the next thing it could become |
 | `shift+enter`, `ctrl+j` | editor, sheets | break the line |
-| `shift+tab`, `tab` | app | round the views forward and back |
+| `shift+tab`, `tab` | app | round the views forward and back, but in a chat |
 | `tab`, `shift+tab` | sheets | between the list, its search and the buttons under it |
 | `/` | sheets | search the list, where it can be searched |
 | `m` | sheets | the menu of the row under the cursor, where it has one |
 | `esc` | sheets | one step back, out of a change or a search first; on a page of `/settings` or `/flow`, out to the page above it |
 | `backspace` | sheets | up to the menu this one was opened from, but the row's own on a written row; on a page of `/settings` or `/flow`, out to the page above it |
-| `←`, `→` | log, monitor | on an empty prompt: up to the monitor; back to the log last read |
+| `←`, `→` | log, monitor | on an empty prompt outside a chat: up to the monitor; back to the log last read |
 | `↑`, `↓`, `enter` | monitor | on an empty prompt: the node before or after; read it |
 | `space` | monitor | on an empty prompt: open an agent out to its sessions, or shut it |
 | `ctrl+t` | monitor | the graph or the list |
 | `w`/`s`, `a`/`d`, `←`/`→`, `↑`/`↓`, `enter`, `f`, `0`, `space`, `/`, `n`/`N`, `tab`, `t`, `r` | Exomyth | zoom, pan, the span before or after, the row above or below, the span's pane, fit it, the whole run, fold, search, the next found, timeline or flame, time or tokens, read again |
-| `ctrl+c` | app | take back the nearest thing; twice stops the flow |
+| `ctrl+c` | app | clear the line; on an empty one, twice stops the flow, or in a chat or with nothing running exits |
 | `ctrl+q` | app | what `/exit` does |
 | `↑`, `↓` | sheets | walk the rows, round the ends, keeping the row being written; back to the list from its search or its buttons; in a box, between its buttons |
 | `←`, `→` | sheets | along the buttons, round the ends; on the list, into what the row under the cursor opens and back up out of the menu, but not off a written row -- in `/settings` and `/flow`, into a page and back out |

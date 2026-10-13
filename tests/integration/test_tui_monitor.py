@@ -12,6 +12,7 @@ from hmz.tui.monitoring import Monitoring
 from tests.integration.doubles_tui import (
     RUNS,
     SIZE,
+    TALKS,
     heard,
     on,
     onto,
@@ -37,7 +38,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
 
 
 async def working(pilot: Pilot[None]) -> None:
-    """Starts chat on a turn the stand-in holds open until it is told something more."""
+    """Starts chat, under another name, on a turn held open until it is told more."""
     await opened(pilot)
     await typed(pilot, "wait a moment")
     await shows(pilot, "still on it")
@@ -46,7 +47,7 @@ async def working(pilot: Pilot[None]) -> None:
 async def test_left_goes_up_to_the_monitor_of_the_run_and_right_comes_back(
     workspace: Path,
 ) -> None:
-    app = Humanize()
+    app = Humanize(flow=TALKS)
     async with app.run_test(size=SIZE) as pilot:
         await working(pilot)
 
@@ -57,7 +58,6 @@ async def test_left_goes_up_to_the_monitor_of_the_run_and_right_comes_back(
         assert "all agents" not in drawn
         assert re.search(r"❯ │ ▸ ● \S+", drawn)
         assert RUNS in drawn
-        assert "chat" in drawn
 
         await pilot.press("right")
         await until(pilot, lambda: len(app.screen_stack) == 1, "the prompt")
@@ -73,7 +73,7 @@ async def test_left_goes_up_to_the_monitor_of_the_run_and_right_comes_back(
 async def test_the_monitor_counts_the_tokens_a_finished_turn_spent(
     workspace: Path,
 ) -> None:
-    async with Humanize().run_test(size=SIZE) as pilot:
+    async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
         await shows(pilot, "heard hello")
@@ -87,7 +87,7 @@ async def test_the_monitor_counts_the_tokens_a_finished_turn_spent(
 async def test_a_node_opened_on_the_monitor_is_the_view_the_prompt_then_reads(
     workspace: Path,
 ) -> None:
-    app = Humanize()
+    app = Humanize(flow=TALKS)
     async with app.run_test(size=SIZE) as pilot:
         await working(pilot)
         await pilot.press("left")
@@ -104,7 +104,7 @@ async def test_a_node_opened_on_the_monitor_is_the_view_the_prompt_then_reads(
 async def test_shift_tab_and_tab_step_between_the_views_of_a_run(
     workspace: Path,
 ) -> None:
-    app = Humanize()
+    app = Humanize(flow=TALKS)
     async with app.run_test(size=SIZE) as pilot:
         await working(pilot)
         assert "all agents" not in screen(app)

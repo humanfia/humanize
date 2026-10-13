@@ -141,8 +141,8 @@ async def test_flow_offers_the_defaults_and_starts_the_epic_on_the_targets_chose
 
         await typed(pilot, "hello")
         await shows(pilot, "heard hello")
-        await typed(pilot, "/stop")
-        await shows(pilot, "stopping the flow")
+        await typed(pilot, "/clear")
+        await shows(pilot, "◉ chat")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
 
     assert Hmz().backups.wait(60)
@@ -188,8 +188,8 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
         await opened(pilot)
         await typed(pilot, "hello")
         await shows(pilot, "heard hello")
-        await typed(pilot, "/stop")
-        await shows(pilot, "stopping the flow")
+        await typed(pilot, "/clear")
+        await shows(pilot, "◉ chat")
         await until(pilot, lambda: bool(epics(workspace)), "the epic's record")
         assert _log(lab) == []  # no policy, so only by hand
 

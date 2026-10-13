@@ -39,7 +39,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
     del asking
     workspace = stand_in(tmp_path, monkeypatch)
     began = time.time()
-    with Epic("ralph", "fix the bug", workspace) as epic:
+    with Epic("ralph_loop", "fix the bug", workspace) as epic:
         epic.session("NeiKos496", "claude", "", "sess-1")
     _logged(tmp_path / "claude-home", workspace, "sess-1", began)
     return workspace
@@ -108,7 +108,7 @@ async def _exomyth(pilot: Pilot[None]) -> Exomyth:
     await opened(pilot)
     await typed(pilot, "/epics")
     await on(pilot, Epics)
-    await shows(pilot, "· ralph")
+    await shows(pilot, "· ralph_loop")
     await pilot.press("enter")
     await on(pilot, Does)
     await shows(pilot, "Exomyth", "the epic as a timeline of its sessions")
@@ -129,9 +129,9 @@ async def test_an_epic_is_drawn_as_its_sessions_spans_and_read_span_by_span(
         await _exomyth(pilot)
         await shows(
             pilot,
-            "· ralph \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK}",
+            "· ralph_loop \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK}",
             "1 session · 8 spans",
-            "▾ ralph",
+            "▾ ralph_loop",
             "▾ main · sess-1",
             "turn: fix the bug",
             "Bash: pytest",
@@ -157,7 +157,7 @@ async def test_an_epic_is_drawn_as_its_sessions_spans_and_read_span_by_span(
 
         # The cursor opens on the epic itself: its pane says what it is.
         await pilot.press("enter")
-        await shows(pilot, "flow · ralph", "lasted", "task fix the bug")
+        await shows(pilot, "flow · ralph_loop", "lasted", "task fix the bug")
         await pilot.press("escape")
 
         await pilot.press("slash", *"pytest", "enter")

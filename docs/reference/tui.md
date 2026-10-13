@@ -102,6 +102,20 @@ conversation), `outworlder` and `monitor`.
 | Retention | At most 32 transcripts of at most 2 000 lines each. Over the limit, the oldest are dropped, conversations before others, never home, the one being read, or the one just opened. A new run deletes every conversation transcript of the previous run. |
 | Round | [`shift+tab`](#key-tab) steps forward, `tab` back, wrapping, through: every conversation with a turn open (in first-seen order), every outworlder of the running flow. An agent's view stands where its newest conversation does; any other view not in the round steps onto either end. Nothing to step round with no run going. An ended conversation stays readable once read, and from the monitor. |
 
+### Chat {#chat}
+
+A run of the flow named `chat` -- or, with none running, `chat` set up -- is one conversation,
+read as Claude Code reads one:
+
+| | |
+| --- | --- |
+| View | The aggregate only: no round, and [`←`](#key-left) opens no monitor. |
+| Above the prompt | No outworlder line. |
+| Status line | `running` while a turn is open, `done` once it waits for you ([left side](#status-left)). |
+| Stopping | None: `/stop` is refused, and [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) ends the chat; the next line starts another. |
+| Leaving | [`/exit`](#leaving-and-letting-go) and `ctrl+q` ask nothing. |
+| `/epics` | No `Exomyth` row for a chat's epic. |
+
 ### Turn lines {#turn-lines}
 
 | Line | Style | Shown |
@@ -140,6 +154,7 @@ State: the first row that holds.
 
 | # | Condition | Text |
 | --- | --- | --- |
+| 0 | A [chat](#chat) going | `◉ done` with no turn open and a *listen* question pending; else `<spinner> running… (<s>s)`, as row 2 without the names and the stop hint. |
 | 1 | A run going, no turn open, a *listen* question pending | `·\|· waiting for <you\|name> · ctrl+c twice to stop` (muted, not animated). `you` where some such question is unowned or owned by this frontend; else the first owner's name. |
 | 2 | A turn open, or a run going | `<spinner> <names>… (<s>s · ctrl+c twice to stop)`. Spinner `·\|·` `·/·` `·—·` `·\·`, a frame per 0.5 s, cyan. `<names>`: the working agents, comma-separated; with none, the flows running joined by ` ▸ ` (innermost last), else the flow set up. `<s>`: since the oldest open turn began, else since the run began. |
 | 3 | Otherwise | `◉ <flow> · <cwd>`, with `$HOME` as `~`. |
@@ -156,7 +171,7 @@ Hints joined by ` · `, in this order; each only when its condition holds.
 | 3 | `shift+tab switch view` | The round holds a view other than the one read and its agent's newest conversation. |
 | 4 | `/ commands` | Always. |
 | 5 | `shift+enter newline` | Always. |
-| 6 | `← monitor` | The editor is empty. |
+| 6 | `← monitor` | The editor is empty, outside a [chat](#chat). |
 | 7 | `ctrl+c clear` · `ctrl+c again to stop` · `ctrl+c again to exit` · `ctrl+c stop` · `ctrl+c force stop` · `ctrl+c exit` | What the next [`ctrl+c`](#ctrl-c) does. |
 
 Where the hints are wider than the width left, hints are dropped **from the front** until they
@@ -232,7 +247,7 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 | <span id="cmd-clear"></span>`/clear` | — | all | never | — |
 | <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all | on an outworlder another frontend holds | — |
 | <span id="cmd-claim"></span>`/claim` | `[on\|off]` | `outworlder` | on an outworlder another frontend holds | — |
-| <span id="cmd-stop"></span>`/stop` | — | all | no run going, or it is stopping | — |
+| <span id="cmd-stop"></span>`/stop` | — | all | no run going, a [chat](#chat) going, or it is stopping | — |
 | <span id="cmd-exit"></span>`/exit` | — | all | never | — |
 
 </RefFilter>
@@ -250,7 +265,7 @@ Each command's line in the completion list:
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
 | `/stop` | `Stop the flow without confirmation` | |
-| `/exit` | `Exit` | `Exit; a running flow can be left running` (daemon) or `Exit; asks before stopping the running flow` (in process) — a run is going |
+| `/exit` | `Exit` | `Exit; a running flow can be left running` (daemon) or `Exit; asks before stopping the running flow` (in process) — a run but a [chat](#chat) is going |
 
 The completion list shows the commands that are available in the view, not refused and not
 unlisted, alphabetically. Availability and about texts are re-evaluated whenever the view, the
@@ -268,8 +283,10 @@ Every message is red and prefixed `hmz: `.
 | `/afk`, `/claim` | argument not `on`/`off` | `expected 'on' or 'off', not '<word>'` |
 | `/claim off` | not held by this frontend | `<role> is not yours to release` |
 | `/stop` | nothing running | `no flow is running` |
+| `/stop` | a [chat](#chat) going | `a chat is not stopped: /clear ends it` |
 | `/stop` | stopping | `the flow is already stopping: it is finishing the turn it was in` |
 | `/resume` | a run going | `cannot resume a run while a flow is running: press ctrl+c twice to stop it first` |
+| `/resume` | a [chat](#chat) going | `cannot resume a run while a chat is going: /clear ends it first` |
 | `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
 | `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
@@ -313,7 +330,9 @@ now` (dim) and opens [`/flow`](#where-flows-come-from) on Flowverses.
 
 ### `/clear` {#clear-command}
 
-Clears the view being read (only), resets its speaker marker, and redraws the opening box.
+Clears the view being read (only), resets its speaker marker, and redraws the opening box. In a
+[chat](#chat) it first ends the chat, saying nothing of it, and resets the `ctrl+c` count: the
+next line starts another.
 
 ### `/afk [on|off]` {#afk-command}
 
@@ -344,7 +363,8 @@ stopping, the next `ctrl+c` [forces](#ctrl-c) it.
 
 ### `/exit` {#leaving-and-letting-go}
 
-Same as `ctrl+q`.
+Same as `ctrl+q`. In a [chat](#chat) it asks nothing: a chat held in process ends with the
+interface, and one a host holds is left to it.
 
 | State | Effect |
 | --- | --- |
@@ -503,9 +523,9 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | --- | --- | --- | --- |
 | app | <span id="key-ctrl-c"></span><kbd>ctrl+c</kbd> | always, including over menus | [State machine](#ctrl-c). |
 | app | <kbd>ctrl+q</kbd> | always | [`/exit`](#leaving-and-letting-go). |
-| app | <span id="key-tab"></span><kbd>shift+tab</kbd> | the log is the only screen | Next view in the [round](#views). Also over the offers list. |
+| app | <span id="key-tab"></span><kbd>shift+tab</kbd> | the log is the only screen | Next view in the [round](#views); nothing in a [chat](#chat). Also over the offers list. |
 | app | <kbd>tab</kbd> | the log is the only screen, offers closed | Previous view. |
-| app | <span id="key-left"></span><kbd>←</kbd> | the log is the only screen, editor empty, offers closed | Opens the [monitor](#watching-the-run). Otherwise moves the editor's cursor. |
+| app | <span id="key-left"></span><kbd>←</kbd> | the log is the only screen, editor empty, offers closed, not a [chat](#chat) | Opens the [monitor](#watching-the-run). Otherwise moves the editor's cursor. |
 | editor | <span id="key-enter"></span><kbd>enter</kbd> | offers open with a highlight | Takes the offer: replaces the last word, appends a space; does not send. |
 | editor | <kbd>enter</kbd> | otherwise | Sends the line (if not blank). |
 | editor | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | | Inserts a newline. |
@@ -567,6 +587,8 @@ Every menu says the keys that work where its focus is on its bottom row, and onl
 | --- | --- | --- |
 | 1 | The prompt in front (the monitor's, if up) has text | Clears it; resets the count. |
 | 2 | Otherwise the count becomes `count + 1` if the last press was within 3.0 s, else `1`. | |
+| 2a | A [chat](#chat), count 1 | `— press ctrl+c again to exit —`, whether or not a turn is open. |
+| 2b | A [chat](#chat), count 2 | Leaves at once, as [`/exit`](#leaving-and-letting-go). |
 | 3 | A run going, count 1 | `— press ctrl+c again to stop the flow —` |
 | 4 | A run going, count 2 | Stops the run as [`/stop`](#stop); resets the count. |
 | 5 | A run stopping (by anybody) | Any press, no time limit: sends `force`; prints `— closed <n> conversation(s) mid-turn —` where `n > 0`; resets the count. |
@@ -1121,7 +1143,7 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
 | `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
-| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not offered for a chat. |
+| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for a [chat](#chat). |
 | `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
 
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not

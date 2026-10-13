@@ -15,6 +15,7 @@ from tests.integration.doubles_tui import (
     MODEL,
     RUNS,
     SIZE,
+    TALKS,
     heard,
     on,
     opened,
@@ -80,7 +81,7 @@ async def test_a_line_is_the_task_and_the_agent_s_answer_is_drawn(
         await opened(pilot)
         await typed(pilot, "hello")
 
-        drawn = await shows(pilot, "heard hello", "waiting for you")
+        drawn = await shows(pilot, "heard hello", "◉ done")
 
     assert "❯ hello" in drawn
     (argv,) = started(workspace)
@@ -121,7 +122,7 @@ async def test_a_line_typed_while_a_turn_runs_is_put_into_that_turn(
 async def test_two_ctrl_c_cut_the_turn_off_and_end_the_run_as_stopped(
     workspace: Path,
 ) -> None:
-    app = Humanize()
+    app = Humanize(flow=TALKS)
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "wait forever")
@@ -138,7 +139,7 @@ async def test_two_ctrl_c_cut_the_turn_off_and_end_the_run_as_stopped(
 
 
 async def test_stop_ends_a_run_waiting_on_you_without_asking(workspace: Path) -> None:
-    async with Humanize().run_test(size=SIZE) as pilot:
+    async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
         await shows(pilot, "waiting for you")
@@ -168,7 +169,7 @@ async def test_a_flow_that_will_not_load_is_said_and_the_interface_stays(
 async def test_exit_while_a_run_is_going_asks_and_stopping_it_ends_both(
     workspace: Path,
 ) -> None:
-    app = Humanize()
+    app = Humanize(flow=TALKS)
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "wait a while")
@@ -186,7 +187,7 @@ async def test_exit_while_a_run_is_going_asks_and_stopping_it_ends_both(
 async def test_a_line_typed_reading_the_conversation_between_turns_is_its_next_turn(
     workspace: Path,
 ) -> None:
-    async with Humanize().run_test(size=SIZE) as pilot:
+    async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "wait first")
         # Read already: a run lands on the agent of the first conversation it opens.
@@ -203,7 +204,7 @@ async def test_a_line_typed_reading_the_conversation_between_turns_is_its_next_t
 async def test_what_the_agent_stops_to_ask_is_shown_and_answered_in_its_conversation(
     workspace: Path,
 ) -> None:
-    async with Humanize().run_test(size=SIZE) as pilot:
+    async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "ask me")
         await shows(pilot, "─ reading ", "Which colour? (red / blue)", "type an answer")

@@ -735,9 +735,11 @@ class Humanize(App[None]):
         """
         if action == "monitor":
             # From the log alone, and only with nothing typed or offered: the monitor is up
-            # already over anything else, and a sheet has its own use for the arrows.
+            # already over anything else, and a sheet has its own use for the arrows. Never
+            # in a chat, which is one conversation and has no graph to draw.
             return (
                 len(self.screen_stack) == 1
+                and not self.chatting()
                 and not self.query_one(Editor).text
                 and not self.query_one("#offers", OptionList).has_class("offering")
             )
@@ -785,17 +787,29 @@ class Humanize(App[None]):
         What it lets go of is this interface and nothing else: another reading the same runs
         goes on reading them, and whatever this one held for a role is anybody's again.
         """
-        if self._run is None:
-            self.action_quit()
+        if self._run is None or self.chatting():
+            self._leaves()
             return
         said = await self.push_screen_wait(Leaves(held=self._host is None))
         if said == STOPS:
             self.action_quit()
         elif said == DETACHES:
-            self._quitting = True
-            self._close_btw()
-            self._link.close()
-            self.exit()
+            self._leaves()
+
+    def _leaves(self) -> None:
+        """Leaves without asking: letting go of a run a host holds, closing on any other.
+
+        Which is all leaving a chat ever is -- a chat is not stopped, so there is nothing
+        to ask -- and what `/exit` does once it has been told to leave a flow running. A run
+        a host holds goes on for whoever else reads it; one held here goes with the process.
+        """
+        if self._run is None or self._host is not None:
+            self.action_quit()
+            return
+        self._quitting = True
+        self._close_btw()
+        self._link.close()
+        self.exit()
 
     def action_interrupt(self) -> None:
         """Takes back the nearest thing there is to take back, on a press or two or three.
@@ -815,7 +829,8 @@ class Humanize(App[None]):
 
         With nothing running it is the interface, asked the same way: twice, because leaving
         is not what ctrl+c means anywhere else and a first press that left would be a run
-        somebody ended while reaching to clear a line.
+        somebody ended while reaching to clear a line. In a chat it is the interface whatever
+        is going on, as it is in Claude Code: a chat is never stopped, only left.
         """
         editor = self._prompt()
         if editor.text:
@@ -828,7 +843,12 @@ class Humanize(App[None]):
         # would do has been gone for most of that.
         self._presses = self._presses + 1 if now - self._pressed < _AGAIN else 1
         self._pressed = now
-        if self._run is not None:
+        if self.chatting():
+            if self._presses > 1:
+                self._leaves()
+            else:
+                self.show("[dim]— press ctrl+c again to exit —[/dim]")
+        elif self._run is not None:
             self._interrupts()
         elif self._stopping is not None:
             # A flow told to stop and not yet gone. However long ago it was told: this is
@@ -1871,9 +1891,11 @@ class Humanize(App[None]):
         held = len(self._of(whose)) if self._agent_of(whose) == whose else 0
         many = f"{_DOT}{held} conversations" if held > 1 else ""
         named = f"reading {escape(self._titled(whose))}{many}"
-        shown.write(
-            f"[dim]{_RULE} {named if whose else 'that flow has gone'} {_RULE}[/]"
-        )
+        # Not in a chat, which is one conversation read as one, whoever's turn it is.
+        if not self.chatting():
+            shown.write(
+                f"[dim]{_RULE} {named if whose else 'that flow has gone'} {_RULE}[/]"
+            )
         for line in kept.lines:
             shown.write(line.content, shrink=line.shrink)
 
@@ -1899,6 +1921,8 @@ class Humanize(App[None]):
         """
         if not self._driven():
             return []
+        # A chat is its one conversation, always the one read: nothing to mark it out by.
+        chat = self.chatting()
         held: list[Held] = []
         for role in self._named_by:
             agent = self._name_of(role)
@@ -1906,8 +1930,8 @@ class Humanize(App[None]):
             held.append(
                 Held(
                     many=len(keys),
-                    reading=agent == self._agent_of(self._attached),
-                    unread=self._unread(agent),
+                    reading=not chat and agent == self._agent_of(self._attached),
+                    unread=not chat and self._unread(agent),
                     working=any(key in self._working for key in keys),
                 )
             )
@@ -1935,6 +1959,8 @@ class Humanize(App[None]):
           transcript every agent is on to step back to, the monitor being where a flow is
           watched whole.
         """
+        if self.chatting():
+            return []  # one conversation, and nothing to step to from it
         running = [key for key in self._conversations() if key in self._working]
         asked = (
             [f"{_OUTWORLDER}{one}" for one in self._outworlders]
@@ -2114,7 +2140,14 @@ class Humanize(App[None]):
         # Left, first match wins, as opencode's status line resolves it: what is running if
         # anything is, else where this is. Right, the usage. The two ends are pushed apart.
         working = self._monitor.now_working()
-        if self._run is not None and not working and (waits := self._waits_on()):
+        # A chat is running or done, by its turn: running while the assistant answers, done
+        # once it has and waits for you. Nothing about stopping, which a chat is not -- and
+        # one ended by `/clear` is at rest while it unwinds, its screen already cleared.
+        chat = self.chatting()
+        waits = self._waits_on() if self._run is not None and not working else ""
+        if chat and waits:
+            left = "[$secondary]◉[/] done"
+        elif waits:
             # A flow that has run out of things to do until it is told one. Spinning a bar at
             # it would read as a turn that has been thinking for as long as you have been
             # deciding what to say, which is the opposite of what is happening.
@@ -2122,7 +2155,7 @@ class Humanize(App[None]):
                 f"[$text-muted]{_SPINNER[0]} waiting for {escape(waits)}"
                 f"{_DOT}ctrl+c twice to stop[/]"
             )
-        elif working or self._run is not None:
+        elif self._run is not None or (working and not chat):
             bar = _SPINNER[int(time.monotonic() / _REFRESH) % len(_SPINNER)]
             # Whoever is talking and how long their turn has been going, or -- between two
             # turns -- the flow itself and how long the run has. A flow sleeps off a round,
@@ -2132,10 +2165,15 @@ class Humanize(App[None]):
                 (self._began[who] for who in working if who in self._began),
                 default=self._monitor.began,
             )
-            named = ", ".join(short(who) for who in working) or self._flowing()
+            named = (
+                "running"
+                if chat
+                else ", ".join(short(who) for who in working) or self._flowing()
+            )
+            hint = "" if chat else f"{_DOT}ctrl+c twice to stop"
             left = (
                 f"[$secondary]{bar}[/] {escape(named)}… "
-                f"[$text-muted]({time.monotonic() - since:.0f}s{_DOT}ctrl+c twice to stop)[/]"
+                f"[$text-muted]({time.monotonic() - since:.0f}s{hint})[/]"
             )
         else:
             # The flow that is set up to run, and the directory it would run in. Only with
@@ -2265,7 +2303,8 @@ class Humanize(App[None]):
         one being read or has something unread, since what it asks is on a transcript of its
         own.
         """
-        if self._run is None:
+        # Nor in a chat, whose one outworlder is you: the conversation is what you say in it.
+        if self._run is None or self.chatting():
             return []
         asking = {one.get("role") for one in self._pending}
         lines: list[str] = []
@@ -2431,16 +2470,18 @@ class Humanize(App[None]):
             keys.append("shift+tab switch view")
         keys.append("/ commands")
         keys.append("shift+enter newline")
-        if not self.query_one(Editor).text:
+        if not self.query_one(Editor).text and not self.chatting():
             keys.append("← monitor")
         if self.query_one(Editor).text:
             keys.append("ctrl+c clear")
         elif self._counting():
             keys.append(
                 "ctrl+c again to stop"
-                if self._run is not None
+                if self._run is not None and not self.chatting()
                 else "ctrl+c again to exit"
             )
+        elif self.chatting():
+            keys.append("ctrl+c exit")
         elif self._run is not None:
             keys.append("ctrl+c stop")
         elif self._stopping is not None:
@@ -2497,6 +2538,8 @@ class Humanize(App[None]):
         Returns:
           Why it is turned down, or "" where it is not.
         """
+        if self._run is not None and self.chatting():
+            return f"{what} while a chat is going: /clear ends it first"
         if self._run is not None:
             return (
                 f"{what} while a flow is running: press ctrl+c twice to stop it first"
@@ -2512,6 +2555,18 @@ class Humanize(App[None]):
     def flow_running(self) -> bool:
         """Whether a flow is running, as the rows of the command table read it."""
         return self._run is not None
+
+    def chatting(self) -> bool:
+        """Whether this is a chat: the flow running, or the one set up where none runs.
+
+        A chat is one conversation with one agent, read as Claude Code reads one -- no
+        monitor, no views to step round, nothing to stop -- so everything that is about
+        a flow of several agents is left out of it.
+        """
+        # And the one stopping, where one is: what is unwinding is that flow, not the one
+        # set up here.
+        run = self._run or (self._seen_last if self._stopping is not None else None)
+        return (run.flow if run is not None else self._flow_named) == _STARTS_ON
 
     def held_apart(self) -> bool:
         """Whether the runs are held by a host this interface closing leaves running."""
@@ -2530,6 +2585,8 @@ class Humanize(App[None]):
         the one thing to mean, and a command typed on purpose that answers with nothing reads
         as a command that did not work.
         """
+        if self._run is not None and self.chatting():
+            return "a chat is not stopped: /clear ends it"
         if self._run is not None:
             return ""
         if self._stopping is not None:
@@ -3143,16 +3200,22 @@ class Humanize(App[None]):
         self.show(f"hmz: /btw: {failure}", "red")
 
     def action_clear(self) -> None:
-        """Clears the screen, and nothing else.
+        """Clears the screen, and in a chat ends the conversation, as Claude Code's does.
 
-        There is nothing else for it to clear. A turn carries no context across an epic: a
-        flow is handed agents that were made for that run and drops them at the end of it, so
-        what is on screen is the whole of what starting over would have thrown away. What is
-        running is left running, and what it has done so far is still beside it.
+        A chat is never stopped, so this is how one is put down for the next: the line typed
+        after it starts another conversation, and once it has gone a `$` or `/resume` runs.
+
+        Outside a chat there is nothing else for it to clear. A turn carries no context across
+        an epic: a flow is handed agents that were made for that run and drops them at the end
+        of it, so what is on screen is the whole of what starting over would have thrown away.
+        What is running is left running, and what it has done so far is still beside it.
 
         The screen is one transcript, so what is cleared is that one: clearing every agent's
         would be `/clear` reaching into ones nobody was looking at.
         """
+        if self.chatting():
+            self.action_stop_flow()
+            self._presses = 0  # as `/stop` leaves none standing, for the same reason
         kept = self._keeping(self._attached)
         kept.lines.clear()
         # And what it was in the middle of saying, which is gone with the lines it was said
@@ -4348,8 +4411,11 @@ class Humanize(App[None]):
           record: The run, as it was told to stop.
         """
         self._halted.add(int(record["run"]))
-        if record["run"] == self._generation:
-            client = str(record.get("client") or "")
+        # Not a chat this interface ended, which is `/clear` -- the screen it would say so on
+        # has just been cleared.
+        client = str(record.get("client") or "")
+        cleared = self.chatting() and client in ("", self._me)
+        if record["run"] == self._generation and not cleared:
             who = (
                 "" if client in ("", self._me) else f"{record.get('by') or client} is "
             )
@@ -5009,7 +5075,7 @@ _COMMANDS: tuple[Command, ...] = (
         # What becomes of the run is asked, and which answers there are is where it is held.
         now=lambda app: (
             ""
-            if not app.flow_running()
+            if not app.flow_running() or app.chatting()
             else "Exit; a running flow can be left running"
             if app.held_apart()
             else "Exit; asks before stopping the running flow"

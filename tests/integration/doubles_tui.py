@@ -31,10 +31,12 @@ import os
 import re
 import sys
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from textual.widgets import OptionList
 
+from hmz.flows.builtin import chat
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.flows import Flows
@@ -42,7 +44,6 @@ from hmz.tui.pick import Configures, Confirms
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
     import pytest
     from textual.pilot import Pilot
@@ -52,6 +53,10 @@ MODEL = "claude-stand-in"
 
 #: What an interface opened on the stand-in is set up to run, as its status line says it.
 RUNS = f"claude/{MODEL}:high"
+
+#: `chat`, named by the directory it is in rather than as `chat`: the same conversation, which
+#: the interface then reads as any flow -- a monitor, views to step round, a run to stop.
+TALKS = str(Path(chat.__file__).parent)
 
 #: The terminal every pilot runs in.
 SIZE = (100, 40)
