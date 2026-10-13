@@ -131,7 +131,7 @@ def _told() -> Generator[tuple[Site, Browser, _Notices, _Daemon]]:
         with served() as site:
             notices = _Notices()
             site.notices = notices  # pyright: ignore[reportAttributeAccessIssue]
-            site.remotes = _Remotes(daemon)  # pyright: ignore[reportAttributeAccessIssue]
+            site.remotes = _Remotes(daemon)
             browser = Browser(site)
             browser.signs_in()
             _waits(lambda: bool(notices.hearing) and bool(daemon.asked), "followed")

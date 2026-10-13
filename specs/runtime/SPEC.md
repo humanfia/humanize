@@ -242,6 +242,7 @@ def bundle(
     *,
     transcript: str | None = None,
 ) -> tuple[Path, dict[str, Any]]: ...
+def lands(epic: str, at: str | os.PathLike[str]) -> Path: ...  # where a bundle of it is written
 def unpacked(epic: Path, into: Path) -> dict[str, Any]: ...  # what a bundle holds, as files
 def unbundle(archive: str | os.PathLike[str]) -> Path: ...
 def placed(epic: Path, origin: str) -> Path: ...  # an epic laid out as `unpacked` lays it out

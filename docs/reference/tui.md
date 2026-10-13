@@ -226,7 +226,7 @@ View names in messages: `the monitor`, `the all-agents transcript`, `one agent's
 | --- | --- | --- | --- | --- |
 | <span id="cmd-flow"></span>`/flow` | `[flow]` | all | never; `[flow]` itself is refused while a run is going | — |
 | <span id="cmd-btw"></span>`/btw` | `[question]` | all | nobody to ask (see [btw](#btw)) | — |
-| <span id="cmd-epics"></span>`/epics` | — | all | never | — |
+| <span id="cmd-epics"></span>`/epics` | `[@daemon]` | all | never | — |
 | <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing |
 | <span id="cmd-settings"></span>`/settings` | `[page]` | all | never | — |
 | <span id="cmd-clear"></span>`/clear` | — | all | never | — |
@@ -243,9 +243,9 @@ Each command's line in the completion list:
 | --- | --- | --- |
 | `/flow` | `Switch flow` | `Set up the running flow's agents` — a run is going |
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
-| `/epics` | `View and manage runs in this directory` | |
+| `/epics` | `View and manage runs here, or of another daemon` | |
 | `/resume` | `Resume the last run in this directory` | |
-| `/settings` | `Every setting: general, notifications, accounts, fallback, runtimes, backup, workspace` | |
+| `/settings` | `Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
@@ -273,7 +273,8 @@ Every message is red and prefixed `hmz: `.
 | `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
 | `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
-| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, accounts, fallback, runtimes, backup or workspace` |
+| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, daemons, accounts, fallback, runtimes, backup or workspace` |
+| `/epics <word>` | not `@` and a daemon's name | `/epics takes a daemon as @<name>: choose @local, @<daemon>, …` |
 | `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
 | `/btw` | no agent to ask | `/btw requires a coding agent` |
 | `/btw` | the session is gone | `/btw: no conversation found for <agent>/<n>` |
@@ -291,9 +292,11 @@ changes will apply to the next run`.
 Enters [btw mode](#btw), asking `[question]` if given. In btw mode, `/btw` alone leaves and
 `/btw <q>` asks. The question is the `shlex`-split words joined by one space.
 
-### `/epics` {#epics-command}
+### `/epics [@daemon]` {#epics-command}
 
-Opens [`/epics`](#the-runs-that-have-already-happened).
+Opens [`/epics`](#the-runs-that-have-already-happened) on the daemon last listed -- this
+machine's (`@local`) until another is turned to -- or on `@<daemon>`, one of those on the
+[Daemons page](#daemons-page), which it lists from then on.
 
 ### `/resume` {#resume}
 
@@ -302,10 +305,10 @@ See [`/resume`](#carrying-the-last-one-on-outright).
 ### `/settings [page]` {#settings-command}
 
 Opens [`/settings`](#what-humanize-remembers) on its landing screen, or inside `[page]`: one of
-`general`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, or the aliases `settings`
-and `everywhere` (General), `directory` (Workspace) and `environments` (Runtimes);
-case-insensitive; only the first word is read. Completion offers the six names, in that
-order, not the aliases. `flowverses`, the page that moved, prints `the flowverses are on /flow
+`general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, or the
+aliases `settings` and `everywhere` (General), `directory` (Workspace) and `environments`
+(Runtimes); case-insensitive; only the first word is read. Completion offers the eight names,
+in that order, not the aliases. `flowverses`, the page that moved, prints `the flowverses are on /flow
 now` (dim) and opens [`/flow`](#where-flows-come-from) on Flowverses.
 
 ### `/clear` {#clear-command}
@@ -515,6 +518,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | every menu | <kbd>↑</kbd> <kbd>↓</kbd> | list focused | Previous / next row, wrapping, stepping over headings, rules and spacers. |
 | every menu | <kbd>enter</kbd> · click | list focused | On a `▾` row: drops its values (see dropdown). On a written row: begins writing it; again: keeps it. On a row that opens something: opens it. On a pick list: takes the row. |
 | every menu | <kbd>→</kbd> | list focused | Into what the row under the cursor opens, as `enter`: a card, a page or a listed thing of `/settings` and `/flow` (not a release, which `enter` installs), a `▸` row of a flow's roles, the agent sheet's `cli`, `account` and `model`, a form's `▸` row, a run of `/epics`. Nothing on other rows: no value is stepped with them. |
+| every menu | <span id="key-m"></span><kbd>m</kbd> | list focused, on a row with a menu | Opens the row's menu, as a click with the other button does on the web page: a pick list of what can be done to it, the row as its step across the top. A run of `/epics` opens its own sheet, as `enter`; an installed flow of `/flow` offers **open**, **update**, **uninstall**, **copy here** and **copy name**; a flowverse **open**, **fetch**, **remove** and **copy URL**; a daemon **connect**, **edit…**, **remove** and **copy name**; an epic of another daemon **export**, **upload**, **copy name**, **copy task** and **copy workspace**. Only what can be done now is offered. The row of keys says `m menu` where `enter` does not open the same menu. |
 | every menu | <kbd>←</kbd> <kbd>backspace</kbd> | list focused | Up out of the menu to the one it was opened from, leaving it as `esc` would. Nothing on a menu opened from the prompt, nor on a written row, where they are the row's. |
 | every menu | <kbd>esc</kbd> | | Puts back the row being written; else clears and hides the search box; else leaves (asking [Save?](#save-box) if the menu holds changes). |
 | every menu | <kbd>tab</kbd> <kbd>shift+tab</kbd> | | Next / previous of: the search box (while shown), the list, each enabled button. |
@@ -1080,7 +1084,7 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 | Title | `Epics` |
 | About | `Every epic in this directory, newest first: task, status, and session count.`; on this machine, `Every epic on this machine, newest first: workspace, task, status, and session count.` |
 | Rows | `YYYY-MM-DD HH:MM · <flow>[ ●]` -- `●` on an epic [told of](#notifications-page) and not opened since -- about `[<workspace> · ]<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|is still going\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress -- here, under a host, or in `hmz exec` -- reads `is still going`; `was left unfinished` is one whose process went before it ended. |
-| Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t`; **Import…**, as `i` |
+| Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t`; **Import…**, as `i`; **Daemon…**, a pick list of `Local` and every [daemon](#daemons-page) with how it stands, the one picked listed instead |
 | Keys | `enter open   ctrl+t this machine\|this directory   i import   / search   tab actions   esc close` |
 | Empty | `no flow has been run in this directory yet` / `no flow has been run on this machine yet`; `reading…` while a machine's are read |
 
@@ -1112,7 +1116,8 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
 | `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
-| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. |
+| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not offered for a chat. |
+| `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
 
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
 there. Credentials are struck out of every byte of it.`), `Export run` as its step of the way
@@ -1120,6 +1125,25 @@ across the top: one row `to   file, or directory to put <run>.hmzepic in`, a
 [path](#path-completion); **Done** `writes the archive there`, `~` expanded; error `where to
 export to is required`. A directory, existing or ending in `/`, gets `<run>.hmzepic`;
 anything else is the file. `esc` goes back to the run.
+
+### Another daemon's epics {#remote-epics}
+
+On a daemon of another machine, `/epics` reads that machine's own web interface, reached over
+ssh as the [Daemons page](#daemons-page) reaches it, off the screen.
+
+| Element | Value |
+| --- | --- |
+| Title | `Epics on <daemon>` |
+| About | `Every epic <daemon> holds, newest first: workspace, task, status, and session count.` |
+| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `<workspace> · <task\|no task> · <n> session(s) · <how>` |
+| Buttons | **Search…** (flow, task, run name, workspace); **Refresh**; **Daemon…**, as above |
+| Keys | `enter menu   / search   tab actions   esc close` |
+| Empty | `reaching <daemon>…` while it is read; `no epic on <daemon> yet`; or why it was not reached, in red |
+
+`enter`, `m` or a click opens the epic's menu: **export** (not while it runs: the
+[Export run](#the-runs-that-have-already-happened) form, the archive that daemon makes brought
+here, `<path> · <size>`), **upload** (backs it up there: `backing <name> up to <a>, <b>`),
+**copy name**, **copy task** and **copy workspace**.
 
 ### Exomyth {#exomyth}
 
@@ -1199,8 +1223,8 @@ equivalent: [`hmz exec --resume`](/reference/cli#picking-a-run-up).
 
 ## `/settings` {#what-humanize-remembers}
 
-A screen of seven pages, from the broadest scope to the nearest: this machine, what it tells
-you of, the accounts and
+A screen of eight pages, from the broadest scope to the nearest: this machine, what it tells
+you of, the daemons it reaches, the accounts and
 what takes over when one fails, where work runs, where epics are backed up, this directory. Where flows come from is
 [`/flow`](#where-flows-come-from).
 Storage keys are in [Settings](/reference/settings).
@@ -1217,6 +1241,8 @@ Storage keys are in [Settings](/reference/settings).
   │──────────────────────────────────────────────────────────────────────────│
   │ ♪  Notifications                                5 of 5 kinds · system on │
   │    which epics on this machine you are told of                           │
+  │ ⇄  Daemons                                                     2 daemons │
+  │    this machine's and other machines', reached over ssh                  │
   │──────────────────────────────────────────────────────────────────────────│
   │ ◉  Accounts                                        3 accounts  ● unsaved │
   │    what agents sign in as, under each CLI                                │
@@ -1243,6 +1269,7 @@ Storage keys are in [Settings](/reference/settings).
 | --- | --- | --- |
 | ⚙ General | `details on\|off · reports on\|off\|not set` | details, btw agent or reports changed |
 | ♪ Notifications | `<n> of 5 kinds · system on\|off` | a kind or the system changed |
+| ⇄ Daemons | `<n> daemon(s)` (Local included) | never |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
 | ▦ Runtimes | `<n> machine(s)` | never |
@@ -1273,6 +1300,8 @@ Every page is drawn as any menu is ([Anatomy](#menu-anatomy)).
 | Page | Buttons | Search matches |
 | --- | --- | --- |
 | General, Notifications, Workspace | Save | — |
+| General, Workspace | Save | — |
+| Daemons | Add daemon · Import… · Search… | name, row text |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
 | Backup | Add target · Search… · Save | name, row text |
@@ -1300,6 +1329,7 @@ in force.
 | Fallback rules | next failed turn | — |
 | Backup targets | the next backup | — |
 | Runtimes | at once | — |
+| Daemons | at once | — |
 
 Leaving `/settings` writes a dim transcript line per change: first the pages' own (in the
 order done, including things done at once, even after a discard), then:
@@ -1351,6 +1381,31 @@ else its task>`, `Failed` as an error; with **System** on, also the terminal bel
 (`hmz: <title> · …`). None while the notice is of this directory and the log or the monitor is
 on top. Its epic is marked `●` after its name in [`/epics`](#the-runs-that-have-already-happened)
 until opened there, for as long as `hmz` runs.
+
+### Daemons page {#daemons-page}
+
+Intro: `This machine's daemon, and other machines' reached over ssh. /epics @<name> lists the
+epics of one; m on one is its menu.` Kept in this machine's [settings](/reference/settings) as
+`daemons`, the [web page](/user/web#settings) reading and writing the same list; every change
+is written at once.
+
+| Row | About |
+| --- | --- |
+| `Local` | `this machine`; `enter` says `Local is this machine's daemon, always there` |
+| `<name>` | `<user@host:port\|alias> · <not connected\|connecting\|installing\|up, hmz <version>\|failed>[: <detail>]`, drawn again as it changes |
+
+`enter`, `m` or a click on a daemon opens its menu: **connect** (reaches it now, installing
+this `hmz` there where it is missing or another version, as the web page does), **edit…**,
+**remove** and **copy name**. **Add daemon** and **edit…** open one form: `name` (new only;
+`what /epics @<name> calls it`), `host`, `alias` (`the Host entry of your ssh config, if
+any`), `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options`
+(`KEYWORD=VALUE, …`); **Done** `saves this daemon`, **remove** on one already written. Errors:
+`name is required`, `another daemon is named <name>`, `host or alias is required`, `port is a
+number`, `options: '<one>' is not KEYWORD=VALUE`; what the store refuses is said under the
+list in red. **Import…** opens **Import daemons**, a switch per host of your ssh config not
+added yet (`as <name>`), or says `every host of your ssh config is added already`; **Done**
+`adds each host switched on as a daemon`. Each change is said under the list and, on close,
+in the transcript: `daemon <name> saved`, `daemon <name> removed`, `<n> daemon(s) imported`.
 
 ### Accounts page {#the-accounts-themselves}
 

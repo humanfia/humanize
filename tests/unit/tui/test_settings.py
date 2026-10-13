@@ -11,6 +11,7 @@ def test_the_pages_are_listed_in_order() -> None:
     assert PAGES == (
         "general",
         "notifications",
+        "daemons",
         "accounts",
         "fallback",
         "runtimes",

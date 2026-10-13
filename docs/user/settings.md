@@ -99,9 +99,9 @@ run, the machines a flow's environments go on, and what this directory remembers
 
 ## How it works
 
-`/settings` opens on seven pages and nothing else, each a card saying what is in it. They run
+`/settings` opens on eight pages and nothing else, each a card saying what is in it. They run
 from the broadest to the nearest: what is true wherever you run humanize and which of its epics
-it tells you of, who your agents are
+it tells you of, which machines it reaches, who your agents are
 and what takes over when one fails, where their work goes and where its epics are kept, and
 last the one directory open now.
 <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one; <kbd>esc</kbd>, <kbd>backspace</kbd>,
@@ -112,6 +112,7 @@ straight into the one named, and the word is offered as you type it:
 | --- | --- | --- |
 | [**General**](#general) | `general` | whether the screen [shows the working](#details), which agent `/btw` talks to, and whether humanize reports what goes wrong |
 | [**Notifications**](#notifications) | `notifications` | which epics on this machine you are told of, and whether the terminal's bell and your system tell you too |
+| [**Daemons**](#daemons) | `daemons` | this machine's daemon and other machines', reached over ssh, and how each stands |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms, Apple containers and Slurm clusters |
@@ -178,13 +179,13 @@ The last line of the screen always names the keys that work where the focus is, 
 ### When a change lands {#saving}
 
 What every page holds lands together, when you save: press **Save**, on any page or on the
-six of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and a box in the
+eight of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and a box in the
 middle of the screen asks **Save** or **Discard**; <kbd>esc</kbd> or a click off it takes you
 back. **Save** cannot be pressed until
 something is changed, and `● unsaved changes` across the top says when something is.
 
 A few things happen as you ask rather than on save: making an account, signing one in, and
-everything on the Runtimes page. And a few that are saved cannot take hold
+everything on the Daemons and Runtimes pages. And a few that are saved cannot take hold
 at once, because something already running started without them. The row says when while the
 change is held, and the transcript says it again once saved:
 
@@ -283,7 +284,7 @@ and <kbd>enter</kbd> on **Save**:
 What to look at, by number:
 
 1. **The card's summary.** Each card says what it holds right now at its right-hand end, so the
-   seven cards are a status page before you open any of them: `details off · reports off` here,
+   eight cards are a status page before you open any of them: `details off · reports off` here,
    the number of accounts, machines and rules on the others.
 2. **Save.** Nothing has changed yet, so it cannot be pressed.
 3. **`○ off ▾`.** The row's value; `▾` says <kbd>enter</kbd> drops its values under it.
@@ -375,6 +376,24 @@ directory's, while its log or the monitor is up -- is never told of.
 Every row is on until you turn it off. They are the
 [web interface's notification settings](/user/web#notifications) too, kept in
 `~/.hmz/settings.yaml` under `notifications`, so turning a kind off here turns it off there.
+
+## Daemons
+
+Every other machine whose epics you want to read from here, each reached over ssh: `Local`,
+this machine, is always first. A daemon is set up a part at a time on one form -- its name,
+host or the `Host` of your ssh config, user, port, identity file, proxy jump and ssh options --
+or brought in with **Import…** from your ssh config, those added already left out. It is
+written at once, to the same list the [web page](/user/web#settings) keeps.
+
+Each row says what reaches it and how it stands: `not connected` until it is asked for, then
+`connecting`, `installing` while this `hmz` is put there, `up, hmz <version>`, or `failed`
+with why. <kbd>m</kbd>, <kbd>enter</kbd> or a click on one is its menu: **connect**, **edit…**,
+**remove** and **copy name**.
+
+`/epics @<name>` lists that daemon's epics, and goes on listing them until you turn the list
+back with its **Daemon…** button, or with `/epics @local`. From another daemon's list an epic
+is exported here, backed up there, or has its name, task or workspace copied. Starting an
+epic on another machine is the [web page](/user/web)'s.
 
 ## Accounts
 

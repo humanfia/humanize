@@ -136,6 +136,9 @@ _ACT_MORE, _ACT_UPDATE, _ACT_UNINSTALL, _ACT_COPY = (
 )
 _ACT_INSTALL, _ACT_FETCH = "install", "fetch"
 
+#: What the menu of a flow or a flowverse opens it with, and copies of it.
+_ACT_OPEN, _ACT_NAME = "open", "copy-name"
+
 #: What says a row's flow is behind what its index lists, and what says a release is one.
 _NEWER, _PRE = "↑", "prerelease"
 
@@ -1836,6 +1839,48 @@ class Flows(Drafts[Chosen]):
         if self._page == RELEASES:
             return self._releases_actions()
         return [self._saves_all()] if self._changed else []
+
+    def menu(self) -> tuple[str, list[Action]] | None:
+        """What the installed flow or the flowverse under the cursor offers, for `m`."""
+        if self._page == INSTALLED and (one := self._under_cursor()) is not None:
+            named = one.name
+            return (
+                named,
+                [
+                    Action(
+                        _ACT_OPEN,
+                        "open",
+                        "set its agents up",
+                        lambda: self._chose(named),
+                    ),
+                    *self._tending(),
+                    Action(_ACT_NAME, "copy name", named, lambda: self.copies(named)),
+                ],
+            )
+        if self._page == VERSES and (verse := self._verse_under()) is not None:
+            called, url = verse.name, verse.url
+            return (
+                called,
+                [
+                    Action(
+                        _ACT_OPEN,
+                        "open",
+                        "the flows it lists",
+                        lambda: self._goes(VERSE, verse=called),
+                    ),
+                    *(
+                        one
+                        for one in self._verses_actions()
+                        if one.key in (_ACT_FETCH, _ACT_REMOVE)
+                    ),
+                    *(
+                        (Action(_ACT_NAME, "copy URL", url, lambda: self.copies(url)),)
+                        if url
+                        else ()
+                    ),
+                ],
+            )
+        return None
 
     def _footed(self, *keys: Key) -> None:
         """Says the keys, with esc saying whether it closes the menu or goes up a page.
