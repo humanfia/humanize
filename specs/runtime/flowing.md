@@ -541,10 +541,11 @@ def under() -> Path: ...  # machine()/skills
 
 - A `docker` environment MUST be a container of its own per environment a run is given, on the
   daemon its provider names -- `local` being docker's default here where no provider is written
-  down under that name -- and everything derived from it MUST be in that container. It MUST be
-  started from the role's `_image`, else the provider's, else `python:3.12-slim`, with the
-  workdir -- a directory of the daemon's host -- mounted at its own path, and nothing needed in
-  the image but `/bin/sh` and a Python of at least 3.12; an sshd MUST NOT be.
+  down under that name -- unless that provider names a running container (below), and
+  everything derived from it MUST be in that container. It MUST be started from the role's
+  `_image`, else the provider's, else `python:3.12-slim`, with the workdir -- a directory of the
+  daemon's host -- mounted at its own path, and nothing needed in the image but `/bin/sh` and a
+  Python of at least 3.12; an sshd MUST NOT be.
 - It MUST be given exactly the CPUs, memory and GPUs its role declares as hard limits, no GPU
   where it declares none and no limit on what else it declares none of, and the provider's
   runtime and arguments; it MUST be labelled with its provider, role, host and process beside
@@ -558,11 +559,18 @@ def under() -> Path: ...  # machine()/skills
   says it. What is short MUST raise `ResourceUnmet` saying how much of what is free and which
   container holds the rest -- for GPUs, how many of those listed are usable --, and no two
   runs on this machine MUST work it out for one provider at once.
-- An agent working in one MUST be anchored to its container, reaching it by `docker exec` alone,
-  its harness put where the next section says: supervised on this machine in a mirror of its
-  own, or the container's own CLI driven natively.
+- An agent working in one MUST be anchored to its container, reaching it by `docker exec` alone
+  -- as the user, with the variables and under the wrapper its provider names --, its harness
+  put where the next section says: supervised on this machine in a mirror of its own, or the
+  container's own CLI driven natively.
 - Its container MUST be taken down when the environment is closed, and one whose process on
   this host has gone MUST be taken down by the next run on its provider.
+- A provider naming a running container MUST put every environment it is given in that
+  container, on its daemon, which nothing MUST start, label, hold against what the provider may
+  hand out, take down or stop; one that is not running MUST be refused (`EnvUnavailable`), and
+  what an environment was given MUST be what that container says it has. Its mirrors MUST be
+  the environment's own, apart from every other environment's in that container, and closing
+  the environment MUST remove them and nothing else.
 
 ### Swarm environments
 

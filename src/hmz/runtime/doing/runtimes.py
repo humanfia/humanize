@@ -318,7 +318,9 @@ def _docker(saved: DockerRuntime, seconds: float) -> Checked:
 
     And, where it lists a GPU, which of them answer: a GPU that has failed since the daemon's
     CDI specs were written is listed still, and is handed to nobody -- asked of containers of
-    the runtime's image, as a run asks before it hands one out.
+    the runtime's image, as a run asks before it hands one out. A runtime naming a running
+    container hands out nothing and starts nothing, so it is asked only whether that
+    container is running.
     """
     from hmz.coganchor.machines import gpus_listed, gpus_usable
     from hmz.runtime.flowing.environing_docker import IMAGE
@@ -334,6 +336,11 @@ def _docker(saved: DockerRuntime, seconds: float) -> Checked:
     errors = [str(one) for one in cast("list[Any]", info.get("ServerErrors") or [])]
     if status or errors or not info.get("ServerVersion"):
         return Checked(reached=False, said="; ".join(errors) or _last(err, status))
+    if saved.container:
+        left = seconds - (time.monotonic() - began)
+        if left <= 0:
+            return Checked(reached=False, said=f"it did not answer within {seconds:g}s")
+        return _attached(saved, info, left)
     runtimes = [str(one) for one in cast("dict[str, Any]", info.get("Runtimes") or {})]
     default = str(info.get("DefaultRuntime") or "")
     if default in runtimes:
@@ -382,6 +389,34 @@ def _docker(saved: DockerRuntime, seconds: float) -> Checked:
         runtimes=tuple(runtimes),
         version=str(info.get("ServerVersion") or ""),
         short=tuple(short),
+    )
+
+
+def _attached(saved: DockerRuntime, info: dict[str, Any], seconds: float) -> Checked:
+    """A runtime naming a running container, whose daemon answered: whether it is running."""
+    status, out, err = _asked(
+        saved.daemon().docker(
+            "inspect",
+            "--type",
+            "container",
+            "--format",
+            "{{.State.Running}}",
+            saved.container,
+        ),
+        seconds,
+    )
+    if status or out.strip() != "true":
+        return Checked(
+            reached=False,
+            said=_last(err, status)
+            if status
+            else f"the container {saved.container} is not running",
+        )
+    return Checked(
+        reached=True,
+        cpus=float(info.get("NCPU") or 0),
+        memory=int(info.get("MemTotal") or 0),
+        version=str(info.get("ServerVersion") or ""),
     )
 
 

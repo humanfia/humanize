@@ -186,6 +186,27 @@ def test_a_workdir_is_absolute_or_under_home(workdir: str) -> None:
         ({"name_prefix": "team a"}, "invalid name prefix"),
         ({"name_prefix": "t" * 55}, "longer than 54 characters"),
         ({"made": IMPORTED}, "made must be typed"),
+        ({"container": "-c"}, "invalid container '-c'"),
+        ({"container": "a b"}, "invalid container"),
+        ({"exec_user": "me"}, "exec user 'me' is not UID[:GID]"),
+        ({"exec_user": "1:"}, "is not UID[:GID]"),
+        ({"exec_env": ("A",)}, "exec variable 'A' is not NAME=VALUE"),
+        ({"exec_env": ("1A=x",)}, "is not NAME=VALUE"),
+        ({"exec_env": ("A=a\nb",)}, "is not NAME=VALUE"),
+        ({"exec_wrapper": ("",)}, "exec wrapper word '' is empty or two lines"),
+        ({"exec_wrapper": ("a\nb",)}, "is empty or two lines"),
+        (
+            {"container": "box", "image": "debian:13", "cpus": 2.0},
+            (
+                "running container box starts none, so it cannot say an image or "
+                "what it may hand out"
+            ),
+        ),
+        ({"container": "box", "run_args": ("--x",)}, "cannot say run arguments"),
+        ({"container": "box", "runtime": "nvidia"}, "cannot say an OCI runtime"),
+        ({"container": "box", "name_prefix": "team-a"}, "cannot say a name prefix"),
+        ({"container": "box", "gpu_memory": 1}, "cannot say what it may hand out"),
+        ({"container": "box", "max_containers": 2}, "cannot say a container limit"),
     ],
 )
 def test_what_a_docker_daemon_could_not_be_told_is_refused(
@@ -208,6 +229,39 @@ def test_what_a_docker_daemon_could_not_be_told_is_refused(
 )
 def test_every_spelling_of_a_daemon_is_taken(endpoint: str) -> None:
     assert DockerRuntime(name="box", endpoint=endpoint).endpoint == endpoint
+
+
+def test_a_daemon_says_what_every_exec_into_its_containers_is_told() -> None:
+    runtime = new(
+        DOCKER,
+        "box",
+        container="build-box",
+        exec_user="1000:100",
+        exec_env=["A=1", "B="],
+        exec_wrapper=["/w", "64"],
+        workdir="/srv",
+        affinity=["local"],
+    )
+
+    assert isinstance(runtime, DockerRuntime)
+    assert runtime.exec_options() == (
+        ("user", "1000:100"),
+        ("env", "A=1"),
+        ("env", "B="),
+        ("exec", "/w"),
+        ("exec", "64"),
+    )
+    assert DockerRuntime(name="bare").exec_options() == ()
+    held = runtime.held()
+    assert (held["container"], held["exec_env"]) == ("build-box", ["A=1", "B="])
+    assert (
+        new(
+            DOCKER,
+            "box",
+            **{k: v for k, v in held.items() if k not in ("backend", "name")},
+        )
+        == runtime
+    )
 
 
 @pytest.mark.parametrize(

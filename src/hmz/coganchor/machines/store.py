@@ -124,6 +124,15 @@ _PREFIX = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?\Z")
 #: once the dash and the 8 hex digits every name ends with are added.
 _PREFIX_MAX = 63 - len("-01234567")
 
+#: A container as docker names one, by its name or its id.
+_CONTAINER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
+
+#: Who a command in a container runs as: the numeric `UID[:GID]` docker's `-u` takes.
+_EXEC_USER = re.compile(r"[0-9]+(?::[0-9]+)?\Z")
+
+#: What a variable a command in a container is given may be called.
+_VARIABLE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+
 
 def _text(value: str, what: str) -> str:
     """A value that is one line of text holding no double quote, or ValueError.
@@ -402,6 +411,14 @@ class DockerRuntime:
         `ssh:<name>` for the stored ssh runtime of that name, or `context:<name>` for a
         docker context.
       tls_dir: For `tcp://`, the directory holding `ca.pem`, `cert.pem` and `key.pem`.
+      container: A container already running on the daemon, by name or id, that every
+        environment put here works in -- never started, counted, taken down or stopped
+        here -- or "" for a container of its own per environment.
+      exec_user: The `UID[:GID]` every command in an environment's container runs as, or ""
+        for the container's own user.
+      exec_env: `NAME=VALUE` variables every such command runs with.
+      exec_wrapper: The words of a program in the container every such command runs under,
+        which runs the command it is given after them.
       image: What a container is started from where the flow says nothing.
       runtime: The OCI runtime to start a container under, e.g. `nvidia`, or "" for the
         daemon's default.
@@ -426,6 +443,10 @@ class DockerRuntime:
     name: str
     endpoint: str = "local"
     tls_dir: str = ""
+    container: str = ""
+    exec_user: str = ""
+    exec_env: tuple[str, ...] = ()
+    exec_wrapper: tuple[str, ...] = ()
     image: str = ""
     runtime: str = ""
     run_args: tuple[str, ...] = ()
@@ -447,6 +468,7 @@ class DockerRuntime:
         if self.tls_dir and not self.endpoint.startswith("tcp://"):
             raise ValueError(f"{self.name}: TLS certificates require a tcp:// endpoint")
         _text(self.tls_dir, "the TLS directory")
+        _exec(self)
         if self.image and not re.fullmatch(r"[^\s]+", self.image):
             raise ValueError(f"{self.name}: invalid image {self.image!r}")
         if self.runtime and not _WORD.match(self.runtime):
@@ -490,9 +512,74 @@ class DockerRuntime:
         """
         return daemon_of(self.endpoint, self.tls_dir)
 
+    def exec_options(self) -> tuple[tuple[str, str], ...]:
+        """What every `docker exec` into an environment's container is told besides it.
+
+        Returns:
+          `(KEY, VALUE)` pairs, as :attr:`hmz.coganchor.transport.Target.options` holds a
+          docker target's: the user, then each variable, then each word of the wrapper.
+        """
+        return (
+            *((("user", self.exec_user),) if self.exec_user else ()),
+            *(("env", one) for one in self.exec_env),
+            *(("exec", one) for one in self.exec_wrapper),
+        )
+
     def held(self) -> dict[str, Any]:
         """It as it is written down."""
         return {"backend": DOCKER, **_fields(self)}
+
+
+def _exec(runtime: DockerRuntime) -> None:
+    """Refuses a docker runtime's container, or what is run in it, that is not one.
+
+    A runtime naming a running container starts none, so what it would start one with or
+    hand out of its daemon is refused beside it rather than left to say nothing.
+
+    Raises:
+      ValueError: For a container docker would not name so, an exec user that is not
+        `UID[:GID]`, a variable that is not `NAME=VALUE`, an empty word of a wrapper, a
+        value of more than one line; or, beside a container, anything to start one with.
+    """
+    name = runtime.name
+    if runtime.container and not _CONTAINER.match(runtime.container):
+        raise ValueError(f"{name}: invalid container {runtime.container!r}")
+    if runtime.exec_user and not _EXEC_USER.match(runtime.exec_user):
+        raise ValueError(f"{name}: exec user {runtime.exec_user!r} is not UID[:GID]")
+    for said in runtime.exec_env:
+        variable, equals, _ = said.partition("=")
+        if not equals or not _VARIABLE.match(variable) or set(said) & set("\n\r\0"):
+            raise ValueError(f"{name}: exec variable {said!r} is not NAME=VALUE")
+    for said in runtime.exec_wrapper:
+        if not said or set(said) & set("\n\r\0"):
+            raise ValueError(
+                f"{name}: exec wrapper word {said!r} is empty or two lines"
+            )
+    if runtime.container:
+        starting = [
+            what
+            for given, what in (
+                (runtime.image, "an image"),
+                (runtime.runtime, "an OCI runtime"),
+                (runtime.run_args, "run arguments"),
+                (runtime.name_prefix, "a name prefix"),
+                (
+                    runtime.cpus
+                    or runtime.memory
+                    or runtime.gpus
+                    or runtime.gpu_memory,
+                    "what it may hand out",
+                ),
+                (runtime.max_containers, "a container limit"),
+            )
+            if given
+        ]
+        if starting:
+            raise ValueError(
+                f"{name}: a runtime working in the running container "
+                f"{runtime.container} starts none, so it cannot say "
+                f"{' or '.join(starting)}"
+            )
 
 
 #: What a placement constraint is, as `docker service create --constraint` takes one: an

@@ -299,6 +299,10 @@ class DockerRuntime:
     endpoint: str = "local"  # unix:///PATH, tcp://HOST:PORT, ssh://[USER@]HOST[:PORT],
                              # ssh:<ssh runtime>, context:<docker context>
     tls_dir: str = ""
+    container: str = ""  # a running container every environment works in; "" for its own
+    exec_user: str = ""  # UID[:GID] every command in an environment's container runs as
+    exec_env: tuple[str, ...] = ()  # NAME=VALUE each runs with
+    exec_wrapper: tuple[str, ...] = ()  # the words of the program each runs under
     image: str = ""
     runtime: str = ""
     run_args: tuple[str, ...] = ()
@@ -315,6 +319,7 @@ class DockerRuntime:
     @property
     def at(self) -> Path: ...
     def daemon(self) -> Endpoint: ...
+    def exec_options(self) -> tuple[tuple[str, str], ...]: ...  # as `Target.options` holds them
     def held(self) -> dict[str, Any]: ...
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -539,6 +544,10 @@ def hosts(
   hex digits after it -- longer than the 63 characters docker takes; a swarm runtime with the
   same, or a constraint that compares nothing, a generic resource of no single word, or a node
   reached by neither a runtime's name nor an ssh destination;
+  a docker runtime with a container docker would not name so, an exec user that is not
+  `UID[:GID]`, an exec variable that is not `NAME=VALUE` or an empty exec wrapper word, or with
+  a container beside an image, an OCI runtime, run arguments, a name prefix, anything to hand
+  out or a container limit;
   a runtime of Apple containers with an image of more than one word or a negative amount;
   a Slurm runtime with a partition, account or quality of service of more than one name, a
   time `--time` does not take, a constraint of more than one word, a Python neither absolute

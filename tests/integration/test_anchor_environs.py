@@ -299,6 +299,68 @@ async def test_a_docker_daemon_that_cannot_be_asked_is_a_connection_error(
     assert not [one for one in far.calls("docker") if one[:1] == ["run"]]
 
 
+@linux
+async def test_a_docker_environment_works_in_a_running_container_and_leaves_it_running(
+    far: Fakes, work: Path
+) -> None:
+    far.answer("inspect", "true\n")
+    user = f"{os.getuid()}:{os.getgid()}"
+    store.write(
+        store.new(
+            store.DOCKER,
+            "kept",
+            container="kept-box",
+            exec_user=user,
+            exec_env=["HZ_PROBE=a b"],
+        )
+    )
+    driver = _opened(f"work=docker@kept{work}")
+    try:
+        await probe(driver)
+        assert driver.available
+        await _uses(driver, work)
+    finally:
+        await driver.close()
+
+    calls = far.calls("docker")
+    assert [
+        "inspect",
+        "--type",
+        "container",
+        "--format",
+        "{{.State.Running}}",
+        "kept-box",
+    ] in calls
+    assert not [one for one in calls if one[:1] in (["run"], ["rm"], ["stop"], ["ps"])]
+    execs = [one for one in calls if one[:1] == ["exec"]]
+    assert execs
+    for one in execs:
+        assert one[:7] == ["exec", "-i", "-u", user, "-e", "HZ_PROBE=a b", "kept-box"]
+    assert list((far.root / "tmp" / f"humanize-{os.getuid()}").glob("humanize-*.pyz"))
+
+
+async def test_a_running_container_a_runtime_names_that_is_not_is_unavailable(
+    far: Fakes, work: Path
+) -> None:
+    far.answer("inspect", "false\n")
+    store.write(store.new(store.DOCKER, "kept", container="kept-box"))
+    driver = _opened(f"work=docker@kept{work}")
+    try:
+        with pytest.raises(
+            EnvUnavailable,
+            match="cannot work in the container kept-box: it is not running",
+        ):
+            await probe(driver)
+    finally:
+        await driver.close()
+
+    assert not [
+        one
+        for one in far.calls("docker")
+        if one[:1] in (["exec"], ["run"], ["rm"], ["stop"])
+    ]
+
+
 def _swarm(far: Fakes) -> None:
     far.answer(
         "info",

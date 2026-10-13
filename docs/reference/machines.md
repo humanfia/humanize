@@ -435,6 +435,11 @@ run closes it.
 | Agents | anchored to the container over `docker exec`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex>`, or native in the container, as the runtime's `affinity` says |
 | Derived environments | inside the same container |
 
+Where the runtime sets `exec_user`, `exec_env` or `exec_wrapper`, every `docker exec` into the
+container carries them (`-u`, `-e`, and the wrapper's words after the container's name), so the
+serving half, a native CLI and every command an agent runs there run as that user, with those
+variables, under that wrapper.
+
 Allocation, done while holding an exclusive `flock` on
 `$TMPDIR/humanize-<uid>/.docker.<name>.lock` until the container is up and labelled:
 
@@ -491,6 +496,46 @@ docker rm -f $(docker ps -q --filter label=humanize=$(id -u))
 
 The `humanize` label is the uid on the machine that started the container; on a daemon shared
 by several machines the same uid can belong to different users.
+
+#### A running container {#a-running-container}
+
+A docker runtime whose `container` names a container already running on its daemon puts every
+environment it is given in that container, instead of a container of its own. Whoever started
+the container keeps it: humanize only works in it.
+
+| Aspect | Rule |
+| --- | --- |
+| Starting | nothing is started, and no lock is held: `docker info`, then `docker inspect --type container <container>`, reading its `State.Running` (60 s each) |
+| Not running, or no such container | `EnvUnavailable: docker@<p>: cannot work in the container <container>: <what docker said, or "it is not running">` |
+| Name, image, OCI runtime, arguments, labels | the container's own: the runtime may not set `image`, `runtime`, `run_args`, `name_prefix`, `cpus`, `memory`, `gpus`, `gpu_memory` or `max_containers`, a role's `_image` is not used, and no label is added |
+| Resources | what the probe in the container says, as for an ssh host: `nproc`, `MemTotal` of `/proc/meminfo` (the host's, whatever memory limit the container was started with) and the GPUs `nvidia-smi` lists. Nothing is handed out or counted; a role declaring more than that is refused as on any machine (`ResourceUnmet: … needs <n> CPUs, and the environment given has <m>`) |
+| Workdir | a path inside the container, as the container sees it; it is not mounted by humanize |
+| Agents | anchored to the container over `docker exec`, with the runtime's `exec_user`, `exec_env` and `exec_wrapper`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>-<8 hex>/<12 hex>`, one directory per environment, or native in the container |
+| Closing | removes that environment's mirror directory and nothing else; the container is left running |
+| Several runs or environments at once | each works in the container independently, with mirrors of its own |
+
+Two things humanize cannot do for a container it did not start:
+
+- **Add a capability.** A harness an affinity's `docker:<name>` puts in a container of its own
+  is started with `--cap-add SYS_PTRACE`, which its supervisor needs to borrow descriptors under
+  docker's default seccomp profile. A running container keeps what it was started with: start it
+  with `--cap-add SYS_PTRACE` if a harness is to run in it.
+- **Clean up after a run killed outright.** Its mirror directory under
+  `$HUMANIZE_HOME/envs/mirrors/<container>-<8 hex>/` stays until it is removed by hand, since no
+  label says whose it was.
+
+```json
+{
+  "backend": "docker",
+  "name": "shared-box",
+  "endpoint": "local",
+  "container": "build-box",
+  "exec_user": "1000:1000",
+  "exec_env": ["TMPDIR=/scratch/u1000"],
+  "exec_wrapper": ["/usr/local/bin/limit", "--nproc", "256"],
+  "affinity": ["local"]
+}
+```
 
 <small>Defined in [`src/hmz/runtime/flowing/environing_docker.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_docker.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_docker_env`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Docker environments).</small>
 
@@ -751,10 +796,14 @@ Two runtimes at one host with different options use different ssh master connect
 | `name` | `str` | required | The runtime's name. |
 | `endpoint` | `str` | `"local"` | `local`, `unix:///PATH`, `tcp://HOST:PORT`, `ssh://[USER@]HOST[:PORT]` (no options), `ssh:<name>` (a saved ssh runtime, with all its options), or `context:<name>`. |
 | `tls_dir` | `str` | `""` | For `tcp://` only: directory of `ca.pem`, `cert.pem`, `key.pem`. |
+| `container` | `str` | `""` | A container already running on the daemon, by name or id, that every environment on this runtime works in: see [A running container](#a-running-container). `""` for a container of its own per environment. |
+| `exec_user` | `str` | `""` | `UID[:GID]` every command in an environment's container runs as (`docker exec -u`); `""` for the container's own user. |
+| `exec_env` | `tuple[str, ...]` | `()` | `NAME=VALUE` each such command runs with (`docker exec -e`); one line each. |
+| `exec_wrapper` | `tuple[str, ...]` | `()` | Words of a program in the container each such command runs under, after the container's name; it must run the command given after them, with the same streams, and exit with its status. |
 | `image` | `str` | `""` | Default image; no whitespace. |
 | `runtime` | `str` | `""` | Container runtime, e.g. `nvidia`. |
 | `run_args` | `tuple[str, ...]` | `()` | Extra `docker run` arguments; no newlines. |
-| `name_prefix` | `str` | `""` | What a container's name starts with in place of `humanize-<name>`: `<name_prefix>-<role>-<8 hex>`. Letters, digits, `-` and `_`, starting and ending with a letter or digit; at most 54 characters. Empty for `humanize-<name>`. |
+| `name_prefix` | `str` | `""` | What a container's name starts with in place of `humanize-<name>`: `<name_prefix>-<role>-<8 hex>`. Letters, digits, `-` and `_`, starting and ending with a letter or digit; at most 54 characters. Empty for `humanize-<name>`. Refused beside `container`, which is named already. |
 | `cpus` | `float` | `0.0` | CPUs it may hand out; `0` for the daemon's `NCPU`. |
 | `memory` | `int` | `0` | Bytes it may hand out; `0` for the daemon's `MemTotal`. |
 | `gpus` | `tuple[str, ...]` | `()` | GPU ids it may hand out; empty for the daemon's CDI-listed NVIDIA GPUs. |
@@ -767,6 +816,9 @@ Two runtimes at one host with different options use different ssh master connect
 
 `daemon()` returns the [`Endpoint`](#endpoints): `tls_dir` becomes `?tls=<absolute dir>`, and
 `ssh:<name>` becomes `ssh://[user@]host[:port]` carrying every option of that ssh runtime.
+`exec_options()` returns `exec_user`, each of `exec_env` and each of `exec_wrapper` as the
+[`docker://` target's options](/reference/remote-execution#targets) `user`, `env` and `exec`, in
+that order; every environment on the runtime is reached through a target carrying them.
 
 ### A docker swarm {#a-docker-swarm}
 
@@ -902,6 +954,11 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | a relative workdir | `the workdir 'rel' must be absolute or under ~/` |
 | bad docker endpoint | `'weird' is not a docker endpoint: local, unix:///PATH, tcp://HOST:PORT, ssh://[USER@]HOST[:PORT], ssh:<ssh host> or context:<docker context>` |
 | `tls_dir` without `tcp://` | `x: TLS certificates require a tcp:// endpoint` |
+| a container docker would not name so | `x: invalid container '-c'` |
+| an exec user that is not `UID[:GID]` | `x: exec user 'me' is not UID[:GID]` |
+| an exec variable that is not `NAME=VALUE` | `x: exec variable 'A' is not NAME=VALUE` |
+| an empty exec wrapper word, or one of more than one line | `x: exec wrapper word '' is empty or two lines` |
+| a container beside an image, an OCI runtime, run arguments, a `name_prefix`, `cpus`, `memory`, `gpus`, `gpu_memory` or `max_containers` | `x: a runtime working in the running container box starts none, so it cannot say an image or what it may hand out` |
 | image with whitespace | `x: invalid image 'a b'` |
 | bad OCI runtime | `x: invalid OCI runtime '<value>'` |
 | bad or repeated GPU id | `x: invalid GPU id '<id>'`, `x: duplicate GPU specified` |

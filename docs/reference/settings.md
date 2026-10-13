@@ -184,6 +184,9 @@ entry that does not validate is skipped.
 | --- | --- |
 | `tls_dir`, `image`, `runtime`, `name_prefix`, `workdir` | `str` |
 | `endpoint` | `local`, `unix://…`, `tcp://…`, `ssh://…`, `ssh:<ssh runtime>`, `context:<name>` |
+| `container` | `str`: a running container every environment works in ([A running container](/reference/machines#a-running-container)) |
+| `exec_user` | `str`: `UID[:GID]` |
+| `exec_env`, `exec_wrapper` | `[str]`: `NAME=VALUE` each; the wrapper's words |
 | `run_args`, `gpus`, `fallback`, `affinity` | `[str]` |
 | `cpus` | `float` |
 | `memory`, `gpu_memory`, `max_containers` | `int` |
