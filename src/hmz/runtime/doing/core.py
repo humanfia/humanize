@@ -56,7 +56,7 @@ class Hmz:
             it named, spelled the way it was named.
         """
         self._workspace: str | os.PathLike[str] | None = workspace
-        self._host: Host | None = None
+        self._hosts: dict[str, Host] = {}
         self._settings: Settings | None = None
         self._flows: Flows | None = None
         self._accounts: Accounts | None = None
@@ -406,15 +406,20 @@ class Hmz:
             backup=line.backup,
         ).run()
 
-    def host(self) -> Host:
+    def host(self, slot: str = "") -> Host:
         """The runs of this workspace as every frontend attached to them shares them.
 
-        One per object, made the first time it is asked for: whatever frontends attach to it
-        share one run going, one queue of lines, one set of claims -- which is what makes two
-        of them one run rather than two copies of it.
+        One per object and slot, made the first time it is asked for: whatever frontends attach
+        to it share one run going, one queue of lines, one set of claims -- which is what makes
+        two of them one run rather than two copies of it.
+
+        Args:
+          slot: Which: "" for the workspace's own, which runs its flows one at a time, or
+            `chat:<hex>` for one chat's, beside it.
         """
-        if self._host is None:
+        held = self._hosts.get(slot)
+        if held is None:
             from hmz.runtime.doing.hosting import Host
 
-            self._host = Host(self)
-        return self._host
+            held = self._hosts[slot] = Host(self, slot)
+        return held

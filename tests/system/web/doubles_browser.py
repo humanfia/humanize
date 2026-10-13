@@ -159,7 +159,7 @@ def stop(page: Page) -> None:
           await fetch('/api/held/stop', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({workspace: epic.workspace}),
+            body: JSON.stringify({workspace: epic.workspace, slot: epic.slot}),
           })
         }"""
     )

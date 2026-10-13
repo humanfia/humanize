@@ -15,6 +15,7 @@ class Daemon:
     pid: int
     started: str
     protocol: int = 0  # the frontends' protocol a host speaks; 0 for an older humanize's
+    slot: str = ""  # which of the workspace's hosts: "" its own, `chat:<hex>` a chat's
     alive: bool    # property
     def link(self, name: str = "", kind: str = "sdk", *, replay: bool = True) -> Link: ...
     def status(self) -> dict[str, Any]: ...  # its host's, as `Host.status` says it
@@ -22,13 +23,14 @@ class Daemon:
     def stop(self, *, seconds: float = 20.0) -> bool: ...
     def kill(self, *, seconds: float = 20.0) -> bool: ...
     def asked(self, said: dict[str, Any]) -> dict[str, Any]: ...
-def running(workspace: str | os.PathLike[str] | None = None) -> Daemon | None: ...
-def daemons() -> list[Daemon]: ...
-def host(workspace: str | os.PathLike[str] | None = None, *, seconds: float = 10.0) -> Daemon: ...
+def running(workspace: str | os.PathLike[str] | None = None, *, slot: str = "") -> Daemon | None: ...
+def daemons() -> list[Daemon]: ...  # every host of every workspace
+def host(workspace: str | os.PathLike[str] | None = None, *, seconds: float = 10.0,
+         slot: str = "") -> Daemon: ...
 def older(daemon: Daemon) -> str: ...  # what to say of a daemon of an older humanize
 class Older(RuntimeError): ...  # the runs asked for are held by an older humanize
-def attach(kind: str, name: str = "", *,
-           workspace: str | os.PathLike[str] | None = None) -> Link: ...  # kind: tui, web
+def attach(kind: str, name: str = "", *, workspace: str | os.PathLike[str] | None = None,
+           slot: str = "") -> Link: ...  # kind: tui, web
 def __getattr__(name: str) -> object: ...  # `Hmz`, `Host` and `Refused`, from `hmz.runtime`
 # link.py -- one frontend's end of a workspace's runs, through the daemon or in this process
 class Link:  # a context manager; iterable of messages until a listener is set
@@ -53,9 +55,9 @@ class Link:  # a context manager; iterable of messages until a listener is set
     def close(self) -> None: ...
 def linked(host: Host, name: str = "", kind: str = "tui", *, replay: bool = True) -> Link: ...
 def reached(at: Path, workspace: str, name: str = "", kind: str = "sdk", *,
-            replay: bool = True) -> Link: ...
+            replay: bool = True, slot: str = "") -> Link: ...
 # a workspace's runs on another machine, through its web interface (runtime/doing.md's Remotes)
-def remote(remotes: Remotes, daemon: str, workspace: str) -> Link: ...
+def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Link: ...
 # carrying.py -- a host's runs carried between it and the frontends the daemon hands it
 HOST_LOG: str; TAKEN: bytes
 class Carrier:
@@ -65,7 +67,7 @@ class Carrier:
     def close(self) -> None: ...
 class Printed(io.TextIOBase): ...  # what a host process prints, said to its frontends
 def keeps(reading: int, host: Host) -> None: ...  # what a host process writes, into its run's epic
-def serves(host: Host, workspace: str, telling: int | None = None) -> None: ...
+def serves(host: Host, workspace: str, telling: int | None = None, *, slot: str = "") -> None: ...
 def logged(about: str) -> None: ...
 # routing.py -- the machine's one daemon, handing each frontend to its workspace's host
 class Router:
@@ -77,6 +79,9 @@ def serves(telling: int | None = None) -> None: ...
 # proto.py -- the framed protocol between the runs and whatever is reading them
 GONE: bytes; CONTROL: bytes; MESSAGE: bytes; PROTOCOL: int
 def frame(kind: bytes, payload: bytes = b"") -> bytes: ...
+# where.py -- the daemon's directory, and the slots of a workspace's hosts
+def slot(said: object) -> str: ...  # "" or `chat:<hex>`; ValueError for anything else
+def chat() -> str: ...  # a new chat's slot
 def spoken(kind: bytes, said: dict[str, Any]) -> bytes: ...
 def asked(payload: bytes) -> dict[str, Any]: ...
 class Frames:
@@ -96,9 +101,11 @@ class Frames:
   take it.
 - MUST be one daemon per machine and user, kept in `hmz.machine()` and never under `hmz.home()`,
   claimed against a race rather than by looking first, released however the process ends; it MUST
-  hold every workspace's runs there, each in a host process of its own standing in that workspace,
-  one host per workspace, and MUST read a workspace as holding nothing unless its host is there
-  and the daemon answers on its socket.
+  hold every workspace's runs there, each host in a process of its own standing in that workspace:
+  one per workspace and slot -- the workspace's own, slot "", which runs its flows one at a time,
+  and one per chat, `chat:<hex>`, beside it -- and MUST read a host as holding nothing unless it
+  is there and the daemon answers on its socket. Without a slot, every call here MUST mean the
+  workspace's own host.
 - MUST answer what is running out of the runtime in the holding process, and a run that cannot be
   asked MUST answer as one running nothing rather than as one that cannot be read.
 - MUST outlive the terminal it was started from: no controlling terminal, unreachable by a hangup, and
@@ -118,10 +125,10 @@ class Frames:
 - A daemon MUST write the protocol it speaks beside its socket (`protocol`), MUST answer a reader
   speaking any other with `GONE` rather than leaving it waiting, and MUST read a daemon that wrote
   none, or another, as one of an older humanize, which nothing here reaches.
-- The daemon MUST hand each frontend to the host of the workspace its first frame names, without
-  reading that frame off the socket, MUST say so where no host holds it, MUST refuse a second
-  host of one workspace, and MUST go once it holds no workspace -- its hosts closing their runs
-  as a stop does once it has gone.
+- The daemon MUST hand each frontend to the host of the workspace and slot its first frame names,
+  without reading that frame off the socket, MUST say so where no host holds it, MUST refuse a
+  second host of one slot of one workspace, and MUST go once it holds no host -- its hosts
+  closing their runs as a stop does once it has gone.
 - `host` MUST find the host already holding a workspace's runs before it starts one, MUST start
   the daemon and then one where none is, and MUST refuse a machine an older humanize's daemon
   holds. The
@@ -129,7 +136,7 @@ class Frames:
   holds, MUST say what is printed in it to its frontends a line at a time, MUST ignore an
   interrupt, MUST close its runs on a terminate and wait a while for them to let go of what they
   made, MUST give the backups of its epics a while to finish before it goes, and MUST report its own failures where that has been answered yes. `kill` MUST end one
-  workspace's host and no other.
+  host and no other.
 - MUST carry one JSON object a `MESSAGE` frame each way, and MUST carry out every request off the
   thread carrying the bytes: a frontend's requests in the order it made them, an aside apart
   from the rest. Each request MUST be answered with one reply naming it, and a frontend MUST say
@@ -137,8 +144,9 @@ class Frames:
 - MUST NOT wait on a frontend: what one has not taken MUST be kept against it up to a ceiling,
   and one further behind MUST be told so after the frame it is in and let go of.
 - A host MUST go once nothing is running or stopping and nobody is reading -- keeping a run that
-  ended with nobody there, and that nobody stopped, for the next frontend to read -- and MUST go
-  when it is stopped, telling every frontend why; one nobody ever reached MUST NOT be kept.
+  ended with nobody there, and that nobody stopped, for the next frontend to read, but never a
+  chat folded away -- and MUST go when it is stopped, telling every frontend why; one nobody ever
+  reached MUST NOT be kept.
 - Any frontend MAY close the whole host with `quit`, which MUST close it as a stop does: every
   run closed and every frontend let go, told why.
 - `Link` MUST be one frontend whether the runs are in this process or held by a host, MUST hand

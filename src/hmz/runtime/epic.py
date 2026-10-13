@@ -331,6 +331,8 @@ class Ran(NamedTuple):
       params: What the flow was set up with, as JSON.
       budget: What the run was allowed to spend, as JSON, or None where it said nothing.
       picked_up: The epic this run was picked up from, by name, or "".
+      reopened: When it was last opened again to go on in -- a chat carried on -- or "" for
+        one never opened again; the sessions opened before then are its earlier ones.
       profile_flow: Whether the run was asked to sample the flow's own Python; False for a
         run written before a run could be asked.
       profile_environment: Whether it was asked to profile the programs its agents started
@@ -361,6 +363,7 @@ class Ran(NamedTuple):
     params: dict[str, Any] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     budget: dict[str, Any] | None = None
     picked_up: str = ""
+    reopened: str = ""
     profile_flow: bool = False
     profile_environment: bool = False
     spent: dict[str, Any] | None = None
@@ -748,6 +751,7 @@ class Epic:
         profile_flow: bool = False,
         profile_environment: bool = False,
         backup: Sequence[str] = (),
+        reopened: bool = False,
     ) -> None:
         """Opens an epic, and writes down what it is a run of.
 
@@ -776,9 +780,15 @@ class Epic:
             written down with the rest so that a run picked up again is profiled as the run
             it goes on from was.
           backup: The git repositories it is backed up to, by name.
+          reopened: Whether the run goes on in the epic it is picked up from rather than a
+            new one -- a chat carried on, which is one conversation and so one epic -- saying
+            it was opened again where it said it began.
         """
+        reopened = reopened and picked_up is not None
         self._begin(
-            home()
+            picked_up
+            if picked_up is not None and reopened
+            else home()
             / "epics"
             / _PLAIN.sub("-", str((workspace or Path.cwd()).resolve()))
             # The moment names it and six hex say which, since two processes may start flows
@@ -793,7 +803,7 @@ class Epic:
         )
         self._at.mkdir(parents=True, exist_ok=True)
         self._held = _hold(self._at / _HELD)
-        if picked_up is not None:
+        if picked_up is not None and not reopened:
             # A copy rather than the file itself: the run it came from is closed, and the
             # engine compacts what it picks up before it appends to it.
             with contextlib.suppress(OSError):
@@ -805,6 +815,10 @@ class Epic:
         #: The flow's own Python, sampled while it runs, or None likewise -- started as
         #: the epic is entered, so that a run refused before then leaves nothing sampling.
         self._sampler = self._sampling() if profile_flow else None
+        if reopened:
+            # What it began as is said already; what carries it on is the line it goes on with.
+            self.write("reopened", task=task)
+            return
         from hmz.coganchor.machines.store import SPELLING
 
         self.write(
@@ -1407,8 +1421,16 @@ def read(epic: Path) -> Ran | None:
     began = next((one for one in events if one.get("event") == "began"), None)
     if began is None:
         return None
-    ended = next((one for one in reversed(events) if one.get("event") == "ended"), None)
-    usage = next((one for one in reversed(events) if one.get("event") == "usage"), None)
+    # An epic opened again -- a chat carried on -- has ended only once it has since.
+    last = max(
+        (at for at, one in enumerate(events) if one.get("event") == "reopened"),
+        default=-1,
+    )
+    ended = next(
+        (one for one in reversed(events[last + 1 :]) if one.get("event") == "ended"),
+        None,
+    )
+    usages = [one for one in events if one.get("event") == "usage"]
     agents: list[Drove] = []
     for one in began.get("agents") or ():
         if not isinstance(one, dict):
@@ -1459,15 +1481,17 @@ def read(epic: Path) -> Ran | None:
         picked_up=str(began.get("picked_up") or ""),
         profile_flow=bool(began.get("profile_flow")),
         profile_environment=bool(began.get("profile_environment")),
+        # What each time it was opened spent, together.
         spent=(
             {
-                key: usage[key]
+                key: sum(one[key] for one in usages if key in one)
                 for key in ("cost", "output_tokens", "seconds")
-                if key in usage
+                if any(key in one for one in usages)
             }
-            if usage
+            if usages
             else None
         ),
+        reopened=str(events[last].get("at") or "") if last >= 0 else "",
         backup=tuple(
             str(one)
             for one in cast("list[Any]", backup if isinstance(backup, list) else [])

@@ -16,8 +16,10 @@ import contextlib
 import errno
 import json
 import os
+import re
 import socket
 import traceback
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -33,11 +35,13 @@ __all__ = [
     "SOCKET",
     "alive",
     "at",
+    "chat",
     "connects",
     "held",
     "holds",
     "now",
     "reached",
+    "slot",
     "workspace",
     "wrote",
 ]
@@ -90,6 +94,40 @@ def workspace(where: str | os.PathLike[str] | None = None) -> str:
       The path, which two spellings of one directory are one of.
     """
     return str(Path(where or Path.cwd()).resolve())
+
+
+#: What names a host beside a workspace's own: a chat's, `chat:` and a few hex digits. A
+#: workspace's own host -- the one its flows run in, one at a time -- is the slot "".
+_SLOT = re.compile(r"(?:chat:[0-9a-f]{1,32})?")
+
+
+def slot(said: object) -> str:
+    """A host's slot as it was asked for, checked.
+
+    A workspace's runs are held by a host apiece: its own, slot "", which runs one flow at a
+    time, and one per chat, beside it and outside that one flow -- a conversation is no reason
+    a flow cannot be started, nor the other way round.
+
+    Args:
+      said: What was asked for: "" or None for the workspace's own host, `chat:<hex>` for a
+        chat's.
+
+    Returns:
+      The slot.
+
+    Raises:
+      ValueError: If it is neither.
+    """
+    if said is None:
+        return ""
+    if not isinstance(said, str) or not _SLOT.fullmatch(said):
+        raise ValueError(f"no such host as {said!r}: a slot is '' or chat:<hex>")
+    return said
+
+
+def chat() -> str:
+    """The slot of a new chat's own host, never one handed out before."""
+    return f"chat:{uuid.uuid4().hex[:12]}"
 
 
 @contextlib.contextmanager

@@ -1,11 +1,13 @@
 """This machine's one daemon: which workspace's host each frontend is handed to.
 
-Every workspace's runs are held by a host of their own -- a process standing in the workspace,
-since whatever a run starts works where its process stands -- and every host is reached through
-the one socket of this machine's daemon. A host says which workspace it holds as it comes up,
-and keeps open the connection it said so on. A frontend says which workspace it is reaching for
-in the first thing it says, and the daemon reads that without taking it off the socket, then
-hands the socket itself down that host's connection: from there on the two talk as though the
+Every workspace's runs are held by hosts of their own -- each a process standing in the
+workspace, since whatever a run starts works where its process stands: the workspace's own,
+which runs its flows one at a time, and one per chat beside it, each named by its slot (see
+:func:`hmz.daemon.where.slot`). Every host is reached through the one socket of this machine's
+daemon. A host says which workspace and slot it holds as it comes up, and keeps open the
+connection it said so on. A frontend says which it is reaching for in the first thing it
+says, and the daemon reads that without taking it off the socket, then hands the socket
+itself down that host's connection: from there on the two talk as though the
 host had accepted it, and the daemon carries none of what they say. The daemon keeps its own
 end of each socket until the host says it has it, a byte back apiece: a socket nothing but a
 message in flight refers to is one a kernel may take for garbage -- macOS does, and empties it.
@@ -70,11 +72,11 @@ _RETOUCH = 3600.0
 
 @dataclasses.dataclass(slots=True)
 class _Held:
-    """One workspace's host, as the daemon reaches it.
+    """One host of a workspace, as the daemon reaches it.
 
     Attributes:
       handing: The connection it said what it holds on, which every socket for it goes down.
-      said: What it said of itself: its pid, its workspace and when it started.
+      said: What it said of itself: its pid, its workspace, its slot and when it started.
       lock: Held while a socket is on its way down, so that two never interleave -- and
         while the host is being told it was taken on, which goes down first.
       sent: The sockets on their way down that the host has not said it has yet, oldest
@@ -91,7 +93,7 @@ class _Held:
 
 
 class Router:
-    """The socket of this machine's daemon, and the host of each workspace it holds."""
+    """The socket of this machine's daemon, and the hosts of each workspace it holds."""
 
     def __init__(self, listening: socket.socket, at: Path) -> None:
         """Holds the socket frontends and hosts arrive on.
@@ -103,7 +105,7 @@ class Router:
         self._listening = listening
         self._at = at
         self._lock = threading.Lock()
-        self._held: dict[str, _Held] = {}
+        self._held: dict[tuple[str, str], _Held] = {}
         self._routing = 0
         self._ever = False
         self._since = time.monotonic()
@@ -231,14 +233,15 @@ class Router:
         return {"ok": True, "held": held}
 
     def _hands(self, one: socket.socket, kind: bytes, said: dict[str, Any]) -> bool:
-        """Hands a socket to the host of the workspace it names, or says none holds it.
+        """Hands a socket to the host of the workspace and slot it names, or says none holds it.
 
         Returns:
           Whether it was handed, and so is kept here until the host says it has it.
         """
         workspace = str(said.get("workspace") or "")
+        slot = str(said.get("slot") or "")
         with self._lock:
-            held = self._held.get(workspace)
+            held = self._held.get((workspace, slot))
         if held is not None:
             with held.lock:
                 # Kept before it is sent, since the host may say it has it before this
@@ -253,6 +256,8 @@ class Router:
         if held is not None:
             return True
         why = f"no runs are held in {workspace or 'no workspace'}"
+        if slot:
+            why = f"{why} for {slot}"
         if kind == MESSAGE:
             one.sendall(
                 spoken(
@@ -270,53 +275,55 @@ class Router:
         return False
 
     def _serves(self, one: socket.socket, said: dict[str, Any]) -> bool:
-        """Takes a host on as the one of its workspace, for as long as its connection lasts.
+        """Takes a host on as the one of its workspace and slot, for as long as it is connected.
 
         Returns:
-          Whether it was taken on -- refused where another host already holds that workspace,
-          which is two flows writing over one epic.
+          Whether it was taken on -- refused where another host already holds that slot of that
+          workspace, which is two flows writing over one epic.
         """
         workspace = str(said.get("workspace") or "")
+        slot = str(said.get("slot") or "")
         held = _Held(
             one,
-            {key: said.get(key) for key in ("pid", "workspace", "started")},
+            {key: said.get(key) for key in ("pid", "workspace", "started")}
+            | {"slot": slot},
         )
         # Told it was taken on before anybody can be handed to it, which is what holding its
         # lock across both does: a socket on its way down ahead of that would be read as the
         # word itself.
         with held.lock:
             with self._lock:
-                there = self._held.get(workspace)
+                there = self._held.get((workspace, slot))
                 if not workspace or (
                     there is not None and where.alive(int(there.said.get("pid") or 0))
                 ):
                     return False
-                self._held[workspace] = held
+                self._held[workspace, slot] = held
                 self._ever = True
             try:
                 one.settimeout(None)
                 one.sendall(TAKEN)
             except OSError:
                 with self._lock:
-                    if self._held.get(workspace) is held:
-                        del self._held[workspace]
+                    if self._held.get((workspace, slot)) is held:
+                        del self._held[workspace, slot]
                 raise
         threading.Thread(
             target=self._watches,
-            args=(workspace, held),
+            args=((workspace, slot), held),
             daemon=True,
             name="humanize-host",
         ).start()
         return True
 
-    def _watches(self, workspace: str, held: _Held) -> None:
+    def _watches(self, key: tuple[str, str], held: _Held) -> None:
         """Lets go of each socket the host says it has, and stops handing it any once it goes."""
         with contextlib.suppress(OSError):
             while taken := held.handing.recv(_PEEK):
                 _lets_go(held, len(taken))
         with self._lock:
-            if self._held.get(workspace) is held:
-                del self._held[workspace]
+            if self._held.get(key) is held:
+                del self._held[key]
                 self._since = time.monotonic()
         _lets_go(held, len(held.sent))
         with contextlib.suppress(OSError):

@@ -23,6 +23,7 @@ from hmz.tui.settings import Adjusts
 from hmz.tui.stored import Stored
 from tests.integration.doubles_tui import (
     SIZE,
+    folds_fast,
     leaves,
     on,
     onto,
@@ -41,8 +42,9 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
-    """The stand-in `claude` on `PATH`."""
+    """The stand-in `claude` on `PATH`, and a chat left that folds away at once."""
     del asking
+    folds_fast(monkeypatch)
     return stand_in(tmp_path, monkeypatch)
 
 
@@ -190,12 +192,12 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
         await shows(pilot, "heard hello")
         await typed(pilot, "/clear")
         await shows(pilot, "◉ chat")
-        await until(pilot, lambda: bool(epics(workspace)), "the epic's record")
+        await until(pilot, lambda: _ended(workspace), "the epic to end")
         assert _log(lab) == []  # no policy, so only by hand
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "stopped")
+        await shows(pilot, "1 session")
         await pilot.press("enter")
         await on(pilot, Does)
         await opens(pilot, "upload")

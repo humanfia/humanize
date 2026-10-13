@@ -528,3 +528,4 @@ Some harnesses mix permission with approval policy. In our design, all approval 
 - A follow-up or steer typed in the assistant's conversation while chat is listening is the next message: it answers the listen and becomes the next turn.
 - A question the agent asks mid-turn appears inline in the conversation with its options, and is answered from the composer.
 - Away (`hmz exec`, `/afk`) is unchanged: the listen is answered with nothing, so chat ends after one turn.
+- `chat` is resumable: it keeps the assistant's session in its state as it ends, and picked up it carries that session on -- the same conversation, in the same epic -- with the line it was picked up with as the next turn. One that cannot be carried on says so in the conversation, and starts a new one.

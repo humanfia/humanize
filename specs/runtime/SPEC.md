@@ -141,6 +141,7 @@ class Ran(NamedTuple):
     params: dict[str, Any] = {}
     budget: dict[str, Any] | None = None
     picked_up: str = ""  # the epic it was picked up from
+    reopened: str = ""  # when it was last opened again to go on in -- a chat carried on
     profile_flow: bool = False  # whether its flow's Python was profiled as well as traced
     profile_environment: bool = False  # and whether the programs its agents started were
     spent: dict[str, Any] | None = None  # cost, output_tokens and seconds, as its budget counted
@@ -166,6 +167,7 @@ class Epic:  # a context manager, closed however the run ends
         profile_flow: bool = False,
         profile_environment: bool = False,
         backup: Sequence[str] = (),
+        reopened: bool = False,  # going on in the epic picked up, rather than one of its own
     ) -> None: ...
     @property
     def path(self) -> Path: ...
@@ -389,7 +391,10 @@ class Keeping:  # one epic's policies, as it runs
   epic MUST be given one.
 - A resumable run's journal MUST be kept inside its epic, MUST be there for a run picking it
   up even where this one was killed, and a run picking one up MUST be handed a copy of it in an
-  epic of its own and MUST say which epic it came from.
+  epic of its own and MUST say which epic it came from -- but for the package's own `chat`,
+  which is one conversation and so one epic: picked up, it MUST go on in the epic it picks up,
+  saying it was opened again rather than that it began, read back as going until it ends again
+  and as having spent what each time it was opened spent.
 - A bundle MUST be one archive readable on a machine that was not there: everything the run
   wrote, the session logs themselves, and a manifest saying what the run was down to each
   backend's version and the hash of the executable that took its turns.

@@ -1,8 +1,10 @@
 // One epic: the run going, as it happens, or one written down. `#/runs/<name>` draws it as a
 // graph of its agents and who handed to whom; `/agents/<agent>` is the graph with that agent
 // picked out; `/sessions/<key>` is one session's thread, as a chat is read; `/exomyth` is its
-// timeline, drawn by views/exomyth. `#/live` is whichever run is going. A chat is only its
-// conversation, as a chat app draws one: never a graph, its agents or a way to stop it. Under
+// timeline, drawn by views/exomyth. `#/live` is whichever run is going on a host: a workspace's
+// own, or a chat's by its `slot`. A chat is only its conversation, as a chat app draws one:
+// never a graph, its agents or a way to stop it -- and one folded away is carried on by saying
+// something in it, on a host of its own, with what was said before it still above. Under
 // the view, while the run goes, are the questions it waits on a person for and the box that
 // says a line to it; beside it, a panel of what it is and was -- its figures, its budget, how it
 // was set up, the flows it called -- with its board, its people and the side questions asked
@@ -13,6 +15,7 @@ import { get, hash, scoped } from '../api.js'
 import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { ask } from '../held.js'
+import { composer as composed } from '../composer.js'
 import { chatState, chatting, live, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
 import { bar, dragged, keep, kept, sidePanel, tabbed } from '../shell.js'
@@ -26,8 +29,8 @@ const LINES = 3000
 export function mount(root, { parts, query }) {
   if (parts[0] === 'epics' && parts[2] === 'exomyth') return exomyth(root, parts[1], query)
   let name = parts[0] === 'live' ? '' : parts[1]
-  /** Where the epic going is looked for, for an epic not named. */
-  const wanted = query.get('workspace') || ''
+  /** Which host the epic going is looked for on, for an epic not named. */
+  const wanted = { workspace: query.get('workspace') || '', slot: query.get('slot') || '' }
   let mode = modeOf(parts)
   const panel = sidePanel('the epic')
   const head = h('div', { class: 'bar-holder' })
@@ -43,7 +46,20 @@ export function mount(root, { parts, query }) {
   let sayTo = null
   let sayToKey = ''
   let btw = null
-  const workspace = () => (seen && seen.workspace) || wanted
+  const workspace = () => (seen && seen.workspace) || wanted.workspace
+  /** The host the page follows, as what is asked of the epic going is asked of it. */
+  const here = {
+    get workspace() {
+      return workspace()
+    },
+    get slot() {
+      return (held() && held().slot) || ''
+    },
+  }
+  /** The box that carries a chat folded away on, once there is one to carry on. */
+  let carry = null
+  /** Whether a line said in that box is carrying the chat on, until it is followed going. */
+  let carryingOn = false
   /** The card of each question waiting, kept while it waits as it was asked of whom it was. */
   const cards = new Map()
   let seen = null
@@ -91,19 +107,19 @@ export function mount(root, { parts, query }) {
       name = detail.name
       history.replaceState(null, '', hash(`/epics/${encodeURIComponent(name)}`))
       stop()
-      stop = watch(name, detail.workspace, told)
+      stop = watch(name, { workspace: detail.workspace, slot: wanted.slot }, told)
       return
     }
     if (!say) {
-      say = saying(detail.workspace)
+      say = saying(here)
       btw = asides(detail.workspace, detail.name)
     }
     const run = going && going.started ? going : null
     const chat = chatting(detail)
     // A chat is its one conversation, and is opened on it wherever it is opened, as a chat app
-    // opens on one.
-    const conversation = chat && !mode.session && (run ? run.records.find((one) => one.type === 'opened' && !one.person) : sessionsOf(detail)[0])
-    if (conversation) {
+    // opens on one: the one going, or the last it opened, which a chat carried on goes on from.
+    const conversation = chat && (run ? run.records.find((one) => one.type === 'opened' && !one.person) : sessionsOf(detail).at(-1))
+    if (conversation && mode.session !== conversation.key) {
       history.replaceState(null, '', hash(`/epics/${encodeURIComponent(name)}/sessions/${encodeURIComponent(conversation.key)}`))
       mode = modeOf(['epics', name, 'sessions', conversation.key])
     }
@@ -127,9 +143,9 @@ export function mount(root, { parts, query }) {
     region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed], () => {
       const actions = []
       // A chat is never stopped from its page: it is a conversation, as a chat app's.
-      if (!chat && going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask(workspace(), 'stop') }))
-      else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask(workspace(), 'force') }))
-      if (!going && detail.picks_up) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
+      if (!chat && going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask(here, 'stop') }))
+      else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask(here, 'force') }))
+      if (!going && detail.picks_up && !chat) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
       if (!chat) actions.push(h('a', { class: 'icon-btn', href: hash(`/epics/${encodeURIComponent(detail.name)}/exomyth`), 'aria-label': 'Exomyth', title: 'Exomyth', 'data-hmz': 'exomyth-open' }, icon('chart')))
       if (!going) actions.push(h('a', { class: 'icon-btn', href: scoped(`/api/runs/${encodeURIComponent(detail.name)}/bundle`), download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
       // How each target last took it, said on hover; read again as the epic is.
@@ -241,6 +257,15 @@ export function mount(root, { parts, query }) {
         fill(box)
         cut.hidden = true
       }
+      // A chat carried on: what was said before, read out of the last session it opened then,
+      // above what is said now.
+      const before = chat && detail.earlier ? sessionsOf(detail)[detail.earlier - 1] : null
+      if (before && !traced && !tracing && !traceError) readTrace()
+      region('thread-before', [saidFor, before && before.key, Boolean(traced)], () => {
+        box.querySelector(':scope > .thread-before')?.remove()
+        const read = before && traced && traced.find((each) => each.key === before.traced)
+        if (read && read.actions.length) box.prepend(h('div', { class: 'thread-before', 'data-hmz': 'thread-before' }, saidTraced({ ...read, label: before.key })))
+      })
       const stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
       let added = false
       for (const record of run.records) {
@@ -270,7 +295,7 @@ export function mount(root, { parts, query }) {
             'div',
             { class: 'thread-ask row', 'data-hmz': 'thread-ask' },
             asking.options.map((option, index) =>
-              acting(option, () => ask(workspace(), 'answer', { question: asking.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
+              acting(option, () => ask(here, 'answer', { question: asking.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
             ),
           ),
         )
@@ -319,7 +344,7 @@ export function mount(root, { parts, query }) {
       const kept = new Set()
       const shown = carded.map((one) => {
         const key = JSON.stringify([one.question, one.owner || '', me, one.text, one.options])
-        if (!cards.has(key)) cards.set(key, question(workspace(), one, me, clients))
+        if (!cards.has(key)) cards.set(key, question(here, one, me, clients))
         kept.add(key)
         return cards.get(key)
       })
@@ -339,12 +364,17 @@ export function mount(root, { parts, query }) {
       if (to && sayToKey !== to) {
         // A chat's line is said to its next turn, which is its one conversation's: the turn
         // open, or the next the person is asked to start.
-        sayTo = saying(workspace(), to, { asked: () => askedIn(to), to: chatting(detail) && mode.session ? '' : to })
+        sayTo = saying(here, to, { asked: () => askedIn(to), to: chatting(detail) && mode.session ? '' : to })
         sayToKey = to
       }
     }
-    const composer = going ? (reading(mode) && sayToKey ? sayTo.node : say.node) : null
-    region('dock-composer', [going, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
+    // A chat folded away is carried on by saying something in it, as one going is.
+    // Until the host carrying it on is followed, what was said is on its way: no second box.
+    if (going) carryingOn = false
+    const carried = !going && chat && detail.picks_up && !detail.held && !carryingOn
+    if (carried && !carry) carry = carrying(detail)
+    const composer = going ? (reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry : null
+    region('dock-composer', [going, carried, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
       dock.querySelector('.composer, .dock-note')?.remove()
       if (composer) dock.append(composer)
       else if (detail.picks_up)
@@ -393,11 +423,11 @@ export function mount(root, { parts, query }) {
         fill(pane, h('p', { class: 'dim' }, 'Side questions never reach the epic.'), btw.node)
       })
     } else if (tab === 'board') {
-      region('panel-board', [items], () => fill(pane, board(workspace(), items || [])))
+      region('panel-board', [items], () => fill(pane, board(here, items || [])))
     } else if (tab === 'people') {
       const clients = standing.clients && standing.clients.clients
       region('panel-people', [people, standing.claims, standing.away, held().me, clients], () =>
-        fill(pane, outworlders(workspace(), people, { claims: (standing.claims && standing.claims.claims) || {}, away: standing.away, me: held().me, clients })),
+        fill(pane, outworlders(here, people, { claims: (standing.claims && standing.claims.claims) || {}, away: standing.away, me: held().me, clients })),
       )
     }
   }
@@ -492,6 +522,27 @@ export function mount(root, { parts, query }) {
 
   function held() {
     return seen && seen.held
+  }
+
+  /**
+   * The box a chat folded away is carried on in: what is said in it starts the chat again on a
+   * host of its own, going on in this epic with the agent it had, and the page follows that host.
+   */
+  function carrying(detail) {
+    const box = composed({
+      placeholder: 'Message',
+      label: 'What to say',
+      submit: async (text) => {
+        const agents = Object.fromEntries(detail.agents.map((one) => [one.role, one.runs]))
+        const started = await ask(detail.workspace, 'start', { flow: detail.flow, task: text, agents, resume: detail.at })
+        carry = null
+        carryingOn = true
+        stop()
+        stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told)
+      },
+    })
+    box.node.dataset.hmz = 'say'
+    return box.node
   }
 
   function told(now) {

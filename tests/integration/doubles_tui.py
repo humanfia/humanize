@@ -12,7 +12,10 @@ it holds, the driver, a process -- with nothing real behind it:
 - told something starting with `ask`, it stops to ask `Which colour?`, offering `red` and
   `blue`, and answers `picked <the answer>`;
 - a word put into a turn under way is acknowledged as Claude acknowledges one;
-- every turn costs 1,000 input tokens and 200 output tokens.
+- every turn costs 1,000 input tokens and 200 output tokens;
+- what it is told is kept as a conversation where Claude Code keeps one, under
+  `$CLAUDE_CONFIG_DIR/projects/`, and one resumed with `--fork-session` is copied to a new one --
+  which is what lets a chat be kept as it stopped and carried on.
 
 Every time it starts it writes its arguments down, and everything it is told, under `.stand-in/`
 in the directory it was started in (:func:`started`, :func:`heard`), so that a test can say
@@ -83,7 +86,7 @@ _TEXT = re.compile(r'<text[^>]*? x="([\d.]+)" y="([\d.]+)"[^>]*>([^<]*)</text>')
 _CELL = 12.2
 
 _STAND_IN = """
-import json, os, sys
+import json, os, re, shutil, sys, uuid
 
 def log(name, said):
     try:
@@ -99,6 +102,12 @@ def say(**said):
 log("started.jsonl", sys.argv[1:])
 flags = dict(zip(sys.argv, sys.argv[1:]))
 said = flags.get("--session-id") or flags.get("--resume") or "stand-in"
+home = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+projects = os.path.join(home, "projects", re.sub(r"[^a-zA-Z0-9]", "-", os.getcwd()))
+if "--resume" in flags and "--fork-session" in sys.argv:
+    said = str(uuid.uuid4())
+    shutil.copy(os.path.join(projects, flags["--resume"] + ".jsonl"),
+                os.path.join(projects, said + ".jsonl"))
 say(type="system", subtype="init", session_id=said, model=flags.get("--model", ""))
 held, turns = [], 0
 for line in sys.stdin:
@@ -126,6 +135,10 @@ for line in sys.stdin:
         continue
     text = message["message"]["content"][0]["text"]
     log("heard.jsonl", text)
+    os.makedirs(projects, exist_ok=True)
+    with open(os.path.join(projects, said + ".jsonl"), "a") as kept:
+        kept.write(json.dumps({"type": "user", "sessionId": said,
+                               "message": {"role": "user", "content": text}}) + "\\n")
     if message.get("uuid"):
         say(type="command_lifecycle", state="started", command_uuid=message["uuid"])
     lines = [one.strip() for one in text.splitlines() if one.strip()]
@@ -245,7 +258,7 @@ def claude_logged(home: Path, workspace: Path, ident: str, began: float) -> None
         assistant(8, "r2", {"type": "text", "text": "fixed"}),
     ]
     log = home / "projects" / folder / f"{ident}.jsonl"
-    log.parent.mkdir(parents=True)
+    log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("".join(json.dumps(one) + "\n" for one in rows))
 
 
@@ -266,6 +279,13 @@ def stand_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     program.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.defpath}")
     return _workspace(tmp_path, monkeypatch)
+
+
+def folds_fast(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Folds a chat nobody reads away half a second after its turn, rather than a minute."""
+    from hmz.runtime.doing import hosting
+
+    monkeypatch.setattr(hosting, "FOLD", 0.5)
 
 
 def own_flow(workspace: Path, source: str = WRITES) -> None:

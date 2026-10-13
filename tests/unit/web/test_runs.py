@@ -26,6 +26,7 @@ class _Ran:
     ended: str = ""
     how: str = ""
     spent: dict[str, Any] | None = None
+    name: str = ""
 
 
 def _runs(*runs: _Ran) -> list[Ran]:
@@ -57,7 +58,7 @@ def test_the_run_going_is_the_one_opened_for_it_as_it_started(
         # The same flow on the same task, going in another workspace: that one's, not this.
         _Ran(began=began, at="elsewhere", workspace="/work/two"),
     )
-    running = {} if standing is None else {"/work/one": standing}
+    running = [] if standing is None else [standing | {"workspace": "/work/one"}]
 
     held = held_by(runs, running)
 
@@ -69,7 +70,30 @@ def test_the_run_going_carries_where_a_chat_is_in_its_turn(turn: str) -> None:
     runs = _runs(_Ran(flow="chat", at="going"))
     standing = {"state": "running", "flow": "chat"} | ({"turn": turn} if turn else {})
 
-    assert held_by(runs, {"/work/one": standing}) == {"going": turn}
+    held = held_by(runs, [standing | {"workspace": "/work/one", "slot": "chat:1"}])
+
+    assert held == {"going": {"turn": turn, "slot": "chat:1"}}
+
+
+def test_the_run_going_is_the_epic_its_host_says_it_writes() -> None:
+    runs = _runs(
+        _Ran(flow="chat", at="second", name="b"),
+        _Ran(flow="chat", at="first", name="a"),
+    )
+    standing = {"state": "running", "flow": "chat", "workspace": "/work/one"}
+
+    held = held_by(
+        runs,
+        [
+            standing | {"epic": "a", "slot": "chat:1"},
+            standing | {"epic": "b", "slot": "chat:2"},
+        ],
+    )
+
+    assert held == {
+        "first": {"turn": "", "slot": "chat:1"},
+        "second": {"turn": "", "slot": "chat:2"},
+    }
 
 
 @pytest.mark.parametrize(

@@ -37,7 +37,8 @@ def other(tmp_path: Path) -> Path:
 
 def _ran(browser: Browser, workspace: Path, task: str) -> None:
     """Starts chat in a workspace and stops it once it has answered, as a page would."""
-    chat = {"flow": "chat", "task": task, "agents": {"assistant": AGENT}}
+    # On the workspace's own host, which is the stream followed.
+    chat = {"flow": "chat", "task": task, "agents": {"assistant": AGENT}, "slot": ""}
     with browser.follows(workspace=str(workspace)) as heard:
         until(heard, lambda event, data: event == "hello", "hello")
         said = browser.post("/api/held/start", chat | {"workspace": str(workspace)})

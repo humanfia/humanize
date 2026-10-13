@@ -21,6 +21,8 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 
 import hmz.coganchor.models
+import hmz.web.places
+from hmz.runtime.doing import hosting
 from tests.integration.doubles_core import install
 from tests.integration.doubles_web import backed_up_elsewhere, elsewhere, served
 from tests.system.web.doubles_browser import ENGINES, go, opened, stop
@@ -424,7 +426,9 @@ def test_a_chat_asks_in_its_conversation_and_is_answered_there(
             }"""
         )
         assert started[0] == 200, started[1]
-        go(page, "/live")
+        # A chat of its own, followed on its own host.
+        slot = json.loads(started[1])["slot"]
+        go(page, f"/live?{urllib.parse.urlencode({'slot': slot})}")
         page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
 
         # What it asks is asked in the thread, its answers there to pick, never as a card.
@@ -1047,7 +1051,7 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
         expect(page.locator("[data-hmz=thread]")).to_contain_text(
             "did: remember papaya"
         )
-        # A new epic ends the chat going, as a new chat leaves the last.
+        # A new chat leaves the last going, on a host of its own.
         _start_chat(page, "and then this")
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: and then this")
         stop(page)
@@ -1205,3 +1209,80 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
             "not resumable here: the workspace it ran in, /nowhere/at/all, is not on"
         )
         expect(app.get_by_role("link", name="Resume")).to_have_count(0)
+
+
+def _held(page: Page) -> dict[str, dict[str, object]]:
+    """Each epic listed, by its task: whether a host holds it, how it stands, and which."""
+    return page.evaluate(
+        """async () => Object.fromEntries((await (await fetch('/api/runs')).json()).runs
+          .map((one) => [one.task, {held: one.held, how: one.how, slot: one.slot,
+            name: one.name}]))"""
+    )
+
+
+@pytest.mark.usefixtures("talking")
+def test_chats_go_beside_each_other_and_a_flow_and_one_folded_is_carried_on(
+    project: Path, engine: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Nobody reading a chat between turns lets it go, and it folds, in a moment.
+    monkeypatch.setattr(hosting, "FOLD", 0.5)
+    monkeypatch.setattr(hmz.web.places, "_IDLE", 0.5)
+    monkeypatch.setattr(hmz.web.places, "_LOOKING", 0.2)
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "remember teal")
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("did: remember teal")
+        first = page.url
+        # A flow, and a second chat: none of them ends another.
+        _start_talk(page, "a flow beside")
+        _start_chat(page, "another chat")
+        expect(thread).to_contain_text("did: another chat")
+        page.wait_for_function(
+            """async () => (await (await fetch('/api/runs')).json()).runs
+              .filter((one) => one.held).length === 3""",
+            polling=200,
+        )
+        held = _held(page)
+        assert len({one["slot"] for one in held.values()}) == 3
+        rows = page.locator("[data-hmz=sidebar] [data-hmz=epic]")
+        expect(rows).to_have_count(3)
+        # Kept to be looked at; WebKit's screenshot styles the page, which its policy refuses.
+        if engine == "chromium":
+            page.locator("[data-hmz=sidebar]").screenshot(
+                path=str(tmp_path / "two-chats.png")
+            )
+
+        # The first keeps its conversation.
+        page.goto(first)
+        expect(thread).to_contain_text("did: remember teal")
+        expect(thread).not_to_contain_text("another chat")
+
+        # Looked away from, between turns, it folds: done, and held no more.
+        page.locator("[data-hmz=epic]", has_text="a flow beside").click()
+        page.wait_for_function(
+            """async () => (await (await fetch('/api/runs')).json()).runs
+              .some((one) => one.task === 'remember teal' && !one.held)""",
+            polling=200,
+            timeout=30000,
+        )
+        name = _held(page)["remember teal"]["name"]
+
+        # Said something, it is carried on in the same epic, what was said before above.
+        page.goto(first)
+        expect(thread).to_contain_text("did: remember teal")
+        say = page.locator("[data-hmz=say] textarea")
+        say.fill("what was it")
+        say.press("Enter")
+        expect(thread).to_contain_text("did: what was it")
+        expect(thread).to_contain_text("did: remember teal")
+        assert f"/epics/{name}/" in page.url
+        held = _held(page)
+        assert len(held) == 3
+        assert held["remember teal"]["name"] == name
+        page.wait_for_function(
+            """(name) => fetch('/api/runs').then((one) => one.json()).then((said) =>
+              said.runs.some((one) => one.name === name && one.held))""",
+            arg=name,
+            polling=200,
+        )
+        stop(page)

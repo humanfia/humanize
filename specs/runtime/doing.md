@@ -71,12 +71,13 @@ class Hmz:
         backup: Iterable[str] | None = None,
     ) -> Run: ...
     def exec(self, argv: list[str]) -> Any: ...
-    def host(self) -> Host: ...
+    def host(self, slot: str = "") -> Host: ...
 
-# hosting.py -- one workspace's runs, shared by every frontend attached to them
+# hosting.py -- one workspace's runs, or one chat's, shared by every frontend attached to them
 PROTOCOL: int  # which version of the messages below this speaks
+FOLD: float  # how long a chat's host waits, between turns with nobody attached, to fold it
 class Host:
-    def __init__(self, hmz: Hmz) -> None: ...
+    def __init__(self, hmz: Hmz, slot: str = "") -> None: ...
     def attach(self, name: str, kind: str, heard: Callable[[dict[str, Any]], None],
                *, replay: bool = True) -> str: ...  # the frontend's client id
     def detach(self, client: str) -> None: ...
@@ -375,8 +376,9 @@ class Fallbacks:
 
 ### Hosting
 
-- `host()` MUST be one `Host` per `Hmz`, made when first asked for, and MUST be what every
-  frontend of a workspace's runs attaches to, in this process or through a daemon: a request
+- `host(slot)` MUST be one `Host` per `Hmz` and slot, made when first asked for, and MUST be
+  what every frontend of those runs attaches to, in this process or through a daemon: slot ""
+  the workspace's own, which runs its flows, and `chat:<hex>` one chat's, beside it. A request
   MUST be answered the same way whichever frontend asked it, and refused in the same words.
 - MUST NOT hand a frontend anything while holding a lock, and MUST tell each frontend on a
   thread of its own out of an outbox of its own, so that one that stops taking what it is told
@@ -413,14 +415,22 @@ class Fallbacks:
   that stops or ends with any waiting, MUST say so. Claims MUST NOT gate what is said to agents.
 - A run MUST be started with the backup targets its frontend chose, or the defaults where
   it chose none, and how it was started MUST say which.
+- `welcome`, the `run` snapshot and `status` MUST say the host's slot, and the `run` snapshot
+  which epic the run writes once it has one, which is what a frontend addresses a run by.
 - `status` MUST say, beside what is running, every question waiting on a person --
   `{question, role, text, mode}`, `mode` being `ask`, or `listen` for a chat waiting on its next
   turn -- how the last run ended, `{how, why, epic, at}` or null, the epic and task of the
   run going or the last, and of a chat its `turn`: `running` while its agent answers, `done`
   between turns and once it is over, which the run's standing also says -- so that a frontend
   can tell what happened without attaching.
-- One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST
-  close every conversation of a stopping run under whatever turn is open, and say how many.
+- One run MUST be going at a time on a host, and any frontend MAY start, stop or force one;
+  forcing MUST close every conversation of a stopping run under whatever turn is open, and say
+  how many. A chat MUST NOT be refused for a flow going on the workspace's own host, nor a flow
+  for any chat going.
+- A chat's own host MUST fold its chat away once it has been between turns with nobody attached
+  for `FOLD` seconds: every role away, so that the chat ends as one nobody answers does, done,
+  keeping where it stood; and MUST then refuse a start, the chat being carried on by a host of
+  its own picking its epic up.
 - An aside MUST be read-only, carry no skills, say nothing to the run, answer only the frontend
   that opened it, and be closed when that frontend goes or another run starts. One about a
   session an earlier run kept MUST be a fork carried on from where that run kept it, where its

@@ -215,6 +215,33 @@ def test_a_run_picked_up_is_handed_a_copy_of_the_journal(workspace: Path) -> Non
     assert _lines(second.journal)[0]["picked_up"] == first.path.name
 
 
+def test_a_run_reopened_goes_on_in_the_epic_it_picks_up(workspace: Path) -> None:
+    with Epic("chat", "hi", workspace, resumable=True) as first:
+        first.write("usage", cost=1.0, output_tokens=7, seconds=2.0)
+    done = epic.read(first.path)
+    assert done is not None
+    assert (done.how, done.reopened) == ("done", "")
+
+    with Epic(
+        "chat", "again", workspace, resumable=True, picked_up=first.path, reopened=True
+    ) as second:
+        assert second.path == first.path
+        going = epic.read(first.path)
+        assert going is not None
+        # Going again: its last end is the one before it was opened again.
+        assert (going.task, going.how, going.ended) == ("hi", "", "")
+        assert going.reopened
+        second.write("usage", cost=0.5, output_tokens=3, seconds=1.0)
+
+    again = epic.read(first.path)
+    assert again is not None
+    assert again.how == "done"
+    assert again.spent == {"cost": 1.5, "output_tokens": 10, "seconds": 3.0}
+    events = [one["event"] for one in _lines(first.journal)]
+    assert (events.count("began"), events.count("reopened")) == (1, 1)
+    assert epic.every() == [first.path]
+
+
 def test_a_run_picked_up_from_nothing_to_copy_still_opens(workspace: Path) -> None:
     with Epic("f", "t", workspace, picked_up=workspace / "gone") as one:
         assert not one.resume.exists()

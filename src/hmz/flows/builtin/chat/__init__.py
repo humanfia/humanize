@@ -27,8 +27,12 @@ said about it, rather than answering with nothing and exiting as though the one 
 asked for had been done. A turn after it that fails is said to you, and the conversation goes
 on.
 
-Nothing of it is kept for a next run to pick up: a session is opened rather than reopened, so
-starting this again is another conversation rather than the last one carried on.
+A conversation is kept as it stands when it ends -- the assistant's session, in the flow's
+state -- so that one picked up again (`--resume`) is the same conversation carried on: the
+same epic, written on from where it stopped, and an agent that remembers everything said in it.
+This is what an interface does with a chat nobody has looked at for a while between turns:
+folds it away, and carries it on the next time somebody says something in it. One that cannot
+be carried on says so in the conversation, and the next line starts a new one.
 """
 
 from __future__ import annotations
@@ -51,6 +55,7 @@ from hmz.flows import (
     LocalEnv,
     Outworlder,
     Session,
+    SessionError,
     flow,
 )
 
@@ -76,7 +81,7 @@ class Params(FlowParams):
     """Nothing: a conversation is set up by what is said in it."""
 
 
-@flow(agents=Agents, envs=Envs, params=Params)
+@flow(agents=Agents, envs=Envs, params=Params, resumable=True)
 async def chat(
     task: str,
     *,
@@ -88,26 +93,62 @@ async def chat(
     """Talks to one agent for as long as you keep answering it."""
     assistant, human = agents["assistant"], agents["human"]
     here = envs["workspace"]
-    # One session, so the turns are a conversation rather than a series of first turns.
-    conversation = await assistant.spawn()
+    state = ctx.state
+    assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
+    # One session, so the turns are a conversation rather than a series of first turns: the
+    # one kept when it last stopped, where it is carried on.
+    carried: Session | None = None
+    unkept = ""
+    if ctx.resumed:
+        try:
+            carried = state["conversation"] if "conversation" in state else None
+        except SessionError as why:
+            unkept = str(why)
+        if carried is None:
+            # Said ahead of the first answer, which a new conversation gives.
+            unkept = _restarted(
+                unkept or "it was not kept as it stopped", "this is a new one"
+            )
+    conversation = carried if carried is not None else await assistant.spawn()
     person = await human.spawn()
     with contextlib.suppress(CapabilityNotGranted):
         # A harness that stops to ask its user a question has it put to the person here;
         # one that cannot ask has no such hook to hang, and there is nothing to put.
         cast("AskUserHookAgentMixin", assistant).on_ask_user(_asking(human, person))
     said = task
-    opening = True
-    while said:
-        try:
-            answered = await assistant.run(said, session=conversation, env=here)
-        except HarnessError as failed:
-            if opening:
-                raise
-            answered = f"That turn could not be taken: {failed}"
-        opening = False
-        # Saying that to the person is asking what to say next, and what they answer with is
-        # what they typed -- or nothing, which is a conversation that is over.
-        said = await human.run(answered, session=person)
+    opening = not ctx.resumed
+    try:
+        while said:
+            try:
+                answered = await assistant.run(said, session=conversation, env=here)
+            except (HarnessError, SessionError) as failed:
+                if opening:
+                    raise
+                # Only a conversation that cannot be carried on is put down for a new one: a
+                # turn that failed -- a limit, the network -- leaves it to be said again.
+                if carried is None or not isinstance(failed, SessionError):
+                    answered = f"That turn could not be taken: {failed}"
+                else:
+                    answered = _restarted(
+                        str(failed), "what you say next starts a new one"
+                    )
+                    conversation = await assistant.spawn()
+            if unkept:
+                answered, unkept = f"{unkept}\n\n{answered}", ""
+            opening, carried = False, None
+            # Saying that to the person is asking what to say next, and what they answer
+            # with is what they typed -- or nothing, which is a conversation that is over.
+            said = await human.run(answered, session=person)
+    finally:
+        # As it stands, for a run picking it up to carry on: one with no turn taken, or
+        # one closed under a turn, has nothing to carry on and keeps what it kept before.
+        with contextlib.suppress(Exception):
+            state["conversation"] = conversation
+
+
+def _restarted(why: str, so: str) -> str:
+    """What the person is told of a conversation that could not be carried on, and so what."""
+    return f"This conversation could not be carried on ({why}), so {so}."
 
 
 def _asking(

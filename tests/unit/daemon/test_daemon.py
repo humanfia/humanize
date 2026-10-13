@@ -426,4 +426,6 @@ def test_link_reaches_the_runs_through_the_daemon(
     reaches = mock.Mock(return_value="link")
     monkeypatch.setattr(hmz.daemon.link, "reached", reaches)
     assert _held(Path("/d")).link("me", "tui", replay=False) == "link"
-    reaches.assert_called_once_with(Path("/d"), "/w", "me", "tui", replay=False)
+    reaches.assert_called_once_with(
+        Path("/d"), "/w", "me", "tui", replay=False, slot=""
+    )

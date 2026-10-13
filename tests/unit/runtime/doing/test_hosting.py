@@ -13,6 +13,7 @@ import pytest
 
 from hmz.flows import Budget, BudgetExceeded, FlowNotFound, Usage
 from hmz.runtime import Host, Refused, flowing
+from hmz.runtime.doing import hosting
 from hmz.runtime.doing.hosting import PROTOCOL, record
 
 if TYPE_CHECKING:
@@ -1130,6 +1131,69 @@ def test_a_chats_turn_is_running_until_it_asks_what_to_say_next(
     run.released.set()
     alice.told("ended", run=1)
     assert host.status()["turn"] == "done"
+
+
+def test_a_chat_of_its_own_nobody_reads_between_turns_folds_away(
+    where: Workspace, outworlders: Outworlders, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hosting, "FOLD", 0.0)
+    host = Host(cast("Any", where), "chat:1")
+    alice = Told(host, "alice")
+    where.next_run = FakeRun(flow="chat", ref="official/chat", chats=True)
+    run = _started(alice, where)
+    try:
+        assert outworlders.ask is not None
+        assert alice.told("welcome")["slot"] == "chat:1"
+        asking = Asking()(outworlders.ask, Question("what next?"))
+        alice.told("asked", run=1, mode="listen")
+        # Read by somebody, it waits for them however long they take.
+        assert not asking.done.wait(1.0)
+
+        host.detach(alice.client)
+
+        # Nobody there, between turns: the question is answered with nothing, which ends it.
+        assert asking.done.wait(PATIENCE)
+        assert asking.answer is None
+        run.released.set()
+        assert _waited(lambda: host.idle)
+        bob = Told(host, "bob")
+        refused = bob.asks("start", flow="chat", task="again")
+        assert refused == {
+            "ok": False,
+            "why": "this chat has folded away; carry it on from its epic",
+        }
+    finally:
+        run.released.set()
+        host.close()
+
+
+def test_a_flow_on_the_workspaces_own_host_never_folds(
+    host: Host,
+    where: Workspace,
+    outworlders: Outworlders,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(hosting, "FOLD", 0.0)
+    alice = Told(host, "alice")
+    where.next_run = FakeRun(flow="chat", ref="official/chat", chats=True)
+    _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, Question("what next?"))
+    alice.told("asked", run=1, mode="listen")
+
+    host.detach(alice.client)
+
+    assert not asking.done.wait(1.0)
+    assert host.status()["state"] == "running"
+
+
+def _waited(what: Callable[[], bool]) -> bool:
+    deadline = time.monotonic() + PATIENCE
+    while time.monotonic() < deadline:
+        if what():
+            return True
+        time.sleep(0.02)
+    return False
 
 
 def test_a_flow_that_is_no_chat_says_no_turn(host: Host, where: Workspace) -> None:

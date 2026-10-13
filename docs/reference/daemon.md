@@ -161,10 +161,10 @@ The daemon reads the first frame of each connection without taking it off the so
 
 | First frame | The daemon |
 | --- | --- |
-| CONTROL `serve` | Reads it; takes the connection as that workspace's host, kept for as long as it is open. A second host of a workspace whose host is alive is refused by closing. |
-| CONTROL without `workspace` | Answers it: `list` with `{"ok": true, "held": [{"pid", "workspace", "started"}, …]}` (registration order); anything else with `{"ok": false, "why": "no such request: <repr of do>"}`. |
-| MESSAGE or CONTROL whose `workspace` a host holds | Passes the socket to that host down its connection (`SCM_RIGHTS`, beside one byte `+`), and keeps its own descriptor until the host says it has it with one byte back. The host reads the frame itself. |
-| MESSAGE or CONTROL whose `workspace` nobody holds | MESSAGE: a `reply` with `to` the request's `id`, `ok: false`, `why: no runs are held in <workspace>`. CONTROL: `{"ok": false, "why": …}`. Then closes. |
+| CONTROL `serve` | Reads it; takes the connection as the host of that workspace and `slot`, kept for as long as it is open. A second host of one slot of a workspace whose host is alive is refused by closing. |
+| CONTROL without `workspace` | Answers it: `list` with `{"ok": true, "held": [{"pid", "workspace", "started", "slot"}, …]}` (registration order); anything else with `{"ok": false, "why": "no such request: <repr of do>"}`. |
+| MESSAGE or CONTROL whose `workspace` and `slot` (`""` without one) a host holds | Passes the socket to that host down its connection (`SCM_RIGHTS`, beside one byte `+`), and keeps its own descriptor until the host says it has it with one byte back. The host reads the frame itself. |
+| MESSAGE or CONTROL whose `workspace` and `slot` nobody holds | MESSAGE: a `reply` with `to` the request's `id`, `ok: false`, `why: no runs are held in <workspace>` (and ` for <slot>`). CONTROL: `{"ok": false, "why": …}`. Then closes. |
 | another kind | Answers with `GONE` (``held for frontends by a newer humanize; `hmz` of it reads it``) and closes. |
 | a length no frame has, nothing within 10 s, or EOF | Closes. |
 
@@ -175,6 +175,23 @@ CONTROL `stop` does: nobody new could reach them.
 
 ## Lifecycle {#lifecycle}
 
+### Slots {#slots}
+
+A workspace's runs are held by more than one host: its own, slot `""`, which runs its flows one
+at a time and refuses a second (`a flow is already running`), and one per chat, slot
+`chat:<hex>` (12 hex digits from `hmz.daemon.where.chat()`), beside it. A chat started on a slot
+of its own never waits on a flow, nor a flow on it, and a second chat is a second slot. Every
+call that reaches a host -- `attach`, `running`, `host`, the hello, a CONTROL question --
+takes `slot`, and without one means the workspace's own. `where.slot(said)` checks one,
+raising `ValueError` for anything but `""` and `chat:<hex>`.
+
+A chat's host **folds** its chat away once the chat has waited for its next line with no
+frontend attached for **60 s** (`hmz.runtime.doing.hosting.FOLD`): every role is made away, the
+question waiting is answered with nothing, and the chat ends `done`, keeping its conversation;
+the host is then idle, and goes. A folded host refuses a start (`this chat has folded away;
+carry it on from its epic`): the chat is carried on by starting `chat` on a new slot with
+`resume` its epic, which goes on in that same epic.
+
 Each host process's carrier checks every **0.5 s**. The host closes itself, and its process
 exits, when it is **idle** and either a
 frontend has ever said `hello` or **60 s** have passed since it started. Idle means all of:
@@ -182,7 +199,7 @@ frontend has ever said `hello` or **60 s** have passed since it started. Idle me
 - no frontend attached;
 - no run going, starting or stopping;
 - no *kept* run: a run that ended while no frontend was attached, and that nobody stopped, is
-  kept until a frontend attaches.
+  kept until a frontend attaches -- but never a chat folded away.
 
 It also closes on `SIGTERM`, a CONTROL [`stop`](#control-requests), a MESSAGE
 [`quit`](#requests), or after 8 consecutive failed carrier rounds (each logged). Connections
@@ -192,7 +209,7 @@ arriving after close are closed at once. CONTROL connections do not count as rea
 | --- | --- |
 | `detach()` | CONTROL `detach`: every frontend is told `gone` (`let go`); runs continue. Returns the count. |
 | `stop(*, seconds=20.0)` | CONTROL `stop`; polls every 0.1 s for the pid to go. Returns whether it went. If the request is not answered `ok`, returns `not alive`. |
-| `kill(*, seconds=20.0)` | `SIGTERM` to the workspace's host process; after `seconds`, `SIGKILL` and up to 20 s more. The daemon and other workspaces' hosts are left alone. Returns whether it went. |
+| `kill(*, seconds=20.0)` | `SIGTERM` to the host's process; after `seconds`, `SIGKILL` and up to 20 s more. The daemon and every other host are left alone. Returns whether it went. |
 
 ## Frames {#protocol}
 
@@ -244,6 +261,7 @@ the daemon answers it ([Routing](#routing)). `Daemon.asked(said)` sends one with
 | `pid`, `workspace`, `started`, `kind`, `protocol` † | | The host process's, as it said them to the daemon (`kind` `host`) (CONTROL answer and fallback only). |
 | `attached` † | int | Frontends attached. |
 | `clients` | list | `[{client, name, kind}]`. |
+| `slot` | string | Which of its workspace's [hosts](#slots): `""` its own, `chat:<hex>` a chat's. |
 | `state` | string | `running`, `stopping` or `idle`. |
 | `run` | int | The run going, else the one stopping, else the last; `0` for none. |
 | `flow` | string | That run's flow, or `""`. |
@@ -327,7 +345,7 @@ No message announces asides.
 
 On `hello`, atomically:
 
-1. `welcome`: `client`, `name`, `kind`, `workspace`, `pid` (host process), `protocol` (`2`).
+1. `welcome`: `client`, `name`, `kind`, `workspace`, `slot`, `pid` (host process), `protocol` (`2`).
 2. The history records, oldest first (omitted with `replay: false`).
 3. Every snapshot, in the order `clients`, `claims`, `away`, `run`, `sessions`, `calls`,
    `waiting`, `pending`, `usage`, `board`.
@@ -396,7 +414,7 @@ The latest of each type is kept and re-sent on attach; a changed one is broadcas
 | `clients` | `clients`: `[{client, name, kind}]` | `[]` |
 | `claims` | `claims`: `{role: client}` | `{}` |
 | `away` | `all` (bool), `of` (`{role: bool}`) | `false`, `{}` |
-| `run` | `state` (`idle`, `running`, `stopping`), then the `started` fields of the run going or the last (`run: 0` for none), `stopping` (run number or `null`) | `idle` |
+| `run` | `state` (`idle`, `running`, `stopping`), then the `started` fields of the run going or the last (`run: 0` for none), `stopping` (run number or `null`), `epic` (its directory's name, `""` before it has one), `slot` | `idle` |
 | `sessions` | `run`, `open` (keys still open), `working` (keys with a turn open) | `0`, `[]`, `[]` |
 | `calls` | `calls`: `[{ref, name, depth, since (host monotonic), id, parent (index or null)}]` | `[]` |
 | `waiting` | `queued` `[{text, by, client, to}]`, `given` `[{agent, text, by, client}]` | `[]`, `[]` |
@@ -469,16 +487,16 @@ with Daemons().host().link(name="watcher", replay=False) as link:
 ```python
 @dataclass(frozen=True, slots=True)
 class Daemon: ...                                   # see SDK › Daemon
-def running(workspace=None) -> Daemon | None: ...
-def daemons() -> list[Daemon]: ...
-def host(workspace=None, *, seconds: float = 10.0) -> Daemon: ...
+def running(workspace=None, *, slot: str = "") -> Daemon | None: ...
+def daemons() -> list[Daemon]: ...                  # every host, chats' included
+def host(workspace=None, *, seconds: float = 10.0, slot: str = "") -> Daemon: ...
 def older(daemon: Daemon) -> str: ...
 class Older(RuntimeError): ...                      # the runs are held by an older humanize
-def attach(kind: str, name: str = "", *, workspace=None) -> Link: ...
+def attach(kind: str, name: str = "", *, workspace=None, slot: str = "") -> Link: ...
 def linked(host: Host, name: str = "", kind: str = "tui", *, replay: bool = True) -> Link: ...
 def reached(at: Path, workspace: str, name: str = "", kind: str = "sdk", *,
-            replay: bool = True) -> Link: ...
-def remote(remotes: Remotes, daemon: str, workspace: str) -> Link: ...
+            replay: bool = True, slot: str = "") -> Link: ...
+def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Link: ...
 Hmz, Host, Refused                                  # hmz.runtime's, fetched on access
 ```
 

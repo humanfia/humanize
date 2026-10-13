@@ -3,7 +3,8 @@
 The terminal interface is about the directory it is opened in; the web interface is about the
 machine, as the daemon is. It offers every workspace an epic was run in or that was set up or
 written down here, and holds, per workspace, humanize for it and -- only while a page follows
-its runs or acts on them -- a link to the host holding them. A link nobody has used for a while,
+its runs or acts on them -- a link to each host holding them: the workspace's own, and each
+chat's beside it. A link nobody has used for a while,
 whose runs are idle, is let go of, so that a host with nothing to do and nobody reading goes as
 it would with no interface open. What is running where nobody here holds a link is asked of the
 daemon instead, which starts nothing.
@@ -42,21 +43,24 @@ _LOOKING = 5.0
 class Place:
     """One workspace, as this interface holds it.
 
+    Each of its hosts is held by its slot: "" for the workspace's own, which runs its flows one
+    at a time, and `chat:<hex>` for each chat's, beside it.
+
     Attributes:
       workspace: Its directory, resolved.
       hmz: humanize, for it.
-      held: Its runs as this interface follows them, while it does.
-      used: When a page last asked anything of its runs, on the monotonic clock.
-      streams: How many pages follow its runs now.
+      held: Each of its hosts' runs as this interface follows them, while it does.
+      used: When a page last asked anything of each, on the monotonic clock.
+      streams: How many pages follow each now.
+      hosting: The runs held in this process, where they are not held apart.
     """
 
     workspace: Path
     hmz: Any
-    held: Held | None = None
-    used: float = field(default_factory=time.monotonic)
-    streams: int = 0
-    #: The runs held in this process, where they are not held apart.
-    hosting: Any = None
+    held: dict[str, Held] = field(default_factory=dict[str, "Held"])
+    used: dict[str, float] = field(default_factory=dict[str, float])
+    streams: dict[str, int] = field(default_factory=dict[str, int])
+    hosting: dict[str, Any] = field(default_factory=dict[str, Any])
 
 
 class Places:
@@ -76,8 +80,8 @@ class Places:
         self._lock = threading.Lock()
         self._places: dict[Path, Place] = {}
         self._closed = threading.Event()
-        #: What the daemon last said is running, by workspace, where nothing here holds it.
-        self._running: dict[str, dict[str, Any]] = {}
+        #: What the daemon last said runs, host by host, where nothing here holds it.
+        self._running: list[dict[str, Any]] = []
         self.hmz = self.of(str(self.here)).hmz
         self._daemon = daemon
         threading.Thread(target=self._looking, daemon=True, name="hmz-web").start()
@@ -107,24 +111,44 @@ class Places:
                 place = self._places[at] = Place(at, daemon.Hmz(at))
             return place
 
-    def held(self, workspace: str) -> Held:
-        """The runs of one workspace as this follows them, reaching them first where it does not.
+    def held(self, workspace: str, slot: str = "", *, starts: bool = False) -> Held:
+        """The runs of one of a workspace's hosts as this follows them, reaching them first.
 
-        Reaching them starts the workspace's host where none is, as the terminal interface's
-        opening there would: asked of only where a page follows its runs or acts on them.
+        Reaching the workspace's own starts it where none is, as the terminal interface's
+        opening there would: asked of only where a page follows its runs or acts on them. A
+        chat's is started only to start its chat: one that has gone has folded away, and is
+        carried on by a host of its own.
+
+        Args:
+          workspace: The workspace.
+          slot: Which of its hosts: "" for its own, `chat:<hex>` for a chat's.
+          starts: Whether a chat is being started there, which starts its host.
 
         Raises:
-          Refusal: If there is no such directory, or its runs cannot be reached.
+          Refusal: If there is no such directory, its runs cannot be reached, or the chat has
+            folded away.
         """
         from .held import Held
 
         place = self.of(workspace)
         with self._lock:
-            place.used = time.monotonic()
-            if place.held is not None:
-                return place.held
+            place.used[slot] = time.monotonic()
+            there = place.held.get(slot)
+            if there is not None and not (slot and there.gone):
+                return there
+            hosting = place.hosting.get(slot)
+        if (
+            slot
+            and not starts
+            and not (
+                hosting is not None and not hosting.closed
+                if not self._apart
+                else self._daemon.running(place.workspace, slot=slot)
+            )
+        ):
+            raise Refusal("This chat has folded away.", 409)
         try:
-            held = Held(lambda: self._linking(place))
+            held = Held(lambda: self._linking(place, slot), again=not slot)
         except Exception as why:
             older = getattr(self._daemon, "Older", None)
             if older is not None and isinstance(why, older):
@@ -133,60 +157,61 @@ class Places:
                 f"The runs of {place.workspace} could not be reached: {why}", 503
             ) from why
         with self._lock:
-            if place.held is None:
-                place.held = held
+            if place.held.get(slot) is there:
+                place.held[slot] = held
+                if there is not None:
+                    threading.Thread(target=there.close, daemon=True).start()
                 return held
         held.close()
-        return place.held
+        return place.held[slot]
 
-    def attached(self, workspace: str) -> Held | None:
-        """The runs of one workspace as this follows them, where it does, reaching nothing."""
+    def attached(self, workspace: str, slot: str = "") -> Held | None:
+        """The runs of one of a workspace's hosts as this follows them, where it does."""
         place = self.of(workspace, made=True)
         with self._lock:
-            return place.held
+            return place.held.get(slot)
 
-    def stream(self, workspace: str) -> Stream:
-        """The runs of one workspace as a page follows them, counted as followed while it does."""
+    def stream(self, workspace: str, slot: str = "") -> Stream:
+        """The runs of one of a workspace's hosts as a page follows them, counted while it does."""
         from .routing import Stream
 
         place = self.of(workspace)
-        held = self.held(workspace)
+        held = self.held(workspace, slot)
         inner = held.stream()
 
         def events(last: str, going: threading.Event) -> Iterator[Any]:
             with self._lock:
-                place.streams += 1
+                place.streams[slot] = place.streams.get(slot, 0) + 1
             try:
                 yield from inner.events(last, going)
             finally:
                 with self._lock:
-                    place.streams -= 1
-                    place.used = time.monotonic()
+                    place.streams[slot] -= 1
+                    place.used[slot] = time.monotonic()
 
         return Stream(events)
 
-    def running(self) -> dict[str, dict[str, Any]]:
-        """What runs in each workspace, by its path: the state, the run's number and its flow.
+    def running(self) -> list[dict[str, Any]]:
+        """What each host runs: the state, the run's number, its flow and its epic.
 
-        And of a chat, its turn. Out of the links held here where there is one, and what the
-        daemon last said of the rest; a workspace running nothing is left out.
+        And of a chat, its turn; and of every one, its `workspace` and its `slot`. Out of the
+        links held here where there is one, and what the daemon last said of the rest; a host
+        running nothing is left out.
         """
         with self._lock:
-            said = dict(self._running)
+            said = {(one["workspace"], one["slot"]): one for one in self._running}
             held = [
-                (str(one.workspace), one.held)
+                (str(one.workspace), slot, link)
                 for one in self._places.values()
-                if one.held
+                for slot, link in one.held.items()
             ]
-        for workspace, one in held:
+        for workspace, slot, one in held:
             run = one.standing("run")
             if run is not None:
-                said[workspace] = run
-        return {
-            where: run
-            for where, run in said.items()
-            if run.get("state") in ("running", "stopping")
-        }
+                said[workspace, slot] = {**run, "workspace": workspace, "slot": slot}
+        return [
+            run for run in said.values() if run.get("state") in ("running", "stopping")
+        ]
 
     def known(self, epics: list[str]) -> list[str]:
         """Every workspace there is to offer: where an epic ran, set up or written down here.
@@ -201,7 +226,8 @@ class Places:
         seen: dict[str, None] = {str(self.here): None}
         # Read afresh: another workspace's humanize, or another interface, may have written one.
         written = self._daemon.Hmz(self.here).settings.workspaces()
-        for one in (*self.running(), *epics, *written):
+        running = [one["workspace"] for one in self.running()]
+        for one in (*running, *epics, *written):
             seen.setdefault(str(one), None)
         return list(seen)
 
@@ -211,20 +237,20 @@ class Places:
         with self._lock:
             places, self._places = list(self._places.values()), {}
         for place in places:
-            if place.held is not None:
-                place.held.close()
-            if place.hosting is not None:
-                place.hosting.close()
+            for held in place.held.values():
+                held.close()
+            for hosting in place.hosting.values():
+                hosting.close()
 
-    def _linking(self, place: Place) -> Link:
-        """A link to one workspace's runs, attached: through its host, or in this process."""
+    def _linking(self, place: Place, slot: str) -> Link:
+        """A link to one of a workspace's hosts, attached: apart, or in this process."""
         daemon = self._daemon
         if self._apart:
-            return daemon.attach("web", "browser", workspace=place.workspace)
+            return daemon.attach("web", "browser", workspace=place.workspace, slot=slot)
         with self._lock:
-            if place.hosting is None:
-                place.hosting = place.hmz.host()
-            hosting = place.hosting
+            hosting = place.hosting.get(slot)
+            if hosting is None:
+                hosting = place.hosting[slot] = place.hmz.host(slot)
         return daemon.linked(hosting, "browser", kind="web")
 
     def _looking(self) -> None:
@@ -232,61 +258,85 @@ class Places:
         while not self._closed.wait(_LOOKING):
             moment = time.monotonic()
             with self._lock:
-                idle = [
-                    one
-                    for one in self._places.values()
-                    if one.held is not None
-                    and not one.streams
-                    and moment - one.used > _IDLE
-                    and (one.held.standing("run") or {}).get("state") in (None, "idle")
-                ]
-                for one in idle:
-                    one.held, held = None, one.held
-                    if held is not None:
+                for one in self._places.values():
+                    for slot, held in list(one.held.items()):
+                        run = held.standing("run") or {}
+                        # A chat between turns is let go of too: nobody reading it is what
+                        # folds it away.
+                        resting = run.get("state") in (None, "idle") or (
+                            bool(slot) and run.get("turn") == "done"
+                        )
+                        if not (slot and held.gone) and (
+                            one.streams.get(slot, 0)
+                            or moment - one.used.get(slot, moment) <= _IDLE
+                            or not resting
+                        ):
+                            continue
+                        del one.held[slot]
                         threading.Thread(
                             target=held.close, daemon=True, name="hmz-web"
                         ).start()
+                    # A chat's runs held here, folded away and read by nobody, are let go of
+                    # as its host process would go.
+                    for slot, hosting in list(one.hosting.items()):
+                        if slot and slot not in one.held and hosting.idle:
+                            del one.hosting[slot]
+                            threading.Thread(
+                                target=hosting.close, daemon=True, name="hmz-web"
+                            ).start()
             if self._apart:
                 self._asks_the_daemon()
 
     def statuses(self) -> dict[str, dict[str, Any]]:
-        """How the runs of every workspace held on this machine stand, attaching to none.
+        """How the runs of every host on this machine stand, attaching to none.
 
         Apart, what each host the daemon holds says of itself; otherwise, what the runs held
         in this process say, of each workspace a page has reached.
 
         Returns:
-          Each host's status, by the whole path of its workspace.
+          Each host's status with its `workspace`, its whole path, by workspace and slot.
         """
         said: dict[str, dict[str, Any]] = {}
         if not self._apart:
             with self._lock:
                 hosts = [
-                    (str(one.workspace), one.hosting)
+                    (str(one.workspace), slot, hosting)
                     for one in self._places.values()
-                    if one.hosting is not None
+                    for slot, hosting in one.hosting.items()
                 ]
-            for workspace, hosting in hosts:
+            for workspace, slot, hosting in hosts:
                 with contextlib.suppress(Exception):
-                    said[workspace] = hosting.status()
+                    said[f"{workspace}\0{slot}"] = {
+                        **hosting.status(),
+                        "workspace": workspace,
+                    }
             return said
         with contextlib.suppress(Exception):
             for one in self._daemon.daemons():
                 with contextlib.suppress(Exception):
-                    said[str(Path(one.workspace).resolve())] = one.status()
+                    workspace = str(Path(one.workspace).resolve())
+                    said[f"{workspace}\0{one.slot}"] = {
+                        **one.status(),
+                        "workspace": workspace,
+                        "slot": one.slot,
+                    }
         return said
 
     def _asks_the_daemon(self) -> None:
-        """What the daemon says runs in each workspace no link here follows."""
-        running = {
-            workspace: {
+        """What the daemon says runs in each host no link here follows."""
+        running = [
+            {
                 "state": status.get("state") or "idle",
                 "run": status.get("run") or 0,
                 "flow": status.get("flow") or "",
+                "epic": status.get("epic") or "",
+                "task": status.get("task") or "",
+                "workspace": status["workspace"],
+                "slot": status.get("slot") or "",
                 **({"turn": status["turn"]} if "turn" in status else {}),
             }
-            for workspace, status in self.statuses().items()
-        }
+            for status in self.statuses().values()
+        ]
         with self._lock:
             self._running = running
 

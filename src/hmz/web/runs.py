@@ -94,7 +94,7 @@ class Runs:
     def workspaces(self) -> list[dict[str, Any]]:
         """Every workspace there is to offer, with how many runs it has and when it last ran."""
         runs = self.all()
-        running = self._places.running()
+        running = {one["workspace"] for one in self._places.running()}
         mine: dict[str, list[Ran]] = {}
         for ran in runs:
             mine.setdefault(_resolved(ran.workspace), []).append(ran)
@@ -277,39 +277,50 @@ def refused(why: ValueError) -> Refusal:
     return Refusal(sentence)
 
 
-def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> dict[Path, str]:
+def held_by(
+    runs: list[Ran], running: list[dict[str, Any]]
+) -> dict[Path, dict[str, str]]:
     """Which of the runs written down are the runs the hosts are going with now.
 
-    A host says what it started and when -- or, asked from outside, which flow -- and the epic
-    says what it was opened for, where and when: the newest run of that flow, in that
-    workspace, on that task and opened within a moment of that start where those are said,
-    and not yet ended, is it.
+    A host says which epic it writes, once it writes one. Before then it says what it started
+    and when -- or, asked from outside, which flow -- and the epic says what it was opened
+    for, where and when: the newest run of that flow, in that workspace, on that task and
+    opened within a moment of that start where those are said, and not yet ended, is it.
 
     Args:
       runs: The runs, newest first.
-      running: What each host says runs, by its workspace.
+      running: What each host says runs, with its `workspace` and its `slot`.
 
     Returns:
-      Each run going, by its epic, with where it is in its turn where it is a chat, or "".
+      Each run going, by its epic: where it is in its turn where it is a chat, or "", and the
+      slot of the host going with it.
     """
-    held: dict[Path, str] = {}
-    for workspace, standing in running.items():
+    held: dict[Path, dict[str, str]] = {}
+    for standing in running:
+        workspace, epic = standing["workspace"], standing.get("epic")
         started = float(standing.get("at") or 0.0)
         for ran in runs:
-            if ran.ended or ran.flow != standing.get("flow"):
+            if ran.ended or _resolved(ran.workspace) != workspace or ran.at in held:
                 continue
-            if _resolved(ran.workspace) != workspace:
+            if epic and ran.name != epic:
                 continue
-            if standing.get("task") and ran.task != standing.get("task"):
+            if not epic and ran.flow != standing.get("flow"):
                 continue
-            if started and abs(_epoch(ran.began) - started) > _SAME:
+            if not epic and standing.get("task") and ran.task != standing.get("task"):
                 continue
-            held[ran.at] = str(standing.get("turn") or "")
+            if not epic and started and abs(_epoch(ran.began) - started) > _SAME:
+                continue
+            held[ran.at] = {
+                "turn": str(standing.get("turn") or ""),
+                "slot": str(standing.get("slot") or ""),
+            }
             break
     return held
 
 
-def row(ran: Ran, *, held: bool, going: bool = False, turn: str = "") -> dict[str, Any]:
+def row(
+    ran: Ran, *, held: bool, going: bool = False, turn: str = "", slot: str = ""
+) -> dict[str, Any]:
     """One run as the list says it.
 
     Args:
@@ -317,6 +328,8 @@ def row(ran: Ran, *, held: bool, going: bool = False, turn: str = "") -> dict[st
       held: Whether it is the run a host is going with, which the page follows live.
       going: Whether it is going at all, held by a host or by any other process.
       turn: Of a chat a host is going with, where it is in its turn, or "" where unknown.
+      slot: Of a run a host is going with, which of its workspace's hosts that is: "" for
+        the workspace's own, `chat:<hex>` for a chat's.
     """
     from hmz.runtime.epic import RUNNING, UNFINISHED, ending
 
@@ -341,6 +354,7 @@ def row(ran: Ran, *, held: bool, going: bool = False, turn: str = "") -> dict[st
         "resumable": ran.resumable,
         "spent": labelled(ran.spent),
         "held": held,
+        "slot": slot,
         "backup": list(ran.backup),
         "backed": ran.backed,
     }
@@ -371,6 +385,7 @@ def detail(
     foreign: str = "",
     going: bool = False,
     turn: str = "",
+    slot: str = "",
 ) -> dict[str, Any]:
     """One run, whole, as its own page says it.
 
@@ -381,8 +396,9 @@ def detail(
       picks_up: Whether it can be picked up.
       foreign: Why one imported cannot be picked up here, or "".
       turn: Of a chat a host is going with, where it is in its turn, or "" where unknown.
+      slot: Of a run a host is going with, which of its workspace's hosts that is.
     """
-    return row(ran, held=held, going=going, turn=turn) | {
+    return row(ran, held=held, going=going, turn=turn, slot=slot) | {
         "at": str(ran.at),
         "task": ran.task,
         "ref": ran.ref,
@@ -417,6 +433,8 @@ def detail(
         "params": ran.params,
         "budget": ran.budget,
         "picked_up": ran.picked_up,
+        # The sessions it opened before it was last carried on, which are its earlier ones.
+        "earlier": sum(1 for one in ran.sessions if one.at < ran.reopened),
         "profile_flow": ran.profile_flow,
         "profile_environment": ran.profile_environment,
         "picks_up": picks_up,
@@ -484,7 +502,7 @@ def _listed(asked: Asked) -> dict[str, Any]:
                 ran,
                 held=ran.at in held,
                 going=asked.site.runs.going(ran),
-                turn=held.get(ran.at, ""),
+                **held.get(ran.at, {}),
             ),
         )
         for ran in runs
@@ -531,7 +549,7 @@ def _one(asked: Asked) -> dict[str, Any]:
         picks_up=picks_up,
         foreign=foreign,
         going=runs.going(ran),
-        turn=held.get(ran.at, ""),
+        **held.get(ran.at, {}),
     ) | {"calls": calls(hmz.epics.tree(ran.at))}
 
 

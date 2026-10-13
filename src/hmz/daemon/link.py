@@ -377,7 +377,13 @@ class _Carried:
 
 
 def reached(
-    at: Path, workspace: str, name: str = "", kind: str = "sdk", *, replay: bool = True
+    at: Path,
+    workspace: str,
+    name: str = "",
+    kind: str = "sdk",
+    *,
+    replay: bool = True,
+    slot: str = "",
 ) -> Link:
     """A frontend of runs a host is holding, reached through this machine's daemon.
 
@@ -388,6 +394,7 @@ def reached(
       name: What the frontend is called, or "" for whoever is at this end.
       kind: What it is: `tui`, `cli` or `sdk`.
       replay: Whether to be told the run so far, or only what happens from here.
+      slot: Which of the workspace's hosts: "" for its own, `chat:<hex>` for a chat's.
 
     Returns:
       The link, attached.
@@ -417,6 +424,7 @@ def reached(
             {
                 "do": "hello",
                 "workspace": workspace,
+                **({"slot": slot} if slot else {}),
                 "name": name or f"{user or 'somebody'}@{kind}",
                 "kind": kind,
                 "replay": replay,
@@ -434,7 +442,7 @@ def reached(
 _HELLO = 30.0
 
 
-def remote(remotes: Remotes, daemon: str, workspace: str) -> Link:
+def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Link:
     """A frontend of the runs of one workspace on another machine, through its web interface.
 
     What its web page reaches them by, reached over ssh: what is asked is posted as the page
@@ -446,6 +454,7 @@ def remote(remotes: Remotes, daemon: str, workspace: str) -> Link:
       remotes: The daemons of other machines, as they are reached here.
       daemon: Which, by name.
       workspace: The workspace there whose runs these are.
+      slot: Which of its hosts: "" for its own, `chat:<hex>` for a chat's.
 
     Returns:
       The link, following them.
@@ -465,7 +474,9 @@ def remote(remotes: Remotes, daemon: str, workspace: str) -> Link:
         do = str(said.pop("do"))
         try:
             answer = remotes.asked(
-                daemon, f"/api/held/{quote(do)}", {**said, "workspace": workspace}
+                daemon,
+                f"/api/held/{quote(do)}",
+                {**said, "workspace": workspace, "slot": slot},
             )
         except (Unreached, LookupError, OSError) as why:
             return {"ok": False, "why": str(why)}
@@ -476,8 +487,9 @@ def remote(remotes: Remotes, daemon: str, workspace: str) -> Link:
     def follows() -> None:
         why = f"{daemon} stopped saying how its runs stand"
         try:
+            stream = f"/api/held/stream?workspace={quote(workspace)}"
             for event, data in remotes.followed(
-                daemon, f"/api/held/stream?workspace={quote(workspace)}", going
+                daemon, f"{stream}&slot={quote(slot)}" if slot else stream, going
             ):
                 if event == "hello":
                     hello.put(str(data.get("me") or ""))

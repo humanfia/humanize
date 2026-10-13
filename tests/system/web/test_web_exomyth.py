@@ -61,7 +61,13 @@ def _chatted(site: Site, task: str, *, stopped: bool = True) -> str:
     browser.signs_in()
     with browser.follows() as heard:
         until(heard, lambda event, data: event == "hello", "hello")
-        chat = {"flow": "chat", "task": task, "agents": {"assistant": AGENT}}
+        # On the workspace's own host, which is the stream followed.
+        chat = {
+            "flow": "chat",
+            "task": task,
+            "agents": {"assistant": AGENT},
+            "slot": "",
+        }
         assert browser.post("/api/held/start", chat).status == 200
         until(heard, _record("asked"), "chat asking")
         if stopped:

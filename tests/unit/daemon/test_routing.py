@@ -165,7 +165,13 @@ def test_a_host_is_taken_on_and_then_listed(routed: Callable[..., Router]) -> No
     routed(host, lambda: host.wrote.wait(5), asking)
 
     assert _answer(asking) == [
-        (CONTROL, {"ok": True, "held": [{"pid": 7, "workspace": "/w", "started": "t"}]})
+        (
+            CONTROL,
+            {
+                "ok": True,
+                "held": [{"pid": 7, "workspace": "/w", "started": "t", "slot": ""}],
+            },
+        )
     ]
     assert host.raw == [TAKEN]
     assert not host.closed

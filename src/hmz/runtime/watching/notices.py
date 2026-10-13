@@ -57,8 +57,9 @@ class Notices:
     """The notices of this machine's runs, worked out of how they stand as that changes.
 
     Args:
-      statuses: How the runs of each workspace stand, by its path, as a host's `status`
-        says: asked once a look, and never of a host it would keep.
+      statuses: How the runs of each host stand -- a workspace's own and each chat's beside
+        it -- as its `status` says, with its `workspace`: by anything that tells the hosts
+        apart, asked once a look, and never of a host it would keep.
       every: How often to look once started, in seconds.
     """
 
@@ -74,7 +75,7 @@ class Notices:
         self._kept: collections.deque[dict[str, Any]] = collections.deque(maxlen=_KEPT)
         self._last = 0
         self._listeners: list[Callable[[dict[str, Any]], None]] = []
-        #: How each workspace last stood, where its host said: what is news is against this.
+        #: How each host last stood, where it said: what is news is against this.
         self._stood: dict[str, dict[str, Any]] | None = None
         #: When it first looked: an epic that ended before then is no news, wherever it is.
         self._began = 0.0
@@ -105,14 +106,15 @@ class Notices:
             if first:
                 self._began = time.time()
             stood = self._stood if self._stood is not None else {}
-            for workspace, status in statuses.items():
+            for key, status in statuses.items():
                 # A host that would not answer says neither: unknown, rather than nothing.
                 if "pending" not in status or "ended" not in status:
                     continue
                 if not first:
-                    was = stood.get(workspace, {})
+                    was = stood.get(key, {})
+                    workspace = str(status.get("workspace") or key)
                     made += _noticed(workspace, was, status, self._began)
-                stood[workspace] = {
+                stood[key] = {
                     # Which host it was, apart: another one numbers its questions afresh.
                     "host": (status.get("pid"), status.get("started")),
                     "ended": status.get("ended"),
@@ -234,6 +236,7 @@ def _noticed(
                 {
                     "kind": kind,
                     "workspace": workspace,
+                    "slot": now.get("slot") or "",
                     "epic": ended.get("epic") or "",
                     "flow": ended.get("flow") or now.get("flow") or "",
                     "task": ended.get("task") or now.get("task") or "",
@@ -256,6 +259,7 @@ def _noticed(
                 # A chat asking what to say next is its turn done.
                 "kind": "done" if chat and kind == "listening" else kind,
                 "workspace": workspace,
+                "slot": now.get("slot") or "",
                 "epic": now.get("epic") or "",
                 "flow": now.get("flow") or "",
                 "task": now.get("task") or "",
