@@ -103,12 +103,15 @@ cd desktop/src-tauri
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
-cd .. && pnpm tauri build --debug --bundles app
+cd .. && pnpm tauri build --debug --bundles app,dmg
 ```
 
 The disk image a release attaches, for both architectures, is
 `pnpm tauri build --target universal-apple-darwin --bundles dmg`, once
-`rustup target add aarch64-apple-darwin x86_64-apple-darwin` has run.
+`rustup target add aarch64-apple-darwin x86_64-apple-darwin` has run. Finder lays it out, so
+the first build asks to let your terminal control Finder. Its background is
+`src-tauri/dmg/background.svg`; after changing it, `pnpm dmg-background` remakes the
+`background.tiff` the bundler takes.
 
 ## Where a test goes
 
