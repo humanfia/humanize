@@ -62,6 +62,11 @@
      select, a button and an icon button, and the small ones on a composer's bar. */
   --control-h: 32px;
   --control-h-sm: 26px;
+  /* The sidebar's one column, as ChatGPT and Claude keep theirs: every row's icon stands in a slot
+     this far in from the sidebar's edge, and every row's words start just past it. */
+  --side-in: 16px;
+  --side-slot: 20px;
+  --side-text: calc(var(--side-in) + var(--side-slot) + 8px);
 }
 
 [data-theme='dark'] {
@@ -260,17 +265,19 @@ code {
   background: linear-gradient(90deg, var(--green) 0 50%, var(--cyan) 50%);
 }
 
+/* As tall as the bar over the view, its rule included, and centred on the same line. */
 .side-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 10px 8px 14px;
+  padding: 8px 8px 13px calc(var(--side-in) - 2px);
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 9px;
+  /* The mark, 2px wider than the slot each side, centred on it: the name starts where words do. */
+  gap: 6px;
   color: var(--ink);
   text-decoration: none;
 }
@@ -289,15 +296,16 @@ code {
 .side-nav {
   display: grid;
   gap: 1px;
-  padding: 4px 8px 8px;
+  padding: 2px 8px 8px;
   border-bottom: 1px solid var(--line);
 }
 
 .side-nav a {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  padding: 7px 10px;
+  gap: 8px;
+  min-height: var(--control-h);
+  padding: 6px calc(var(--side-in) - 8px);
   color: var(--ink);
   text-decoration: none;
   font-weight: 600;
@@ -311,6 +319,10 @@ code {
   background: var(--ink);
   color: var(--on-ink);
   box-shadow: inset 4px 0 0 var(--cyan);
+}
+
+.side-nav a > .icon {
+  margin: 0 calc((var(--side-slot) - 18px) / 2);
 }
 
 .side-badge {
@@ -363,10 +375,12 @@ code {
 }
 
 .side-quiet.nested {
-  padding-left: 34px;
+  padding-left: calc(var(--side-text) - 8px);
 }
 
+/* An epic: its mark in the slot, and over it, where the row is pointed at, what opens it out. */
 .side-run {
+  position: relative;
   display: flex;
   align-items: center;
 }
@@ -379,7 +393,7 @@ code {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 6px calc(var(--side-in) - 8px);
   color: var(--ink);
   text-decoration: none;
 }
@@ -406,8 +420,8 @@ code {
 
 .side-toggle {
   flex: none;
-  width: 22px;
-  height: 30px;
+  width: var(--side-slot);
+  height: 100%;
   display: grid;
   place-items: center;
   padding: 0;
@@ -418,12 +432,13 @@ code {
 }
 
 .side-toggle .icon {
+  grid-area: 1 / 1;
   width: 14px;
   height: 14px;
   transition: transform 0.15s;
 }
 
-.side-toggle[aria-expanded='true'] .icon {
+.side-toggle[aria-expanded='true'] .icon-chevron {
   transform: rotate(90deg);
 }
 
@@ -431,9 +446,41 @@ code {
   color: var(--ink);
 }
 
+.side-run > .side-toggle {
+  position: absolute;
+  inset: 0 auto 0 calc(var(--side-in) - 8px);
+  opacity: 0;
+}
+
+.side-run.current > .side-toggle {
+  color: var(--on-ink);
+}
+
+.side-run:is(:hover, :has(.side-toggle:focus-visible)) > .side-toggle {
+  opacity: 1;
+}
+
+.side-run:is(:hover, :has(.side-toggle:focus-visible)) .side-mark {
+  visibility: hidden;
+}
+
+/* A workspace's folder, as an epic's mark, gives way to what folds it where it is pointed at. */
+.side-folder .side-toggle .icon-folder {
+  color: var(--cyan-ink);
+}
+
+.side-folder .side-toggle .icon-chevron,
+.side-folder:is(:hover, :has(.side-toggle:focus-visible)) .side-toggle .icon-folder {
+  visibility: hidden;
+}
+
+.side-folder:is(:hover, :has(.side-toggle:focus-visible)) .side-toggle .icon-chevron {
+  visibility: visible;
+}
+
 .side-mark {
   flex: none;
-  width: 14px;
+  width: var(--side-slot);
   text-align: center;
   font-size: 11px;
   color: var(--tone, var(--ink-3));
@@ -457,14 +504,16 @@ code {
   color: var(--ink-3);
 }
 
+/* The line down an epic opened out runs under the slot's middle, and its agents' icons stand
+   where the epic's words start. */
 .side-tree {
-  margin: 0 0 6px 21px !important;
-  padding: 2px 0 2px 6px !important;
+  margin: 0 0 6px calc(var(--side-in) + var(--side-slot) / 2 - 9px) !important;
+  padding: 2px 0 2px calc(var(--side-slot) / 2 - 1px) !important;
   border-left: 2px solid var(--line-strong);
 }
 
 .side-tree ul {
-  padding-left: 18px !important;
+  padding-left: 22px !important;
 }
 
 .side-agent {
@@ -590,7 +639,15 @@ code {
 .side-folder {
   display: flex;
   align-items: center;
+  gap: 8px;
+  min-height: var(--control-h-sm);
   margin-top: 6px;
+  padding-left: calc(var(--side-in) - 8px);
+}
+
+.side-folder > .side-toggle {
+  align-self: stretch;
+  height: auto;
 }
 
 .side-folder-name {
@@ -598,18 +655,11 @@ code {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 7px;
   padding: 4px 0;
   font: 600 11px var(--mono);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink-2);
-}
-
-.side-folder-name .icon {
-  width: 14px;
-  height: 14px;
-  color: var(--cyan-ink);
 }
 
 .side-folder.current .side-folder-name {
@@ -625,11 +675,6 @@ code {
 .side-folder:hover .side-add,
 .side-add:focus-visible {
   opacity: 1;
-}
-
-.side-group > ul,
-.side-group > .side-quiet {
-  margin-left: 8px !important;
 }
 
 .pickers {
@@ -3711,7 +3756,7 @@ pre.exo-args {
 }
 
 :root[data-shell='macos']:not([data-fullscreen]) .side-top {
-  padding: 7px 10px 13px calc(var(--lights) + 6px);
+  padding-left: calc(var(--lights) + 8px);
 }
 
 :root[data-shell='macos']:not([data-fullscreen]) .side-folded .bar {
