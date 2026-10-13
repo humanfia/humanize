@@ -54,9 +54,11 @@ export function watch(name, workspace, told) {
       tell()
     })
   } else {
-    // The epic going has its record as soon as it starts; it is named once the list says which.
-    stop = poll(`/api/runs?status=running&limit=1&workspace=${encodeURIComponent(workspace)}`, 2000, (data) => {
-      const one = data && data.runs[0]
+    // The epic going has its record as soon as it starts; it is named once the list says which:
+    // the one a host holds -- a chat between turns among them, which is done rather than running
+    // -- or else one running.
+    stop = poll(`/api/runs?limit=5&workspace=${encodeURIComponent(workspace)}`, 2000, (data) => {
+      const one = data && (data.runs.find((each) => each.held) || data.runs.find((each) => each.how === 'running'))
       seen.none = Boolean(data) && !one
       if (one && (!seen.detail || seen.detail.name !== one.name)) {
         get(`/api/runs/${encodeURIComponent(one.name)}`).then((found) => {
