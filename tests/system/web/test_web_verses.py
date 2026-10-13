@@ -103,7 +103,10 @@ def test_a_flow_is_installed_updated_and_uninstalled_out_of_a_flowverse(
 
         added = browser.post("/api/flowverses", {"url": str(index), "name": "theirs"})
         assert added.status == 200, added.body
-        assert "theirs" in [one["name"] for one in added.json()["verses"]]
+        named = [one["name"] for one in added.json()["verses"]]
+        assert "theirs" in named
+        assert "local" not in named
+        assert "user" not in named
         listed = browser.get("/api/flowverses/theirs").json()
         (solo,) = listed["flows"]
         assert (solo["flow"], solo["installed"]) == ("@theirs/solo", "")
@@ -139,8 +142,17 @@ def test_the_flows_page_installs_out_of_a_flowverse_and_says_what_is_newer(
     with served() as site, opened(site, engine=engine) as page:
         page.get_by_role("link", name="Flows").click()
         page.get_by_role("tab", name="Flowverses").click()
+        expect(page.locator(".card[data-verse=official]")).to_be_visible()
+        expect(page.locator(".card[data-verse=local]")).to_have_count(0)
+        expect(page.locator(".card[data-verse=user]")).to_have_count(0)
+        expect(page.locator(".flow-detail")).to_be_hidden()
+        page.locator(".card[data-verse=official]").click()
+        expect(page.locator(".flow-detail h2")).to_have_text("official")
+        page.locator(".card[data-verse=official]").click()
+        expect(page.locator(".flow-detail")).to_be_hidden()
         page.locator("[data-hmz=add-verse]").click()
         form = page.locator("[data-hmz=add-verse-form]")
+        expect(form).to_be_visible()
         form.get_by_role("textbox", name="URL").fill(str(index))
         form.get_by_role("textbox", name="Name").fill("theirs")
         form.get_by_role("button", name="Add").click()

@@ -207,7 +207,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   where it is on this machine. Each MUST come to what `-a` or `-e` spells.
 - MUST offer the flows on offer in a workspace and what each declares, each installed out of
   an index with its release and the newer one its index lists, with updating, uninstalling and
-  copying it into that workspace whole; and every flowverse -- whether its index is fetched or
+  copying it into that workspace whole; and every flowverse but this project's and yours,
+  nothing of one shown until it or adding one is chosen -- whether its index is fetched or
   written into, the flows it lists, every release of each newest first, prereleases marked and
   the installed one marked -- with installing, switching to and uninstalling a release, and
   adding, fetching and removing a flowverse, removing what was installed out of it, asked
