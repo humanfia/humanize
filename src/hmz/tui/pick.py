@@ -42,6 +42,7 @@ import os
 import re
 import shlex
 import textwrap
+import threading
 from functools import partial
 from pathlib import Path
 from typing import (
@@ -11736,13 +11737,16 @@ LOCAL_DAEMON = "local"
 #: The daemons of other machines, reached as each is first asked for: one reach for the
 #: whole interface, let go of as it closes (:func:`let_go`).
 _REACH: list[Any] = []
+_REACHING = threading.Lock()
 
 
 def remotes() -> Any:
     """Every daemon of another machine, as this interface reaches each."""
-    if not _REACH:
-        _REACH.append(_hmz().daemons.remotes())
-    return _REACH[0]
+    # Asked from the screen's thread and from workers alike: one reach, however many ask.
+    with _REACHING:
+        if not _REACH:
+            _REACH.append(_hmz().daemons.remotes())
+        return _REACH[0]
 
 
 def let_go() -> None:
@@ -11971,6 +11975,9 @@ def _started_afar(
             envs=kept.get("envs") or {},
             params=kept.get("params"),
             budget=kept.get("budget") or None,
+            profile_flow=bool(kept.get("profile_flow")),
+            profile_environment=bool(kept.get("profile_environment")),
+            backup=kept.get("backup"),
         )
     except Refused as why:
         link.close()

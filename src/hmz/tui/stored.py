@@ -260,18 +260,18 @@ class Stored(Sheet[tuple[str, ...]]):
         if self.opening():
             return
         target = self._target
-        self._said = f"downloading {escape(one.epic)}…"
-        self._fill()
-        hmz = _hmz()
-
-        def pulled() -> tuple[Path, str]:
-            at = hmz.backups.pulled(target, one.key)
-            return at, hmz.epics.foreign(at)
-
         try:
+            self._said = f"downloading {escape(one.epic)}…"
+            self._fill()
+            hmz = _hmz()
+
+            def pulled() -> tuple[Path, str]:
+                at = hmz.backups.pulled(target, one.key)
+                return at, hmz.epics.foreign(at)
+
             at, why = await asyncio.to_thread(pulled)
         except (OSError, ValueError) as why:
-            self._said = bad(escape(hmz.verses.plain(str(why))))
+            self._said = bad(escape(_hmz().verses.plain(str(why))))
             self._fill()
             return
         finally:

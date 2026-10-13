@@ -440,7 +440,7 @@ def test_the_epic_says_what_it_was_set_up_with() -> None:
         agents={"coder": "claude/opus", "critic": "codex/gpt"},
         envs={"workspace": "local:."},
         params={"rounds": 3},
-        profile=True,
+        profile_environment=True,
     )
 
     assert said["Set up"] == [
@@ -450,7 +450,7 @@ def test_the_epic_says_what_it_was_set_up_with() -> None:
         ("", "critic=codex/gpt"),
         ("envs", "workspace=local:."),
         ("params", "rounds=3"),
-        ("profiled", "yes"),
+        ("profiled", "environment"),
     ]
     assert said["Flows"] == [("", "@local/writes")]
 

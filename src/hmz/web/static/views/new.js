@@ -238,11 +238,20 @@ export function mount(root, { query }) {
       await starting()
     } catch (error) {
       // A chat going here has no Stop of its own: a new epic ends it, as a chat app's new chat
-      // leaves the last.
-      const front = /already running/.test(error.message) ? (await get(address('/api/runs', { workspace, limit: 1 }))).runs[0] : null
-      if (!front || !front.held || !chatting(front)) throw error
-      await ask(workspace, 'stop').catch(() => {})
-      await starting()
+      // leaves the last -- the one a host holds here, whatever was written down since.
+      const front = /already running/.test(error.message) ? (await get(address('/api/runs', { workspace, limit: 10 }))).runs.find((one) => one.held) : null
+      if (!front || !chatting(front)) throw error
+      await ask(workspace, 'stop')
+      // Started once it has unwound, which takes a moment.
+      for (let tries = 0; ; tries += 1) {
+        try {
+          await starting()
+          break
+        } catch (again) {
+          if (tries >= 20 || !/already running/.test(again.message)) throw again
+          await new Promise((settled) => setTimeout(settled, 250))
+        }
+      }
     }
     go(`/live?workspace=${encodeURIComponent(workspace)}`)
   }

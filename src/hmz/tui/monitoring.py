@@ -1287,14 +1287,12 @@ def details(
         budget.append(
             ("when spent", "the last turn finishes" if graceful else "cut off at once")
         )
-    # Profiled per part where the epic says so per part, and as a whole where it does not.
-    parts = [part for part in ("flow", "environment") if f"profile_{part}" in epic]
+    # Which of the two parts it profiles, as it started.
     profiled = (
-        ", ".join(part for part in parts if epic[f"profile_{part}"]) or "no"
-        if parts
-        else "yes"
-        if epic.get("profile")
-        else "no"
+        ", ".join(
+            part for part in ("flow", "environment") if epic.get(f"profile_{part}")
+        )
+        or "no"
     )
     names = dict(epic.get("names") or {})
     flow = str(epic.get("flow") or "")
