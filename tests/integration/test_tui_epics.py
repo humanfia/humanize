@@ -20,6 +20,7 @@ from tests.integration.doubles_tui import (
     on,
     opened,
     own_flow,
+    picks,
     rows,
     set_up_own_flow,
     shows,
@@ -50,6 +51,16 @@ async def chatted(pilot: Pilot[None]) -> None:
     await shows(pilot, "stopping the flow")
 
 
+def listed(app: Humanize) -> list[str]:
+    """The epics `/epics` lists on the page shown, by name, without the rows above them."""
+    listing = app.screen.query_one("#choices", OptionList)
+    return [
+        str(one.id).removeprefix("=")
+        for one in listing.options
+        if str(one.id).startswith("=")
+    ]
+
+
 async def test_with_no_runs_epics_and_resume_say_there_is_nothing(
     workspace: Path,
 ) -> None:
@@ -75,7 +86,7 @@ async def test_a_run_stopped_is_listed_with_its_task_and_how_it_ended(
         await on(pilot, Epics)
 
         await shows(pilot, "· chat", "hello · 1 session · stopped")
-        assert rows(app) == [one.name for one in epics(workspace)]
+        assert listed(app) == [one.name for one in epics(workspace)]
 
 
 async def test_a_run_another_process_holds_is_listed_as_still_going(
@@ -152,12 +163,12 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
         await typed(pilot, "/epics")
         await on(pilot, Epics)
         await shows(pilot, "Every epic in this directory", "ctrl+t this machine")
-        assert rows(app) == [here.path.name]
+        assert listed(app) == [here.path.name]
 
         await pilot.press("ctrl+t")
         await shows(pilot, "Every epic on this machine", "ctrl+t this directory")
-        await until(pilot, lambda: len(rows(app)) == 2, "both epics")
-        assert rows(app) == [there.path.name, here.path.name]
+        await until(pilot, lambda: len(listed(app)) == 2, "both epics")
+        assert listed(app) == [there.path.name, here.path.name]
         await shows(pilot, "~/elsewhere · there")
 
         # Another directory's epic is read and exported from here, but not carried on.
@@ -170,7 +181,7 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
         await pilot.press("escape")
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await until(pilot, lambda: len(rows(app)) == 2, "the scope remembered")
+        await until(pilot, lambda: len(listed(app)) == 2, "the scope remembered")
 
 
 def _exported(epic: Path, name: str) -> None:
@@ -215,7 +226,7 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
         await shows(pilot, "no flow has been run in this directory yet", "Import…")
 
         await _imports(pilot, "a.hmzepic")
-        await until(pilot, lambda: rows(app) == [here.path.name], "the epic imported")
+        await until(pilot, lambda: listed(app) == [here.path.name], "the epic imported")
         await shows(pilot, "imported")
         assert _cursor(app) == here.path.name
 
@@ -227,7 +238,7 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
         # Another directory's turns the list to this machine's, where it is a row.
         await _imports(pilot, "b.hmzepic")
         await shows(pilot, "Every epic on this machine", "~/elsewhere")
-        await until(pilot, lambda: len(rows(app)) == 2, "both epics")
+        await until(pilot, lambda: len(listed(app)) == 2, "both epics")
         assert _cursor(app) == there.path.name
 
         await pilot.press("down")
@@ -274,3 +285,54 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
         await on(pilot, Epics)
         await until(pilot, here.path.is_dir, "the epic imported")
         await shows(pilot, "imported")
+
+
+async def test_epics_are_found_by_status_flow_workspace_and_task_a_page_at_a_time(
+    workspace: Path,
+) -> None:
+    elsewhere = Path.home() / "elsewhere"
+    elsewhere.mkdir(parents=True)
+    chats: list[str] = []
+    for at in range(50):
+        with Epic("chat", f"chat {at}", workspace) as chat:
+            chats.append(chat.path.name)
+    with Epic(OWN, "own", workspace) as stopped:
+        stopped.stopped()
+    with Epic(OWN, "there", elsewhere) as there:
+        pass
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        # A page of fifty, newest first, under the rows it is found by.
+        await shows(pilot, "status", "all ▾", "1\N{EN DASH}50 of 51", "Older")
+        assert rows(app)[:2] == ["status", "flow"]
+        assert listed(app) == [stopped.path.name, *chats[:0:-1]]
+
+        await pilot.click("#act-older")
+        await shows(pilot, "51\N{EN DASH}51 of 51")
+        assert listed(app) == [chats[0]]
+        await pilot.click("#act-newer")
+        await shows(pilot, "1\N{EN DASH}50 of 51")
+
+        await picks(pilot, "status", "stopped")
+        await until(pilot, lambda: listed(app) == [stopped.path.name], "the stopped")
+        await shows(pilot, "stopped ▾")
+        await picks(pilot, "status", "failed")
+        await shows(pilot, "no epic is like that")
+        await picks(pilot, "status", "")
+        await picks(pilot, "flow", "chat")
+        await until(pilot, lambda: len(listed(app)) == 50, "the chats")
+
+        await pilot.press("slash", *"chat 7")
+        await until(pilot, lambda: len(listed(app)) == 5, "the chats of a 7")
+        await pilot.press("escape")
+        await until(pilot, lambda: len(listed(app)) == 50, "the search put away")
+
+        # Of this machine, found by its directory as well.
+        await pilot.press("ctrl+t")
+        await until(pilot, lambda: rows(app)[:3] == ["status", "flow", "workspace"], "")
+        await picks(pilot, "flow", "")
+        await picks(pilot, "workspace", "~/elsewhere")
+        await until(pilot, lambda: listed(app) == [there.path.name], "the one there")

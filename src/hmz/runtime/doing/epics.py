@@ -109,6 +109,12 @@ class Epics:
 
         return going(epic)
 
+    def ending(self, ran: Ran) -> str:
+        """How one run went, as a list of them is found by: `running` while it is still going."""
+        from hmz.runtime.epic import ending, going
+
+        return ending(ran, going=not ran.how and going(ran.at))
+
     def state(self, epic: Path, flow: str = "") -> dict[str, Any]:
         """What a resumable flow kept in one run: the run's own flow, or one it called by ref."""
         from hmz.runtime.epic import state

@@ -210,7 +210,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST list the runs of this directory newest first with when each began, its flow, its task, how
   it went and how many sessions it opened, marking which can be picked up, readable while one runs;
   and, turned by `ctrl+t` or a button and remembered for this machine, those of every directory
-  on this machine instead, each with its directory, read without holding the screen up.
+  on this machine instead, each with its directory, read without holding the screen up; found as
+  the web finds them -- by how each went, its flow, its directory and its task -- a page at a time.
 - MUST refuse to carry on a run of another directory, saying where it ran.
 - MUST tell, of every epic on this machine, what the web interface tells of it -- each notice
   `runtime/watching` works out of the hosts' status, never attaching -- as a card that goes

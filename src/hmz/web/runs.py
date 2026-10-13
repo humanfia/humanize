@@ -34,13 +34,6 @@ __all__ = ["BUNDLE", "ROUTES", "Runs", "refused"]
 #: What an epic's archive is sent as.
 BUNDLE = "application/vnd.hmz.epic+gzip"
 
-#: How a run that has not ended is said, where it is not the run going now: one killed where
-#: it stood, which no record says the end of.
-UNFINISHED = "unfinished"
-
-#: How the run going now is said, before its epic says how it ended.
-RUNNING = "running"
-
 #: How a chat is said between its turns, and once it is over however it ended but failing.
 DONE = "done"
 
@@ -332,8 +325,10 @@ def row(ran: Ran, *, held: bool, going: bool = False, turn: str = "") -> dict[st
       going: Whether it is going at all, held by a host or by any other process.
       turn: Of a chat a host is going with, where it is in its turn, or "" where unknown.
     """
+    from hmz.runtime.epic import RUNNING, UNFINISHED, ending
+
     first = ran.task.strip().splitlines()[0] if ran.task.strip() else ""
-    how = ran.how or (RUNNING if held or going else UNFINISHED)
+    how = ending(ran, going=held or going)
     if ran.flow == CHAT and how in (RUNNING, UNFINISHED, "stopped"):
         # A chat is going while its agent answers, and done between turns or once over.
         how = RUNNING if how == RUNNING and turn != DONE else DONE
@@ -532,33 +527,34 @@ def _epoch(stamp: str) -> float:
 
 
 def _listed(asked: Asked) -> dict[str, Any]:
+    from hmz.runtime.epic import found
+
     runs = asked.site.runs.all(asked.query.get("workspace", ""))
     held = held_by(runs, asked.site.places.running())
-    status = asked.query.get("status", "")
-    flow = asked.query.get("flow", "")
-    wanted = asked.query.get("q", "").casefold()
-    rows = [
-        row(
+    went = [
+        (
             ran,
-            held=ran.at in held,
-            going=asked.site.runs.going(ran),
-            turn=held.get(ran.at, ""),
+            row(
+                ran,
+                held=ran.at in held,
+                going=asked.site.runs.going(ran),
+                turn=held.get(ran.at, ""),
+            ),
         )
         for ran in runs
     ]
     counts: dict[str, int] = {}
-    for one in rows:
+    for _, one in went:
         counts[one["how"]] = counts.get(one["how"], 0) + 1
     shown = [
         one
-        for one in rows
-        if (not status or one["how"] == status)
-        and (not flow or one["flow"] == flow)
-        and (
-            not wanted
-            or any(
-                wanted in str(one[part]).casefold() for part in ("task", "flow", "name")
-            )
+        for ran, one in went
+        if found(
+            ran,
+            one["how"],
+            how=asked.query.get("status", ""),
+            flow=asked.query.get("flow", ""),
+            text=asked.query.get("q", ""),
         )
     ]
     try:
@@ -572,7 +568,7 @@ def _listed(asked: Asked) -> dict[str, Any]:
         "offset": offset,
         "limit": limit,
         "counts": counts,
-        "flows": sorted({one["flow"] for one in rows}),
+        "flows": sorted({ran.flow for ran in runs}),
     }
 
 

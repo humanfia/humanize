@@ -2431,8 +2431,9 @@ class Action(NamedTuple):
 #: list and its id cannot be taken for a name somebody chose.
 _ACT_ADD, _ACT_SPEAKS, _ACT_IMPORTS = "add", "speaks", "imports"
 _ACT_SEARCH, _ACT_SAVE, _ACT_DONE = "search", "save", "done"
-#: Turning `/epics` between this directory and this machine, and to another daemon's.
-_ACT_SCOPE, _ACT_DAEMON = "scope", "daemon"
+#: Turning `/epics` between this directory and this machine, to another daemon's, and a page
+#: newer or older.
+_ACT_SCOPE, _ACT_DAEMON, _ACT_NEWER, _ACT_OLDER = "scope", "daemon", "newer", "older"
 #: Downloading an epic out of a backup target.
 _ACT_DOWNLOAD = "download"
 #: Asking again what a list is of, naming an ssh host nobody saved, asking a daemon what it
@@ -10680,6 +10681,7 @@ class Exporting(Form[str]):
         """
         super().__init__()
         self._named = named
+        self._typed_in[_TO] = _downloads()
         self._fresh.add(_TO)
 
     def asked(self) -> list[Question]:
@@ -10851,6 +10853,14 @@ _COPIED: dict[str, Callable[[Ran], tuple[str, str]]] = {
     _COPY_PATH: lambda ran: (str(ran.at), "path"),
 }
 
+#: What `/epics` is found by, each a row above its list whose values drop under it: how an
+#: epic went, its flow, and -- of a list of more than one directory -- its directory. Words
+#: without the `=` an epic's row carries, so that no epic is taken for one.
+_BY_HOW, _BY_FLOW, _BY_WORKSPACE = "status", "flow", "workspace"
+
+#: How many epics one page of `/epics` holds, as a page of the web's list does.
+_PAGE = 50
+
 
 class Epics(Sheet[Doing]):
     """Every run of a flow here or on this machine, newest first, and what to do with one.
@@ -10868,6 +10878,10 @@ class Epics(Sheet[Doing]):
     by where it ran as often as by when, and somebody who has forgotten which checkout it was
     in is somebody this directory's alone would tell nothing. Which of the two was last asked
     for is remembered, as how somebody likes to look back rather than as anything about here.
+
+    Found as the web's list is found -- by how each went, its flow and its directory, rows
+    above the list whose values drop under them, and by its task with `/` -- and read a page
+    at a time, the buttons under it turning to a newer page or an older one.
     """
 
     BINDINGS: ClassVar = [
@@ -10924,6 +10938,16 @@ class Epics(Sheet[Doing]):
         #: What is worth saying in the transcript once this sheet is done with.
         self._told: list[str] = []
         self._unseen = unseen if unseen is not None else set[str]()
+        #: What the list is found by, by the row it is picked on; missing or "" for any.
+        self._by: dict[str, str] = {}
+        #: Which of those rows the cursor is on, or "" where it is on an epic.
+        self._on = ""
+        #: Where the page shown starts, or None for the page the cursor's epic is on.
+        self._from: int | None = 0
+        #: How many epics the search and the rows above the list leave, every page of them.
+        self._total = 0
+        #: How each epic went, by its directory, asked once a read: one going is asked of its lock.
+        self._went: dict[Path, str] = {}
 
     def _ask(self) -> None:
         """Says what these are, and puts them up."""
@@ -10949,15 +10973,16 @@ class Epics(Sheet[Doing]):
         """Reads the list again for the scope it is now, off the event loop."""
         import asyncio
 
-        every, was = self._every, self._was
+        every, was, start = self._every, self._was, self._from
         self._ran = []
+        self._went = {}
         self._reading = True
         self._fill()
         ran = await asyncio.to_thread(self._read, every=every)
         if every == self._every:
             self._ran = ran
             self._reading = False
-            self._was = was
+            self._was, self._from = was, start
             self._fill()
 
     def action_scope(self) -> None:
@@ -10965,6 +10990,8 @@ class Epics(Sheet[Doing]):
         self._every = not self._every
         self._settings.every_epic = self._every
         self._said = ""
+        self._by.pop(_BY_WORKSPACE, None)
+        self._from = 0
         self._rereads()
 
     def _scope(self) -> Action:
@@ -11007,7 +11034,11 @@ class Epics(Sheet[Doing]):
         return "/epics"
 
     def actions(self) -> list[Action]:
-        """Searching the runs, turning them between this directory and this machine, importing."""
+        """Searching the runs, turning them between this directory and this machine, importing.
+
+        And a page newer or older, where what is found is more than a page.
+        """
+        start = self._from or 0
         return [
             self._searches(),
             self._scope(),
@@ -11018,6 +11049,26 @@ class Epics(Sheet[Doing]):
                 self.action_imports,
             ),
             _switching(self, LOCAL_DAEMON, self._told),
+            *(
+                [
+                    Action(
+                        _ACT_NEWER,
+                        "newer",
+                        "the page of newer epics",
+                        partial(self._pages, -1),
+                        lambda: start > 0,
+                    ),
+                    Action(
+                        _ACT_OLDER,
+                        "older",
+                        "the page of older epics",
+                        partial(self._pages, 1),
+                        lambda: start + _PAGE < self._total,
+                    ),
+                ]
+                if self._total > _PAGE
+                else []
+            ),
         ]
 
     def menu(self) -> tuple[str, list[Action]] | None:
@@ -11032,8 +11083,20 @@ class Epics(Sheet[Doing]):
         if ran is not None:
             self._doing(ran)
 
+    def _pages(self, by: int) -> None:
+        """Turns the list a page newer or older, the cursor on its first epic.
+
+        Or on the row the list is found by that it was on, which a page does not move.
+
+        Args:
+          by: One older, or one newer.
+        """
+        self._from = max(0, (self._from or 0) + by * _PAGE)
+        self._on = ""
+        self._fill()
+
     def enters(self, row: str) -> bool:
-        """Every row is a run, which the arrow right goes into.
+        """Every row below the ones it is found by is a run, which the arrow right goes into.
 
         Args:
           row: The row, by id.
@@ -11041,7 +11104,94 @@ class Epics(Sheet[Doing]):
         Returns:
           True for a run.
         """
-        return bool(row)
+        return bool(row) and not self.drops(row)
+
+    def _finders(self) -> tuple[str, ...]:
+        """The rows the list is found by now: by directory only where it is of more than one."""
+        return (
+            (_BY_HOW, _BY_FLOW, _BY_WORKSPACE) if self._every else (_BY_HOW, _BY_FLOW)
+        )
+
+    def drops(self, row: str) -> bool:
+        """The rows the list is found by drop their values under them.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for one of them.
+        """
+        return row in self._finders()
+
+    def dropping(self, row: str) -> Drop:
+        """Every value one row the list is found by can take, each with how many epics it finds.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          `all`, and every value of it there is among the epics read -- every way an epic
+          can go, where the row is how it went -- the one in force ticked.
+        """
+        from collections import Counter
+
+        from hmz.runtime.epic import ENDINGS
+
+        counts = Counter(self._value(one, row) for one in self._ran)
+        values = list(ENDINGS) if row == _BY_HOW else sorted(counts)
+        return Drop(
+            row,
+            [
+                Value("", "all", str(len(self._ran))),
+                *(Value(one, one, str(counts[one])) for one in values),
+            ],
+            self._by.get(row, ""),
+        )
+
+    def dropped(self, row: str, picked: str) -> None:
+        """Finds the list by the value picked, from its first page.
+
+        Args:
+          row: The row, by id.
+          picked: The value.
+        """
+        self._by[row] = picked
+        self._from = 0
+
+    def _value(self, ran: Ran, row: str) -> str:
+        """What one epic is, as one row the list is found by says it.
+
+        Args:
+          ran: The epic.
+          row: The row, by id.
+        """
+        if row == _BY_FLOW:
+            return ran.flow
+        if row == _BY_WORKSPACE:
+            return _ran_in(ran)
+        if ran.at not in self._went:
+            self._went[ran.at] = self._runs.ending(ran)
+        return self._went[ran.at]
+
+    def _finds(self, ran: Ran) -> bool:
+        """Whether one epic is one the rows above the list and the search leave in it."""
+        from hmz.runtime.epic import found
+
+        how = self._by.get(_BY_HOW, "")
+        return (
+            found(
+                ran,
+                self._value(ran, _BY_HOW) if how else "",
+                how=how,
+                flow=self._by.get(_BY_FLOW, ""),
+            )
+            and (
+                not self._every or self._by.get(_BY_WORKSPACE, "") in ("", _ran_in(ran))
+            )
+            and self.fits(
+                ran.flow, ran.task, ran.name, _ran_in(ran) if self._every else ""
+            )
+        )
 
     def _fill(self) -> None:
         """Puts the runs up, the first a search found or the one the cursor was on."""
@@ -11052,39 +11202,77 @@ class Epics(Sheet[Doing]):
         )
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
-        shown = [
-            one
-            for one in self._ran
-            if self.fits(
-                one.flow, one.task, one.name, _ran_in(one) if self._every else ""
-            )
-        ]
-        sought = self._sought([one.name for one in shown])
+        shown = [one for one in self._ran if self._finds(one)]
+        names = [one.name for one in shown]
+        sought = self._sought(names)
         if sought is not None:
-            self._was = sought
-        if all(one.name != self._was for one in shown):
-            self._was = shown[0].name if shown else ""
+            self._was, self._on, self._from = sought, "", None
+        if self._from is None:
+            self._from = (
+                names.index(self._was) // _PAGE * _PAGE if self._was in names else 0
+            )
+        self._from = min(self._from, max(len(shown) - 1, 0) // _PAGE * _PAGE)
+        self._total = len(shown)
+        page = shown[self._from : self._from + _PAGE]
+        if all(one.name != self._was for one in page):
+            self._was = page[0].name if page else ""
+        # Nothing to find a list by that has nothing in it.
+        finders = self._finders() if self._ran else ()
+        if self._on not in finders:
+            self._on = ""
         listing.set_options(
             [
-                Option(
-                    self._row(
-                        seen,
-                        f"{_when(one.began)}{_DOT}{one.flow}",
-                        self._about(one),
-                        here=one.name == self._was,
-                        inforce=False,
-                        unread=one.name in self._unseen,
-                    ),
-                    id=f"={one.name}",
-                )
-                for seen, one in enumerate(shown)
+                *(
+                    Option(
+                        self._setting(
+                            row,
+                            _chip(
+                                self._by.get(row) or "all", _DROPS, here=row == self._on
+                            ),
+                            "",
+                            here=row == self._on,
+                        ),
+                        id=row,
+                    )
+                    for row in finders
+                ),
+                *([None] if finders else []),
+                *(
+                    Option(
+                        self._row(
+                            seen,
+                            f"{_when(one.began)}{_DOT}{one.flow}",
+                            self._about(one),
+                            here=not self._on and one.name == self._was,
+                            inforce=False,
+                            unread=one.name in self._unseen,
+                        ),
+                        id=f"={one.name}",
+                    )
+                    for seen, one in enumerate(page)
+                ),
             ]
         )
-        listing.highlighted = next(
-            (at for at, one in enumerate(shown) if one.name == self._was), None
+        listing.highlighted = (
+            finders.index(self._on)
+            if self._on
+            else next(
+                (
+                    len(finders) + at
+                    for at, one in enumerate(page)
+                    if one.name == self._was
+                ),
+                None,
+            )
         )
         self._drawn = listing.highlighted
-        said = self._said or ("" if self._ran else self._nothing())
+        said = self._said or (
+            self._nothing()
+            if not shown
+            else f"{self._from + 1}\N{EN DASH}{self._from + len(page)} of {len(shown)}"
+            if len(shown) > _PAGE
+            else ""
+        )
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
@@ -11104,9 +11292,11 @@ class Epics(Sheet[Doing]):
         self._fill()
 
     def _nothing(self) -> str:
-        """What an empty list says: that it is being read, or that nothing has been run."""
+        """What an empty list says: that it is being read, that nothing found, or nothing ran."""
         if self._reading:
             return "reading…"
+        if self._ran:
+            return "no epic is like that"
         if self._every:
             return "no flow has been run on this machine yet"
         return "no flow has been run in this directory yet"
@@ -11209,7 +11399,9 @@ class Epics(Sheet[Doing]):
         """
         from textual.worker import WorkerCancelled
 
-        self._was = epic.name
+        self._was, self._on, self._from = epic.name, "", None
+        # Found by nothing, so that what it is found by cannot hide it.
+        self._by.clear()
         if epic.parent != self._here:
             self._every = True
         # Onto the list once it is read: a list that was empty had the focus on its buttons.
@@ -11218,12 +11410,14 @@ class Epics(Sheet[Doing]):
             self._settles_focus()
 
     def _follows(self, listing: OptionList) -> None:
-        """Takes which run the cursor is on off the list, by the directory it is written in."""
+        """Takes which run or which row it is found by the cursor is on off the list."""
         at = listing.highlighted
         if at is not None and 0 <= at < listing.option_count:
-            named = str(listing.get_option_at_index(at).id or "").removeprefix("=")
-            if named:
-                self._was = named
+            named = str(listing.get_option_at_index(at).id or "")
+            if named.startswith("="):
+                self._was, self._on = named.removeprefix("="), ""
+            elif named:
+                self._on = named
 
     def _under(self) -> Ran | None:
         """The run the cursor is on, or None where the list has nothing in it."""

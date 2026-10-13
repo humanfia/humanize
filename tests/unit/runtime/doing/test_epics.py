@@ -258,3 +258,18 @@ def test_a_journal_nobody_wrote_cannot_be_picked_up(workspace: Path) -> None:
 
     assert Epics(workspace).picks_up(run) is False
     assert Epics(workspace).resumed("ralph") is None
+
+
+def test_a_run_went_running_while_it_is_held_and_unfinished_after(
+    workspace: Path,
+) -> None:
+    epics = Epics(workspace)
+    with Epic("ralph", "t", workspace) as held:
+        ran = epics.read(held.path)
+        assert ran is not None
+        assert epics.ending(ran) == "running"
+
+    assert epics.ending(ran) == "unfinished"
+    after = epics.read(held.path)
+    assert after is not None
+    assert epics.ending(after) == "done"

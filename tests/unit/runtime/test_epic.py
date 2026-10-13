@@ -881,3 +881,27 @@ def test_spending_counts_each_day_and_flow_and_how_each_run_ended() -> None:
         "output_tokens": 400,
         "seconds": 90.0,
     }
+
+
+def test_how_a_run_went_is_its_end_or_whether_it_is_still_going(
+    workspace: Path,
+) -> None:
+    ended = epic.Ran(workspace, how="stopped")
+    still = epic.Ran(workspace)
+
+    assert epic.ending(ended, going=True) == "stopped"
+    assert epic.ending(still, going=True) == epic.RUNNING
+    assert epic.ending(still, going=False) == epic.UNFINISHED
+    assert set(epic.ENDINGS) >= {"done", "failed", "stopped", epic.RUNNING}
+
+
+def test_a_run_is_found_by_how_it_went_its_flow_and_its_task(workspace: Path) -> None:
+    ran = epic.Ran(workspace / "20260101T000000.000Z-ab", flow="ralph", task="Fix it")
+
+    assert epic.found(ran, "done")
+    assert epic.found(ran, "done", how="done", flow="ralph", text="fix")
+    assert epic.found(ran, "done", text="RALPH")
+    assert epic.found(ran, "done", text="000z-ab")
+    assert not epic.found(ran, "done", how="failed")
+    assert not epic.found(ran, "done", flow="chat")
+    assert not epic.found(ran, "done", text="break")
