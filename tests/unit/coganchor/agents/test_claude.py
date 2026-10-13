@@ -30,6 +30,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.base import KEEPING
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
 from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner, offering
 
@@ -704,6 +705,111 @@ def test_a_second_copy_of_a_conversation_is_refused_where_the_first_was_brought_
     assert len(spawner.started) == 1
     assert _transcript(home, had).read_text() == "one\n"
     assert _transcript(home, there).read_text() == "one\n"
+
+
+def _shadowed(
+    tmp_path: Path, *, native: bool = False, harness: str = "local"
+) -> tuple[ClaudeCodeAgent, Path]:
+    """An agent whose work is on another machine, at `/far/desk` as that machine names it.
+
+    Its Claude runs here, in this machine's mirror of the far workspace under `tmp_path` --
+    unless it is that machine's own (`native`), or under a harness on a third (`harness`).
+
+    Returns:
+      The agent, and this machine's mirror of where it works.
+    """
+    mirror = tmp_path / "mirror"
+    (mirror / "desk").mkdir(parents=True)
+    here = not native and harness == "local"
+    anchor = AnchorConfig(
+        target="ssh://box",
+        workspace="/far",
+        shadow=str(mirror) if here else None,
+        native=native,
+        harness=harness,
+    )
+    return _agent(machine=AnchoredConfig(anchor=anchor)), mirror / "desk"
+
+
+def test_a_recalled_conversation_is_carried_into_the_mirror_claude_runs_in_here(
+    spawner: Spawner, claude: _Claude, home: Path, tmp_path: Path
+) -> None:
+    """Where Claude, run here for work on another machine, looks: the mirror of where it works.
+
+    From the copy brought in -- the longest, where it has more than one -- and never from one
+    an earlier fork left there, nor into the far path, where no Claude here looks.
+    """
+    agent, mirrored = _shadowed(tmp_path)
+    snapshot = _kept(tmp_path / "snapshot", tmp_path / "mirror" / "had", "the word\n")
+    _kept(snapshot, tmp_path / "mirror" / "before", "the word is papaya\n")
+    _kept(home, mirrored, "an older copy\n")
+
+    agent.recall("told", snapshot, "/far/desk").fork()("what was the word?")
+
+    argv = spawner.last.args
+    assert (_flag(argv, "--resume"), "--fork-session" in argv) == ("told", True)
+    assert _transcript(home, mirrored).read_text() == "the word is papaya\n"
+    assert not list(home.glob("projects/-far*"))
+
+
+def test_a_conversation_already_where_claude_runs_is_not_written_again(
+    spawner: Spawner, claude: _Claude, home: Path, tmp_path: Path
+) -> None:
+    agent, mirrored = _shadowed(tmp_path)
+    snapshot = _kept(tmp_path / "snapshot", tmp_path / "mirror" / "had", "one\n")
+    agent.recall("told", snapshot, "/far/desk").fork()("go on")
+    copy = _transcript(home, mirrored)
+    first = copy.stat().st_ino
+
+    agent.recall("told", snapshot, "/far/desk").fork()("go on again")
+
+    assert len(spawner.started) == 2
+    assert copy.stat().st_ino == first, "the same file, left as it was"
+    assert copy.read_text() == "one\n"
+
+
+def test_a_live_conversation_is_forked_from_the_mirror_it_was_had_in(
+    spawner: Spawner, claude: _Claude, home: Path, tmp_path: Path
+) -> None:
+    """Its own transcript is the mirror's, not a copy left under the far path's name."""
+    agent, mirrored = _shadowed(tmp_path)
+    (tmp_path / "mirror" / "other").mkdir()
+    session = agent.new("/far/desk")
+    session("the word is papaya")
+    name = f"{session.id}.jsonl"
+    had = _transcript(home, mirrored).with_name(name)
+    had.parent.mkdir(parents=True)
+    had.write_text("the word is papaya\n")
+    stale = home / "projects" / "-far-desk" / name
+    stale.parent.mkdir(parents=True)
+    stale.write_text("stale\n")
+
+    session.fork(cwd="/far/other")("what was the word?")
+
+    moved = _transcript(home, tmp_path / "mirror" / "other").with_name(name)
+    assert moved.read_text() == "the word is papaya\n"
+    assert not (home / "projects" / "-far-other").exists()
+
+
+@pytest.mark.parametrize(
+    ("native", "harness"),
+    [(True, "local"), (False, "ssh://gpu")],
+    ids=["native", "afar"],
+)
+def test_a_conversation_is_not_carried_for_a_claude_run_on_another_machine(
+    spawner: Spawner,
+    claude: _Claude,
+    home: Path,
+    tmp_path: Path,
+    native: bool,
+    harness: str,
+) -> None:
+    agent, _ = _shadowed(tmp_path, native=native, harness=harness)
+    snapshot = _kept(tmp_path / "snapshot", tmp_path / "far" / "had", "one\n")
+
+    with pytest.raises(NotImplementedError, match="on another machine"):
+        agent.recall("told", snapshot, "/far/desk").fork()("go on")
+    assert spawner.started == []
 
 
 # --------------------------------------------------------------- through a LiteLLM gateway

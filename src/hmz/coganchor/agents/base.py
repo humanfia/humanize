@@ -2331,11 +2331,29 @@ class SessionBase(ABC):
             if not os.path.isdir(where):  # noqa: PTH112
                 raise ValueError(f"{where}: no directory to open a session in")
             return where
+        return self._mirrored(anchor, self.cwd)
+
+    @staticmethod
+    def _mirrored(anchor: AnchorConfig, where: str) -> str:
+        """A directory on the machine an anchor reaches, as an agent anchored there finds it.
+
+        Which is its path in this machine's mirror of the workspace the anchor names: `where`
+        itself, unless the mirror was put somewhere else.
+
+        Args:
+          anchor: Where the agent's turns land.
+          where: The directory, absolute, as that machine names it.
+
+        Returns:
+          Its path in the mirror.
+
+        Raises:
+          ValueError: If it is outside the workspace the anchor names.
+        """
         # The mirror's own path for the same place: what the agent reads and writes is the
         # mirror, and coganchor is what makes that the target's copy.
         workspace = os.path.abspath(anchor.workspace or os.getcwd())  # noqa: PTH100, PTH109
         mirror = os.path.abspath(anchor.shadow or workspace)  # noqa: PTH100
-        where = self.cwd
         if where != workspace and not where.startswith(workspace + os.sep):
             raise ValueError(
                 f"{where} is not inside {workspace}, which is the workspace this agent's "

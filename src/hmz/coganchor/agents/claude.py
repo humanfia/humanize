@@ -1381,10 +1381,12 @@ class ClaudeCodeSession(StreamSessionBase):
 
         Claude keeps a conversation as `projects/<the directory, spelled as a name>/<id>.jsonl`
         under its home, and `--resume <id> --fork-session` reads it from under the directory
-        it is run in. So a fork opened elsewhere is given a copy there to be cut from; the
-        copy is this conversation as it stands, which is what the fork carries on from. Each is
-        written whole before it is moved into place, so that a fork reading one as another
-        writes it finds it whole.
+        it is run in -- which, for an agent whose turns land on another machine and whose
+        Claude runs here, is this machine's mirror of the directory the fork works in. So a
+        fork opened elsewhere is given a copy there to be cut from; the copy is this
+        conversation as it stands, which is what the fork carries on from. Each is written
+        whole before it is moved into place, so that a fork reading one as another writes it
+        finds it whole.
 
         A conversation recalled from a copy of where it was kept stands as that copy has it:
         its own transcript there -- the longest, where it has more than one, another being one
@@ -1395,18 +1397,30 @@ class ClaudeCodeSession(StreamSessionBase):
           cwd: The directory the fork is to work in.
 
         Raises:
-          NotImplementedError: For an agent whose turns land on another machine, whose Claude
-            keeps its conversations there rather than here.
+          NotImplementedError: For an agent whose Claude runs on another machine -- that
+            machine's own, or one under a harness put elsewhere -- which keeps its
+            conversations there rather than here.
           RuntimeError: If this conversation cannot be found where Claude keeps it.
+          ValueError: If `cwd` is outside the workspace the agent's turns land in.
         """
         import filecmp
 
         from hmz.coganchor import atomic
+        from hmz.coganchor.elsewhere import elsewhere
 
-        if self._agent.config.machine is not None:
+        anchor = self._agent.anchor
+        if anchor is not None and (anchor.native or elsewhere(anchor)):
             raise NotImplementedError(
                 "claude cannot carry a conversation into another directory on another machine"
             )
+
+        def run(where: str) -> tuple[str, ...]:
+            # The directory Claude is run in for work in `where`, as either spelling of it.
+            at = os.path.abspath(where)  # noqa: PTH100
+            if anchor is not None:
+                at = self._mirrored(anchor, at)
+            return tuple(dict.fromkeys((at, os.path.realpath(at))))
+
         # Where this agent's sessions are, which is its run's directory for them rather than
         # Claude's home wherever a turn keeps them there.
         kept = self._agent.kept()
@@ -1421,19 +1435,17 @@ class ClaudeCodeSession(StreamSessionBase):
         else:
             # Where this conversation is held first: an earlier fork carried elsewhere left a
             # copy of it there, as it stood then, which is not where it stands now.
-            held = os.path.abspath(self.cwd)  # noqa: PTH100
             found = next(
                 (
                     kept
-                    for spelled in dict.fromkeys((held, os.path.realpath(held)))
+                    for spelled in run(self.cwd)
                     if (kept := projects / _project(spelled) / name).is_file()
                 ),
                 None,
             ) or next(projects.glob(f"*/{name}"), None)
         if found is None or not found.is_file():
             raise RuntimeError(f"claude: no conversation {self.id} under {projects}")
-        where = os.path.abspath(cwd)  # noqa: PTH100
-        for spelled in dict.fromkeys((where, os.path.realpath(where))):
+        for spelled in run(cwd):
             there = projects / _project(spelled)
             there.mkdir(parents=True, exist_ok=True)
             copy = there / name
