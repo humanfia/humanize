@@ -133,6 +133,11 @@ def test_a_request_there_is_its_own_page_s() -> None:
     }
 
 
+def _plain(url: str) -> str:
+    """A URL with nothing signed into it, as the flowverses strike one."""
+    return url.replace("me:secret@", "***@")
+
+
 def test_a_batch_carries_the_pages_asked_for_as_each_page_saves_them() -> None:
     target = SimpleNamespace(
         name="lab",
@@ -150,7 +155,7 @@ def test_a_batch_carries_the_pages_asked_for_as_each_page_saves_them() -> None:
         fallbacks=SimpleNamespace(all=lambda: [step]),
         runtimes=SimpleNamespace(all=lambda: [runtime]),
         backups=SimpleNamespace(targets=lambda: [target], defaults=lambda: ["lab"]),
-        verses=SimpleNamespace(plain=lambda url: url.replace("me:secret@", "***@")),
+        verses=SimpleNamespace(plain=_plain),
     )
 
     sent = carried(hmz, CARRIED)
