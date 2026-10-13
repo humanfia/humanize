@@ -68,5 +68,8 @@ def test_a_chat_on_another_machine_is_told_here(host: Host) -> None:
 
         read = browser.post("/api/notifications/read", {"all": True}).json()
         assert read["unread"] == 0
-        assert browser.post("/d/box/api/held/stop", {"workspace": str(there)}).status == 200
+        assert (
+            browser.post("/d/box/api/held/stop", {"workspace": str(there)}).status
+            == 200
+        )
         assert _told(browser, "stopped")["daemon"] == "box"

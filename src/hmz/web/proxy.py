@@ -43,6 +43,9 @@ _KEPT = frozenset(
     }
 )
 
+#: What would end a header's line early, and so start another the other side never sent.
+_SPLITS = frozenset("\r\n")
+
 #: How much is carried at a time.
 _CHUNK = 1 << 16
 
@@ -78,7 +81,8 @@ def forwards(
             raise Refusal("The daemon did not answer.", 502) from why
         handler.send_response(answer.status, answer.reason)
         for name, value in answer.getheaders():
-            if name.lower() not in _KEPT:
+            # A header that would break a line of this answer is not carried, whoever sent it.
+            if name.lower() not in _KEPT and not _SPLITS.intersection(name + value):
                 handler.send_header(name, value)
         if answer.getheader("Content-Length") is None:
             # Without a length, the answer ends where the connection does.

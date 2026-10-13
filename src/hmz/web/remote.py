@@ -440,7 +440,9 @@ class _Remote:
             try:
                 line = heard.get(timeout=max(0.0, ending - time.monotonic()))
             except queue.Empty:
-                raise _Failed("hmz web there did not say where it listens.") from None
+                raise _Failed(
+                    _last(errors, "hmz web there did not say where it listens.")
+                ) from None
             if line is None:
                 web.wait()
                 raise _Failed(_last(errors, "hmz web there stopped."))
