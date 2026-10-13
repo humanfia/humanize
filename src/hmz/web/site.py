@@ -583,6 +583,9 @@ class _Handler(BaseHTTPRequestHandler):
     def _streams(self, answer: Stream, query: dict[str, str]) -> None:
         """Server-sent events, for as long as the browser listens and the server is up."""
         last = self.headers.get("Last-Event-ID") or query.get("last", "")
+        # Where it starts from is settled before the browser hears it is answered: what comes
+        # once it has heard so is never before the start.
+        events = answer.events(last, self.site.going)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -593,7 +596,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         self.wfile.write(b"retry: 2000\n\n")
         self.wfile.flush()
-        for said in answer.events(last, self.site.going):
+        for said in events:
             if said is None:
                 self.wfile.write(b": quiet\n\n")
             else:

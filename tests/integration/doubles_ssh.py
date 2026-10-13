@@ -102,6 +102,8 @@ sys.exit(subprocess.run(["sh", "-c", command], env=env).returncode)
 _HMZ = """#!/bin/sh
 if [ ! -f "$HOME/.hmz-version" ]; then echo "sh: hmz: not found" >&2; exit 127; fi
 if [ "$1" = "--version" ]; then echo "hmz $(cat "$HOME/.hmz-version")"; exit 0; fi
+# What its interface says on stderr is also kept, a stack dumped on SIGABRT among it.
+if [ "$1" = "web" ]; then exec {python} -X faulthandler -m hmz "$@" 2>>"$HOME/web.err"; fi
 exec {python} -m hmz "$@"
 """
 

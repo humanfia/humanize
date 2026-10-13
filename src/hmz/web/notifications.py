@@ -197,9 +197,14 @@ class Notifications:
         with self._changed:
             told = self._told
         # One heard of an interface before this, which counted from the start again, has
-        # heard none of this one's.
+        # heard none of this one's. Where it starts from is as it is asked for, not as it is
+        # first read.
         heard = int(last) if last.isdigit() else told
-        after = heard if heard <= told else 0
+        return self._after(heard if heard <= told else 0, going)
+
+    def _after(
+        self, after: int, going: threading.Event
+    ) -> Iterator[tuple[str, str, Any] | None]:
         while not (going.is_set() or self._closed.is_set()):
             with self._changed:
                 fresh = [dict(one) for one in self._kept if int(one["id"]) > after]

@@ -438,11 +438,16 @@ class _Remote:
         ending = time.monotonic() + _STARTING
         while True:
             try:
-                line = heard.get(timeout=max(0.0, ending - time.monotonic()))
+                line = heard.get(timeout=min(1.0, max(0.0, ending - time.monotonic())))
             except queue.Empty:
-                raise _Failed(
-                    _last(errors, "hmz web there did not say where it listens.")
-                ) from None
+                if time.monotonic() >= ending:
+                    raise _Failed(
+                        _last(errors, "hmz web there did not say where it listens.")
+                    ) from None
+                # What it says while it comes up, said as how it stands.
+                if errors:
+                    self._says(CONNECTING, _last(errors, ""))
+                continue
             if line is None:
                 web.wait()
                 raise _Failed(_last(errors, "hmz web there stopped."))

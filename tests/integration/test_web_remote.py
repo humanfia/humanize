@@ -6,9 +6,11 @@ The other machine is this one under a home of its own, reached by the stand-in `
 
 from __future__ import annotations
 
+import contextlib
 import http.client
 import os
 import re
+import signal
 import socket
 import subprocess
 import time
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
 def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Host:
     """The other machine, written down as `box`, with this version of `hmz`."""
     found = faked(tmp_path, monkeypatch)
+    _THERE[:] = [found.home]
     written(
         {
             "name": "box",
@@ -42,17 +45,29 @@ def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Host:
     return found
 
 
+#: The other machine's home, for what its interface said when it never came up.
+_THERE: list[Path] = []
+
+
 def _processes() -> str:
-    """What runs of the stand-in's, to say where a daemon that never came up stopped."""
+    """What runs of the stand-in's, and the stack of each interface there that never listened."""
     listed = subprocess.run(
         ["ps", "-axo", "pid,ppid,etime,command"],
         capture_output=True,
         text=True,
         check=False,
     ).stdout
-    return "\n".join(
-        line for line in listed.splitlines() if re.search(r"ssh|hmz|\bsh\b", line)
-    )
+    mine = [line for line in listed.splitlines() if re.search(r"ssh|hmz|\bsh\b", line)]
+    for line in mine:
+        pid, ppid, *_ = line.split()
+        if int(ppid) == os.getpid() and "faulthandler -m hmz web" in line:
+            with contextlib.suppress(OSError):
+                os.kill(int(pid), signal.SIGABRT)
+    time.sleep(1)
+    said = [
+        (home / "web.err").read_text() for home in _THERE if (home / "web.err").exists()
+    ]
+    return "\n".join([*mine, *said])
 
 
 def _stands(remotes: Remotes, name: str, *states: str) -> dict[str, str]:
