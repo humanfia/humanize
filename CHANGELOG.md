@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0-beta.2](https://github.com/humanfia/humanize/compare/v0.2.0-beta.1...v0.2.0-beta.2) (2026-10-13)
+
+
+### Features
+
+* call every agent by its own name, never by the role it fills ([#401](https://github.com/humanfia/humanize/issues/401)) ([2b0148a](https://github.com/humanfia/humanize/commit/2b0148a9868be32774c0a25015741eec25143542))
+* **desktop:** lay out the disk image with first-open steps, and line up the web's controls ([#396](https://github.com/humanfia/humanize/issues/396)) ([3c2689e](https://github.com/humanfia/humanize/commit/3c2689e68d7ae181cd7abfb3b753ab31c4c5f298))
+* **web:** keep only Daemon, Settings and Usage in the sidebar's foot menu ([#394](https://github.com/humanfia/humanize/issues/394)) ([43e614c](https://github.com/humanfia/humanize/commit/43e614c716452b28fdb9ece106433835ab7d9368))
+
+
+### Fixes
+
+* **desktop:** keep a strip for the traffic lights over the sidebar's top row ([#402](https://github.com/humanfia/humanize/issues/402)) ([2b0148a](https://github.com/humanfia/humanize/commit/2b0148a9868be32774c0a25015741eec25143542))
+* **desktop:** keep the traffic lights' strip across the whole window ([#403](https://github.com/humanfia/humanize/issues/403)) ([2b0148a](https://github.com/humanfia/humanize/commit/2b0148a9868be32774c0a25015741eec25143542))
+* line up the sidebar's top row with the traffic lights, and every row on one column ([#399](https://github.com/humanfia/humanize/issues/399)) ([2b0148a](https://github.com/humanfia/humanize/commit/2b0148a9868be32774c0a25015741eec25143542))
+
 ## 0.2.0-beta.1 (2026-10-13)
 
 
