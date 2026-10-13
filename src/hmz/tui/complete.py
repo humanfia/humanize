@@ -35,9 +35,9 @@ if TYPE_CHECKING:
 
 __all__ = ["VIEWS", "Command", "hinted", "offered", "paths"]
 
-#: Every view a command can be typed in: the monitor, the transcript every agent is on, one
+#: Every view a command can be typed in: the monitor, the interface's own transcript, one
 #: agent's or one conversation's, and what one outworlder asks.
-VIEWS = frozenset({"monitor", "aggregate", "session", "outworlder"})
+VIEWS = frozenset({"monitor", "home", "session", "outworlder"})
 
 
 @dataclass(frozen=True)
@@ -66,9 +66,10 @@ class Command:
     #: The words it takes after its name, offered as they are typed: the pages `/settings`
     #: opens on. Empty for a command whose argument is anything, or nothing.
     offers: tuple[str, ...] = ()
-    #: Which views it works in -- `monitor`, `aggregate` (the transcript every agent is
-    #: on), `session` (one agent's or one conversation's) and `outworlder` (what one
-    #: outworlder asks) -- offered in those and refused, saying where it works, in the rest.
+    #: Which views it works in -- `monitor`, `home` (the interface's own transcript, read
+    #: before any conversation is), `session` (one agent's or one conversation's) and
+    #: `outworlder` (what one outworlder asks) -- offered in those and refused, saying where
+    #: it works, in the rest.
     where: frozenset[str] = VIEWS
     #: Why it cannot be run as things stand, given the interface, or "" where it can: `/stop`
     #: with no flow running, `/resume` with one. Asked before the list is drawn as well as

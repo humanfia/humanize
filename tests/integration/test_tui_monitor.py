@@ -52,7 +52,10 @@ async def test_left_goes_up_to_the_monitor_of_the_run_and_right_comes_back(
 
         await pilot.press("left")
         await on(pilot, Monitoring)
-        drawn = await shows(pilot, "all agents", "1 of 1 working", "1 turn")
+        drawn = await shows(pilot, "▣ epic · 1 of 1 working · 1 turn")
+        # No node reads every agent at once: the cursor starts on the agent being read.
+        assert "all agents" not in drawn
+        assert re.search(r"❯ │ ▸ ● \S+", drawn)
         assert RUNS in drawn
         assert "chat" in drawn
 
@@ -78,7 +81,7 @@ async def test_the_monitor_counts_the_tokens_a_finished_turn_spent(
         await pilot.press("left")
         await on(pilot, Monitoring)
 
-        await shows(pilot, "1 turn · 1.2k tokens", "1.0k", "200")
+        await shows(pilot, "1 turn · 1.2k tok", "1.0k", "200")
 
 
 async def test_a_node_opened_on_the_monitor_is_the_view_the_prompt_then_reads(
@@ -104,13 +107,17 @@ async def test_shift_tab_and_tab_step_between_the_views_of_a_run(
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await working(pilot)
+        assert "all agents" not in screen(app)
 
         await pilot.press("tab")
         await shows(pilot, "reading outworlder human")
         assert "still on it" not in screen(app)
 
         await pilot.press("shift+tab")
-        await shows(pilot, "reading all agents", "still on it")
+        await shows(pilot, "· conversation 1 ─", "still on it")
+
+        await pilot.press("shift+tab")
+        await shows(pilot, "reading outworlder human")
 
 
 async def test_btw_asks_a_side_agent_and_leaves_the_run_alone(workspace: Path) -> None:

@@ -76,7 +76,7 @@ async def _watches(screen: Screen, model: str) -> None:
     # The monitor, with nothing typed: the agent's box, and the money under the drawing.
     await screen.press("left")
     shown = await screen.waits(
-        "▣ monitor", "all agents", model, "turn", "Tokens:", "$", seconds=180
+        "▣ monitor", "▣ epic", model, "turn", "Tokens:", "$", seconds=180
     )
     assert "Flow:" in shown
     assert "ralph_loop" in shown

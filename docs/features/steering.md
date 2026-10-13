@@ -19,8 +19,8 @@ import { withBase } from 'vitepress'
 
 <div class="hmz-facts">
 
-- **To the agent on your screen.** Reading every agent at once, it goes to whichever has a turn
-  open. See [conversations](/user/conversations).
+- **To the agent on your screen.** Reading an agent, it goes to whichever of its
+  conversations has a turn open. See [conversations](/user/conversations).
 - **Never dropped.** A line typed between turns waits on the pin for the next turn to start.
 - **Shared.** Everybody [reading the run](/features/daemon#several-people-on-one-run) sees each
   line waiting, marked with who said it.

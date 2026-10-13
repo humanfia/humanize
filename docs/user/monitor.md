@@ -44,7 +44,7 @@ const actor = (here, marks) =>
   box(
     here,
     apart('[c]▸ ● actor[/]', '[c]43s[/]'),
-    '[m]claude/claude-opus-5-5:high · 6 turns · 1.84M tokens[/]',
+    apart('[m]claude/claude-opus-5-5:high · 6 turns · 1.84M tokens[/]', '[b]reading[/]'),
     '[m]▤ workspace local[/]',
     marks,
   )
@@ -67,8 +67,8 @@ const sessions = [
   '   [m]      ▤[/] [m]workspace · local · /home/you/shop[/]',
 ]
 
-const all = (here, n) =>
-  `${here ? ' [b]❯[/] ' : '   '}[c]▣[/] all agents[m] · 1 of 2 working · 11 turns · 7m11s[/][b] · reading[/]${n ? '[n]2[/]' : ''}`
+const epic = (n) =>
+  `   [c]▣[/] epic[m] · 1 of 2 working · 11 turns · 7m11s[/]${n ? '[n]2[/]' : ''}`
 
 const keys = '↑↓ node · enter open · → back · ctrl+t list · / commands'
 const folds = '↑↓ node · space sessions · enter open · → back · ctrl+t list · / commands'
@@ -76,7 +76,7 @@ const shuts = '↑↓ node · space shut · enter open · → back · ctrl+t lis
 
 const listed = [
   switched(true),
-  all(false),
+  epic(false),
   '       [m]node                    runs · where                        turns        time    tokens[/][n]1[/]',
   '   [m]▸[/] [c]●[/] [c]actor[/]                   [m]claude/claude-opus-5-5:high       6 turns[/][c]         43s[/][m]     1.84M[/][n]2[/]',
   ' [b]❯[/] [m]▾[/] ○ reviewer [c]unread[/]         [m]codex/gpt-5.6-sol:high            5 turns  idle 1m04s    402.1k[/]',
@@ -142,13 +142,13 @@ const graph = (top, a, r, keys, n) => [
 const monitor = [
   {
     label: '1 · ←',
-    lines: graph(all(true, true), actor(false, ['[n]3[/]', '', '[n]4[/]']), reviewer(false, false), keys, true),
+    lines: graph(epic(true), actor(true, ['[n]3[/]', '', '[n]4[/]']), reviewer(false, false), folds, true),
     caption:
-      'The monitor opens on <code>all agents</code>: <kbd>enter</kbd> here reads every agent at once.',
+      'The monitor opens on the agent you were reading: the actor, where the run landed as it opened its first session.',
   },
   {
-    label: '2 · ↓ ↓',
-    lines: graph(all(false), actor(false), reviewer(true, false), folds),
+    label: '2 · ↓',
+    lines: graph(epic(false), actor(false), reviewer(true, false), folds),
     caption:
       'The cursor is on the reviewer, which has stopped and has something you have not read. The keys offer <kbd>space</kbd> sessions.',
   },
@@ -156,7 +156,7 @@ const monitor = [
     label: '3 · space',
     lines: [
       switched(false),
-      all(false),
+      epic(false),
       ...actor(false),
       ...subagents(false),
       ...reviewer(true, true),
@@ -218,7 +218,8 @@ prompt at the bottom, so every command works on either.
 
 The monitor draws the run as **nodes**:
 
-- `▣ all agents`, always first: the log every agent's work appears on.
+- `▣ epic`, always first: how far the run has got. It is a line, not a node: there is no log
+  every agent's work appears on, so the cursor never stops on it.
 - `◉` an **outworlder**, where the flow talks to you (for example `◉ human · outworlder:
   messages from the flow to you`).
 - a **box per agent** that has taken a turn, in the order the flow declares them. An agent is
@@ -240,9 +241,9 @@ What to look at in frame 1, by number:
 
 1. **The switch, `graph` `list`.** Which of the two views you are looking at. A click on the
    other half turns to it, as <kbd>ctrl+t</kbd> does.
-2. **`▣ all agents`.** Where the cursor starts: how many boxes are working, the run's turns,
-   and how long it has run. `· reading` says its log is the one you came from.
-3. **The actor's box.** The top line says what it is doing now: `▸` (it can be opened out),
+2. **`▣ epic`.** How many boxes are working, the run's turns, and how long it has run.
+3. **The actor's box.** Where the cursor starts, `reading` saying its log is the one you came
+   from: a run lands on the agent of its first session. The top line says what it is doing now: `▸` (it can be opened out),
    `●` working, and `43s`, how long this turn has been going. The second line says what it
    runs, `cli/model:effort`, its turns and tokens.
 4. **`▤ workspace local`.** The environments its sessions work in.
@@ -287,11 +288,11 @@ line says `graph` or `list`, and the monitor opens again the way you left it.
 | the graph | the flow passes work between agents, and you want to see who is waiting on whom |
 | the list | many agents or sessions, and you want the busy ones at the top |
 
-## The first node
+## The first line
 
-`▣ all agents` is always first, and the cursor starts on it. <kbd>enter</kbd> on it reads the log
-every agent's work appears on, which is where a run is watched from. Its row also says how many
-boxes are working, the run's turns, and how long it has run.
+`▣ epic` is always first. It says how many boxes are working, the run's turns, and how long it
+has run, and nothing reads it: no log holds every agent's work, each node below reading its own.
+The cursor starts on the node you were reading, or on its agent.
 
 Under it, a run that talks to you has a `◉` node for each outworlder: the role that is you. Enter
 on it reads what the flow says to you. Where another interface reads the same run, the node says

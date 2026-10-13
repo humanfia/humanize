@@ -2,7 +2,7 @@
 import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
 
 const working = [
-  '[dim]── actor[/]',
+  '[dim]─ reading actor ─[/]',
   '',
   '[dim]● actor is working[/]',
   '',
@@ -78,7 +78,7 @@ const refused = [
   {
     label: 'cursor-agent',
     lines: [
-      '[dim]── actor[/]',
+      '[dim]─ reading actor ─[/]',
       '',
       '[dim]● actor is working[/]',
       '[r]hmz: CursorSession cannot be talked to mid-turn[/][n]1[/]',
@@ -176,10 +176,10 @@ To the conversation you are reading. <kbd>shift+tab</kbd> changes which one that
 | You are reading | Your line goes |
 | --- | --- |
 | a conversation with a turn open | into that turn |
-| every agent, which is where the screen opens | into whichever turn is open |
+| an agent, which is where a run lands | into whichever of its conversations has a turn open |
 | a conversation between turns, or nothing is working | onto the pin, then into the next turn to start |
 | [`chat`](https://humanfia.ai/flows/chat)'s conversation between turns | the next message, which starts the next turn |
-| an outworlder, or every agent while a [question](/user/questions) is up | the answer to it |
+| an outworlder, or any view where a [question](/user/questions) is up | the answer to it |
 
 Lines go **one at a time, in order**. The next one goes only after the agent has taken the one
 before it, so three lines typed in a row are three things said, each answered in turn.
@@ -216,8 +216,8 @@ same way it would locally. Between its turns, your line waits on the pin like an
 - **Several lines at once.** <kbd>shift+enter</kbd> starts a new line in the editor, so a
   paragraph goes as one message rather than as several.
 - **Steer one agent of several.** Press <kbd>shift+tab</kbd> until that agent's conversation is
-  on the screen, then type. On the transcript of every agent, a line goes to whichever turn is
-  open.
+  on the screen, then type. On an agent's own transcript, a line goes to whichever of its
+  conversations has a turn open.
 
 ## Troubleshooting
 
@@ -227,7 +227,8 @@ You were reading a conversation that will not take another turn. A line typed on
 conversation's transcript waits for *that* conversation, and a Ralph loop opens a fresh one
 every round, so an old round's conversation never starts again. The pin shows no `with`.
 
-Press <kbd>shift+tab</kbd> until the view reads every agent, and type the line again. The one
+Press <kbd>shift+tab</kbd> onto the conversation that is running, or read the agent itself from
+the [monitor](/user/monitor), and type the line again. The one
 still pinned goes into the transcript as `never sent` when the flow ends.
 
 ### `sent to actor, which ended its turn without acknowledging it`

@@ -8,9 +8,9 @@ const running = [
   {
     label: 'round 1',
     lines: [
-      '[dim]❯[/] Fix the bug in calc.py.',
+      '[dim]─ reading agent ─[/][n]1[/]',
       '',
-      '[dim]── agent[/][n]1[/]',
+      '[dim]❯[/] Fix the bug in calc.py.',
       '',
       '[dim]● agent is working[/]',
       '',
@@ -355,8 +355,9 @@ it says it:
 
 What to look at, by number:
 
-1. **`── agent`** marks whose words follow. With several agents, a new one appears wherever the
-   speaker changes.
+1. **`─ reading agent ─`** says whose transcript this is: a run lands on the agent of the first
+   conversation it opens, with what you said at the top, and follows that agent into each new
+   conversation.
 2. **`✻ Worked for 7s · agent`** closes a turn: the first round is done, and `calc.py` is
    already fixed.
 3. **`conversation 2 of 2`**: a Ralph loop starts a fresh conversation every round, so the

@@ -6,8 +6,8 @@ const back = [
   {
     label: 'hmz, later',
     lines: [
+      '[dim]─ reading agent ─[/]',
       '[dim]❯[/] Fix the bug in calc.py. [m]· by you@tui[/][n]1[/]',
-      '[dim]── agent[/]',
       '[dim]● agent is working[/]',
       '[g]●[/] Found the bug: add() subtracts. Fixing it now.',
       '[dim]✻ Worked for 7s · agent[/]',

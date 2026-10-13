@@ -218,6 +218,5 @@ def test_held_defaults_to_holding_nothing() -> None:
     assert pick.Held() == pick.Held(0, reading=False, unread=False, working=False)
 
 
-def test_the_every_transcript_is_no_agents() -> None:
-    assert pick.EVERY == ""
+def test_the_exit_answers_are_apart() -> None:
     assert len({pick.STOPS, pick.DETACHES, pick.STAYS}) == 3

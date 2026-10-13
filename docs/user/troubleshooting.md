@@ -491,7 +491,7 @@ of. The run is untouched.
 
 ### `/btw requires a coding agent` {#btw-needs-a-coding-agent-to-ask}
 
-**Symptom.** A [`/btw`](/user/btw) in the view of every agent is refused.
+**Symptom.** A [`/btw`](/user/btw) on the monitor is refused.
 
 **Cause.** There, `/btw` asks the btw agent. None is set in `/settings`, and no flow is set up to
 copy one from. `btw is still answering the last question` means the side conversation has not

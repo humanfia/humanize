@@ -84,23 +84,23 @@ At mount, in the background, the interface:
 
 | View | Key | Holds |
 | --- | --- | --- |
-| all agents (aggregate) | `""` | Every agent's lines and every outworlder's questions and answers. Default view; selected again when a run starts. |
+| home | `""` | The interface's own lines from before any conversation is read: the welcome box, commands and their answers. Default view; gone back to when a run starts, until it [lands](#views) on its first conversation. No agent's lines go here, and no view holds every agent's. |
 | one agent | `<role>` | Every conversation of that role. |
 | one conversation | `<agent>/<n>` | One session, keyed by its agent's own name (such as `NeiKos496`), not the role it fills. `<n>` counts from 1 per agent per run, in opening order. |
 | one outworlder | `outworlder:<role>` | What the flow asks through that `Outworlder` role, and the answers. |
 | monitor | — | A screen of its own: [Monitor](#watching-the-run). |
 
-For command availability the view kinds are `aggregate`, `session` (one agent or one
+For command availability the view kinds are `home`, `session` (one agent or one
 conversation), `outworlder` and `monitor`.
 
 | Rule | |
 | --- | --- |
-| Where a line goes | A conversation's line: the aggregate, its role's view, its own. An outworlder's line: its own view and the aggregate. Lines the interface itself shows (`hmz: …`, confirmations): the view being read only, and the monitor's last line. |
-| Speaker marker | On the aggregate, a blank line and `── <title>` whenever the speaker changes (`── outworlder <role>` for an outworlder). |
-| Switching header | The new view is redrawn from the top under `─ reading <title>[ · <n> conversations] ─`. Titles: `all agents`, `<role>`, `<role> · conversation <n>`, `outworlder <role>`. When a new run starts while another view was read: `─ that flow has gone, now reading all agents ─`. |
-| Unread | Set on a view other than the one read when a line is written there; never on or while reading the aggregate. Reading the aggregate clears every unread mark. |
-| Retention | At most 32 transcripts of at most 2 000 lines each. Over the limit, the oldest are dropped, conversations before others, never the aggregate, the one being read, or the one just opened. A new run deletes every conversation transcript of the previous run. |
-| Round | [`shift+tab`](#key-tab) steps forward, `tab` back, wrapping, through: the aggregate, every conversation with a turn open (in first-seen order), every outworlder of the running flow. A view not in the round starts from the aggregate. An ended conversation stays readable once read, and from the monitor. |
+| Where a line goes | A conversation's line: its role's view and its own. An outworlder's line: its own view, and the view being read where it is part of no conversation. Lines the interface itself shows (`hmz: …`, confirmations): the view being read only, and the monitor's last line. |
+| Switching header | The new view is redrawn from the top under `─ reading <title>[ · <n> conversations] ─`. Titles: `<role>`, `<role> · conversation <n>`, `outworlder <role>`. When a new run starts while another view was read, home under `─ that flow has gone ─`. |
+| Landing | When a run opens its first conversation and home is still read, the view becomes that conversation's agent (`─ reading <agent> ─`), which follows the agent's later conversations. The run's task is put in that conversation as `❯ <task>` either way. |
+| Unread | Set on a view other than the one read when a line is written there. |
+| Retention | At most 32 transcripts of at most 2 000 lines each. Over the limit, the oldest are dropped, conversations before others, never home, the one being read, or the one just opened. A new run deletes every conversation transcript of the previous run. |
+| Round | [`shift+tab`](#key-tab) steps forward, `tab` back, wrapping, through: every conversation with a turn open (in first-seen order), every outworlder of the running flow. An agent's view stands where its newest conversation does; any other view not in the round steps onto either end. Nothing to step round with no run going. An ended conversation stays readable once read, and from the monitor. |
 
 ### Turn lines {#turn-lines}
 
@@ -153,7 +153,7 @@ Hints joined by ` · `, in this order; each only when its condition holds.
 | 1 | `↑↓ move`, `tab select`, `esc cancel` | The offers list is open. **Nothing else is shown.** |
 | 2 | `enter run` | The line starts with `/` and its first word is a command available in this view and not refused now. |
 | 2 | `enter ask` · `enter answer` · `enter send` · `enter start` | Some other text: btw on · a question is answerable here · a run is going · otherwise. |
-| 3 | `shift+tab switch view` | The round holds more than one view. |
+| 3 | `shift+tab switch view` | The round holds a view other than the one read and its agent's newest conversation. |
 | 4 | `/ commands` | Always. |
 | 5 | `shift+enter newline` | Always. |
 | 6 | `← monitor` | The editor is empty. |
@@ -217,7 +217,7 @@ A `/` line is echoed as `❯ /…` and then, in order:
 | 4 | Check the state (`refuses`). | `hmz: <why>`; the `ctrl+c` count is reset. |
 | 5 | Run it. | |
 
-View names in messages: `the monitor`, `the all-agents transcript`, `one agent's transcript`,
+View names in messages: `the monitor`, `the home transcript`, `one agent's transcript`,
 `an outworlder's transcript`, joined `a, b and c`.
 
 <RefFilter label="Filter commands">
@@ -230,9 +230,9 @@ View names in messages: `the monitor`, `the all-agents transcript`, `one agent's
 | <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing |
 | <span id="cmd-settings"></span>`/settings` | `[page]` | all | never | — |
 | <span id="cmd-clear"></span>`/clear` | — | all | never | — |
-| <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all but `session` | on an outworlder another frontend holds | — |
+| <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all | on an outworlder another frontend holds | — |
 | <span id="cmd-claim"></span>`/claim` | `[on\|off]` | `outworlder` | on an outworlder another frontend holds | — |
-| <span id="cmd-stop"></span>`/stop` | — | `monitor`, `aggregate` | no run going, or it is stopping | — |
+| <span id="cmd-stop"></span>`/stop` | — | all | no run going, or it is stopping | — |
 | <span id="cmd-exit"></span>`/exit` | — | all | never | — |
 
 </RefFilter>
@@ -392,7 +392,7 @@ Paths are not names: use `/flow ./path`.
 | Condition | Result |
 | --- | --- |
 | btw on | Asked as a side question. |
-| a question is answerable here (aggregate, monitor, the asking outworlder's view, or the conversation it is part of) | Taken as the answer. |
+| a question is answerable here (home, monitor, the asking outworlder's view, the conversation it is part of, or the view it was shown on) | Taken as the answer. |
 | `<name>` not among the offered flows | `hmz: no such flow: <name>`, and for a name said as before the `@` (`local/x`) ` -- a flow of local is called @local/x now` |
 | a run going | `hmz: cannot choose a flow while one is running` |
 | the flow is [set up](#set-up) | Chosen; with a task, the run starts. Without a task, `enter a task to start the flow`. |
@@ -442,8 +442,8 @@ Lines said and not yet taken are **pinned** on the left above the editor:
 ## Questions, and being away {#questions-and-being-away}
 
 A question comes from a flow's `Outworlder` role, or from an agent asking its user through a
-hook the flow hung. It is shown on the asking outworlder's view and on the aggregate, and
-also in the conversation it is part of, where it is one:
+hook the flow hung. It is shown on the asking outworlder's view, and also in the conversation it is part of
+where it is one, else on the view being read:
 
 ```text
 ● Which region?
@@ -456,8 +456,8 @@ also in the conversation it is part of, where it is one:
 | --- | --- |
 | Options | `      <n>. <option>` (6 spaces). |
 | Footer | `   <name>'s to answer` (held by another), else `   [yours to answer: ]type an answer, or /afk to stop being asked`. |
-| Part of a conversation | A question asked while one conversation has a turn open (the asked record's `key`, else the only conversation working), and a `listen` question whose text is the last answer a conversation gave (a conversation asking what next, as `chat` does after every turn). The first is shown in that conversation as well (its question line left out where the agent's own `●` line already says it), and reaches the aggregate from there rather than from the outworlder's view; the second is not shown at all, its footer on the outworlder's view only. The answer is echoed in that conversation too. |
-| Answerable here | On the aggregate or monitor: the oldest pending question of any role; on an outworlder view: the oldest of that role; on a `session` view: the oldest part of the conversation read (the newest of the agent read). Only questions unowned or owned by this frontend, and not already being answered. |
+| Part of a conversation | A question asked while one conversation has a turn open (the asked record's `key`, else the only conversation working), and a `listen` question whose text is the last answer a conversation gave (a conversation asking what next, as `chat` does after every turn). The first is shown in that conversation instead of the view being read (its question line left out where the agent's own `●` line already says it); the second is not shown at all, its footer on the outworlder's view only. The answer is echoed in that conversation too. |
+| Answerable here | On home or the monitor: the oldest pending question of any role; on an outworlder view: the oldest of that role; on a `session` view: the oldest part of the conversation read (the newest of the agent read), or of no conversation and shown on that view. Only questions unowned or owned by this frontend, and not already being answered. |
 | Answer | The next line typed. A bare number `1‥n` that is not itself an option picks that option (resolved by the host). Echoed as `❯ <text>[ · by <name>]`. |
 | Refusals | `hmz: already answered by <name>`, `hmz: <role> is <name>'s`, `hmz: no question <id> is waiting`. |
 | Away | While a role is away its questions are answered at once: `""` for text, a schema's defaults, or `OutworlderAway` for a field with none; an agent's question is told nobody answered. A question pending when away is set is withdrawn (the flow sees `OutworlderAway`). |
@@ -1846,17 +1846,17 @@ box leaves it unanswered, to be asked again at the next start.
 A screen over the log's prompt showing the run as a graph or a list. Reached by `←` with the
 editor empty, the offers closed and no menu up; never refused; never reached by `esc` or a
 command. `→` (editor empty) returns to the view last read; picking a node returns to that
-node's view. Commands work from its prompt as on the aggregate (view kind `monitor`), so
-`/claim` is refused there. `tab`/`shift+tab` do nothing on it. The cursor opens on
-`▣ all agents`. Redrawn every 0.5 s; when a run ends, every clock stops at its end.
+node's view. Commands work from its prompt as on home (view kind `monitor`), so
+`/claim` is refused there. `tab`/`shift+tab` do nothing on it. The cursor opens on the
+node being read, else the agent it is of, else the first node. Redrawn every 0.5 s; when a run ends, every clock stops at its end.
 
 ```text
    graph  list
-❯ ▣ all agents · 1 of 2 working · 17 turns · 7m11s · reading
+  ▣ epic · 1 of 2 working · 17 turns · 7m11s
   ◉ human · outworlder: messages from the flow to you · yours
   ┌──────────────────────────────────────────────────────────────────────┐
-  │ ▸ ● builder                                                      43s │
-  │ claude/claude-opus-5:high · 12 turns · 48.2k tokens                  │
+❯ │ ▸ ● builder                                                      43s │
+  │ claude/claude-opus-5:high · 12 turns · 48.2k tokens          reading │
   │ ▤ repo docker                                                        │
   └──────────────────────────────────────────────────────────────────────┘
     ├╴◆ read the tests
@@ -1889,11 +1889,12 @@ Kinds:            input                         1.2k
 
 ### Nodes {#monitor-nodes}
 
-In order: the all-agents node, outworlder nodes, the graph or list, the board.
+In order: the epic line, outworlder nodes, the graph or list, the board. No node reads every
+agent at once.
 
 | Node | Format | `enter` / click |
 | --- | --- | --- |
-| all agents | `▣ all agents · <w> of <n> working · <t> turn(s) · <clock>[ · reading]`; `<n>` agents drawn, `<t>` all their turns, `<clock>` the run's age | reads the aggregate |
+| epic line | `▣ epic · <w> of <n> working · <t> turn(s) · <clock>`; `<n>` agents drawn, `<t>` all their turns, `<clock>` the run's age | none: the cursor never lands on it |
 | outworlder | `◉ <role> · outworlder: messages from the flow to you[ · yours\|<name>'s][ · reading]`; declared order, then order first asked | reads its view |
 | agent box | see [Graph](#monitor-graph) | reads the role's view |
 | session | see Graph | reads `<agent>/<n>` |

@@ -187,11 +187,11 @@ def stand_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return _workspace(tmp_path, monkeypatch)
 
 
-def own_flow(workspace: Path) -> None:
-    """Puts :data:`WRITES` among the workspace's own flows."""
+def own_flow(workspace: Path, source: str = WRITES) -> None:
+    """Puts :data:`WRITES`, or another flow under its name, among the workspace's own flows."""
     flow = workspace / ".hmz" / "flows" / "writes"
     flow.mkdir(parents=True)
-    (flow / "__init__.py").write_text(WRITES)
+    (flow / "__init__.py").write_text(source)
 
 
 async def set_up_own_flow(pilot: Pilot[None]) -> None:

@@ -18,7 +18,9 @@ from tests.integration.doubles_tui import (
     heard,
     on,
     opened,
+    own_flow,
     screen,
+    set_up_own_flow,
     shows,
     stand_in,
     started,
@@ -35,6 +37,33 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
     """The stand-in `claude` on `PATH`, really asked what it runs as the interface opens."""
     del asking
     return stand_in(tmp_path, monkeypatch)
+
+
+#: A flow that asks the person something of its own between two turns of its one agent: a
+#: question that is part of no conversation, put as `@local/writes` so that `/flow` sets it up.
+ASKS = """
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, Outworlder, flow
+
+
+class Agents(AgentCollection):
+    coder: Agent
+    human: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def writes(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+                 ctx: FlowContext) -> None:
+    coder, human = agents["coder"], agents["human"]
+    session = await coder.spawn()
+    said = await coder.run(task, session=session, env=envs["workspace"])
+    answer = await human.run(f"Ship {said}?", session=await human.spawn())
+    await coder.run(answer, session=session, env=envs["workspace"])
+"""
 
 
 def ended(workspace: Path) -> str:
@@ -160,9 +189,8 @@ async def test_a_line_typed_reading_the_conversation_between_turns_is_its_next_t
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "wait first")
-        await shows(pilot, "still on it")
-        await pilot.press("shift+tab")  # onto the conversation, while its turn is open
-        await shows(pilot, "conversation 1")
+        # Read already: a run lands on the agent of the first conversation it opens.
+        await shows(pilot, "still on it", "─ reading ")
         await typed(pilot, "more")
         await shows(pilot, "heard wait first then more")
 
@@ -178,13 +206,33 @@ async def test_what_the_agent_stops_to_ask_is_shown_and_answered_in_its_conversa
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "ask me")
-        await shows(pilot, "Which colour? (red / blue)")
-        await pilot.press("shift+tab")
-        await shows(
-            pilot, "conversation 1", "Which colour? (red / blue)", "type an answer"
-        )
+        await shows(pilot, "─ reading ", "Which colour? (red / blue)", "type an answer")
 
         await typed(pilot, "blue")
 
         drawn = await shows(pilot, "picked blue")
     assert "❯ blue" in drawn
+
+
+async def test_a_question_the_flow_asks_of_its_own_is_shown_and_answered_where_you_read(
+    workspace: Path,
+) -> None:
+    own_flow(workspace, ASKS)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await set_up_own_flow(pilot)
+        await typed(pilot, "make it so")
+
+        # Landed on the agent of the run's first conversation, with no view of every agent,
+        # and the question put where it is read rather than on a transcript nobody reads.
+        drawn = await shows(
+            pilot,
+            "─ reading ",
+            "❯ make it so",
+            "Ship heard make it so?",
+            "type an answer",
+        )
+        assert "all agents" not in drawn
+        await typed(pilot, "yes")
+
+        await shows(pilot, "heard yes", "the flow is done")
+    assert heard(workspace) == ["make it so", "yes"]

@@ -34,7 +34,7 @@ const turn = [
     label: 'details off',
     lines: screen(
       [
-        '[dim]── actor[/]',
+        '[dim]─ reading actor ─[/]',
         '',
         '[dim]● actor is working[/]',
         '',
@@ -50,7 +50,7 @@ const turn = [
     label: 'details on',
     lines: screen(
       [
-        '[dim]── actor[/]',
+        '[dim]─ reading actor ─[/]',
         '',
         '[dim]● actor is working[/]',
         '',

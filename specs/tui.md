@@ -50,18 +50,18 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST offer a half-typed command or flow what it could become, reconsidered as the cursor moves
   as well as the text, offer nothing against a whole word, and keep focus in the editor.
 - MUST keep what was typed for walking back to, per directory, and fixed for the session.
-- MUST keep one transcript per agent, one per conversation, one per outworlder and one more
-  they all appear on -- every agent's lines and all that every outworlder asks and is answered
-  -- open on the last and return to it when a run starts, and bound what is kept without
-  dropping it or the one read.
-- MUST round the shared transcript, the conversations with a turn open and the outworlders of
-  a running flow, forward on `shift+tab` and back on `tab`, a conversation that has ended
-  leaving the round while staying readable from the monitor.
+- MUST keep one transcript per agent, one per conversation, one per outworlder and one of its
+  own, and none every agent appears on -- open on its own, return to it when a run starts and
+  land on the agent of the run's first conversation as that opens, and bound what is kept
+  without dropping its own or the one read.
+- MUST round the conversations with a turn open and the outworlders of a running flow, forward
+  on `shift+tab` and back on `tab`, a conversation that has ended leaving the round while
+  staying readable from the monitor.
 - MUST call every agent of a run by its own name -- its transcript, each of its conversations
   as `<agent>/<n>`, its node on the monitor, the line saying it is working -- from the moment the
   run says it, before it has opened any, the role it fills only ever after that name.
 - MUST show which agent is read, how many conversations it holds, whether it is working and
-  whether it has something unread — nothing unread while the shared transcript is read — and
+  whether it has something unread, and
   each outworlder of a running flow, whether it is asking, away, read or unread.
 - MUST send a typed line that answers nothing to the conversation being read, or to whichever
   of the agent's has a turn open, holding it for the next turn otherwise, and keep it against
@@ -73,8 +73,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   conversation until `/btw` or esc leaves it and closes it; MUST NOT ask the flow's own sessions;
   MUST answer in cyan in the current view. In a session's view, ended ones included with no flow
   running, MUST ask a read-only, skill-less fork of that session where its CLI forks, else a
-  read-only, skill-less session of the same agent seeded from a snapshot. In the aggregate or
-  monitor MUST ask the btw agent (the one set on `/settings`, else the flow's first) at NONE
+  read-only, skill-less session of the same agent seeded from a snapshot. On its own transcript
+  or the monitor MUST ask the btw agent (the one set on `/settings`, else the flow's first) at NONE
   permission with no skills, seeded with a snapshot and the sessions, which reaches a session's
   side conversation by `@ask <session>: <question>`, at most 4 per question.
 - MUST carry the last run of this directory of a flow that can be picked up on for `/resume` —
@@ -121,13 +121,15 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   with; MUST come to what `-e` spells, refused as `-e` refuses it; and MUST take that spelling
   typed whole as well.
 - MUST be whoever is outside a run, once per outworlder: a question one puts MUST be shown on
-  its transcript and the shared one and answered with the next line typed on either -- the
-  oldest of that outworlder's, or of any on the shared one -- an offered answer taken by its
-  number as well. One part of a conversation MUST be shown and answered in that conversation
-  too, the answer with it: what its agent stopped mid-turn to ask, with what it offers, and a
-  conversation's answer said back to ask what next, shown as that answer alone and answered
-  with the next line typed on the shared transcript or reading that conversation; `/afk` MUST make the outworlder read away, or every one elsewhere that this
-  frontend may answer for, leaving the ones another holds as they were, and MUST outlive it.
+  its transcript and the one being read and answered with the next line typed on either -- the
+  oldest of that outworlder's on its own, of any on the monitor or the interface's own
+  transcript, and of any part of no conversation on the agent's it was shown on -- an offered
+  answer taken by its number as well. One part of a conversation MUST be shown and answered in
+  that conversation instead, the answer with it: what its agent stopped mid-turn to ask, with
+  what it offers, and a conversation's answer said back to ask what next, shown as that answer
+  alone and answered with the next line typed reading that conversation; `/afk` MUST make the
+  outworlder read away, or every one elsewhere that this frontend may answer for, leaving the
+  ones another holds as they were, and MUST outlive it.
 - MUST be one frontend of the runs it reads, whole and on its own: MUST ask for everything it
   does to a run through its `link` -- starting, saying, answering, stopping, `/afk`, `/claim`,
   the board, `/btw` -- and MUST draw a run from what it is told alone, reading one it arrives
@@ -142,8 +144,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   host holds it; `/stop` MUST stop it for every frontend. Once closed, `hmz` MUST give the
   backups this process queued at most 15 seconds to finish, saying so where it waits and where
   one was left.
-- MUST offer and run a command only where it works -- `/afk` anywhere but one agent's
-  transcript, `/claim` only on an outworlder's, `/stop` only on the monitor and the shared
+- MUST offer and run a command only where it works -- `/claim` only on an outworlder's
   transcript -- and refuse it elsewhere, saying where it works.
 - MUST offer and run a command only while it would do something -- `/stop` while a flow runs
   and is not stopping, `/resume` while none is going and there is a run here to carry on,
@@ -253,9 +254,10 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST show the environment each session works in under that session, as a node that opens to a
   page of its own — its kind, where it is, what the flow declared of it, where the run put each of
   its sessions' harnesses and the sessions working in it, live — from which a session is read.
-- MUST lead the monitor with a node for every agent's log, selected when it opens, then a node per
-  outworlder, and read any node — working or ended — with enter or a click, two on an agent, the
-  arrows moving between nodes while nothing is typed.
+- MUST lead the monitor with a line of how far the run has got, which is no node, then a node
+  per outworlder, the node read or its agent selected when it opens, and read any node —
+  working or ended — with enter or a click, two on an agent, the arrows moving between nodes
+  while nothing is typed.
 - MUST report spend per model, by kind of token and never as one total over the kinds, in an
   order that does not change, money beside tokens where known and tokens alone where not, marking
   a figure that is only a floor, and the rate as output tokens a second.

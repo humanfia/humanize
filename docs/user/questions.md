@@ -172,12 +172,12 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" 
 
 ## Answering, in detail
 
-- **Where you answer.** A question is shown on the transcript every agent is on and on the
+- **Where you answer.** A question is shown on whichever transcript you are reading and on the
   asking outworlder's own, which <kbd>shift+tab</kbd> reaches and which holds nothing but what
   it asks you. A line typed on either answers it: the oldest question up on the first, the
   oldest that outworlder asks on the second. One the agent stopped mid-turn to ask, and
-  `chat` asking what next, are shown and answered in that agent's conversation as well. On one
-  agent's transcript any other line goes to the agent instead. See [Many conversations at once](/user/conversations).
+  `chat` asking what next, are shown and answered in that agent's conversation instead. On one
+  agent's transcript any other line goes to the agent. See [Many conversations at once](/user/conversations).
 - **Somebody else's.** Where [another interface](/features/daemon#several-people-on-one-run)
   reads the same run, a question nobody has claimed goes to whoever answers first, and an
   answer from somebody else shows ` · by <name>`. One whose outworlder another has claimed

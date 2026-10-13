@@ -46,7 +46,6 @@ from .pick import (
     _LABEL,
     _LIVE,
     _WORKING,
-    EVERY,
     Action,
     Key,
     Sheet,
@@ -68,7 +67,6 @@ if TYPE_CHECKING:
     from hmz.runtime.watching.monitor import Counted, Monitor, Under
 
 __all__ = [
-    "EVERY",
     "OUTWORLDER",
     "BoardSeen",
     "Drawn",
@@ -143,6 +141,9 @@ _AT = "\x04"
 
 #: The row naming the columns of the list, which nothing lands on.
 _COLUMNS = "\x05"
+
+#: The row saying how far the run has got, which leads the graph and nothing lands on.
+_SO_FAR = "\x06"
 
 #: What an agent wears in front of its name: shut, with its sessions folded into its box, and
 #: open, with them hanging under it.
@@ -1278,9 +1279,10 @@ class Monitoring(Screen[str | None]):
     handed to whom and puts whatever is working at the top -- the question a run of twelve
     agents is watched to answer, and one a picture of twelve boxes answers slowly.
 
-    It is where a log is picked to be read. The first node is every agent's log, selected
-    when this opens, so enter reads the run whole; each node under it reads its own; `→` goes
-    back to whichever was read last. A node stays for the rest of the run, working or not.
+    It is where a log is picked to be read. The first row says how far the run has got and is
+    no node, there being no log every agent is on; each node under it reads its own, the one
+    being read selected when this opens; `→` goes back to whichever was read last. A node
+    stays for the rest of the run, working or not.
 
     And the prompt is under it, the same prompt as the log's: every command works here, and a
     line typed goes where it would have gone from the log. The arrows, space and enter are
@@ -1319,7 +1321,7 @@ class Monitoring(Screen[str | None]):
         monitor: Callable[[], Monitor],
         drawn: Callable[[], Sequence[Drawn]],
         setup: Callable[[], tuple[str, tuple[str, ...], list[Runs], BaseModel | None]],
-        reading: Callable[[], str] = lambda: EVERY,
+        reading: Callable[[], str] = lambda: "",
         board: Callable[[], BoardSeen | None] = lambda: None,
         outworlders: Callable[[], Sequence[str]] = tuple,
         calls: Callable[[], Sequence[Mapping[str, Any]]] = tuple,
@@ -1389,8 +1391,8 @@ class Monitoring(Screen[str | None]):
         self._said = ""
         #: Which row the cursor is on, by node: the rows are put up again twice a second,
         #: and a row number would move under it as the flow opens and drops agents. The
-        #: first node, which is every agent's log, to begin with.
-        self._was = EVERY
+        #: node being read to begin with, or the agent it is of, else the first node.
+        self._was = reading()
         #: The rows as they were last drawn, by id and as markup. A clock in a box moves
         #: every second, so something changes on nearly every redraw -- and a list cleared
         #: and rebuilt that often is one that loses the click somebody is making on it and
@@ -1498,9 +1500,9 @@ class Monitoring(Screen[str | None]):
         """Reads the node under the cursor, or writes the line of the board it is on."""
         listing = self.query_one("#graph", OptionList)
         if listing.highlighted is not None:
-            self._took(
-                str(listing.get_option_at_index(listing.highlighted).id or EVERY)
-            )
+            picked = listing.get_option_at_index(listing.highlighted)
+            if not picked.disabled:
+                self._took(str(picked.id or ""))
 
     def action_back(self) -> None:
         """Goes back to the log that was being read, which is what `→` is."""
@@ -1594,7 +1596,7 @@ class Monitoring(Screen[str | None]):
         listing = self.query_one("#graph", OptionList)
         at = listing.highlighted
         if self._ids and at is not None and 0 <= at < listing.option_count:
-            self._was = str(listing.get_option_at_index(at).id or EVERY)
+            self._was = str(listing.get_option_at_index(at).id or "")
         self._boxes = list(self._boxing())
         self._sessions = list(self._branching())
         self._keyed = {one.who: one for one in self._sessions}
@@ -1606,18 +1608,15 @@ class Monitoring(Screen[str | None]):
         ids = [one.who for one in rows]
         if ids != self._ids:
             owner = self._owner(self._was)
+            landing = [one for one, row in enumerate(rows) if row.landing]
             landed = next(
-                (one for one, who in enumerate(ids) if who == self._was),
+                (one for one in landing if ids[one] == self._was),
                 next(
-                    (
-                        one
-                        for one, row in enumerate(rows)
-                        if row.landing and row.who and self._owner(row.who) == owner
-                    ),
-                    0,
+                    (one for one in landing if self._owner(ids[one]) == owner),
+                    landing[0] if landing else None,
                 ),
             )
-            if ids[landed] != self._was:
+            if landed is not None and ids[landed] != self._was:
                 # Moved to another node, so the markers are drawn against that one.
                 self._was = ids[landed]
                 rows = self._rows(monitor, shape)
@@ -1649,45 +1648,46 @@ class Monitoring(Screen[str | None]):
           shape: The run as a graph, taken at the same moment the boxes were.
 
         Returns:
-          The first node, the outworlders, the diagram or the list, and the board.
+          How far the run has got, the outworlders, the diagram or the list, and the board.
         """
         return [
-            self._every(monitor, shape),
+            self._so_far(monitor, shape),
             *self._outworlders(),
             *(self._list(shape) if self._listed else self._agents(shape)),
             *self._lines(),
         ]
 
-    def _every(self, monitor: Monitor, shape: Shape) -> _Row:
-        """The first node: the log every agent is on, and the run in one line beside it.
+    def _so_far(self, monitor: Monitor, shape: Shape) -> _Row:
+        """The first row: the run in one line, which is a heading rather than a node.
+
+        No log is read from it: there is no transcript every agent is on, each node under it
+        being where one of them is read.
 
         Args:
           monitor: The run.
           shape: The run as a graph, taken at the same moment the boxes were.
 
         Returns:
-          The node, with how far the run has got beside it -- how many of the nodes below
-          are working, how many turns they have taken between them, and how long it has all
-          been going.
+          How many of the nodes below are working, how many turns they have taken between
+          them, and how long it has all been going.
         """
         working = sum(1 for one in self._boxes if one.working)
         over = (monitor.until or time.monotonic()) - monitor.began
         turns = sum(shape.turns.values())
         return _Row(
-            EVERY,
-            f"{_marked(here=self._was == EVERY)}"
-            f"[{'$secondary' if working else '$text-muted'}]▣[/] all agents"
+            _SO_FAR,
+            f"{_INDENT}[{'$secondary' if working else '$text-muted'}]▣[/] epic"
             f"{_DOT}[$text-muted]{working} of {len(self._boxes)} working"
             f"{_DOT}{turns} turn{'' if turns == 1 else 's'}"
-            f"{_DOT}{lasting(over)}[/]"
-            + (f"{_DOT}[$primary]reading[/]" if self._reading() == EVERY else ""),
+            f"{_DOT}{lasting(over)}[/]",
+            landing=False,
         )
 
     def _outworlders(self) -> list[_Row]:
         """A node per outworlder: the person, as each role of the run that is them.
 
         Returns:
-          One row apiece, under the first node and above the agents: a person is not an
+          One row apiece, under the first row and above the agents: a person is not an
           agent the flow drives, and reading what the flow says to them is where they answer.
         """
         return [
@@ -1988,7 +1988,7 @@ class Monitoring(Screen[str | None]):
     def _status(self) -> None:
         """The status line under the prompt, which is the graph's where the log's would be.
 
-        What the log's says about the run is on the first node here, so this says which
+        What the log's says about the run is on the first row here, so this says which
         screen this is and how its nodes are drawn, and the keys that do something now --
         space among them only where the cursor is on something it opens or shuts.
         """
@@ -2095,7 +2095,7 @@ class Monitoring(Screen[str | None]):
         Args:
           event: The click, as the list says it.
         """
-        named = str(event.option.id or EVERY)
+        named = str(event.option.id or "")
         clicked = self.query_one("#graph", _Graph).clicked
         if not any(one.who == named for one in self._boxes) or clicked is None:
             self._took(named)

@@ -145,8 +145,7 @@ A flow may have more than one outworlder, each with a transcript of its own that
 | Where | `/afk` sets |
 | --- | --- |
 | an outworlder's transcript | that outworlder alone; the status line names it, `afk human` |
-| every agent's transcript, or the monitor | every outworlder at once, undoing what was set for one |
-| one conversation's transcript | nothing: it is not offered there, and says where it works |
+| anywhere else: an agent's or a conversation's transcript, or the monitor | every outworlder at once, undoing what was set for one |
 
 Here is `/afk on` typed on the outworlder's transcript of a [`chat`](https://humanfia.ai/flows/chat), recorded
 from a real run:
@@ -160,7 +159,7 @@ from a real run:
 4. **`afk human`**: away for that outworlder alone.
 
 Where somebody else has [claimed](/reference/tui#several-people-on-one-run) an outworlder,
-`/afk` from every agent's transcript leaves theirs as they left it, and `/afk` on their
+`/afk` from anywhere but an outworlder's transcript leaves theirs as they left it, and `/afk` on their
 outworlder's transcript is refused, saying whose it is.
 
 ::: tip `/afk` is about questions, not approvals
@@ -179,11 +178,6 @@ A flow's agents never wait for approval, whether you are here or away. See
 
 ## Troubleshooting
 
-### `hmz: /afk is only available on the monitor, the all-agents transcript and an outworlder's transcript, not on one agent's transcript`
-
-You are reading one conversation. Press <kbd>shift+tab</kbd> until you are on every agent's
-transcript, or on the outworlder's, and type it again.
-
 ### The chat ended as soon as I turned it on
 
 In [`chat`](https://humanfia.ai/flows/chat), every reply waits for your next message, and being away answers it
@@ -191,8 +185,8 @@ with nothing, which ends the conversation. Leave `/afk` off in any flow built ar
 
 ### I came back and the run is waiting on me
 
-`/afk` was off, or was set for another outworlder. Answer the question, or type `/afk on` on
-every agent's transcript to cover them all.
+`/afk` was off, or was set for another outworlder. Answer the question, or type `/afk on`
+anywhere but an outworlder's transcript to cover them all.
 
 ### I came back and a decision was made without me
 
