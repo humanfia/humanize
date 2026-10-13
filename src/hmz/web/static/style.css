@@ -58,6 +58,10 @@
   --side-wide: 280px;
   --panel-wide: 360px;
   --column: 780px;
+  /* How tall a control stands, so that whatever stands in a row with it lines up: a field, a
+     select, a button and an icon button, and the small ones on a composer's bar. */
+  --control-h: 32px;
+  --control-h-sm: 26px;
 }
 
 [data-theme='dark'] {
@@ -190,6 +194,11 @@ code {
   display: block;
 }
 
+/* Where a row's words share a baseline, its icons stand at its middle. */
+:is(.side-nav a, .side-run > a, .side-agent, .side-session, .flow-picker, .bar-sub, .result-top, .panel > header) > .icon {
+  align-self: center;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -286,7 +295,7 @@ code {
 
 .side-nav a {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
   padding: 7px 10px;
   color: var(--ink);
@@ -368,7 +377,7 @@ code {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   padding: 6px 8px;
   color: var(--ink);
@@ -607,7 +616,7 @@ code {
   color: var(--ink);
 }
 
-.side-add {
+.icon-btn.side-add {
   width: 26px;
   height: 26px;
   opacity: 0;
@@ -802,8 +811,6 @@ code {
 }
 
 .path-browse {
-  width: 30px;
-  height: 30px;
   border: 1px solid var(--line-strong);
 }
 
@@ -1129,7 +1136,7 @@ textarea {
 
 .bar-sub {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 4px 10px;
   flex-wrap: wrap;
   overflow: hidden;
@@ -1168,7 +1175,7 @@ textarea {
 
 .flow-picker {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   padding: 6px 10px;
   border: 2px solid transparent;
@@ -1205,8 +1212,8 @@ textarea {
 .icon-btn {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: var(--control-h);
+  height: var(--control-h);
   padding: 0;
   border: 1px solid transparent;
   background: none;
@@ -1230,6 +1237,8 @@ textarea {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: var(--control-h);
   gap: 6px;
   padding: 6px 12px;
   border: 2px solid var(--edge);
@@ -1289,8 +1298,14 @@ textarea {
 }
 
 .btn.small {
+  min-height: var(--control-h-sm);
   padding: 3px 8px;
   font-size: 12px;
+}
+
+/* On a bar a small button stands as tall as the icon buttons beside it, only narrower. */
+.bar-actions .btn.small {
+  min-height: var(--control-h);
 }
 
 .confirm {
@@ -1306,6 +1321,7 @@ textarea {
 
 .segmented {
   display: inline-flex;
+  min-height: var(--control-h);
   border: 2px solid var(--edge);
   overflow: hidden;
   flex-wrap: wrap;
@@ -1348,6 +1364,11 @@ textarea {
   min-width: 0;
 }
 
+input:not([type='checkbox'], [type='radio']),
+select {
+  min-height: var(--control-h);
+}
+
 /* Each engine greys a placeholder its own way, WebKit's barely on the dark ground. */
 ::placeholder {
   color: var(--ink-3);
@@ -1382,6 +1403,7 @@ textarea {
 input[type='checkbox'] {
   width: 16px;
   height: 16px;
+  margin: 0;
   accent-color: var(--cyan-ink);
 }
 
@@ -1427,6 +1449,15 @@ input[type='checkbox'] {
 
 .row > * {
   min-width: 0;
+}
+
+/* Fields in a row stand on their controls, and a box ticked beside them on the same line. */
+.row:has(> .field) {
+  align-items: flex-end;
+}
+
+.row > .check {
+  min-height: var(--control-h);
 }
 
 .grid {
@@ -1501,7 +1532,7 @@ p + .panel {
 
 .panel > header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -1745,6 +1776,7 @@ th.num {
 dl.facts {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
   gap: 6px 14px;
   margin: 0;
 }
@@ -1754,7 +1786,6 @@ dl.facts dt {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--ink-3);
-  padding-top: 2px;
 }
 
 dl.facts dd {
@@ -2050,6 +2081,10 @@ pre.block {
 }
 
 .composer-summary .chip {
+  display: block;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: calc(var(--control-h-sm) - 2px);
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2085,6 +2120,7 @@ pre.block {
 .chip-btn {
   display: inline-flex;
   align-items: center;
+  min-height: var(--control-h-sm);
   gap: 6px;
   padding: 3px 6px 3px 8px;
   border: 1px solid var(--line-strong);
@@ -2119,6 +2155,7 @@ pre.block {
 }
 
 .chip-select select {
+  min-height: 0;
   border: 0;
   padding: 0 14px 0 2px;
   background-color: transparent;
@@ -2653,6 +2690,7 @@ table.spending tr.whole td {
 .said {
   display: grid;
   grid-template-columns: 1.5em minmax(0, 1fr);
+  align-items: baseline;
   gap: 0 6px;
   padding: 3px 0;
 }
@@ -3419,7 +3457,7 @@ pre.exo-args {
 
 .result-top {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
   min-width: 0;
 }
