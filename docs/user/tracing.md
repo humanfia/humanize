@@ -112,7 +112,7 @@ much as the CLI logged.
 
 - **The summary line has sessions in it.** `0 sessions, 0 slices` means the trace is empty;
   see [If it goes wrong](#if-it-goes-wrong).
-- **Perfetto shows one process per agent**, each named after its role and model, with as
+- **Perfetto shows one process per agent**, each named after its agent and model, with as
   many sessions as `/epics` counted.
 - **The slices read like the transcript.** The first tool calls of the first session are the
   first things the agent did in the run.

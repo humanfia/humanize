@@ -384,7 +384,7 @@ places tried after it, in order.
 | `all()` | `list[Path]` | Every epic, oldest first. |
 | `read(epic: Path)` | `Ran \| None` | `None` for a directory holding no run. |
 | `sessions(epic)` | `list[Session]` | Every session, across every record of the epic. |
-| `opened(epic)` | `dict[str, list[str]]` | Session ids per agent role. |
+| `opened(epic)` | `dict[str, list[str]]` | Session ids per agent, by its name. |
 | `resumed(flow: str)` | `Path \| None` | The epic `--resume` would pick up. `flow`: canonical ref or name as run. |
 | `picks_up(epic)` | `bool` | Whether its journal has an entry, it is not going, and it is not `foreign`. |
 | `foreign(epic)` | `str` | Why an imported run cannot be picked up here (its workspace is not at that path, or lacks the commit its bundle recorded), or `""`. |
@@ -615,6 +615,6 @@ them.
 | Type | Fields |
 | --- | --- |
 | `Ran` | `at: Path`, `flow`, `task`, `workspace`, `began`, `ended` (`""` while running or abandoned), `how` (`done`, `failed`, `stopped`, or `""`), `agents: tuple[Drove, ...]`, `sessions: tuple[Session, ...]`, `called: tuple[Called, ...]`, `resumable: bool`, `ref`, `envs: tuple[str, ...]` (as `-e` spells them, a run's kept in an older spelling included), `params: dict`, `budget: dict \| None`, `picked_up: str` (epic name or `""`), `profile: bool` (whether it was [profiled](/reference/tracing#profiling-a-run)); property `name` |
-| `Drove` | `agent`, `backend`, `model`, `effort` (`""` = auto), `provider` (`""` = as local); property `spec` (`-a` spelling after `<role>=`) |
+| `Drove` | `agent` (the role), `backend`, `model`, `effort` (`""` = auto), `provider` (`""` = as local), `name` (what the agent filling it is called; `""` in an epic written before agents had names); property `spec` (`-a` spelling after `<role>=`) |
 | `Called` | `flow`, `task`, `record` (file in the epic), `began`, `ended`, `how`, `calls: tuple[Called, ...]` |
 | `Session` | `agent`, `backend`, `provider` (`local` = as local), `ident` (backend's id), `name`, `at`, `flow`, `parent` (forked-from id or `""`), `record`, `where` (kept-session path), `harness` (`local`, `self`, the `<backend>:<name>` of a runtime an affinity sent it to, or `""` for work on this machine) |

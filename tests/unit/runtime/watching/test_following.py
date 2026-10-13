@@ -36,9 +36,9 @@ def _event(**said: Any) -> dict[str, Any]:
     """One `event` record as a host sends it, with whatever the test says over the rest."""
     record: dict[str, Any] = {
         "run": 1,
-        "key": "builder/1",
-        "session": "builder/1",
-        "agent": "builder",
+        "key": "NeiKos496/1",
+        "session": "NeiKos496/1",
+        "agent": "NeiKos496",
         "cli": "claude",
         "model": "big",
         "ident": "",
@@ -79,7 +79,7 @@ def test_a_run_unwinding_behind_the_next_is_its_agents_alone(
     )
 
     assert said is None
-    assert following.monitor.shape().turns == {"builder": 1}
+    assert following.monitor.shape().turns == {"NeiKos496": 1}
     assert following.monitor.shape(sessions=True).turns == {}
     following.ended({"run": 2})
 
@@ -100,16 +100,16 @@ def test_a_side_question_is_told_what_the_run_in_front_did_and_not_its_thinking(
         task="build it",
         workspace="/w",
         going=True,
-        working=["builder/1"],
+        working=["NeiKos496/1"],
         waiting=0,
         waiting_for_input=False,
     )
 
     said = [(one.agent, one.kind, one.text) for one in snapshot.observations]
     assert said == [
-        ("builder", "begins", "build it"),
+        ("NeiKos496", "begins", "build it"),
         ("", "flow", "round 2 of 5"),
-        ("builder", "ends", "turn ended"),
+        ("NeiKos496", "ends", "turn ended"),
     ]
     following.started({"run": 2, "began": 0.0})
     assert not following.snapshot(
@@ -122,3 +122,35 @@ def test_a_side_question_is_told_what_the_run_in_front_did_and_not_its_thinking(
         waiting_for_input=False,
     ).observations
     following.ended({"run": 2})
+
+
+def test_a_side_question_is_told_each_agent_by_its_name_and_the_role_it_fills(
+    following: Following,
+) -> None:
+    following.opened(
+        {
+            "run": 1,
+            "role": "builder",
+            "key": "NeiKos496/1",
+            "agent": "NeiKos496",
+            "cli": "claude",
+            "model": "big",
+            "counts": ["output"],
+            "person": False,
+        }
+    )
+    following.heard(_event(kind="begins"))
+
+    snapshot = following.snapshot(
+        flow="ralph",
+        task="build it",
+        workspace="/w",
+        going=True,
+        working=["NeiKos496/1"],
+        waiting=0,
+        waiting_for_input=False,
+    )
+
+    (agent,) = snapshot.agents
+    assert (agent.agent, agent.role, agent.turns) == ("NeiKos496", "builder", 1)
+    assert [key for key, _ in snapshot.sessions] == ["NeiKos496/1"]

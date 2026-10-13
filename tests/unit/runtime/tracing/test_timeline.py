@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from hmz.runtime.epic import Called, Ran
+from hmz.runtime.epic import Called, Drove, Ran
 from hmz.runtime.epic import Session as Opened
 from hmz.runtime.tracing.profile import Process, Thread
 from hmz.runtime.tracing.session import Action, Session
@@ -21,7 +21,12 @@ def iso(seconds: float) -> str:
     return datetime.datetime.fromtimestamp(T0 + seconds, datetime.UTC).isoformat()
 
 
-def ran(*, ended: float | None = 100.0, opened: tuple[Opened, ...] = ()) -> Ran:
+def ran(
+    *,
+    ended: float | None = 100.0,
+    opened: tuple[Opened, ...] = (),
+    agents: tuple[Drove, ...] = (),
+) -> Ran:
     return Ran(
         at=Path("/epics/20260101T000000.000Z"),
         flow="ralph",
@@ -30,6 +35,7 @@ def ran(*, ended: float | None = 100.0, opened: tuple[Opened, ...] = ()) -> Ran:
         ended=iso(ended) if ended is not None else "",
         how="done" if ended is not None else "",
         sessions=opened,
+        agents=agents,
     )
 
 
@@ -100,8 +106,10 @@ def epic_with_everything() -> tuple[dict[str, Any], Any]:
     )
     worker = Process(42 + 1000, 42, "node", ("node",), T0 + 19, T0 + 20)
     opened = (
-        Opened("builder", "claude", "local", "r", "n", record="epic.ralph_1.jsonl"),
+        Opened("NeiKos496", "claude", "local", "r", "n", record="epic.ralph_1.jsonl"),
     )
+    # The agent filling `builder` is called by its own name, which its session is under.
+    agents = (Drove("builder", "claude", "opus", "high", name="NeiKos496"),)
     calls = (
         Called(
             "official/review",
@@ -114,7 +122,7 @@ def epic_with_everything() -> tuple[dict[str, Any], Any]:
     )
     laid = build(
         [child, root],
-        ran=ran(opened=opened),
+        ran=ran(opened=opened, agents=agents),
         calls=calls,
         profiled=[worker, program],
     )
@@ -272,6 +280,24 @@ def test_a_running_epic_runs_until_the_last_thing_in_it() -> None:
         (0, 30_000_000),
         (2_000_000, 28_000_000),
     ]
+
+
+def test_a_session_of_an_epic_written_before_agents_had_names_is_its_roles() -> None:
+    one = Session(
+        "claude:r",
+        "claude",
+        "r",
+        "main",
+        "r",
+        actions=[Action("t", "turn", T0, T0 + 1)],
+    )
+    # Then an agent was called by the role it filled, and nothing else was written.
+    opened = (Opened("builder", "claude", "local", "r", "n"),)
+    agents = (Drove("builder", "claude", "opus", "high"),)
+
+    document = build([one], ran=ran(opened=opened, agents=agents)).document
+
+    assert text(document, document["processes"][1]["role"]) == "builder"
 
 
 def test_the_layout_says_whether_span_ids_moved() -> None:

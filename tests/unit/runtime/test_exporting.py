@@ -166,11 +166,20 @@ def ran(tmp_path: Path) -> Path:
         "ralph",
         "fix it with sk-ant-abcdefghijklmnopq",
         workspace,
-        agents=[Drove("builder", "claude", "fixture/fixture-model", "high", "work")],
+        agents=[
+            Drove(
+                "builder",
+                "claude",
+                "fixture/fixture-model",
+                "high",
+                "work",
+                "NeiKos496",
+            )
+        ],
         envs=["box=local/x"],
         resumable=True,
     ) as one:
-        one.session("builder", "claude", "work", "s1")
+        one.session("NeiKos496", "claude", "work", "s1")
         one.session("other", "opencode", "", "s2")
         one.session("ghost", "nobody", "", "s3")
         inner = one.called("inner", "a part")
@@ -219,11 +228,11 @@ def test_a_whole_run_goes_in_one_archive(
         inner,
         f"{name}/{RESUME}",
         f"{name}/{TRACES}/t.trace.json",
-        f"{name}/{SESSIONS}/builder-claude@work-s1/projects/p/s1.jsonl",
+        f"{name}/{SESSIONS}/NeiKos496-claude@work-s1/projects/p/s1.jsonl",
         f"{name}/{MANIFEST}",
     }
     log = members[
-        f"{name}/{SESSIONS}/builder-claude@work-s1/projects/p/s1.jsonl"
+        f"{name}/{SESSIONS}/NeiKos496-claude@work-s1/projects/p/s1.jsonl"
     ].decode()
     assert "SECRETVALUE-123" not in log
     assert '"input_tokens": 9' in log
@@ -235,6 +244,12 @@ def test_a_whole_run_goes_in_one_archive(
     assert manifest["run"]["how"] == "done"
     assert manifest["run"]["task"] == f"fix it with {REDACTED}"
     assert manifest["workspace"]["head"] == "abc123"
+    # The role, and the agent that filled it under its own name, which its sessions are under.
+    assert (manifest["agents"][0]["agent"], manifest["agents"][0]["name"]) == (
+        "builder",
+        "NeiKos496",
+    )
+    assert manifest["sessions"][0]["agent"] == "NeiKos496"
     # What the run says it ran is never struck, though an account holds it.
     assert manifest["agents"][0]["model"] == "fixture/fixture-model"
     assert manifest["agents"][0]["runs"] == "claude@work/fixture/fixture-model:high"
@@ -276,7 +291,7 @@ def test_unpacked_lays_out_what_a_bundle_holds_as_files(
     _, bundled = bundle(ran, tmp_path / "b.tar.gz")
     assert held == set(bundled["held"])
     assert manifest["held"] == bundled["held"]
-    log = tmp_path / "out" / SESSIONS / "builder-claude@work-s1/projects/p/s1.jsonl"
+    log = tmp_path / "out" / SESSIONS / "NeiKos496-claude@work-s1/projects/p/s1.jsonl"
     assert "SECRETVALUE-123" not in log.read_text()
     assert '"input_tokens": 9' in log.read_text()
     assert "sk-ant-" not in (tmp_path / "out" / "epic.jsonl").read_text()
@@ -343,7 +358,7 @@ def test_what_each_session_was_logged_to_is_found(world: World, ran: Path) -> No
     found = exporting.logged(ran)
 
     assert found == {
-        "builder-claude@work-s1": {
+        "NeiKos496-claude@work-s1": {
             "projects/p/s1.jsonl": ran
             / SESSIONS
             / "claude"

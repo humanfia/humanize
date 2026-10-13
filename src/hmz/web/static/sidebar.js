@@ -221,7 +221,7 @@ export function mountSidebar(root, context, where) {
     }
     const detail = read && read.detail
     const sessions = detail ? sessionsOf(detail) : []
-    const agents = run.agents.map((one) => ({ role: one.role, runs: one.runs, sessions: sessions.filter((session) => session.role === one.role) }))
+    const agents = run.agents.map((one) => ({ name: one.name, role: one.role, runs: one.runs, sessions: sessions.filter((session) => session.agent === one.name) }))
     if (!agents.length) return h('p', { class: 'side-quiet nested' }, 'No agents')
     const base = hash(`/epics/${encodeURIComponent(run.name)}`)
     const logged = run.name === here && parts[2] === 'logs' && !parts[3]
@@ -246,22 +246,22 @@ export function mountSidebar(root, context, where) {
         ]),
       ),
       agents.map((agent) => {
-        const at = run.name === here && parts[2] === 'agents' && parts[3] === agent.role
+        const at = run.name === here && parts[2] === 'agents' && parts[3] === agent.name
         return h(
           'li',
           {},
           menuOn(
             h(
               'a',
-              { class: ['side-agent', at && 'current'], href: `${base}/agents/${encodeURIComponent(agent.role)}`, 'aria-current': at ? 'page' : null, title: agent.runs, 'data-hmz': 'agent' },
+              { class: ['side-agent', at && 'current'], href: `${base}/agents/${encodeURIComponent(agent.name)}`, 'aria-current': at ? 'page' : null, title: `${agent.role} · ${agent.runs}`, 'data-hmz': 'agent' },
               icon('agent'),
-              h('span', { class: 'side-label' }, agent.role),
+              h('span', { class: 'side-label' }, agent.name),
               h('span', { class: 'side-meta mono' }, agent.runs.split('/')[0]),
             ),
             () => [
-              { head: agent.runs },
-              { label: 'Show on graph', glyph: 'flows', href: `${base}/agents/${encodeURIComponent(agent.role)}` },
-              { label: 'Open log', glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.role)}` },
+              { head: `${agent.role} · ${agent.runs}` },
+              { label: 'Show on graph', glyph: 'flows', href: `${base}/agents/${encodeURIComponent(agent.name)}` },
+              { label: 'Open log', glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.name)}` },
               '-',
               { label: 'Copy agent', glyph: 'copy', act: () => copy(agent.runs, 'Agent copied') },
             ],

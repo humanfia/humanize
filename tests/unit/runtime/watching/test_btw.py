@@ -179,7 +179,7 @@ def test_a_snapshot_says_each_agent_and_handover() -> None:
     said = format_snapshot(
         _snapshot(
             agents=(
-                AgentProgress("claude#ab", "opus", 3, working=True, role="builder"),
+                AgentProgress("NeiKos496", "opus", 3, working=True, role="builder"),
                 AgentProgress("codex#cd", "", -1, working=False),
             ),
             handovers=(("builder", "reviewer", 2),),
@@ -189,7 +189,7 @@ def test_a_snapshot_says_each_agent_and_handover() -> None:
     )
 
     assert _block(said, "agents:") == [
-        "- builder (claude#ab): working, 3 turn(s), model=opus",
+        "- NeiKos496 (builder): working, 3 turn(s), model=opus",
         "- codex#cd: idle, 0 turn(s), model=(unknown)",
     ]
     assert _block(said, "handovers:") == ["- builder -> reviewer: 2 time(s)"]
@@ -440,27 +440,32 @@ def test_a_side_conversation_opened_after_the_mode_was_left_is_closed_again() ->
 
 
 @pytest.mark.parametrize(
-    ("chosen", "roles", "sessions", "expected"),
+    ("chosen", "agents", "sessions", "expected"),
     [
-        ("codex/gpt", {"builder": "claude/opus"}, ["builder/1"], {"runs": "codex/gpt"}),
+        (
+            "codex/gpt",
+            {"NeiKos496": "claude/opus"},
+            ["NeiKos496/1"],
+            {"runs": "codex/gpt"},
+        ),
         (
             "",
-            {"builder": "claude/opus"},
-            ["critic/1", "builder/1"],
-            {"key": "builder/1"},
+            {"NeiKos496": "claude/opus"},
+            ["Mydei/1", "NeiKos496/1"],
+            {"key": "NeiKos496/1"},
         ),
-        ("", {"builder": "claude/opus"}, ["critic/1"], {"runs": "claude/opus"}),
-        ("", {"builder": ""}, ["critic/1"], {"key": "critic/1"}),
+        ("", {"NeiKos496": "claude/opus"}, ["Mydei/1"], {"runs": "claude/opus"}),
+        ("", {"NeiKos496": ""}, ["Mydei/1"], {"key": "Mydei/1"}),
         ("", {}, [], None),
     ],
 )
 def test_the_btw_agent_is_the_one_settings_name_or_the_flows_first(
     chosen: str,
-    roles: dict[str, str],
+    agents: dict[str, str],
     sessions: list[str],
     expected: dict[str, str] | None,
 ) -> None:
-    assert btw.opened_as(chosen, roles, sessions) == expected
+    assert btw.opened_as(chosen, agents, sessions) == expected
 
 
 #: How a session an earlier run kept is opened: its agent, its conversation, where it is.

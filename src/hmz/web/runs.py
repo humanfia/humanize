@@ -334,7 +334,10 @@ def row(ran: Ran, *, held: bool, going: bool = False) -> dict[str, Any]:
         "began": ran.began,
         "ended": ran.ended,
         "how": ran.how or (RUNNING if held or going else UNFINISHED),
-        "agents": [{"role": one.agent, "runs": one.spec} for one in ran.agents],
+        "agents": [
+            {"name": one.name or one.agent, "role": one.agent, "runs": one.spec}
+            for one in ran.agents
+        ],
         "sessions": len(ran.sessions),
         "resumable": ran.resumable,
         "spent": labelled(ran.spent),
@@ -379,6 +382,7 @@ def detail(
         "ref": ran.ref,
         "agents": [
             {
+                "name": one.name or one.agent,
                 "role": one.agent,
                 "runs": one.spec,
                 "backend": one.backend,
@@ -390,7 +394,7 @@ def detail(
         ],
         "sessions": [
             {
-                "role": one.agent,
+                "agent": one.agent,
                 "backend": one.backend,
                 "provider": one.provider,
                 "ident": one.ident,

@@ -44,7 +44,7 @@ class HookBridge:  # here() / call(make, *, default) / abandon() / close()
 @dataclass(frozen=True, slots=True)
 class Kept: ...  # harness, id, at: a conversation a session kept, copied
 class SessionHandle(Protocol): ...  # id, usage, keep, turn, move, steer, interrupt, close
-class AgentDriver(Protocol): ...  # harness, model, effort, provider, capabilities, open, close
+class AgentDriver(Protocol): ...  # name, harness, model, effort, provider, capabilities, open, close
 class EnvDriver(Protocol): ...  # backend, provider, workdir, capabilities, resources, exec,
                                # read, write, derive_*, destroy_*, snapshot, rewind,
                                # snapshots, placement, close
@@ -418,6 +418,9 @@ def under() -> Path: ...  # machine()/skills
   nothing by itself. Only a flow marked with `full_view` MUST be granted its harness's all.
 - `derive` MUST only narrow: a permission the grant covers, skills the grant names. An agent
   derived from another MUST share its hooks and its sessions.
+- An agent MUST be called by its driver's `name` -- a codename nothing else in the process
+  answers to, for a driver made of a spec -- and every session of it MUST be the agent of that
+  name, whichever role it fills: a role is the parameter a flow takes it as, not its name.
 - A role's `_tools` MUST be offered by every session of its agent, and a call of one MUST run
   its function on the run's loop as the flow the agent belongs to; what it raises MUST be
   answered to the agent as the tool failing, and MUST NOT fail the turn. A role's `_clis` MUST

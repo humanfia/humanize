@@ -1,5 +1,5 @@
 // One epic: the run going, as it happens, or one written down. `#/runs/<name>` draws it as a
-// graph of its agents and who handed to whom; `/agents/<role>` is the graph with that agent
+// graph of its agents and who handed to whom; `/agents/<agent>` is the graph with that agent
 // picked out; `/sessions/<key>` is one session's thread, as a chat is read; `/exomyth` is its
 // timeline, drawn by views/exomyth. `#/live` is whichever run is going -- a chat's opened on its
 // conversation rather than its graph. Under the view, while the run goes, are the questions it
@@ -37,7 +37,7 @@ export function mount(root, { parts, query }) {
 
   // A person is read by their log, as the terminal interface's monitor reads one; an agent is
   // picked out on the graph.
-  const drawn_ = graph({ open: (role) => go(`/epics/${encodeURIComponent(name)}/${persons.has(role) ? 'logs' : 'agents'}/${encodeURIComponent(role)}`) })
+  const drawn_ = graph({ open: (who) => go(`/epics/${encodeURIComponent(name)}/${persons.has(who) ? 'logs' : 'agents'}/${encodeURIComponent(who)}`) })
   // What is said to the epic, and asked beside it, once it is known which workspace it is of.
   let say = null
   let sayTo = null
@@ -110,13 +110,13 @@ export function mount(root, { parts, query }) {
       mode = modeOf(['epics', name, 'sessions', opened.key])
     }
     const model = run ? live(held, run, detail) : written(detail, traced)
-    const roleOfSession = mode.session ? mode.session.split('/')[0] : mode.log || ''
-    persons = new Set(model.agents.filter((one) => one.person).map((one) => one.role))
+    const agentOfSession = mode.session ? mode.session.split('/')[0] : mode.log || ''
+    persons = new Set(model.agents.filter((one) => one.person).map((one) => one.name))
     drawHead(detail, run)
     if (reading(mode)) drawThread(detail, run)
     else drawGraph(detail, run, model)
     drawDock(detail, run)
-    drawPanel(detail, run, model, mode.focus || roleOfSession)
+    drawPanel(detail, run, model, mode.focus || agentOfSession)
   }
 
   // ------------------------------------------------------------------ the bar
@@ -171,7 +171,7 @@ export function mount(root, { parts, query }) {
       for (const one of ['thread', 'thread-head', 'thread-ask', 'agent-list', 'graph-note']) drawn[one] = undefined
     })
     if (shape === 'list') {
-      region('agent-list', [model.agents.map(({ role, working, status, spec, sessions, tokens }) => [role, working, status, spec, tokens, sessions.map((one) => [one.key, one.working, one.turns.length])]), mode.focus], () => fill(listed, listOf(model, detail.name, mode.focus)))
+      region('agent-list', [model.agents.map(({ name, role, working, status, spec, sessions, tokens }) => [name, role, working, status, spec, tokens, sessions.map((one) => [one.key, one.working, one.turns.length])]), mode.focus], () => fill(listed, listOf(model, detail.name, mode.focus)))
       return
     }
     const asking = !run && !traced
@@ -286,7 +286,7 @@ export function mount(root, { parts, query }) {
     region('thread', [key, Boolean(traced), tracing, String(traceError)], () => {
       saidFor = ''
       // The sessions the thread is of: one, every one of an agent's, or every one.
-      const sessions = sessionsOf(detail).filter((one) => (mode.session ? one.key === key : !mode.log || one.role === mode.log))
+      const sessions = sessionsOf(detail).filter((one) => (mode.session ? one.key === key : !mode.log || one.agent === mode.log))
       const read = traced ? sessions.map((one) => ({ ...(traced.find((each) => each.key === one.traced) || { actions: [] }), label: one.key })).filter((one) => one.actions.length) : []
       fill(
         box,
@@ -331,9 +331,10 @@ export function mount(root, { parts, query }) {
     if (going) {
       const sessions = (standing.sessions && standing.sessions.open) || []
       const working = (standing.sessions && standing.sessions.working) || []
-      const roles = run.started.roles || Object.keys(run.started.agents || {})
+      const names = run.started.names || {}
+      const agents = (run.started.roles || Object.keys(run.started.agents || {})).map((role) => names[role] || role)
       const people = run.started.outworlders || []
-      region('dock-offers', [roles, sessions, working, people], () => say.offers(roles, sessions, working, people))
+      region('dock-offers', [agents, sessions, working, people], () => say.offers(agents, sessions, working, people))
       // In a thread, a line goes to whose thread it is: a session, an agent, or a person.
       const to = mode.session || (mode.log ? (persons.has(mode.log) ? `outworlder:${mode.log}` : mode.log) : '')
       if (to && sayToKey !== to) {
@@ -402,15 +403,15 @@ export function mount(root, { parts, query }) {
   }
 
   function overview(detail, run, model, focus, going, figures, standing) {
-    const agent = model.agents.find((one) => one.role === focus)
+    const agent = model.agents.find((one) => one.name === focus)
     const base = hash(`/epics/${encodeURIComponent(detail.name)}`)
     const parts = []
     if (agent) {
       parts.push(
         section(
-          agent.role,
+          agent.name,
           h('div', { class: 'focus', style: { '--lane': agent.color }, 'data-hmz': 'focus' },
-            h('div', { class: 'mono dim' }, agent.spec || '—'),
+            h('div', { class: 'mono dim' }, [agent.role !== agent.name && agent.role, agent.spec].filter(Boolean).join(' · ') || '—'),
             h('div', {}, [agent.status, agent.turns !== null && agent.turns !== undefined ? `${agent.turns} turn${agent.turns === 1 ? '' : 's'}` : '', agent.tokens ? `${agent.tokens} tokens` : ''].filter(Boolean).join(' · ')),
             agent.sessions.length
               ? h('ul', { class: 'links' }, agent.sessions.map((one) => h('li', {}, h('a', { href: `${base}/sessions/${encodeURIComponent(one.key)}` }, one.working ? '● ' : '○ ', h('span', { class: 'mono' }, one.key)), one.about ? h('span', { class: 'dim' }, ` ${one.about}`) : null)))
@@ -435,7 +436,7 @@ export function mount(root, { parts, query }) {
             tile('spent', spent ? spent.money || '—' : '—', ''),
             tile('output tokens', spent ? spent.tokens : '—', ''),
             tile('took', took(detail, null) || '—', spent && spent.worked ? `${spent.worked} of it working` : ''),
-            tile('sessions', String(detail.sessions.length), `${detail.agents.length} agent role${detail.agents.length === 1 ? '' : 's'}`),
+            tile('sessions', String(detail.sessions.length), `${detail.agents.length} agent${detail.agents.length === 1 ? '' : 's'}`),
           ),
         ),
       )
@@ -555,7 +556,8 @@ function modeOf(parts) {
   return {
     session: parts[2] === 'sessions' ? parts[3] || '' : '',
     focus: parts[2] === 'agents' ? parts[3] || '' : '',
-    // A log: every agent's and person's lines, "" -- or one agent's, or one person's, by role.
+    // A log: every agent's and person's lines, "" -- or one agent's, by its name, or one
+    // person's, by the role they answer.
     log: parts[2] === 'logs' ? parts[3] || '' : null,
   }
 }
@@ -614,19 +616,19 @@ function listOf(model, epic, focus) {
   return order.map((agent) =>
     h(
       'section',
-      { class: ['list-agent', agent.working && 'working', agent.role === focus && 'focused'], style: { '--lane': agent.color }, 'data-role': agent.role },
+      { class: ['list-agent', agent.working && 'working', agent.name === focus && 'focused'], style: { '--lane': agent.color }, 'data-agent': agent.name },
       h(
         'a',
-        { class: 'list-head', href: agent.person ? `${base}/logs/${encodeURIComponent(agent.role)}` : `${base}/agents/${encodeURIComponent(agent.role)}` },
+        { class: 'list-head', href: agent.person ? `${base}/logs/${encodeURIComponent(agent.name)}` : `${base}/agents/${encodeURIComponent(agent.name)}` },
         h('i', { class: 'swatch', 'aria-hidden': 'true' }),
-        h('b', {}, agent.role),
-        h('span', { class: 'mono dim' }, agent.spec || '—'),
+        h('b', {}, agent.name),
+        h('span', { class: 'mono dim' }, [agent.role !== agent.name && agent.role, agent.spec].filter(Boolean).join(' · ') || '—'),
         h('span', { class: 'list-state' }, agent.working ? h('span', { class: 'dot live', 'aria-hidden': 'true' }) : null, [agent.status, agent.tokens ? `${agent.tokens} tokens` : ''].filter(Boolean).join(' · ')),
       ),
       h(
         'ul',
         { class: 'links' },
-        h('li', {}, h('a', { href: `${base}/logs/${encodeURIComponent(agent.role)}` }, '≡ log')),
+        h('li', {}, h('a', { href: `${base}/logs/${encodeURIComponent(agent.name)}` }, '≡ log')),
         agent.sessions.map((one) => h('li', {}, h('a', { href: `${base}/sessions/${encodeURIComponent(one.key)}` }, one.working ? '● ' : '○ ', h('span', { class: 'mono' }, one.key)), h('span', { class: 'dim' }, ` ${one.turns.length} turn${one.turns.length === 1 ? '' : 's'}${one.about ? ` · ${one.about}` : ''}`))),
       ),
     ),
@@ -688,7 +690,7 @@ function facts(detail) {
     h('dt', {}, 'workdir'),
     h('dd', {}, pathed(detail.workspace)),
     h('dt', {}, 'agents'),
-    h('dd', {}, detail.agents.length ? detail.agents.map((one) => h('div', { class: 'mono' }, `${one.role}=${one.runs}`)) : '—'),
+    h('dd', {}, detail.agents.length ? detail.agents.map((one) => h('div', { class: 'mono' }, [one.name !== one.role && one.name, `${one.role}=${one.runs}`].filter(Boolean).join(' · '))) : '—'),
     h('dt', {}, 'envs'),
     h('dd', {}, detail.used.length ? detail.used.map((one) => h('div', { class: 'mono' }, one)) : '—'),
     h('dt', {}, 'params'),

@@ -44,7 +44,7 @@ class Following:
       run: The run in front of the frontend, as its host numbers runs, or 0 before any.
       monitor: That run's graph, and its bill per model.
       tally: What that run has cost, read from the logs its agents keep as they go.
-      seen: That run's sessions, by the key a frontend names one by, `<role>/<n>`.
+      seen: That run's sessions, by the key a frontend names one by, `<agent>/<n>`.
     """
 
     def __init__(self) -> None:
@@ -69,7 +69,7 @@ class Following:
         """
         self.run = int(record["run"])
         # The conversations of the run before this one went with it: this run's first
-        # conversation is its role's first again.
+        # conversation is its agent's first again.
         self.seen = {}
         self.monitor = Monitor(began=record["began"])
         # What the run costs is read from the logs the agents keep, which they write as they
@@ -101,6 +101,7 @@ class Following:
             frozenset(record["counts"]),
             kept=record.get("kept", ""),
             since=float(record.get("wall") or 0.0),
+            role=record.get("role", ""),
         )
         if record["run"] == self.run:
             self.seen[record["key"]] = seen
@@ -126,7 +127,7 @@ class Following:
           record: What was said, by whose turn and in which of its conversations.
 
         Returns:
-          The conversation it was said in, `<role>/<n>`, where the run it is of is the one in
+          The conversation it was said in, `<agent>/<n>`, where the run it is of is the one in
           front of the frontend -- or None, for something said outside any conversation or
           by a run unwinding behind the next, which numbers its conversations from one as
           that one does and so is the agent's alone.
@@ -235,7 +236,7 @@ class Following:
           task: What the run was started on.
           workspace: Where it runs.
           going: Whether it is going still.
-          working: The conversations with a turn open, `<role>/<n>` apiece.
+          working: The conversations with a turn open, `<agent>/<n>` apiece.
           waiting: How many messages are waiting for a turn to take them.
           waiting_for_input: Whether the run is waiting on a person.
 
@@ -245,8 +246,8 @@ class Following:
         shape = self.monitor.shape()
         moment = time.monotonic()
         ended = self.monitor.until
-        # One per role, however many sessions it opened: a role is what is watched, and each
-        # of its sessions is an agent of its own named for it.
+        # One per agent, however many sessions it opened: an agent is what is watched, each of
+        # its sessions only a conversation of it, and the role it fills is said beside it.
         driven = {seen.id: seen for seen in list(self.seen.values()) if seen.id}
         with self._observing:
             observations = tuple(self._observed)
@@ -262,7 +263,7 @@ class Following:
                     model=seen.model,
                     turns=shape.turns.get(who, 0),
                     working=who in shape.working,
-                    role=who,
+                    role=seen.role,
                 )
                 for who, seen in driven.items()
             ),

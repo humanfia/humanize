@@ -238,6 +238,8 @@ class Drove(NamedTuple):
       model: What that CLI was asked to run.
       effort: How hard it was asked to think, "" for the CLI's own default.
       provider: The account it was configured to run as, or "" for this machine's own.
+      name: What the agent is called, which its sessions are written down under; "" for
+        one written before an agent had a name of its own.
     """
 
     agent: str
@@ -245,6 +247,7 @@ class Drove(NamedTuple):
     model: str
     effort: str
     provider: str = ""
+    name: str = ""
 
     @property
     def spec(self) -> str:
@@ -360,7 +363,7 @@ def called(agent: str, backend: str, provider: str, ident: str) -> str:
     alone is what a trace is gathered by, and a name without it would name two.
 
     Args:
-      agent: Whose session it is, by the name the flow calls that agent.
+      agent: Whose session it is, by the agent's own name.
       backend: The CLI that took its turns.
       provider: The account they ran as, or "" for this machine's own.
       ident: The backend's own id for it.
@@ -962,7 +965,7 @@ class Epic:
         """Writes down a session, as :meth:`opened` does, for one no coganchor agent opened.
 
         Args:
-          agent: Whose it is, by the role the flow calls that agent.
+          agent: Whose it is, by the agent's own name -- not the role it fills.
           backend: What took its turns.
           provider: The account they ran as, or "" for this machine's own.
           ident: Its id.
@@ -1262,6 +1265,7 @@ def read(epic: Path) -> Ran | None:
                 model=str(said.get("model") or ""),
                 effort=str(said.get("effort") or ""),
                 provider=str(said.get("provider") or ""),
+                name=str(said.get("name") or ""),
             )
         )
     envs = began.get("envs")

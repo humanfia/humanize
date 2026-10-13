@@ -112,6 +112,11 @@ def test_a_fake_agent_is_its_harness_unless_told_otherwise() -> None:
     assert "codex/gpt" in repr(codex)
 
 
+def test_a_fake_agent_is_called_what_it_is_told_or_a_codename_of_its_own() -> None:
+    assert FakeAgentDriver(name="NeiKos496").name == "NeiKos496"
+    assert FakeAgentDriver().name != FakeAgentDriver().name
+
+
 class Answer(pydantic.BaseModel):
     answer: str = "default"
 

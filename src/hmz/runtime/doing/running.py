@@ -115,7 +115,7 @@ class Run:
     def agents(self) -> tuple[AgentBase, ...]:
         """The coganchor agent behind each session of the run still open, oldest first.
 
-        Each is named for the role it was opened for, which is what its events say. Only the
+        Each is called by its own name, which is what its events say. Only the
         open ones: a run that opens a session a round for a week holds no more than one that
         opened one, and a session that closed has no agent left to reach.
         """
@@ -124,6 +124,14 @@ class Run:
             return ()
         held = (getattr(one, "agent", None) for one in recorder.sessions)
         return tuple(one for one in held if one is not None)
+
+    @property
+    def names(self) -> dict[str, str]:
+        """What the agent filling each agent role is called, by role.
+
+        Which is what its sessions are keyed by: the role is only the parameter it is taken as.
+        """
+        return {role: one.name for role, one in self._runner.agents.items()}
 
     @property
     def epic(self) -> Path | None:

@@ -106,7 +106,7 @@ same side conversation, so a follow-up can say "and then?". The status line star
 
 Who answers depends on what is on the screen when you type `/btw`:
 
-- **One conversation's transcript** (`btw · builder/2`): a side copy of that conversation.
+- **One conversation's transcript** (`btw · NeiKos496/2`): a side copy of that conversation.
   Where its CLI can fork a conversation (Claude Code, Codex, Grok Build, Kimi Code, MiMo Code,
   Oh My Pi, opencode, pi, Qwen Code, and a CLI you added that speaks ACP), the copy is a fork
   and knows everything the conversation knew. Otherwise, or if the fork fails, it is a fresh
@@ -136,7 +136,7 @@ btw agent answers. Step through it:
 What to look at, by number:
 
 1. **`btw · btw agent`.** Who is answering. On one conversation's transcript this names that
-   conversation instead, such as `btw · reviewer/1`.
+   conversation instead, such as `btw · PoleMos600/1`.
 2. **`each line is a question; /btw or esc to exit`.** You are in btw mode now. A plain line
    typed from here is a question, not a steer.
 3. **The status line** starts with `btw · btw agent` until you leave, so you cannot forget you

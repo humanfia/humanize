@@ -264,6 +264,7 @@ class HarnessDriver:
         "_installed",
         "_kind",
         "_listeners",
+        "_name",
         "_profile",
         "_sessions",
         "_spec",
@@ -287,9 +288,14 @@ class HarnessDriver:
           profile: What coganchor knows of the CLI, or None for one it knows nothing of.
           harbors: The run's harness runtimes, or None for no affinity anywhere.
         """
+        from hmz.coganchor.agents.codenames import codename
+
         self._spec = spec
         self._kind = kind
         self._config = config
+        #: Every session's agent is built under it: a session's own agent is this one
+        #: agent's conversation, and two of them are not two agents.
+        self._name = codename()
         self._profile = profile
         self._harbors = harbors
         self._capabilities = HARNESS_CAPABILITIES[spec.harness]
@@ -304,6 +310,11 @@ class HarnessDriver:
         self._has: dict[str, tuple[type[HarnessError], str] | None] = {}
         self._fences: dict[tuple[str, bool], tuple[type[HarnessError], str] | None] = {}
         self._asking = asyncio.Lock()
+
+    @property
+    def name(self) -> str:
+        """What the agent is called: a codename nothing else in the process answers to."""
+        return self._name
 
     @property
     def harness(self) -> HarnessKind:
@@ -539,7 +550,7 @@ class HarnessDriver:
         from hmz.coganchor.agents import Unfenced
 
         try:
-            return self._kind(config)
+            return self._kind(config, name=self._name)
         except Unfenced as refused:
             raise HarnessSandboxed(f"{self._spec}: {refused}") from refused
         except ValueError as refused:

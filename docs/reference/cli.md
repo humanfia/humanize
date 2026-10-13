@@ -469,7 +469,7 @@ key:
 | Key | Type | Value |
 | --- | --- | --- |
 | `at` | number | Unix time the record was made. |
-| `agent` | string | The agent's id: the role it fills. |
+| `agent` | string | The agent's own name, such as `NeiKos496`: never the role it fills. |
 | `cli` | string | The backend (`claude`, `codex`, …, or an ACP CLI's name). |
 | `model` | string | The model it was configured with. |
 | `session` | string | The backend's own id for the conversation; `""` before it has named one, and for events not about one conversation. |
@@ -496,7 +496,7 @@ Lines that are not events (`hmz exec: …` notes, the flow's own prints) go to s
 
 ```console
 $ hmz exec -f chat -a assistant=claude/claude-opus-5:high --json "say hello" | jq -c 'select(.kind == "result")'
-{"at":1789026740.6,"agent":"assistant","cli":"claude","model":"claude-opus-5","session":"1d1ff959","kind":"result","text":"Hello.","whose":"","tokens":{"claude-opus-5":2080},"spent":{"input":2000,"output":80}}
+{"at":1789026740.6,"agent":"NeiKos496","cli":"claude","model":"claude-opus-5","session":"1d1ff959","kind":"result","text":"Hello.","whose":"","tokens":{"claude-opus-5":2080},"spent":{"input":2000,"output":80}}
 ```
 
 #### Colour {#colour}

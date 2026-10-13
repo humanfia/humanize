@@ -179,18 +179,18 @@ def test_sessions_are_kept_as_a_graph_of_their_own() -> None:
     monitor = Monitor()
     assert monitor.shape(sessions=True) == Shape({}, frozenset(), {})
 
-    monitor.begins("builder", "m", session="builder/1")
-    monitor.started("builder", "sub", "x", session="builder/1")
-    monitor.spend("builder", 50, session="builder/1")
-    monitor.ends("builder", session="builder/1")
-    monitor.begins("builder", "m", session="builder/2")
-    monitor.finished("builder", "sub", session="builder/1")
+    monitor.begins("NeiKos496", "m", session="NeiKos496/1")
+    monitor.started("NeiKos496", "sub", "x", session="NeiKos496/1")
+    monitor.spend("NeiKos496", 50, session="NeiKos496/1")
+    monitor.ends("NeiKos496", session="NeiKos496/1")
+    monitor.begins("NeiKos496", "m", session="NeiKos496/2")
+    monitor.finished("NeiKos496", "sub", session="NeiKos496/1")
 
     sessions = monitor.shape(sessions=True)
-    assert sessions.turns == {"builder/1": 1, "builder/2": 1}
-    assert sessions.handovers == {("builder/1", "builder/2"): 1}
-    assert sessions.under == {"builder/1": (Under("sub", "x", working=False),)}
-    assert sessions.used == {"builder/1": 50}
+    assert sessions.turns == {"NeiKos496/1": 1, "NeiKos496/2": 1}
+    assert sessions.handovers == {("NeiKos496/1", "NeiKos496/2"): 1}
+    assert sessions.under == {"NeiKos496/1": (Under("sub", "x", working=False),)}
+    assert sessions.used == {"NeiKos496/1": 50}
     # The bill is the run's, counted once: the sessions say only who spent it.
     assert [one.tokens for one in monitor.spending()] == [50]
 

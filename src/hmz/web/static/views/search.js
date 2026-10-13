@@ -115,7 +115,7 @@ export function mount(root, { query }) {
                 { class: 'result-meta' },
                 h('span', { class: 'mono', title: run.workspace }, nameOf(run.workspace)),
                 h('span', { class: 'mono', title: run.flow }, flowName(run.flow)),
-                run.agents.map((one) => h('span', { class: 'chip', title: one.runs }, one.role, h('span', { class: 'dim' }, one.runs.split(':')[0]))),
+                run.agents.map((one) => h('span', { class: 'chip', title: `${one.role} · ${one.runs}` }, one.name, h('span', { class: 'dim' }, one.runs.split(':')[0]))),
                 h('span', { class: 'mono' }, run.spent ? `${run.spent.money || '—'} · ${run.spent.tokens} out` : '—'),
                 run.ended ? h('span', { class: 'mono' }, `took ${lasting((Date.parse(run.ended) - Date.parse(run.began)) / 1000)}`) : null,
                 h('span', { class: 'mono' }, `${run.sessions} session${run.sessions === 1 ? '' : 's'}`),

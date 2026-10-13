@@ -61,8 +61,8 @@ def _journal(at: Path, *records: dict[str, Any] | str) -> None:
 @pytest.mark.parametrize(
     ("parts", "name"),
     [
-        (("builder", "claude", "work", "abc-123"), "builder-claude@work-abc-123"),
-        (("builder", "claude", "", "abc"), f"builder-claude@{LOCAL}-abc"),
+        (("NeiKos496", "claude", "work", "abc-123"), "NeiKos496-claude@work-abc-123"),
+        (("NeiKos496", "claude", "", "abc"), f"NeiKos496-claude@{LOCAL}-abc"),
         (("a b/c", "co dex", "me!", "x/y"), "a-b-c-co-dex@me-x-y"),
         (("", "", "", "id"), "agent-cli@local-id"),
     ],
@@ -118,7 +118,7 @@ def test_an_epic_opens_saying_what_it_is_a_run_of(workspace: Path) -> None:
         "fix it",
         workspace,
         ref="official/ralph",
-        agents=[Drove("builder", "claude", "opus", "high", "work")],
+        agents=[Drove("builder", "claude", "opus", "high", "work", "NeiKos496")],
         envs=["box=docker/srv"],
         params={"rounds": 3},
         budget={"cost": 5.0},
@@ -145,6 +145,7 @@ def test_an_epic_opens_saying_what_it_is_a_run_of(workspace: Path) -> None:
             "model": "opus",
             "effort": "high",
             "provider": "work",
+            "name": "NeiKos496",
         }
     ]
     assert began["envs"] == ["box=docker/srv"]
@@ -427,14 +428,14 @@ def test_a_run_reads_back_as_what_it_was(workspace: Path) -> None:
         "fix it",
         workspace,
         ref="official/ralph",
-        agents=[Drove("builder", "claude", "opus", "high")],
+        agents=[Drove("builder", "claude", "opus", "high", name="NeiKos496")],
         envs=["box=docker/srv"],
         used=["box=ssh@gpu/srv"],
         params={"rounds": 3},
         budget={"cost": 1.0},
         resumable=True,
     ) as one:
-        one.session("builder", "claude", "", "s1")
+        one.session("NeiKos496", "claude", "", "s1")
         inner = one.called("inner", "part")
         inner.session("helper", "codex", "team", "s2")
         inner.ended()
@@ -449,7 +450,8 @@ def test_a_run_reads_back_as_what_it_was(workspace: Path) -> None:
     assert ran.began
     assert ran.ended
     assert ran.how == "stopped"
-    assert ran.agents == (Drove("builder", "claude", "opus", "high", ""),)
+    # The role, and what the agent filling it is called.
+    assert ran.agents == (Drove("builder", "claude", "opus", "high", "", "NeiKos496"),)
     assert ran.envs == ("box=docker/srv",)
     assert ran.used == ("box=ssh@gpu/srv",)
     assert ran.params == {"rounds": 3}
@@ -458,7 +460,10 @@ def test_a_run_reads_back_as_what_it_was(workspace: Path) -> None:
     assert ran.picked_up == ""
     assert ran.profile is False
     assert ran.spent == {"cost": 0.5, "output_tokens": 1200, "seconds": 61.5}
-    assert [one.ident for one in ran.sessions] == ["s1", "s2"]
+    assert [(one.agent, one.ident) for one in ran.sessions] == [
+        ("NeiKos496", "s1"),
+        ("helper", "s2"),
+    ]
     assert ran.sessions[1].flow == "inner"
     assert ran.sessions[1].record == inner.record
     assert ran.sessions[1].provider == "team"

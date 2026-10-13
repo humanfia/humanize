@@ -136,7 +136,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path on this machine, as [`POST /api/runs/import`](#api-import) does -- in the desktop app as it is opened; in a browser, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>/exomyth`, its [Exomyth](/user/web#exomyth) -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
 | `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
-| `#/epics/<name>/sessions/<role>/<n>` | The thread of the `n`-th session that role opened, as the epic going names it (`/` written `%2F`). |
+| `#/epics/<name>/sessions/<agent>/<n>` | The thread of the `n`-th session that agent opened, as the epic going names it (`/` written `%2F`). |
 | `#/epics/<name>/logs[/<role>]` | The log every agent and person appears on; or one agent's, across its sessions; or one person's, what they are asked and answer. |
 | `#/epics/<name>/exomyth[?tab=flame]` | The epic's [Exomyth](/user/web#exomyth): its timeline, or its flame graph. |
 | `#/flows[?workspace=&flow=]` | The flows on offer in a workspace, one opened. |
@@ -171,7 +171,7 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 | `GET /api/held` | | `machine` (this machine's name), `here` (where `hmz web` started), `version`, `newer` (a newer release of `hmz` PyPI lists, asked as `hmz web` starts and at most once a day, or `""`), `running` (`{workspace: run}`: the [`run` snapshot](/reference/daemon#snapshots) of each workspace whose epic is going, or what its host's `status` says of it) |
 | `GET /api/held/stream` | `?workspace=`; `Last-Event-ID` header, or `?last=` | [The stream](#stream) of that workspace's runs, attaching to them |
 | `POST /api/held/start` | `workspace`; `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile` (bool); `resume` (bool, or an epic); `backup` (target names, `[]` for none; `null`, the default, for the defaults) | The host's answer: `run` |
-| `POST /api/held/say` | `text`; `to` (`""`, a role, `<role>/<n>`, or `outworlder:<role>`, routed as [`say` routes it](/reference/daemon#say-routing)) | The host's answer |
+| `POST /api/held/say` | `text`; `to` (`""`, an agent, `<agent>/<n>`, or `outworlder:<role>`, routed as [`say` routes it](/reference/daemon#say-routing)) | The host's answer |
 | `POST /api/held/answer` | `question`, `text` | The host's answer |
 | `POST /api/held/stop`, `/force` | | The host's answer |
 | `POST /api/held/afk` | `on` (bool); `role` | The host's answer |
@@ -179,7 +179,7 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 | `POST /api/held/release` | `role` | The host's answer |
 | `POST /api/held/board` | `key`; `value` (`""` removes the line) | The host's answer |
 | `GET /api/btw` | `?workspace=` | `open` (the conversations a side one is open on, `""` the btw agent's) and `said` (each question answered since, oldest first, as `POST` answers it; the last **200**) |
-| `POST /api/btw` | `workspace`; `question`; `to` (`""` the btw agent, or `<role>/<n>`); `epic` (the epic `to` is of: a session of one the runs hold no more is carried on from where that epic kept it, its conversation answered as `<epic>/<role>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session the btw agent asked on the way |
+| `POST /api/btw` | `workspace`; `question`; `to` (`""` the btw agent, or `<agent>/<n>`); `epic` (the epic `to` is of: a session of one the runs hold no more is carried on from where that epic kept it, its conversation answered as `<epic>/<agent>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session the btw agent asked on the way |
 | `POST /api/btw/leave` | `workspace`; `to`, or nothing for every side conversation | `{"ok": true}` |
 
 Every request about one workspace's runs names it as `workspace` -- in the query of a `GET`, in

@@ -1797,7 +1797,7 @@ returns the copy's path, or `None`.
 
 | Attribute | Meaning |
 | --- | --- |
-| `agent.id` | the given `name=`, the flow's role name, or a codename |
+| `agent.id` | the given `name=`, or a codename; it never changes, and a flow's role is not it |
 | `agent.backend` | the backend's name, or an ACP CLI's |
 | `agent.opened` | every session id it opened, oldest first |
 | `agent.sessions` | the sessions still held |
@@ -1812,8 +1812,8 @@ No codename repeats in one process.
 
 `agent.clone(*, config=None, name=None, skills=None)` makes a fresh agent: same settings unless
 given, no conversations, spending, watchers or hooks, a new codename unless named; it spends the
-same allowance. `reconfigure(config)`, `runs_on(machine)`, `loads(skills)`, `rename(name)` and
-`disable_goals()` change an agent in place; flows have none of them, only `derive`.
+same allowance. `reconfigure(config)`, `runs_on(machine)`, `loads(skills)` and `disable_goals()`
+change an agent in place; flows have none of them, only `derive`.
 
 ### The person as an agent {#the-person-as-an-agent}
 

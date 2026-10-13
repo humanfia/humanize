@@ -58,7 +58,8 @@ class Agent:
 
     counts: frozenset[str] = frozenset({"turns"})
 
-    id: str = "builder"
+    #: Its own name, not the role it fills.
+    id: str = "NeiKos496"
     backend: str = "claude"
     config: Config = field(default_factory=Config)
     sessions: list[Session] = field(default_factory=list[Session])
@@ -88,7 +89,7 @@ def test_an_event_is_written_down_the_one_way_every_frontend_reads_it() -> None:
         Agent(),
         Session(named="abc"),
         Event("result", "done", tokens={"out": 3}, spent={"cost": 0.5}),
-        key="builder/2",
+        key="NeiKos496/2",
         run=3,
     )
 
@@ -110,14 +111,22 @@ def test_an_event_is_written_down_the_one_way_every_frontend_reads_it() -> None:
         "mono",
     }
     assert said["type"] == "event"
-    assert (said["run"], said["key"], said["session"]) == (3, "builder/2", "builder/2")
-    assert (said["agent"], said["cli"], said["model"]) == ("builder", "claude", "opus")
+    assert (said["run"], said["key"], said["session"]) == (
+        3,
+        "NeiKos496/2",
+        "NeiKos496/2",
+    )
+    assert (said["agent"], said["cli"], said["model"]) == (
+        "NeiKos496",
+        "claude",
+        "opus",
+    )
     assert (said["ident"], said["kind"], said["text"]) == ("abc", "result", "done")
     assert (said["tokens"], said["spent"]) == ({"out": 3}, {"cost": 0.5})
 
 
 def test_what_the_agent_said_for_every_conversation_names_none() -> None:
-    said = _record(Agent(), None, Event(), key="builder")
+    said = _record(Agent(), None, Event(), key="NeiKos496")
 
     assert (said["session"], said["ident"], said["run"]) == ("", "", 0)
     assert _record(Agent(), Session(), Event())["ident"] == ""
@@ -153,6 +162,7 @@ class FakeRun:
     blind: str = ""
     raises: BaseException | None = None
     agents: list[Agent] = field(default_factory=list[Agent])
+    names: dict[str, str] = field(default_factory=lambda: {"builder": "NeiKos496"})
     listener: Callable[..., None] | None = None
     opener: Callable[..., None] | None = None
     noticer: Callable[[str], None] | None = None
@@ -502,6 +512,7 @@ def test_a_flow_started_is_said_to_every_frontend(
     )
     assert (started["by"], started["client"]) == ("alice", alice.client)
     assert started["roles"] == ["builder"]
+    assert started["names"] == {"builder": "NeiKos496"}
     assert started["outworlders"] == ["outworlder"]
     assert started["agents"] == {"builder": "claude/opus"}
     assert started["envs"] == {"box": "local/x"}
@@ -739,7 +750,7 @@ def test_a_line_waits_and_what_never_went_is_said_when_the_run_ends(
     alice = Told(host, "alice")
     run = _started(alice, where)
 
-    assert alice.asks("say", text="also tests", to="builder") == {"ok": True}
+    assert alice.asks("say", text="also tests", to="NeiKos496") == {"ok": True}
 
     alice.waits(
         lambda one: (
@@ -767,7 +778,7 @@ def _heard(run: FakeRun, agent: Agent, session: Session | None, event: Event) ->
     run.listener(agent, session, event)
 
 
-def test_a_session_opened_is_numbered_for_its_role(
+def test_a_session_opened_is_numbered_for_its_agent_and_says_its_role(
     host: Host, where: Workspace
 ) -> None:
     alice = Told(host, "alice")
@@ -777,10 +788,10 @@ def test_a_session_opened_is_numbered_for_its_role(
     _opened(run, agent, Session(forks=True))
     _opened(run, agent, Session())
 
-    first = alice.told("opened", key="builder/1")
+    first = alice.told("opened", key="NeiKos496/1")
     assert (first["role"], first["agent"], first["cli"], first["model"]) == (
         "builder",
-        "builder",
+        "NeiKos496",
         "claude",
         "opus",
     )
@@ -790,10 +801,10 @@ def test_a_session_opened_is_numbered_for_its_role(
         ["turns"],
     )
     assert (first["kept"], first["env"], first["harness"]) == ("", None, "")
-    alice.told("opened", key="builder/2")
+    alice.told("opened", key="NeiKos496/2")
     alice.waits(
         lambda one: (
-            one["type"] == "sessions" and one["open"] == ["builder/1", "builder/2"]
+            one["type"] == "sessions" and one["open"] == ["NeiKos496/1", "NeiKos496/2"]
         )
     )
     run.released.set()
@@ -813,16 +824,16 @@ def test_what_a_turn_says_is_told_on_its_conversations_transcript(
 
     said = alice.told("event", text="working on it")
     assert (said["key"], said["session"], said["ident"], said["run"]) == (
-        "builder/1",
-        "builder/1",
+        "NeiKos496/1",
+        "NeiKos496/1",
         "abc",
         1,
     )
     alice.waits(
-        lambda one: one["type"] == "sessions" and one["working"] == ["builder/1"]
+        lambda one: one["type"] == "sessions" and one["working"] == ["NeiKos496/1"]
     )
     # What no one conversation said goes on the one working.
-    assert alice.told("event", text="for all of them")["key"] == "builder/1"
+    assert alice.told("event", text="for all of them")["key"] == "NeiKos496/1"
     _heard(run, agent, session, Event("ends"))
     alice.waits(lambda one: one["type"] == "sessions" and one["working"] == [])
     run.released.set()
@@ -849,7 +860,7 @@ def test_a_line_goes_into_the_turn_working_and_is_said_once_the_agent_has_it(
     )
     _heard(run, agent, session, Event("took", "use the fixture"))
     said = alice.told("said", text="use the fixture")
-    assert (said["key"], said["by"]) == ("builder/1", "alice")
+    assert (said["key"], said["by"]) == ("NeiKos496/1", "alice")
     run.released.set()
 
 
@@ -865,7 +876,7 @@ def test_a_line_the_agent_refused_goes_back_to_the_head_of_the_queue(
     _opened(run, agent, session)
     _heard(run, agent, session, Event("begins"))
 
-    alice.asks("say", text="late word", to="builder/1")
+    alice.asks("say", text="late word", to="NeiKos496/1")
 
     refused = alice.told("refused", text="late word")
     assert refused["because"] == "turn is over"
@@ -885,13 +896,13 @@ def test_a_line_waiting_for_the_next_turn_is_folded_into_it(
     run = _started(alice, where)
     agent, session = Agent(), Session()
     _opened(run, agent, session)
-    alice.asks("say", text="next time", to="builder")
+    alice.asks("say", text="next time", to="NeiKos496")
 
     waiting = cast("Callable[[], list[str]]", agent.waiting)
 
     assert waiting() == ["next time"]
     assert waiting() == []
-    assert alice.told("said", text="next time")["key"] == "builder/1"
+    assert alice.told("said", text="next time")["key"] == "NeiKos496/1"
     run.released.set()
 
 
@@ -909,7 +920,7 @@ def test_what_an_agent_held_when_its_turn_ended_is_said(
 
     _heard(run, agent, session, Event("ends"))
 
-    assert alice.told("unheld", agent="builder")["texts"] == ["held word"]
+    assert alice.told("unheld", agent="NeiKos496")["texts"] == ["held word"]
     run.released.set()
 
 
@@ -1129,7 +1140,7 @@ def test_what_to_say_next_is_answered_by_the_oldest_line_waiting(
     run.released.set()
 
 
-@pytest.mark.parametrize("to", ["builder", "builder/1"])
+@pytest.mark.parametrize("to", ["NeiKos496", "NeiKos496/1"])
 def test_a_line_said_to_a_conversation_between_turns_answers_what_to_say_next(
     to: str, host: Host, where: Workspace, outworlders: Outworlders
 ) -> None:
@@ -1163,7 +1174,7 @@ def test_a_line_said_to_a_conversation_between_turns_of_another_flow_waits_for_i
     asking = Asking()(outworlders.ask, Question("which budget?"))
     alice.told("asked", run=1)
 
-    alice.asks("say", text="next time", to="builder/1")
+    alice.asks("say", text="next time", to="NeiKos496/1")
     alice.waits(
         lambda one: (
             one["type"] == "waiting"
@@ -1190,11 +1201,11 @@ def test_a_line_said_to_a_conversation_working_is_no_answer(
     assert outworlders.ask is not None
     asking = Asking()(outworlders.ask, Question("which?", ("a", "b")))
     asked = alice.told("asked", run=1)
-    assert (asked["mode"], asked["key"]) == ("ask", "builder/1")
+    assert (asked["mode"], asked["key"]) == ("ask", "NeiKos496/1")
     pending = alice.waits(lambda one: one["type"] == "pending" and one["pending"])
-    assert pending["pending"][0]["key"] == "builder/1"
+    assert pending["pending"][0]["key"] == "NeiKos496/1"
 
-    alice.asks("say", text="for the turn", to="builder/1")
+    alice.asks("say", text="for the turn", to="NeiKos496/1")
 
     assert session.given.wait(PATIENCE)
     assert not asking.done.is_set()
@@ -1277,7 +1288,7 @@ def test_a_run_with_no_board_has_nothing_to_put_on_it(host: Host) -> None:
     ("said", "why"),
     [
         ({}, "an aside is about a conversation, or asks an agent"),
-        ({"key": "builder/9"}, "builder/9 has no conversation to ask"),
+        ({"key": "NeiKos496/9"}, "NeiKos496/9 has no conversation to ask"),
         ({"side": "s9", "prompt": "hi"}, "no aside s9 is open"),
     ],
 )

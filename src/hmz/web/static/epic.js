@@ -3,9 +3,10 @@
 // who handed to whom -- off the records of the run going, as the terminal interface's monitor
 // works them out, or off the epic written down and, once read, the logs it kept.
 //
-// A session is named as the run going names it, `<role>/<n>`, the n-th its role opened; a run
-// written down names its sessions the same way, in the order they were opened, so an address
-// to a session stays one as its run ends.
+// An agent goes by its own name, never by the role it fills: the role is only a parameter it
+// was given, said beside the name. A session is named as the run going names it,
+// `<agent>/<n>`, the n-th its agent opened; a run written down names its sessions the same
+// way, in the order they were opened, so an address to a session stays one as its run ends.
 
 import { get, poll } from './api.js'
 import { lane, lasting } from './dom.js'
@@ -95,9 +96,9 @@ export function going(held) {
 export function turnsOf(records, offset) {
   const held = new Map()
   for (const record of records) {
-    if (record.type === 'opened' && !record.person) held.set(record.key, { key: record.key, role: record.role, cli: record.cli, model: record.model, turns: [] })
+    if (record.type === 'opened' && !record.person) held.set(record.key, { key: record.key, agent: record.agent || record.key.split('/')[0], role: record.role, cli: record.cli, model: record.model, turns: [] })
     if (record.type !== 'event' || !record.session) continue
-    if (!held.has(record.session)) held.set(record.session, { key: record.session, role: record.session.split('/')[0], cli: record.cli, model: record.model, turns: [] })
+    if (!held.has(record.session)) held.set(record.session, { key: record.session, agent: record.session.split('/')[0], role: '', cli: record.cli, model: record.model, turns: [] })
     const one = held.get(record.session)
     if (record.kind === 'begins') one.turns.push({ start: record.at, end: null })
     else if (record.kind === 'ends') {
@@ -133,8 +134,8 @@ function unread(epic, key, records) {
 export function sessionsOf(detail) {
   const counted = {}
   return detail.sessions.map((one) => {
-    counted[one.role] = (counted[one.role] || 0) + 1
-    return { ...one, key: `${one.role}/${counted[one.role]}`, traced: `${one.backend}:${one.ident}` }
+    counted[one.agent] = (counted[one.agent] || 0) + 1
+    return { ...one, key: `${one.agent}/${counted[one.agent]}`, traced: `${one.backend}:${one.ident}` }
   })
 }
 
@@ -145,38 +146,42 @@ export function live(held, run, detail) {
   const figures = held.figures
   const sessions = turnsOf(records, offset)
   const people = started.outworlders || []
-  const roles = [...(started.roles || Object.keys(started.agents || {}))]
-  for (const one of sessions) if (one.role && !roles.includes(one.role)) roles.push(one.role)
-  for (const one of people) if (!roles.includes(one)) roles.push(one)
+  // Each agent by its name, with the role it fills: one a host named none for by that role,
+  // and a person by the role it answers.
+  const names = started.names || {}
+  const roleOf = new Map((started.roles || Object.keys(started.agents || {})).map((role) => [names[role] || role, role]))
+  for (const one of sessions) if (one.agent && !roleOf.has(one.agent)) roleOf.set(one.agent, one.role || '')
+  for (const one of people) if (!roleOf.has(one)) roleOf.set(one, one)
   const working = new Set(((figures && figures.sessions) || []).filter((one) => one.working).map((one) => one.name))
   const now = Date.now() / 1000
   const starts = sessions.flatMap((one) => one.turns.map((turn) => turn.start))
   const from = started.at || Math.min(now, ...starts)
   const last = records.findLast((one) => one.at)
   const to = run.live ? now : Math.max(from + 1, last ? last.at : now, ...sessions.flatMap((one) => one.turns.map((turn) => turn.end || 0)))
-  const specs = Object.fromEntries(((detail && detail.agents) || []).map((one) => [one.role, one.runs]))
-  const agents = roles.map((role, index) => {
-    const figure = figures && figures.agents.find((one) => one.name === role)
-    const person = people.includes(role)
+  const specs = Object.fromEntries(((detail && detail.agents) || []).map((one) => [one.name, one.runs]))
+  const agents = [...roleOf].map(([name, role], index) => {
+    const figure = figures && figures.agents.find((one) => one.name === name)
+    const person = people.includes(name)
     const given = started.agents && typeof started.agents[role] === 'string' ? started.agents[role] : ''
     return {
+      name,
       role,
       person,
       color: lane(person ? -1 : index),
-      spec: person ? 'a person' : specs[role] || given,
+      spec: person ? 'a person' : specs[name] || given,
       working: Boolean(figure && figure.working),
       status: figure ? (figure.working ? `working ${figure.lasting}` : `idle ${figure.lasting}`) : person ? '' : 'not started',
-      turns: figure ? figure.turns : sessions.filter((one) => one.role === role).reduce((sum, one) => sum + one.turns.length, 0),
+      turns: figure ? figure.turns : sessions.filter((one) => one.agent === name).reduce((sum, one) => sum + one.turns.length, 0),
       tokens: figure ? figure.tokens : '',
       under: figure ? figure.under : [],
       sessions: sessions
-        .filter((one) => one.role === role)
+        .filter((one) => one.agent === name)
         .map((one) => ({ key: one.key, about: [one.cli, one.model].filter(Boolean).join(' · '), working: working.has(one.key) || one.turns.some((turn) => turn.end === null), turns: one.turns, unread: unread(epic, one.key, records) })),
     }
   })
   return {
     flow: started.flow,
-    frames: [{ flow: started.flow, roles }],
+    frames: [{ flow: started.flow, names: [...roleOf.keys()] }],
     agents,
     handovers: ((figures && figures.handovers) || []).filter((one) => one.from !== one.to),
     latest: figures && figures.latest,
@@ -189,27 +194,28 @@ export function live(held, run, detail) {
 /** What each agent of a run written down was, from its epic and -- once read -- its logs. */
 export function written(detail, traced) {
   const sessions = sessionsOf(detail)
-  const roles = [...new Set([...detail.agents.map((one) => one.role), ...sessions.map((one) => one.role)])]
+  const names = [...new Set([...detail.agents.map((one) => one.name), ...sessions.map((one) => one.agent)])]
   const turns = new Map((traced || []).map((one) => [one.key, one.actions.filter((action) => action.category === 'turn').map((action) => ({ start: action.start, end: action.start + action.seconds }))]))
-  const specs = Object.fromEntries(detail.agents.map((one) => [one.role, one.runs]))
+  const given = Object.fromEntries(detail.agents.map((one) => [one.name, one]))
   // The flows it ran, the one it was started with first: an agent is drawn in the flow its
   // first session was opened in.
-  const frames = [{ flow: detail.flow, roles: [] }]
-  for (const role of roles) {
-    const first = sessions.find((one) => one.role === role)
+  const frames = [{ flow: detail.flow, names: [] }]
+  for (const name of names) {
+    const first = sessions.find((one) => one.agent === name)
     const flow = first && first.flow ? first.flow : detail.flow
     let frame = frames.find((one) => one.flow === flow)
-    if (!frame) frames.push((frame = { flow, roles: [] }))
-    frame.roles.push(role)
+    if (!frame) frames.push((frame = { flow, names: [] }))
+    frame.names.push(name)
   }
-  const agents = roles.map((role, index) => {
-    const mine = sessions.filter((one) => one.role === role)
+  const agents = names.map((name, index) => {
+    const mine = sessions.filter((one) => one.agent === name)
     const count = mine.reduce((sum, one) => sum + (turns.get(one.traced) || []).length, 0)
     return {
-      role,
+      name,
+      role: given[name] ? given[name].role : '',
       person: false,
       color: lane(index),
-      spec: specs[role] || '',
+      spec: given[name] ? given[name].runs : '',
       working: false,
       status: traced ? `${count} turn${count === 1 ? '' : 's'}` : `${mine.length} session${mine.length === 1 ? '' : 's'}`,
       // Its status says them already.
@@ -223,18 +229,18 @@ export function written(detail, traced) {
   const began = Date.parse(detail.began) / 1000
   const from = all.length ? Math.min(...all.map((turn) => turn.start)) : began
   const to = all.length ? Math.max(...all.map((turn) => turn.end)) : detail.ended ? Date.parse(detail.ended) / 1000 : began + 1
-  return { flow: detail.flow, frames: frames.filter((one) => one.roles.length || one.flow === detail.flow), agents, handovers: traced ? handed(sessions, traced) : [], latest: null, from, to, live: false }
+  return { flow: detail.flow, frames: frames.filter((one) => one.names.length || one.flow === detail.flow), agents, handovers: traced ? handed(sessions, traced) : [], latest: null, from, to, live: false }
 }
 
-/** Who handed to whom in a run written down: each turn, in the order taken, after another role's. */
+/** Who handed to whom in a run written down: each turn, in the order taken, after another agent's. */
 function handed(sessions, traced) {
-  const roleOf = Object.fromEntries(sessions.map((one) => [one.traced, one.role]))
+  const agentOf = Object.fromEntries(sessions.map((one) => [one.traced, one.agent]))
   const taken = traced
-    .flatMap((one) => one.actions.filter((action) => action.category === 'turn').map((action) => ({ start: action.start, role: roleOf[one.key] || one.agent || one.key })))
+    .flatMap((one) => one.actions.filter((action) => action.category === 'turn').map((action) => ({ start: action.start, agent: agentOf[one.key] || one.agent || one.key })))
     .sort((a, b) => a.start - b.start)
   const counts = new Map()
   for (let index = 1; index < taken.length; index++) {
-    const [from, to] = [taken[index - 1].role, taken[index].role]
+    const [from, to] = [taken[index - 1].agent, taken[index].agent]
     if (from === to) continue
     counts.set(`${from}\n${to}`, (counts.get(`${from}\n${to}`) || 0) + 1)
   }

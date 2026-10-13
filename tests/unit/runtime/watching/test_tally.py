@@ -123,7 +123,7 @@ def test_reported_says_the_kinds_a_backend_log_holds(
 def test_a_session_whose_logs_are_not_there_tells_nothing(
     home: Path, told: _Told
 ) -> None:
-    tally = _tally(told, Seen("builder", "claude", "opus", idents=frozenset({"s1"})))
+    tally = _tally(told, Seen("NeiKos496", "claude", "opus", idents=frozenset({"s1"})))
 
     tally.read()
 
@@ -159,7 +159,7 @@ def test_claude_spending_is_read_by_kind_and_said_as_read(
     tally = _tally(
         told,
         Seen(
-            "builder",
+            "NeiKos496",
             "claude",
             "opus",
             counts=frozenset({"reasoning"}),
@@ -176,7 +176,7 @@ def test_claude_spending_is_read_by_kind_and_said_as_read(
             {"input": 10.0, "output": 20.0, "cache_read": 30.0, "cache_write": 40.0},
         )
     }
-    assert told.reports == {"builder": reported("claude") | {"reasoning"}}
+    assert told.reports == {"NeiKos496": reported("claude") | {"reasoning"}}
 
 
 def test_a_claude_message_said_on_several_rows_is_counted_once(

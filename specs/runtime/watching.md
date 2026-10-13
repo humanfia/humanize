@@ -38,7 +38,8 @@ def thousands(count: float) -> str: ...
 def short(agent: str) -> str: ...
 def tallied(monitor: Monitor) -> tuple[str, str] | None: ...  # the kinds line, the money line
 # tally.py -- what a run has spent, read off the logs its agents keep
-class Seen: ...  # one session: id, backend, model, counts, idents, kept, since
+class Seen: ...  # one session: id (its agent's name), backend, model, counts, idents, kept,
+                # since, role
 class Tally:
     def __init__(self, sessions: Sequence[Seen], monitor: Monitor) -> None: ...
     def add(self, session: Seen) -> None: ...
@@ -51,7 +52,7 @@ class Following:
     run: int
     monitor: Monitor
     tally: Tally
-    seen: dict[str, Seen]  # by `<role>/<n>`
+    seen: dict[str, Seen]  # by `<agent>/<n>`
     def started(self, record: Mapping[str, Any]) -> None: ...
     def opened(self, record: Mapping[str, Any]) -> Seen | None: ...
     def heard(self, record: Mapping[str, Any]) -> str | None: ...
@@ -69,7 +70,7 @@ def format_turn(question: str) -> str: ...
 def format_answers(answers: list[tuple[str, str]], *, more: bool) -> str: ...
 def asked(answer: str) -> tuple[list[tuple[str, str]], str]: ...
 def compact(text: str, limit: int = ...) -> str: ...
-def opened_as(chosen: str, roles: Mapping[str, str],
+def opened_as(chosen: str, agents: Mapping[str, str],
               sessions: Sequence[str]) -> dict[str, str] | None: ...
 class Left(Exception): ...
 class Btw:
@@ -105,15 +106,16 @@ class Btw:
 - `lasting` MUST say a clock as every frontend says it: seconds under a minute, minutes and
   seconds under an hour, hours and minutes above.
 - What a side question is told MUST be bounded, MUST be the run in front alone -- what its
-  agents did and said, and what its flow printed -- MUST leave out an agent's thinking, and
-  MUST start empty with each run.
+  agents did and said, and what its flow printed -- MUST leave out an agent's thinking, MUST
+  say each agent by its own name with the role it fills after it, and MUST start empty with
+  each run.
 - A side question MUST go to a side conversation and never to the run: in a conversation's
   name, to a read-only fork of it where its CLI forks one, and where the fork will not open or
   will not answer, to a copy of its agent told the snapshot; otherwise to the btw agent, told
   the snapshot and the conversations it may ask by `@ask <conversation>: <question>`, at most
   `HOPS` of them on one question, each answered back to it.
-- The btw agent MUST be the agent `/settings` names; else the flow's first role, as its first
-  conversation where it has one or as the agent it runs as; else the run's first conversation;
-  and none where there is none of these.
+- The btw agent MUST be the agent `/settings` names; else the agent of the flow's first role, as
+  its first conversation where it has one or as what it runs as; else the run's first
+  conversation; and none where there is none of these.
 - A mode left MUST close every side conversation it opened, and one that opens after it was
   left MUST be closed at once, the question that opened it raising `Left`.
