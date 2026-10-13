@@ -188,7 +188,11 @@ class Remotes:
     def asks(self, name: str) -> tuple[int, dict[str, str]]: ...  # port, headers to send
     def asked(self, name: str, path: str, body: dict[str, Any] | None = None, *,
               into: Path | None = None) -> Any: ...  # its interface's answer, or bytes written
+    def followed(self, name: str, path: str, going: threading.Event
+                 ) -> Iterator[tuple[str, Any]]: ...  # each server-sent event, name and data
     def close(self) -> None: ...
+CARRIED: tuple[str, ...]  # general, fallback, runtimes, backup: what a batch apply carries
+def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]: ...  # address, body
 
 # flows.py -- the flows there are, and the places they come from. What each of these answers
 # is `hmz.runtime.flowing`'s to say, and flowing.md carries the contract.

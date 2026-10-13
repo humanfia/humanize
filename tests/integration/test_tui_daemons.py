@@ -12,19 +12,31 @@ from importlib.metadata import version
 from typing import TYPE_CHECKING
 
 import pytest
+from textual.widgets import OptionList
 
 from hmz.runtime import Hmz
 from hmz.runtime.epic import Epic
 from hmz.tui import Humanize
-from hmz.tui.pick import Acts, Daemoning, Epics, Exporting, RemoteEpics
+from hmz.tui.afar import Afar
+from hmz.tui.pick import (
+    Acts,
+    Batching,
+    Daemoning,
+    Epics,
+    Exporting,
+    RemoteEpics,
+    Starting,
+)
 from hmz.tui.settings import Adjusts
 from tests.integration.doubles_ssh import Host, faked
 from tests.integration.doubles_tui import (
+    MODEL,
     SIZE,
     leaves,
     on,
     onto,
     opened,
+    picks,
     shows,
     stand_in,
     typed,
@@ -128,3 +140,65 @@ async def test_epics_of_no_such_daemon_are_refused(host: Host) -> None:
         await opened(pilot)
         await typed(pilot, "/epics @nowhere")
         await shows(pilot, "/epics takes a daemon as @<name>: choose @local")
+
+
+async def test_settings_are_batch_applied_to_another_daemon(host: Host) -> None:
+    Hmz().daemons.write("box", {"host": "box.example"})
+    Hmz().settings.detailing(on=True)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/settings daemons")
+        await on(pilot, Adjusts)
+        await shows(pilot, "box.example")
+
+        await pilot.click("#act-batch")
+        await on(pilot, Batching)
+        await shows(pilot, "general", "fallback", "runtimes", "backup", "box")
+        await picks(pilot, "daemon:box", "on")
+        await pilot.click("#act-done")
+        await on(pilot, Adjusts)
+        await shows(pilot, "box: applied")
+
+    here = os.environ["HUMANIZE_HOME"]
+    os.environ["HUMANIZE_HOME"] = str(host.humanize)
+    try:
+        assert Hmz().settings.details
+    finally:
+        os.environ["HUMANIZE_HOME"] = here
+
+
+async def test_an_epic_is_started_on_another_daemon_and_followed_here(
+    host: Host,
+) -> None:
+    Hmz().daemons.write("box", {"host": "box.example"})
+    project = host.home / "project"
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/epics @box")
+        await on(pilot, RemoteEpics)
+        await shows(pilot, "tidy the far project")
+
+        await pilot.press("n")
+        await on(pilot, Starting)
+        await pilot.press(*str(project), "enter")
+        await pilot.press(*"hello", "enter")
+        await pilot.press(*f"assistant=claude/{MODEL}:high", "enter")
+        await pilot.click("#act-done")
+        await on(pilot, Afar)
+        await shows(pilot, "❯ hello", "heard hello", "waiting for you")
+
+        await pilot.press(*"again", "enter")
+        await shows(pilot, "❯ again", "heard again")
+        await pilot.press("escape")
+        await on(pilot, RemoteEpics)
+        await shows(pilot, "· chat")
+
+        # Followed again from its own menu, while a host there holds it: the newest.
+        listing = pilot.app.screen.query_one("#choices", OptionList)
+        await _menu(pilot, str(listing.options[0].id).removeprefix("="))
+        await onto(pilot, "follow")
+        await pilot.press("enter")
+        await on(pilot, Afar)
+        await shows(pilot, "heard again")
+        await pilot.press("escape")
+        await on(pilot, RemoteEpics)

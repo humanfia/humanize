@@ -42,12 +42,14 @@ if TYPE_CHECKING:
     from hmz.coganchor.transport import Road
 
 __all__ = [
+    "CARRIED",
     "FAILED",
     "LOCAL",
     "UP",
     "Daemons",
     "Remotes",
     "Unreached",
+    "carried",
     "forwarding",
     "headers",
     "road",
@@ -74,6 +76,88 @@ _FIELDS = (
     "alias",
     "config",
 )
+
+
+#: The settings a batch apply carries from one daemon to others, by the page each is set on:
+#: never the accounts, which only a secret sets.
+CARRIED = ("general", "fallback", "runtimes", "backup")
+
+
+def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
+    """What one daemon's settings are written to another with, as its web interface takes them.
+
+    What its Settings pages' `Batch apply` sends, so that a frontend copying them sends the
+    same: each address and what is written there, of the pages asked for. A backup target's
+    URL goes with nothing signed into it, so a target that signs in is refused there rather
+    than its secret carried.
+
+    Args:
+      hmz: The daemon's own humanize, whose settings are carried.
+      pages: Which of :data:`CARRIED`.
+
+    Returns:
+      Each address and its body, in the order they are written.
+    """
+    settings = hmz.settings
+    sent: list[tuple[str, dict[str, Any]]] = []
+    if "general" in pages:
+        general: dict[str, Any] = {"btw": settings.btw, "details": settings.details}
+        if settings.enable_sentry is not None:
+            general["reports"] = settings.enable_sentry
+        sent.append(("/api/settings", general))
+    if "fallback" in pages:
+        sent += [
+            (
+                "/api/fallbacks",
+                {
+                    "spec": one.spec,
+                    "to": list(one.to),
+                    "tries": one.tries,
+                    "policy": one.policy,
+                    "timeout": one.timeout,
+                },
+            )
+            for one in hmz.fallbacks.all()
+        ]
+    if "runtimes" in pages:
+        for one in hmz.runtimes.all():
+            fields = dict(one.held())
+            backend, name = fields.pop("backend"), fields.pop("name")
+            fields.pop("made", None)
+            sent.append(
+                (
+                    "/api/runtimes",
+                    {
+                        "backend": backend,
+                        "name": name,
+                        "fields": fields,
+                        "replace": True,
+                    },
+                )
+            )
+    if "backup" in pages:
+        targets = [
+            {
+                "name": one.name,
+                "url": hmz.verses.plain(one.url),
+                "branch": one.branch,
+                "policies": list(one.policies),
+                "every": one.every,
+            }
+            for one in hmz.backups.targets()
+        ]
+        sent.append(
+            (
+                "/api/settings",
+                {
+                    "backup": {
+                        "targets": targets,
+                        "defaults": list(hmz.backups.defaults()),
+                    }
+                },
+            )
+        )
+    return sent
 
 
 class Unreached(RuntimeError):  # noqa: N818 -- what it is, as `Refused` is named
@@ -953,6 +1037,46 @@ class Remotes:
         finally:
             beside.unlink(missing_ok=True)
         return written
+
+    def followed(
+        self, name: str, path: str, going: threading.Event
+    ) -> Iterator[tuple[str, Any]]:
+        """Each server-sent event a daemon's interface says at one address, as it says it.
+
+        Args:
+          name: The daemon.
+          path: What is followed there, `/api/...` and its query.
+          going: Set to stop following, which the next word from there or its quiet ends.
+
+        Yields:
+          Each event's name and its data, read as JSON, until the stream ends.
+
+        Raises:
+          Unreached: If it is not up, or refused, saying why.
+          LookupError: If none is called that.
+        """
+        port, said = self.asks(name)
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=_ASKING)
+        try:
+            connection.request("GET", path, headers=said)
+            answer = connection.getresponse()
+            if answer.status >= 300:  # noqa: PLR2004 -- any status but a success
+                raise Unreached(
+                    f"{name} answered {answer.status}", status=answer.status
+                )
+            event, data = "", list[str]()
+            while not going.is_set() and (line := answer.readline()):
+                heard = line.decode().rstrip("\r\n")
+                if heard.startswith("event:"):
+                    event = heard[6:].strip()
+                elif heard.startswith("data:"):
+                    data.append(heard[5:].removeprefix(" "))
+                elif not heard:
+                    if event and data:
+                        yield event, json.loads("\n".join(data))
+                    event, data = "", []
+        finally:
+            connection.close()
 
     def close(self) -> None:
         """Stops reaching every daemon, every process started for one stopped and reaped."""

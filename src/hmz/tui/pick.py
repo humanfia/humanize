@@ -109,6 +109,7 @@ if TYPE_CHECKING:
     )
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
+    from hmz.daemon.link import Link
     from hmz.runtime.epic import Ran
     from hmz.runtime.flowing import AgentRole, EnvRole
 
@@ -10130,6 +10131,83 @@ class Bringing(Form[tuple[str, ...]]):
         self.dismiss(tuple(one for one, said in self._typed_in.items() if said == _YES))
 
 
+#: Writing this machine's settings to other daemons, from the daemons page.
+_ACT_BATCH = "batch"
+
+#: What a row of the batch apply form is of: a page carried, or a daemon it is carried to.
+_PAGE_ROW, _DAEMON_ROW = "page:", "daemon:"
+
+
+class Batching(Form[tuple[tuple[str, ...], tuple[str, ...]]]):
+    """What this machine's settings are copied to other daemons with, as the web's Batch apply.
+
+    A switch per page that can be carried -- on -- and one per daemon to carry it to -- off --
+    each answered as every switch on a form is. Never the accounts, which only a secret sets.
+    """
+
+    def __init__(self, daemons: Sequence[str]) -> None:
+        """Initializes the form on every page carried, to no daemon yet.
+
+        Args:
+          daemons: Every daemon there is to carry them to, by name.
+        """
+        from hmz.runtime.doing.daemons import CARRIED
+
+        super().__init__()
+        self._pages = CARRIED
+        self._daemons = tuple(daemons)
+        self._typed_in = {
+            **{f"{_PAGE_ROW}{one}": _YES for one in self._pages},
+            **{f"{_DAEMON_ROW}{one}": _NO for one in self._daemons},
+        }
+
+    def asked(self) -> list[Question]:
+        """A switch per page, then one per daemon."""
+        return [
+            *(
+                Question(f"{_PAGE_ROW}{one}", one, "carried", _STEPS)
+                for one in self._pages
+            ),
+            *(
+                Question(f"{_DAEMON_ROW}{one}", one, "written to", _STEPS)
+                for one in self._daemons
+            ),
+        ]
+
+    def choices(self, held: str) -> Sequence[str]:
+        """On and off."""
+        del held
+        return (_YES, _NO)
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "writes the pages switched on to each daemon switched on"
+
+    def _ask(self) -> None:
+        """Says what this is for."""
+        self.query_one("#asked", Label).update("Batch apply")
+        self.query_one("#about", Label).update(
+            "This machine's settings, written to other daemons as each of their pages saves "
+            "them. Accounts stay put: only a secret sets them."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the pages and the daemons switched on, once one of each is."""
+        on = [held for held, said in self._typed_in.items() if said == _YES]
+        pages = tuple(
+            one.removeprefix(_PAGE_ROW) for one in on if one.startswith(_PAGE_ROW)
+        )
+        daemons = tuple(
+            one.removeprefix(_DAEMON_ROW) for one in on if one.startswith(_DAEMON_ROW)
+        )
+        if not pages or not daemons:
+            self._wrong = "switch on a page and a daemon"
+            self._fill()
+            return
+        self.dismiss((pages, daemons))
+
+
 #: What can be done to one daemon of another machine, which is its menu.
 _CONNECTS, _EDITS = "connect", "edit"
 
@@ -10195,8 +10273,56 @@ class Daemons(Pages):
                 "hosts of your ssh config",
                 self._brings_daemons,
             ),
+            Action(
+                _ACT_BATCH,
+                "batch apply…",
+                "this machine's settings, written to other daemons",
+                self._batches,
+                lambda: bool(self._daemons),
+            ),
             self._searches(),
         ]
+
+    @work
+    async def _batches(self) -> None:
+        """Asks which settings go to which daemons, writes them there, and says how each went."""
+        import asyncio
+
+        from hmz.runtime.doing.daemons import carried
+
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            chosen = await showing.push_screen_wait(
+                Batching([one["name"] for one in self._daemons])
+            )
+        finally:
+            self.opened()
+        if chosen is None:
+            return
+        pages, daemons = chosen
+        sent = carried(_hmz(), pages)
+        self._said = f"applying to {', '.join(daemons)}…"
+        self._fill()
+
+        def applies(name: str) -> str:
+            try:
+                for path, body in sent:
+                    remotes().asked(name, path, body)
+            except (LookupError, OSError, RuntimeError) as why:
+                return f"{name}: {why}"
+            return f"{name}: applied"
+
+        said = await asyncio.gather(
+            *(asyncio.to_thread(applies, one) for one in daemons)
+        )
+        self._said = escape(_DOT.join(said))
+        self._told.append(f"[dim]{self._said}[/dim]")
+        self._fill()
 
     def _fill_daemons(self) -> None:
         """Puts the daemons up, each saying what reaches it and how it stands."""
@@ -11716,6 +11842,146 @@ def _switching(sheet: Sheet[Doing], current: str, told: list[str]) -> Action:
     )
 
 
+#: Starting an epic on another daemon, and following one going there.
+_ACT_STARTS, _ATTACHES = "start", "follow"
+
+#: The rows a new epic on another daemon is asked on: where it runs there, which flow, what it
+#: is to do, and what its agents run.
+_THERE, _RUNS, _TASK, _GIVEN = "workspace", "flow", "task", "agents"
+
+
+class Starting(Form[tuple[str, str, str, dict[str, str]]]):
+    """A new epic on another daemon: the directory there it runs in, its flow, task and agents.
+
+    Set up there as that directory last ran the flow, as its web page starts one, but for the
+    agents said here as `-a` spells them.
+    """
+
+    def __init__(self, daemon: str, workspace: str) -> None:
+        """Initializes the form on the directory that daemon's interface started in, and chat.
+
+        Args:
+          daemon: The daemon, by name.
+          workspace: Where it runs unless another directory there is said.
+        """
+        super().__init__()
+        self._daemon = daemon
+        self._typed_in = {_THERE: workspace, _RUNS: _CHAT, _TASK: "", _GIVEN: ""}
+        # Each a guess, which the first letter typed into it replaces.
+        self._fresh |= {_THERE, _RUNS}
+
+    def asked(self) -> list[Question]:
+        """Where, which flow, what to do, and what runs it."""
+        typed = self._typed_in
+        return [
+            Question(
+                _THERE,
+                "workspace",
+                f"a directory on {self._daemon}",
+                needed=not typed[_THERE].strip(),
+            ),
+            Question(
+                _RUNS,
+                "flow",
+                "the flow, as -f names it",
+                needed=not typed[_RUNS].strip(),
+            ),
+            Question(
+                _TASK, "task", "what it is to do", needed=not typed[_TASK].strip()
+            ),
+            Question(
+                _GIVEN,
+                "agents",
+                "role=cli/model:effort, …; blank for what that directory last ran",
+            ),
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return f"starts the epic on {self._daemon}"
+
+    def _ask(self) -> None:
+        """Says what this is."""
+        self.query_one("#asked", Label).update("New epic")
+        self.query_one("#about", Label).update(
+            f"An epic on {escape(self._daemon)}, set up as that directory last ran the flow, "
+            "and followed here once it starts."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with where, which flow, what and what runs it, once each is said."""
+        typed = {key: value.strip() for key, value in self._typed_in.items()}
+        missing = [key for key in (_THERE, _RUNS, _TASK) if not typed[key]]
+        given = [one.strip() for one in typed[_GIVEN].split(",") if one.strip()]
+        self._wrong = ""
+        if missing:
+            self._wrong = f"{missing[0]} is required"
+        elif wrong := next((one for one in given if "=" not in one), ""):
+            self._wrong = f"agents: '{wrong}' is not role=agent"
+        if self._wrong:
+            self._fill()
+            return
+        roles = dict(one.split("=", 1) for one in given)
+        self.dismiss((typed[_THERE], typed[_RUNS], typed[_TASK], roles))
+
+
+def _started_afar(
+    daemon: str, workspace: str, flow: str, task: str, given: Mapping[str, str]
+) -> Link:
+    """Starts an epic on another daemon as its web page does, and follows that directory.
+
+    Args:
+      daemon: The daemon, by name.
+      workspace: The directory there.
+      flow: The flow.
+      task: What it is to do.
+      given: What some of its agent roles run, by role, over what that directory last ran.
+
+    Returns:
+      The link the epic is followed by, the epic started.
+
+    Raises:
+      OSError: If that daemon would not follow or start it, saying why.
+    """
+    import urllib.parse
+
+    from hmz.daemon.link import remote
+    from hmz.runtime import Refused
+
+    reach = remotes()
+    set_up = reach.asked(
+        daemon,
+        "/api/flow?" + urllib.parse.urlencode({"name": flow, "workspace": workspace}),
+    )
+    kept: dict[str, Any] = dict(_field(set_up, "remembered") or {})
+    agents = {**dict(kept.get("agents") or {}), **given}
+    for role in cast("list[dict[str, Any]]", _field(set_up, "agents") or []):
+        if (
+            role.get("required")
+            and not role.get("auto")
+            and not agents.get(role["name"])
+        ):
+            raise OSError(
+                f"{role['name']} runs nothing there yet: say it as "
+                f"{role['name']}=<cli>/<model>:<effort>"
+            )
+    link = remote(reach, daemon, workspace)
+    try:
+        link.start(
+            flow,
+            task,
+            agents=agents,
+            envs=kept.get("envs") or {},
+            params=kept.get("params"),
+            budget=kept.get("budget") or None,
+        )
+    except Refused as why:
+        link.close()
+        raise OSError(str(why)) from why
+    return link
+
+
 class RemoteEpics(Sheet[Doing]):
     """Every epic of a daemon on another machine, newest first, and what to do with one.
 
@@ -11723,6 +11989,8 @@ class RemoteEpics(Sheet[Doing]):
     what an epic there offers is what can be done from here -- its archive brought here,
     backing it up there, and copying what it is -- and the rest is that machine's own.
     """
+
+    BINDINGS: ClassVar = [Binding("n", "starts", "new epic", show=False)]
 
     def __init__(self, daemon: str) -> None:
         """Reads the epics of one daemon.
@@ -11783,12 +12051,83 @@ class RemoteEpics(Sheet[Doing]):
                 return ran
 
     def actions(self) -> list[Action]:
-        """Searching them, reading them again, and turning to another daemon."""
+        """Searching them, starting one there, reading them again, and turning to another daemon."""
         return [
             self._searches(),
+            Action(
+                _ACT_STARTS,
+                "new epic…",
+                f"start an epic on {self._daemon} and follow it",
+                self.action_starts,
+            ),
             Action(_ACT_AGAIN, "refresh", "read the epics again", self._rereads),
             _switching(self, self._daemon, self._told),
         ]
+
+    @work
+    async def action_starts(self) -> None:
+        """Asks what to start there, starts it, and follows it here."""
+        import asyncio
+
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            here = await asyncio.to_thread(remotes().asked, self._daemon, "/api/held")
+        except (LookupError, OSError, RuntimeError) as why:
+            self.opened()
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        try:
+            chosen = await showing.push_screen_wait(
+                Starting(self._daemon, str(_field(here, "here") or ""))
+            )
+        finally:
+            self.opened()
+        if chosen is None:
+            return
+        workspace, flow, task, given = chosen
+        self._said = f"starting {escape(flow)} on {escape(self._daemon)}…"
+        self._fill()
+        try:
+            link = await asyncio.to_thread(
+                _started_afar, self._daemon, workspace, flow, task, given
+            )
+        except (LookupError, OSError, RuntimeError) as why:
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        self._said = ""
+        await self._follows(workspace, link)
+
+    async def _attaches(self, workspace: str) -> None:
+        """Follows the runs of one directory there, the epic going in it among them."""
+        import asyncio
+
+        from hmz.daemon.link import remote
+
+        try:
+            link = await asyncio.to_thread(remote, remotes(), self._daemon, workspace)
+        except OSError as why:
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        await self._follows(workspace, link)
+
+    async def _follows(self, workspace: str, link: Link) -> None:
+        """Opens what a link follows there, and reads the list again once it is left."""
+        from .afar import Afar
+
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        await showing.push_screen_wait(Afar(self._daemon, workspace, link))
+        self._rereads()
 
     def enters(self, row: str) -> bool:
         """Every row is an epic, which the arrow right opens the menu of."""
@@ -11869,6 +12208,20 @@ class RemoteEpics(Sheet[Doing]):
         return (
             name,
             [
+                *(
+                    [
+                        Action(
+                            _ATTACHES,
+                            "follow",
+                            "read it as it goes, and say something to it",
+                            lambda: self.run_worker(
+                                self._attaches(str(one.get("workspace", "")))
+                            ),
+                        )
+                    ]
+                    if one.get("held")
+                    else []
+                ),
                 Action(
                     _EXPORTS,
                     "export",

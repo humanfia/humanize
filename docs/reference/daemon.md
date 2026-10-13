@@ -478,8 +478,17 @@ def attach(kind: str, name: str = "", *, workspace=None) -> Link: ...
 def linked(host: Host, name: str = "", kind: str = "tui", *, replay: bool = True) -> Link: ...
 def reached(at: Path, workspace: str, name: str = "", kind: str = "sdk", *,
             replay: bool = True) -> Link: ...
+def remote(remotes: Remotes, daemon: str, workspace: str) -> Link: ...
 Hmz, Host, Refused                                  # hmz.runtime's, fetched on access
 ```
+
+`hmz.daemon.link.remote` reaches the runs of a workspace on another machine through that
+machine's `hmz web`, reached over ssh as `/epics @<name>` reaches it: each request is posted to
+`/api/held/<do>` with the workspace (a refusal answered `{"ok": false, "why": …}`, raised as
+`Refused`), and its `/api/held/stream` is told to the link -- every `record` and `standing`
+event's data, then `gone` where the stream says `gone` or `again` or ends. The link's `client`
+is the one that interface says it is; `OSError` where it says nothing within 30 s. `close()`
+stops following.
 
 `attach` is how `hmz` and `hmz web` reach runs held apart from them: it finds the host holding
 the workspace's runs, or starts the daemon and one where none is, and links to it as `kind`,

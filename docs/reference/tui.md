@@ -1191,14 +1191,37 @@ ssh as the [Daemons page](#daemons-page) reaches it, off the screen.
 | Title | `Epics on <daemon>` |
 | About | `Every epic <daemon> holds, newest first: workspace, task, status, and session count.` |
 | Rows | `YYYY-MM-DD HH:MM · <flow>`, about `<workspace> · <task\|no task> · <n> session(s) · <how>` |
-| Buttons | **Search…** (flow, task, run name, workspace); **Refresh**; **Daemon…**, as above |
+| Buttons | **Search…** (flow, task, run name, workspace); **New epic…**, as `n`; **Refresh**; **Daemon…**, as above |
 | Keys | `enter menu   / search   tab actions   esc close` |
 | Empty | `reaching <daemon>…` while it is read; `no epic on <daemon> yet`; or why it was not reached, in red |
 
 `enter`, `m` or a click opens the epic's menu: **export** (not while it runs: the
 [Export run](#the-runs-that-have-already-happened) form, the archive that daemon makes brought
 here, `<path> · <size>`), **upload** (backs it up there: `backing <name> up to <a>, <b>`),
-**copy name**, **copy task** and **copy workspace**.
+**copy name**, **copy task** and **copy workspace**; and first, on an epic a host there holds,
+**follow** (`read it as it goes, and say something to it`).
+
+**New epic…** opens **New epic**: `workspace` (`a directory on <daemon>`, the directory that
+daemon's interface started in until a letter is typed), `flow` (`the flow, as -f names it`,
+`chat` until a letter is typed), `task` (`what it is to do`) and `agents` (`role=cli/model:effort,
+…; blank for what that directory last ran`); **Done** `starts the epic on <daemon>`. Errors:
+`<row> is required`, `agents: '<one>' is not role=agent`; under the list in red, why it did not
+start -- `<role> runs nothing there yet: say it as <role>=<cli>/<model>:<effort>`, or what that
+daemon refused. Set up otherwise as that directory last ran the flow there, the epic starts
+and is followed.
+
+#### Following an epic there {#afar}
+
+`<workspace> · <daemon>` across the top, then `The runs of this directory on <daemon>, as its
+own web page reads them. A line typed is said to the run, or answers what it asks.` The
+transcript: `— <flow> started —`, `❯ <task>` and each line said or answer given, `⏺ <words>`
+of each agent's turn, `⏺ <agent> is working` as one begins, `? <question>` (not what a flow
+waiting on its next line says back), `hmz: <failure>` in red, `— the flow is <how> —`; the whole
+run so far first. Under it how it stands: `waiting for you`, a chat's `running` or `done`, the
+run's state, `nothing running`, or why that daemon let it go, in red. Then the line: `enter`
+answers what the run asks of whoever this end answers as, else says it to the run; what is
+refused is said in red. `esc` comes back to the list, leaving the run going there. Keys `enter
+send   esc back`.
 
 ### Exomyth {#exomyth}
 
@@ -1490,6 +1513,15 @@ list in red. **Import…** opens **Import daemons**, a switch per host of your s
 added yet (`as <name>`), or says `every host of your ssh config is added already`; **Done**
 `adds each host switched on as a daemon`. Each change is said under the list and, on close,
 in the transcript: `daemon <name> saved`, `daemon <name> removed`, `<n> daemon(s) imported`.
+
+**Batch apply…** (with a daemon added) opens **Batch apply**: `This machine's settings, written
+to other daemons as each of their pages saves them. Accounts stay put: only a secret sets them.`
+A switch per page carried -- `general`, `fallback`, `runtimes`, `backup`, each `carried`, on --
+then one per daemon, `written to`, off. **Done** `writes the pages switched on to each daemon
+switched on`; error `switch on a page and a daemon`. Each daemon is reached as **connect**
+reaches it and written as its web page's Settings saves each page, a backup target's URL with
+nothing signed into it (so one that signs in is refused there). Said under the list and in the
+transcript: `<daemon>: applied` or `<daemon>: <why>`, for each, `·` between.
 
 ### Accounts page {#the-accounts-themselves}
 

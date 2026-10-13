@@ -180,12 +180,19 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   of another machine the web interface keeps, the same list through `daemon`, each with what
   reaches it and how it stands, drawn again as that changes; MUST offer adding one and
   correcting it on one form, importing hosts of the ssh config not added yet, reaching it now
-  and taking it away, each written at once, and MUST reach one as the web interface does.
+  and taking it away, each written at once, and MUST reach one as the web interface does; and
+  MUST offer batch apply there: this machine's settings of the pages picked -- never the
+  accounts, which only a secret sets -- written to each daemon picked as the web interface's
+  `Batch apply` writes them, saying how each went.
 - MUST let `/epics @<name>` list the epics of the daemon named, and a button of the list turn
   it to another's, keeping to that daemon until turned back; another machine's MUST be read
   through its own web interface reached over ssh, off the drawing path, each offering its
   archive brought here, a backup there and copying what it is, and saying why where it cannot
-  be reached.
+  be reached; MUST start a new epic there -- a directory there, a flow, a task and its agents,
+  set up otherwise as that directory last ran the flow -- and follow it, and follow one going
+  there from its menu: what was asked, what each agent said, what the flow asks and how it
+  stands, as that machine's web page reads them, a line typed said to the run or answering
+  what it asks, leaving it going there on `esc`.
 - MUST offer, with `m` on a row of a list of epics, flows, flowverses or daemons, that row's
   menu: what the web page's menu on a click with the other button offers of it, where it can
   be done here and now -- a run of `/epics` being its own sheet, as `enter` opens it.

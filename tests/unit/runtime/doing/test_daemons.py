@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import copy
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.runtime.doing.daemons import LOCAL, UP, Daemons, Remotes, headers, said
+from hmz.runtime.doing.daemons import (
+    CARRIED,
+    LOCAL,
+    UP,
+    Daemons,
+    Remotes,
+    carried,
+    headers,
+    said,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -121,3 +131,62 @@ def test_a_request_there_is_its_own_page_s() -> None:
         "Sec-Fetch-Site": "same-origin",
         "Cookie": "hmz-8123=k3y",
     }
+
+
+def test_a_batch_carries_the_pages_asked_for_as_each_page_saves_them() -> None:
+    target = SimpleNamespace(
+        name="lab",
+        url="https://me:secret@example.com/epics.git",
+        branch="main",
+        policies=("manual",),
+        every=30,
+    )
+    runtime = SimpleNamespace(
+        held=lambda: {"backend": "ssh", "name": "gpu", "made": "typed", "host": "g"}
+    )
+    step = SimpleNamespace(spec="claude", to=("codex",), tries=2, policy="p", timeout=5)
+    hmz = SimpleNamespace(
+        settings=SimpleNamespace(btw="", details=True, enable_sentry=None),
+        fallbacks=SimpleNamespace(all=lambda: [step]),
+        runtimes=SimpleNamespace(all=lambda: [runtime]),
+        backups=SimpleNamespace(targets=lambda: [target], defaults=lambda: ["lab"]),
+        verses=SimpleNamespace(plain=lambda url: url.replace("me:secret@", "***@")),
+    )
+
+    sent = carried(hmz, CARRIED)
+
+    assert sent == [
+        ("/api/settings", {"btw": "", "details": True}),
+        (
+            "/api/fallbacks",
+            {
+                "spec": "claude",
+                "to": ["codex"],
+                "tries": 2,
+                "policy": "p",
+                "timeout": 5,
+            },
+        ),
+        (
+            "/api/runtimes",
+            {"backend": "ssh", "name": "gpu", "fields": {"host": "g"}, "replace": True},
+        ),
+        (
+            "/api/settings",
+            {
+                "backup": {
+                    "targets": [
+                        {
+                            "name": "lab",
+                            "url": "https://***@example.com/epics.git",
+                            "branch": "main",
+                            "policies": ["manual"],
+                            "every": 30,
+                        }
+                    ],
+                    "defaults": ["lab"],
+                }
+            },
+        ),
+    ]
+    assert carried(hmz, ["general"]) == sent[:1]

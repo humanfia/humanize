@@ -393,8 +393,16 @@ with why. <kbd>m</kbd>, <kbd>enter</kbd> or a click on one is its menu: **connec
 
 `/epics @<name>` lists that daemon's epics, and goes on listing them until you turn the list
 back with its **Daemon…** button, or with `/epics @local`. From another daemon's list an epic
-is exported here, backed up there, or has its name, task or workspace copied. Starting an
-epic on another machine is the [web page](/user/web)'s.
+is exported here, backed up there, or has its name, task or workspace copied. <kbd>n</kbd>
+there starts a new epic on that machine -- a directory there, a flow, a task, and its agents
+where that directory has not run the flow before -- and follows it; **follow** on one going
+there does the same for it. You read what it says, answer what it asks or say a line to it,
+and <kbd>esc</kbd> leaves it going there.
+
+**Batch apply…** writes this machine's settings to other daemons: switch on the pages --
+general, fallback, runtimes, backup -- and the daemons, and each says whether they were
+applied. Accounts stay where they are, since only a secret sets them, and a backup target
+whose URL signs in has to be added there by hand.
 
 ## Accounts
 
