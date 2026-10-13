@@ -3746,17 +3746,19 @@ pre.exo-args {
 
 /* ------------------------------------------------------------------ the macOS app's window */
 
-/* There the page runs to the window's top edge, and the window's traffic lights stand over its
-   top left, centred on the top row: what is drawn first along it starts past them -- the
-   sidebar's top row, or the bar over the view where the sidebar is folded away or a drawer, or a
-   dialog that fills a narrow window -- and full screen, where they are gone, the page is drawn
-   as anywhere else. */
+/* There the page runs to the window's top edge, and the window's traffic lights stand where
+   macOS puts them, in its top 32 pixels at the left. The sidebar keeps that strip for them alone,
+   drawing its top row under it; where the sidebar is folded away or a drawer, the bar over the
+   view, or a dialog that fills a narrow window, starts past them. Full screen, where they are
+   gone, the page is drawn as anywhere else. */
 :root[data-shell='macos']:not([data-fullscreen]) {
   --lights: 80px;
+  --lights-strip: 32px;
 }
 
 :root[data-shell='macos']:not([data-fullscreen]) .side-top {
-  padding-left: calc(var(--lights) + 8px);
+  /* The band across the sidebar's top runs under the lights, inside the strip. */
+  padding-top: calc(var(--lights-strip) - 4px + 8px);
 }
 
 :root[data-shell='macos']:not([data-fullscreen]) .side-folded .bar {
