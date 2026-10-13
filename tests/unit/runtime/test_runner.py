@@ -52,7 +52,8 @@ def test_a_whole_line_is_read() -> None:
             "rounds=3,budget.cost=5",
             "--params",
             "budget.duration=1h",
-            "--profile",
+            "--profile-flow",
+            "--profile-environment",
             "--resume",
             "--json",
             "--",
@@ -71,7 +72,8 @@ def test_a_whole_line_is_read() -> None:
     )
     assert line.params == {"rounds": "3"}
     assert line.budget == Budget(cost=5.0, duration=datetime.timedelta(hours=1))
-    assert (line.profile, line.resume, line.as_json) == (True, True, True)
+    assert (line.profile_flow, line.profile_environment) == (True, True)
+    assert (line.resume, line.as_json) == (True, True)
 
 
 def test_a_bare_line_is_a_flow_and_a_task() -> None:
@@ -81,7 +83,8 @@ def test_a_bare_line_is_a_flow_and_a_task() -> None:
     assert line.agents == line.envs == ()
     assert line.params == {}
     assert line.budget is None
-    assert (line.profile, line.resume, line.as_json) == (False, False, False)
+    assert (line.profile_flow, line.profile_environment) == (False, False)
+    assert (line.resume, line.as_json) == (False, False)
 
 
 def test_repeated_flags_add_up_in_order() -> None:
@@ -388,7 +391,8 @@ def test_a_flow_given_what_it_needs_is_loaded_and_nothing_starts(
         agents=cast("Any", {"builder": builder}),
         params={"rounds": "4"},
         budget=BUDGET,
-        profile=True,
+        profile_flow=True,
+        profile_environment=True,
         workspace=tmp_path,
     )
 
@@ -400,7 +404,7 @@ def test_a_flow_given_what_it_needs_is_loaded_and_nothing_starts(
     assert runner.used == {}
     assert runner.params == Params(rounds=4)
     assert runner.budget == Budget(cost=5.0)
-    assert runner.profile is True
+    assert (runner.profile_flow, runner.profile_environment) == (True, True)
     assert runner.picked_up is None
     assert runner.workspace == tmp_path
     assert runner.recorder is None
@@ -857,7 +861,7 @@ def test_a_resumable_flow_keeps_its_journal_in_the_epic(
 ) -> None:
     engine_.impl.resumable = True
     picked = _picked_up(tmp_path / "before")
-    runner = _runner(resume=picked, workspace=tmp_path, profile=False)
+    runner = _runner(resume=picked, workspace=tmp_path, profile_environment=False)
 
     runner.run("again")
 

@@ -163,8 +163,15 @@ where the budget is:
 2. **Save**: kept with the rest of the flow's setup in this directory, so the next run of the
    flow here is profiled too until you turn it off.
 
-From the command line, add `--profile` to [`hmz exec`](/reference/cli#exec-profile); from
-Python, `profile=True` to [`Hmz().run`](/reference/sdk#hmz-run).
+From the command line, add `--profile-environment` to
+[`hmz exec`](/reference/cli#exec-profile); from Python, `profile_environment=True` to
+[`Hmz().run`](/reference/sdk#hmz-run).
+
+The flow's own Python can be profiled too, apart: `--profile-flow`, or `profile_flow=True`.
+Its trace then has one more process, `python`, whose one track is the flow's code as a
+sampling profiler draws it -- each function a slice as long as the flow stayed in it, what it
+called nested under it, and the time it spent waiting on a turn an `[await]` under the call
+that waited.
 
 A trace of a profiled run shows each program as a process of its own, on the same clock as the
 sessions, and its summary counts them. The same Ralph loop, resumed once profiling was on:
@@ -177,7 +184,7 @@ sessions, and its summary counts them. The same Ralph loop, resumed once profili
 
 A run already going is not profiled halfway through, and `/resume` profiles the run it picks
 up exactly as the run it goes on from was. An `hmz exec` line is profiled only when it says
-`--profile`.
+`--profile-environment` or `--profile-flow`.
 
 ## Which CLIs a trace can read
 
@@ -229,7 +236,7 @@ See [SDK reference](/reference/sdk) and the [Tracing reference](/reference/traci
 - **Fewer sessions in the trace than `/epics` counted.** Some agents ran on Cursor Agent,
   which a trace cannot read. Everything else is still there.
 - **No programs in a profiled trace.** The run was started before profiling was turned on, or
-  by an `hmz exec` line without `--profile`. Run the flow again with it on.
+  by an `hmz exec` line without `--profile-environment`. Run the flow again with it on.
 
 ## Next steps
 

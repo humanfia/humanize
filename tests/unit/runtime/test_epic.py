@@ -153,7 +153,8 @@ def test_an_epic_opens_saying_what_it_is_a_run_of(workspace: Path) -> None:
     assert began["params"] == {"rounds": 3}
     assert began["budget"] == {"cost": 5.0}
     assert began["spelling"] == store.SPELLING
-    assert "profile" not in began
+    assert "profile_flow" not in began
+    assert "profile_environment" not in began
     assert began["at"].endswith("Z")
     assert ended["event"] == "ended"
     assert ended["how"] == "done"
@@ -246,13 +247,36 @@ def test_a_profiled_run_is_sampled_while_it_runs(
 
     monkeypatch.setattr(profile, "Profiler", making)
 
-    with Epic("f", "t", workspace, profile=True) as one:
+    with Epic("f", "t", workspace, profile_environment=True) as one:
         assert made[0].started
         assert not made[0].stopped
 
     assert made[0].at == one.path / profile.PROFILE
     assert made[0].stopped
-    assert _lines(one.journal)[0]["profile"] is True
+    assert _lines(one.journal)[0]["profile_environment"] is True
+    assert "profile_flow" not in _lines(one.journal)[0]
+
+
+def test_a_run_whose_flow_is_profiled_samples_it_while_it_runs(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    made: list[Profiler] = []
+
+    def making(at: Path) -> Profiler:
+        made.append(Profiler(at))
+        return made[-1]
+
+    monkeypatch.setattr(profile, "Sampler", making)
+    monkeypatch.setattr(profile, "Profiler", making)
+
+    with Epic("f", "t", workspace, profile_flow=True) as one:
+        assert made[0].started
+        assert not made[0].stopped
+
+    assert [one.at for one in made] == [one.path / profile.FLOW_PROFILE]
+    assert made[0].stopped
+    assert _lines(one.journal)[0]["profile_flow"] is True
+    assert "profile_environment" not in _lines(one.journal)[0]
 
 
 def test_a_machine_that_cannot_be_profiled_still_runs(
@@ -262,8 +286,9 @@ def test_a_machine_that_cannot_be_profiled_still_runs(
         return Profiler(at, refuses=True)
 
     monkeypatch.setattr(profile, "Profiler", refusing)
+    monkeypatch.setattr(profile, "Sampler", refusing)
 
-    with Epic("f", "t", workspace, profile=True) as one:
+    with Epic("f", "t", workspace, profile_flow=True, profile_environment=True) as one:
         pass
 
     assert _lines(one.journal)[-1]["how"] == "done"
@@ -458,7 +483,7 @@ def test_a_run_reads_back_as_what_it_was(workspace: Path) -> None:
     assert ran.budget == {"cost": 1.0}
     assert ran.resumable is True
     assert ran.picked_up == ""
-    assert ran.profile is False
+    assert (ran.profile_flow, ran.profile_environment) == (False, False)
     assert ran.spent == {"cost": 0.5, "output_tokens": 1200, "seconds": 61.5}
     assert [(one.agent, one.ident) for one in ran.sessions] == [
         ("NeiKos496", "s1"),

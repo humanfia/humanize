@@ -411,7 +411,8 @@ def detail(
         "params": ran.params,
         "budget": ran.budget,
         "picked_up": ran.picked_up,
-        "profile": ran.profile,
+        "profile_flow": ran.profile_flow,
+        "profile_environment": ran.profile_environment,
         "picks_up": picks_up,
         "foreign": foreign,
     }

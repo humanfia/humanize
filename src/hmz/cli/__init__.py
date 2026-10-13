@@ -158,7 +158,8 @@ def _executes(argv: list[str]) -> int:
                 envs=line.envs,
                 params=line.params,
                 budget=line.budget,
-                profile=line.profile,
+                profile_flow=line.profile_flow,
+                profile_environment=line.profile_environment,
                 resume=line.resume,
                 backup=line.backup,
             )

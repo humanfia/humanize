@@ -94,9 +94,14 @@ class Run:
         return self._runner.budget
 
     @property
-    def profile(self) -> bool:
+    def profile_flow(self) -> bool:
+        """Whether the run samples the flow's own Python while it runs."""
+        return self._runner.profile_flow
+
+    @property
+    def profile_environment(self) -> bool:
         """Whether the run profiles the programs its agents start, as well as tracing them."""
-        return self._runner.profile
+        return self._runner.profile_environment
 
     @property
     def backup(self) -> tuple[str, ...]:

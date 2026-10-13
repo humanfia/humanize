@@ -932,7 +932,8 @@ class Host:
                 envs=envs,
                 params=params,
                 budget=said.get("budget"),
-                profile=bool(said.get("profile")),
+                profile_flow=bool(said.get("profile_flow")),
+                profile_environment=bool(said.get("profile_environment")),
                 resume=resume,
                 backup=cast("list[str] | None", backup),
                 # Whoever is outside the run is every frontend here: asked on a thread of
@@ -958,7 +959,8 @@ class Host:
                 "envs": _spoken(envs) if isinstance(envs, dict) else {},
                 "params": dict(params) if isinstance(params, dict) else {},  # pyright: ignore[reportUnknownArgumentType]
                 "budget": _json(run.budget),
-                "profile": run.profile,
+                "profile_flow": run.profile_flow,
+                "profile_environment": run.profile_environment,
                 "backup": list(run.backup),
                 "resume": str(resume) if resume else "",
                 "began": time.monotonic(),

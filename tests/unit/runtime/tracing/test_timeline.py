@@ -10,7 +10,7 @@ import pytest
 
 from hmz.runtime.epic import Called, Drove, Ran
 from hmz.runtime.epic import Session as Opened
-from hmz.runtime.tracing.profile import Process, Thread
+from hmz.runtime.tracing.profile import Process, Sample, Thread
 from hmz.runtime.tracing.session import Action, Session
 from hmz.runtime.tracing.timeline import VERSION, build
 
@@ -327,6 +327,34 @@ def test_a_sub_agent_whose_starter_did_nothing_hangs_from_the_epic() -> None:
 
     assert document["processes"][1]["parent"] == 0
     assert document["spawns"] == {"span": [0], "process": [1]}
+
+
+def test_a_profiled_flow_is_a_lane_of_nested_frames_under_the_epic() -> None:
+    sampled = [
+        Sample(T0 + 1, 1.0, ("run", "load")),
+        Sample(T0 + 2, 2.0, ("run", "ask", "[await]")),
+        Sample(T0 + 4, 1.0, ("run", "ask", "parse")),
+    ]
+
+    document = build([], ran=ran(), sampled=sampled).document
+
+    flow, python = document["processes"]
+    assert (python["kind"], python["parent"]) == ("flow", flow["id"])
+    assert text(document, python["name"]) == "python"
+    (track,) = python["tracks"]
+    assert text(document, document["tracks"][track]["name"]) == "flow"
+    assert document["tracks"][track]["depths"] == 3
+    spans = columns(document, track)
+    assert [
+        (one["cat"], one["name"], one["depth"], one["start"], one["dur"])
+        for one in spans
+    ] == [
+        ("sample", "run", 0, 1_000_000, 4_000_000),
+        ("sample", "load", 1, 1_000_000, 1_000_000),
+        ("sample", "ask", 1, 2_000_000, 3_000_000),
+        ("sample", "[await]", 2, 2_000_000, 2_000_000),
+        ("sample", "parse", 2, 4_000_000, 1_000_000),
+    ]
 
 
 def test_a_program_hangs_from_whichever_held_its_parents_pid_then() -> None:

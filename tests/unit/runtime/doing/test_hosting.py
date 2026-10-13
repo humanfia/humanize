@@ -156,7 +156,8 @@ class FakeRun:
     declaration: Declaration = field(default_factory=Declaration)
     budget: Budget = field(default_factory=lambda: Budget(cost=2.0))
     usage: Usage = field(default_factory=lambda: Usage(cost=0.5))
-    profile: bool = False
+    profile_flow: bool = False
+    profile_environment: bool = False
     backup: tuple[str, ...] = ()
     epic: Path | None = None
     blind: str = ""
@@ -499,7 +500,8 @@ def test_a_flow_started_is_said_to_every_frontend(
         envs={"box": "local/x"},
         params={"rounds": 2},
         budget={"cost": 2},
-        profile=True,
+        profile_flow=True,
+        profile_environment=True,
         resume=True,
     )
 
@@ -521,7 +523,7 @@ def test_a_flow_started_is_said_to_every_frontend(
     assert started["resume"] == "True"
     asked = where.asked[0]
     assert asked["budget"] == {"cost": 2}
-    assert asked["profile"] is True
+    assert (asked["profile_flow"], asked["profile_environment"]) == (True, True)
     assert asked["outworlder"] == "outworlder"
     bob.told("run", state="running", run=1)
     said = host.status()

@@ -144,7 +144,7 @@ class Epics:
         import datetime
 
         from hmz.runtime.epic import TRACES
-        from hmz.runtime.tracing.profile import PROFILE
+        from hmz.runtime.tracing.profile import FLOW_PROFILE, PROFILE
 
         agents = self.opened(epic)
         where = Path(output) if output is not None else None
@@ -160,12 +160,13 @@ class Epics:
             start=start,
             end=end,
             profile=epic / PROFILE,
+            flow_profile=epic / FLOW_PROFILE,
             kept=self._kept(epic),
         )
         return where, document
 
     def timeline(self, epic: Path) -> Timeline:
-        """Lays one run out as an Exomyth timeline: its sessions, its flows and its programs.
+        """Lays one run out as an Exomyth timeline: its sessions, flows, Python and programs.
 
         Gathered from exactly what a trace of the run is gathered from, and written nowhere:
         a timeline is drawn and thrown away, where a trace is a file somebody keeps.
@@ -191,6 +192,7 @@ class Epics:
             ran=self.read(epic),
             calls=self.tree(epic),
             profiled=profile.read(epic / profile.PROFILE),
+            sampled=profile.samples(epic / profile.FLOW_PROFILE),
         )
 
     def _kept(self, epic: Path) -> list[Path]:
@@ -272,6 +274,7 @@ class Epics:
         start: str | None = None,
         end: str | None = None,
         profile: str | os.PathLike[str] | None = None,
+        flow_profile: str | os.PathLike[str] | None = None,
         kept: Iterable[str | os.PathLike[str]] | None = None,
     ) -> dict[str, Any]:
         """Gathers what a run left behind into one Chrome trace.
@@ -285,7 +288,9 @@ class Epics:
           output: Where to write it, or None to gather it without writing.
           start: The earliest session time to include, in any wording dateparser understands.
           end: The latest.
-          profile: Where the run's own profile was written, for a run that was profiled.
+          profile: Where the run's profile of its programs was written, for a run that
+            profiled them.
+          flow_profile: Where its profile of the flow's own Python was, likewise.
           kept: Where humanize kept the sessions to read besides each CLI's own home, a
             directory per CLI inside each, or None for everywhere it keeps them: every
             epic's, an agent no run was driving keeping its own in its CLI's home.
@@ -311,5 +316,6 @@ class Epics:
             start=start,
             end=end,
             profile=profile,
+            flow_profile=flow_profile,
             kept=kept,
         )

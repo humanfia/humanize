@@ -330,6 +330,26 @@ def test_the_backup_saved_for_a_flow_is_what_it_opens_on(project: Path) -> None:
         assert browser.get("/api/flow?name=chat").json()["remembered"]["backup"] == []
 
 
+def test_what_of_a_flow_is_profiled_is_saved_apart(project: Path) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        setup = {"flow": "chat", "agents": {"assistant": AGENT}}
+
+        browser.post("/api/flows/setup", setup | {"profile_flow": True})
+        remembered = browser.get("/api/flow?name=chat").json()["remembered"]
+        assert (remembered["profile_flow"], remembered["profile_environment"]) == (
+            True,
+            False,
+        )
+        browser.post("/api/flows/setup", setup | {"profile_environment": True})
+        remembered = browser.get("/api/flow?name=chat").json()["remembered"]
+        assert (remembered["profile_flow"], remembered["profile_environment"]) == (
+            False,
+            True,
+        )
+
+
 def test_an_epic_backed_up_elsewhere_is_listed_downloaded_and_read(
     project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

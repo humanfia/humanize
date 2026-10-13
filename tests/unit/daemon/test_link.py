@@ -79,7 +79,8 @@ def test_start_writes_out_the_whole_request(params: Any, plain: Any) -> None:
         envs={"box": "local"},
         params=params,
         budget={"cost": 5},
-        profile=True,
+        profile_flow=True,
+        profile_environment=True,
     )
     assert held.said == [
         {
@@ -90,7 +91,8 @@ def test_start_writes_out_the_whole_request(params: Any, plain: Any) -> None:
             "envs": {"box": "local"},
             "params": plain,
             "budget": {"cost": 5},
-            "profile": True,
+            "profile_flow": True,
+            "profile_environment": True,
             "resume": False,
             "backup": None,
         }

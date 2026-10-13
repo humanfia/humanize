@@ -255,7 +255,8 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         backup: Iterable[str] | None = None,
     ) -> Runner:
@@ -268,7 +269,9 @@ class Hmz:
           envs: What each environment role is, likewise with `-e`.
           params: The flow's params, or None for its defaults.
           budget: What the run may spend; only `chat` runs without one.
-          profile: Whether to profile the programs its agents start, as well as trace them.
+          profile_flow: Whether to sample the flow's own Python while it runs.
+          profile_environment: Whether to profile the programs its agents start, as well as
+            trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           backup: The backup targets the epic goes to, by name, or None for the defaults.
 
@@ -287,7 +290,8 @@ class Hmz:
             envs=envs,
             params=params,
             budget=budget,
-            profile=profile,
+            profile_flow=profile_flow,
+            profile_environment=profile_environment,
             resume=resume,
             workspace=self._workspace,
             backup=backup,
@@ -302,7 +306,8 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
         backup: Iterable[str] | None = None,
@@ -316,7 +321,9 @@ class Hmz:
           envs: What each environment role is; see :meth:`runner`.
           params: The flow's params, or None for its defaults.
           budget: What the run may spend; only `chat` runs without one.
-          profile: Whether to profile the programs its agents start, as well as trace them.
+          profile_flow: Whether to sample the flow's own Python while it runs.
+          profile_environment: Whether to profile the programs its agents start, as well as
+            trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           outworlder: Whoever is outside the run, or None for nobody.
           backup: The backup targets the epic goes to, by name, or None for the defaults.
@@ -337,7 +344,8 @@ class Hmz:
                 envs=envs,
                 params=params,
                 budget=budget,
-                profile=profile,
+                profile_flow=profile_flow,
+                profile_environment=profile_environment,
                 resume=resume,
                 backup=backup,
             ),
@@ -369,7 +377,8 @@ class Hmz:
             envs=line.envs,
             params=line.params,
             budget=line.budget,
-            profile=line.profile,
+            profile_flow=line.profile_flow,
+            profile_environment=line.profile_environment,
             resume=line.resume,
             backup=line.backup,
         ).run()

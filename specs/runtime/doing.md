@@ -47,7 +47,8 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         backup: Iterable[str] | None = None,  # the targets; None for the defaults
     ) -> Runner: ...
@@ -60,7 +61,8 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
         backup: Iterable[str] | None = None,
@@ -90,7 +92,7 @@ class Run:
         self, runner: Runner, task: str, *, outworlder: OutworlderDriver | None = None
     ) -> None: ...
     flow: str; ref: str; chats: bool; task: str; declaration: Declaration; budget: Budget
-    profile: bool; backup: tuple[str, ...]
+    profile_flow: bool; profile_environment: bool; backup: tuple[str, ...]
     usage: Usage; epic: Path | None; running: bool; raised: BaseException | None
     result: Any  # properties
     @property
@@ -148,6 +150,7 @@ class Epics:
         start: str | None = None,
         end: str | None = None,
         profile: str | os.PathLike[str] | None = None,
+        flow_profile: str | os.PathLike[str] | None = None,
         kept: Iterable[str | os.PathLike[str]] | None = None,
     ) -> dict[str, Any]: ...
 
@@ -335,7 +338,7 @@ class Fallbacks:
   that run kept, and a trace asked for without saying where MUST read the sessions every run
   kept.
 - A timeline of one run MUST be gathered from exactly what a trace of it is, with the run, the
-  tree of flows it called and its profile, and MUST NOT be written anywhere.
+  tree of flows it called and its profiles, and MUST NOT be written anywhere.
 
 ### Hosting
 

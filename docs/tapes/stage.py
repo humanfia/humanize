@@ -577,7 +577,7 @@ def _settings() -> None:
         "@local/twice",
         {"builder": Runs("claude/claude-opus-4-8:high")},
         budget={"cost": 5.0},
-        profile=True,
+        profile_environment=True,
     )
 
 

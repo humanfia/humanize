@@ -86,7 +86,9 @@ class Line(NamedTuple):
       params: Each param as the line wrote it, which the flow's own model reads.
       budget: What the run may spend, as its `-p budget.<limit>=` said, or None where the
         line said nothing of it.
-      profile: Whether to profile the programs the run's agents start, as well as trace them.
+      profile_flow: Whether to sample the flow's own Python while the run goes.
+      profile_environment: Whether to profile the programs the run's agents start, as well as
+        trace them.
       resume: Whether to pick up the newest run of the flow here that can be.
       as_json: Whether a program is reading the run rather than a person.
       backup: The backup targets the epic goes to, by name, or None for the defaults.
@@ -98,7 +100,8 @@ class Line(NamedTuple):
     envs: tuple[EnvSpec, ...] = ()
     params: dict[str, str] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     budget: Budget | None = None
-    profile: bool = False
+    profile_flow: bool = False
+    profile_environment: bool = False
     resume: bool = False
     as_json: bool = False
     backup: tuple[str, ...] | None = None
@@ -164,7 +167,13 @@ def read_line(argv: list[str]) -> Line:
         "required except for chat",
     )
     parser.add_argument(
-        "--profile",
+        "--profile-flow",
+        action="store_true",
+        help="sample the flow's own Python while the run goes, so the run's trace shows "
+        "where the flow spent its time between and around the turns",
+    )
+    parser.add_argument(
+        "--profile-environment",
         action="store_true",
         help="sample the programs the agents start while the run goes, so the run's trace "
         "shows what each turn spent its time on beside the turn",
@@ -215,7 +224,8 @@ def read_line(argv: list[str]) -> Line:
             envs=tuple(parse_envs(args.envs)),
             params=parse_params(args.params),
             budget=parse_budget(args.params),
-            profile=args.profile,
+            profile_flow=args.profile_flow,
+            profile_environment=args.profile_environment,
             resume=args.resume,
             as_json=args.as_json,
             backup=None if backup is None else tuple(backup),
@@ -240,7 +250,8 @@ class Runner:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
-        profile: bool = False,
+        profile_flow: bool = False,
+        profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
         backup: Iterable[str] | None = None,
@@ -259,9 +270,10 @@ class Runner:
             `-p` among them -- or None for its defaults.
           budget: What the run may spend. Only `chat` may be run without one, under
             `Budget(cost=inf)`.
-          profile: Whether to sample the programs the agents start while the run goes, as
-            well as trace them. Off unless asked, since it is a sampler running for as long
-            as the flow does.
+          profile_flow: Whether to sample the flow's own Python while the run goes. Off
+            unless asked, since it is a sampler running for as long as the flow does.
+          profile_environment: Whether to sample the programs the agents start while the run
+            goes, as well as trace them. Off unless asked, for the same reason.
           resume: Whether to pick up the newest run of this flow in the workspace that can
             be picked up, or the epic to pick up.
           workspace: Where the run happens, defaulting to this directory.
@@ -304,7 +316,8 @@ class Runner:
                 )
             budget = Budget(cost=math.inf)
         self._budget = budget if isinstance(budget, Budget) else _budget(budget)
-        self._profile = profile
+        self._profile_flow = profile_flow
+        self._profile_environment = profile_environment
         self._picked_up = self._picks_up(resume)
         from .backing import chosen
 
@@ -562,9 +575,14 @@ class Runner:
         return self._backup
 
     @property
-    def profile(self) -> bool:
+    def profile_flow(self) -> bool:
+        """Whether the run samples the flow's own Python while it runs."""
+        return self._profile_flow
+
+    @property
+    def profile_environment(self) -> bool:
         """Whether the run profiles the programs its agents start, as well as tracing them."""
-        return self._profile
+        return self._profile_environment
 
     @property
     def picked_up(self) -> Path | None:
@@ -734,7 +752,8 @@ class Runner:
             budget=json.loads(self._budget.model_dump_json()),
             resumable=impl.resumable,
             picked_up=self._picked_up,
-            profile=self._profile,
+            profile_flow=self._profile_flow,
+            profile_environment=self._profile_environment,
             backup=self._backup,
         )
         # Backed up as its targets' policies say, each on a thread of its own: as a session

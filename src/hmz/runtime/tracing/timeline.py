@@ -10,7 +10,9 @@ what it gave back -- is left out, to be asked for by the slice's id when somebod
 
 Where a Chrome trace makes one process of an agent and everything it drove, this makes one
 of each session, under the session that started it: the flows the epic called are a process
-of their own, at the top, and a profiled epic's programs are one apiece beside them.
+of their own, at the top, with the flow's own Python under them where that was profiled --
+a lane of the frames it was in, each nested in the one that called it -- and a profiled
+epic's programs are one apiece beside them.
 """
 
 from __future__ import annotations
@@ -29,7 +31,7 @@ from .session import stamp, summarize
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    from .profile import Process
+    from .profile import Process, Sample
     from .session import Session
 
 __all__ = ["VERSION", "Call", "Epic", "Opened", "Timeline", "build"]
@@ -223,6 +225,7 @@ def build(
     ran: Epic | None = None,
     calls: Sequence[Call] = (),
     profiled: Iterable[Process] = (),
+    sampled: Iterable[Sample] = (),
 ) -> Timeline:
     """Lays one epic out as an Exomyth timeline.
 
@@ -231,6 +234,7 @@ def build(
       ran: The epic, as it reads back, or None for sessions that were no epic's.
       calls: The tree of flows it called.
       profiled: The programs it started, where it was profiled.
+      sampled: Where its flow's own Python was, where that was profiled.
 
     Returns:
       The document and what each of its slices carried.
@@ -253,6 +257,8 @@ def build(
     held += [
         _program(one) for one in sorted(profiled, key=lambda one: (one.began, one.pid))
     ]
+    if (python := _python(ran, sampled)).slices:
+        held.insert(0, python)
     if ran is not None:
         held.insert(0, _flow(ran, calls))
     moments = [
@@ -481,6 +487,25 @@ def _flow(ran: Epic, calls: Sequence[Call]) -> _Process:
         "flows",
         _fields(label=ran.how),
         key=f"epic:{ran.name}",
+    )
+
+
+def _python(ran: Epic | None, sampled: Iterable[Sample]) -> _Process:
+    """The flow's own Python as one process, under the epic: a slice per frame it was in."""
+    from .profile import frames
+
+    key = f"epic:{ran.name}" if ran is not None else ""
+    return _Process(
+        "flow",
+        "python",
+        [
+            _Slice(one.began, one.ended, "sample", one.name, {"frame": one.name})
+            for one in frames(sampled)
+        ],
+        "flow",
+        _fields(label="python"),
+        key=f"python:{key}",
+        parent=key,
     )
 
 

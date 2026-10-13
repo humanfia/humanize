@@ -39,7 +39,8 @@ workspaces:
           cost: 20.0
           output_tokens: null
           graceful: true
-        profile: true              # profile a run of it started from the TUI
+        profile_flow: true         # profile the flow's Python in a run started from the TUI
+        profile_environment: true  # and the programs its agents start
         backup: [lab]              # the targets an epic of it goes to; [] for none
         harness: local
 enable_sentry: false               # this machine
@@ -118,12 +119,13 @@ inherits the setup of the built-in or installed flow it shadows.
 | `envs` | `{role: str}` | each environment role's [`-e`](/reference/flows#e-environments) spec after `<role>=` | any non-string value makes the mapping read as absent; in a file with no [`spelling`](#spelling), a spec in the spelling `-e` refuses with a hint (`local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets) is rewritten in the one the hint gives, in every workspace, when the file is first read |
 | `params` | mapping | the params, as JSON | validated through the flow's current params model; a failure reads as not set up |
 | `budget` | `{duration, cost, output_tokens, graceful}` | the budget as `Budget.model_dump_json` writes it (`duration` ISO 8601, `cost` `"Infinity"` for unlimited) | validated as a `Budget`; a failure reads as absent |
-| `profile` | `bool`, written only as `true` | whether a run of the flow started from the TUI is [profiled](/reference/tracing#profiling-a-run), set on the `/flow` menu's **profiling** row | anything but `true` reads as off |
+| `profile_flow`, `profile_environment` | `bool`, written only as `true` | whether a run of the flow started from the TUI or the web page has its flow's Python, or the programs its agents start, [profiled](/reference/tracing#profiling-a-run), set on the `/flow` menu | anything but `true` reads as off |
 | `backup` | `[str]` | the [backup targets](#backup) an epic of the flow goes to, by name, as **Options → Backup** in `hmz web` saved them; `[]` is none | anything but a list reads as absent, which is the defaults; a name settings has no target of is dropped by whoever starts the epic |
 
 **Writing.** Saving `/flow` replaces the flow's whole entry and sets `flow`. `agents` is always
-written; `envs`, `params`, `budget`, `profile` and `backup` are written as given, carried over
-from the file where the caller passes none, and an empty value (or `profile` off) erases the
+written; `envs`, `params`, `budget`, `profile_flow`, `profile_environment` and `backup` are
+written as given, carried over from the file where the caller passes none, and an empty value
+(or a profiling switch off) erases the
 key -- but an empty `backup`, which is kept as none. A `harness` key an older
 humanize wrote is dropped at the next save.
 
@@ -131,8 +133,9 @@ humanize wrote is dropped at the next save.
 flow), it uses the remembered setup only if it is complete: the remembered agent roles equal
 the flow's declared agent roles; every required environment role is remembered; the params
 still validate; a budget is remembered unless the flow runs without one. Otherwise `/flow`
-opens to ask. `profile` goes with the rest. `hmz exec` and `Hmz().run` never read `flows`; they
-use only their own arguments (`--profile`, `profile=True`).
+opens to ask. `profile_flow` and `profile_environment` go with the rest. `hmz exec` and `Hmz().run` never read `flows`; they
+use only their own arguments (`--profile-flow`, `--profile-environment`, `profile_flow=True`,
+`profile_environment=True`).
 
 ### `fallbacks`
 
@@ -254,7 +257,7 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 | Missing, unreadable, invalid YAML, not a mapping | read as empty; never prevents a start |
 | Unknown keys | kept at the top level and in a workspace entry; a flow's entry is replaced whole when `/flow` is saved |
 | Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace removed, or the whole of `fallbacks`, `clis`, `backup` or one runtime); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is never written over: it is left for whoever is editing it to correct. |
-| Concurrent writers | serialized by the lock. A write changes only what it is about: every machine key, workspace, workspace key and flow entry another writer wrote survives it, whenever this writer read the file. `envs`, `params`, `budget`, `profile` and `backup` not handed to a `/flow` save are carried over from the file as it is at the write. Two writes to the same key or the same flow's entry: the later wins. A writer that cannot open the lock file, gets an error from `flock`, or has waited 30 s for it writes without it. |
+| Concurrent writers | serialized by the lock. A write changes only what it is about: every machine key, workspace, workspace key and flow entry another writer wrote survives it, whenever this writer read the file. `envs`, `params`, `budget`, `profile_flow`, `profile_environment` and `backup` not handed to a `/flow` save are carried over from the file as it is at the write. Two writes to the same key or the same flow's entry: the later wins. A writer that cannot open the lock file, gets an error from `flock`, or has waited 30 s for it writes without it. |
 | Write failure, or a file that does not read as a mapping | a `Settings` holds the change in memory and writes nothing; a fallback, added CLI or runtime is refused with `OSError` |
 
 ## `/settings` rows

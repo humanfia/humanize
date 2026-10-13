@@ -343,7 +343,7 @@ class Flows(Drafts[Chosen]):
             self._envs = self._placed(flow)
             self._params = params_of(flow, self._held(flow).get("params") or {})
             self._budget = budget_of(flow)
-            self._profile = _hmz().settings.profile(flow)
+            self._profile = _hmz().settings.profile_environment(flow)
             self._backup = _hmz().settings.backup(flow)
         #: What the menu opened holding, which it goes back to where the flow it is holding
         #: instead is uninstalled from under it: a draft of a flow that is gone is nothing
@@ -1079,7 +1079,7 @@ class Flows(Drafts[Chosen]):
             self._envs = self._placed(name)
             self._params = params_of(name, self._held(name).get("params") or {})
             self._budget = budget_of(name)
-            self._profile = _hmz().settings.profile(name)
+            self._profile = _hmz().settings.profile_environment(name)
             self._backup = _hmz().settings.backup(name)
             self._cursors.pop(ROLES, None)
             self.changed()

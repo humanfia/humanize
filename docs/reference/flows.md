@@ -1785,7 +1785,7 @@ Read [Security](/user/security) before running any.
 
 ```sh
 hmz exec -f <flow> [-a <role>=<spec>[,…]]… [-e <role>=<spec>[,…]]… [-p <key>=<value>[,…]]…
-         [--profile] [--resume] [--json] <task>
+         [--profile-flow] [--profile-environment] [--resume] [--json] <task>
 ```
 
 `-a`, `-e` and `-p` may each be repeated; every occurrence is a comma list. A comma

@@ -12,7 +12,7 @@ from .session import Action, Session, stamp, summarize
 if TYPE_CHECKING:
     import pathlib
 
-    from .profile import Process
+    from .profile import Process, Sample
 
 #: What a reader of these logs joins the halves of a name with, which is what a track of one
 #: kind of sub-agent is named off the front of.
@@ -30,6 +30,7 @@ def build(
     workspace: pathlib.Path | None,
     names: tuple[str, ...] | None,
     profiled: list[Process] | None = None,
+    sampled: list[Sample] | None = None,
 ) -> dict[str, Any]:
     """Renders sessions as a Chrome JSON trace with one process per agent.
 
@@ -51,6 +52,8 @@ def build(
         workspace: Workspace the sessions were collected for, if any.
         names: Session ids the collection was narrowed to, if any.
         profiled: Programs the run started while it ran, if it was profiled.
+        sampled: Where the flow's own Python was while it ran, if that was
+            profiled: one more process, its frames nested on one track.
 
     Returns:
         A Chrome trace document ready to be serialized as JSON.
@@ -68,7 +71,8 @@ def build(
     label = " · ".join(scope.values())
     live = [item for item in sessions if item.actions]
     ran = list(profiled or ())
-    if not live and not ran:
+    python = list(sampled or ())
+    if not live and not ran and not python:
         return {"traceEvents": [], "displayTimeUnit": "ms", "otherData": scope}
     spans = {
         item.key: (
@@ -168,8 +172,11 @@ def build(
         )
 
     _programs(events, ran, len(order) + 1, label)
+    _python(events, python, len(order) + len(ran) + 1, label)
     began = [start for start, _ in spans.values()] + [one.began for one in ran]
     over = [finish for _, finish in spans.values()] + [one.ended for one in ran]
+    began += [one.t for one in python[:1]]
+    over += [one.t + one.dt for one in python[-1:]]
     held = {
         **scope,
         "agents": ", ".join(sorted({item.agent for item in live})),
@@ -238,6 +245,43 @@ def _programs(
                     },
                 }
             )
+
+
+def _python(
+    events: list[dict[str, Any]], sampled: list[Sample], pid: int, label: str
+) -> None:
+    """Draws where the flow's own Python was, as one process of one track of nested frames.
+
+    Args:
+        events: What has been drawn so far, appended to.
+        sampled: The samples, in order.
+        pid: The process id to give it, after every other.
+        label: What every process of this trace is labelled with.
+    """
+    from .profile import frames
+
+    if not sampled:
+        return
+    events.append(_meta(pid, 0, "process_name", {"name": "python"}))
+    events.append(_meta(pid, 0, "process_sort_index", {"sort_index": pid}))
+    events.append(_meta(pid, 0, "process_labels", {"labels": label}))
+    events.append(_meta(pid, _LANE_STRIDE, "thread_name", {"name": "flow"}))
+    for one in frames(sampled):
+        # Both ends rounded, rather than the start and the length: a frame ending with the
+        # one it is nested in must end on the same microsecond to be drawn inside it.
+        start = round(one.began * 1e6)
+        events.append(
+            {
+                "ph": "X",
+                "pid": pid,
+                "tid": _LANE_STRIDE,
+                "cat": "sample",
+                "name": one.name,
+                "ts": start,
+                "dur": round(one.ended * 1e6) - start,
+                "args": {"at": stamp(one.began)},
+            }
+        )
 
 
 def _stem(depth: int, row: list[Session]) -> str:

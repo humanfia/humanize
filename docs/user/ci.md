@@ -61,7 +61,7 @@ the machine holds: the flows installed on it, its [accounts](/user/settings#acco
 [fallbacks](/user/settings#fallback), any CLI added on the Accounts page of `/settings`, and
 whether [reporting](/user/reporting) was answered yes. A fresh runner holds none of these, so
 on a runner the line is the whole setup; a run is [profiled](/user/tracing#profiling-a-run)
-only where the line says `--profile`.
+only where the line says `--profile-flow` or `--profile-environment`.
 
 <NightlyJob />
 
