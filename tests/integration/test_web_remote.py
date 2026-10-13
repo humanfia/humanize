@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.web.remote import Remotes
+from hmz.runtime.doing.daemons import Remotes
 
 from .doubles_ssh import Host, faked, written
 from .doubles_web import PATIENCE, Answer, Browser, served

@@ -1,13 +1,12 @@
 """`/settings`: every setting humanize has, on a screen of its own, one level at a time.
 
-What opens is the six places settings are kept and nothing else -- this machine's own, the
-accounts, the fallbacks, the runtimes, the backups and this workspace's -- each a card saying
-what is in it,
-as a phone's settings or VS Code's open on their categories. They stand from the broadest to
-the nearest: what is true wherever humanize runs, who its agents are and what takes over when
-one fails, where their work goes and where its epics are kept, and last the one directory open
-now. Where flows come from
-is `/flow`'s (:mod:`hmz.tui.flows`), drawn the same way. Enter or a
+What opens is the seven places settings are kept and nothing else -- this machine's own, the
+daemons, the accounts, the fallbacks, the runtimes, the backups and this workspace's -- each a
+card saying what is in it, as a phone's settings or VS Code's open on their categories. They
+stand from the broadest to the nearest: what is true wherever humanize runs, which machines it
+reaches, who its agents are and what takes over when one fails, where their work goes and
+where its epics are kept, and last the one directory open now. Where flows come from is
+`/flow`'s (:mod:`hmz.tui.flows`), drawn the same way. Enter or a
 click goes into one and esc or backspace comes back out, as k9s and ranger walk in and out of
 what they list; the line across the top says where you are, and its first word is a way back.
 
@@ -48,6 +47,7 @@ from .pick import (
     _ACCOUNTS,
     _APART_MARK,
     _BACKUP,
+    _DAEMONS,
     _DIRECTORY,
     _DOT,
     _DROPS,
@@ -61,6 +61,7 @@ from .pick import (
     Adjusted,
     Agent,
     Backups,
+    Daemons,
     Drop,
     Fallbacks,
     Key,
@@ -91,6 +92,7 @@ __all__ = ["MOVED", "PAGES", "Adjusts", "page_of"]
 #: its card, lower case, so that the word typed is the word read.
 PAGES = (
     "general",
+    "daemons",
     "accounts",
     "fallback",
     "runtimes",
@@ -143,6 +145,7 @@ _PAGES = (
     _Page(
         "General", "⚙", "this machine: what runs show, the /btw agent, error reports"
     ),
+    _Page("Daemons", "⇄", "this machine's and other machines', reached over ssh"),
     _Page("Accounts", "◉", "what agents sign in as, under each CLI"),
     _Page("Fallback", "↻", "where a turn goes when its agent fails"),
     _Page(
@@ -212,14 +215,15 @@ _MEANS = {
 }
 
 
-class Adjusts(Providers, Machines, Fallbacks, Backups):
-    """Every setting humanize has: `/settings`, six pages opened from one screen of them.
+class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons):
+    """Every setting humanize has: `/settings`, seven pages opened from one screen of them.
 
     General is what is true of this machine however many projects are driven from it; the
-    accounts, the fallbacks and the runtimes are what agents run as, where turns go when they
-    cannot, and the machines their work goes on; the backups are where epics are copied to;
+    daemons are this machine's and the others reached from it; the accounts, the fallbacks
+    and the runtimes are what agents run as, where turns go when they cannot, and the
+    machines their work goes on; the backups are where epics are copied to;
     the workspace is one directory's. One menu because they are one question -- what does
-    humanize remember -- and a command apiece was six things to learn the names of.
+    humanize remember -- and a command apiece was seven things to learn the names of.
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
     written down is written down in humanize's own words, and a person should not have to know
@@ -295,6 +299,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         """Reads the pages that are lists, and puts up whichever is open."""
         self._read_accounts()
         self._read_machines()
+        self._read_daemons()
         self._fill()
 
     # -- Going in and out ----------------------------------------------------------------------
@@ -373,7 +378,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
           True for a card, and for a row of a page that is a list.
         """
         return bool(row) and (
-            self._home or self._tab in (_ACCOUNTS, _MACHINES, _FALLBACK, _BACKUP)
+            self._home
+            or self._tab in (_DAEMONS, _ACCOUNTS, _MACHINES, _FALLBACK, _BACKUP)
         )
 
     # -- The way across the top -----------------------------------------------------------
@@ -407,6 +413,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
                 _EVERYWHERE: "How humanize behaves on this machine, in every directory.",
                 _DIRECTORY: f"What {_shortly(self._workspace)} remembers: the flow it "
                 "opens on and how it was last configured.",
+                _DAEMONS: self.DAEMONS_ABOUT,
                 _ACCOUNTS: self.ACCOUNTS_ABOUT,
                 _MACHINES: self.MACHINES_ABOUT,
                 _FALLBACK: self.STEPS_ABOUT,
@@ -415,6 +422,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         )
         if self._home:
             self._fill_home()
+        elif self._tab == _DAEMONS:
+            self._fill_daemons()
         elif self._tab == _ACCOUNTS:
             self._fill_accounts()
         elif self._tab == _MACHINES:
@@ -432,6 +441,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
             return f"details {_word(self._details)}{_DOT}reports {_word(self._sentry)}"
         if page == _DIRECTORY:
             return f"{_shortly(self._workspace)}{_DOT}flow {self._flow or 'none'}"
+        if page == _DAEMONS:
+            return _many(len(self._daemons) + 1, "daemon")
         if page == _ACCOUNTS:
             return _many(len([one for one in self._accounts if one.name]), "account")
         if page == _MACHINES:
@@ -676,6 +687,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         if self._home:
             return [self._saves_all()]
         return {
+            _DAEMONS: self._daemon_actions,
             _ACCOUNTS: self._account_actions,
             _MACHINES: self._machine_actions,
             _FALLBACK: self._step_actions,
@@ -712,7 +724,9 @@ class Adjusts(Providers, Machines, Fallbacks, Backups):
         Args:
           held: The row, by the id it answers with.
         """
-        if self._tab == _ACCOUNTS:
+        if self._tab == _DAEMONS:
+            self._took_daemon(held)
+        elif self._tab == _ACCOUNTS:
             self._took_account(held)
         elif self._tab == _MACHINES:
             self._took_machine(held)

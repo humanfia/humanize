@@ -82,6 +82,7 @@ __all__ = [
     "STRUCK",
     "TRANSCRIPT",
     "bundle",
+    "lands",
     "logged",
     "placed",
     "plain",
@@ -246,7 +247,7 @@ def bundle(
     ran = read(epic)
     if ran is None:
         raise ValueError(f"{epic} is not a run")
-    landed = _lands(epic, at)
+    landed = lands(epic.name, at)
     landed.parent.mkdir(parents=True, exist_ok=True)
     # Written whole under a name of its own and moved into place: an archive read while it
     # is being written is one nothing can open, and two exports of one run at once would
@@ -724,11 +725,11 @@ def _now() -> str:
     )
 
 
-def _lands(epic: Path, at: str | os.PathLike[str]) -> Path:
+def lands(epic: str, at: str | os.PathLike[str]) -> Path:
     """Where one bundle is written, out of what was asked for.
 
     Args:
-      epic: The run, by the directory it is written in.
+      epic: What the run is called, which is what its bundle is called after.
       at: A file, or a directory to put it in under its own name, from the home a leading
         `~` names where it starts with one.
 
@@ -737,7 +738,7 @@ def _lands(epic: Path, at: str | os.PathLike[str]) -> Path:
       path somebody is about to attach something to, and a relative one is a path they then
       have to remember which directory they were standing in for.
     """
-    named = BUNDLE.format(epic=epic.name)
+    named = BUNDLE.format(epic=epic)
     said = os.fspath(at)
     try:
         asked = Path(said).expanduser().absolute()

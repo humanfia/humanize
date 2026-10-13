@@ -167,6 +167,19 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   saved to hand out that it has not got -- off the drawing path, saying why where it
   cannot be reached; MUST apply all of it at once, so that the page holds nothing; and MUST NOT
   read a key it names.
+- MUST list on the daemons page of `/settings` this machine's daemon, `Local`, and every daemon
+  of another machine the web interface keeps, the same list through `daemon`, each with what
+  reaches it and how it stands, drawn again as that changes; MUST offer adding one and
+  correcting it on one form, importing hosts of the ssh config not added yet, reaching it now
+  and taking it away, each written at once, and MUST reach one as the web interface does.
+- MUST let `/epics @<name>` list the epics of the daemon named, and a button of the list turn
+  it to another's, keeping to that daemon until turned back; another machine's MUST be read
+  through its own web interface reached over ssh, off the drawing path, each offering its
+  archive brought here, a backup there and copying what it is, and saying why where it cannot
+  be reached.
+- MUST offer, with `m` on a row of a list of epics, flows, flowverses or daemons, that row's
+  menu: what the web page's menu on a click with the other button offers of it, where it can
+  be done here and now -- a run of `/epics` being its own sheet, as `enter` opens it.
 - MUST list on the accounts page of `/settings` every account under its CLI and offer
   correcting, re-signing and taking it away, never drawing a secret back
   onto the screen, a secret left blank while correcting keeping the one it has.
@@ -202,7 +215,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   there is a backup target, `upload` it -- to the targets it was started with, else the
   defaults -- without holding anything up, saying where it goes, with how its last backup to
   each target went said on it.
-- MUST open a run from its sheet in Exomyth: every session a process under the one that started
+- MUST open a run but a chat from its sheet in Exomyth: every session a process under the one that started
   it, foldable, each lane a row of its spans cut to the eighth of a cell and coloured by category
   in the theme's colours under a ruler of time; zoomed and panned around the span under the
   cursor, which moves between spans and rows, is searched to by name and opens a pane of the span
@@ -231,13 +244,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST draw the board a flow and a person share under the diagram, its lines nodes like any
   other, applying changes at once while the flow runs, taking a line away when it is saved empty,
   and refusing, where enter was pressed, to edit a line the flow owns.
-- MUST make `/settings [page]` the one menu of every setting, a screen of its own in six pages
-  from the broadest to the nearest -- general for this machine (details, the btw agent where
-  there is one, and reporting, each under a heading of what it is about), accounts, fallback,
-  runtimes, backup, and workspace for this directory, which it names across its top --
-  opening on those pages alone and going into one on `enter` or a click and back out on `esc`,
-  or straight into the one named `general`, `accounts`, `fallback`, `runtimes`, `backup` or
-  `workspace`,
+- MUST make `/settings [page]` the one menu of every setting, a screen of its own in seven
+  pages from the broadest to the nearest -- general for this machine (details, the btw agent
+  where there is one, and reporting, each under a heading of what it is about), daemons,
+  accounts, fallback, runtimes, backup, and workspace for this directory, which it names across
+  its top -- opening on those pages alone and going into one on `enter` or a click and back out
+  on `esc`, or straight into the one named `general`, `daemons`, `accounts`, `fallback`,
+  `runtimes`, `backup` or `workspace`,
   offered as it is typed, or by its old name `settings`, `everywhere`, `directory` or
   `environments`, opening `/flow` on its flowverses for `flowverses` and saying they moved
   there, refusing any other; forget this directory alone; keep what
@@ -261,8 +274,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   form, save -- as a button under the list, the one that answers the menu last and apart; and
   its keys under that, said in one place, for where the focus is.
 - MUST give every menu the same keys and only these: `↑`/`↓`, `←`/`→`, `enter`, `esc`,
-  `tab`/`shift+tab`, `backspace`, `/` where its list can be searched, typing on a form, and
-  `shift+enter`/`ctrl+j` on a written row that takes several lines. A
+  `tab`/`shift+tab`, `backspace`, `/` where its list can be searched, `m` on a row with a menu,
+  typing on a form, and `shift+enter`/`ctrl+j` on a written row that takes several lines. A
   row changed where it stands MUST change only between an `enter` -- or, on a form's written
   row, a letter -- that begins it and an `enter` that keeps it, `esc` putting it back, and
   keeping one on a form MUST move on to what is still to be answered and then to the button
@@ -292,6 +305,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | `shift+tab`, `tab` | app | round the views forward and back |
 | `tab`, `shift+tab` | sheets | between the list, its search and the buttons under it |
 | `/` | sheets | search the list, where it can be searched |
+| `m` | sheets | the menu of the row under the cursor, where it has one |
 | `esc` | sheets | one step back, out of a change or a search first; on a page of `/settings` or `/flow`, out to the page above it |
 | `backspace` | sheets | up to the menu this one was opened from, but the row's own on a written row; on a page of `/settings` or `/flow`, out to the page above it |
 | `←`, `→` | log, monitor | on an empty prompt: up to the monitor; back to the log last read |

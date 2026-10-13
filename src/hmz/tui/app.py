@@ -82,6 +82,7 @@ from .monitoring import (
 )
 from .pick import (
     DETACHES,
+    LOCAL_DAEMON,
     RESUMES,
     STOPS,
     Chosen,
@@ -89,11 +90,14 @@ from .pick import (
     Epics,
     Held,
     Leaves,
+    RemoteEpics,
     Reports,
     Runs,
     asks,
     budget_of,
+    daemon_names,
     declared_of,
+    let_go,
     named_as,
     params_model,
     params_of,
@@ -940,6 +944,8 @@ class Humanize(App[None]):
         #: Whether this interface is on its way out, so that the runs letting it go is not
         #: news to say.
         self._quitting = False
+        #: Whose epics `/epics` lists: this machine's daemon until another is turned to.
+        self._daemon = LOCAL_DAEMON
         #: Requests waiting to be asked, in order, on the one thread that asks them: a line
         #: typed twice is two lines in the order they were typed.
         self._requests: queue.SimpleQueue[
@@ -3175,6 +3181,7 @@ class Humanize(App[None]):
         """
         self._quitting = True
         self._close_btw()
+        let_go()
         if self._linked is not None:
             self._linked.close()
         if self._host is not None:
@@ -3632,7 +3639,7 @@ class Humanize(App[None]):
         )
 
     @work
-    async def action_epics(self) -> None:
+    async def action_epics(self, daemon: str = "") -> None:
         """Opens the runs of this directory or this machine, which is what `/epics` is for.
 
         Every run of a flow here, newest first: what it was and how it went, with enter
@@ -3640,8 +3647,37 @@ class Humanize(App[None]):
         under one -- but a run picked up is a flow started, so that half is refused while one
         is going, on the sheet where it was asked for. Whether one is going is asked there
         rather than handed over, since this list outlives the run it was opened during.
+
+        Or of another daemon, reached over ssh: the one named `@<name>`, or the one last
+        turned to, which the list is turned between from a button of its own.
+
+        Args:
+          daemon: The daemon, as `@<name>`, or "" for the one last listed.
         """
-        said = await self.push_screen_wait(Epics(running=lambda: self._run is not None))
+        if daemon:
+            named = daemon.removeprefix("@")
+            if not daemon.startswith("@") or named not in daemon_names():
+                self.show(
+                    f"hmz: /epics takes a daemon as @<name>: choose "
+                    f"{', '.join(f'@{one}' for one in daemon_names())}",
+                    "red",
+                )
+                return
+            self._daemon = named
+        elif self._daemon not in daemon_names():
+            # Taken away since it was listed.
+            self._daemon = LOCAL_DAEMON
+        while True:
+            said = await self.push_screen_wait(
+                Epics(running=lambda: self._run is not None)
+                if self._daemon == LOCAL_DAEMON
+                else RemoteEpics(self._daemon)
+            )
+            if said is None or not said.daemon:
+                break
+            for one in said.said:
+                self.show(one)
+            self._daemon = said.daemon
         # Whatever was done there -- a run taken away, a run exported -- the last run here
         # may be another one now.
         self._looks_for_resume()
@@ -4769,8 +4805,9 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "epics",
-        "View and manage runs in this directory",
-        lambda app, _: app.action_epics(),
+        "View and manage runs here, or of another daemon",
+        lambda app, argv: app.action_epics(argv[0] if argv else ""),
+        takes="[@daemon]",
     ),
     Command(
         "resume",
@@ -4784,7 +4821,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "Every setting: general, accounts, fallback, runtimes, backup, workspace",
+        "Every setting: general, daemons, accounts, fallback, runtimes, backup, workspace",
         lambda app, argv: app.action_settings(argv[0] if argv else ""),
         takes="[page]",
         offers=_PAGES,

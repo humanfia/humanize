@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from hmz.flows import Budget, FlowParams
     from hmz.runtime.doing.accounts import Accounts
     from hmz.runtime.doing.backups import Backups
+    from hmz.runtime.doing.daemons import Daemons
     from hmz.runtime.doing.epics import Epics
     from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
@@ -63,6 +64,7 @@ class Hmz:
         self._fallbacks: Fallbacks | None = None
         self._epics: Epics | None = None
         self._backups: Backups | None = None
+        self._daemons: Daemons | None = None
 
     @property
     def workspace(self) -> Path:
@@ -145,6 +147,15 @@ class Hmz:
 
             self._backups = Backups()
         return self._backups
+
+    @property
+    def daemons(self) -> Daemons:
+        """The daemons of other machines a frontend may switch to, and reaching them."""
+        if self._daemons is None:
+            from hmz.runtime.doing.daemons import Daemons
+
+            self._daemons = Daemons()
+        return self._daemons
 
     def backends(self) -> tuple[Profile, ...]:
         """Every coding agent CLI humanize drives, whether or not it is installed here."""

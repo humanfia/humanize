@@ -63,7 +63,6 @@ if TYPE_CHECKING:
     from .notices import Notices
     from .notifications import Notifications
     from .places import Places
-    from .remote import Remotes
     from .runs import Runs
 
 __all__ = ["Site"]
@@ -187,7 +186,7 @@ class Site(_Bound):
         self.runs = runs
         self.notices = notices
         #: The daemons on other machines, as each is reached, once `listening` has them.
-        self.remotes: Remotes | None = None
+        self.remotes: Any = None
         #: Every daemon's notices, as this interface tells them, once it is listening.
         self.notifications: Notifications | None = None
         #: Set as the server stops, which is what ends every stream it is sending.
@@ -422,7 +421,12 @@ class _Handler(BaseHTTPRequestHandler):
             raise Refusal("Use this server's own page to make this request.", 403)
         if self.site.remotes is None:
             raise Refusal("There is no daemon by that name.", 404)
-        port, said = self.site.remotes.asks(name)
+        try:
+            port, said = self.site.remotes.asks(name)
+        except LookupError as why:
+            raise Refusal(str(why), 404) from why
+        except RuntimeError as why:
+            raise Refusal(str(why), 503, **getattr(why, "seen", {})) from why
         asked = urllib.parse.urlsplit(self.path).query
         proxy.forwards(self, port, said, method, rest + (f"?{asked}" if asked else ""))
 

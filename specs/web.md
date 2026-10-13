@@ -25,17 +25,11 @@ class Site(ThreadingHTTPServer):
     port: int  # property
     address: str  # property: http://127.0.0.1:<port>/?key=<key>
     notices: Notices
-    remotes: Remotes
+    remotes: Remotes  # Hmz.daemons.remotes(), runtime/doing.md
 # notices.py -- what this machine's runs did that a person would want told
 class Notices:
     def since(self, after: int = 0) -> list[dict[str, Any]]: ...  # each numbered after `after`
     def heard(self, callback: Callable[[dict[str, Any]], None]) -> None: ...  # each as it comes
-# remote.py -- the daemons of other machines, each reached over ssh
-class Remotes:
-    def state(self, name: str) -> dict[str, Any]: ...  # {state, detail, version}
-    def reached(self, name: str) -> tuple[int, str]: ...  # its port forwarded here, and its key
-    def connect(self, name: str) -> None: ...
-    def close(self) -> None: ...
 ```
 
 ```text

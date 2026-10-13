@@ -33,6 +33,8 @@ class Hmz:
     def epics(self) -> Epics: ...
     @property
     def backups(self) -> Backups: ...
+    @property
+    def daemons(self) -> Daemons: ...
     def backends(self) -> tuple[Profile, ...]: ...
     def installed(self) -> dict[str, tuple[Model, ...]]: ...  # what each here last said it runs
     def installable(self) -> dict[str, tuple[Model, ...]]: ...  # its program here, its extra not
@@ -162,6 +164,28 @@ class Backups:
     def wait(self, seconds: float | None = None) -> bool: ...
     def listed(self, name: str) -> list[Stored]: ...  # blocks for the fetch
     def pulled(self, name: str, key: str) -> Path: ...  # Epics.foreign says if it resumes
+
+# daemons.py -- the daemons of other machines a frontend switches between, each an ssh host
+# kept under `daemons` in humanize's settings, and reaching them (web.md, "Daemons")
+LOCAL = "local"
+class Unreached(RuntimeError):  # not up, or refused there
+    seen: dict[str, str]; status: int
+class Daemons:
+    def all(self) -> list[dict[str, Any]]: ...
+    def find(self, name: str) -> dict[str, Any] | None: ...
+    def write(self, name: str, fields: dict[str, Any], *, replace: bool = False) -> dict[str, Any]: ...
+    def remove(self, name: str) -> None: ...
+    def offered(self) -> dict[str, dict[str, Any]]: ...  # ssh config hosts not added, by Host
+    def imported(self, wanted: Sequence[str]) -> list[str]: ...
+    def remotes(self, version: str | None = None) -> Remotes: ...
+class Remotes:
+    def state(self, name: str) -> dict[str, str]: ...  # {state, detail, version}
+    def connect(self, name: str) -> dict[str, str]: ...
+    def reached(self, name: str) -> tuple[int, str]: ...  # its port forwarded here, its key
+    def asks(self, name: str) -> tuple[int, dict[str, str]]: ...  # port, headers to send
+    def asked(self, name: str, path: str, body: dict[str, Any] | None = None, *,
+              into: Path | None = None) -> Any: ...  # its interface's answer, or bytes written
+    def close(self) -> None: ...
 
 # flows.py -- the flows there are, and the places they come from. What each of these answers
 # is `hmz.runtime.flowing`'s to say, and flowing.md carries the contract.
@@ -336,6 +360,9 @@ class Fallbacks:
   kept.
 - A timeline of one run MUST be gathered from exactly what a trace of it is, with the run, the
   tree of flows it called and its profile, and MUST NOT be written anywhere.
+- The daemons of other machines MUST be written down, checked and reached here once, as
+  web.md's "Daemons" says, for every frontend that switches between them; a question to one
+  MUST be asked of its own web interface, reached over ssh, with the key it lets in.
 
 ### Hosting
 
