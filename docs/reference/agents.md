@@ -653,7 +653,7 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 | `unmirrored` | the copy of another machine's work a harness here keeps could not be made at its path (`cannot keep the local copy of the work at`); read first of all, ahead of the `Permission denied` it usually carries |
 | `fenced` | the run's network fence kept it off a host (`is not a host this run may reach`, the fence proxy's `403`); read ahead of the credentials |
 | `killed` | a signal, or exit 129–192, or `out of memory`, `SIGKILL`, `segmentation fault`, … |
-| `dropped` | the wire (`ECONNRESET`, `broken pipe`, `fetch failed`, `502`/`503`/`504`, `timed out`, …) |
+| `dropped` | the wire (`ECONNRESET`, `broken pipe`, `fetch failed`, `502`/`503`/`504`, `timed out`, …); last of all, Codex's `stream disconnected before completion` and `responseStreamDisconnected`, which it also wraps other failures in (not on a line that names `content_filter`) |
 
 Classification (`backends.trouble`) reads the last 4096 characters of each stream, the
 backend's own `Profile.signs` first, then the shared `backends.SIGNS` in order; the first match

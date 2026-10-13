@@ -351,6 +351,22 @@ SIGNS: tuple[Sign, ...] = (
     Sign("dropped", r"\b50[234]\b"),
     Sign("dropped", r"bad gateway|service unavailable|gateway time-?out"),
     Sign("dropped", r"timed out|timeout"),
+    # Codex's, and here rather than on its profile because they have to be read last. When the
+    # response stream breaks partway through a turn it says `stream disconnected before
+    # completion: ...` around whatever the transport said, which names no status and no errno.
+    # And while it tries again by itself, `Reconnecting... n/5` goes out filed under
+    # `codexErrorInfo.responseStreamDisconnected` -- for any failure it tries again, a rate
+    # limit or a `503` among them, with that failure's own words beside it. So these are
+    # what is left once every sign above has had its say: a wrapped `rate limit exceeded` is
+    # still a rate limit, and only a break that says nothing more is read as the wire. Not a
+    # line that names `content_filter`, though: Codex files the provider's content-filter stop
+    # in the same sentence, and a response the provider refused to finish is not the wire --
+    # asked again it is refused again -- so that one stays unrecognised, as it was.
+    Sign(
+        "dropped",
+        r"(?m)^(?!.*content_filter).*"
+        r"(?:stream disconnected before completion|responseStreamDisconnected)",
+    ),
 )
 
 
