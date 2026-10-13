@@ -68,9 +68,9 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar is the [daemon bar](#daemon-bar): it names the daemon the page shows,
-its host and whether it is reached, and says how many epics are going on it. Its menu picks
-another daemon, and opens **Import**, **Settings**, **Usage** and **Download**, which downloads an epic out of a
-[backup target](/user/backups#downloading-an-epic). Where a newer humanize is out, the bar is marked ↑ and its menu offers
+its host and whether it is reached, and says how many epics are going on it. Its menu holds
+**Daemon**, which opens a list of the daemons beside it to switch to, then **Settings** and
+**Usage**. Where a newer humanize is out, the bar is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. The bell at the top of the sidebar
 opens your [notifications](#notifications). <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
@@ -218,8 +218,8 @@ tokens, and every process -- click one to pick it.
 
 ### Importing an epic {#importing-an-epic}
 
-Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or in the daemon bar's
-menu at the foot of the sidebar, or right-click between the epics in the sidebar, and pick the file --
+Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or right-click between the epics in
+the sidebar, and pick the file --
 or drop it anywhere on the window. It is read back in on the daemon the page shows, under the
 directory it ran in, and opens
 once it is in. One you already have is refused, with **Open** to go to it.
@@ -266,7 +266,7 @@ daemon:
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
-| **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one. A URL is shown with nothing signed into it |
+| **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
 | **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
 | **Daemons** | **Local**, always there, and every SSH daemon with its state (up, connecting, installing, failed or idle): add or **Edit** one a part at a time (name, host, user, port, identity file, proxy jump, SSH options), **Import** hosts from your SSH config, **Connect** or **Remove** one, asked first |
@@ -388,11 +388,10 @@ shows a second.
 The foot of the sidebar names the daemon showing, its host, a dot for whether it is reached, and
 how many epics are going on it. Click it for its menu:
 
-- every daemon, with whether it is reached; pick one to switch to it. An ssh host is connected
-  to when you pick it.
-- **Connect** on one that failed, to try it again.
-- **Manage**, which opens **Settings → Daemons**.
-- **Update**, **Import**, **Settings**, **Usage** and **Download**, as before.
+- **Daemon**, which opens beside it every daemon, with whether it is reached; pick one to switch
+  to it. An ssh host is connected to when you pick it. **Connect** on one that failed tries it
+  again, and **Manage** opens **Settings → Daemons**.
+- **Settings** and **Usage**, and **Update** where a newer humanize is out.
 
 A daemon is in one of these states:
 

@@ -75,27 +75,34 @@ def test_the_bar_names_the_daemon_and_its_picker_switches(
         bar.click()
         picker = page.locator("[data-hmz=daemon-picker]")
         expect(picker).to_have_attribute("role", "menu")
-        expect(picker.locator(".choice-label")).to_have_text(
-            [
-                *["Local", "lab", "farm", "Connect", "Manage"],
-                *["Import", "Settings", "Usage", "Download"],
-            ]
+        expect(
+            picker.locator(
+                ":scope > .choice .choice-label, :scope > .choice-sub > .choice .choice-label"
+            )
+        ).to_have_text(["Daemon", "Settings", "Usage"])
+        # The daemons open beside it, under Daemon rather than as a heading.
+        picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).click()
+        daemons = page.locator("[data-hmz=daemons]")
+        expect(daemons.locator(".choice-label")).to_have_text(
+            ["Local", "lab", "farm", "Connect", "Manage"]
         )
-        expect(picker.locator(".choice.chosen .choice-label")).to_have_text("Local")
+        expect(daemons.locator(".choice.chosen .choice-label")).to_have_text("Local")
 
         # One that failed is connected again.
-        picker.get_by_role("menuitem", name="Connect").click()
+        daemons.get_by_role("menuitem", name="Connect").click()
         expect(picker).to_have_count(0)
         assert page.evaluate("window.hmzConnected") == ["farm"]
 
         bar.click()
-        picker.get_by_role("menuitem", name=re.compile(r"^lab")).click()
+        picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).hover()
+        daemons.get_by_role("menuitem", name=re.compile(r"^lab")).click()
         page.wait_for_url(re.compile(r".*#/@lab/new$"))
         expect(bar.locator("[data-hmz=daemon-name]")).to_have_text("lab")
         expect(bar.locator("[data-hmz=daemon-host]")).to_have_text("lab.example")
 
         bar.click()
-        picker.get_by_role("menuitem", name="Manage").click()
+        picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).press("ArrowRight")
+        daemons.get_by_role("menuitem", name="Manage").click()
         page.wait_for_url(re.compile(r".*#/@lab/settings/daemons$"))
 
 
@@ -110,6 +117,7 @@ def test_without_daemons_the_bar_is_local(project: Path, engine: str) -> None:
         expect(bar.locator("[data-hmz=daemon-name]")).to_have_text("Local")
         bar.click()
         picker = page.locator("[data-hmz=daemon-picker]")
+        picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).click()
         expect(picker.locator(".choice-label")).to_have_text(
-            ["Local", "Manage", "Import", "Settings", "Usage", "Download"]
+            ["Daemon", "Local", "Manage", "Settings", "Usage"]
         )

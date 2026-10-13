@@ -188,6 +188,62 @@ export function choice({ label, about = '', chosen = false, href = null, glyph =
   return el
 }
 
+/**
+ * A choice in a menu that opens a menu of its own beside it: on a pointer resting on it, a click,
+ * or the right arrow; shut as the pointer leaves both, by the left arrow, or with the menu it is in.
+ */
+export function submenu({ label, about = '', glyph = null, items, hmz = null }) {
+  const opener = h(
+    'button',
+    { class: 'choice', type: 'button', role: 'menuitem', 'aria-haspopup': 'menu', 'aria-expanded': 'false' },
+    h('span', { class: 'choice-mark', 'aria-hidden': 'true' }, glyph ? icon(glyph) : null),
+    h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, label), about ? h('span', { class: 'choice-about' }, about) : null),
+    h('span', { class: 'choice-more', 'aria-hidden': 'true' }, icon('chevron')),
+  )
+  const holder = h('div', { class: 'choice-sub' }, opener)
+  let open = null
+  let leaving = 0
+  const shut = () => {
+    open?.remove()
+    open = null
+    opener.setAttribute('aria-expanded', 'false')
+  }
+  const show = (focus) => {
+    clearTimeout(leaving)
+    if (!open) {
+      open = h('div', { class: 'popover sub', role: 'menu', 'aria-label': label, 'data-hmz': hmz }, items())
+      holder.append(open)
+      opener.setAttribute('aria-expanded', 'true')
+      // Beside the menu it is in, on the right where there is room, else on the left, else -- on
+      // a phone -- over it, under the choice that opened it or, with no room there, above it.
+      const outer = holder.closest('.popover').getBoundingClientRect()
+      const row = opener.getBoundingClientRect()
+      const { offsetWidth: wide, offsetHeight: tall } = open
+      const right = outer.right + wide + EDGE <= innerWidth
+      const beside = right || outer.left - wide >= EDGE
+      const left = right ? outer.right - 2 : beside ? outer.left - wide + 2 : outer.left + 12
+      const top = beside ? row.top - 8 : row.bottom + tall + EDGE <= innerHeight ? row.bottom : row.top - tall
+      open.style.left = `${Math.max(EDGE, Math.min(left, innerWidth - wide - EDGE))}px`
+      open.style.top = `${Math.max(EDGE, Math.min(top, innerHeight - tall - EDGE))}px`
+    }
+    if (focus) open.querySelector('button, a')?.focus()
+  }
+  holder.addEventListener('pointerenter', (event) => event.pointerType === 'mouse' && show(false))
+  holder.addEventListener('pointerleave', (event) => {
+    if (event.pointerType === 'mouse') leaving = setTimeout(shut, 250)
+  })
+  opener.addEventListener('click', () => (open && !open.contains(document.activeElement) ? open.querySelector('button, a')?.focus() : show(true)))
+  holder.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowRight' && event.target === opener) show(true)
+    else if (event.key === 'ArrowLeft' && open) {
+      shut()
+      opener.focus()
+    } else return
+    event.preventDefault()
+  })
+  return holder
+}
+
 /** A heading among a menu's choices. */
 export function section(label) {
   return h('div', { class: 'popover-head', role: 'presentation' }, label)

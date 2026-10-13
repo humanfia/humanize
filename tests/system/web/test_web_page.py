@@ -426,7 +426,7 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
         # A theme is chosen only in Settings: the daemon picker offers none.
         page.locator("[data-hmz=daemon-bar]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Local", "Manage", "Import", "Settings", "Usage", "Download"]
+            ["Daemon", "Settings", "Usage"]
         )
         page.keyboard.press("Escape")
         go(page, "/settings/themes")
@@ -600,7 +600,7 @@ def test_a_newer_release_is_offered_under_the_machine(
         expect(page.locator("[data-hmz=newer]")).to_be_visible()
         page.locator("[data-hmz=daemon-bar]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Local", "Manage", "Update", "Import", "Settings", "Usage", "Download"]
+            ["Daemon", "Update", "Settings", "Usage"]
         )
         expect(page.locator("[role=menu] .choice-about").last).to_have_text(
             "hmz 99.0.0"
@@ -852,8 +852,8 @@ def test_an_epic_backed_up_elsewhere_is_downloaded_and_opened(
 ) -> None:
     name = backed_up_elsewhere(tmp_path, monkeypatch)
     with served() as site, opened(site, engine=engine) as page:
-        page.locator("[data-hmz=daemon-bar]").click()
-        page.get_by_role("menuitem", name="Download").click()
+        go(page, "/settings/backup")
+        page.locator("[data-hmz=download]").click()
 
         stored = page.locator(f"[data-hmz=stored-epic][data-epic='{name}']")
         expect(stored).to_contain_text("hi")
@@ -1014,9 +1014,12 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
         page.wait_for_url(opened_on)
         expect(listed).to_have_count(1)
 
-        # Picked again, from the daemon picker: it is here already, and is opened from there.
+        # Picked again, from between the epics: it is here already, and is opened from there.
         go(page, "/new")
-        page.locator("[data-hmz=daemon-bar]").click()
+        page.evaluate(
+            """() => document.querySelector('[data-hmz=epics]').dispatchEvent(
+                new MouseEvent('contextmenu', {bubbles: true, cancelable: true}))"""
+        )
         with page.expect_file_chooser() as choosing:
             page.get_by_role("menuitem", name="Import").click()
         choosing.value.set_files(archive)
