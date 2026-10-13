@@ -1,6 +1,7 @@
 // The sidebar, as Codex and Claude keep theirs: a new epic, finding one, the flows, and every
 // workspace of this machine as a folder of its epics, newest first -- each epic opened out into
-// its agents, and each agent into the sessions it opened. Under them, the daemon the page is of,
+// its agents, and each agent into the sessions it opened; a chat is its one conversation, and
+// opens into nothing. Under them, the daemon the page is of,
 // how many epics are going on it, and a picker of the daemons beside the settings and what the
 // epics spent.
 
@@ -10,7 +11,7 @@ import { ask } from './held.js'
 import { pick } from './importing.js'
 import { copy, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.js'
-import { sessionsOf } from './epic.js'
+import { chatState, chatting, sessionsOf } from './epic.js'
 import { bell, unreadOn } from './notifications.js'
 import { nameOf } from './places.js'
 import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSidebar } from './shell.js'
@@ -171,10 +172,13 @@ export function mountSidebar(root, context, where) {
   }
 
   function item(run, here, parts, unseen) {
-    const shown = (opened.has(run.name) || run.name === here) && !folded.has(run.name)
+    // A chat is only its conversation, running while its agent answers and done otherwise: the
+    // row is the chat, with nothing under it, current wherever in it the page is.
+    const chat = chatting(run)
+    const shown = !chat && (opened.has(run.name) || run.name === here) && !folded.has(run.name)
     const link = hash(`/epics/${encodeURIComponent(run.name)}`)
-    const toggle = h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(shown), 'aria-label': shown ? 'Collapse' : 'Expand' }, icon('chevron'))
-    toggle.addEventListener('click', () => {
+    const toggle = chat ? null : h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(shown), 'aria-label': shown ? 'Collapse' : 'Expand' }, icon('chevron'))
+    toggle?.addEventListener('click', () => {
       if (shown) {
         opened.delete(run.name)
         folded.add(run.name)
@@ -187,18 +191,20 @@ export function mountSidebar(root, context, where) {
       // The list was drawn again: the toggle pressed is the one that keeps the focus.
       for (const one of list.querySelectorAll('.side-item')) if (one.dataset.epic === run.name) one.querySelector('.side-toggle').focus()
     })
-    const how = run.how
+    const how = chat ? chatState(run.how, run.turn) : run.how
+    const at = run.name === here && (chat || !parts[2])
+    const live = chat ? how === 'running' : run.held
     const row = h(
       'div',
-      { class: ['side-run', run.name === here && !parts[2] && 'current', run.held && 'held'] },
+      { class: ['side-run', at && 'current', live && 'held'] },
       toggle,
       h(
         'a',
-        { href: link, 'aria-current': run.name === here && !parts[2] ? 'page' : null, title: `${run.task}\n${flowName(run.flow)} · ${how} · ${when(run.began)}`, 'data-hmz': 'epic' },
+        { href: link, 'aria-current': at ? 'page' : null, title: `${run.task}\n${flowName(run.flow)} · ${how} · ${when(run.began)}`, 'data-hmz': 'epic' },
         h('span', { class: ['side-mark', `tone-${tone(how)}`], 'aria-label': how }, MARKS[how] || '·'),
         h('span', { class: 'side-label' }, headline(run.task)),
         unseen ? marked() : null,
-        h('span', { class: 'side-meta' }, run.held ? h('span', { class: 'pill-live' }, 'live') : ago(run.began)),
+        h('span', { class: 'side-meta' }, run.held && !chat ? h('span', { class: 'pill-live' }, 'live') : ago(run.began)),
       ),
     )
     menuOn(row, () => epicMenu(run))
@@ -312,10 +318,12 @@ export function epicMenu(run) {
   // Going, whether a host holds it or another process does -- `hmz exec`, say.
   const going = run.held || run.how === 'running'
   const resumes = run.resumable && !going && run.how !== 'done'
+  // A chat is its conversation alone: no log of every session, no timeline, and never stopped.
+  const chat = chatting(run)
   return [
     { head: run.task.split('\n')[0] },
     { label: 'Open', glyph: 'open', href: base },
-    { label: 'Exomyth', glyph: 'chart', href: `${base}/exomyth` },
+    chat ? null : { label: 'Exomyth', glyph: 'chart', href: `${base}/exomyth` },
     resumes ? { label: 'Resume', glyph: 'resume', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}`) } : null,
     { label: 'New epic like it', glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
     '-',
@@ -324,8 +332,8 @@ export function epicMenu(run) {
     { label: 'Copy name', glyph: 'copy', act: () => copy(run.name, 'Name copied') },
     going ? null : { label: 'Export', glyph: 'download', act: () => (location.href = scoped(`/api/runs/${encodeURIComponent(run.name)}/bundle`)) },
     { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run.name) },
-    run.held ? '-' : null,
-    run.held ? { label: 'Stop', glyph: 'stop', danger: true, act: () => ask(run.workspace, 'stop').then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
+    run.held && !chat ? '-' : null,
+    run.held && !chat ? { label: 'Stop', glyph: 'stop', danger: true, act: () => ask(run.workspace, 'stop').then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
   ]
 }
 

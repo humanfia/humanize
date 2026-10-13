@@ -460,7 +460,7 @@ code {
   opacity: 1;
 }
 
-.side-run:is(:hover, :has(.side-toggle:focus-visible)) .side-mark {
+.side-run:has(> .side-toggle):is(:hover, :has(.side-toggle:focus-visible)) .side-mark {
   visibility: hidden;
 }
 

@@ -155,10 +155,8 @@ def test_an_epic_is_drawn_as_its_processes_moved_over_and_read(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         name = _chatted(site, "draw me")
-        go(page, f"/epics/{name}")
-        page.locator("[data-hmz=exomyth-open]").click()
+        go(page, f"/epics/{name}/exomyth")
         page.wait_for_function("() => window.__exomyth && window.__exomyth.model()")
-        assert page.url.endswith(f"#/epics/{name}/exomyth")
 
         listed = page.locator("[data-hmz=exomyth-processes]")
         expect(listed.locator("button")).to_have_count(2)

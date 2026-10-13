@@ -143,3 +143,26 @@ def go(page: Page, address: str) -> None:
 
 def _drawn(page: Page) -> None:
     page.wait_for_selector("[data-hmz=page]:not([aria-busy])", state="attached")
+
+
+def stop(page: Page) -> None:
+    """Stops the epic in front, as a script would -- a chat offers no Stop -- until it has ended.
+
+    An ended chat is done, as a chat app's conversation is: never stopped.
+    """
+    from playwright.sync_api import expect
+
+    page.evaluate(
+        """async () => {
+          const name = decodeURIComponent(location.hash.match(/epics\\/([^/?]+)/)[1])
+          const epic = await (await fetch(`/api/runs/${encodeURIComponent(name)}`)).json()
+          await fetch('/api/held/stop', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({workspace: epic.workspace}),
+          })
+        }"""
+    )
+    expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+        re.compile("done|stopped")
+    )

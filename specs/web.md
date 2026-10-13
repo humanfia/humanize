@@ -153,10 +153,13 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST name every agent of a run, going or written down, by its own name -- its sessions
   `<agent>/<n>`, its node, its transcript, its address and what is said to it -- the role it
   fills said only after the name, as the parameter it is; and a person by the role they answer.
-- MUST open a chat started from it on its conversation, read as a chat app reads one: the task
-  and every answer as the person's lines among the agent's, a line typed under it the next
-  turn, what to say next never drawn as a question, and what the agent asks mid-turn asked at
-  the end of the conversation with its answers there to pick.
+- MUST draw a chat as its conversation alone, wherever it is opened, read as a chat app reads
+  one: the task and every answer as the person's lines among the agent's, a line typed under
+  it the next turn, what to say next never drawn as a question, and what the agent asks
+  mid-turn asked at the end of the conversation with its answers there to pick; and never its
+  graph, its agents or sessions, its Exomyth, its people or a way to stop it -- said only as
+  running while its agent answers and done otherwise, and ended by a new epic started in its
+  workspace.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.

@@ -9,7 +9,7 @@
 // way, in the order they were opened, so an address to a session stays one as its run ends.
 
 import { get, poll } from './api.js'
-import { lane, lasting } from './dom.js'
+import { flowName, lane, lasting } from './dom.js'
 import { current, follow } from './held.js'
 
 /**
@@ -80,6 +80,19 @@ function same(detail, started) {
 
 /** How far apart, in seconds, the host's start and the epic's own may be and be one start. */
 const SAME = 120
+
+/** Whether an epic is the built-in chat, read as a conversation rather than as a flow. */
+export function chatting(epic) {
+  return flowName(epic.flow) === 'chat'
+}
+
+/**
+ * How a chat stands, as a chat app says it: running while its agent answers, done otherwise --
+ * by the turn said where it is, else by how the epic stands.
+ */
+export function chatState(how, turn) {
+  return (turn || how) === 'running' ? 'running' : 'done'
+}
 
 /** The run in front of the held records, where they hold one, and how it stands. */
 export function going(held) {

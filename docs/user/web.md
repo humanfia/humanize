@@ -55,13 +55,14 @@ That has three consequences:
 
 The page is laid out as a desktop chat app is. In it, every run of a flow is an **epic**, the
 way every conversation of an agent is a session: the sidebar lists your epics as a chat app
-lists its chats, and an epic opens out into its agents and the sessions each opened.
+lists its chats, and an epic opens out into its agents and the sessions each opened -- but a
+`chat`, which is its one conversation and opens into nothing.
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first: how each ended, or `live`; `●` without `live` is one another process goes with, such as `hmz exec`, read as it writes itself down | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
+| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first: how each ended, or `live`; `●` without `live` is one another process goes with, such as `hmz exec`, read as it writes itself down; a `chat` only `●` while its agent answers, else `✔` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
 | **New epic** | A box for the task, the directory and the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
-| **An epic** | Its graph: who handed to whom -- a `chat` opens on its conversation instead | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
+| **An epic** | Its graph: who handed to whom -- a `chat` is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
 | **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
@@ -143,10 +144,13 @@ And under the graph, while it goes:
 A session opens as its thread, drawn as the terminal draws it: an agent's words on a dot, your
 lines set apart on the right, a tool on a mark of its own, and `✻ Worked for …` closing a turn.
 
-A `chat` reads as a chat app's conversation, and is where one started from the page opens: your
-task, then each reply and each line you typed under it, on the right. The box under it is how
-you answer -- between turns it is your next turn, and while the agent asks something mid-turn
-it answers that, the answers it offers buttons at the end of the conversation.
+A `chat` is only its conversation, as a chat app's is, wherever it is opened: your task, then
+each reply and each line you typed under it, on the right. The box under it is how you answer --
+between turns it is your next turn, and while the agent asks something mid-turn it answers
+that, the answers it offers buttons at the end of the conversation. It has no graph, no agents
+or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and no
+**Stop**: it is `running` while its agent answers and `done` once the turn ends, and a new
+epic started in its directory ends it, as a new chat leaves the last.
 
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
 opens what they were asked and answered. A line typed under one goes to whose it is. There is

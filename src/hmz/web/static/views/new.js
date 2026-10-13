@@ -5,10 +5,11 @@
 // ran that flow, the way `/flow` in the terminal interface sets one up. Picking a run up again is
 // the same box, on that run.
 
-import { get, hash, post } from '../api.js'
+import { address, get, hash, post } from '../api.js'
 import { covered, go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
+import { chatting } from '../epic.js'
 import { ask } from '../held.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
 import { workspacePicker, workspaces } from '../places.js'
@@ -232,7 +233,17 @@ export function mount(root, { query }) {
       optionsChip.setAttribute('aria-expanded', 'true')
       throw error
     }
-    await ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false })
+    const starting = () => ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false })
+    try {
+      await starting()
+    } catch (error) {
+      // A chat going here has no Stop of its own: a new epic ends it, as a chat app's new chat
+      // leaves the last.
+      const front = /already running/.test(error.message) ? (await get(address('/api/runs', { workspace, limit: 1 }))).runs[0] : null
+      if (!front || !front.held || !chatting(front)) throw error
+      await ask(workspace, 'stop').catch(() => {})
+      await starting()
+    }
     go(`/live?workspace=${encodeURIComponent(workspace)}`)
   }
 

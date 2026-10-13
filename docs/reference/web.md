@@ -132,9 +132,9 @@ Each view is an address after `#`, so it can be kept and opened again:
 | Address | View |
 | --- | --- |
 | `#/new[?workspace=&flow=&resume=<name>]` | A new epic: in the workspace picked (where `hmz web` started by default), the flow picked, or the epic named picked up. The page opens here. |
-| `#/live` | The epic going; its address becomes `#/epics/<name>` once it is written down -- a `chat`'s, its conversation's, `#/epics/<name>/sessions/assistant%2F1`, once that opens. |
+| `#/live` | The epic going; its address becomes `#/epics/<name>` once it is written down -- a `chat`'s, its conversation's, `#/epics/<name>/sessions/<agent>%2F1`, once that opens. |
 | `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path on this machine, as [`POST /api/runs/import`](#api-import) does -- in the desktop app as it is opened; in a browser, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>/exomyth`, its [Exomyth](/user/web#exomyth) -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
-| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. |
+| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. A `chat`, and any other address of one but its Exomyth's, stands in for its conversation's, `#/epics/<name>/sessions/<agent>%2F1`. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<agent>/<n>` | The thread of the `n`-th session that agent opened, as the epic going names it (`/` written `%2F`). |
 | `#/epics/<name>/logs/<role>` | One agent's log, across its sessions; or one person's, what they are asked and answer. `#/epics/<name>/logs`, with neither, opens `#/epics/<name>`. |
