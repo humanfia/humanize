@@ -28,7 +28,10 @@ import os
 import shutil
 import stat as stat_module
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from hmz.coganchor import atomic
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -482,8 +485,9 @@ def prepare_shadow_root(path: str, *, force: bool = False, target: str = "") -> 
             path,
         )
     os.makedirs(os.path.dirname(record), exist_ok=True)
-    with open(record, "w", encoding="utf-8") as handle:
-        json.dump({"shadow": path, "target": target}, handle)
+    # Whole or not at all: a turn starting in this mirror reads it while another is writing
+    # it, and half a record is none -- a mirror refused as somebody else's directory.
+    atomic.writes(Path(record), json.dumps({"shadow": path, "target": target}))
 
 
 def _recorded_target(record: str) -> str | None:

@@ -6,6 +6,7 @@ import errno
 import json
 import os
 import stat
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -274,6 +275,60 @@ def test_a_mirror_is_reused_for_its_own_target_only(tmp_path: Path) -> None:
         prepare_shadow_root(str(tmp_path / "m"), target="ssh://b")
     prepare_shadow_root(str(tmp_path / "m"), target="ssh://b", force=True)
     prepare_shadow_root(str(tmp_path / "m"), target="ssh://b")
+
+
+def test_a_turn_starting_while_another_records_the_mirror_finds_it_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "m"
+    prepare_shadow_root(str(root), target="ssh://a")
+    (root / "kept.txt").write_text("what the target has")
+    turns: list[str] = []
+
+    def starting(dumping: Any) -> Any:
+        def dumped(*args: Any, **kwargs: Any) -> Any:
+            if not turns:
+                turns.append("another")
+                prepare_shadow_root(str(root), target="ssh://a")
+            return dumping(*args, **kwargs)
+
+        return dumped
+
+    # Another turn starts in the mirror just as this one writes its record.
+    monkeypatch.setattr(json, "dump", starting(json.dump))
+    monkeypatch.setattr(json, "dumps", starting(json.dumps))
+    prepare_shadow_root(str(root), target="ssh://a")
+
+    assert turns == ["another"]
+    assert (root / "kept.txt").read_text() == "what the target has"
+
+
+def test_turns_starting_in_one_mirror_at_once_are_none_refused(tmp_path: Path) -> None:
+    root = tmp_path / "m"
+    prepare_shadow_root(str(root), target="ssh://a")
+    (root / "kept.txt").write_text("what the target has")
+    refused: list[OSError] = []
+    together = threading.Barrier(3)
+
+    def turn() -> None:
+        together.wait()
+        for _ in range(20):
+            try:
+                prepare_shadow_root(str(root), target="ssh://a")
+            except OSError as why:
+                refused.append(why)
+
+    # Three turns of one run starting in their mirror at once, again and again: with the
+    # record truncated and then filled, one or another of them read it empty.
+    turns = [threading.Thread(target=turn) for _ in range(3)]
+    for one in turns:
+        one.start()
+    for one in turns:
+        one.join()
+
+    assert refused == []
+    # The record alone: nothing written beside it is left there.
+    assert len(list(Path(os.environ[SHADOWS]).iterdir())) == 1
 
 
 def test_a_file_is_no_root(tmp_path: Path) -> None:

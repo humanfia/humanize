@@ -482,7 +482,8 @@ network is answered from the target.
 
 - The mirror is prepared before the target is reached. Its guard, recorded outside the
   directory in `~/.cache/humanize/shadows/<sha256(path)[:16]>.json` (or under
-  `$HUMANIZE_SHADOWS`):
+  `$HUMANIZE_SHADOWS`), written whole beside it and moved into place, so that a turn starting
+  while another records the mirror reads the record and not half of it:
 
   | Condition | Without `force` |
   | --- | --- |
