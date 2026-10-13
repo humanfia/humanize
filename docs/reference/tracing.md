@@ -196,7 +196,7 @@ a process's `kind`.
 | `strings` | The string table. |
 | `processes` | Lanes of the chart's first level, by `id` (= index). |
 | `tracks` | Lanes of the second level, by index, each one process's. |
-| `spawns` | Arrows: columns `span` (the span that started it) and `process` (what it started), sorted by span. A sub-agent's comes from the action that started it; every other session's from the flow call that opened it, or the epic's own span. |
+| `spawns` | What started each process: columns `span` (the span that started it) and `process` (what it started), sorted by span. A sub-agent's comes from the action that started it; every other session's from the flow call that opened it, or the epic's own span. |
 | `summary` | `start` (0), `end` (µs; the last moment anything did), counts of `processes`, `tracks`, `spans`, and `categories`: `{<category>: {count, time, in, out}}` (`time` = durations summed, µs; `in`/`out` = tokens). |
 
 ### Processes {#timeline-processes}

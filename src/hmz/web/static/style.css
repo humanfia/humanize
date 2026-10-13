@@ -3157,7 +3157,10 @@ details.said-more summary {
   overflow-wrap: anywhere;
 }
 
+/* Top-aligned, so a name over several lines lines up with its fact by its first, not its last,
+   and is not drawn up over the fact above it. */
 .exo-link {
+  vertical-align: top;
   padding: 0;
   border: 0;
   background: none;

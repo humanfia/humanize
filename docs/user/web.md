@@ -184,8 +184,7 @@ read again every two seconds while the tab is shown.
 - **Timeline.** The epic's flows, each session and each program a [profiled](/user/tracing)
   epic ran, a row each, with a track per lane of its spans: sessions, turns, model calls,
   tools, messages and events, each category in its colour. The triangle by a name folds a
-  process to one row; **Expand** and **Collapse** do every one. **Arrows** shows what started
-  each process.
+  process to one row; **Expand** and **Collapse** do every one.
 - **Flame.** The same spans as a flame graph, over the stretch picked on the Timeline or the
   whole epic: under the epic, each agent (its role) with its sessions merged -- **Merge
   sessions** off puts each session apart -- or each flow or program, then its turns and what

@@ -585,7 +585,8 @@ export function mount(el, model, range, told = {}) {
     tip.textContent = `${text(agg.name[n])}\n${said(weight, laid.total[n])} total · ${said(weight, laid.self[n])} self · ${part.toFixed(part < 10 ? 2 : 1)}%\n${counted(agg.own.count[n])} ${agg.own.count[n] === 1 ? 'span' : 'spans'}`
     tip.hidden = false
     const shape = tip.getBoundingClientRect()
-    tip.style.left = `${Math.min(cx + 14, innerWidth - shape.width - 4)}px`
+    // Kept over the chart, clear of the panel beside it.
+    tip.style.left = `${Math.max(4, Math.min(cx + 14, canvas.getBoundingClientRect().right - shape.width - 4))}px`
     tip.style.top = `${cy + 18 + shape.height > innerHeight ? cy - shape.height - 8 : cy + 18}px`
   }
 

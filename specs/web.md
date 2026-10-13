@@ -182,8 +182,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   `layout` that is not that timeline's MUST be refused as a conflict.
 - MUST draw any epic, going or written down, as its Exomyth: its timeline's processes as rows
   of their tracks under a ruler of time, each under the process that started it, folded or
-  opened, with an arrow from each span that started one; moved over by keys, a wheel and a
-  pinch as Perfetto is moved over; a span pointed at said in brief and one picked said whole
+  opened, and no arrow drawn between them; moved over by keys, a wheel and a pinch as
+  Perfetto is moved over; a span pointed at said in brief and one picked said whole
   with what it carried; a stretch of time picked summed by category; spans found by their
   words, one after the next; and, beside it, a flame graph of the stretch picked or the whole --
   each agent its stack, its sessions merged or apart, then its spans as they nest -- weighed by

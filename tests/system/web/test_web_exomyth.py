@@ -412,3 +412,70 @@ def test_fifty_thousand_spans_are_summed_and_drawn_as_a_flame_in_time(
         )
         assert statistics.median(summed) < _SUM, summed
         assert statistics.median(drawn) < _FRAME, drawn
+
+
+#: What overlaps in the panel, as a list of what with what: each piece of its text against the
+#: panel's close button, the panel's edges and every other piece of text, and the chart's
+#: tooltip against the panel.
+_OVERLAPS = """() => {
+  const panel = document.querySelector('[data-hmz=inspector]')
+  const edge = panel.getBoundingClientRect()
+  const shut = panel.querySelector('.panel-close').getBoundingClientRect()
+  const pieces = []
+  const walker = document.createTreeWalker(panel.querySelector('.panel-body'), NodeFilter.SHOW_TEXT)
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.data.trim()) continue
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    for (const box of range.getClientRects())
+      if (box.width > 0 && box.height > 0) pieces.push({ text: node.data.trim().slice(0, 24), box })
+  }
+  const meet = (a, b) =>
+    Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5
+  const found = []
+  const tip = document.querySelector('.exo-tip:not([hidden])')
+  if (tip && meet(tip.getBoundingClientRect(), edge)) found.push('the tooltip / the panel')
+  for (const [i, one] of pieces.entries()) {
+    if (meet(one.box, shut)) found.push(`${one.text} / the close button`)
+    if (one.box.left < edge.left || one.box.right > edge.right - 1)
+      found.push(`${one.text} / the edge`)
+    for (const other of pieces.slice(i + 1))
+      if (meet(one.box, other.box)) found.push(`${one.text} / ${other.text}`)
+  }
+  return found
+}"""
+
+
+@pytest.mark.parametrize("width", [1280, 1000])
+def test_the_panel_says_a_span_a_process_and_a_range_without_overlapping(
+    project: Path, engine: str, width: int
+) -> None:
+    # At 1280 the panel is 360 pixels wide, and at 1000 it is 320.
+    with served() as site, opened(site, engine=engine, width=width) as page:
+        _exomyth(
+            page, _chatted(site, "a span whose name runs on and on past the panel")
+        )
+        details = page.locator("[data-hmz=exomyth-details]")
+        expect(details).to_contain_text("Processes")
+        assert page.evaluate(_OVERLAPS) == []
+
+        turn = _span(page, "turn")
+        at = page.evaluate("(id) => window.__exomyth.where(id)", turn)
+        page.mouse.click(at["x"], at["y"])
+        expect(details.locator("[data-hmz=exomyth-args]")).to_be_visible()
+        assert page.evaluate(_OVERLAPS) == []
+
+        details.locator(".exo-link").first.click()
+        expect(details).to_contain_text("Process")
+        assert page.evaluate(_OVERLAPS) == []
+
+        page.keyboard.press("Escape")
+        box = page.locator("[data-hmz=exomyth-canvas]").bounding_box()
+        assert box
+        page.mouse.move(box["x"] + box["width"] * 0.1, box["y"] + 10)
+        page.mouse.down()
+        page.mouse.move(box["x"] + box["width"] - 2, box["y"] + 10, steps=5)
+        page.mouse.up()
+        expect(details.locator("[data-hmz=exomyth-range]")).to_be_visible()
+        assert page.evaluate(_OVERLAPS) == []
