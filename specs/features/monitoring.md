@@ -141,15 +141,15 @@ stripped of a leading account or provider and a trailing release date.
 
 ### 3.4 Formats
 
-**3.4.1** Every frontend MUST state a duration as whole seconds below one minute (`42s`), as
-minutes and two-digit seconds below one hour (`3m07s`), and as hours and two-digit minutes from
-one hour (`2h05m`), truncating rather than rounding.
+**3.4.1** Every frontend MUST state a duration of the monitor or the cost tally as whole seconds
+below one minute (`42s`), as minutes and two-digit seconds below one hour (`3m07s`), and as hours
+and two-digit minutes from one hour (`2h05m`), truncating rather than rounding.
 
-**3.4.2** Every frontend MUST state a token count below 1,000 as a whole number, below 1,000,000
-in thousands with one decimal and the suffix `k`, and otherwise in millions with two decimals and
-the suffix `M`.
+**3.4.2** Every frontend MUST state a token count of the monitor or the cost tally below 1,000 as a
+whole number, below 1,000,000 in thousands with one decimal and the suffix `k`, and otherwise in
+millions with two decimals and the suffix `M`.
 
-**3.4.3** Every frontend MUST mark a floor by a `+` immediately after the figure.
+**3.4.3** Every frontend MUST mark a floor of the cost tally by a `+` immediately after the figure.
 
 ## 4. Notices
 
@@ -164,9 +164,9 @@ happen.
 
 ### 4.2 Notices
 
-**4.2.1** hmz MUST work out the notices of the epics of this machine once, for the web interface
-and the terminal interface alike, from the status each host slot reports, and MUST NOT attach to
-a host slot to do so.
+**4.2.1** The web interface and the terminal interface MUST each work out the notices of the
+epics of this machine by the rules of this section, from the status each host slot reports, and
+MUST NOT attach to a host slot to do so.
 
 **4.2.2** hmz MUST raise a notice of kind `done` when an epic ends `done`.
 
@@ -202,7 +202,7 @@ identifier a frontend heard (`api/http.md`).
 
 ### 4.3 Notification preferences
 
-**4.3.1** hmz MUST keep, as one setting of this machine shared by every frontend, whether each
+**4.3.1** hmz MUST keep, as one setting of the **home** shared by every frontend, whether each
 notice kind is told to the user and whether the operating system is also told
 (`api/settings.md`).
 

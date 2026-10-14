@@ -73,11 +73,14 @@ at once; reports already handed to the network MAY still arrive.
 
 ### 3.3 Where reporting runs
 
-**3.3.1** hmz MUST start reporting only in the terminal interface, in `hmz exec`, in the daemon,
-and in an SDK program that asks for it (`api/sdk.md`), and in each only where the effective
-answer is yes.
+**3.3.1** The terminal interface, `hmz exec` and the daemon MUST start reporting when they
+start, where the effective answer is yes.
 
-**3.3.2** A reporter that cannot start, information that cannot be gathered, and a report that
+**3.3.2** Any other hmz process, an SDK program included, MUST start reporting no earlier than
+the first report it makes or the moment the program asks for reporting (`api/sdk.md`), and only
+where the effective answer is yes.
+
+**3.3.3** A reporter that cannot start, information that cannot be gathered, and a report that
 cannot be sent MUST each leave hmz and every epic behaving as they would without reporting.
 
 ## 4. Content
@@ -107,8 +110,8 @@ each CLI would load, and each flowverse by name with whether it has been fetched
 
 **4.1.7** A report MUST hold the release of hmz that sent it.
 
-**4.1.8** hmz MAY send, with reports, timing and stack samples of its own process, subject to
-§4.2.1 to §4.4.2.
+**4.1.8** hmz MAY send, with reports, timing data and sampled profiles of its own process;
+these MUST NOT hold anything §4.2.4 names.
 
 ### 4.2 What is never sent
 
@@ -133,13 +136,17 @@ variables an account sets.
 **4.3.1** In every string a report holds, hmz MUST replace a home-directory path prefix under
 `/home/`, `/homes/` or `/Users/` by `~`.
 
-**4.3.2** In every string a report holds, hmz MUST replace a user or password written into a URL,
-and every key in a vendor format, by `…`.
+**4.3.2** In every string a report holds, hmz MUST replace a user or password written into a URL
+by `…`.
 
-**4.3.3** In every string a report holds, hmz MUST replace the command line a failed command
+**4.3.3** In every string a report holds, hmz MUST replace by `…` every word that starts with
+`sk`, `pk`, `ghp`, `gho`, `github_pat`, `xai`, `sk-ant` or `sk-proj`, followed by `-` or `_` and
+at least eight further letters, digits, `_` or `-`.
+
+**4.3.4** In every string a report holds, hmz MUST replace the command line a failed command
 states of itself by `A command `.
 
-**4.3.4** hmz MUST cut every string a report holds to 500 characters, followed by `…` where cut.
+**4.3.5** hmz MUST cut every string a report holds to 500 characters, followed by `…` where cut.
 
 ### 4.4 Stack frames
 

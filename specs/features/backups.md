@@ -37,8 +37,8 @@ epic, where `<machine>` is this machine's host name up to its first dot, every c
 `A-Z`, `a-z`, `0-9`, `.`, `_` and `-` replaced by `-`, `<workspace>` is the name of the directory
 under which hmz keeps the epics of the workspace, and `<epic>` is the epic name.
 
-**2.6** **Bundle**: a gzip-compressed tar archive whose file name ends in `.hmzepic` and which
-holds exactly one epic as files.
+**2.6** **Bundle**: a gzip-compressed tar archive that holds exactly one epic as files, named
+`<epic>.hmzepic` unless the user names the file otherwise.
 
 **2.7** **Manifest**: the file `manifest.json` that a bundle and a backup hold beside the epic's
 records, stating what the epic was (§4.2).
@@ -53,8 +53,8 @@ of this machine.
 
 ### 3.1 Targets
 
-**3.1.1** hmz MUST keep backup targets, and the default targets among them, as settings of this
-machine and not of any workspace.
+**3.1.1** hmz MUST keep backup targets, and the default targets among them, as settings of the
+**home** and not of any workspace.
 
 **3.1.2** A backup target's name MUST be one to 32 characters of `A-Z`, `a-z`, `0-9`, `_` and
 `-`, starting with a letter or digit.
@@ -105,7 +105,8 @@ with, else to the default targets.
 with no target to go to.
 
 **3.4.3** `hmz backup <epic>` MUST wait for the backup to finish, MUST state for each target
-whether it succeeded, naming its URL with any credential removed, and MUST exit 0 where every
+whether it succeeded, naming the target's URL with any credential removed where it succeeded
+and the error where it failed, and MUST exit 0 where every
 target succeeded, 1 where any failed, and 2 for an epic or a target that does not exist or where
 there is no target.
 
@@ -160,7 +161,7 @@ manifests there alone.
 
 **3.6.2** A listed epic MUST state its epic key, its machine, the workspace it states it executed
 in, its epic name, its flow, its task, when it began, when it ended, how it ended (empty where it
-had not ended when backed up) and the commit its workspace was on.
+had not ended when backed up) and the commit its manifest states (§4.2.3).
 
 **3.6.3** `hmz backup --list` MUST state, for each target named, else for every target, each
 epic it holds on one line: machine, workspace, epic name, ending (`unfinished` where none) and
@@ -211,8 +212,8 @@ Python, the operating system and architecture, and the epic name.
 **4.2.2** The manifest MUST state the epic's flow, task, beginning, end, ending (`left
 unfinished` where none) and whether it is resumable.
 
-**4.2.3** The manifest MUST state the workspace the epic executed in and the git commit it was on
-where there was one.
+**4.2.3** The manifest MUST state the workspace the epic executed in and, where that workspace
+is a git repository, the commit it is on when the bundle or backup is made.
 
 **4.2.4** The manifest MUST state each agent role's agent, model, effort and account, each env as
 given and as used, and the tree of flow calls.
@@ -277,7 +278,7 @@ was kept in another machine's CLI home MUST be placed in the epic, and its recor
 rewritten to state so.
 
 **4.5.6** An imported epic MUST record that it was imported, from which file or epic key, and the
-commit its workspace was on.
+commit its manifest states.
 
 **4.5.7** hmz MUST import whole or not at all, and MUST leave nothing behind where importing
 fails.
