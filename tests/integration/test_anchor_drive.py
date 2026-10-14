@@ -8,6 +8,7 @@ workspace the CLI is given is the target's own copy.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -313,3 +314,41 @@ def test_a_virtual_home_is_built_on_the_target_and_gone_after_the_turn(
     assert (real / "sessions" / "kept").exists()
     assert not Path(landed).exists()
     assert not (driven.target / ".agents").exists()
+
+
+def test_a_native_home_keeps_a_skills_exec_bit_and_writes_back_a_replaced_sign_in(
+    driven: Driven, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = tmp_path / "codex-home"
+    real.mkdir()
+    (real / "config.toml").write_text("theirs = true\n")
+    (real / "auth.json").write_text("a token\n")
+    (real / "auth.json").chmod(0o600)
+    os.utime(real / "auth.json", (1_000_000, 1_000_000))
+    monkeypatch.setenv("CODEX_HOME", str(real))
+    skill = _skill(tmp_path)
+    (skill / "run.sh").write_text("#!/bin/sh\necho ran\n")
+    (skill / "run.sh").chmod(0o755)
+    home = Virtual(
+        variable="CODEX_HOME",
+        default=".codex",
+        rewrites=("config.toml",),
+        lodges="skills",
+        skills=(("review", str(skill)),),
+    )
+
+    said = driven.run(
+        "/bin/sh",
+        "-c",
+        '"$CODEX_HOME/skills/review/run.sh"; '
+        'printf "refreshed\\n" > "$CODEX_HOME/auth.json.tmp"; '
+        'mv "$CODEX_HOME/auth.json.tmp" "$CODEX_HOME/auth.json"; '
+        'printf "x\\n" > "$CODEX_HOME/c.tmp"; mv "$CODEX_HOME/c.tmp" "$CODEX_HOME/config.toml"',
+        home=home,
+    )
+
+    assert said.returncode == 0, said.stderr
+    assert said.stdout.splitlines() == ["ran"]
+    assert (real / "auth.json").read_text() == "refreshed\n"
+    assert (real / "auth.json").stat().st_mode & 0o777 == 0o600
+    assert (real / "config.toml").read_text() == "theirs = true\n"

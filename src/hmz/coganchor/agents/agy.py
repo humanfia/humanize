@@ -14,7 +14,7 @@ import math
 import os
 import re
 import tempfile
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
@@ -1037,7 +1037,11 @@ class AntigravityCLIAgent(AgentBase):
         except BaseException:
             home.drop()
             raise
-        return home
+        # Its `agents/` is now the home's own rather than a link the CLI replaced: what is in
+        # it is humanize's, and is not written back into the user's home.
+        return replace(
+            home, linked=tuple(one for one in home.linked if one != "agents")
+        )
 
     def natively(self, fence: Fence) -> Fence:
         """None of the fence, which is put around agy from outside in full.

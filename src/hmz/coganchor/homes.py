@@ -14,7 +14,10 @@ built on the machine the CLI runs on as it starts and taken away when it stops:
   the user's own, so that what it writes lands in the copy and goes with it;
 - everything else of the user's home is *linked*, so that credentials, caches and the
   conversations the CLI keeps are the ones it always reads and writes -- a refreshed token is
-  the user's refreshed token, and a session is where whatever reads it back looks;
+  the user's refreshed token, and a session is where whatever reads it back looks. A CLI
+  that saves such a file by writing another and renaming it over the name replaces the link
+  with a file of the virtual home's own; as the home is dropped, each link so replaced is
+  written back to what it stood for (:meth:`Home.drop`), unless what is there is newer;
 - the user-level skills directory (:attr:`~hmz.coganchor.backends.Profile.lodges`) is a
   directory of links to each of the user's own skills, with the flow's beside them. A flow's
   skill of the same name as one of the user's is the one the CLI finds: the session is the
@@ -33,19 +36,25 @@ from __future__ import annotations
 import contextlib
 import fnmatch
 import json
+import logging
 import os
 import shutil
+import stat
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from hmz.coganchor.atomic import writes
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
 
     from hmz.coganchor.backends import Profile
 
-__all__ = ["SCRIPT", "Home", "Virtual", "build", "virtual", "words"]
+__all__ = ["BACK", "SCRIPT", "Home", "Virtual", "build", "virtual", "words"]
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +243,10 @@ class Home:
       kept: What of it is moved into the user's home as it is dropped, as :attr:`Virtual.kept`.
       argv: What the CLI is told after its own name to be started in it: the flag naming it,
         for a CLI no variable moves.
+      linked: The names directly in it that were links to the user's home when it was built:
+        what is written back as it is dropped, where the CLI replaced one.
+      answered: What a supervisor answers a path of the user's home with, as :func:`build`
+        took it: where what is written back goes instead, for an account's own file.
     """
 
     at: Path
@@ -242,6 +255,10 @@ class Home:
     rewrites: tuple[str, ...] = ()
     kept: tuple[str, ...] = ()
     argv: tuple[str, ...] = ()
+    linked: tuple[str, ...] = ()
+    answered: Callable[[str], str | None] = field(
+        default=lambda _path: None, compare=False, repr=False
+    )
 
     def environ(self, environ: Mapping[str, str] | None) -> dict[str, str]:
         """The whole environment a process of the CLI is started in, given the one it had.
@@ -287,9 +304,34 @@ class Home:
     def drop(self) -> None:
         """Takes it away: the copies and the links, never what a link points at.
 
+        A link the CLI replaced -- a credential or a session file it saved by renaming another
+        over it -- is written back first to what it stood for, or to what a supervisor answers
+        that with: a file whole and atomically, with the mode the one there had; a directory a
+        file at a time, each that is new or changed. Never over one that is newer, which is
+        another process of the same account having saved since: the last to save wins.
+
         What the CLI made here that is the user's to keep (:attr:`kept`) and that the user's
-        home has none of yet is moved there first, rather than going with the rest.
+        home has none of yet is moved there next, rather than going with the rest.
         """
+        for name in self.linked:
+            entry = self.at / name
+            if entry.is_symlink() or not entry.exists():
+                continue
+            if entry.is_dir():
+                try:
+                    held = sorted(entry.rglob("*"))
+                except OSError as why:
+                    log.warning("could not write %s back: %s", entry, why)
+                    continue
+                for one in held:
+                    if one.is_file() and not one.is_symlink():
+                        _back(
+                            one,
+                            self.real / name / one.relative_to(entry),
+                            self.answered,
+                        )
+            else:
+                _back(entry, self.real / name, self.answered)
         with contextlib.suppress(OSError):
             for entry in self.at.iterdir() if self.kept else ():
                 there = self.real / entry.name
@@ -331,7 +373,7 @@ def build(
     real = spec.real(said)
     at = Path(os.path.realpath(tempfile.mkdtemp(prefix="hmz-home-", dir=under)))
     try:
-        _built(spec, said, real, at, answered)
+        linked = _built(spec, said, real, at, answered)
     except OSError:
         shutil.rmtree(at, ignore_errors=True)
         raise
@@ -354,6 +396,8 @@ def build(
         rewrites=spec.rewrites,
         kept=spec.kept,
         argv=argv,
+        linked=linked,
+        answered=answered,
     )
 
 
@@ -363,8 +407,13 @@ def _built(
     real: Path,
     at: Path,
     answered: Callable[[str], str | None],
-) -> None:
-    """Fills a virtual home in; :func:`build`'s, which takes it away again if this fails."""
+) -> tuple[str, ...]:
+    """Fills a virtual home in; :func:`build`'s, which takes it away again if this fails.
+
+    Returns:
+      The names directly in it that it linked to the user's home.
+    """
+    linked: list[str] = []
     for one in spec.rewrites:
         whence = real / one
         if not said.get(spec.variable):
@@ -388,7 +437,8 @@ def _built(
             (real / name).mkdir(parents=True, exist_ok=True)
         elif not real.is_dir():
             real.mkdir(parents=True)
-        _link(at / name, real / name)
+        if _link(at / name, real / name):
+            linked.append(name)
     if real.is_dir():
         for entry in real.iterdir():
             name = entry.name
@@ -396,7 +446,8 @@ def _built(
                 continue
             if any(fnmatch.fnmatchcase(name, one) for one in spec.private):
                 continue
-            _link(at / name, entry)
+            if _link(at / name, entry):
+                linked.append(name)
     if spec.lodges:
         into = at / spec.lodges
         into.mkdir(parents=True, exist_ok=True)
@@ -408,12 +459,54 @@ def _built(
                     _link(into / entry.name, entry)
         for name, whence in spec.skills:
             _link(into / name, Path(whence))
+    return tuple(linked)
 
 
-def _link(at: Path, to: Path) -> None:
-    """Links one name to what it stands for, leaving one already there as it is."""
-    with contextlib.suppress(FileExistsError):
+def _link(at: Path, to: Path) -> bool:
+    """Links one name to what it stands for, leaving one already there as it is.
+
+    Returns:
+      Whether it linked it.
+    """
+    try:
         at.symlink_to(to)
+    except FileExistsError:
+        return False
+    return True
+
+
+def _back(entry: Path, whence: Path, answered: Callable[[str], str | None]) -> None:
+    """Writes one file the CLI saved in place of a link back to where the link pointed.
+
+    Never raises: this runs as a home is dropped, which is the end of a turn.
+
+    Args:
+      entry: The file the CLI saved.
+      whence: Where it stands for in the user's home.
+      answered: What a supervisor answers that with, as :func:`build` took it.
+    """
+    there = whence
+    try:
+        there = Path(os.path.realpath(answered(str(whence)) or whence))
+        now = entry.stat()
+        try:
+            was: os.stat_result | None = there.stat()
+        except FileNotFoundError:
+            was = None
+        if was is not None and (
+            not stat.S_ISREG(was.st_mode) or was.st_mtime_ns >= now.st_mtime_ns
+        ):
+            return  # saved there since, or not a file to write over
+        there.parent.mkdir(parents=True, exist_ok=True)
+        with entry.open("rb") as reading:
+            writes(
+                there,
+                iter(lambda: reading.read(1 << 20), b""),
+                mode=stat.S_IMODE((was or now).st_mode),
+            )
+        os.utime(there, ns=(now.st_atime_ns, now.st_mtime_ns))
+    except OSError as why:
+        log.warning("could not write %s back to %s: %s", entry, there, why)
 
 
 #: The same as :func:`build`, as a POSIX shell script for a target where nothing of humanize
@@ -422,7 +515,8 @@ def _link(at: Path, to: Path) -> None:
 #: `copy=PATH=OUTSIDE` (a rewrite, and where it is under `~` while the variable is unset, or
 #: nothing), `keep=GLOB` (private), `make=NAME` (made) and `skill=NAME` (a flow's own skill,
 #: which the caller writes into `AT/LODGES/NAME` afterwards). It prints the user's own value
-#: of the variable, which is what `secures` is set to.
+#: of the variable, which is what `secures` is set to. What it links directly in `AT` it lists,
+#: a target per line, in `AT.links` beside it, for :data:`BACK`.
 SCRIPT = r"""
 set -e
 at=$1 var=$2 default=$3 lodges=$4
@@ -431,6 +525,14 @@ eval "moved=\${$var:-}"
 real=${moved:-$HOME/$default}
 umask 077
 mkdir -p "$at"
+: > "$at.links"
+nl='
+'
+link() {
+  if [ -e "$at/$1" ] || [ -h "$at/$1" ]; then return 0; fi
+  ln -s -- "$real/$1" "$at/$1"
+  case $real/$1 in *"$nl"*) ;; *) printf '%s\n' "$real/$1" >> "$at.links" ;; esac
+}
 skipped() {
   for word in "$@"; do
     case $word in
@@ -457,14 +559,14 @@ for word in "$@"; do
     name=${word#make=}
     skipped "$@" && continue
     case $name in *.*) mkdir -p "$real" ;; *) mkdir -p "$real/$name" ;; esac
-    [ -e "$at/$name" ] || [ -h "$at/$name" ] || ln -s -- "$real/$name" "$at/$name" ;;
+    link "$name" ;;
   esac
 done
 for f in "$real"/* "$real"/.[!.]* "$real"/..?*; do
   [ -e "$f" ] || [ -h "$f" ] || continue
   name=${f##*/}
   skipped "$@" && continue
-  [ -e "$at/$name" ] || [ -h "$at/$name" ] || ln -s -- "$f" "$at/$name"
+  link "$name"
 done
 if [ -n "$lodges" ]; then
   mkdir -p "$at/$lodges"
@@ -477,6 +579,52 @@ if [ -n "$lodges" ]; then
   done
 fi
 printf '%s\n' "$moved"
+"""
+
+
+#: :meth:`Home.drop`'s writing back, for a home :data:`SCRIPT` built: run as
+#: `sh -c BACK humanize AT` once the CLI is done, before `AT` is taken away. Each link listed in
+#: `AT.links` that the CLI replaced is written back to the file it pointed at -- a directory a
+#: file at a time -- by a copy renamed over it, with the mode the one there had, and never over
+#: one that is as new or newer.
+BACK = r"""
+at=$1
+[ -f "$at.links" ] || exit 0
+put='
+src=$1 dst=$2
+shift 2
+for g in "$@"; do
+  [ -f "$g" ] && [ ! -h "$g" ] || continue
+  t=$dst${g#"$src"} n=0
+  while [ -h "$t" ] && [ $n -lt 8 ]; do
+    l=$(readlink -- "$t") || break
+    case $l in /*) t=$l ;; *) t=$(dirname -- "$t")/$l ;; esac
+    n=$((n + 1))
+  done
+  if [ -e "$t" ]; then
+    [ -f "$t" ] || continue
+    # Where times are only to the second, the same second and other bytes is newer.
+    [ "$g" -nt "$t" ] || { ! [ "$t" -nt "$g" ] && ! cmp -s -- "$g" "$t"; } || continue
+  fi
+  d=$(dirname -- "$t")
+  mkdir -p -- "$d" 2>/dev/null || continue
+  tmp=$d/.hmz-back.$$
+  rm -f -- "$tmp"
+  if [ -e "$t" ] && cp -p -- "$t" "$tmp" 2>/dev/null && cat -- "$g" > "$tmp" 2>/dev/null &&
+    touch -r "$g" "$tmp"; then :
+  else rm -f -- "$tmp"; cp -p -- "$g" "$tmp" || { rm -f -- "$tmp"; continue; }
+  fi
+  mv -f -- "$tmp" "$t" || rm -f -- "$tmp"
+done
+'
+while IFS= read -r f; do
+  p=$at/${f##*/}
+  if [ -h "$p" ]; then continue; fi
+  if [ -d "$p" ]; then find "$p" -type f -exec sh -c "$put" sh "$p" "$f" {} +
+  elif [ -f "$p" ]; then sh -c "$put" sh "$p" "$f" "$p"
+  fi
+done < "$at.links"
+exit 0
 """
 
 

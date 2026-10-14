@@ -1143,6 +1143,17 @@ right after the program's name).
   Credentials, caches and sessions are reached through the links, so a refreshed token and a
   conversation land where they always do; a supervisor answering session or credential paths
   answers them under the virtual home too.
+- A CLI that saves a file by renaming another over it replaces the link with a file of the
+  virtual home's own. As the home is removed (`Home.drop`, and `homes.BACK` on a native
+  anchor's target), each link so replaced is written back to what it pointed at -- or to the
+  provider's or account's copy a supervisor answers that path with: a file whole and
+  atomically, keeping the mode the one there had; a directory a new or changed file at a time.
+  Never over a file as new or newer, which another process of the same account saved since:
+  the last to save wins. So a refreshed token (`.credentials.json`, `auth.json`, `credentials`)
+  and a session file a CLI replaces are kept; the copies of `Profile.rewrites` still go.
+- A brought skill sent to a native anchor's target is written a file at a time, each beside
+  itself and renamed into place with its own mode (a script stays executable); one that
+  cannot be written whole is removed rather than left half there.
 - `Profile.secures` names a variable set to the user's own value of the home variable (empty
   where unset), unless the environment sets it: Claude Code's `CLAUDE_SECURESTORAGE_CONFIG_DIR`,
   which keeps its keychain item and `.credentials.json` where they were.
