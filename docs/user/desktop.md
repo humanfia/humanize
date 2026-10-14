@@ -99,7 +99,8 @@ once, naming the version:
 
 To look now, choose **humanize → Check for Updates…**: it offers the new release, or says
 humanize is up to date, or why it could not look. Only releases are offered, never a
-pre-release.
+pre-release, unless the app you run is a pre-release itself: then the newest release or
+pre-release is.
 
 Once the new app opens, it updates `hmz` to its own version too, as it would at any launch: at
 once where no epics are running, and otherwise once they have ended.

@@ -1,7 +1,10 @@
 //! The app updating itself from each release: quietly a few seconds after launch and every 6
-//! hours, or by hand from the menu. What it finds it downloads in the background, accepts only
-//! signed with the key in tauri.conf.json, and offers once: Restart installs it and relaunches,
-//! Later installs it as the app quits. A development build, version 0.0.0, never looks.
+//! hours, or by hand from the menu. It reads the `latest.json` of the newest release it may take
+//! -- a pre-release only where it is one -- since GitHub's latest release is never a
+//! pre-release, and may predate the app. What it finds it downloads in the background, accepts
+//! only signed with the key in tauri.conf.json, and offers once: Restart installs it and
+//! relaunches, Later installs it as the app quits. A development build, version 0.0.0, never
+//! looks.
 
 use std::ffi::CString;
 use std::mem;
@@ -12,8 +15,10 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 
 use semver::Version;
+use serde::Deserialize;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_updater::{Update, UpdaterExt};
+use url::Url;
 
 use crate::alert::{self, Level};
 use crate::lock;
@@ -30,6 +35,12 @@ const TICK: Duration = Duration::from_secs(10 * 60);
 
 /// How long a look, or a download, may take before it is given up.
 const PATIENCE: Duration = Duration::from_secs(5 * 60);
+
+/// The releases, newest first: drafts never among them.
+const RELEASES: &str = "https://api.github.com/repos/humanfia/humanize/releases?per_page=30";
+
+/// What a release offers its update in.
+const LATEST: &str = "latest.json";
 
 /// What the prompt's buttons say.
 const RESTART: &str = "Restart";
@@ -93,9 +104,65 @@ pub fn checks(version: &Version) -> bool {
 }
 
 /// Whether `remote` replaces `current`: only a newer one, and a pre-release only one already on
-/// a pre-release. `latest.json` is never a pre-release's, so this is the second guard.
+/// a pre-release. `latest` picks the release by the same rule, so this is the second guard.
 fn newer(current: &Version, remote: &Version) -> bool {
     remote > current && (remote.pre.is_empty() || !current.pre.is_empty())
+}
+
+/// A release, as GitHub lists it.
+#[derive(Debug, Deserialize)]
+struct Release {
+    tag_name: String,
+    assets: Vec<Asset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Asset {
+    name: String,
+    browser_download_url: Url,
+}
+
+/// The `latest.json` of the newest release `current` may take, of those that carry one: a
+/// pre-release only where `current` is one. Whether it is newer than `current` is the
+/// updater's to say.
+fn latest(current: &Version, releases: Vec<Release>) -> Option<Url> {
+    releases
+        .into_iter()
+        .filter_map(|release| {
+            let version = Version::parse(release.tag_name.strip_prefix('v')?).ok()?;
+            let asset = release
+                .assets
+                .into_iter()
+                .find(|asset| asset.name == LATEST)?;
+            (version.pre.is_empty() || !current.pre.is_empty())
+                .then_some((version, asset.browser_download_url))
+        })
+        .max_by(|(one, _), (other, _)| one.cmp(other))
+        .map(|(_, url)| url)
+}
+
+/// The releases, from GitHub.
+fn releases() -> Result<Vec<Release>, String> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(PATIENCE))
+        // What macOS trusts, a company's own authority in the keychain included.
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
+        .build()
+        .into();
+    let failed = |why: &dyn std::fmt::Display| format!("the releases could not be listed: {why}");
+    let said = agent
+        .get(RELEASES)
+        .header("Accept", "application/vnd.github+json")
+        .call()
+        .map_err(|why| failed(&why))?
+        .body_mut()
+        .read_to_string()
+        .map_err(|why| failed(&why))?;
+    serde_json::from_str(&said).map_err(|why| failed(&why))
 }
 
 /// The app bundle the executable `exe` is in, where the app may replace it: not one run
@@ -172,8 +239,17 @@ async fn fetch<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Ready>, String> 
                 .into(),
         );
     }
+    let current = app.package_info().version.clone();
+    let listed = tauri::async_runtime::spawn_blocking(releases)
+        .await
+        .map_err(|why| why.to_string())??;
+    let Some(endpoint) = latest(&current, listed) else {
+        return Ok(None);
+    };
     let updater = app
         .updater_builder()
+        .endpoints(vec![endpoint])
+        .map_err(|why| why.to_string())?
         .timeout(PATIENCE)
         .version_comparator(|current, remote| newer(&current, &remote.version))
         .build()
@@ -311,6 +387,44 @@ mod tests {
         // A pre-release never for one on a release, and never back from one.
         assert!(!newer("0.2.1", "0.3.0-rc.1"));
         assert!(!newer("0.3.0-rc.1", "0.2.1"));
+    }
+
+    #[test]
+    fn reads_the_newest_latest_json_it_may_take() {
+        let release = |tag: &str, assets: &[&str]| Release {
+            tag_name: tag.into(),
+            assets: assets
+                .iter()
+                .map(|name| Asset {
+                    name: (*name).into(),
+                    browser_download_url: Url::parse(&format!("https://x/{tag}/{name}")).unwrap(),
+                })
+                .collect(),
+        };
+        let releases = || {
+            vec![
+                release("v0.3.0-beta.1", &["latest.json"]),
+                release("v0.2.1", &["x.dmg", "latest.json"]),
+                release("v0.2.0", &["latest.json"]),
+                // Before the app: no update in it.
+                release("v0.4.0", &["hmz-0.4.0.tar.gz"]),
+                release("nightly", &["latest.json"]),
+            ]
+        };
+        let latest = |current| latest(&version(current), releases()).map(String::from);
+        assert_eq!(
+            latest("0.2.0").as_deref(),
+            Some("https://x/v0.2.1/latest.json")
+        );
+        assert_eq!(
+            latest("0.2.0-beta.2").as_deref(),
+            Some("https://x/v0.3.0-beta.1/latest.json")
+        );
+        assert_eq!(super::latest(&version("0.2.0"), vec![]), None);
+        assert_eq!(
+            super::latest(&version("0.2.0"), vec![release("v0.1.0", &["hmz.whl"])]),
+            None
+        );
     }
 
     #[test]
