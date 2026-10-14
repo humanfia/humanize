@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import re
 import time
@@ -38,9 +39,6 @@ def test_every_profile_is_well_formed(profile: Profile) -> None:
     assert set(profile.beyond) <= set(profile.efforts)
     assert profile.silence > 0
     assert all("{ident}" in one for one in profile.logs)
-    assert not profile.mounts or any(
-        (profile.skills, profile.shared, profile.config, profile.works)
-    )
     assert not profile.endpoint or profile.endpoint in profile.accounts()
     assert all(one.fault in backends.FAULTS for one in profile.signs)
     for way in profile.ways:
@@ -433,6 +431,55 @@ def test_trouble_reads_a_backends_own_signs_first() -> None:
     assert backends.trouble("grok", said) == "throttled"
     assert backends.trouble("claude", said) == "retired"
     assert backends.trouble("mcode", "Please sign in to MiniMax") == "refused"
+
+
+#: How codex's app server files a failure it is trying again, whatever the failure was.
+_RECONNECTING = {"responseStreamDisconnected": {"httpStatusCode": None}}
+
+
+@pytest.mark.parametrize(
+    ("said", "fault"),
+    [
+        (
+            {"message": "stream disconnected before completion: error decoding body"},
+            "dropped",
+        ),
+        (
+            {"message": "Reconnecting... 5/5", "codexErrorInfo": _RECONNECTING},
+            "dropped",
+        ),
+        # What it wraps is read first: a rate limit tried again is still a rate limit.
+        (
+            {
+                "message": "Reconnecting... 2/5",
+                "codexErrorInfo": _RECONNECTING,
+                "additionalDetails": "rate limit exceeded: try again in 2s",
+            },
+            "throttled",
+        ),
+        # The provider's content filter, in the same sentence: refused, not the wire.
+        (
+            {
+                "message": "stream disconnected before completion: Incomplete response"
+                " returned, reason: content_filter"
+            },
+            "",
+        ),
+        (
+            {
+                "message": "Reconnecting... 1/5",
+                "codexErrorInfo": _RECONNECTING,
+                "additionalDetails": "stream disconnected before completion: Incomplete"
+                " response returned, reason: content_filter",
+            },
+            "",
+        ),
+    ],
+)
+def test_trouble_reads_codexs_broken_stream_last(
+    said: dict[str, object], fault: str
+) -> None:
+    assert backends.trouble("codex", json.dumps(said)) == fault
 
 
 def test_journalled_reads_the_newest_recent_log(home: Path) -> None:

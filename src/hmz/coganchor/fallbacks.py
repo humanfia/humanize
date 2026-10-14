@@ -280,7 +280,7 @@ ANSWERS: tuple[Answer, ...] = (
         "could not keep its copy of the work here",
         held=True,
         fix="that path cannot be made here; use a workdir whose path you can create here, "
-        "or put self in the affinity of the runtime the work is on",
+        "or set the harness of the runtime the work is on to env",
     ),
     # The run rather than the account: the fence it was started under keeps it off a host,
     # and the same fence keeps the next go off it too. Another place may need no such host,

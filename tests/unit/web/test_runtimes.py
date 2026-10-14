@@ -40,5 +40,5 @@ def test_a_new_slurm_cluster_is_made_of_its_fields_with_nothing_said() -> None:
         "max_wait": 0,
         "workdir": "",
         "fallback": [],
-        "affinity": [],
+        "harness": "env",
     }

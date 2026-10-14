@@ -1,4 +1,4 @@
-"""Where an agent's harness runs: `affinity`, with coganchor's store and the env drivers mocked."""
+"""Where an agent's harness runs: `harbors`, with coganchor's store and the env drivers mocked."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from hmz import machine
 from hmz.coganchor.machines import store
 from hmz.flows import EnvBackendKind, EnvUnavailable, ResourceUnmet
 from hmz.runtime.flowing import environments
-from hmz.runtime.flowing.affinity import Harbors, affinity_of
 from hmz.runtime.flowing.fakes import FakeEnvDriver
+from hmz.runtime.flowing.harbors import Harbors, harness_of
 from hmz.runtime.flowing.specs import EnvSpec
 from hmz.runtime.flowing.spi import Placement
 
@@ -25,7 +25,7 @@ class Docker:
 
     workdir: str = ""
     here: bool | None = True
-    affinity: tuple[str, ...] = ()
+    harness: str = "env"
 
     def daemon(self) -> Any:
         if self.here is None:
@@ -36,13 +36,13 @@ class Docker:
 @dataclass
 class Apple:
     workdir: str = ""
-    affinity: tuple[str, ...] = ()
+    harness: str = "env"
 
 
 @dataclass
 class Other:
     workdir: str = ""
-    affinity: tuple[str, ...] = ()
+    harness: str = "env"
 
 
 @dataclass
@@ -95,20 +95,20 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
     return held
 
 
-def test_affinity_of_a_runtime_is_its_own() -> None:
-    runtime: Any = Other(affinity=("self", "local"))
-    assert affinity_of(runtime) == ("self", "local")
-    assert affinity_of(None) == ()
+def test_the_harness_setting_of_a_runtime_is_its_own_and_env_for_none() -> None:
+    runtime: Any = Other(harness="local")
+    assert harness_of(runtime) == "local"
+    assert harness_of(None) == "env"
 
 
-def test_harbors_read_an_affinity_once_per_place(world: World) -> None:
-    world.runtimes["ssh", "gpu"] = Other(affinity=("docker:box", "local"))
+def test_harbors_read_a_harness_setting_once_per_place(world: World) -> None:
+    world.runtimes["ssh", "gpu"] = Other(harness="docker:box")
     harbors = Harbors()
     placement = Placement(EnvBackendKind.SSH, "gpu", PurePosixPath("/w"))
-    assert harbors.affinity(placement) == ("docker:box", "local")
-    assert harbors.affinity(placement) == ("docker:box", "local")
+    assert harbors.setting(placement) == "docker:box"
+    assert harbors.setting(placement) == "docker:box"
     nowhere = Placement(EnvBackendKind.LOCAL, "", PurePosixPath("/w"))
-    assert harbors.affinity(nowhere) == ()
+    assert harbors.setting(nowhere) == "env"
     assert world.finds == [("ssh", "gpu"), ("local", "")]
 
 
@@ -150,14 +150,14 @@ async def test_a_runtime_with_no_workdir_is_given_one(
 @pytest.mark.parametrize(
     ("entry", "runtime", "says"),
     [
-        ("self", None, "is not a runtime"),
+        ("env", None, "is not a runtime"),
         ("ssh:gone", None, "no ssh runtime is saved as 'gone'"),
         ("docker:far", Docker(here=False), "not on this machine"),
         ("docker:odd", Docker(here=None), "not on this machine"),
         ("swarm:s", Other(), "no workdir of its own"),
     ],
 )
-async def test_a_runtime_that_cannot_be_opened_has_no_room(
+async def test_a_runtime_that_cannot_be_opened_is_refused(
     world: World, entry: str, runtime: Any, says: str
 ) -> None:
     backend, _, name = entry.partition(":")

@@ -13,6 +13,7 @@ import json
 import queue
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.agents.event import Event
+    from hmz.coganchor.homes import Virtual
+    from hmz.coganchor.machines import AnchoredConfig
     from hmz.coganchor.providers import Provider
 
 #: A process id no kernel hands out, so that a signal sent to one of these reaches nobody.
@@ -200,6 +203,39 @@ def spawning(
     return spawned
 
 
+def housed(monkeypatch: pytest.MonkeyPatch, variable: str) -> list[dict[str, str]]:
+    """What each process found in the virtual home it was started in, as it was started.
+
+    Call after :func:`spawning`. The home goes with its process, which a stand-in may have
+    ended by the time a turn is over, so it is read as the process is spawned.
+
+    Args:
+      monkeypatch: The test's own.
+      variable: The variable naming the home.
+
+    Returns:
+      For each process spawned in one, every file under it -- through its links -- by its
+      path relative to the home, with what is in it.
+    """
+    seen: list[dict[str, str]] = []
+    popen = subprocess.Popen
+
+    def spying(argv: list[str], **kwargs: Any) -> Any:
+        env: dict[str, str] = kwargs.get("env") or {}
+        home = env.get(variable)
+        if home:
+            found: dict[str, str] = {}
+            for at, _, files in Path(home).walk(follow_symlinks=True):
+                for name in files:
+                    path = at / name
+                    found[str(path.relative_to(home))] = path.read_text()
+            seen.append(found)
+        return popen(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", spying)
+    return seen
+
+
 def configured(model: str, said: dict[str, Any]) -> dict[str, Any]:
     """An agent config's fields: at `model` and no effort, but for what `said` says."""
     return {"model": model, "effort": ""} | said
@@ -279,3 +315,36 @@ def gatewayed(monkeypatch: pytest.MonkeyPatch, account: Provider) -> list[Preten
     monkeypatch.setattr(providers, "find", find)
     monkeypatch.setattr(gateway, "Gateway", start)
     return started
+
+
+def afar(monkeypatch: pytest.MonkeyPatch, workspace: Path) -> AnchoredConfig:
+    """A machine the work lands on whose harness is put there too, reached by nothing.
+
+    The archive is taken to be there already, and the flow's skills land at `/far/skills/ab`.
+    """
+    from hmz.coganchor import transport
+    from hmz.coganchor.anchor import AnchorConfig
+    from hmz.coganchor.machines import AnchoredConfig
+
+    def run(
+        road: transport.Road, argv: list[str], feeding: bytes = b"", timeout: Any = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(argv, 0, b"/far/skills/ab\n", b"")
+
+    def installed(road: transport.Road) -> str:
+        return "/far/hmz.pyz"
+
+    monkeypatch.setattr(transport.Road, "installed", installed)
+    monkeypatch.setattr(transport.Road, "run", run)
+    anchor = AnchorConfig(target="ssh://box", harness="same", workspace=str(workspace))
+    return AnchoredConfig(anchor=anchor)
+
+
+def carried(argv: list[str]) -> Virtual:
+    """The virtual home a harness's machine is told to build, read out of the ssh line to it."""
+    import shlex
+
+    from hmz.coganchor.homes import Virtual
+
+    (said,) = [one for one in shlex.split(argv[-1]) if one.startswith("--home=")]
+    return Virtual.loads(said.removeprefix("--home="))

@@ -133,6 +133,10 @@ JOURNAL = "epic.jsonl"
 #: What a line saying how one backup of the epic went is, in its own record.
 BACKED = "backed"
 
+#: What a line saying which agent side questions about the epic go to is, in its own record:
+#: its `agent` as `-a` spells one, or "" for none of its own.
+BTW = "btw"
+
 #: What the record of a flow another flow called is called, beside the run's own: which
 #: flow it is of, and an id of that call rather than of the flow -- a flow called twice is
 #: two records, since it is two runs of it and each opened its own sessions.
@@ -228,8 +232,8 @@ class Session(NamedTuple):
         wherever its CLI keeps them. "" for a line that never said, which :func:`where` reads
         as the directory of links an epic written before sessions were kept holds.
       harness: Where its harness ran, for a session whose work was on another machine:
-        `local` here, `self` natively on that machine, and `<backend>:<name>` on the runtime
-        of that name -- one an affinity sent it to. "" for a session that worked here, where
+        `local` here, `env` natively on that machine, and `<backend>:<name>` on the runtime
+        of that name -- one a harness setting named. "" for a session that worked here, where
         there was nowhere else for it to be.
     """
 
@@ -344,6 +348,8 @@ class Ran(NamedTuple):
         under in settings.
       backed: How its last backup to each target went, by target: `at`, `ok`, `error` --
         "" where it went -- and `why` it was backed up.
+      btw: The agent side questions about it go to, as `-a` spells one -- the last it was
+        given -- or "" for none of its own, which leaves it to settings and then the flow.
     """
 
     at: Path
@@ -369,6 +375,7 @@ class Ran(NamedTuple):
     spent: dict[str, Any] | None = None
     backup: tuple[str, ...] = ()
     backed: dict[str, dict[str, Any]] = {}  # noqa: RUF012 -- a NamedTuple's default
+    btw: str = ""
 
     @property
     def name(self) -> str:
@@ -451,19 +458,19 @@ def harbor(target: str, runtime: str) -> None:
 
     Args:
       target: The target reaching it, as a session's anchor names where its harness is.
-      runtime: The runtime, as an affinity names one: `<backend>:<name>`.
+      runtime: The runtime, as a harness setting names one: `<backend>:<name>`.
     """
     _HARBORS[target] = runtime
 
 
 def harnessed(machine: MachineConfig | None) -> str:
-    """Where a session's harness runs, as it was settled, in the words an affinity has for it.
+    """Where a session's harness runs, as it was settled, in a harness setting's words.
 
     Args:
       machine: The machine its agent's turns land on, or None for this one.
 
     Returns:
-      `local` for a harness on this machine, `self` for the CLI the environment's machine
+      `local` for a harness on this machine, `env` for the CLI the environment's machine
       has, and `<backend>:<name>` for a harness on a runtime of its own -- or the target
       reaching it, for one :func:`harbor` was told nothing of.
     """
@@ -473,7 +480,7 @@ def harnessed(machine: MachineConfig | None) -> str:
     if not isinstance(machine, AnchoredConfig):
         return store.HERE
     if machine.anchor.native:
-        return store.SELF
+        return store.ENV
     if machine.anchor.harness != HERE:
         return _HARBORS.get(machine.anchor.harness, machine.anchor.harness)
     return store.HERE
@@ -1508,6 +1515,14 @@ def read(epic: Path) -> Ran | None:
             for one in events[_here(events) :]
             if one.get("event") == BACKED
         },
+        btw=next(
+            (
+                str(one.get("agent") or "")
+                for one in reversed(events)
+                if one.get("event") == BTW
+            ),
+            "",
+        ),
     )
 
 

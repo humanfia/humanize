@@ -4,8 +4,8 @@
 // host's own paths, on the host's network. A session is only history, kept here: the builder's
 // turns name `env=envs["box"]` when they run and work on build-box, the reviewer's name the
 // workspace and work here, and the builder's one session takes its next turn on build-box
-// again. Last, where the harness itself runs: a saved host's affinity, tried in order, the
-// next place only when the one before has no room.
+// again. Last, where the harness itself runs: a saved host's harness setting, one place and
+// nowhere else -- `local` for a host with no CLI of its own.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
@@ -21,7 +21,7 @@ const BEATS = [
   "ssh carries every command to build-box: the host's files, at its paths, on its network",
   'The builder spawns a session here, and runs its turn with env=envs["box"]: on build-box',
   "The reviewer's turn runs in the workspace, here; the builder's session takes its next turn on build-box",
-  "Where the harness runs: a saved host's affinity, tried in order",
+  "Where the harness runs: the saved host's harness setting, here local",
 ]
 
 /** A mono character's advance at 11px. */
@@ -49,9 +49,9 @@ const NARROW_CODE: Line[] = [
   { text: '    env=envs["workspace"])', step: 3, env: { col: 4, len: 21 } },
 ]
 
-/** The affinity of build-box, once saved, in the order its places are tried. */
+/** What build-box's harness setting may say; it is saved as `local`. */
 const PLACES = [
-  { name: 'self', w: 40 },
+  { name: 'env', w: 34 },
   { name: 'local', w: 46 },
   { name: 'ssh:gpu2', w: 66 },
 ]
@@ -230,7 +230,7 @@ const scene = useScene({
     over(dotC(0, 1), term, hue.builder, T3 + 4.2)
     pulse(tl, one('.folder'), T3 + 5.2, 1.03)
 
-    // 4 · where the harness runs: build-box saved with an affinity, its places tried in order.
+    // 4 · where the harness runs: build-box saved with its harness `local`, not `env`.
     const T4 = T3 + 6.0
     tl.addLabel('beat-4', T4)
     cam.shot(l.shots.box, T4, 1.4)
@@ -264,7 +264,7 @@ const scene = useScene({
     :scene="scene"
     :beats="BEATS"
     mobile-ratio="9 / 16"
-    label="Remote execution's split, with the onbox flow. This machine keeps the agent's CLI, signed in, and its sessions, which are only history. ssh to build-box carries every command the agent runs, at the host's own paths, /home/me/build/myproject, on the host's network. The builder spawns its session here with working = await builder.spawn(), and runs its turn with builder.run(task, session=working, env=envs['box']): the turn works on build-box, where python test_calc.py runs. The flow runs git diff on build-box; the reviewer spawns its session with reading = await reviewer.spawn() and runs its turn with env=envs['workspace'], in the workspace here. The builder's same session then takes its next turn on build-box. Where the agent's CLI itself runs is the affinity of a saved host, its places tried in order: self has no room on a host without claude, so local is tried, which always has room, and the builder's harness runs here; ssh:gpu2 after it is never tried."
+    label="Remote execution's split, with the onbox flow. This machine keeps the agent's CLI, signed in, and its sessions, which are only history. ssh to build-box carries every command the agent runs, at the host's own paths, /home/me/build/myproject, on the host's network. The builder spawns its session here with working = await builder.spawn(), and runs its turn with builder.run(task, session=working, env=envs['box']): the turn works on build-box, where python test_calc.py runs. The flow runs git diff on build-box; the reviewer spawns its session with reading = await reviewer.spawn() and runs its turn with env=envs['workspace'], in the workspace here. The builder's same session then takes its next turn on build-box. Where the agent's CLI itself runs is the harness setting of a saved host, one place and nowhere else: env would need claude on build-box, which has none, so build-box is saved with local, and the builder's harness runs here; ssh:gpu2, another saved runtime, is not chosen."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
@@ -340,9 +340,9 @@ const scene = useScene({
           </g>
         </g>
         <path class="cross" :d="`M${placeX(0) + 4} ${L.box.y + 178} L${placeX(0) + PLACES[0].w - 4} ${L.box.y + 178}`" />
-        <g class="gpu-skip"><text class="note" :x="placeX(2) + PLACES[2].w + 6" :y="L.box.y + 182">never tried</text></g>
-        <g class="msg msg-0"><text class="note-word bad" :x="L.box.x + 12" :y="L.box.y + 205">self: no claude on build-box, no room</text></g>
-        <g class="msg msg-1"><text class="note-word good" :x="L.box.x + 12" :y="L.box.y + 205">local: always has room, so here</text></g>
+        <g class="gpu-skip"><text class="note" :x="placeX(2) + PLACES[2].w + 6" :y="L.box.y + 182">not chosen</text></g>
+        <g class="msg msg-0"><text class="note-word bad" :x="L.box.x + 12" :y="L.box.y + 205">env: no claude on build-box</text></g>
+        <g class="msg msg-1"><text class="note-word good" :x="L.box.x + 12" :y="L.box.y + 205">local: build-box's setting, so here</text></g>
 
         <!-- The flow. -->
         <g class="code">

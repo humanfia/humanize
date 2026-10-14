@@ -14,7 +14,7 @@ For tests:
 - `uv run pytest` runs unit and integration, which is what CI runs.
 - `tests/system/` is OPTIONAL: real agents on real tasks, 5–30 minutes and real tokens per test, and in `tests/system/web/` the web page driven in real browsers (Playwright), never in CI. Unit and integration tests MUST NOT drive a browser. Do NOT run it on every change; run only the file that covers an end-to-end path you changed, e.g. `uv run pytest tests/system/test_flows_ralph.py`.
 
-For `specs/*.md`:
+For `specs/**/*.md`:
 
 - MUST strictly adhere to specs at `specs/`.
 - MUST NOT modify any SPEC UNLESS explicitly instructed to do so.

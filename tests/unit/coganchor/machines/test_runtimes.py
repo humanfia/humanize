@@ -13,9 +13,9 @@ from hmz.coganchor.machines.store import (
     APPLE_CONTAINER,
     BACKENDS,
     DOCKER,
+    ENV,
     HERE,
     IMPORTED,
-    SELF,
     SLURM,
     SSH,
     SWARM,
@@ -54,20 +54,20 @@ def written() -> dict[str, Any]:
 @pytest.mark.parametrize(
     ("entry", "said"),
     [
-        (SELF, None),
+        (ENV, None),
         (HERE, None),
         ("ssh:gpu", (SSH, "gpu")),
         ("swarm:s.1", (SWARM, "s.1")),
     ],
 )
-def test_an_affinity_entry_names_a_runtime_or_one_of_the_two_places(
+def test_a_harness_setting_names_a_runtime_or_one_of_the_two_places(
     entry: str, said: tuple[str, str] | None
 ) -> None:
     assert affine(entry) == said
 
 
 @pytest.mark.parametrize("entry", ["", "ssh", "ftp:x", "ssh:", "ssh:-x", "docker:a/b"])
-def test_an_affinity_entry_that_does_not_read_is_refused(entry: str) -> None:
+def test_a_harness_setting_that_does_not_read_is_refused(entry: str) -> None:
     with pytest.raises(ValueError, match="is not where a harness runs"):
         affine(entry)
 
@@ -141,10 +141,9 @@ def test_a_bare_ssh_runtime_is_its_host() -> None:
             {"name": "x", "host": "h", "fallback": ("nowhere",)},
             "must be <backend>:<name>",
         ),
-        ({"name": "x", "host": "h", "affinity": ("ssh:x",)}, "names itself"),
-        ({"name": "x", "host": "h", "affinity": (SELF, SELF)}, "in its affinity twice"),
+        ({"name": "x", "host": "h", "harness": "ssh:x"}, "names itself"),
         (
-            {"name": "x", "host": "h", "affinity": ("ftp:y",)},
+            {"name": "x", "host": "h", "harness": "ftp:y"},
             "is not where a harness runs",
         ),
     ],
@@ -240,7 +239,7 @@ def test_a_daemon_says_what_every_exec_into_its_containers_is_told() -> None:
         exec_env=["A=1", "B="],
         exec_wrapper=["/w", "64"],
         workdir="/srv",
-        affinity=["local"],
+        harness="local",
     )
 
     assert isinstance(runtime, DockerRuntime)
@@ -380,7 +379,7 @@ def test_a_slurm_cluster_takes_what_its_jobs_are_submitted_under() -> None:
         run_args=("--exclusive",),
         max_jobs=8,
         max_wait=600,
-        affinity=("local",),
+        harness="local",
     )
 
     assert (
@@ -516,6 +515,31 @@ def test_every_runtime_is_listed_by_backend_then_by_name() -> None:
         (SLURM, "hpc"),
     ]
     assert [one.name for one in runtimes(DOCKER)] == ["a", "b"]
+
+
+@pytest.mark.parametrize(
+    ("affinity", "harness"),
+    [
+        ([], ENV),
+        (["self", "local"], ENV),
+        (["local"], HERE),
+        (["docker:box"], "docker:box"),
+    ],
+)
+def test_an_affinity_of_before_is_read_as_its_first_entry(
+    affinity: list[str], harness: str
+) -> None:
+    settings.changes(
+        lambda held: held.update(
+            runtimes={"ssh": {"gpu": {"host": "h", "affinity": affinity}}}
+        )
+    )
+
+    found = find(SSH, "gpu")
+    assert isinstance(found, SSHRuntime)
+    assert found.harness == harness
+    write(found)
+    assert "affinity" not in written()["runtimes"]["ssh"]["gpu"]
 
 
 def test_an_entry_that_does_not_read_is_saved_but_not_a_runtime() -> None:

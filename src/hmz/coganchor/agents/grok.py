@@ -68,8 +68,9 @@ import json
 import os
 import threading
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
+
+from hmz.coganchor.homes import merged, merger
 
 # What the protocol says a thing is, what a client may do, how a tool call is permitted and
 # what ends a turn having answered are the protocol's rather than Grok Build's, so they are
@@ -90,6 +91,7 @@ from .hooks import EVERYWHERE, Moment
 if TYPE_CHECKING:
     import subprocess
     from collections.abc import Iterator, Mapping
+    from pathlib import Path
 
     import tomlkit
     from pydantic import BaseModel
@@ -457,31 +459,49 @@ class GrokBuildSession(StreamSessionBase):
         can be said. Read off the environment a turn runs under, which is the account's.
 
         Not for a turn on another machine, where the API cannot be said both truly and
-        privately: the entry is written into this machine's `config.toml`, which a target's
-        own `grok` never reads, and the headers an Anthropic-shaped endpoint wants travel in a
-        variable holding the key, which every command the agent runs on a target would
-        inherit. Refused there rather than run in whatever API the CLI picks by the model's
-        name, which would be the account's answer quietly not given.
+        privately: the entry is written into the `config.toml` of a virtual home this machine
+        builds, which a target's own `grok` never reads, and the headers an Anthropic-shaped
+        endpoint wants travel in a variable holding the key, which every command the agent
+        runs on a target would inherit. Refused there rather than run in whatever API the CLI
+        picks by the model's name, which would be the account's answer quietly not given.
 
         Returns:
           The name `--model` takes.
 
         Raises:
           Unrecoverable: For a gateway account on a target whose own CLI takes the turn, or
-            on any target for one speaking Anthropic's API.
+            under a harness on another machine -- neither is started in a virtual home this
+            machine builds -- or on any target for one speaking Anthropic's API.
         """
+        from hmz.coganchor.elsewhere import elsewhere
+
         environ = self._environ() or os.environ
         speaks = environ.get(_SPEAKS, "").strip()
         if self._agent.config.machine is not None and speaks and environ.get(_AT):
             anchor = self._agent.anchor
-            if anchor is not None and (anchor.native or speaks == "messages"):
+            if anchor is not None and (
+                anchor.native or elsewhere(anchor) or speaks == "messages"
+            ):
                 said = f"a grok account speaking {speaks} to a gateway runs on this machine"
                 raise Unrecoverable(1, [_COMMAND], "", said)
-        return _routed(self._agent.config.model, environ)
+        return _routed(self._agent.config.model, environ)[0]
 
     def _stale(self) -> bool:
         """Restarts before settings or mounted flow resources change."""
         return self._launched is not None and self._launched != self._requested
+
+    def _merges(self) -> tuple[tuple[str, str], ...]:
+        """The `[model.*]` entry a gateway account is asked for by, for the home's `config.toml`.
+
+        The home is the user's own as :mod:`hmz.coganchor.homes` builds it -- a copy of their
+        `config.toml`, links to everything else, the flow's skills beside theirs -- and the
+        entry (:func:`_routed`) is put into that copy (:func:`_entered`), which goes with the
+        process: the user's own is never written. Nothing for an account no gateway holds.
+        """
+        named, entry = _routed(self._agent.config.model, self._environ() or os.environ)
+        if entry is None:
+            return ()
+        return (merged(_entered, {"named": named, "entry": entry}),)
 
     def _command(self) -> list[str]:
         """The `grok agent stdio` this conversation is held open on.
@@ -1260,28 +1280,31 @@ def _extras(config: AgentConfig) -> list[str]:
     return argv
 
 
-def _routed(model: str, environ: Mapping[str, str]) -> str:
-    """The name a turn asks for `model` by, under an account's environment.
+def _routed(
+    model: str, environ: Mapping[str, str]
+) -> tuple[str, dict[str, Any] | None]:
+    """The name a turn asks for `model` by, under an account's environment, and its entry.
 
     An account behind a gateway is told which API to speak by a `[model.*]` entry, there
     being nowhere else 1.0.46 reads an `api_backend` from -- so the entry is written, into
-    the `config.toml` of the home this turn's CLI reads, and the turn asks for it rather than
-    for the model. The entry names the variable the key is in rather than the key, which is
-    what keeps a secret off a disk it was never meant for. The headers Anthropic's API wants
+    the `config.toml` of the virtual home this turn's CLI is started in
+    (:meth:`GrokBuildSession._spawning`), and the turn asks for it rather than for the model.
+    The entry names the variable the key is in rather than the key, which is what keeps a
+    secret off a disk it was never meant for. The headers Anthropic's API wants
     besides are not the entry's to carry: :meth:`GrokBuildAgent.environment` says why.
 
     Named for what it holds, so that the same endpoint, model and API are always the same
-    entry: two accounts writing at once write the same thing or different things, and a turn
-    finding its entry already there writes nothing at all. Hidden, being humanize's rather
-    than something the person at this machine picked: `-m` still reaches it, and their
-    picker does not show it.
+    entry, and a process started again asks for the one it asked for before. Hidden, being
+    humanize's rather than something the person at this machine picked: `-m` still reaches
+    it, and the picker does not show it.
 
     Args:
       model: The model, as the endpoint names it.
       environ: The environment the turn runs under.
 
     Returns:
-      The entry's name, or `model` itself for an account that is not behind a gateway.
+      The entry's name and the entry, or `model` itself and None for an account that is not
+      behind a gateway.
 
     Raises:
       Unrecoverable: If the account names an API Grok Build has no word for, which it would
@@ -1291,7 +1314,7 @@ def _routed(model: str, environ: Mapping[str, str]) -> str:
     speaks = environ.get(_SPEAKS, "").strip()
     base = environ.get(_AT, "").strip()
     if not speaks or not base:
-        return model
+        return model, None
     if speaks not in _APIS:
         said = f"{_SPEAKS} is {speaks!r}, which is none of {', '.join(sorted(_APIS))}"
         raise Unrecoverable(1, [_COMMAND], "", said)
@@ -1303,107 +1326,32 @@ def _routed(model: str, environ: Mapping[str, str]) -> str:
         "hidden": True,
     }
     said = json.dumps(entry, sort_keys=True).encode()
-    named = f"hmz-{hashlib.sha256(said).hexdigest()[:12]}/{model}"
-    _entered(_configured(environ), named, entry)
-    return named
+    return f"hmz-{hashlib.sha256(said).hexdigest()[:12]}/{model}", entry
 
 
-def _configured(environ: Mapping[str, str]) -> Path:
-    """The `config.toml` of the home a turn's CLI reads, under the turn's environment."""
-    from hmz.coganchor.backends import named
+@merger
+def _entered(home: Path, said: dict[str, Any]) -> None:
+    """Puts one `[model.*]` entry into a virtual home's copy of a Grok Build `config.toml`.
 
-    found = named(_COMMAND)
-    home = found.directory(environ) if found is not None else Path.home() / ".grok"
-    return home / "config.toml"
-
-
-def _entered(at: Path, named: str, entry: dict[str, Any]) -> None:
-    """Puts one `[model.*]` entry into a Grok Build `config.toml`, and nothing else of it.
-
-    The file is the person at this machine's -- their settings, and what `/settings` writes
-    for them -- so it is merged into rather than written: read again under a lock every writer
-    here takes, the one entry set, and the whole of it moved into place, with their comments
-    and their order still where they put them. Through a link to wherever it really is, as a
-    file kept among somebody's dotfiles often is, so that the link is still a link afterwards.
+    The copy is the process's own, so it is written outright; what the user wrote in their
+    file -- their comments and their order among it -- is kept in it all the same.
 
     Args:
-      at: The file, which need not be there yet.
-      named: The entry's name.
-      entry: What it holds.
+      home: The virtual home, whose copy is not there for a user with no file of their own.
+      said: `named`, the entry's name, and `entry`, what it holds.
 
     Raises:
       Unrecoverable: If the file is there and is not TOML, which Grok Build would refuse
-        too: it is somebody's to correct, and writing over it would lose what they wrote.
+        too: it is somebody's to correct.
     """
-    import fcntl
-
     import tomlkit
 
-    from hmz import machine
-    from hmz.coganchor import atomic
-
-    at = at.resolve()
-
-    def held(doc: tomlkit.TOMLDocument) -> bool:
-        kept = cast("dict[str, object]", doc).get("model")
-        if not isinstance(kept, dict):
-            return False
-        return _plain(cast("dict[str, object]", kept).get(named)) == entry
-
-    if held(_reading(at)):
-        return
-    at.parent.mkdir(parents=True, exist_ok=True)
-    with (machine() / "grok-config.lock").open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        doc = _reading(at)
-        if held(doc):
-            return
-        if "model" not in doc:
-            doc["model"] = tomlkit.table(is_super_table=True)
-        cast("dict[str, Any]", doc["model"])[named] = entry
-        atomic.writes(at, tomlkit.dumps(doc), mode=None if at.exists() else 0o600)
-
-
-def _withdrawn(at: Path, base: str) -> None:
-    """Takes out of a Grok Build `config.toml` every entry :func:`_routed` kept for `base`.
-
-    For an endpoint that is gone for good -- a LiteLLM gateway on a port of loopback, which
-    every agent starts again on a port of its own -- so that the person's file does not keep
-    an entry per agent that ever ran. Under the lock :func:`_entered` takes, and through a
-    link as it is; nothing is written where there is nothing to take out.
-
-    Args:
-      at: The file, which need not be there.
-      base: The endpoint the entries name.
-    """
-    import fcntl
-
-    import tomlkit
-
-    from hmz import machine
-    from hmz.coganchor import atomic
-
-    at = at.resolve()
-    if not at.exists():
-        return
-    with (machine() / "grok-config.lock").open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        doc = _reading(at)
-        kept = cast("dict[str, Any]", doc).get("model")
-        if not isinstance(kept, dict):
-            return
-        gone = [
-            name
-            for name, entry in cast("dict[str, Any]", kept).items()
-            if name.startswith("hmz-")
-            and isinstance(entry, dict)
-            and cast("dict[str, Any]", entry).get("base_url") == base
-        ]
-        if not gone:
-            return
-        for name in gone:
-            del cast("dict[str, Any]", kept)[name]
-        atomic.writes(at, tomlkit.dumps(doc))
+    at = home / "config.toml"
+    doc = _reading(at)
+    if "model" not in doc:
+        doc["model"] = tomlkit.table(is_super_table=True)
+    cast("dict[str, Any]", doc["model"])[said["named"]] = said["entry"]
+    at.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
 
 def _reading(at: Path) -> tomlkit.TOMLDocument:
@@ -1447,20 +1395,6 @@ def _overlaid(theirs: str, headers: Mapping[str, str]) -> str:
     sent = cast("dict[str, Any]", sent) if isinstance(sent, dict) else {}
     overlay["models"] = models | {"extra_headers": sent | dict(headers)}
     return json.dumps(overlay)
-
-
-def _plain(said: object) -> object:
-    """What a value read out of TOML is, without what kept its spelling.
-
-    Args:
-      said: A value tomlkit read, or anything else.
-
-    Returns:
-      The plain Python it holds -- a table as a dict, a string as a str -- so that it
-      compares equal to what would be written for it.
-    """
-    unwrap = getattr(said, "unwrap", None)
-    return unwrap() if callable(unwrap) else said
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -1544,21 +1478,15 @@ class GrokBuildAgent(AgentBase):
     #: `--always-approve` already settled, so there is nothing there to be asked about.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
 
-    def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
-        """Initializes an agent that has pointed no turn at a gateway yet."""
-        super().__init__(config, name=name)
-        #: Every `config.toml` a turn of it may have written a LiteLLM gateway's entries into,
-        #: with the gateway: one for each the agent has had, a gateway that went having been
-        #: started again on another port.
-        self._entered: set[tuple[Path, str]] = set()
-
     def environment(self) -> Mapping[str, str]:
-        """The provider's variables, and the one that has Grok Build read a flow's skills.
+        """The provider's variables, and the one that has Grok Build read a project's skills.
 
         Grok Build 1.0.46 reads a project's skills only out of a folder it was told to trust,
-        which a workspace a flow runs in has never been: the skills a flow mounts under
-        `.agents/skills` were there and never seen. `GROK_FOLDER_TRUST=0` takes the question
-        away, as a workspace humanize was told to work in is trusted already.
+        which a workspace a flow runs in has never been: the skills the workspace keeps under
+        `.grok/skills` or `.agents/skills` were there and never seen. `GROK_FOLDER_TRUST=0`
+        takes the question away, as a workspace humanize was told to work in is trusted
+        already. The flow's own skills need no trust: they are at the user level, in the
+        virtual home each process is started in.
 
         And for an account behind an Anthropic-shaped gateway, the two headers that API asks
         for: the key as `x-api-key` and the version it answers in. Said in the `GROK_CONFIG`
@@ -1582,13 +1510,10 @@ class GrokBuildAgent(AgentBase):
           The variables to add.
         """
         added = {**super().environment(), "GROK_FOLDER_TRUST": "0"}
-        if (through := self.gateway) is not None:
+        if self.gateway is not None:
             added[_SPEAKS] = "chat_completions"
         hushed = self.hushed()
         said = {k: v for k, v in os.environ.items() if k not in hushed} | added
-        if through is not None:
-            # Where a turn writes this gateway's entries, for :meth:`stop` to take out.
-            self._entered.add((_configured(said), through.url))
         key = said.get(_KEY, "")
         speaks = said.get(_SPEAKS, "").strip()
         if (
@@ -1625,20 +1550,6 @@ class GrokBuildAgent(AgentBase):
                 f"{type(self).__name__}: a fenced conversation cannot join the leader, "
                 "which runs its tools outside the fence; set leader to False or None"
             )
-
-    def stop(self) -> None:
-        """Stops as every agent does, and takes the gateway's entries out of `config.toml`.
-
-        The entries :func:`_routed` wrote for a LiteLLM gateway name a port nothing will
-        listen on again once the gateway has gone: see :func:`_withdrawn`. An agent never
-        stopped leaves them, hidden, holding the name of a variable and no key.
-        """
-        super().stop()
-        entered, self._entered = self._entered, set()
-        for at, base in entered:
-            # A file nobody can read or write now is one a stop leaves as it found it.
-            with contextlib.suppress(OSError, Unrecoverable):
-                _withdrawn(at, base)
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> GrokBuildSession:
         """Opens a new Grok Build session, in the directory it is given or in this one."""

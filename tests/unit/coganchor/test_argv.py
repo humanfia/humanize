@@ -10,6 +10,7 @@ import pytest
 from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.argv import forget, kept, options, parser, render, settings
 from hmz.coganchor.fence import ALL, NONE, READ, Fence
+from hmz.coganchor.homes import Virtual
 
 ENVIRONMENT = (
     "HUMANIZE_TARGET",
@@ -65,14 +66,12 @@ def test_pairs_are_read_on_their_first_equals_sign() -> None:
     config = read(
         "--redirect=/a=/b=c",
         "--project=CODEX_HOME=/creds",
-        "--carry=/skills=.agents/skills",
         "--bring=CODEX_HOME/sessions=/epic/codex",
         "--tell=/tmp/homes",
     )
 
     assert config.redirects == (("/a", "/b=c"),)
     assert config.projects == (("CODEX_HOME", "/creds"),)
-    assert config.carries == (("/skills", ".agents/skills"),)
     assert config.brings == (("CODEX_HOME/sessions", "/epic/codex"),)
     assert config.tells == "/tmp/homes"
 
@@ -90,7 +89,6 @@ def test_a_fence_is_read_from_its_json() -> None:
         ["--redirect=/only-half"],
         ["--hush=A=B"],
         ["--project=NAME=relative"],
-        ["--carry=/skills=../out"],
         ["--bring=CODEX_HOME=/epic"],
         ["--bring=CODEX_HOME/../x=/epic"],
         ["--bring=CODEX_HOME/sessions=relative"],
@@ -141,7 +139,14 @@ NATIVE = AnchorConfig(
     native=True,
     hushes=("ANTHROPIC_API_KEY",),
     projects=(("CODEX_HOME", "/accounts/codex"),),
-    carries=(("/flows/skills", ".agents/skills"),),
+    home=Virtual(
+        variable="CODEX_HOME",
+        default=".codex",
+        rewrites=("config.toml",),
+        lodges="skills",
+        private=("sessions", "state_*.sqlite*"),
+        skills=(("review", "/flows/skills/review"),),
+    ),
     brings=(("CODEX_HOME/sessions", "/epic/codex"),),
     tells="/tmp/homes",
     installs="npm install -g some-cli",

@@ -3,11 +3,12 @@
 // where the CLI keeps them, `~/.claude/skills/` and the project's `.claude/skills/`, and every
 // agent of that CLI carries them; humanize never changes them. The flow's are in its own
 // `skills/` (or fetched from a git repository), for the roles it gives them to: in `rlar` the
-// reviewer carries `review-notes` and the actor does not. When the reviewer's session opens,
-// the skill is copied into the workspace where Claude Code reads a project's skills; when the
-// last session using it ends, the copy goes, with the directories made to hold it. Another
-// backend reads another place: `.cursor/skills/`, `.agents/skills/`, or none for `dsh` and
-// `pi`. A simulation: the names of "your" two skills are invented.
+// reviewer carries `review-notes` and the actor does not. When the reviewer's Claude Code
+// starts, it starts in a home of its own: copies of the settings it rewrites, links to the rest
+// of yours, and a `skills/` holding links to yours with the flow's beside them. When it stops,
+// that home goes, all of it, and nothing of yours was written. Every other CLI gets the same,
+// except that opencode and MiMo are told where the flow's skills are, and `dsh` gets none. A
+// simulation: the names of "your" two skills are invented.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
@@ -21,9 +22,9 @@ import { brace, braceD, curve, draw, pop, pulse, ring, rise, shake } from '../us
 const BEATS = [
   'Yours: where the CLI keeps skills, carried by every agent of it',
   "The flow's: in its own skills/ or a git repository, for the roles it names",
-  "The reviewer's session opens: review-notes is copied into the workspace",
-  'The last session using it ends: the copy goes, and what was made to hold it',
-  'Another backend reads another place: .cursor, .agents, or none',
+  "The reviewer's Claude Code starts in a home of its own, review-notes beside yours",
+  'It stops: that home goes, all of it, and yours was never written',
+  'Every CLI gets the same, or is told where they are; dsh gets none',
 ]
 
 /** A mono character's advance at 11px. */
@@ -106,14 +107,14 @@ const chipMid = (b: Box, row: number, i: number, text: string, top = 50): Point 
   return { x: p.x + chipW(text) / 2, y: p.y + CHIP_H / 2 }
 }
 
-/** The workspace's lines: two of the project's, then the copy and the directories made for it. */
+/** The reviewer's own home's lines: a copy, a link to yours, then the skills beside yours. */
 const TREE = [
-  { text: 'calc.py', depth: 0, made: false },
-  { text: 'TASK.md', depth: 0, made: false },
-  { text: '.claude/', depth: 0, made: true },
-  { text: 'skills/', depth: 1, made: true },
-  { text: 'review-notes/', depth: 2, made: true },
-  { text: 'SKILL.md', depth: 3, made: true },
+  { text: '.claude.json (a copy)', depth: 0, made: false },
+  { text: 'projects/ -> yours', depth: 0, made: false },
+  { text: 'skills/', depth: 0, made: true },
+  { text: 'mine/ -> yours', depth: 1, made: true },
+  { text: 'review-notes/', depth: 1, made: true },
+  { text: 'SKILL.md', depth: 2, made: true },
 ]
 const treeX = (depth: number) => L.value.ws.x + 16 + depth * 14
 const treeY = (i: number) => L.value.ws.y + 60 + i * 20
@@ -127,10 +128,10 @@ const madeBrace = computed(() => {
 
 /** Where each backend's copy lands, and the reviewer's backend chip for it. */
 const DEST = [
-  { backend: 'claude', who: 'claude', dest: '.claude/skills/' },
-  { backend: 'cursor-agent', who: 'cursor-agent', dest: '.cursor/skills/' },
-  { backend: 'codex', who: 'codex, agy, …', dest: '.agents/skills/' },
-  { backend: 'dsh', who: 'dsh, pi', dest: 'none' },
+  { backend: 'claude', who: 'claude', dest: 'its home: skills/' },
+  { backend: 'codex', who: 'codex, grok, agy, …', dest: 'its home: skills/' },
+  { backend: 'opencode', who: 'opencode, mimo', dest: 'named in its config' },
+  { backend: 'dsh', who: 'dsh', dest: 'none' },
 ]
 /** From the flow's skill to the reviewer's slot for it: across the gap, or down on a phone. */
 const givePath = computed(() => {
@@ -208,7 +209,7 @@ const scene = useScene({
     tl.to(one('.no-mark'), { autoAlpha: 1, duration: 0.4 }, T1 + 3.2)
     shake(tl, one('.no-mark'), T1 + 3.3, 4)
 
-    // 2 · the reviewer's session opens, and the skill is copied into the workspace.
+    // 2 · the reviewer's Claude Code starts in a home of its own, the skill beside yours.
     const T2 = T1 + 4.4
     tl.addLabel('beat-2', T2)
     cam.shot(l.shots.mount, T2, 1.4)
@@ -237,7 +238,7 @@ const scene = useScene({
     draw(tl, one('.read-path'), open + 2.05, { duration: 0.5 })
     rise(tl, one('.read-word'), open + 2.2, { y: 4 })
 
-    // 3 · the session ends: the copy goes, deepest first, and the directories made for it.
+    // 3 · it stops: that home goes, all of it, deepest first.
     const T3 = close - 0.25
     tl.addLabel('beat-3', T3)
     cam.shot(l.shots.ws, T3, 1.2)
@@ -289,7 +290,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="5 / 8"
-    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's session opens, review-notes/SKILL.md is copied into the workspace at .claude/skills/, making the .claude and skills directories to hold it. When the last session using it ends, the copy goes, and so do the directories that were made for it; the project's own files stay. Another backend in the role gets the copy elsewhere: cursor-agent in .cursor/skills/, codex, agy and the rest in .agents/skills/, and dsh and pi get none, carrying only what you installed."
+    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's Claude Code starts, it starts in a home of its own: a copy of the .claude.json it rewrites, links to the rest of yours, and a skills/ directory with links to your skills and review-notes beside them. When it stops, that home goes, all of it, and nothing of yours was written. Every other CLI gets the same, except that opencode and MiMo Code are told where the flow's skills are, and dsh gets none, carrying only what you installed. Nothing is put in the workspace."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
@@ -385,11 +386,11 @@ const scene = useScene({
           <text class="note-text" :x="L.actor.x + 12" :y="L.actor.y + L.actor.h - 6">not given to the actor</text>
         </g>
 
-        <!-- The workspace, where Claude Code reads a project's own skills. -->
+        <!-- The reviewer's own home, where Claude Code reads your skills and the flow's. -->
         <g class="panel panel-ws">
           <path class="box box-ws" :d="`M${L.ws.x} ${L.ws.y + 6} q0 -6 6 -6 h70 l8 6 h${L.ws.w - 90} q6 0 6 6 v${L.ws.h - 12} q0 6 -6 6 h${-(L.ws.w - 12)} q-6 0 -6 -6 z`" />
-          <text class="title" :x="L.ws.x + 12" :y="L.ws.y + 24">workspace</text>
-          <text class="path" :x="L.ws.x + 12" :y="L.ws.y + 40">/tmp/skills-demo</text>
+          <text class="title" :x="L.ws.x + 12" :y="L.ws.y + 24">the reviewer's home</text>
+          <text class="path" :x="L.ws.x + 12" :y="L.ws.y + 40">$CLAUDE_CONFIG_DIR</text>
         </g>
         <g v-for="(line, i) in TREE" :key="line.text" class="tree-line" :class="[`tree-${i}`, { made: line.made }]">
           <text class="tree-text" :x="treeX(line.depth)" :y="treeY(i)">{{ line.text }}</text>
@@ -421,7 +422,7 @@ const scene = useScene({
         </g>
 
         <!-- Where each backend's copy goes. -->
-        <g class="dest-head"><text class="carries" :x="L.ws.x + 16" :y="destTop">the copy goes into</text></g>
+        <g class="dest-head"><text class="carries" :x="L.ws.x + 16" :y="destTop">the flow's skill goes into</text></g>
         <rect class="dest-hl" :x="L.ws.x + 8" :y="destY(0) - 16" :width="L.ws.w - 16" height="22" rx="5" />
         <g v-for="(d, i) in DEST" :key="d.backend" class="dest-row" :class="`dest-row-${i}`">
           <text class="dest-who" :x="L.ws.x + 16" :y="destY(i)">{{ d.who }}</text>

@@ -327,19 +327,20 @@ hmz exec: nobody lists a price for <model>[, <model>…], so cost=<n> cannot sto
 ### Where the harness runs {#choosing-where-the-harness-runs}
 
 The *harness* is an agent's CLI and its supervisor. Nothing on the line says where it runs:
-no option of `hmz exec` takes it. Work on this machine has its harness here; work
-on a saved [runtime](/reference/machines#runtimes) has it where that runtime's `affinity` says,
-in order (`self` on the runtime's own machine, `local` here, `ssh:<name>`, `docker:<name>`,
-`swarm:<name>`, `apple-container:<name>` or `slurm:<name>` on another saved runtime); work on a machine nobody saved, or on a runtime with no affinity, has it
-on the environment's machine where the agent's CLI is installed there and can be fenced to the
-role's permission and no hook gating its tools is hung, and here otherwise.
+no option of `hmz exec` takes it. Work on this machine (env location `local`) has its
+harness here; work on another machine (env location `standalone`) has it where the `harness`
+setting of the saved [runtime](/reference/machines#runtimes) it is on says, and nowhere else:
+`env` (the default, and the setting of a machine nobody saved) on the environment's machine,
+natively; `local` here; `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`
+or `slurm:<name>` on another saved runtime.
 
 Once the environments are probed, before the flow is called, every agent's harness is settled
-on every machine whose runtime has an affinity; an affinity with no room for it refuses the run
-(`hmz exec: error: <backend>[@<provider>]: nowhere its affinity (<entries>) names has room
-for <cli>'s harness; the last: <refusal>`, exit `2`). A runtime an affinity sends a harness to is
-opened as an environment is, probed before the flow is called and closed with the run. Where
-each session's harness went is recorded on the session in the epic as `local`, `self` or
+on every machine; a setting that cannot hold it (the CLI missing there, a fence it cannot
+hold, a hook gating the agent's tools under `env`, a harness runtime that cannot be reached)
+refuses the run (`hmz exec: error: <backend>[@<provider>]: <cli>'s harness cannot run where
+its harness setting (<setting>) says: <refusal>`, exit `2`). A runtime a harness setting names
+is opened as an environment is, probed before the flow is called and closed with the run. Where
+each session's harness went is recorded on the session in the epic as `local`, `env` or
 `<backend>:<name>` ([Tracing › Epics](/reference/tracing#epics)), and in the daemon's
 [`opened`](/reference/daemon#history-records) record. Detail:
 [Remote execution › Where the harness runs](/reference/remote-execution#where-the-harness-runs).
@@ -365,7 +366,7 @@ the epic it `picked_up`. Without `--resume` every run starts from the top.
 | 1. argparse | Options, `-f` and `task` present. | Usage on stderr, `hmz exec: error: <why>`, exit `2`. |
 | 2. Spec parsing (`Hmz.read`) | Every `-a`, `-e`, `-p` against its grammar, and every `-e` provider against the runtimes saved; duplicate roles and keys. | Same as 1. |
 | 3. Loading (`Hmz.run` → `Runner`) | Flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`. | `hmz exec: error: <why>` (no usage), exit `2`. |
-| 4. Opening (`Run.run`, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's affinity puts it, and the runtimes it goes to reached; skills fetched. | `hmz exec: error: <why>`, exit `2`. |
+| 4. Opening (`Run.run`, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's harness setting puts it, and the runtimes it goes to reached; skills fetched. | `hmz exec: error: <why>`, exit `2`. |
 | 5. The flow | — | See [Exit statuses](#exit-statuses). |
 
 Nothing of an agent has started before stage 5. What a flow module does when imported (stage
@@ -416,7 +417,7 @@ Stage 1–2 messages are preceded by the usage block.
 | no `budget.*`, any flow but `chat` | `<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` |
 | `--resume` | see [Picking a run up](#picking-a-run-up) |
 | an environment unreachable or smaller than declared | the reason, naming the role |
-| a harness with no room anywhere its runtime's affinity names | see [Where the harness runs](#choosing-where-the-harness-runs) |
+| a harness that cannot run where its runtime's harness setting says | see [Where the harness runs](#choosing-where-the-harness-runs) |
 | a skill a role names that cannot be found or fetched | the reason, naming the skill |
 
 ### Output {#watching-a-run}
@@ -593,7 +594,7 @@ interface](/reference/tui) in a line as it opens, the [web interface](/reference
 | --- | --- | --- |
 | Already the newest release | stdout `hmz <version> is the newest release`; nothing is run | `0` |
 | Updated | stdout `Updating hmz <old> to <new>: <line>`, the installer's own output, `Updated hmz to <new>` | `0` |
-| Installed from a checkout or a URL (`direct_url.json`) | stderr `hmz update: hmz was installed from <url>, not PyPI; update it there` | `1` |
+| Installed from a checkout or a URL (`direct_url.json`) | stderr `hmz update: hmz was installed from <url>, not PyPI; update it there`, the URL without its user, password, query or fragment | `1` |
 | The installer is not on `PATH` | stderr `hmz update: <uv\|pipx> installed hmz but is not on PATH` | `1` |
 | PyPI did not answer, or `HUMANIZE_RELEASES=off` | stderr `hmz update: PyPI could not be asked for the newest release` | `1` |
 | The installer failed | stderr `hmz update: <installer> exited <status>` | `1` |
@@ -681,7 +682,6 @@ its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
 | `--native` | off | Run the CLI installed on the target instead of supervising one here. |
 | `--hush NAME` | — | With `--native`, unset this variable for the CLI on the target. Repeatable. |
 | `--project NAME=DIR` | — | With `--native`, put this credentials directory on the target for the session and set `NAME` to it. Repeatable. |
-| `--carry DIR=PATH` | — | With `--native`, put this directory into the target's workspace at `PATH` for the turn. Repeatable. |
 | `--bring NAME/PATH=DIR` | — | With `--native`, copy what the turn wrote at `PATH` (may be a glob) inside the directory `--project` set `NAME` to back into `DIR`, at the same place, before that directory is removed. Repeatable. |
 | `--tell DIR` | — | With `--native`, keep a file of `NAME=PATH` lines in `DIR` on this machine while the turn runs, one per `--project` that landed at `PATH` on the target. |
 | `--installs LINE` | — | With `--native`, the install line to report where the target lacks the CLI. |

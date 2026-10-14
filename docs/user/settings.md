@@ -1008,7 +1008,7 @@ answered, or why it could not be reached.
 | proxy jump | The host it is reached through (`ProxyJump`). |
 | options | Anything else ssh is told, `KEYWORD=VALUE` with a comma between two: `ServerAliveInterval=15, Compression=yes`. A setting with a row of its own is refused here. |
 | workdir | Where it works when `-e` names no directory: `/abs/path`, or `~/path` under the login's home. |
-| harness runs on | Where the CLI of an agent working on it runs, tried in order, the next only when one has no room: `self` (on this host), `local` (here), or another saved runtime as `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` or `slurm:<name>`, a comma between two: `self, local`. Blank is on the host where its CLI is installed, else here. See [Where the agent runs](/user/remote-execution#where-the-agent-runs). |
+| harness runs on | Where the CLI of an agent working on it runs, and nowhere else: `env` (on this host, the CLI installed there), `local` (here), or another saved runtime as `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` or `slurm:<name>`. Blank is `env`. Where it cannot hold the CLI, the run is refused. See [Where the agent runs](/user/remote-execution#where-the-agent-runs). |
 
 Whatever is set is passed to `ssh` ahead of your own config, so what is written here wins.
 
@@ -1044,8 +1044,8 @@ what it may hand out last, each line about it kept in its column](/demo/docker-f
 Then `name`, `image` (what a container starts from when the flow names none), `OCI runtime`
 (`nvidia`; blank for the daemon's own), `run args` (anything else `docker run` is told),
 `max containers` (how many containers it may run together), `workdir`, `harness runs on` (as
-for an ssh host: `docker:spare, local` puts each agent's CLI in a container on `spare` while it
-has room, and here once it has none), and what it may hand out:
+for an ssh host: `local` keeps each agent's CLI here, which an image without one needs;
+`docker:spare` puts it in a container of its own on `spare`), and what it may hand out:
 
 | Row | Takes | Blank is |
 | --- | --- | --- |

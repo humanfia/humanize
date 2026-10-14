@@ -414,14 +414,14 @@ def harbored() -> Iterator[str]:
     epic.harbor(target, target)
 
 
-def test_where_a_harness_ran_is_said_as_an_affinity_says_it(
+def test_where_a_harness_ran_is_said_as_a_harness_setting_says_it(
     workspace: Path, monkeypatch: pytest.MonkeyPatch, harbored: str
 ) -> None:
     monkeypatch.setattr(machines, "AnchoredConfig", Anchored)
 
     assert epic.harnessed(None) == store.HERE
     assert epic.harnessed(cast("Any", object())) == store.HERE
-    assert epic.harnessed(cast("Any", Anchored(Anchor(native=True)))) == store.SELF
+    assert epic.harnessed(cast("Any", Anchored(Anchor(native=True)))) == store.ENV
     assert epic.harnessed(cast("Any", Anchored(Anchor()))) == store.HERE
     assert (
         epic.harnessed(cast("Any", Anchored(Anchor(harness="ssh://u12-box"))))
@@ -434,7 +434,7 @@ def test_where_a_harness_ran_is_said_as_an_affinity_says_it(
 
     with Epic("f", "t", workspace) as one:
         said = _opened(one, Agent(machine=Anchored(Anchor(native=True))), "s1")
-    assert said["harness"] == store.SELF
+    assert said["harness"] == store.ENV
 
 
 # ----------------------------------------------------------- calling a flow
@@ -932,3 +932,19 @@ def test_a_run_is_found_by_how_it_went_its_flow_and_its_task(workspace: Path) ->
     assert not epic.found(ran, "done", how="failed")
     assert not epic.found(ran, "done", flow="chat")
     assert not epic.found(ran, "done", text="break")
+
+
+def test_the_btw_agent_an_epic_keeps_is_the_last_it_was_given(workspace: Path) -> None:
+    with Epic("ralph", "fix it", workspace) as one:
+        pass
+    assert (ran := epic.read(one.path)) is not None
+    assert ran.btw == ""
+
+    epic.note(one.path, epic.BTW, agent="claude@work/opus:high")
+    epic.note(one.path, epic.BTW, agent="codex/gpt-5:auto")
+    assert (ran := epic.read(one.path)) is not None
+    assert ran.btw == "codex/gpt-5:auto"
+
+    epic.note(one.path, epic.BTW, agent="")
+    assert (ran := epic.read(one.path)) is not None
+    assert ran.btw == ""

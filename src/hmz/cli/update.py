@@ -92,7 +92,7 @@ def _how() -> list[str] | str:
     if source:
         import json
 
-        url = json.loads(source).get("url", "")
+        url = _bare(json.loads(source).get("url", ""))
         return f"hmz was installed from {url}, not PyPI; update it there"
     prefix = Path(sys.prefix)
     if (prefix / _UV_TOOL).is_file():
@@ -108,6 +108,26 @@ def _how() -> list[str] | str:
     return _found(
         "uv", "pip", "install", "--python", sys.executable, "--upgrade", wanted
     )
+
+
+def _bare(url: str) -> str:
+    """A URL with nothing signed into it: no user or password, no query, no fragment.
+
+    What an install was made from is printed, and a private index or a repository is often
+    reached with a token in its URL -- as the user, or as a query parameter.
+    """
+    from urllib.parse import urlsplit, urlunsplit
+
+    try:
+        split = urlsplit(url)
+        host = split.hostname or ""
+        port = split.port
+    except ValueError:
+        return "a URL that could not be read"
+    if ":" in host:
+        host = f"[{host}]"
+    where = f"{host}:{port}" if port is not None else host
+    return urlunsplit((split.scheme, where, split.path, "", ""))
 
 
 def _found(program: str, *args: str) -> list[str] | str:

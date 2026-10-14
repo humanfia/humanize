@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -22,12 +23,13 @@ from hmz.coganchor.agents import (
     Unserved,
 )
 from hmz.coganchor.agents.cursor import spelled
+from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.backends import Model
 from hmz.coganchor.fence import Fence
 from tests.unit.coganchor.agents.doubles_u4 import Spawner, fenceable, offering
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from tests.unit.coganchor.agents.doubles_u4 import Process
 
 #: What `cursor-agent --list-models` last said this account runs.
 _ACCOUNT = (
@@ -416,6 +418,42 @@ def test_new_opens_a_cursor_session_where_it_is_told(tmp_path: Path) -> None:
     session = _cursor().new(tmp_path)
     assert isinstance(session, CursorSession)
     assert session.cwd == str(tmp_path)
+
+
+def test_a_turn_starts_in_a_virtual_home_carrying_the_flows_skills(
+    spawner: Spawner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = tmp_path / "cursor"
+    (real / "skills" / "mine").mkdir(parents=True)
+    monkeypatch.setenv("CURSOR_CONFIG_DIR", str(real))
+    skill = tmp_path / "flow" / "review"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: review\n---\n", encoding="utf-8")
+    work = tmp_path / "work"
+    work.mkdir()
+    seen: list[list[str]] = []
+
+    def script(proc: Process) -> None:
+        # What is in the home as the turn runs, which goes once it is over.
+        env = proc.env or {}
+        seen.append(
+            sorted(
+                one.name for one in Path(env["CURSOR_CONFIG_DIR"], "skills").iterdir()
+            )
+        )
+        proc.say(*_turn())
+        proc.exit(0)
+
+    spawner.script = script
+    agent = _cursor()
+    agent.loads([Loaded("review", skill)])
+
+    agent.new(work)("go")
+
+    assert seen == [["mine", "review"]]
+    assert sorted(one.name for one in (real / "skills").iterdir()) == ["mine"]
+    assert list(work.iterdir()) == []
+    assert not Path((spawner.last.env or {})["CURSOR_CONFIG_DIR"]).exists()
 
 
 def test_reconfiguring_onto_another_rung_moves_the_id(

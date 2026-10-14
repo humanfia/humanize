@@ -222,7 +222,6 @@ typed.
 | `key-does-nothing` | a key pressed on the Accounts page of `/settings` on this machine's own account, where it does nothing | which menu, and what was asked |
 | `line-refused` | a typed line the agent refused | how long its refusal was |
 | `lines-never-sent` | typed lines still waiting when the flow ended | how many |
-| `skill-name-taken` | a skill a flow brought, where the CLI already loads another of that name | nothing more |
 | `native-credential-stays-here` | an account whose files could not all go with a turn to another machine | nothing more |
 | `watcher-raised` | something watching an agent failed on one of its events | the CLI, the kind of event, the type of error |
 
@@ -243,9 +242,18 @@ that the list above stays true:
 - `ArgvIntegration` is off, and everything under `extra` is dropped: no command line, which for
   `hmz exec` holds the task.
 - The list of installed packages, `user` and `request` are dropped.
-- In the error's message and every other string sent, your home directory becomes `~`, a
-  password in a URL and anything shaped like a key become `…`, the command line of a failed
-  command becomes `A command`, and anything over 500 characters is cut.
+- In the error's message and every other string sent, your home directory becomes `~`, the
+  command line of a failed command becomes `A command`, and anything over 500 characters is
+  cut. Every credential an [exported run](/user/export) has struck out becomes `…`: a password
+  in a URL, a token in its query, a key in the shape a vendor mints it (`sk-`, `ghp_`, `ghs_`,
+  `glpat-`, `hf_`, `AIza`), a JWT, a `Bearer` token, and a value named as a token, secret, key
+  or password. Reports and exports use one list.
+- Timings and profiles are kept as plain as errors: each frame and each span that times code
+  is named as a frame of a report is, a span that ran a command is called `A command` and
+  loses its working directory, and every other string in them is put through the line above.
+- Only a process that started reporting reports: `hmz`, `hmz exec`, a run the daemon holds,
+  and a script that called `Hmz().reports()`. A script that crashes without calling it sends
+  nothing, whatever you answered.
 
 ## Sending a run on purpose
 

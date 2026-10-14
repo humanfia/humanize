@@ -136,6 +136,16 @@ What that comes to in practice:
   its CLI's own settings, login and sessions, a temporary directory of its own, the
   shared `/tmp` and `/var/tmp`, the devices, and on Linux `/proc`. On macOS its login
   includes the login keychain, which is where Claude Code keeps it.
+- **Claude Code, Codex, Grok Build, Qwen Code and pi never write your settings.** Each process
+  starts in a home of its own, made for it and removed when it stops: copies of the files the
+  CLI rewrites as it runs (Claude Code's `.claude.json`, its backups and `settings.json`;
+  Codex's and Grok Build's `config.toml`; Qwen Code's `settings.json`; pi's `models.json` and
+  `settings.json`), links to the rest of yours, so its login and sessions are your own, and the
+  flow's skills beside yours (Oh My Pi gets that home for the skills alone). What it writes
+  into a copy, such as that it trusts the workspace, goes with it, and so does what humanize
+  adds there: Qwen Code's effort, hooks and tool server, a gateway account's model entry for
+  Grok Build or provider for pi. Your system-wide settings and the project's own are read as
+  the CLI always reads them.
 - **`user` of `ALL`** lets an agent change whatever your user account may change, anywhere
   on the machine, the file permissions being what hold it; run as root, the rest of the
   machine stays at `system`.
@@ -205,6 +215,13 @@ reference](/reference/providers).
 - **`/afk` is about questions, not actions.** It decides whether a flow may ask you something.
   It never makes an agent ask before it acts.
 - **A `dsh` agent works with full access** whatever its flow declares.
+- **A project's hooks run only on the project's own machine.** Project settings such as
+  Claude Code's `hooks` or a `.mcp.json` stdio server start programs where the CLI runs. If
+  a flow's agent runs on a different machine from its environment's work (harness `local`
+  with the work elsewhere, or a harness runtime other than the work's machine), humanize
+  refuses to open the session while the project has any such setting. Run the agent on that
+  machine (harness `env`), or remove the setting. See
+  [Remote execution](/reference/remote-execution#a-projects-own-programs).
 
 ## Troubleshooting
 

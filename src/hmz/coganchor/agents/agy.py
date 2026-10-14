@@ -14,12 +14,12 @@ import math
 import os
 import re
 import tempfile
-import threading
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor import backends
+from hmz.coganchor.homes import merged, merger
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
@@ -27,12 +27,14 @@ from .config import UNSAID, AgentConfig, Unserved
 from .event import Event, Failed, Saying, Usage
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
 
     from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
+    from hmz.coganchor.homes import Virtual
 
+    from .skills import Loaded
     from .tools import Toolbox
 
 #: What the CLI is installed as. The tarball calls the file `antigravity` and the installer
@@ -184,34 +186,38 @@ def _defined(config: AgentConfig) -> str | None:
     return _OFFLINE if offline else None
 
 
-def _agents(native: Path) -> None:
-    """Puts humanize's agents where agy finds them, as they are to be found.
+@merger
+def _agents(home: Path, said: None = None) -> None:
+    """Puts humanize's agents where agy finds them: in the virtual home a process starts in.
 
-    Under agy's own home, beside the skills a flow mounts there, rather than in a directory
+    Under agy's own home, beside the skills a flow lodges there, rather than in a directory
     added to the turn with `--add-dir`: agy runs the agent's commands in the first of its
     workspace roots by name, so a directory of humanize's added beside the session's took its
     place whenever it sorted first -- checked against agy 1.2.12 on 2026-09-29, where `pwd`
-    answered `~/.hmz/agy`. Its home is also the one place every fence already lets it
-    read. Each is written whole wherever it is not already exactly as :data:`_DEFINED` says --
-    through a file beside it, so that a turn starting while another process or thread writes it
-    reads one or the other.
+    answered `~/.hmz/agy`. Its home is also the one place every fence already lets it read.
+
+    The virtual home's `agents/` links to the user's own; it is made a directory of that home's
+    own instead, holding a link to each of the user's agents and humanize's beside them -- so
+    the user's own directory is never written, and goes on holding only what they put there.
 
     Args:
-      native: agy's own home, as :func:`_home` finds it.
+      home: The virtual home (:meth:`AntigravityCLIAgent.virtual`), built moments ago and not
+        yet started in -- wherever the CLI runs.
+      said: Nothing: what goes there is :data:`_DEFINED`.
     """
+    del said
+    into = home / "agents"
+    theirs = into.resolve() if into.is_symlink() else None
+    if theirs is not None:
+        into.unlink()
+    into.mkdir(exist_ok=True)
+    ours = {f"{name}.md" for name in _DEFINED}
+    if theirs is not None and theirs.is_dir():
+        for entry in theirs.iterdir():
+            if entry.name not in ours:
+                (into / entry.name).symlink_to(entry)
     for name, text in _DEFINED.items():
-        defined = native / "agents" / f"{name}.md"
-        try:
-            if defined.read_text(encoding="utf-8") == text:
-                continue
-        except OSError:
-            pass
-        defined.parent.mkdir(parents=True, exist_ok=True)
-        beside = defined.with_name(
-            f".{defined.name}.{os.getpid()}.{threading.get_ident()}"
-        )
-        beside.write_text(text, encoding="utf-8")
-        beside.replace(defined)
+        (into / f"{name}.md").write_text(text, encoding="utf-8")
 
 
 def _home(environment: dict[str, str], args: tuple[str, ...] = ()) -> Path:
@@ -555,10 +561,6 @@ class AntigravityCLISession(StreamSessionBase):
         """Remembers the configuration and resources read when the CLI starts."""
         environment = self._environ() or dict(os.environ)
         provider = self._agent.node()
-        if _defined(_settled(self._agent.config)) is not None:
-            # Before the fingerprint rather than only where the turn is built, so that
-            # writing them the first time is not a change the next turn restarts for.
-            _agents(_home(environment, provider.args))
         native = _native(Path(self.cwd), environment, provider.args)
         # The account is here and its credential files are not: what a provider points the
         # CLI's own paths at is read as the turn goes rather than settled when it starts, so
@@ -649,7 +651,7 @@ class AntigravityCLISession(StreamSessionBase):
         if not _carried(config.model) and self.effort and self._agent.gateway is None:
             argv += ["--effort", self.effort]
         if (defined := _defined(config)) is not None:
-            _agents(_home(self._environ() or dict(os.environ), self._agent.node().args))
+            # Found in the virtual home the process is started in, which is built with it.
             argv += ["--agent", defined]
         offered = bool(self._agent.toolbox.offered())
         # Pinned too where tools are carried: the plugin's directory is a workspace of agy's
@@ -999,6 +1001,44 @@ class AntigravityCLIAgent(AgentBase):
                 f"{_COMMAND} cannot run at read-only or off the web on another machine: "
                 "what holds it there is an agent of humanize's that is a file on this one"
             )
+
+    def virtual(
+        self,
+        skills: Iterable[Loaded] | None = None,
+        merges: Iterable[tuple[str, str]] = (),
+    ) -> Virtual | None:
+        """The virtual home a process of agy starts in, with humanize's agents in it.
+
+        As every CLI's (:meth:`AgentBase.virtual`), named to agy by `--app_data_dir` rather
+        than by a variable, and with the agents a turn may be started as (:func:`_agents`)
+        merged into its `agents/`: written there rather than into the user's own home, and --
+        that `agents/` being the home's own rather than a link -- never written back there.
+
+        None for an account that names a home of its own with that flag, which is the home the
+        process starts in, as it always was: one flag is all agy takes. Its turns run without
+        the flow's skills, and one that would be started as an agent of humanize's is refused,
+        that agent being nowhere agy would look.
+
+        Args:
+          skills: The flow's skills the process is to carry, or None for every one.
+          merges: What its session merges into it besides.
+
+        Returns:
+          It, or None for an agy started somewhere it is not built.
+
+        Raises:
+          Unserved: If the account names a home of its own and the turn would be started as
+            an agent of humanize's.
+        """
+        if any(one.partition("=")[0] == "--app_data_dir" for one in self.node().args):
+            if _defined(_settled(self.config)) is not None:
+                raise Unserved(
+                    f"{_COMMAND} cannot run at read-only or off the web under an account "
+                    "naming its own --app_data_dir: what holds it there is an agent of "
+                    "humanize's, which is in a home of humanize's"
+                )
+            return None
+        return super().virtual(skills, (*merges, merged(_agents)))
 
     def natively(self, fence: Fence) -> Fence:
         """None of the fence, which is put around agy from outside in full.

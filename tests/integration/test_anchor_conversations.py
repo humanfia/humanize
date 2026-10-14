@@ -1,12 +1,12 @@
 """A session kept on a container's work, carried on by a later run: its CLI runs here.
 
 Each run is a real `python -m hmz exec` whose one environment is a docker container -- the
-fake `docker`, which runs what it is sent on this machine. The flow hangs a hook that decides
-whether a tool runs, which keeps the stand-in `claude` here, supervised in a mirror of the
-container's work that each run makes for itself, and keeping its conversations where one
-working here does. The stand-in resumes a conversation only from where Claude keeps one for
-the directory it is started in, so the later run's session goes on only where the kept copy
-was brought in where that run keeps its sessions and carried into its own mirror.
+fake `docker`, which runs what it is sent on this machine, on a saved runtime whose harness
+setting is `local`: the stand-in `claude` runs here, in a mirror of the container's work that
+each run makes for itself, and keeping its conversations where one working here does. The
+stand-in resumes a conversation only from where Claude keeps one for the directory it is
+started in, so the later run's session goes on only where the kept copy was brought in where
+that run keeps its sessions and carried into its own mirror.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.coganchor.machines import store
 from hmz.coganchor.providers import redirect
 from tests.integration.doubles_anchor import fakes
 from tests.integration.doubles_core import AGENT, hmz_exec, install, started, write_flow
@@ -46,9 +47,6 @@ class Params(FlowParams):
 @flow(agents=Agents, envs=Envs, params=Params, resumable=True)
 async def remembers(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    # Deciding whether a tool runs is done by the CLI's own hook table, a program on this
-    # machine: the CLI stays here, in a mirror of the container's work.
-    worker.on_pre_tool_use(lambda params: None)
     if params.step == "keep":
         session = await worker.spawn()
         said = await worker.run("the word is papaya", session=session, env=envs["there"])
@@ -73,7 +71,7 @@ def _remembers(
         "-a",
         f"worker={AGENT}",
         "-e",
-        f"there=docker{work}",
+        f"there=docker@here{work}",
         "-p",
         "budget.cost=1",
         *argv,
@@ -90,6 +88,7 @@ def test_a_session_kept_on_another_machines_work_is_carried_on_by_a_cli_run_here
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     install(tmp_path, monkeypatch)
+    store.write(store.new(store.DOCKER, "here", harness=store.HERE))
     far = fakes(tmp_path, monkeypatch)
     far.answer(
         "info", json.dumps({"ServerVersion": "27.0", "NCPU": 8, "MemTotal": 16 << 30})

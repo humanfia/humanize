@@ -206,14 +206,20 @@ def test_turns_working_in_one_mirror_at_once_push_all_each_wrote(
 
     def turn(n: int) -> subprocess.Popen[str]:
         # Writes a file, runs a command on the target, writes another and runs one again:
-        # each command reads the directory back, with the other turns' files in it.
+        # each command reads the directory back, with the other turns' files in it. Each
+        # goes on past its first file only once every turn has written one, so that all
+        # three are in the mirror at once: a turn is over in milliseconds, and one starting
+        # after the others have gone begins knowing nothing, making placeholders of the
+        # files they left -- as a turn alone in a mirror is meant to.
+        wait = " && ".join(f"[ -e one{k} ]" for k in range(3))
         return subprocess.Popen(
             [
                 *(sys.executable, "-Pm", "hmz", "internal", "anchor"),
                 *("--target", "local:", "--workspace", str(target)),
                 *("--shadow", str(mirror), "/bin/sh", "-c"),
                 (
-                    f"printf 'one {n}' > one{n}; ls > /dev/null; "
+                    f"printf 'one {n}' > one{n}; until {wait}; do sleep 0.01; done; "
+                    "ls > /dev/null; "
                     f"printf 'two {n}' > two{n}; ls > /dev/null"
                 ),
             ],

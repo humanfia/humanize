@@ -114,10 +114,10 @@ Who answers depends on what is on the screen when you type `/btw`:
   session of the same agent, given a snapshot of the run and what that role has done lately.
   This works for a conversation that has ended too, with no flow running.
 - **The monitor, or the screen before a run opens a conversation** (`btw · btw agent`): the
-  **btw agent**. It is the flow's first agent unless you chose another on the [General page of
-  `/settings`](/user/settings#general). It is given a snapshot of the run and the list of
-  its sessions, and it may put a question of its own to any session's side copy, up to 4 per
-  question you ask. Each one shows as a dim `btw · asking <session>: …` line.
+  **btw agent**. It is the one you picked for this epic with <kbd>ctrl+g</kbd>, else the one
+  chosen on the [General page of `/settings`](/user/settings#general), else the flow's first
+  agent. It is given a snapshot of the run and the list of its sessions, and it may put a
+  question of its own to any session's side copy, up to 4 per question you ask. Each one shows as a dim `btw · asking <session>: …` line.
 
 The snapshot holds:
 
@@ -166,9 +166,14 @@ What to look at, by number:
   ```
 
 - **Enter first, ask after.** `/btw` on its own enters btw mode with no question yet.
-- **Choose who answers from the monitor.** Set **/btw agent** on the General page of
-  `/settings`: the flow's first agent, one you chose, or `another…`, which asks for its CLI,
-  account, model and effort. It takes effect the next time you enter btw mode.
+- **Pick the btw agent for this epic.** In btw mode, press <kbd>ctrl+g</kbd> and pick
+  `default` or `another…`, which asks for its CLI, account, model and effort. The epic keeps
+  what you pick: the next question to the btw agent goes to the new one, and opening the epic
+  again, here or on the web page, finds it still picked. On the web page, the **Agent** chip on the Aside tab does the same:
+  `First agent` (or `Settings default`) or `Chosen`, with the agent picked under it.
+- **Choose who answers by default.** Set **/btw agent** on the General page of `/settings`:
+  the flow's first agent, one you chose, or `another…`. It applies to every epic that has no
+  btw agent of its own, the next time you enter btw mode.
 
 ## What a side conversation may do
 
