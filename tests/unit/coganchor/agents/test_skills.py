@@ -96,35 +96,40 @@ def test_unreadable_front_matter_names_the_skill_by_its_directory(
 
 def test_carried_says_where_each_skill_goes(tmp_path: Path) -> None:
     loaded = [Loaded("one", tmp_path / "one"), Loaded("", tmp_path / "unnamed")]
-    assert carried("claude", loaded) == ((str(tmp_path / "one"), ".claude/skills/one"),)
-    assert carried("codex", loaded) == ((str(tmp_path / "one"), ".agents/skills/one"),)
+    assert carried("cursor-agent", loaded) == (
+        (str(tmp_path / "one"), ".cursor/skills/one"),
+    )
+    assert carried("grok", loaded) == ((str(tmp_path / "one"), ".agents/skills/one"),)
+    # Lodged in a virtual home's user-level skills instead: nothing goes in the workspace.
+    assert carried("claude", loaded) == ()
+    assert carried("codex", loaded) == ()
     assert carried("no-such-cli", loaded) == ()
 
 
 def test_mount_with_nothing_to_mount(tmp_path: Path) -> None:
     assert mount("no-such-cli", tmp_path, [Loaded("x", tmp_path)]) == Mounted()
-    assert mount("claude", tmp_path, []) == Mounted()
+    assert mount("cursor-agent", tmp_path, []) == Mounted()
 
 
 def test_mount_copies_and_unmount_takes_away_what_it_made(tmp_path: Path) -> None:
     source = _card(tmp_path / "flow" / "review", "---\nname: review\n---\n")
     workspace = tmp_path / "work"
     workspace.mkdir()
-    mounted = mount("claude", workspace, [Loaded("review", source, "flow")])
-    at = workspace / ".claude" / "skills" / "review"
+    mounted = mount("cursor-agent", workspace, [Loaded("review", source, "flow")])
+    at = workspace / ".cursor" / "skills" / "review"
     assert mounted == Mounted((at,))
     assert (at / CARD).read_text(encoding="utf-8") == "---\nname: review\n---\n"
     unmount(mounted)
     assert not at.exists()
-    assert not (workspace / ".claude").exists()  # the directories it made go too
+    assert not (workspace / ".cursor").exists()  # the directories it made go too
     unmount(mounted)  # twice is harmless
 
 
 def test_two_sessions_share_a_mount_until_the_last_lets_go(tmp_path: Path) -> None:
     source = _card(tmp_path / "flow" / "review", "x")
     loaded = [Loaded("review", source)]
-    first = mount("claude", tmp_path / "work", loaded)
-    second = mount("claude", tmp_path / "work", loaded)
+    first = mount("cursor-agent", tmp_path / "work", loaded)
+    second = mount("cursor-agent", tmp_path / "work", loaded)
     assert first == second
     unmount(first)
     assert first.at[0].exists()
@@ -134,8 +139,11 @@ def test_two_sessions_share_a_mount_until_the_last_lets_go(tmp_path: Path) -> No
 
 def test_a_skill_already_there_is_left_alone(tmp_path: Path, snags: list[str]) -> None:
     source = _card(tmp_path / "flow" / "review", "flow's")
-    theirs = _card(tmp_path / "work" / ".claude" / "skills" / "review", "project's")
-    assert mount("claude", tmp_path / "work", [Loaded("review", source)]) == Mounted()
+    theirs = _card(tmp_path / "work" / ".cursor" / "skills" / "review", "project's")
+    assert (
+        mount("cursor-agent", tmp_path / "work", [Loaded("review", source)])
+        == Mounted()
+    )
     assert (theirs / CARD).read_text(encoding="utf-8") == "project's"
     assert snags == ["skill-name-taken"]
 
@@ -145,15 +153,17 @@ def test_another_flows_skill_of_the_same_name_is_left_alone(
 ) -> None:
     one = _card(tmp_path / "a" / "review", "a")
     other = _card(tmp_path / "b" / "review", "b")
-    first = mount("claude", tmp_path / "work", [Loaded("review", one)])
-    assert mount("claude", tmp_path / "work", [Loaded("review", other)]) == Mounted()
+    first = mount("cursor-agent", tmp_path / "work", [Loaded("review", one)])
+    assert (
+        mount("cursor-agent", tmp_path / "work", [Loaded("review", other)]) == Mounted()
+    )
     assert snags == ["skill-name-taken"]
     unmount(first)
 
 
 def test_a_skill_that_cannot_be_copied_leaves_nothing(tmp_path: Path) -> None:
     workspace = tmp_path / "work"
-    mounted = mount("claude", workspace, [Loaded("gone", tmp_path / "missing")])
+    mounted = mount("cursor-agent", workspace, [Loaded("gone", tmp_path / "missing")])
     assert mounted == Mounted()
-    skills_dir = workspace / ".claude" / "skills"
+    skills_dir = workspace / ".cursor" / "skills"
     assert list(skills_dir.iterdir()) == []

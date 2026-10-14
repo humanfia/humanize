@@ -622,6 +622,23 @@ class Profile:
         that is written to rather than read. Empty for a backend that reads none, whose
         skills are all its own installed ones: a flow that brings skills brings that backend
         none, which is a turn run without them rather than a run that will not start.
+      rewrites: What under its home it rewrites while it runs, relative to the home -- the
+        configuration it keeps its own notes in, which is the user's. Non-empty for a CLI whose
+        every process is started in a virtual home instead (:mod:`hmz.coganchor.homes`), where
+        each of these is a copy of the user's that goes with the process and everything else
+        is a link to theirs. Empty for a CLI started in the user's own home, which is every
+        one that has not said otherwise.
+      outside: For each of those it keeps outside its home while `home_var` is unset, where --
+        `(path under the home, path under the user's own)`. Claude Code's `.claude.json` is
+        at `~/.claude.json` until `CLAUDE_CONFIG_DIR` moves it inside: the copy is made of
+        whichever of the two it would have read.
+      lodges: Its user-level skills directory under that home, into whose virtual copy a
+        flow's own skills are put beside links to the user's -- in place of `mounts`, which a
+        backend that says this leaves empty. Empty for a backend whose flow skills are
+        mounted into the workspace instead.
+      secures: A variable that keeps where it finds its sign-in where the user's own home
+        would put it, for a CLI that names a keychain item or a credentials file after its
+        home: set, in a virtual home, to the user's own value of `home_var`.
       efforts: How hard this backend can be asked to think, hardest first, in its own wording.
         The whole ladder it has words for; a model of it takes some of them, and which ones is
         the backend's to say when it is asked what it runs.
@@ -746,6 +763,10 @@ class Profile:
     config: tuple[str, ...] = ()
     works: tuple[str, ...] = ()
     mounts: str = ""
+    rewrites: tuple[str, ...] = ()
+    outside: tuple[tuple[str, str], ...] = ()
+    lodges: str = ""
+    secures: str = ""
     beyond: tuple[str, ...] = ()
     swarms: bool = False
     searches: bool = False
@@ -1107,10 +1128,18 @@ PROFILES = (
         # reach for, as `Skill(<name>)`.
         skills=("skills/*/SKILL.md",),
         works=(".claude/skills/*/SKILL.md",),
-        # Where a flow's own skills go for the length of a session: the directory Claude
-        # reads a project's skills out of, which is the one place a skill can be given to it
-        # without touching what the person at this machine has installed.
-        mounts=".claude/skills",
+        # What Claude rewrites as it runs: `.claude.json`, with every project it was opened in
+        # and what it was told there, the backups it keeps of that, and `settings.json` where
+        # a turn changes a setting. Copied into a virtual home for each process, so that none
+        # of it is written into the user's (:mod:`hmz.coganchor.homes`).
+        rewrites=(".claude.json", "backups", "settings.json"),
+        outside=((".claude.json", ".claude.json"),),
+        # And a flow's own skills go where the user's are, in that same home: beside them,
+        # without a line of either the user's or the project's being written.
+        lodges="skills",
+        # Claude names its keychain item, and finds `.credentials.json`, by its home; this
+        # keeps both where the user's own would be.
+        secures="CLAUDE_SECURESTORAGE_CONFIG_DIR",
         # Three places, and the last of them is the one people forget: the session lives in
         # `.credentials.json`, the account it belongs to -- with the API key a run was
         # approved for beside it -- lives in `.claude.json`, which sits outside the home
@@ -1672,9 +1701,12 @@ PROFILES = (
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         works=(".agents/skills/*/SKILL.md", ".codex/skills/*/SKILL.md"),
-        # The shared one of its two, being the directory more than one of these CLIs has
-        # agreed to read: a flow's skill mounted there is one whichever of them is driving.
-        mounts=".agents/skills",
+        # What its app server rewrites: `config.toml`, where it writes the trust of every
+        # workspace it opened a thread that may write in. A copy in a virtual home for each
+        # server, which goes with it (:mod:`hmz.coganchor.homes`).
+        rewrites=("config.toml",),
+        # And a flow's own skills go beside the user's, in that same home.
+        lodges="skills",
         # One file, whichever way it was signed into: the subscription's tokens and an API
         # key land in the same place, under the mode that says which of them is in force.
         creds=("auth.json",),

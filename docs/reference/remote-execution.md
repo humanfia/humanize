@@ -217,6 +217,7 @@ srun --jobid=JOBID --overlap --nodes=1 --ntasks=1 --unbuffered --quiet --export=
 | `native` | `bool` | `False` | `--native` | | Run the CLI installed on the target. See [Native](#native-the-target-s-own-cli). |
 | `hushes` | `tuple[str, ...]` | `()` | `--hush NAME` (repeatable) | | Native: variables removed from the CLI's environment on the target. |
 | `projects` | `tuple[tuple[str, str], ...]` | `()` | `--project NAME=DIR` (repeatable) | | Native: credential directories written to the target for the turn; `NAME` is set to where each landed. |
+| `home` | `Virtual \| None` | `None` | `--home JSON` | | Native: the CLI's [virtual home](/reference/agents#virtual-homes), built on the target for the turn. Refused (`ValueError`) without `native`. |
 | `carries` | `tuple[tuple[str, str], ...]` | `()` | `--carry DIR=PATH` (repeatable) | | Native: directories put into the target's workspace at `PATH` for the turn. |
 | `installs` | `str` | `""` | `--installs LINE` | `""` | Native: the install line quoted when the CLI is missing on the target. |
 | `fence` | `Fence \| None` | `None` | `--fence JSON` | `None` | What the agent may reach, held on both machines. `--fence` takes `Fence.dumps()` output. |
@@ -636,7 +637,8 @@ traced or supervised. The sequence per turn:
 | --- | --- |
 | The account's variables | Sent as the turn's environment. Every variable the provider [hushes](/reference/providers#variables-taken-away) is removed on the target with `env -u`, since the target's own shell profile would otherwise supply it. |
 | The account's credential files | `--project NAME=DIR`, written through stdin, never argv. |
-| The flow's skills | `--carry DIR=PATH`. An existing path not planted by humanize is left alone. A planted one holds a claim file per turn under `PATH/.humanize-carried/`; it is removed when the last claim is released. Directories created above it are removed if empty. |
+| The flow's skills | `--carry DIR=PATH`. An existing path not planted by humanize is left alone. A planted one holds a claim file per turn under `PATH/.humanize-carried/`; it is removed when the last claim is released. Directories created above it are removed if empty. For a backend with a [virtual home](/reference/agents#virtual-homes), written into that home's skills directory instead. |
+| The CLI's [virtual home](/reference/agents#virtual-homes) | `--home JSON`. Built in the turn's private directory by a POSIX shell script on the target, around the target user's own home (`$VARIABLE`, else `$HOME/<default>`), never over a credential `--project` put there; the home variable is set to it, and `Profile.secures` to the projected directory under an account and to the target user's value otherwise. Under a projected account, the session paths stay in it rather than being linked, and are brought back by `--bring`. Removed with the private directory. |
 
 Credential files cross only where a variable of the backend's own moves the directory they are
 in:

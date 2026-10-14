@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator, Mapping, Sequence
 
     from hmz.coganchor.fence import Fence
+    from hmz.coganchor.homes import Virtual
     from hmz.coganchor.remote import RemoteClient
     from hmz.coganchor.supervisor import Launch
     from hmz.coganchor.transport import Target
@@ -227,6 +228,12 @@ class AnchorConfig:
         named to the CLI by setting that variable to where it landed. Never by argv: what is
         in a command line is in another user's `ps`. A file holding a refresh token is out to
         one turn at a time, and what the CLI refreshed it to is written back over it here.
+      home: The virtual home to start the target's own CLI in, or None for its own home: built
+        in the turn's private directory on the target (:data:`hmz.coganchor.homes.SCRIPT`),
+        beside -- and never over -- anything `projects` put there for the same variable, with
+        the flow's own skills written into its skills directory, and taken away with the rest
+        of that directory when the turn is over. What the CLI rewrites of its configuration
+        goes with it, and the target user's own is never written.
       carries: Directories to put in the target's copy of the workspace for the length of the
         turn, as `(the directory on this machine, where it goes relative to the workspace)`.
         Which is how a flow's own skills reach a CLI that reads them on the target: a mirror
@@ -273,6 +280,7 @@ class AnchorConfig:
     native: bool = False
     hushes: tuple[str, ...] = ()
     projects: tuple[tuple[str, str], ...] = ()
+    home: Virtual | None = None
     carries: tuple[tuple[str, str], ...] = ()
     brings: tuple[tuple[str, str], ...] = ()
     tells: str = ""
@@ -335,6 +343,11 @@ class AnchorConfig:
         if self.tells and not self.tells.startswith("/"):
             raise ValueError(
                 f"unsupported tell {self.tells!r}; expected an absolute path"
+            )
+        if self.home is not None and not self.native:
+            raise ValueError(
+                "a virtual home is built on the target for its own CLI: --home is for a "
+                "native session, and a supervised one is started in one by whoever spawns it"
             )
         projected = {name for name, _ in self.projects}
         for named, into in self.brings:
@@ -932,8 +945,9 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
                 "HUMANIZE_WORKSPACE": workspace,
             }
             fence = _fenced(client, config)
-            if config.projects:
+            if config.projects or config.home is not None:
                 session = _session(client, workspace)
+            if config.projects:
                 projected = _projected(
                     client, config.projects, session, workspace, refreshing, lent
                 )
@@ -948,8 +962,10 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
                                 f"{k}={v}\n" for k, v in projected.items()
                             ).encode(),
                         )
-                if fence is not None:
-                    fence["write"] = [*fence["write"], session]
+            if config.home is not None:
+                said |= _homed(client, config.home, session, workspace, projected)
+            if session and fence is not None:
+                fence["write"] = [*fence["write"], session]
             _carried(client, config.carries, workspace, whose, kept, making)
             log.info("driving %s on %s", program, target.describe())
             argv = [*_wrapping(config.hushes, said), program, *command[1:]]
@@ -1288,6 +1304,83 @@ def _projected(
                 lent.append(_Lent(here=str(one), there=at, sent=sent))
         named[variable] = landed
     return named
+
+
+def _homed(
+    client: RemoteClient,
+    home: Virtual,
+    session: str,
+    workspace: str,
+    projected: Mapping[str, str],
+) -> dict[str, str]:
+    """Builds the CLI's virtual home on the target, and says what to start the CLI with.
+
+    In the turn's private directory, where anything projected for the same variable has
+    landed already and is left as it is: the account a provider gave this turn is the one it
+    runs as. The flow's skills are written into it a file at a time, as credentials are -- what
+    is outside the workspace is not the filesystem calls' to reach.
+
+    Args:
+      client: The open connection.
+      home: What the virtual home is made of.
+      session: The turn's private directory on the target.
+      workspace: Where to run the commands from, as the target names it.
+      projected: What was projected, by variable, as :func:`_projected` said.
+
+    Returns:
+      The variables to set: the home's, naming where it landed, and the one keeping the CLI's
+      sign-in where it would be -- in the projected account where there is one, and where the
+      target user's own home would have it otherwise.
+
+    Raises:
+      OSError: If it could not be built, which is a turn that must not run: a CLI pointed at
+        half a home is a CLI that has lost its settings.
+    """
+    import errno
+    import posixpath
+    from pathlib import Path
+
+    from hmz.coganchor.homes import SCRIPT, words
+
+    landed = posixpath.join(session, home.variable.lower())
+    status, moved = _ran(
+        client,
+        [
+            "/bin/sh",
+            "-c",
+            SCRIPT,
+            "humanize",
+            landed,
+            home.variable,
+            home.default,
+            home.lodges,
+            *words(home),
+        ],
+        workspace,
+    )
+    if status != 0:
+        raise OSError(
+            errno.EACCES, f"could not build {home.variable} on the target: {moved}"
+        )
+    for name, whence in home.skills:
+        root = Path(whence)
+        for one in sorted(path for path in root.rglob("*") if path.is_file()):
+            at = posixpath.join(landed, home.lodges, name, *one.relative_to(root).parts)
+            status, said = _ran(
+                client,
+                ["/bin/sh", "-c", _WRITE_PRIVATELY, "humanize", at],
+                workspace,
+                feeding=one.read_bytes(),
+            )
+            if status != 0:
+                # A skill that could not be written is a turn that runs without it, as one a
+                # workspace could not take is.
+                log.warning("could not carry %s to %s: %s", whence, at, said)
+                break
+    told = {home.variable: landed}
+    if home.secures:
+        told[home.secures] = landed if home.variable in projected else moved
+    return told
 
 
 def _brought_back(client: RemoteClient, lent: Sequence[_Lent], workspace: str) -> None:

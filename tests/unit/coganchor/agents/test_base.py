@@ -630,10 +630,10 @@ def test_a_turn_mounts_the_skills_and_closing_takes_them_away(tmp_path: Path) ->
     (skill / "SKILL.md").write_text("---\nname: review\n---\n", encoding="utf-8")
     work = tmp_path / "work"
     work.mkdir()
-    agent = Scripted(backend="claude")
+    agent = Scripted(backend="cursor-agent")
     agent.loads([Loaded("review", skill)])
     session = agent.new(work)
-    mounted = work / ".claude" / "skills" / "review" / "SKILL.md"
+    mounted = work / ".cursor" / "skills" / "review" / "SKILL.md"
     assert not mounted.exists()
     session("go")
     assert mounted.exists()
@@ -645,6 +645,33 @@ def test_a_turn_mounts_the_skills_and_closing_takes_them_away(tmp_path: Path) ->
     assert mounted.exists()
     session.close()
     assert not mounted.exists()
+
+
+def test_a_cli_that_rewrites_its_home_is_started_in_a_virtual_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "settings.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(real))
+    skill = tmp_path / "flow" / "review"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: review\n---\n", encoding="utf-8")
+    agent = Scripted(backend="claude")
+    agent.loads([Loaded("review", skill)])
+
+    home = agent.homed()
+
+    assert home is not None
+    assert home.real == real
+    assert (home.at / "skills" / "review" / "SKILL.md").exists()
+    assert not (home.at / "settings.json").is_symlink()
+    assert home.environ({})["CLAUDE_CONFIG_DIR"] == str(home.at)
+    assert agent.homed([]) is not None
+    home.drop()
+    assert not home.at.exists()
+    assert (real / "settings.json").exists()
+    assert Scripted(backend="cursor-agent").homed() is None
 
 
 # -- where a session works, and its forks ----------------------------------------------

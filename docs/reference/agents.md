@@ -1086,21 +1086,64 @@ settings. `hmz.coganchor.agents.skills.skills(cli)` lists what the CLI would loa
 flow, the role's `_skills`). `session.skills` / `session.loads(names | None)` select which of
 those one conversation carries, from its next turn; a name not brought is ignored.
 
-Brought skills are copied, for the session's life, where the backend reads a project's skills
-(`Profile.mounts`), and removed after. A project's own skill of the same name wins.
+A backend whose profile names a user-level skills directory (`Profile.lodges`) is given the
+brought skills in its [virtual home](#virtual-homes): linked into that home's skills directory
+beside links to the user's own, a brought skill taking the place of the user's of the same
+name. Any other backend gets them copied, for the session's life, where it reads a project's
+skills (`Profile.mounts`), and removed after; there a project's own skill of the same name
+wins.
 
-| Backend | Mounted at | Skill directories read (`Profile.works`, relative to the workspace) |
+| Backend | Put at | Skill directories read (`Profile.works`, relative to the workspace) |
 | --- | --- | --- |
-| `claude` | `.claude/skills/` | `.claude/skills` |
+| `claude` | `$CLAUDE_CONFIG_DIR/skills/` in its virtual home | `.claude/skills` |
+| `codex` | `$CODEX_HOME/skills/` in its virtual home | `.agents/skills`, `.codex/skills` |
 | `cursor-agent` | `.cursor/skills/` | `.cursor/skills` |
-| `agy`, `codex`, `grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `qwen` | `.agents/skills/` | `.agents/skills` and each CLI's own (`.codex/skills`, `.grok/skills`, `.kimi-code/skills`, `.minimax/skills`, `.mimocode/skill[s]`, `.omp/skills`, `.opencode/skill[s]`, `.qwen/skills`, and on some `.claude/skills`, `.cursor/skills`) |
+| `agy`, `grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `qwen` | `.agents/skills/` | `.agents/skills` and each CLI's own (`.grok/skills`, `.kimi-code/skills`, `.minimax/skills`, `.mimocode/skill[s]`, `.omp/skills`, `.opencode/skill[s]`, `.qwen/skills`, and on some `.claude/skills`, `.cursor/skills`) |
 | `dsh`, `pi` | none | none |
+
+- A virtual home is built per process, so a Claude Code session told to carry other skills
+  restarts its process and resumes the conversation. A Codex app server is shared by an
+  agent's sessions and carries every skill the agent was given; a change of those starts a new
+  server for the next turn.
 
 - `pi` reads workspace skills only for a trusted project; pass paths with
   `PiAgentConfig.skill_paths` (`--skill`).
 - Under a native anchor, skills are [carried](/reference/remote-execution#native-the-target-s-own-cli)
-  into the target's workspace; under a supervised anchor they reach the target only where it
-  reads this workspace.
+  into the target's workspace, or into the virtual home built there; under a supervised anchor
+  a virtual home is built here, where the CLI runs, and workspace copies reach the target only
+  where it reads this workspace. A harness on another machine gets neither.
+
+### Virtual homes {#virtual-homes}
+
+A backend whose profile names files it rewrites as it runs (`Profile.rewrites`) or a user-level
+skills directory (`Profile.lodges`) is started, a process at a time, with its home variable
+(`Profile.home_var`) naming a directory built for that process
+(`hmz.coganchor.homes.build`, `AgentBase.homed`) and removed once the process is over:
+
+| In the virtual home | Is |
+| --- | --- |
+| each of `Profile.rewrites` | a copy of the user's file, taken from where the CLI would have read it: under `Profile.outside`'s path while the home variable is unset, and a provider's copy where its account answers that path; a directory starts empty |
+| `Profile.lodges` | a directory of links to each of the user's own skills, and to each brought skill |
+| the session paths (`Profile.sessions`) the user's home lacks yet | made in the user's home, then linked; one named by a glob, which cannot be, is moved into the user's home as the virtual one is removed |
+| everything else in the user's home | a link to it |
+
+- What the CLI writes into a copy goes with the home; the user's own files are never written.
+  Credentials, caches and sessions are reached through the links, so a refreshed token and a
+  conversation land where they always do; a supervisor answering session or credential paths
+  answers them under the virtual home too.
+- `Profile.secures` names a variable set to the user's own value of the home variable (empty
+  where unset), unless the environment sets it: Claude Code's `CLAUDE_SECURESTORAGE_CONFIG_DIR`,
+  which keeps its keychain item and `.credentials.json` where they were.
+- The system level is never replaced, and the project level is the workspace, read as the CLI
+  reads it.
+- A fenced agent may write the directory its virtual homes are built in.
+- Under a native anchor whose account is projected, the virtual home is that account's: the
+  session paths stay in it, and none of the target user's credentials is linked or copied.
+
+| Backend | `Profile.rewrites` | `Profile.lodges` | `Profile.secures` |
+| --- | --- | --- | --- |
+| `claude` | `.claude.json` (from `~/.claude.json` while `CLAUDE_CONFIG_DIR` is unset), `backups`, `settings.json` | `skills` | `CLAUDE_SECURESTORAGE_CONFIG_DIR` |
+| `codex` | `config.toml` | `skills` | none |
 
 ## Fake tools {#callbacks-as-tools}
 
@@ -1396,6 +1439,9 @@ claude --print --input-format stream-json --output-format stream-json --verbose
   `completed`, or a `stop_reason` of `max_tokens`, `model_context_window_exceeded`,
   `pause_turn`, `tool_deferred` or `tool_use` (without structured output) fails the turn.
 - An anchored session's process ends with each turn.
+- Each process runs in a [virtual home](#virtual-homes) (`CLAUDE_CONFIG_DIR`), so what Claude
+  writes of `.claude.json` and `settings.json` is dropped with it. Hooks and the flow's MCP
+  server still go through `--settings` and `--mcp-config`.
 
 ### Codex {#codex}
 
@@ -1434,6 +1480,9 @@ fall `idle` first, which ends nothing.
   fence once at start; a change starts a new server for the next turn and each conversation is
   resumed there by id. Model, effort, rung and `approvals` are per call.
 - `-p/--profile` and `--add-dir` are not offered; `codex app-server` does not take them.
+- Each app server runs in a [virtual home](#virtual-homes) (`CODEX_HOME`), so the trust Codex
+  writes into `config.toml` for each workspace it opens a writing thread in is dropped with it.
+  The project's `AGENTS.md` and `.codex/config.toml` are read as Codex reads them.
 - No hook table: Codex runs hooks only once trusted in the user's `config.toml`.
 - On another machine, a sandboxed rung whose fence is at least as narrow is sent
   `sandboxPolicy: externalSandbox` ([Remote execution](/reference/remote-execution#a-fence-on-both-machines)).

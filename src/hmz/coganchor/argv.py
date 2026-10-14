@@ -185,6 +185,13 @@ def parser() -> ArgumentParser:
         "one for each --project that landed at PATH on the target",
     )
     built.add_argument(
+        "--home",
+        metavar="JSON",
+        default=None,
+        help="with --native, start the CLI in a virtual home built on the target for the "
+        "turn, made as this says",
+    )
+    built.add_argument(
         "--carry",
         metavar="DIR=PATH",
         action="append",
@@ -242,6 +249,7 @@ def settings(args: Namespace) -> AnchorConfig:
     """
     from .anchor import AnchorConfig
     from .fence import Fence
+    from .homes import Virtual
 
     return AnchorConfig(
         target=args.target,
@@ -262,6 +270,7 @@ def settings(args: Namespace) -> AnchorConfig:
         native=args.native,
         hushes=tuple(args.hush),
         projects=tuple(_pair(said) for said in args.project),
+        home=Virtual.loads(args.home) if args.home else None,
         carries=tuple(_pair(said) for said in args.carry),
         brings=tuple(_pair(said) for said in args.bring),
         tells=args.tell,
@@ -314,6 +323,7 @@ def options(config: AnchorConfig) -> list[str]:
         ("--installs", config.installs or None),
         ("--broker", config.broker or None),
         ("--fence", config.fence.dumps() if config.fence is not None else None),
+        ("--home", config.home.dumps() if config.home is not None else None),
     ):
         if value is not None:
             written.append(f"{flag}={value}")

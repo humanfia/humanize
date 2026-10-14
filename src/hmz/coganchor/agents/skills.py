@@ -15,6 +15,10 @@ open gets them: put where that backend reads a project's own skills for as long 
 lives, and taken away again after. Mounted rather than installed, so a flow that works by three
 skills is not a flow that leaves three skills on somebody's machine -- and per session, so a
 flow rewritten between turns is a flow whose next session carries the rewritten one.
+
+Not for a backend whose skills go into the virtual home it is started in instead
+(:attr:`~hmz.coganchor.backends.Profile.lodges`, :mod:`hmz.coganchor.homes`), beside the user's
+own: that home is built with them, and nothing is written into the workspace at all.
 """
 
 from __future__ import annotations

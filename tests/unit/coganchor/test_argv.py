@@ -10,6 +10,7 @@ import pytest
 from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.argv import forget, kept, options, parser, render, settings
 from hmz.coganchor.fence import ALL, NONE, READ, Fence
+from hmz.coganchor.homes import Virtual
 
 ENVIRONMENT = (
     "HUMANIZE_TARGET",
@@ -141,6 +142,14 @@ NATIVE = AnchorConfig(
     native=True,
     hushes=("ANTHROPIC_API_KEY",),
     projects=(("CODEX_HOME", "/accounts/codex"),),
+    home=Virtual(
+        variable="CODEX_HOME",
+        default=".codex",
+        rewrites=("config.toml",),
+        lodges="skills",
+        private=("sessions", "state_*.sqlite*"),
+        skills=(("review", "/flows/skills/review"),),
+    ),
     carries=(("/flows/skills", ".agents/skills"),),
     brings=(("CODEX_HOME/sessions", "/epic/codex"),),
     tells="/tmp/homes",

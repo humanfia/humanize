@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from hmz.coganchor import AnchorConfig
+from hmz.coganchor.homes import Virtual
 from tests.integration.doubles_anchor import Fakes, fakes
 
 #: Long enough for a pipe, a handshake and a shell; short enough that a hang fails.
@@ -311,3 +312,40 @@ def test_a_turn_told_not_to_share_ssh_connections_opens_its_own(
     assert said.returncode == 0, said.stderr
     assert far.calls("ssh")
     assert not any("ControlMaster=auto" in argv for argv in far.calls("ssh"))
+
+
+def test_a_virtual_home_is_built_on_the_target_and_gone_after_the_turn(
+    driven: Driven, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = tmp_path / "codex-home"
+    (real / "skills" / "mine").mkdir(parents=True)
+    (real / "skills" / "mine" / "SKILL.md").write_text("theirs\n")
+    (real / "config.toml").write_text("theirs = true\n")
+    (real / "auth.json").write_text("a token\n")
+    monkeypatch.setenv("CODEX_HOME", str(real))
+    home = Virtual(
+        variable="CODEX_HOME",
+        default=".codex",
+        rewrites=("config.toml",),
+        lodges="skills",
+        made=("sessions",),
+        skills=(("review", str(_skill(tmp_path))),),
+    )
+
+    said = driven.run(
+        "/bin/sh",
+        "-c",
+        'echo "$CODEX_HOME"; echo trusted >> "$CODEX_HOME/config.toml"; '
+        'cat "$CODEX_HOME/auth.json"; ls "$CODEX_HOME/skills"; '
+        'cat "$CODEX_HOME/skills/review/SKILL.md"; : > "$CODEX_HOME/sessions/kept"',
+        home=home,
+    )
+
+    assert said.returncode == 0, said.stderr
+    landed, *rest = said.stdout.splitlines()
+    assert landed != str(real)
+    assert rest == ["a token", "mine", "review", "---", "name: review", "---"]
+    assert (real / "config.toml").read_text() == "theirs = true\n"
+    assert (real / "sessions" / "kept").exists()
+    assert not Path(landed).exists()
+    assert not (driven.target / ".agents").exists()
