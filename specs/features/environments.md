@@ -30,8 +30,8 @@ an env put on no saved runtime.
 **2.3** **Default provider**: the machine an env of a kind with no provider is put on: this
 machine for `local`; docker's default daemon on this machine for `docker`; the swarm this
 machine manages for `swarm`; this machine's Apple containers for `apple-container`; the Slurm
-cluster this machine submits to, with its defaults, for `slurm`. A kind's default provider MUST
-be reported under the provider name `local` where an error or label names it.
+cluster this machine submits to, with its defaults, for `slurm`. A label naming a default
+provider MUST name it `local`.
 
 **2.4** **Workdir**: the directory, as the env machine names it, that an env works in.
 
@@ -88,7 +88,7 @@ missing program where `git` is the cause.
 **3.2.4** An env MUST serve every other env mixin.
 
 **3.2.5** An image a role declares MUST be ignored by every kind but `docker`, `swarm` and
-`apple-container`.
+`apple-container`, and by a `docker` env working in a running container (§7.3.4).
 
 ### 3.3 Commands
 
@@ -240,8 +240,8 @@ declares none.
 **7.1.7** The container MUST be started with the runtime's OCI runtime and run arguments.
 
 **7.1.8** The container MUST be named `<name_prefix>-<role>-<8 hex digits>` where the runtime
-sets a name prefix, and `humanize-<provider>-<role>-<8 hex digits>` otherwise; `-<role>` MUST be
-left out for an env of no role.
+sets a name prefix, and `humanize-<provider>-<role>-<8 hex digits>` otherwise, `<provider>`
+being `local` for a default provider; `-<role>` MUST be left out for an env of no role.
 
 **7.1.9** The container MUST carry the labels `humanize=<uid>`, `humanize.cpus`,
 `humanize.memory`, `humanize.gpus` (what it was given), `humanize.provider`, `humanize.role`,
