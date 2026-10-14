@@ -6,10 +6,9 @@
 // reviewer carries `review-notes` and the actor does not. When the reviewer's Claude Code
 // starts, it starts in a home of its own: copies of the settings it rewrites, links to the rest
 // of yours, and a `skills/` holding links to yours with the flow's beside them. When it stops,
-// that home goes, all of it, and nothing of yours was written. Codex, Grok Build, Qwen Code,
-// pi and Oh My Pi get the same; another backend gets the copy in the workspace
-// (`.cursor/skills/`, `.agents/skills/`), or none for `dsh`. A simulation: the names of
-// "your" two skills are invented.
+// that home goes, all of it, and nothing of yours was written. Every other CLI gets the same,
+// except that opencode and MiMo are told where the flow's skills are, and `dsh` gets none. A
+// simulation: the names of "your" two skills are invented.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
@@ -25,7 +24,7 @@ const BEATS = [
   "The flow's: in its own skills/ or a git repository, for the roles it names",
   "The reviewer's Claude Code starts in a home of its own, review-notes beside yours",
   'It stops: that home goes, all of it, and yours was never written',
-  'Codex, grok, qwen and pi get the same; another backend gets it in the workspace',
+  'Every CLI gets the same, or is told where they are; dsh gets none',
 ]
 
 /** A mono character's advance at 11px. */
@@ -130,8 +129,8 @@ const madeBrace = computed(() => {
 /** Where each backend's copy lands, and the reviewer's backend chip for it. */
 const DEST = [
   { backend: 'claude', who: 'claude', dest: 'its home: skills/' },
-  { backend: 'codex', who: 'codex, grok, …', dest: 'its home: skills/' },
-  { backend: 'cursor-agent', who: 'cursor, agy, …', dest: 'the workspace' },
+  { backend: 'codex', who: 'codex, grok, agy, …', dest: 'its home: skills/' },
+  { backend: 'opencode', who: 'opencode, mimo', dest: 'named in its config' },
   { backend: 'dsh', who: 'dsh', dest: 'none' },
 ]
 /** From the flow's skill to the reviewer's slot for it: across the gap, or down on a phone. */

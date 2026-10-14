@@ -15,6 +15,7 @@ from hmz.coganchor.agents import (
     driver,
 )
 from hmz.coganchor.agents.config import Unserved
+from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 
 from .doubles_u5 import configured, heard, line, option, routing, spawning
@@ -395,3 +396,35 @@ def test_a_turn_through_a_gateway_asks_it_for_the_turns_model(
     assert "{env:OPENCODE_GATEWAY_URL}" in env["OPENCODE_CONFIG_CONTENT"]
     assert "OPENAI_API_KEY" not in env
     assert "upstream-secret" not in env.values()
+
+
+def test_the_flows_skills_are_named_in_its_config_and_nothing_is_mounted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv(
+        "OPENCODE_CONFIG_CONTENT", json.dumps({"skills": {"paths": ["/theirs"]}})
+    )
+    skill = tmp_path / "flow" / "review"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: review\n---\n", encoding="utf-8")
+    work = tmp_path / "work"
+    work.mkdir()
+    spawned = spawning(monkeypatch, opening=_TURN)
+    agent = _agent()
+    agent.loads([Loaded("review", skill)])
+    heard(agent)
+    session = agent.new(work)
+
+    _turn(session)
+    session.loads([])
+    _turn(session)
+
+    said = spawned[0].env
+    assert said is not None
+    first = json.loads(said["OPENCODE_CONFIG_CONTENT"])
+    # After whatever the variable already named, so that the flow's is the one loaded.
+    assert first["skills"]["paths"] == ["/theirs", str(skill)]
+    assert "mcp" not in first
+    # Carrying none, the variable is the user's own, as it was.
+    assert spawned[1].env is None
+    assert list(work.iterdir()) == []

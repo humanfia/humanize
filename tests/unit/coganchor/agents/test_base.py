@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, NoReturn
 import pytest
 from pydantic import BaseModel
 
+import hmz.coganchor.agents.skills as skilled
+from hmz.coganchor import backends
 from hmz.coganchor.agents import AcpAgentConfig, ClaudeCodeAgentConfig
 from hmz.coganchor.agents.allowance import Allowance, Ledger
 from hmz.coganchor.agents.base import (
@@ -624,16 +626,26 @@ def test_a_session_carries_the_flows_skills_it_was_told(tmp_path: Path) -> None:
     assert session.skills == ("a", "b", "c")
 
 
-def test_a_turn_mounts_the_skills_and_closing_takes_them_away(tmp_path: Path) -> None:
+def test_a_turn_mounts_the_skills_and_closing_takes_them_away(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A CLI of the test's own that still takes them in the workspace: none humanize knows does.
+    real = skilled.named
+    held = replace(backends.UNKNOWN, name="mounting", mounts=".agents/skills")
+
+    def named(cli: str) -> backends.Profile | None:
+        return held if cli == "mounting" else real(cli)
+
+    monkeypatch.setattr(skilled, "named", named)
     skill = tmp_path / "flow" / "review"
     skill.mkdir(parents=True)
     (skill / "SKILL.md").write_text("---\nname: review\n---\n", encoding="utf-8")
     work = tmp_path / "work"
     work.mkdir()
-    agent = Scripted(backend="cursor-agent")
+    agent = Scripted(backend="mounting")
     agent.loads([Loaded("review", skill)])
     session = agent.new(work)
-    mounted = work / ".cursor" / "skills" / "review" / "SKILL.md"
+    mounted = work / ".agents" / "skills" / "review" / "SKILL.md"
     assert not mounted.exists()
     session("go")
     assert mounted.exists()
@@ -671,7 +683,7 @@ def test_a_cli_that_rewrites_its_home_is_started_in_a_virtual_one(
     home.drop()
     assert not home.at.exists()
     assert (real / "settings.json").exists()
-    assert Scripted(backend="cursor-agent").homed() is None
+    assert Scripted(backend="dsh").homed() is None
 
 
 # -- where a session works, and its forks ----------------------------------------------

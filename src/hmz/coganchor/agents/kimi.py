@@ -65,6 +65,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.gateway import Gateway
+    from hmz.coganchor.homes import Home
 
 #: What to say when the websocket client a session is told about its own turn over is not
 #: in this Python environment. Kimi Code is an extra rather than part of every install, so
@@ -672,7 +673,12 @@ _GRANTED = frozenset(
 class _AppServer:
     """A `kimi web` daemon of our own, and the calls one turn of a session is made of."""
 
-    def __init__(self, argv: list[str], env: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        argv: list[str],
+        env: Mapping[str, str] | None = None,
+        home: Home | None = None,
+    ) -> None:
         """Starts the daemon and waits for it to say where it is listening.
 
         Args:
@@ -680,6 +686,8 @@ class _AppServer:
           env: The whole environment to start it in, which is this process's own less what the
             agent's provider hushes and plus what it sets, or None to inherit this one. The
             daemon is the agent's, so its account is the agent's too.
+          home: The virtual home it is started in, which is dropped once it is down; None for
+            one started in the user's own.
 
         Raises:
           subprocess.CalledProcessError: If it stops without ever saying, which would leave a
@@ -689,6 +697,8 @@ class _AppServer:
         self._argv = argv
         self._stopping = threading.Lock()
         self._stopped = False
+        #: The virtual home it was started in, dropped once it is down.
+        self.home = home
         self._proc = subprocess.Popen(
             argv,
             # Its log is nobody's to read; what is wanted from it is the one line below.
@@ -778,6 +788,8 @@ class _AppServer:
                     except subprocess.TimeoutExpired:
                         self._proc.kill()
                 self._proc.wait()
+                if self.home is not None:
+                    self.home.drop()
                 return
 
             # Provider wrappers and Kimi share this dedicated group. Taking down the group
@@ -802,6 +814,8 @@ class _AppServer:
             for one in kin:
                 with contextlib.suppress(psutil.Error):
                     one.kill()
+            if self.home is not None:
+                self.home.drop()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -1822,10 +1836,11 @@ class KimiCodeCLIAgent(AgentBase):
         #: session of that one process. With the flow's command lines on its PATH from
         #: where the shelf was. And, for an account a local LiteLLM gateway holds, pointed at
         #: which gateway and naming which model (see :meth:`environment`): one started again
-        #: is at another port under another key.
-        self._server_as: tuple[str, Fence | None, str, Gateway | None, str] | None = (
-            None
-        )
+        #: is at another port under another key. And the flow's skills its virtual home was
+        #: built carrying: one carrying others is started again in a home carrying those.
+        self._server_as: (
+            tuple[str, Fence | None, str, Gateway | None, str, tuple[str, ...]] | None
+        ) = None
         self._serving = threading.Lock()
 
     def environment(self) -> Mapping[str, str]:
@@ -1898,6 +1913,7 @@ class KimiCodeCLIAgent(AgentBase):
                 self.config.fence,
                 self.shelf.where(),
                 *self._through(),
+                tuple(one.name for one in self.loaded),
             ):
                 # Started as an account this agent has since left, or inside a fence it has
                 # since been set up with another of. Let go of rather than taken down: a turn
@@ -1934,13 +1950,27 @@ class KimiCodeCLIAgent(AgentBase):
                 # starts again.
                 account, pathed = self.node().name, self.shelf.where()
                 through = self._through()
+                lodged = tuple(one.name for one in self.loaded)
+                # In a virtual home of its own, carrying every skill this agent was given --
+                # the flow's own beside links to the user's, and none in the workspace -- which
+                # goes once the daemon is down.
+                home = self.homed()
                 self._listening = port or None
                 try:
-                    spawned = self.spawned(argv)
+                    spawned = self.spawned(argv, home=home)
+                    environ = self._environ()
+                    self._server = _AppServer(
+                        spawned,
+                        environ if home is None else home.environ(environ),
+                        home,
+                    )
+                except BaseException:
+                    if home is not None:
+                        home.drop()
+                    raise
                 finally:
                     self._listening = None
-                self._server = _AppServer(spawned, self._environ())
-                self._server_as = (account, fence, pathed, *through)
+                self._server_as = (account, fence, pathed, *through, lodged)
                 # Held by the finalizer alone, which is what takes the daemon down: when the
                 # agent is collected, and at exit for one held to the end.
                 weakref.finalize(self, self._server.stop)

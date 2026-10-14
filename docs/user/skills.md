@@ -39,10 +39,9 @@ Neither set is a setting of the agent, and humanize never changes what you insta
 
 A flow's skill is how a flow teaches one role something the others need not know: `rlar`'s
 reviewer carries `review-notes`, which says how to read a change and write the review the actor
-is handed next. Claude Code and Codex are started in a home of their own for each process: your
-skills are linked into its `skills/`, and the flow's go beside them. Other CLIs get a copy in
-your workspace, where they read a project's own skills, for as long as a session of that role
-is open.
+is handed next. Most CLIs are started in a home of their own for each process: your skills are
+linked into its `skills/`, and the flow's go beside them. opencode and MiMo Code are told where
+the flow's skills are instead. Nothing is put in your workspace for any of these.
 
 <SkillTrip />
 
@@ -125,12 +124,13 @@ skills only in a project you have trusted in pi, and humanize does not trust one
 
 ## The flow's skills
 
-A flow brings skills for some of its roles. Claude Code, Codex, Grok Build, Qwen Code, pi and
-Oh My Pi are started, a process at a time, in a home of their own -- copies of the settings they rewrite as they run, links to the
-rest of yours -- whose user-level `skills/` holds links to yours with the flow's beside them. That
-home goes when the process stops; nothing of yours, and nothing of the project's, is written.
-The other CLIs get each skill copied into your workspace, where they read a project's own, for
-as long as a session of that role is open:
+A flow brings skills for some of its roles. Every CLI but opencode, MiMo Code and dsh is started,
+a process at a time, in a home of their own -- copies of the settings they rewrite as they run,
+links to the rest of yours -- whose user-level `skills/` holds links to yours with the flow's
+beside them. That home goes when the process stops; nothing of yours, and nothing of the
+project's, is written. opencode and MiMo Code are told where the flow's skills are, in the
+configuration humanize hands each run, and read them after their own. Nothing goes in your
+workspace:
 
 | Backend | Put into |
 | --- | --- |
@@ -139,8 +139,11 @@ as long as a session of that role is open:
 | `grok` | its own home's `skills/` (`$GROK_HOME/skills/`) |
 | `qwen` | its own home's `skills/` (`$QWEN_HOME/skills/`) |
 | `pi`, `omp` | its own home's `skills/` (`$PI_CODING_AGENT_DIR/skills/`) |
-| `cursor-agent` | `.cursor/skills/` in the workspace |
-| `agy`, `kimi`, `mcode`, `mimo`, `opencode` | `.agents/skills/` in the workspace |
+| `agy` | its own home's `skills/` (named with `--app_data_dir`) |
+| `cursor-agent` | its own home's `skills/` (`$CURSOR_CONFIG_DIR/skills/`) |
+| `kimi` | its own home's `skills/` (`$KIMI_CODE_HOME/skills/`) |
+| `mcode` | its own home's `skills/` (`$MINIMAX_DATA_DIR/skills/`) |
+| `opencode`, `mimo` | named under `skills.paths` in the configuration of each run |
 | `dsh` | <Badge type="danger" text="none" /> it carries only what you installed |
 
 A copy in the workspace goes when the last session using it ends, along with any directory that
@@ -162,17 +165,13 @@ the list. The copy lands in `.hmz/flows/`, skills and all, and is yours to edit:
 
 ### Keep one of yours in place of the flow's
 
-Nothing of yours is overwritten. For a CLI that gets the flow's skills in the workspace, a
-project skill of the same name is what the agent loads, and the flow's copy is not made: put
-your own `review-notes/SKILL.md` in `.agents/skills/` and `rlar`'s Kimi reviewer reads yours.
-For a CLI started in a home of its own, the flow's skill takes the place of a skill of yours of the same name
-in their own home, and yours stays where it is; to use yours, copy the flow and edit its skill.
+Nothing of yours is overwritten. The flow's skill takes the place of a skill of yours of the
+same name at the user level, and yours stays where it is. A project skill of the same name is
+read by the CLI as it reads any project skill. To use yours in place of the flow's, copy the flow
+and edit its skill.
 
 ## Pitfalls
 
-- **A skill of yours shadows the flow's.** For a CLI that gets the flow's skills in the
-  workspace, a skill of the same name already in the project wins, so a flow can run without
-  the instructions it was written for. Rename yours, or remove it for the run.
 - **An agent ignores your skill.** Check it is in a directory that CLI reads (the table above),
   as `<name>/SKILL.md`, and that the CLI's home variable points where you think.
 - **`dsh` in a role that brings skills.** It does not get the flow's copy. The role runs
