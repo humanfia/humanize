@@ -1136,6 +1136,7 @@ version = "0.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "dateparser" },
+    { name = "json5" },
     { name = "packaging" },
     { name = "psutil" },
     { name = "pydantic" },
@@ -1260,6 +1261,7 @@ requires-dist = [
     { name = "hiredis", marker = "extra == 'litellm'", specifier = ">=3,<4" },
     { name = "hmz", extras = ["dsh", "kimi", "litellm"], marker = "extra == 'all'" },
     { name = "httpx2", marker = "extra == 'litellm'", specifier = ">=2.5,<3" },
+    { name = "json5", specifier = ">=0.12" },
     { name = "litellm", marker = "extra == 'litellm'", specifier = ">=1.105" },
     { name = "litellm-enterprise", marker = "extra == 'litellm'", specifier = ">=0.1.73" },
     { name = "litellm-proxy-extras", marker = "extra == 'litellm'", specifier = ">=0.4.105" },
@@ -1581,6 +1583,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d3/59/322338183ecda247fb5d1763a6cbe46eff7222eaeebafd9fa65d4bf5cb11/jmespath-1.1.0.tar.gz", hash = "sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d", size = 27377, upload-time = "2026-01-22T16:35:26.279Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/14/2f/967ba146e6d58cf6a652da73885f52fc68001525b4197effc174321d70b4/jmespath-1.1.0-py3-none-any.whl", hash = "sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64", size = 20419, upload-time = "2026-01-22T16:35:24.919Z" },
+]
+
+[[package]]
+name = "json5"
+version = "0.17.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/16/1f/58a4d7ee466f81bc3c7337036380fc6d49de3afb7855d74f8121b1e89b32/json5-0.17.3.tar.gz", hash = "sha256:8d0278ad34ebaa9c3af76d9519274811830224a2d1cd5af156dbd067f461b8a4", size = 54234, upload-time = "2026-10-09T21:19:28.335Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ae/39/e689b616c4279a821d5842a8a85c1874540f8d58e35028df93f2182120c2/json5-0.17.3-py3-none-any.whl", hash = "sha256:2c8b22a893c35cd6a3c5ccbf1dd1c7d02c25dc1b5897fea658f9bf08c2e05f9a", size = 34809, upload-time = "2026-10-09T21:19:27.357Z" },
 ]
 
 [[package]]
