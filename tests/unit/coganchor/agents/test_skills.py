@@ -120,8 +120,17 @@ def test_carried_says_where_each_skill_goes(tmp_path: Path, mounting: str) -> No
     # At the user level instead -- in a virtual home, or named in the CLI's config --
     # so nothing goes in the workspace.
     for cli in (
-        "claude", "codex", "grok", "qwen", "pi", "omp",
-        "agy", "cursor-agent", "kimi", "mcode", "opencode",
+        "claude",
+        "codex",
+        "grok",
+        "qwen",
+        "pi",
+        "omp",
+        "agy",
+        "cursor-agent",
+        "kimi",
+        "mcode",
+        "opencode",
     ):
         assert carried(cli, loaded) == ()
     assert carried("no-such-cli", loaded) == ()
