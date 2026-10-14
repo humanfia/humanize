@@ -1141,17 +1141,19 @@ Any other backend gets none. Nothing is ever put in the workspace.
   its user level; pass further paths with `PiAgentConfig.skill_paths` (`--skill`).
 - Under a native anchor, skills are written into the virtual home
   [built on the target](/reference/remote-execution#native-the-target-s-own-cli); under a
-  supervised anchor a virtual home is built here, where the CLI runs. A harness on another
-  machine gets none, and neither do `agy` under a native anchor (its home is moved by a flag,
-  which the anchor does not write) and `opencode`/`mimo` anywhere but here (the paths they are
-  told are this machine's).
+  supervised anchor a virtual home is built here, where the CLI runs; under a harness on
+  another machine they are carried there and lodged in the virtual home
+  [built there](/reference/remote-execution#where-the-harness-runs). `agy` under a native
+  anchor gets none (its home is moved by a flag, which the anchor does not write), and neither
+  do `opencode`/`mimo` anywhere but here (the paths they are told are this machine's).
 
 ### Virtual homes {#virtual-homes}
 
 A backend whose profile names files it rewrites as it runs (`Profile.rewrites`) or a user-level
 skills directory (`Profile.lodges`) is started, a process at a time, with its home variable
-(`Profile.home_var`) naming a directory built for that process
-(`hmz.coganchor.homes.build`, `AgentBase.homed`) and removed once the process is over. A CLI no
+(`Profile.home_var`) naming a directory built for that process on the machine it runs on
+(`hmz.coganchor.homes.build`, `AgentBase.virtual`, `AgentBase.homed`) and removed once the
+process is over. A CLI no
 variable moves names it by a flag instead (`Profile.home_flag`): agy's `--app_data_dir`, which
 takes it relative to `~/.gemini` and is given one climbing out of there (`Home.argv`, put
 right after the program's name).
@@ -1185,16 +1187,23 @@ right after the program's name).
   reads it. What humanize itself manages for a CLI with no flag or variable for it is merged
   into the copy at the user level: Qwen Code's effort, hook table and `humanize` MCP server
   into `settings.json`, a gateway account's `[model.*]` entry into Grok Build's `config.toml`,
-  and a gateway account's provider into pi's `models.json`.
+  a gateway account's provider into pi's `models.json`, and humanize's agents into agy's
+  `agents/` (a directory of the home's own, with links to the user's agents beside them).
+  Each is said as data (`Virtual.merges`, a session's `_merges`) and applied as the home is
+  built, by a function its driver registers (`homes.merger`), so it is applied wherever the
+  home is built; what a merge put in place of a link is never written back.
 - A fenced agent may write the directory its virtual homes are built in.
 - Under a native anchor whose account is projected, the virtual home is that account's: the
   session paths stay in it, and none of the target user's credentials is linked or copied.
   Under a native anchor nothing humanize manages is merged into the copies there.
-- A harness on another machine (`AnchorConfig.harness`, `hmz.coganchor.elsewhere.afar`) gets
-  no virtual home and no brought skills: `AgentBase.homed` builds none for it, and the
-  anchor's options carry none to the `hmz internal anchor` run there. Its CLI runs in the
-  harness machine user's own home: Qwen Code there runs without humanize's effort, hook table
-  and MCP server, and a `grok` or `pi` account behind a gateway is refused.
+- A harness on another machine (`AnchorConfig.harness`, `hmz.coganchor.elsewhere.afar`) is
+  started in one built on that machine: `AgentBase.homed` builds none here, and the anchor's
+  options carry what it is made of (`AnchorConfig.home`, the session's skills and merges) to
+  the `hmz internal anchor` there, which builds it from that machine's user's own
+  configuration around the CLI it supervises, keeps it on that machine, and removes it when
+  the CLI exits. The brought skills are carried there first
+  ([Remote execution › Where the harness runs](/reference/remote-execution#where-the-harness-runs)).
+  A `grok` or `pi` account behind a gateway is still refused there.
 
 | Backend | `Profile.rewrites` | `Profile.lodges` | `Profile.secures` |
 | --- | --- | --- | --- |

@@ -10,6 +10,7 @@ from __future__ import annotations
 import gc
 import json
 import os
+import shlex
 import stat
 import time
 from dataclasses import replace
@@ -54,6 +55,7 @@ from tests.unit.coganchor.agents.doubles_core import (
     answering,
     heard,
 )
+from tests.unit.coganchor.agents.doubles_u5 import afar, carried
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -649,6 +651,44 @@ def test_a_cli_that_rewrites_its_home_is_started_in_a_virtual_one(
     assert not home.at.exists()
     assert (real / "settings.json").exists()
     assert Scripted(backend="dsh").homed() is None
+
+
+def test_a_harness_on_another_machine_has_its_virtual_home_built_there(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = afar(monkeypatch, tmp_path)
+    agent = Scripted(
+        AgentConfig(model="m", effort="", machine=machine), backend="claude"
+    )
+    for name in ("a", "b"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "SKILL.md").write_text(f"{name}\n")
+    agent.loads([Loaded("a", tmp_path / "a"), Loaded("b", tmp_path / "b")])
+    merges = (("hmz.coganchor.agents.qwen:_merged", '{"x": 1}'),)
+
+    assert agent.homed() is None
+    told = carried(
+        agent.spawned(["claude"], virtual=agent.virtual([agent.loaded[1]], merges))
+    )
+    every = carried(agent.spawned(["claude"]))
+
+    assert told.variable == "CLAUDE_CONFIG_DIR"
+    assert told.rewrites == (".claude.json", "backups", "settings.json")
+    assert told.skills == (("b", "/far/skills/ab/b"),)
+    assert told.merges == merges
+    assert every.skills == (("a", "/far/skills/ab/a"), ("b", "/far/skills/ab/b"))
+    assert every.merges == ()
+
+
+def test_a_harness_elsewhere_with_no_virtual_home_is_told_of_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = afar(monkeypatch, tmp_path)
+    agent = Scripted(AgentConfig(model="m", effort="", machine=machine), backend="dsh")
+
+    line = agent.spawned(["dsh"])
+
+    assert not any(one.startswith("--home=") for one in shlex.split(line[-1]))
 
 
 # -- where a session works, and its forks ----------------------------------------------

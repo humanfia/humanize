@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz import machine
+from hmz.coganchor.homes import merged, merger
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
@@ -55,8 +56,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from pydantic import BaseModel
-
-    from hmz.coganchor.homes import Home
 
     from .tools import Toolbox
 
@@ -300,7 +299,8 @@ def _managed(
     return said
 
 
-def _merged(at: Path, managed: dict[str, Any], *, headless: bool) -> None:
+@merger
+def _merged(home: Path, given: dict[str, Any]) -> None:
     """Merges what the run says into a virtual home's copy of the user's `settings.json`.
 
     What the run says wins for its own entries -- the effort, the `humanize` server, the
@@ -309,15 +309,16 @@ def _merged(at: Path, managed: dict[str, Any], *, headless: bool) -> None:
     watching defaults to (:data:`_HEADLESS`) is said only where their file says nothing of it.
 
     Args:
-      at: The copy, which is not there for a user with no file of their own.
-      managed: What the run says, as :func:`_managed` made it.
-      headless: Whether to say what an unwatched turn defaults to at all.
+      home: The virtual home, whose copy is not there for a user with no file of their own.
+      given: `managed`, what the run says, as :func:`_managed` made it; and `headless`,
+        whether to say what an unwatched turn defaults to at all.
 
     Raises:
       Unrecoverable: If the user's file is there and is not a JSON object -- Qwen Code takes
         comments in it, which this cannot keep. Refused rather than written over: a turn run
         against half of somebody's settings is a turn run against settings they never wrote.
     """
+    at, managed = home / _SETTINGS, cast("dict[str, Any]", given["managed"])
     try:
         raw: object = json.loads(at.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -346,7 +347,7 @@ def _merged(at: Path, managed: dict[str, Any], *, headless: bool) -> None:
             held[key] = cast("dict[str, Any]", theirs) | cast("dict[str, Any]", value)
         else:
             held[key] = value
-    for key, value in _HEADLESS.items() if headless else ():
+    for key, value in _HEADLESS.items() if given["headless"] else ():
         theirs = held.get(key)
         kept = cast("dict[str, Any]", theirs) if isinstance(theirs, dict) else {}
         held[key] = value | kept
@@ -717,7 +718,7 @@ class QwenCodeSession(StreamSessionBase):
         it runs in. :mod:`hmz.coganchor.agents.preload` is what decides whether one is wanted.
 
         What it is to think at, its hook table and the flow's callbacks are not variables: they
-        are in its virtual home's `settings.json` (:meth:`_spawning`).
+        are in its virtual home's `settings.json` (:meth:`_merges`).
         """
         held = dict(super()._environment())
         # Whoever said where, said it: the provider's own variables are in `held` and the
@@ -757,26 +758,18 @@ class QwenCodeSession(StreamSessionBase):
         box = self._agent.toolbox
         return _managed(self.effort, gate, box if box.offered() else None)
 
-    def _spawning(
-        self, argv: list[str]
-    ) -> tuple[list[str], dict[str, str] | None, Home | None]:
-        """One process, in a virtual home whose `settings.json` carries the run's settings.
+    def _merges(self) -> tuple[tuple[str, str], ...]:
+        """What :meth:`_managing` says, merged into the virtual home's copy of `settings.json`.
 
         The home is the user's own as :mod:`hmz.coganchor.homes` builds it -- a copy of their
-        `settings.json`, links to everything else, the flow's skills beside theirs -- and what
-        :meth:`_managing` says is merged into that copy (:func:`_merged`). A process with no
-        virtual home, which is one whose CLI is on another machine, is started without them.
+        `settings.json`, links to everything else, the flow's skills beside theirs -- wherever
+        the CLI runs, a harness's own machine among them (:func:`_merged`).
         """
-        spawned, environ, home = super()._spawning(argv)
-        if home is not None:
-            try:
-                _merged(
-                    home.at / _SETTINGS, self._managing(), headless=self._headless()
-                )
-            except BaseException:
-                home.drop()
-                raise
-        return spawned, environ, home
+        return (
+            merged(
+                _merged, {"managed": self._managing(), "headless": self._headless()}
+            ),
+        )
 
     def _headless(self) -> bool:
         """Whether this turn is given the layer saying what an unwatched turn defaults to."""

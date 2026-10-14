@@ -23,6 +23,8 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.agents.event import Event
+    from hmz.coganchor.homes import Virtual
+    from hmz.coganchor.machines import AnchoredConfig
     from hmz.coganchor.providers import Provider
 
 #: A process id no kernel hands out, so that a signal sent to one of these reaches nobody.
@@ -313,3 +315,36 @@ def gatewayed(monkeypatch: pytest.MonkeyPatch, account: Provider) -> list[Preten
     monkeypatch.setattr(providers, "find", find)
     monkeypatch.setattr(gateway, "Gateway", start)
     return started
+
+
+def afar(monkeypatch: pytest.MonkeyPatch, workspace: Path) -> AnchoredConfig:
+    """A machine the work lands on whose harness is put there too, reached by nothing.
+
+    The archive is taken to be there already, and the flow's skills land at `/far/skills/ab`.
+    """
+    from hmz.coganchor import transport
+    from hmz.coganchor.anchor import AnchorConfig
+    from hmz.coganchor.machines import AnchoredConfig
+
+    def run(
+        road: transport.Road, argv: list[str], feeding: bytes = b"", timeout: Any = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(argv, 0, b"/far/skills/ab\n", b"")
+
+    def installed(road: transport.Road) -> str:
+        return "/far/hmz.pyz"
+
+    monkeypatch.setattr(transport.Road, "installed", installed)
+    monkeypatch.setattr(transport.Road, "run", run)
+    anchor = AnchorConfig(target="ssh://box", harness="same", workspace=str(workspace))
+    return AnchoredConfig(anchor=anchor)
+
+
+def carried(argv: list[str]) -> Virtual:
+    """The virtual home a harness's machine is told to build, read out of the ssh line to it."""
+    import shlex
+
+    from hmz.coganchor.homes import Virtual
+
+    (said,) = [one for one in shlex.split(argv[-1]) if one.startswith("--home=")]
+    return Virtual.loads(said.removeprefix("--home="))

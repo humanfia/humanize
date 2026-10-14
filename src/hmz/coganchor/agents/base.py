@@ -64,7 +64,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.fallbacks import Answer
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.gateway import Gateway
-    from hmz.coganchor.homes import Home
+    from hmz.coganchor.homes import Home, Virtual
     from hmz.coganchor.machines import MachineConfig
     from hmz.coganchor.providers import Provider
     from hmz.coganchor.tailing import Tail
@@ -2339,6 +2339,15 @@ class SessionBase(ABC):
             mirror, os.path.relpath(where, workspace)
         )
 
+    def _merges(self) -> tuple[tuple[str, str], ...]:
+        """What this session's driver merges into the virtual home each of its processes is in.
+
+        Returns:
+          Each merge, as :func:`hmz.coganchor.homes.merged` makes it: what the CLI takes at its
+          user level alone -- nothing, for most drivers.
+        """
+        return ()
+
     def _carrying(self) -> tuple[Loaded, ...]:
         """The skills this session is to have down, as the flow brought them.
 
@@ -2371,21 +2380,27 @@ class SessionBase(ABC):
         """One process of this session, as what to spawn, what with, and the home it is in.
 
         The virtual home (:meth:`AgentBase.homed`) is built here for the skills this session
-        carries now, and is the caller's to drop once the process is over.
+        carries now, with what it merges into it (:meth:`_merges`), and is the caller's to
+        drop once the process is over -- or, for a harness on another machine, is built there
+        by the anchor supervising the CLI (:meth:`AgentBase.spawned`).
 
         Args:
           argv: The backend's own command.
 
         Returns:
           The command, its whole environment -- or None to inherit this process's own -- and
-          its virtual home, or None for a CLI started in the user's own.
+          its virtual home, or None for a CLI started in the user's own or in one built
+          elsewhere.
         """
-        home = self._agent.homed(self._carrying())
+        skills, merges = self._carrying(), self._merges()
+        home = self._agent.homed(skills, merges)
         if home is not None and home.argv:
             # Named on the command line, for a CLI no variable moves: right after its name.
             argv = [*argv[:1], *home.argv, *argv[1:]]
         try:
-            spawned = self._agent.spawned(argv, self.cwd, home)
+            spawned = self._agent.spawned(
+                argv, self.cwd, home, self._agent.virtual(skills, merges)
+            )
         except BaseException:
             if home is not None:
                 home.drop()
@@ -5112,47 +5127,78 @@ class AgentBase(ABC):
                 self._told = Path(made)
             return self._told
 
-    def homed(self, skills: Iterable[Loaded] | None = None) -> Home | None:
-        """A virtual home for one process of this agent's CLI, built now, or None for none.
+    def virtual(
+        self,
+        skills: Iterable[Loaded] | None = None,
+        merges: Iterable[tuple[str, str]] = (),
+    ) -> Virtual | None:
+        """What a virtual home for one process of this agent's CLI is made of, or None for none.
 
         For a CLI that rewrites its own configuration as it runs, or takes the flow's skills
         at its user level (:attr:`~hmz.coganchor.backends.Profile.rewrites`,
         :attr:`~hmz.coganchor.backends.Profile.lodges`): a directory of copies of what it
         rewrites and links to the rest of the user's home, with the flow's skills beside the
-        user's own (:mod:`hmz.coganchor.homes`). Whoever starts the process starts it with
-        :meth:`~hmz.coganchor.homes.Home.environ` and hands the home to :meth:`spawned`, and
-        drops it once the process is over: what the CLI wrote of its configuration goes with
-        it, and the user's own is never written.
-
-        Built on this machine, which is where such a process runs -- unless the CLI is the
-        target's own, whose virtual home the anchor builds there (:meth:`_reaching`), or runs
-        under a harness on another machine, which keeps its own.
+        user's own and what its driver manages merged into the copies
+        (:mod:`hmz.coganchor.homes`). Built wherever the CLI runs: here (:meth:`homed`), or on
+        a harness's own machine by the anchor supervising it there (:meth:`spawned`).
 
         Args:
           skills: The flow's skills the process is to carry, or None for every one this agent
             was given.
+          merges: What its session merges into it (:meth:`SessionBase._merges`).
 
         Returns:
-          The home, or None for a CLI started in the user's own.
-
-        Raises:
-          OSError: If it could not be built.
+          It, or None for a CLI started in the user's own home.
         """
+        from dataclasses import replace
+
         from hmz.coganchor import homes
         from hmz.coganchor.backends import named
-        from hmz.coganchor.elsewhere import elsewhere
-        from hmz.coganchor.providers.redirect import Swaps
 
         profile = named(self.backend)
-        anchor = self._anchor
-        if profile is None or (
-            anchor is not None and (anchor.native or elsewhere(anchor))
-        ):
+        if profile is None:
             return None
         carrying = self._loads if skills is None else skills
         spec = homes.virtual(
             profile, ((one.name, str(one.at)) for one in carrying if one.name)
         )
+        return None if spec is None else replace(spec, merges=tuple(merges))
+
+    def homed(
+        self,
+        skills: Iterable[Loaded] | None = None,
+        merges: Iterable[tuple[str, str]] = (),
+    ) -> Home | None:
+        """A virtual home for one process of this agent's CLI, built now, or None for none.
+
+        What :meth:`virtual` says, built on this machine, which is where such a process runs
+        -- unless the CLI is the target's own, whose virtual home the anchor builds there
+        (:meth:`_reaching`), or runs under a harness on another machine, whose anchor builds
+        it there. Whoever starts the process starts it with
+        :meth:`~hmz.coganchor.homes.Home.environ` and hands the home to :meth:`spawned`, and
+        drops it once the process is over: what the CLI wrote of its configuration goes with
+        it, and the user's own is never written.
+
+        Args:
+          skills: The flow's skills the process is to carry, or None for every one this agent
+            was given.
+          merges: What its session merges into it (:meth:`SessionBase._merges`).
+
+        Returns:
+          The home, or None for a CLI started in the user's own, or in one built elsewhere.
+
+        Raises:
+          OSError: If it could not be built.
+        """
+        from hmz.coganchor import homes
+        from hmz.coganchor.elsewhere import elsewhere
+        from hmz.coganchor.providers.redirect import Swaps
+
+        # Brought up if it is not yet, as the process this is for is about to bring it up.
+        anchor = self.anchor
+        if anchor is not None and (anchor.native or elsewhere(anchor)):
+            return None
+        spec = self.virtual(skills, merges)
         if spec is None:
             return None
         provider = self.provider
@@ -5319,7 +5365,11 @@ class AgentBase(ABC):
         } | dict(added)
 
     def spawned(
-        self, argv: list[str], cwd: str = "", home: Home | None = None
+        self,
+        argv: list[str],
+        cwd: str = "",
+        home: Home | None = None,
+        virtual: Virtual | None = None,
     ) -> list[str]:
         """One turn of this agent, as the command to actually spawn.
 
@@ -5357,6 +5407,9 @@ class AgentBase(ABC):
             the anchor's to work out.
           home: The virtual home the process is started in (:meth:`homed`), whose paths a
             supervisor answers as it answers the real home's; None for the user's own.
+          virtual: What the virtual home is made of, for a CLI under a harness on another
+            machine, whose anchor builds it there around the CLI (:meth:`virtual`); None for
+            every skill this agent was given and nothing merged.
 
         Returns:
           The command to spawn, which is `argv` itself for an agent that is neither anchored,
@@ -5369,8 +5422,8 @@ class AgentBase(ABC):
         fence = self.fenced()
         if fence is not None and self._config.machine is not None:
             # Held by the anchor rather than around it, on both machines: see `_abroad`.
-            return self._wrapped(argv, cwd, fence, home)
-        wrapped = self._wrapped(argv, cwd, home=home)
+            return self._wrapped(argv, cwd, fence, home, virtual)
+        wrapped = self._wrapped(argv, cwd, home=home, virtual=virtual)
         if fence is None:
             return wrapped
         rest = self.natively(fence)
@@ -5387,6 +5440,7 @@ class AgentBase(ABC):
         cwd: str = "",
         fence: Fence | None = None,
         home: Home | None = None,
+        virtual: Virtual | None = None,
     ) -> list[str]:
         """:meth:`spawned`, short of the fence: the CLI under its account and its anchor.
 
@@ -5396,6 +5450,7 @@ class AgentBase(ABC):
           fence: What an anchored agent is held to, which its anchor is told to hold it to;
             None for an agent that is not anchored, or not fenced.
           home: The virtual home it is started in, as :meth:`spawned` takes it.
+          virtual: What one built by its anchor is made of, as :meth:`spawned` takes it.
 
         Returns:
           The command to spawn, before a fence is put around it.
@@ -5459,7 +5514,7 @@ class AgentBase(ABC):
             if anchor.net == "remote":
                 held = f"127.0.0.1:{through.port}"
                 anchor = replace(anchor, net_allow=(*anchor.net_allow, held))
-        return self._reaching(anchor, provider).command(
+        return self._reaching(anchor, provider, virtual).command(
             argv, swaps=(*swaps, *kept), private=private, chdir=cwd
         )
 
@@ -5507,7 +5562,10 @@ class AgentBase(ABC):
             raise Unfenced(f"{self._id}: {refused}") from refused
 
     def _reaching(
-        self, anchor: AnchorConfig, provider: Provider | None = None
+        self,
+        anchor: AnchorConfig,
+        provider: Provider | None = None,
+        virtual: Virtual | None = None,
     ) -> AnchorConfig:
         """The anchor, plus whatever a turn under it has to be able to reach where it runs.
 
@@ -5526,10 +5584,15 @@ class AgentBase(ABC):
         cannot be: it is a program on this machine speaking to a socket in this process, and
         the CLI that would spawn it is elsewhere.
 
+        Under a harness on another machine it is also the CLI's virtual home, which the anchor
+        supervising the CLI there builds around it, with the flow's skills carried there
+        (:func:`~hmz.coganchor.elsewhere.afar`) and what the driver manages merged into it.
+
         Args:
           anchor: Where this agent's turns land.
           provider: Which account they run as, or None for the one this machine is signed in
             with -- whose credentials are the CLI's own and are wherever the CLI runs already.
+          virtual: What that virtual home is made of, as :meth:`spawned` takes it.
 
         Returns:
           It, or a copy saying what this turn has to be given.
@@ -5589,6 +5652,8 @@ class AgentBase(ABC):
             )
         import sys
 
+        from hmz.coganchor.elsewhere import elsewhere
+
         execs, paths = list(anchor.local_execs), list(anchor.local_paths)
         if not (self._toolbox.empty() or self.pipes_tools):
             execs.append(self._toolbox.command()[0])
@@ -5597,9 +5662,18 @@ class AgentBase(ABC):
             execs += [shelf, sys.executable]
             paths.append(shelf)
         execs, paths = list(dict.fromkeys(execs)), list(dict.fromkeys(paths))
-        if (tuple(execs), tuple(paths)) == (anchor.local_execs, anchor.local_paths):
+        home = anchor.home
+        if elsewhere(anchor):
+            home = virtual if virtual is not None else self.virtual()
+        if (tuple(execs), tuple(paths), home) == (
+            anchor.local_execs,
+            anchor.local_paths,
+            anchor.home,
+        ):
             return anchor
-        return replace(anchor, local_execs=tuple(execs), local_paths=tuple(paths))
+        return replace(
+            anchor, local_execs=tuple(execs), local_paths=tuple(paths), home=home
+        )
 
     def _bringing(
         self, projects: Sequence[tuple[str, str]]

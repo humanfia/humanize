@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from hmz.coganchor.backends import named
-from hmz.coganchor.homes import Home, Virtual, build, virtual, words
+from hmz.coganchor.homes import (
+    Home,
+    Virtual,
+    build,
+    merged,
+    merger,
+    virtual,
+    words,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -37,6 +46,22 @@ def _user(tmp_path: Path) -> Path:
     (real / ".claude.json").write_text('{"inside": true}\n')
     (home / ".claude.json").write_text('{"outside": true}\n')
     return home
+
+
+@merger
+def _settled(home: Path, said: dict[str, Any]) -> None:
+    """A driver's merge: what it says, over the copy of the user's `settings.json`."""
+    at = home / "settings.json"
+    at.write_text(json.dumps(json.loads(at.read_text()) | said))
+
+
+@merger
+def _owned(home: Path, said: None) -> None:
+    """A driver's merge putting a directory of its own where the user's is linked."""
+    del said
+    (home / "agents").unlink()
+    (home / "agents").mkdir()
+    (home / "agents" / "ours.md").write_text("ours\n")
 
 
 def _flow(tmp_path: Path) -> Path:
@@ -194,6 +219,7 @@ def test_a_virtual_home_reads_back_as_itself() -> None:
         private=("state_*.sqlite*",),
         made=("sessions",),
         skills=(("review", "/flow/review"),),
+        merges=(merged(_settled, {"effort": "high"}),),
     )
 
     assert Virtual.loads(spec.dumps()) == spec
@@ -481,3 +507,54 @@ def test_a_replaced_credential_goes_back_to_the_account_a_provider_answers_with(
 
     assert account.read_text() == "refreshed\n"
     assert (user / ".claude" / ".credentials.json").read_text() == "token\n"
+
+
+def test_what_a_driver_manages_is_merged_into_the_copies(tmp_path: Path) -> None:
+    user = _user(tmp_path)
+    spec = Virtual(
+        variable="CLAUDE_CONFIG_DIR",
+        default=".claude",
+        rewrites=("settings.json",),
+        merges=(merged(_settled, {"effort": "high"}),),
+    )
+
+    home = build(Virtual.loads(spec.dumps()), {"HOME": str(user)}, under=tmp_path)
+
+    assert json.loads((home.at / "settings.json").read_text()) == {
+        "theirs": True,
+        "effort": "high",
+    }
+    assert (user / ".claude" / "settings.json").read_text() == '{"theirs": true}\n'
+
+
+def test_what_a_merge_made_its_own_is_never_written_back(tmp_path: Path) -> None:
+    user = _user(tmp_path)
+    (user / ".claude" / "agents").mkdir()
+    spec = Virtual(
+        variable="CLAUDE_CONFIG_DIR", default=".claude", merges=(merged(_owned),)
+    )
+
+    home = build(spec, {"HOME": str(user)}, under=tmp_path)
+    home.drop()
+
+    assert "agents" not in home.linked
+    assert list((user / ".claude" / "agents").iterdir()) == []
+
+
+def test_a_merge_humanize_has_no_merger_for_leaves_no_home(tmp_path: Path) -> None:
+    user = _user(tmp_path)
+    spec = Virtual(
+        variable="CLAUDE_CONFIG_DIR",
+        default=".claude",
+        merges=(("hmz.nowhere:_merge", "null"), ("os:system", '"true"')),
+    )
+
+    with pytest.raises(ValueError, match="no merger"):
+        build(spec, {"HOME": str(user)}, under=tmp_path)
+
+    assert [one.name for one in tmp_path.iterdir()] == ["user"]
+
+
+def test_only_a_merger_is_merged() -> None:
+    with pytest.raises(ValueError, match="is not a merger"):
+        merged(print)

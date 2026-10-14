@@ -18,9 +18,10 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.config import Unserved
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.homes import build
 from hmz.coganchor.providers import Provider
 
-from .doubles_u5 import configured, heard, line, option, spawning
+from .doubles_u5 import afar, carried, configured, heard, line, option, spawning
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -257,6 +258,33 @@ def test_what_it_may_reach_is_an_agent_of_humanize_written_into_its_virtual_home
     assert sorted(one.name for one in (real / "agents").iterdir()) == ["mine.md"]
     session.close()
     assert not home.exists()
+
+
+def test_a_harness_on_another_machine_has_humanize_s_agents_written_there(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_answering(*_SAID))
+    agent = _agent(machine=afar(monkeypatch, tmp_path))
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    told = carried(spawned[0].args)
+    assert told.flag == "--app_data_dir"
+    far = tmp_path / "far"
+    _card(far / ".gemini/antigravity-cli/agents/mine.md", "the user's own")
+    home = build(told, {"HOME": str(far)}, under=tmp_path)
+    assert home.argv[0].startswith("--app_data_dir=")
+    assert sorted(one.name for one in (home.at / "agents").iterdir()) == [
+        "hmz-offline.md",
+        "hmz-read-only-web.md",
+        "hmz-read-only.md",
+        "mine.md",
+    ]
+    home.drop()
+    assert [one.name for one in (far / ".gemini/antigravity-cli/agents").iterdir()] == [
+        "mine.md"
+    ]
 
 
 def _card(at: Path, text: str) -> None:

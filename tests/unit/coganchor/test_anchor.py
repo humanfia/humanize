@@ -22,6 +22,7 @@ from hmz.coganchor.anchor import (
     drive,
 )
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.homes import Virtual
 from hmz.coganchor.places import AFAR, NATIVE_CLI, SUPERVISED
 from hmz.coganchor.transport import Target
 from tests.unit.coganchor.doubles_u8 import Exec
@@ -96,6 +97,8 @@ def test_what_the_command_line_refuses_the_settings_refuse(
         {"fence": CUT},
         {"native": True, "target": "ssh://box", "harness": "local"},
         {"harness": "ssh://h", "target": "docker://c"},
+        {"home": Virtual(variable="CODEX_HOME", default=".codex")},
+        {"home": Virtual(variable="X", default=".x"), "harness": "same"},
     ],
 )
 def test_what_is_well_written_is_taken(settings: dict[str, Any]) -> None:
@@ -125,6 +128,12 @@ def test_one_turn_adds_to_the_settings_what_it_is_given(
 ) -> None:
     config = AnchorConfig(redirects=(("/x", "/y"),), private=("OLD",), chdir="/w")
     assert config.command(["a"], **asked) == replace(config, **settled).command(["a"])
+
+
+def test_a_supervised_cli_is_told_the_virtual_home_to_build_around_it() -> None:
+    home = Virtual(variable="CODEX_HOME", default=".codex", rewrites=("config.toml",))
+    line = AnchorConfig(target="ssh://box", home=home).command(["codex"])
+    assert f"--home={home.dumps()}" in line
 
 
 def test_a_swap_that_is_not_two_paths_is_refused() -> None:

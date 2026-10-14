@@ -18,9 +18,12 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.homes import build
 from hmz.coganchor.providers import Provider
 
 from .doubles_u5 import (
+    afar,
+    carried,
     configured,
     gatewayed,
     heard,
@@ -489,3 +492,27 @@ def test_a_turn_through_a_gateway_is_pointed_at_it_as_an_openai_endpoint(
     assert env["OPENAI_BASE_URL"] == "http://127.0.0.1:4321"
     assert env["OPENAI_API_KEY"] == "sk-master"
     assert "ANTHROPIC_API_KEY" not in env
+
+
+def test_a_harness_on_another_machine_has_the_run_s_settings_merged_there(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent(effort="high", machine=afar(monkeypatch, tmp_path))
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    told = carried(spawned[0].args)
+    assert told.variable == "QWEN_HOME"
+    far = tmp_path / "far"
+    (far / ".qwen").mkdir(parents=True)
+    (far / ".qwen" / "settings.json").write_text('{"model": {"name": "theirs"}}')
+    home = build(told, {"HOME": str(far)}, under=tmp_path)
+    assert json.loads((home.at / "settings.json").read_text())["model"] == {
+        "name": "theirs",
+        "reasoningEffort": "high",
+    }
+    assert json.loads((far / ".qwen" / "settings.json").read_text()) == {
+        "model": {"name": "theirs"}
+    }
