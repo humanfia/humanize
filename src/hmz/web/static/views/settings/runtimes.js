@@ -189,7 +189,7 @@ function said(answer) {
 
 /** What a runtime's field is called on its form: its name, as words. */
 function labelOf(key) {
-  const named = { identity_file: 'Identity file', proxy_jump: 'Proxy jump', tls_dir: 'TLS directory', run_args: 'Run arguments', gpu_memory: 'GPU memory, GiB', gpus: 'GPUs', cpus: 'CPUs', config: 'SSH config', workdir: 'Workdir', affinity: 'Harness runs on', fallback: 'Falls back to', options: 'SSH options' }
+  const named = { identity_file: 'Identity file', proxy_jump: 'Proxy jump', tls_dir: 'TLS directory', run_args: 'Run arguments', gpu_memory: 'GPU memory, GiB', gpus: 'GPUs', cpus: 'CPUs', config: 'SSH config', workdir: 'Workdir', harness: 'Harness runs on', fallback: 'Falls back to', options: 'SSH options' }
   if (named[key]) return named[key]
   const words = key.replace(/_/g, ' ')
   return `${words.slice(0, 1).toUpperCase()}${words.slice(1)}${key.endsWith('memory') ? ', GiB' : ''}`
@@ -206,8 +206,9 @@ function sshHosts(from) {
 /**
  * One field of a runtime: what it is picked or written in, and what reads it back as JSON holds
  * it. Each as the terminal interface's form asks it rather than as a string to spell: a file or
- * a directory browsed for, the runtimes to fall back to and where a harness runs picked from
- * what is saved and put in order, options as names and values, and a list a row at a time.
+ * a directory browsed for, the runtimes to fall back to picked from what is saved and put in
+ * order, where a harness runs picked from those, `env` and `local`, options as names and
+ * values, and a list a row at a time.
  */
 function field(key, empty, value, { backend, name, runtimes, from }) {
   const id = `runtime-${key}`
@@ -220,10 +221,10 @@ function field(key, empty, value, { backend, name, runtimes, from }) {
     const listed = listing(value || [], { id, options: () => others, none: 'No other runtime of this backend' })
     return [listed.node, listed.read]
   }
-  if (key === 'affinity') {
-    const places = ['self', 'local', ...runtimes.filter((one) => one.name !== name || one.backend !== backend).map((one) => `${one.backend}:${one.name}`)]
-    const listed = listing(value || [], { id, options: () => places })
-    return [listed.node, listed.read]
+  if (key === 'harness') {
+    const places = ['env', 'local', ...runtimes.filter((one) => one.name !== name || one.backend !== backend).map((one) => `${one.backend}:${one.name}`)]
+    const picked = h('select', { id }, places.map((one) => h('option', { value: one, selected: one === (value || 'env') }, one)))
+    return [picked, () => picked.value]
   }
   if (Array.isArray(empty)) {
     const listed = listing(value || [], { id, placeholder: key === 'gpus' ? '0' : key === 'run_args' ? '--shm-size=8g' : '' })

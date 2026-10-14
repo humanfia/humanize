@@ -2,14 +2,14 @@
 
 Each test runs the same flow -- one agent, one environment -- with the environment on another
 machine: a docker container, a swarm task, an Apple container or a host reached over ssh. A
-container holds no CLI and no sign-in: the agent's CLI is supervised here, signed in as it is
-on this machine, and every command it runs lands in the container. The flow then asks the
+container holds no CLI and no sign-in, and its runtime's harness setting is `local`: the
+agent's CLI runs here, signed in as it is on this machine, and every command it runs lands in
+the container. The flow then asks the
 machine what it is and, in a container, for any sign-in file anywhere in it; whether the task
 was done is read back here, in the workspace the machine was given.
 
 Supervising a CLI takes ptrace and Landlock, which is Linux: :func:`supervisable` skips the
-container tests elsewhere. On a Mac humanize would run a CLI found in the container natively
-instead, which is signed in only under a humanize account, never with this machine's own.
+container tests elsewhere.
 """
 
 from __future__ import annotations

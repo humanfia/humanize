@@ -474,8 +474,8 @@ lacks a capability its role requires.
 resources than its role declares, naming the role, once every runtime fallback
 (`features/environments.md`) has been tried.
 
-**7.7.12** `hmz exec` MUST refuse a line where an agent's harness has no room anywhere the
-affinity of its env's runtime names (`features/placements.md`).
+**7.7.12** `hmz exec` MUST refuse a line where an agent's harness cannot run where the
+harness setting of its env's runtime says (`features/placements.md`).
 
 **7.7.13** `hmz exec` MUST refuse a skill a role names that cannot be found or fetched.
 

@@ -36,9 +36,9 @@ _ALL = Permission(
 class _Here:
     """A run whose harness, on any machine, stays where the machine put it."""
 
-    def affinity(self, placement: Placement) -> tuple[str, ...]:
+    def setting(self, placement: Placement) -> str:
         del placement
-        return ("local",)
+        return "local"
 
 
 @pytest.fixture

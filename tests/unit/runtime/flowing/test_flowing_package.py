@@ -9,12 +9,12 @@ import pytest
 from hmz.runtime import flowing
 
 MODULES = (
-    "affinity",
     "declaring",
     "engine",
     "environments",
     "fakes",
     "finding",
+    "harbors",
     "harnesses",
     "index",
     "journaling",

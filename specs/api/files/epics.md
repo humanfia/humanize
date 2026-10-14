@@ -144,8 +144,8 @@ carrying on), and MUST NOT write another `began` for it.
   to the epic directory where they are kept in it, and an absolute path otherwise;
 - `parent`: string, the identifier of the **session** this one was forked from; present only for
   a forked **session**;
-- `harness`: string, `local`, `self` or the `<backend>:<name>` of a harness runtime, where the
-  **harness** went as `features/placements.md` §4.6.1 states; present only where the **env
+- `harness`: string, `local`, `env` or the `<backend>:<name>` of a harness runtime, where the
+  **harness** went as `features/placements.md` §4.5.1 states; present only where the **env
   machine** is not **this machine**.
 
 **5.5** `hmz` MUST NOT write `opened` for a **session** whose **harness** never stated an

@@ -304,7 +304,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'Remote execution', link: '/user/remote-execution' },
-            { text: 'Where the agent runs (affinity)', link: '/user/remote-execution#where-the-agent-runs' },
+            { text: 'Where the agent runs (harness setting)', link: '/user/remote-execution#where-the-agent-runs' },
             { text: 'Containers', link: '/user/containers' },
           ],
         },

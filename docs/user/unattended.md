@@ -318,8 +318,8 @@ hmz exec -f humanize1:rlcr -p max=9,plan_file=docs/plan.md \
 A flow that works on another machine takes it with `-e`, as `role=local/abs/path`,
 `role=ssh@<host>/path` for a host saved under that name, `role=ssh@[user@host:port]/path` for
 one nobody saved, or `role=docker@<daemon>/path`; where each agent's CLI runs while it works
-there is the [affinity](/user/remote-execution#where-the-agent-runs) of the host or daemon
-saved under that name. Most flows have no such role. See [Remote
+there is the [harness setting](/user/remote-execution#where-the-agent-runs) of the host or
+daemon saved under that name (`env`, on that machine, for one nobody saved). Most flows have no such role. See [Remote
 execution](/user/remote-execution).
 
 ### Stop it, and pick it up again

@@ -166,7 +166,9 @@ every added CLI.
 [Runtimes](/reference/machines#runtimes), written by `/settings` › Runtimes and
 `Hmz().runtimes`: `runtimes.<backend>.<name>`, `<backend>` `ssh`, `docker`, `swarm`,
 `apple-container` or `slurm`. The backend and the name are where the entry is, whatever it says; an
-entry that does not validate is skipped.
+entry that does not validate is skipped. A runtime an earlier humanize wrote with an ordered
+`affinity` list is read as though its `harness` were the list's first entry (`self` read as
+`env`), and as having none where the list is empty; the next write of it drops `affinity`.
 
 `ssh`:
 
@@ -175,7 +177,8 @@ entry that does not validate is skipped.
 | `host`, `user`, `identity_file`, `proxy_jump`, `alias`, `config`, `workdir` | `str` |
 | `port` | `int` |
 | `options` | `{str: str}` |
-| `fallback`, `affinity` | `[str]`, each `<backend>:<name>` (`affinity` also `self`, `local`) |
+| `fallback` | `[str]`, each `<backend>:<name>` |
+| `harness` | `str`: `env` (default), `local` or `<backend>:<name>`, not the runtime itself |
 | `made` | `"typed"` or `"imported"` |
 
 `docker`:
@@ -187,7 +190,8 @@ entry that does not validate is skipped.
 | `container` | `str`: a running container every environment works in ([A running container](/reference/machines#a-running-container)) |
 | `exec_user` | `str`: `UID[:GID]` |
 | `exec_env`, `exec_wrapper` | `[str]`: `NAME=VALUE` each; the wrapper's words |
-| `run_args`, `gpus`, `fallback`, `affinity` | `[str]` |
+| `run_args`, `gpus`, `fallback` | `[str]` |
+| `harness` | `str`, as for `ssh` |
 | `cpus` | `float` |
 | `memory`, `gpu_memory`, `max_containers` | `int` |
 | `made` | `"typed"` |
@@ -198,13 +202,14 @@ entry that does not validate is skipped.
 | --- | --- |
 | `tls_dir`, `image`, `name_prefix`, `gpu_resource`, `workdir` | `str` |
 | `endpoint` | a swarm manager, as a docker runtime's `endpoint` |
-| `run_args`, `constraints`, `fallback`, `affinity` | `[str]` |
+| `run_args`, `constraints`, `fallback` | `[str]` |
+| `harness` | `str`, as for `ssh` |
 | `cpus` | `float` |
 | `memory`, `max_tasks` | `int` |
 | `nodes` | `{str: str}`: a node's host name to a saved ssh runtime's name or `[user@]host[:port]` |
 | `made` | `"typed"` |
 
-`apple-container`: `image`, `workdir` (`str`), `run_args`, `fallback`, `affinity` (`[str]`),
+`apple-container`: `image`, `workdir`, `harness` (`str`), `run_args`, `fallback` (`[str]`),
 `cpus` (`float`), `memory`, `max_containers` (`int`), `made` (`"typed"`).
 
 `slurm`:
@@ -215,7 +220,8 @@ entry that does not validate is skipped.
 | `time` | `str`: minutes, `MM:SS`, `HH:MM:SS`, `D-HH[:MM[:SS]]`, `UNLIMITED` or `INFINITE` |
 | `python` | `str`: absolute, or under `~/` |
 | `via` | `"srun"` or `"tcp"` |
-| `run_args`, `fallback`, `affinity` | `[str]` |
+| `run_args`, `fallback` | `[str]` |
+| `harness` | `str`, as for `ssh` |
 | `cpus` | `float` |
 | `memory`, `max_jobs`, `max_wait` | `int` |
 | `made` | `"typed"` |

@@ -54,7 +54,7 @@ def test_an_agent_codes_in_an_apple_container(workspace: Path, tmp_path: Path) -
     if why := answers("container", "image", "inspect", IMAGE):
         pytest.skip(f"needs {IMAGE} pulled (`container image pull {IMAGE}`): {why}")
     runtimes = hmz(tmp_path / "here").runtimes
-    runtimes.add(runtimes.new("apple-container", "mac"))
+    runtimes.add(runtimes.new("apple-container", "mac", harness="local"))
 
     seen = run(tmp_path, workspace, f"apple-container@mac{workspace}")
 

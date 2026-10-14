@@ -232,8 +232,8 @@ class Session(NamedTuple):
         wherever its CLI keeps them. "" for a line that never said, which :func:`where` reads
         as the directory of links an epic written before sessions were kept holds.
       harness: Where its harness ran, for a session whose work was on another machine:
-        `local` here, `self` natively on that machine, and `<backend>:<name>` on the runtime
-        of that name -- one an affinity sent it to. "" for a session that worked here, where
+        `local` here, `env` natively on that machine, and `<backend>:<name>` on the runtime
+        of that name -- one a harness setting named. "" for a session that worked here, where
         there was nowhere else for it to be.
     """
 
@@ -458,19 +458,19 @@ def harbor(target: str, runtime: str) -> None:
 
     Args:
       target: The target reaching it, as a session's anchor names where its harness is.
-      runtime: The runtime, as an affinity names one: `<backend>:<name>`.
+      runtime: The runtime, as a harness setting names one: `<backend>:<name>`.
     """
     _HARBORS[target] = runtime
 
 
 def harnessed(machine: MachineConfig | None) -> str:
-    """Where a session's harness runs, as it was settled, in the words an affinity has for it.
+    """Where a session's harness runs, as it was settled, in a harness setting's words.
 
     Args:
       machine: The machine its agent's turns land on, or None for this one.
 
     Returns:
-      `local` for a harness on this machine, `self` for the CLI the environment's machine
+      `local` for a harness on this machine, `env` for the CLI the environment's machine
       has, and `<backend>:<name>` for a harness on a runtime of its own -- or the target
       reaching it, for one :func:`harbor` was told nothing of.
     """
@@ -480,7 +480,7 @@ def harnessed(machine: MachineConfig | None) -> str:
     if not isinstance(machine, AnchoredConfig):
         return store.HERE
     if machine.anchor.native:
-        return store.SELF
+        return store.ENV
     if machine.anchor.harness != HERE:
         return _HARBORS.get(machine.anchor.harness, machine.anchor.harness)
     return store.HERE

@@ -20,8 +20,9 @@ import { withBase } from 'vitepress'
   own status.
 - **Nothing to install over there.** Any POSIX machine with Python 3.12 or newer, no root. The
   agent side needs Linux.
-- **The agent can move too.** Beside its work, or on a third machine, taking its
-  [account](/features/accounts) with it.
+- **The agent can move too.** Onto its work's own machine, taking its
+  [account](/features/accounts) with it, or onto a third machine: one setting of the runtime,
+  its harness, says where.
 
 </div>
 

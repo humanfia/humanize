@@ -20,7 +20,7 @@ Out of scope:
   harness configuration layering, and each harness's accepted models and efforts:
   `features/agents.md`.
 - Accounts a turn runs as: `features/accounts.md`.
-- Where a session's harness runs (placements, affinity, mirrors): `features/placements.md`.
+- Where a session's harness runs (placements, harness settings, mirrors): `features/placements.md`.
 - Environment backends, runtimes, and how resources size a container or job:
   `features/environments.md`.
 - Which epic a resume picks up, and what an epic records: `features/epics.md`.
@@ -377,7 +377,7 @@ where any of the following holds:
 5. The session is an outworlder's.
 6. The session's harness does not fork (§6.4).
 7. The session's harness does not keep its conversations as files (`opencode`, `mimo`).
-8. The session's last turn ran with placement native or afar.
+8. The session's last turn ran with harness location env or standalone.
 
 **5.3.3** Every read of a key whose value holds a kept session MUST return a new session of the
 reading call's agent of the same role. The first turn of that new session MUST carry the kept
@@ -392,9 +392,10 @@ independently.
 of the following holds:
 
 1. The role's agent is of a harness other than the one that kept the conversation.
-2. The turn's placement is native or afar.
-3. The turn's placement is supervised, its harness forks only in place (§6.4), and the turn's
-   environment backend is `docker`, `swarm`, `slurm` or `apple-container`.
+2. The turn's harness location is env or standalone.
+3. The turn's harness location is local and its env location standalone, its harness forks
+   only in place (§6.4), and the turn's environment backend is `docker`, `swarm`, `slurm` or
+   `apple-container`.
 
 **5.3.6** The first turn of a session read back under clause 5.3.3 MUST raise `SessionError`
 where the kept conversation no longer exists, or where the epic already holds a different copy
@@ -691,7 +692,7 @@ wait for it.
 NOT fail the turn or the flow.
 
 **6.6.5** Fake tools MUST be served only where the harness serves `FakeToolAgentMixin` and its
-placement is local or supervised. A turn whose placement is native or afar on an agent whose
+harness location is local. A turn whose harness location is env or standalone on an agent whose
 role offers fake tools MUST raise `UnsupportedOperation`.
 
 **6.6.6** `FakeCli(...)` MUST raise `ValueError` where `name` is empty, starts with `.` or `-`, or
@@ -928,9 +929,9 @@ turns concurrently.
 **8.3.1** Program-running configuration MUST be read as `features/placements.md` §2.9 defines
 it, found from the session directory (`features/placements.md` §2.1) of the turn.
 
-**8.3.2** Where a turn's placement is supervised or afar and its harness machine is not its env
-machine, opening a session, forking it into a workdir, carrying it on, and every later turn MUST
-raise `UnsupportedOperation` where program-running configuration is present, as
+**8.3.2** Where a turn's session is mirrored and its harness machine is not its env machine,
+opening a session, forking it into a workdir, carrying it on, and every later turn MUST raise
+`UnsupportedOperation` where program-running configuration is present, as
 `features/placements.md` §7 specifies.
 
 **8.3.3** The message of the exception of clause 8.3.2 MUST name each file and key responsible.
@@ -1085,7 +1086,7 @@ seconds MUST be answered as if no hook were hung. `ASK_USER` MUST have no such l
 changes how the harness is started, in which case it MUST apply from the next turn. The hooks
 that change how a harness is started are specified in `features/agents.md`.
 
-**9.3.7** Which hooks constrain where a session's harness is placed is specified in
+**9.3.7** Which hooks refuse a session for where its harness runs is specified in
 `features/placements.md`.
 
 ## 10. Outworlder

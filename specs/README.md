@@ -226,15 +226,16 @@ written: one directory of one machine, filling one env role of an epic.
 
 **5.3.7** The **env machine** of a session is the machine of the env in which its commands act.
 
-**5.3.8** A **placement** is the arrangement of a session's harness machine and env machine, and
-is exactly one of: **local**, where both are this machine; **supervised**, where the harness
-machine is this machine, the env machine is another machine, and the harness works in a mirror;
-**native**, where the harness is the program installed on the env machine and runs there without
-a mirror; and **afar**, where the harness machine is a machine other than this machine, the env
-machine included, and the harness works in a mirror there.
+**5.3.8** The **placement** of a session is two settings: its **env location**, which is
+**local** where the env machine is this machine and **standalone** otherwise; and its **harness
+location**, which is **local** where the harness machine is this machine, **env** where the
+harness is the program installed on a standalone env machine and runs there without a mirror,
+and **standalone** where the harness machine is the machine of a runtime other than this machine,
+the env machine included, and the harness works in a mirror there.
 
 **5.3.9** A **mirror** is a directory on a harness machine that reproduces an env's workspace,
-filled on demand, in which a harness in the supervised or the afar placement works.
+filled on demand, in which a harness works whose location is standalone, or local with the env
+standalone.
 
 **5.3.10** A **runtime** is a named description, written in the settings file, of an ssh host, a
 docker daemon, a docker swarm, the Apple containers of a Mac, or a Slurm cluster on which envs

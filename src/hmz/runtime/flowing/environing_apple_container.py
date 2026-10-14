@@ -302,7 +302,7 @@ class AppleContainerMachine(SSHMachine):
     def placement(self, workdir: PurePosixPath) -> Placement:
         """An anchored machine at the container, whose workspace is the workdir in it.
 
-        Where its harness then runs is the affinity's to say, as for a docker container: on
+        Where its harness then runs is the harness setting's to say, as for a docker container: on
         this machine, supervised in a mirror of its own -- which needs this machine to be
         Linux, and a Mac is not -- or the container's own CLI, driven natively.
         """

@@ -125,12 +125,12 @@ reach the credential file of the **account** at once, and MUST NOT reach the sta
 and MUST remove every such directory of the **user** whose `<pid>` no longer runs before it
 creates another.
 
-**4.11** Where a **harness** runs under an **account** in the native placement on a **machine**
+**4.11** Where a **harness** runs under an **account** under harness location env on a **machine**
 other than **this machine**, `hmz` MUST place copies of the credential files on that **machine**
 as `api/files/targets.md` §8 states.
 
-**4.12** Under the afar placement, `hmz` MUST NOT place any credential file of an **account** on the
-**harness machine** (`features/placements.md` §5.3.3).
+**4.12** Under harness location standalone, `hmz` MUST NOT place any credential file of an
+**account** on the **harness machine** (`features/placements.md` §5.3.3).
 
 ## 5. Sessions kept in an epic
 
@@ -241,7 +241,7 @@ process, named to it in `TMPDIR`, `TMP` and `TEMP`, and MAY hold `cache/<variabl
 cache variable whose usual location the fence does not let the process write.
 
 **7.9** A directory with the prefix `hmz-homes-` MUST hold, for each turn of a **harness** that runs
-in the native placement on another **machine** under an **account**, one file named by 32 lowercase
+under harness location env on another **machine** under an **account**, one file named by 32 lowercase
 hexadecimal digits whose lines are `<VARIABLE>=<path>`, naming the directory on that **machine** in
 which each harness home variable of the turn points; `hmz` MUST remove each such file when its turn
 ends.

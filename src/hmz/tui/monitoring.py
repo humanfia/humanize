@@ -315,8 +315,8 @@ class Placed(NamedTuple):
       image: What a container for it is started from, or "" for the provider's own.
       sessions: The sessions working in it, by key, in the order they opened.
       harnesses: Where each of those sessions' harness went, in the same order, as the run
-        said it as the session opened: `local`, `self`, the `<backend>:<name>` of a runtime
-        an affinity sent it to, or "" for one working here with nothing between.
+        said it as the session opened: `local`, `env`, the `<backend>:<name>` of a runtime
+        its harness setting named, or "" for one working here with nothing between.
     """
 
     key: str
@@ -338,20 +338,21 @@ def _where(place: Placed) -> str:
     return _DOT.join(part for part in (place.kind, place.target, place.workdir) if part)
 
 
-#: What an affinity calls a harness on this machine, which is where a session working here has
-#: one; and a harness natively on the environment's own machine.
+#: What a runtime's harness setting calls a harness on this machine, which is where a session
+#: working here has one; and a harness natively on the environment's own machine.
 _LOCAL = "local"
-_SELF = "self"
+_NATIVE = "env"
 
-#: What a run written before affinities called a harness native on the environment's machine.
-_WAS_SELF = "env"
+#: What a run written while runtimes had an ordered affinity called a harness native on the
+#: environment's machine.
+_WAS_NATIVE = "self"
 
 
 def _harnessed(place: Placed) -> str:
     """Where the harnesses of an environment's sessions went, said as its page says it.
 
     As the run found it rather than as the environment's kind suggests: its runtime's
-    affinity puts a harness here, on the environment's machine or on another runtime, and two
+    harness setting puts a harness here, on the environment's machine or on another runtime, and two
     roles' harnesses may go to two places. Said once where every session went the same way,
     and session by session where not.
 
@@ -359,7 +360,7 @@ def _harnessed(place: Placed) -> str:
       place: The environment.
 
     Returns:
-      The row, as `self: on this environment's machine, with the CLI installed there`.
+      The row, as `env: on this environment's machine, with the CLI installed there`.
     """
     # By what each went as, a session working here being one whose harness is here too.
     went: dict[str, list[str]] = {}
@@ -367,18 +368,19 @@ def _harnessed(place: Placed) -> str:
         place.sessions, place.harnesses, fillvalue=""
     ):
         if key:
-            went.setdefault(where or _LOCAL, []).append(key)
+            went.setdefault(
+                _NATIVE if where == _WAS_NATIVE else where or _LOCAL, []
+            ).append(key)
     if len(went) > 1:
         return _DOT.join(
             f"{where} for {', '.join(keys)}" for where, keys in went.items()
         )
     where = next(iter(went), _LOCAL)
-    where = _SELF if where == _WAS_SELF else where
     said = {
         _LOCAL: "on this machine; what it runs lands here"
         if place.anchored
         else "on this machine, in this workdir",
-        _SELF: "on this environment's machine, with the CLI installed there",
+        _NATIVE: "on this environment's machine, with the CLI installed there",
     }.get(
         where, "on a runtime of its own, reaching this environment through the anchor"
     )

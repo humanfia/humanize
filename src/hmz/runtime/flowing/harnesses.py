@@ -73,7 +73,9 @@ from hmz.flows import (
     AskUserHookAgentMixin,
     CostExceeded,
     DurationExceeded,
+    EnvError,
     GoalCommandAgentMixin,
+    HarnessError,
     HarnessKind,
     HarnessNotInstalled,
     HarnessSandboxed,
@@ -82,6 +84,7 @@ from hmz.flows import (
     OutputTokensExceeded,
     OutworlderAway,
     PermissionRequestHookAgentMixin,
+    ResourceUnmet,
     SessionError,
     SessionStartHookResult,
     SteeringAgentMixin,
@@ -121,12 +124,11 @@ if TYPE_CHECKING:
         BudgetExceeded,
         FakeCli,
         FakeTool,
-        HarnessError,
         HookResult,
         Permission,
     )
 
-    from .affinity import Harbors
+    from .harbors import Harbors
     from .specs import AgentSpec
     from .spi import (
         HookTable,
@@ -288,7 +290,7 @@ class HarnessDriver:
           kind: coganchor's agent class for the CLI.
           config: What every session's agent is configured with before its own settings.
           profile: What coganchor knows of the CLI, or None for one it knows nothing of.
-          harbors: The run's harness runtimes, or None for no affinity anywhere.
+          harbors: The run's harness runtimes, or None for `env` everywhere.
         """
         from hmz.coganchor.agents.codenames import codename
 
@@ -410,13 +412,13 @@ class HarnessDriver:
             servers and the like).
           HarnessDropped: If the work's machine cannot be reached to read that configuration.
           HarnessNotInstalled: If the CLI is not installed on the machine its harness runs
-            on: this one, or the environment's where its affinity has nowhere else.
+            on: this one, or the environment's where its runtime's harness setting is `env`.
           HarnessUnrecoverable: If the CLI cannot be configured as the session asks, or the
             environment's machine cannot be asked whether it has the CLI.
           HarnessSandboxed: If its permission can be held neither by the CLI nor here, or
-            nowhere its affinity names can hold it.
-          EnvError: If no runtime its affinity names, and nothing after them, has room.
-          ResourceUnmet: Likewise, where the last of them had no share left to give.
+            not where its runtime's harness setting says.
+          EnvError: If the runtime its harness setting names cannot be reached or opened.
+          ResourceUnmet: If it has no share left to give.
         """
         if self._closed:
             raise SessionError("the agent's driver is closed")
@@ -515,34 +517,32 @@ class HarnessDriver:
     async def placeable(
         self, placements: Iterable[Placement], permission: Permission
     ) -> None:
-        """Settles, before any session opens, where the harness goes on every runtime.
+        """Settles, before any session opens, where the harness goes on every machine.
 
-        What a run asks of every machine it was given before its flow is called, so that an
-        affinity with no room anywhere is a runtime to correct rather than a flow that fails
-        at its first session, and every runtime a harness goes to is opened and probed with
-        the run's own. For each machine whose runtime has an affinity, the entries are walked
-        as a session's would be: whether the machine has the CLI and can hold the role's
-        fence, for `self`; whether a runtime can be reached and has room, and the role's
+        What a run asks of every machine it was given before its flow is called, so that a
+        harness setting that cannot hold the harness is a runtime to correct rather than a
+        flow that fails at its first session, and every runtime a harness goes to is opened
+        and probed with the run's own. For each machine, its runtime's setting is asked as a
+        session's would be: whether the machine has the CLI and can hold the role's fence, for
+        `env`; whether a runtime can be reached and has a share left, and the role's
         permission fences nothing -- which a harness on another machine cannot be held to --
-        for a runtime. Nothing for a machine with no affinity, whose harness goes wherever it
-        can. The answers are remembered, and are the ones the sessions are given as they open.
+        for a runtime. The answers are remembered, and are the ones the sessions are given as
+        they open.
 
         Args:
           placements: Where the role's sessions may work: every environment of the run.
           permission: What the role's sessions run under.
 
         Raises:
-          HarnessNotInstalled: If the affinity ends on a machine without the CLI.
-          HarnessSandboxed: If it ends on one that cannot hold the role's fence.
+          HarnessNotInstalled: If the setting is a machine without the CLI.
+          HarnessSandboxed: If it is one that cannot hold the role's fence.
           HarnessUnrecoverable: If a machine cannot be asked.
-          EnvError: If it ends on a runtime that cannot be reached.
-          ResourceUnmet: If it ends on one with no share left.
+          EnvError: If it is a runtime that cannot be reached.
+          ResourceUnmet: If it is one with no share left.
         """
         if self._harbors is None or self.harness in _NOWHERE:
             return
         for placement in placements:
-            if not self._harbors.affinity(placement):
-                continue
             config = self._configured(permission, placement, frozenset())
             machine = await self._harnessed(placement, config)
             if machine is not None:
@@ -675,30 +675,28 @@ class HarnessDriver:
         Settled per machine rather than per session: every session of the role that an
         environment puts on one machine has its harness put in the same place, and what that
         place is was asked of the machine once. Work on this machine has its harness here.
-        Work on a runtime with an affinity has it on the first entry with room
-        (:mod:`~hmz.runtime.flowing.affinity`); work anywhere else has it natively where the
-        machine has the CLI and can hold its fence, and here otherwise.
+        Work anywhere else has it where the harness setting of its runtime says
+        (:mod:`~hmz.runtime.flowing.harbors`), and is refused where that cannot hold it.
 
         Args:
           placement: Where the session works.
           config: What its agent is configured with, for the fence it is held to.
           hung: The hooks among :data:`_STARTING` hung on it. One that decides whether a
             tool runs is served by the CLI's own hook table, which names a program on this
-            machine, so a CLI driven on another one can only watch what it would have
-            decided -- which is not chosen for anybody, and keeps the harness of work with
-            no affinity here instead. A question the agent asks its user is not one of
-            them: it comes back down the CLI's own stream, wherever the CLI runs.
+            machine, so a CLI driven natively on another one cannot be gated by it. A
+            question the agent asks its user is not one of them: it comes back down the
+            CLI's own stream, wherever the CLI runs.
 
         Returns:
           The machine, None for this one with the harness here as well.
 
         Raises:
-          HarnessNotInstalled: If the affinity ends on the environment's machine and the CLI
-            is not installed there.
-          HarnessSandboxed: If it ends where the session's fence cannot be held.
+          HarnessNotInstalled: If the setting is `env` and the CLI is not installed there.
+          HarnessSandboxed: If the setting is where the session's fence cannot be held.
           HarnessUnrecoverable: If the environment's machine cannot be asked.
-          EnvError: If it ends on a runtime that cannot be reached or opened.
-          ResourceUnmet: If it ends on a runtime with no share left.
+          UnsupportedOperation: If the setting is `env` and a hook gates the session's tools.
+          EnvError: If it is a runtime that cannot be reached or opened.
+          ResourceUnmet: If it is a runtime with no share left.
         """
         from hmz.coganchor.machines import AnchoredConfig, store
 
@@ -706,55 +704,64 @@ class HarnessDriver:
         if not isinstance(machine, AnchoredConfig):
             return machine
         harbors = self._harbors
-        affinity = harbors.affinity(placement) if harbors is not None else ()
-        if harbors is None or not affinity:
-            if hung & _GATES:
-                return machine
-            why = await self._native_on(machine.anchor, config.fence, placement)
-            return machine if why is not None else _native(machine)
-        refused: Exception | None = None
-        for entry in affinity:
-            if entry == store.HERE:
-                return machine
-            if entry == store.SELF:
-                why = await self._native_on(machine.anchor, config.fence, placement)
-                if why is None:
-                    return _native(machine)
-                kind, said = why
-                if kind is HarnessUnrecoverable:
-                    raise kind(said)
-                refused = kind(said)
-                continue
-            on = await harbors.machine(entry)
-            if isinstance(on, Exception):
-                refused = on
-                continue
-            there = on.placement().machine
-            if not isinstance(there, AnchoredConfig):
-                return machine  # a runtime that is this machine, which is `local`
-            # No mirror of this machine's named for it: a harness elsewhere keeps its own,
-            # under that machine's cache, between turns.
-            put = dataclasses.replace(
-                machine,
-                anchor=dataclasses.replace(
-                    machine.anchor, harness=there.anchor.target, shadow=None
-                ),
-            )
-            try:
-                # Built and let go: a fence is drawn around this machine's paths, and a
-                # role held to one cannot have its harness on a machine of its own.
-                self._made_as(dataclasses.replace(config, machine=put))
-            except HarnessSandboxed as why:
-                refused = why
-                continue
-            return put
-        if refused is None:  # nothing was asked, which an affinity of no entries asks
+        setting = harbors.setting(placement) if harbors is not None else store.ENV
+        try:
+            return await self._put(setting, placement, machine, config, hung)
+        except (HarnessError, UnsupportedOperation, EnvError, ResourceUnmet) as why:
+            raise type(why)(
+                f"{spelled(placement.backend, placement.provider)}: {self._named()}'s "
+                f"harness cannot run where its harness setting ({setting}) says: {why}"
+            ) from why
+
+    async def _put(
+        self,
+        setting: str,
+        placement: Placement,
+        machine: AnchoredConfig,
+        config: AgentConfig,
+        hung: frozenset[HookKind],
+    ) -> AnchoredConfig:
+        """The machine a session's turns land on, with its harness where `setting` says.
+
+        Raises:
+          As :meth:`_harnessed`, in the words of what refused it.
+        """
+        from hmz.coganchor.machines import AnchoredConfig, store
+
+        if setting == store.HERE:
             return machine
-        raise type(refused)(
-            f"{spelled(placement.backend, placement.provider)}: nowhere its affinity "
-            f"({', '.join(affinity)}) names has room for {self._named()}'s harness; "
-            f"the last: {refused}"
-        ) from refused
+        if setting == store.ENV:
+            if hung & _GATES:
+                raise UnsupportedOperation(
+                    f"a {' and a '.join(sorted(hung & _GATES))} hook cannot gate the "
+                    "tools of a CLI on another machine; set the harness of the runtime "
+                    "it is on to local"
+                )
+            why = await self._native_on(machine.anchor, config.fence, placement)
+            if why is not None:
+                kind, said = why
+                raise kind(said)
+            return _native(machine)
+        if self._harbors is None:  # a runtime is named only by a runtime's own setting
+            return machine
+        on = await self._harbors.machine(setting)
+        if isinstance(on, Exception):
+            raise on
+        there = on.placement().machine
+        if not isinstance(there, AnchoredConfig):
+            return machine  # a runtime that is this machine, which is `local`
+        # No mirror of this machine's named for it: a harness elsewhere keeps its own, under
+        # that machine's cache, between turns.
+        put = dataclasses.replace(
+            machine,
+            anchor=dataclasses.replace(
+                machine.anchor, harness=there.anchor.target, shadow=None
+            ),
+        )
+        # Built and let go: a fence is drawn around this machine's paths, and a role held to
+        # one cannot have its harness on a machine of its own.
+        self._made_as(dataclasses.replace(config, machine=put))
+        return put
 
     async def _native_on(
         self, anchor: AnchorConfig, fence: Fence | None, placement: Placement
@@ -845,8 +852,8 @@ class HarnessDriver:
                 HarnessNotInstalled,
                 (
                     f"{self._named()} is not installed on {where}: "
-                    f"{backends.installing(self._spec.cli)} there, or put local in the "
-                    "affinity of the runtime it is on"
+                    f"{backends.installing(self._spec.cli)} there, or set the harness of "
+                    "the runtime it is on to local"
                 ),
             )
         if asked.returncode:
@@ -885,8 +892,8 @@ class HarnessDriver:
             HarnessSandboxed,
             (
                 f"{where} cannot fence the agent to its permission: it needs Landlock; "
-                "grant the agent everything, or put local in the affinity of the runtime "
-                "it is on"
+                "grant the agent everything, or set the harness of the runtime it is on "
+                "to local"
             ),
         )
 

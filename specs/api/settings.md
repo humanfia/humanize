@@ -12,7 +12,7 @@ Out of scope:
   `api/files/home.md`).
 - What a runtime does once an env is put on it, and how fallback between runtimes proceeds
   (`features/environments.md`).
-- Where a harness runs under a runtime's affinity (`features/placements.md`).
+- Where a harness runs under a runtime's harness setting (`features/placements.md`).
 - What the fallback of a turn between places does at run time (`features/agents.md`).
 - Backups as a feature (`features/backups.md`), notifications (`features/monitoring.md`), side
   questions (`features/btw.md`), error reports (`features/telemetry.md`), and the daemons of
@@ -355,6 +355,10 @@ when read.
 
 **8.1.7** A number with no fractional part MUST be accepted where an integer is required.
 
+**8.1.8** A runtime written with the field `affinity`, a list, MUST be read as though its
+`harness` were the first entry of that list, `self` read as `env`, and as though it had no
+`harness` where that list is empty; the next write of it MUST NOT have `affinity`.
+
 ### 8.2 Fields of every backend
 
 **8.2.1** `workdir` MUST be a string that is empty, `~`, absolute, or begins with `~/`, and names
@@ -367,12 +371,11 @@ hold an env; it MUST NOT name the runtime itself, and MUST NOT name one runtime 
 MUST mean docker's default daemon here, the swarm this machine manages and this Mac's Apple
 containers, where no runtime of that backend is written as `local`.
 
-**8.2.4** `affinity` MUST be a list of the entries `self`, `local` and runtime references,
-naming in order where the harness of an agent whose env is on the runtime runs
+**8.2.4** `harness` MUST be `local`, `env` or a runtime reference, defaulting to `env`, and
+names where the harness of an agent whose env is on the runtime runs
 (`features/placements.md`).
 
-**8.2.5** `affinity` MUST NOT name one entry twice, and MUST NOT name the runtime itself as a
-runtime reference.
+**8.2.5** `harness` MUST NOT name the runtime itself as a runtime reference.
 
 **8.2.6** `made` MUST be `typed` or, for an ssh runtime alone, `imported`, defaulting to `typed`.
 
@@ -460,7 +463,7 @@ an ssh runtime or an ssh destination `[<user>@]<host>[:<port>]`.
 ### 8.6 `apple-container`
 
 **8.6.1** An Apple container runtime MUST have exactly the fields `image`, `run_args`, `cpus`,
-`memory`, `max_containers`, `workdir`, `fallback`, `made` and `affinity`, with the types and
+`memory`, `max_containers`, `workdir`, `fallback`, `made` and `harness`, with the types and
 validation of §8.2 and §8.4.
 
 ### 8.7 `slurm`

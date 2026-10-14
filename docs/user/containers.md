@@ -17,7 +17,7 @@ a docker swarm that picks the node for you.
     <p class="ct-name">A container per environment</p>
     <p class="ct-type"><code>hmz exec … -e ROLE=docker[@RUNTIME]/…</code></p>
     <dl>
-      <dt>agents run</dt><dd>here, with your sign-in, unless the image has their CLI (<a href="#where-the-agent-s-cli-runs">affinity</a>)</dd>
+      <dt>agents run</dt><dd>in the container, with the image's CLI, or here, with your sign-in (<a href="#where-the-agent-s-cli-runs">harness</a>)</dd>
       <dt>commands run</dt><dd>in the container</dd>
       <dt>the image needs</dt><dd>Python 3.12 or newer</dd>
       <dt>works with</dt><dd>a flow with a role for another machine</dd>
@@ -48,11 +48,23 @@ a docker swarm that picks the node for you.
 ## Try it {#try-it-a-container-per-environment}
 
 With docker running here and a flow that has a role for a container, such as
-[`boxed`](#the-flow-used-on-this-page), name docker's default daemon and a directory:
+[`boxed`](#the-flow-used-on-this-page), save docker's default daemon under a name with the
+agent's CLI here, in `~/.hmz/settings.yaml` (or at `/settings runtimes`, as
+[below](#example-a-daemon-saved-under-a-name)), since `python:3.12-slim` has no CLI of its own:
+
+```yaml
+runtimes:
+  docker:
+    here:
+      endpoint: local
+      harness: local
+```
+
+Then name it and a directory:
 
 ```sh
 hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
-    -e box=docker/home/me/myproject \
+    -e box=docker@here/home/me/myproject \
     -p budget.duration=10m "Print this machine's hostname and OS, then fix add() in calc.py."
 ```
 
@@ -61,10 +73,10 @@ The agent's commands run in a fresh container, and its edits land in your direct
 ```text
 ● coder is working
 ● Bash(hostname && uname -a)
-● Read(…/envs/mirrors/humanize-local-box-67f7d9f2/731d95dbbabe/calc.py)
+● Read(…/envs/mirrors/humanize-here-box-67f7d9f2/731d95dbbabe/calc.py)
 ● **Hostname:** 14a684eac2e0
   …
-● Edit(…/envs/mirrors/humanize-local-box-67f7d9f2/731d95dbbabe/calc.py)
+● Edit(…/envs/mirrors/humanize-here-box-67f7d9f2/731d95dbbabe/calc.py)
 ● Fixed—the `add()` function now returns `a + b` instead of `a - b`.
 ✻ Worked for 12s · coder
 ```
@@ -78,7 +90,7 @@ The agent's commands run in a fresh container, and its edits land in your direct
 - **An image with Python 3.12 or newer** and `/bin/sh`. It needs no ssh server, no coding agent
   and no sign-in. With nothing said, `python:3.12-slim` is used.
 - **The directory on the daemon's host.** It is mounted into the container at the path it has,
-  so it has to exist there. For docker's default here, `docker/…`, that is this machine.
+  so it has to exist there. For docker's default here, `local`, that is this machine.
 - **A flow with a role for another machine.** The flows humanize ships and the official
   flowverse lists all work in the directory you start in. This page uses
   [`boxed`](#the-flow-used-on-this-page), a one-role flow you can save into your project.
@@ -96,17 +108,17 @@ A flow's environment role put on docker, with `-e role=docker/workdir` or
   the daemon was saved to hand out. A daemon with less left than the role asks for refuses the
   run before any agent starts.
 - **It goes when the run ends.** Every container humanize starts is labelled with your uid.
-- **The agent's CLI runs here by default**, supervised, working in a copy of the directory kept
-  under `~/.hmz/envs/mirrors/`. Every command it runs lands in the container through
+- **The agent's CLI runs here with the daemon's harness `local`**, supervised, working in a
+  copy of the directory kept under `~/.hmz/envs/mirrors/`. Every command it runs lands in the container through
   `docker exec`. That is why the tool lines above name a `…/envs/mirrors/…` path while the edit
   lands in `/home/me/myproject`. Because the copy is kept there rather than at the directory's
   own path, the directory may be your own checkout.
 
 <ContainerEnv />
 
-`docker/…`, naming no daemon, is docker's default here with nothing saved. For a daemon
-elsewhere, a different image, or a cap on what a run may take, save the daemon under a name
-first.
+`docker/…`, naming no daemon, is docker's default here with nothing saved, and so has the
+harness `env`: the CLI must be in the image. For the CLI here, a daemon elsewhere, a different
+image, or a cap on what a run may take, save the daemon under a name first.
 
 ## Example: a daemon saved under a name
 
@@ -115,7 +127,7 @@ of those CPUs and 8 GB. Save the daemon with that allowance, then name it.
 
 **1. Save it.** `/settings runtimes` opens the [Runtimes
 page](/user/settings#runtimes). Choose **Add a runtime…**, then `docker host`. Type the name,
-`4` on `cpus` and `8G` on `memory`, then <kbd>tab</kbd> to the buttons and <kbd>→</kbd> to
+`local` on `harness runs on`, `4` on `cpus` and `8G` on `memory`, then <kbd>tab</kbd> to the buttons and <kbd>→</kbd> to
 **Done**:
 
 ```text
@@ -131,10 +143,10 @@ page](/user/settings#runtimes). Choose **Add a runtime…**, then `docker host`.
   │ name                                                              gpubox │  ②
   │   name used in -e and /flow                                              │
   │──────────────────────────────────────────────────────────────────────────│
-  │ harness runs on                                                        — │
-  │   where an agent's harness runs, in order, the next only when one has no │
-  │   room: self, local, ssh:<name>, docker:<name>, swarm:<name>; blank for  │
-  │   self where the CLI is there, else local                                │
+  │ harness runs on                                                    local │
+  │   where an agent's harness runs, and nowhere else: env (the CLI on this  │
+  │   runtime's machine), local (here), or ssh:<name>, docker:<name>,        │
+  │   swarm:<name>, apple-container:<name>, slurm:<name>; blank for env      │
   │──────────────────────────────────────────────────────────────────────────│
   │ image                                                                  — │  ③
   │   default image, unless specified by the flow                            │
@@ -209,7 +221,9 @@ hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
 1. **`endpoint`** is which daemon: `local` for this machine's, or a socket, a TCP address, a
    saved ssh host, an ssh address or a docker context. The rows under it then ask for whatever
    that choice needs; `local` needs none.
-2. **`name`** is what `-e` names: `docker@gpubox/…`.
+2. **`name`** is what `-e` names: `docker@gpubox/…`. `harness runs on`, set to `local`, keeps
+   the agent's CLI here, as the image has none: see [Where the agent's CLI
+   runs](#where-the-agent-s-cli-runs).
 3. **`image`**, left blank, leaves the choice to the flow, then `python:3.12-slim`.
 4. **`cpus` and `memory`** cap what this daemon may hand out to humanize's containers, across
    every run on it at once. **Detect**, beside **Done**, asks the daemon and writes in
@@ -241,59 +255,54 @@ hmz exec: error: docker@gpubox has 4 of 4 CPUs free, and 'box' asks for 8
 
 ## Where the agent's CLI runs
 
-A saved docker daemon's affinity, its `harness runs on` row at `/settings runtimes`, says where
-the CLI of each agent working in one of its containers runs, trying each place in order; the
-full story is on [Remote execution](/user/remote-execution#where-the-agent-runs). For a
-container:
+A saved docker daemon's harness, its `harness runs on` row at `/settings runtimes`, says where
+the CLI of each agent working in one of its containers runs: one place, and the run is refused
+where that cannot hold it. The full story is on
+[Remote execution](/user/remote-execution#where-the-agent-runs). For a container:
 
-| In the affinity | The agent's CLI runs | For a container |
+| `harness` | The agent's CLI runs | For a container |
 | --- | --- | --- |
-| *(blank, the default)* | in the container where the image has the CLI, and here otherwise | `python:3.12-slim` has none, so here |
+| `env` *(blank, the default)* | in the container | the image needs the CLI; `python:3.12-slim` has none, so the run is refused |
 | `local` | here | the container needs no CLI and no sign-in |
-| `self` | in the container | passed by where the image has no CLI |
 | `docker:<name>` | in a second container of its own, on the daemon saved as `<name>` | that container needs the CLI |
 
-`docker/…`, with nothing saved, has no affinity, so it is always the default.
+`docker/…`, with nothing saved, has `env`.
 
-**The default** looks once per role and machine. With an image that has no coding agent, every
-role's CLI runs here, and the run says so: the transcript line `coder's harness runs here`.
-Nothing to do.
+**`local`** runs every role's CLI here, and the run says so: the transcript line
+`coder's harness runs here`. Use it for an image with no coding agent, or to keep the agent's
+account off an image you did not build.
 
-**`local`** is the same as what the default came to above, said outright. Use it to keep the
-agent's account off an image you did not build.
-
-**`self`** runs the CLI the image has, in the container. It needs the CLI on the image's `PATH`,
+**`env`** runs the CLI the image has, in the container. It needs the CLI on the image's `PATH`,
 and a sign-in there: an agent with an `@account` has the account's variables and credential
 files sent in for each turn, and one without runs as the image's CLI is signed in, which a
-fresh image is not. Its sessions are kept in the container, and go with it.
+fresh image is not. Its sessions are kept in the container, and go with it. A role with a hook
+that decides whether each tool runs is refused: that needs `local`.
 
 ::: warning Never copy your own sign-in into an image or a container
 A ChatGPT login of Codex and a subscription login of Claude Code renew themselves, and each
 renewal cancels the copy it replaced: a container signed in with a copy of your
 `~/.codex/auth.json` or `~/.claude/.credentials.json` signs this machine out the first time it
 renews. Give the role an `@account` signed in with a key, sign the CLI in inside the container,
-or put `local` first in the daemon's affinity. An `@account` that is itself such a login goes in
+or set the daemon's harness to `local`. An `@account` that is itself such a login goes in
 only while no other turn is using it, and comes back renewed: see
 [Providers › A sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself).
 :::
 
-On an image without the CLI, `self` has no room and the next place is tried; where it is the
-last, the run is refused before the flow starts, with exit status 2:
+On an image without the CLI, `env` refuses the run before the flow starts, with exit status 2:
 
 ```text
-hmz exec: error: docker@gpubox: nowhere its affinity (self) names has room for claude's harness; the last: claude is not installed on docker@gpubox: npm i -g @anthropic-ai/claude-code there, or put local in the affinity of the runtime it is on
+hmz exec: error: docker@gpubox: claude's harness cannot run where its harness setting (env) says: claude is not installed on docker@gpubox: npm i -g @anthropic-ai/claude-code there, or set the harness of the runtime it is on to local
 ```
 
 **`docker:<name>`** starts one more container just for the CLI, on that saved daemon, from its
 image (else `python:3.12-slim`), holding its saved workdir, or an empty
 `$TMPDIR/humanize-<uid>/harness` for a daemon on this machine saved without one. That container is given `--cap-add SYS_PTRACE`,
 which the CLI's supervisor needs there to hand each command's output back to it. It counts
-against that daemon's `max containers`: a daemon at its limit has no room, and the next place
-is tried, so `docker:spare, local` falls back to here once `spare` is full. It is only for a
-role granted everything, and the image must have the CLI:
+against that daemon's `max containers`: a daemon at its limit refuses the run, and nothing
+else is tried. It is only for a role granted everything, and the image must have the CLI:
 
 ```text
-hmz exec: error: docker@gpubox: nowhere its affinity (docker:spare) names has room for claude's harness; the last: coder=claude/claude-haiku-4-5-20251001:low: ClaudeCodeAgent: a fence cannot hold a harness that runs on another machine
+hmz exec: error: docker@gpubox: claude's harness cannot run where its harness setting (docker:spare) says: coder=claude/claude-haiku-4-5-20251001:low: ClaudeCodeAgent: a fence cannot hold a harness that runs on another machine
 … hmz: claude: not found on PATH
 ```
 
@@ -329,9 +338,9 @@ While it runs, `container list` shows the role's container, `humanize-local-box-
 once the run ends.
 
 **The agent's CLI has to run in the container.** Running it here, supervised, needs Linux, and
-a Mac is not, so the default [affinity](#where-the-agent-s-cli-runs) only works with an image
-that has the CLI. Save the runtime with `self` in `harness runs on`, and an image with the CLI
-and its sign-in (see the warning above). A flow's own commands in the role, such as
+a Mac is not, so only the default [harness](#where-the-agent-s-cli-runs), `env`, works, with an
+image that has the CLI. Save the runtime with an image with the CLI and its sign-in (see the
+warning above), leaving `harness runs on` blank. A flow's own commands in the role, such as
 `await envs["box"].exec(["uname", "-s"])`, need neither.
 
 **To cap what runs may take, or change the image,** save it: `/settings runtimes`, **Add a
@@ -472,7 +481,7 @@ hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
 - **The runtime says nothing else about a container**: an image, run arguments, a name prefix,
   or CPUs, memory and GPUs to hand out are refused beside `container`. What the environment has
   is what the container says it has.
-- **A harness put in it** (an affinity of `docker:build-box`) needs the container to have been
+- **A harness put in it** (a harness setting of `docker:build-box`) needs the container to have been
   started with `--cap-add SYS_PTRACE`; humanize cannot add it to a running container.
 
 See [Machines › A running container](/reference/machines#a-running-container).
@@ -516,7 +525,7 @@ Read [Security](/user/security).
 | `no directory to give the container on …` | The directory is not on the daemon's host. Make it there. |
 | `could not install humanize on docker://…: … is not running` | The image has no Python 3.12 or newer; its last words say where it looked. |
 | a tool the agent tries to install fails with a permission error | The role may write its workdir only. Put the tool in the image. |
-| `… nowhere its affinity (self) names has room …: claude is not installed on docker@…` | `self` on an image without the CLI. Add `local` after it, or clear the affinity. |
+| `… claude's harness cannot run where its harness setting (env) says: claude is not installed on docker@…` | `env` (the default, and `docker/…` with nothing saved) on an image without the CLI. Save the daemon with its harness `local`, or use an image with the CLI. |
 | containers left behind after a run was killed | `docker rm -f $(docker ps -q --filter label=humanize=$(id -u))` removes yours and nobody else's. |
 | `swarm@…: no node of the swarm has …` or `no node took it within 30s` | No node has room for what the role reserves, or none answers the runtime's constraints. Free a node, loosen the constraints, or ask for less. |
 | `swarm@…: no directory to give the task on the node it landed on` | The node has no such directory. Share it to every node, or constrain the runtime to the nodes that have it. |
@@ -525,7 +534,7 @@ Read [Security](/user/security).
 | `apple-container[@…]: Apple's container was not found on this machine` | Install Apple's `container`, which needs macOS 26 on Apple silicon. |
 | `could not connect to apple-container[@…]: … apiserver is not running` | Run `container system start`. |
 | `apple-container[@…] has no GPU to hand out` | Apple's containers get no GPU. Use docker or an ssh host for that role. |
-| an Apple container's agent fails its first turn here | The CLI cannot be supervised on a Mac. Put `self` in the runtime's affinity, with an image that has the CLI. |
+| an Apple container's agent fails its first turn here | The CLI cannot be supervised on a Mac. Set the runtime's harness to `env` (or leave it blank), with an image that has the CLI. |
 
 More are in [Troubleshooting](/user/troubleshooting).
 
@@ -576,7 +585,7 @@ async def boxed(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
 
 ## Next steps
 
-- [Remote execution](/user/remote-execution): the same `-e`, over ssh, and the affinity in full
+- [Remote execution](/user/remote-execution): the same `-e`, over ssh, and the harness setting in full
 - [Permissions](/user/permissions): what a role may touch, in a container as here
 - [Machines › Docker environments](/reference/machines#docker-environments): every field of a
   saved daemon, and how a container is started
@@ -584,7 +593,7 @@ async def boxed(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
   saved swarm, and how a task is placed and reached
 - [Machines › Apple container environments](/reference/machines#apple-container-environments):
   every field of saved Apple containers, and how one is started
-- [Remote execution › Affinity](/reference/remote-execution#affinity)
+- [Remote execution › The harness setting](/reference/remote-execution#harness-setting)
 - [Security](/user/security)
 
 <style scoped>

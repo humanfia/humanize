@@ -64,7 +64,7 @@ def test_an_agent_codes_in_a_docker_container(
     daemon: None, workspace: Path, tmp_path: Path
 ) -> None:
     runtimes = hmz(tmp_path / "here").runtimes
-    runtimes.add(runtimes.new("docker", "box"))
+    runtimes.add(runtimes.new("docker", "box", harness="local"))
 
     seen = run(tmp_path, workspace, f"docker@box{workspace}")
 
@@ -77,7 +77,9 @@ def test_an_agent_codes_in_a_swarm_task(
     node: str, workspace: Path, tmp_path: Path
 ) -> None:
     runtimes = hmz(tmp_path / "here").runtimes
-    runtimes.add(runtimes.new("swarm", "hive", constraints=[f"node.id=={node}"]))
+    runtimes.add(
+        runtimes.new("swarm", "hive", constraints=[f"node.id=={node}"], harness="local")
+    )
 
     seen = run(tmp_path, workspace, f"swarm@hive{workspace}")
 

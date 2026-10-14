@@ -132,12 +132,10 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
         options.get_by_role("button", name="Add").click()
         options.get_by_label("Name").fill("ServerAliveInterval")
         options.get_by_label("Value").fill("30")
-        affinity = page.locator("#runtime-affinity").locator("xpath=..")
-        affinity.get_by_role("button", name="Add").click()
-        expect(affinity.get_by_label("Value").locator("option")).to_have_text(
-            ["self", "local"]
-        )
-        affinity.get_by_label("Value").select_option("local")
+        harness = page.locator("#runtime-harness")
+        expect(harness.locator("option")).to_have_text(["env", "local"])
+        expect(harness).to_have_value("env")
+        harness.select_option("local")
         page.locator("[data-hmz=write-runtime] .row > .confirm > .btn.primary").click()
         listed = page.locator("[data-hmz=runtime]")
         refused = page.locator("[data-hmz=write-runtime] .error")
@@ -150,7 +148,7 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
         (saved,) = browser.get("/api/runtimes").json()["runtimes"]
         assert saved["identity_file"] == "~/.ssh/id_ed25519"
         assert saved["options"] == {"ServerAliveInterval": "30"}
-        assert saved["affinity"] == ["local"]
+        assert saved["harness"] == "local"
 
 
 def test_a_fallback_and_the_btw_agent_are_picked_not_spelled(

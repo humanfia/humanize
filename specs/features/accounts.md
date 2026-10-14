@@ -68,8 +68,8 @@ with a message stating the permitted characters.
 ### 3.2 Choosing an account
 
 **3.2.1** An agent MUST run as the account its agent spec names after `@`, and as the harness
-machine's own sign-in where its agent spec names none, except as §7.1.2 states for the afar
-placement.
+machine's own sign-in where its agent spec names none, except as §7.1.2 states for harness
+location standalone.
 
 **3.2.2** An agent spec naming an account that does not exist MUST be refused before the epic
 starts where it is given to `-a`, and otherwise before the agent's first turn, with a message
@@ -325,15 +325,15 @@ and hmz MUST NOT carry any sign-in of this machine to another machine for it.
 
 **7.1.2** An agent with an account MUST run as that account wherever its harness runs, with the
 account's variables and credential files made available to the harness on the harness machine
-for each turn, except under the afar placement, where the agent MUST run as the harness
+for each turn, except under harness location standalone, where the agent MUST run as the harness
 machine's own sign-in (`features/placements.md` §5.3.3).
 
-**7.1.3** Where a harness runs under the native placement, the account's credential
+**7.1.3** Where a harness runs under harness location env, the account's credential
 files MUST be placed there in a directory only the harness machine's user can enter, unreadable
 by anyone else from the moment it exists, and MUST be removed when the turn ends, whatever became
 of it.
 
-**7.1.4** Where a harness under the native placement has no way of reading credential files from a
+**7.1.4** Where a harness under harness location env has no way of reading credential files from a
 location hmz names, a turn needing them MUST be refused.
 
 **7.1.5** Commands the agent runs on an env machine other than the harness machine MUST NOT
@@ -349,7 +349,7 @@ key as a refreshing sign-in.
 **7.2.3** Turns whose harness runs on this machine MUST use a refreshing sign-in in place, and
 any number of them MUST be permitted to do so at once.
 
-**7.2.4** A turn whose harness runs under the native placement MUST be lent a copy of a refreshing
+**7.2.4** A turn whose harness runs under harness location env MUST be lent a copy of a refreshing
 sign-in only while no other turn uses it, and no other turn MUST use it until the copy is returned.
 
 **7.2.5** A turn that finds a refreshing sign-in held the other way MUST be refused at once with

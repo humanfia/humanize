@@ -7463,19 +7463,18 @@ def _fallback(said: str) -> list[str]:
     return [one.strip() for one in said.split(",") if one.strip()]
 
 
-#: The row of either form a harness's runtimes are written on, and what it says.
-_AFFINITY = "affinity"
-_AFFINITY_ABOUT = (
-    "where an agent's harness runs, in order, the next only when one has no room: "
-    "self, local, ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>, "
-    "slurm:<name>; "
-    "blank for self where the CLI is there, else local"
+#: The row of either form a harness's runtime is written on, and what it says.
+_HARNESS = "harness"
+_HARNESS_ABOUT = (
+    "where an agent's harness runs, and nowhere else: env (the CLI on this runtime's "
+    "machine), local (here), or ssh:<name>, docker:<name>, swarm:<name>, "
+    "apple-container:<name>, slurm:<name>; blank for env"
 )
 
 
-def _affinity(typed: str) -> list[str]:
-    """A runtime's affinity, as its row has it written: entries apart by commas."""
-    return [one.strip() for one in typed.split(",") if one.strip()]
+def _harness(typed: str) -> str:
+    """A runtime's harness setting, as its row has it written: blank for `env`."""
+    return typed.strip() or "env"
 
 
 class Hosting(Form["Runtime"]):
@@ -7514,7 +7513,7 @@ class Hosting(Form["Runtime"]):
             _OPTIONS: ", ".join(f"{key}={value}" for key, value in one.options.items()),
             _WORKDIR: one.workdir,
             _FALLEN_TO: ", ".join(one.fallback),
-            _AFFINITY: ", ".join(one.affinity),
+            _HARNESS: one.harness,
         }
 
     def _names(self) -> None:
@@ -7578,7 +7577,7 @@ class Hosting(Form["Runtime"]):
                     "default working directory when -e specifies none: /abs or ~/path",
                 ),
                 _fallback_row(),
-                Question(_AFFINITY, "harness runs on", _AFFINITY_ABOUT),
+                Question(_HARNESS, "harness runs on", _HARNESS_ABOUT),
             ]
         )
         return rows
@@ -7652,7 +7651,7 @@ class Hosting(Form["Runtime"]):
             "options": _options(typed.get(_OPTIONS, "")),
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _fallback(typed.get(_FALLEN_TO, "")),
-            "affinity": _affinity(typed.get(_AFFINITY, "")),
+            "harness": _harness(typed.get(_HARNESS, "")),
         }
         if self._one is not None:
             fields |= {
@@ -7780,7 +7779,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             _MEMORY: _sized(one.memory, exact=True) if one.memory else "",
             _WORKDIR: one.workdir,
             _FALLEN_TO: ", ".join(one.fallback),
-            _AFFINITY: ", ".join(one.affinity),
+            _HARNESS: one.harness,
             **self._held(one),
         }
         for kind, (spelled, row) in _REACHED.items():
@@ -7913,7 +7912,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
                     needed=not typed.get(_CALLED, "").strip(),
                 )
             )
-        rows.append(Question(_AFFINITY, "harness runs on", _AFFINITY_ABOUT))
+        rows.append(Question(_HARNESS, "harness runs on", _HARNESS_ABOUT))
         # What it may hand out last, over the row that asks the daemon what it has: what is
         # written in there is walked through and typed over, and then the form is done.
         rows.extend(self._holds())
@@ -8132,7 +8131,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _fallback(typed.get(_FALLEN_TO, "")),
-            "affinity": _affinity(typed.get(_AFFINITY, "")),
+            "harness": _harness(typed.get(_HARNESS, "")),
             # Not on the form: what it was saved with, kept.
             "name_prefix": self._one.name_prefix if self._one is not None else "",
             **self._more(typed),
@@ -8408,7 +8407,7 @@ class Containing(Form["Runtime"]):
             self._fresh.add(_CALLED)
             return
         self._typed_in = {
-            _AFFINITY: ", ".join(one.affinity),
+            _HARNESS: one.harness,
             _IMAGE: one.image,
             _ARGS: shlex.join(one.run_args),
             _AT_ONCE: str(one.max_containers) if one.max_containers else "",
@@ -8432,7 +8431,7 @@ class Containing(Form["Runtime"]):
             )
         return [
             *rows,
-            Question(_AFFINITY, "harness runs on", _AFFINITY_ABOUT),
+            Question(_HARNESS, "harness runs on", _HARNESS_ABOUT),
             Question(_IMAGE, "image", "default image, unless specified by the flow"),
             Question(_ARGS, "run args", "extra arguments for container run"),
             Question(
@@ -8561,7 +8560,7 @@ class Containing(Form["Runtime"]):
             "max_containers": _how_many(typed.get(_AT_ONCE, ""), "max containers"),
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _fallback(typed.get(_FALLEN_TO, "")),
-            "affinity": _affinity(typed.get(_AFFINITY, "")),
+            "harness": _harness(typed.get(_HARNESS, "")),
         }
 
     def action_done(self) -> None:
@@ -8649,7 +8648,7 @@ class Slurming(Form["Runtime"]):
             _WAIT: str(one.max_wait) if one.max_wait else "",
             _WORKDIR: one.workdir,
             _FALLEN_TO: ", ".join(one.fallback),
-            _AFFINITY: ", ".join(one.affinity),
+            _HARNESS: one.harness,
             _CPUS: f"{one.cpus:g}" if one.cpus else "",
             _MEMORY: _sized(one.memory, exact=True) if one.memory else "",
         }
@@ -8681,7 +8680,7 @@ class Slurming(Form["Runtime"]):
             )
         return [
             *rows,
-            Question(_AFFINITY, "harness runs on", _AFFINITY_ABOUT),
+            Question(_HARNESS, "harness runs on", _HARNESS_ABOUT),
             Question(_CHARGED, "account", "blank for your default account"),
             Question(_QOS, "qos", "quality of service; blank for the default"),
             Question(
@@ -8798,7 +8797,7 @@ class Slurming(Form["Runtime"]):
             "max_wait": _how_many(typed.get(_WAIT, ""), "max wait"),
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _fallback(typed.get(_FALLEN_TO, "")),
-            "affinity": _affinity(typed.get(_AFFINITY, "")),
+            "harness": _harness(typed.get(_HARNESS, "")),
         }
 
     def action_done(self) -> None:
