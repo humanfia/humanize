@@ -325,8 +325,8 @@ def test_grok_under_an_account_a_gateway_holds_runs_the_model_through_it(
     assert launch.env["LITELLM_GATEWAY_KEY"] is None
     assert turn.stdin == "chat_completions"
     assert not through.running
-    # And the entry it was asked for by, which named a port nothing listens on any more.
-    assert "127.0.0.1" not in (tmp_path / "home/.grok/config.toml").read_text()
+    # And the entry it was asked for by was in a copy of the config, never in the user's.
+    assert not (tmp_path / "home/.grok/config.toml").exists()
 
 
 class _Word(BaseModel):

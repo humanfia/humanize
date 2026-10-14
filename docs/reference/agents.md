@@ -283,7 +283,7 @@ CLI. An ACP CLI's ladder is the single word `as configured` and any effort is ac
 | `mimo`, `opencode` | `xhigh`, `high`, `medium`, `low`, `minimal` | `--variant` |
 | `omp` | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` | `--thinking`, only where there is a rung. `off` is also in `beyond`, so it stays on a model's ladder however its catalogue narrows it |
 | `pi` | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` | `--thinking`; pi clamps a rung the model lacks to the nearest it has |
-| `qwen` | `max`, `xhigh`, `high`, `medium`, `low`, `none` | a settings file named by `QWEN_CODE_SYSTEM_SETTINGS_PATH`, one per effort |
+| `qwen` | `max`, `xhigh`, `high`, `medium`, `low`, `none` | `model.reasoningEffort` in its virtual home's copy of `settings.json` |
 
 ### Moving the effort while it runs {#moving-the-effort-while-it-runs}
 
@@ -559,7 +559,7 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | `mimo`, `opencode` | neither confines its shell; the permission table additionally denies `edit` outside writable paths, `read`/`external_directory` outside readable ones (only where `system` is `NONE`), and web tools where `online` is `NONE` |
 | `omp` | no sandbox; no `--offline` under `online` `NONE` |
 | `pi` | no gate and no sandbox; `--offline` under `online` `NONE` |
-| `qwen` | `--sandbox` is a container or Seatbelt; its rules hold its own tools only; generated settings live under one `hmz-qwen-*` temporary directory granted read-only |
+| `qwen` | `--sandbox` is a container or Seatbelt; its rules hold its own tools only |
 | an ACP CLI | nothing is known of it; declared `hosts` and `state` under `clis` in `settings.yaml` are granted |
 
 ### When a fence is refused {#when-a-fence-is-refused}
@@ -915,7 +915,7 @@ no reason, so the reason is steered into the turn instead.
 | Backend | Seam |
 | --- | --- |
 | `claude` | `--settings`, the settings literal on the command line, carrying a `PreToolUse` hook |
-| `qwen` | a settings file of humanize's named by `QWEN_CODE_SYSTEM_SETTINGS_PATH` |
+| `qwen` | `hooks` in its virtual home's copy of `settings.json`, after the user's own |
 
 - The table runs `hmz internal hook --at <socket>`, which relays the call to this process and
   the verdict back; a refusal means the tool does not run and `PERMISSION_REQUEST` is not asked.
@@ -1097,21 +1097,25 @@ wins.
 | --- | --- | --- |
 | `claude` | `$CLAUDE_CONFIG_DIR/skills/` in its virtual home | `.claude/skills` |
 | `codex` | `$CODEX_HOME/skills/` in its virtual home | `.agents/skills`, `.codex/skills` |
+| `grok` | `$GROK_HOME/skills/` in its virtual home | `.grok/skills`, `.agents/skills`, `.claude/skills`, `.cursor/skills` |
+| `qwen` | `$QWEN_HOME/skills/` in its virtual home | `.qwen/skills`, `.agents/skills` |
+| `pi`, `omp` | `$PI_CODING_AGENT_DIR/skills/` in its virtual home | `pi`: none read headless (trust-gated); `omp`: `.omp/skills`, `.agents/skills` |
 | `cursor-agent` | `.cursor/skills/` | `.cursor/skills` |
-| `agy`, `grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `qwen` | `.agents/skills/` | `.agents/skills` and each CLI's own (`.grok/skills`, `.kimi-code/skills`, `.minimax/skills`, `.mimocode/skill[s]`, `.omp/skills`, `.opencode/skill[s]`, `.qwen/skills`, and on some `.claude/skills`, `.cursor/skills`) |
-| `dsh`, `pi` | none | none |
+| `agy`, `kimi`, `mcode`, `mimo`, `opencode` | `.agents/skills/` | `.agents/skills` and each CLI's own (`.kimi-code/skills`, `.minimax/skills`, `.mimocode/skill[s]`, `.opencode/skill[s]`, and on some `.claude/skills`, `.cursor/skills`) |
+| `dsh` | none | none |
 
 - A virtual home is built per process, so a Claude Code session told to carry other skills
   restarts its process and resumes the conversation. A Codex app server is shared by an
   agent's sessions and carries every skill the agent was given; a change of those starts a new
   server for the next turn.
 
-- `pi` reads workspace skills only for a trusted project; pass paths with
-  `PiAgentConfig.skill_paths` (`--skill`).
+- `pi` reads workspace skills only for a trusted project, which is why brought skills go to
+  its user level; pass further paths with `PiAgentConfig.skill_paths` (`--skill`).
 - Under a native anchor, skills are [carried](/reference/remote-execution#native-the-target-s-own-cli)
   into the target's workspace, or into the virtual home built there; under a supervised anchor
   a virtual home is built here, where the CLI runs, and workspace copies reach the target only
-  where it reads this workspace. A harness on another machine gets neither.
+  where it reads this workspace. A harness on another machine gets neither: see
+  [virtual homes](#virtual-homes).
 
 ### Virtual homes {#virtual-homes}
 
@@ -1135,15 +1139,28 @@ skills directory (`Profile.lodges`) is started, a process at a time, with its ho
   where unset), unless the environment sets it: Claude Code's `CLAUDE_SECURESTORAGE_CONFIG_DIR`,
   which keeps its keychain item and `.credentials.json` where they were.
 - The system level is never replaced, and the project level is the workspace, read as the CLI
-  reads it.
+  reads it. What humanize itself manages for a CLI with no flag or variable for it is merged
+  into the copy at the user level: Qwen Code's effort, hook table and `humanize` MCP server
+  into `settings.json`, a gateway account's `[model.*]` entry into Grok Build's `config.toml`,
+  and a gateway account's provider into pi's `models.json`.
 - A fenced agent may write the directory its virtual homes are built in.
 - Under a native anchor whose account is projected, the virtual home is that account's: the
   session paths stay in it, and none of the target user's credentials is linked or copied.
+  Under a native anchor nothing humanize manages is merged into the copies there.
+- A harness on another machine (`AnchorConfig.harness`, `hmz.coganchor.elsewhere.afar`) gets
+  no virtual home and no brought skills: `AgentBase.homed` builds none for it, and the
+  anchor's options carry none to the `hmz internal anchor` run there. Its CLI runs in the
+  harness machine user's own home: Qwen Code there runs without humanize's effort, hook table
+  and MCP server, and a `grok` or `pi` account behind a gateway is refused.
 
 | Backend | `Profile.rewrites` | `Profile.lodges` | `Profile.secures` |
 | --- | --- | --- | --- |
 | `claude` | `.claude.json` (from `~/.claude.json` while `CLAUDE_CONFIG_DIR` is unset), `backups`, `settings.json` | `skills` | `CLAUDE_SECURESTORAGE_CONFIG_DIR` |
 | `codex` | `config.toml` | `skills` | none |
+| `grok` | `config.toml` | `skills` | none |
+| `qwen` | `settings.json` | `skills` | none |
+| `pi` | `models.json`, `settings.json` | `skills` | none |
+| `omp` | none | `skills` | none |
 
 ## Fake tools {#callbacks-as-tools}
 
@@ -1162,7 +1179,7 @@ runs `call` in this process; `offers(None)` withdraws them. `FakeTool` is one ty
 
 - Served where `session.takes_tools`: `claude` (`--mcp-config`), `codex`
   (`-c mcp_servers.humanize.…`), `qwen` (`mcpServers.humanize`, `trust: true`, in its
-  `QWEN_CODE_SYSTEM_SETTINGS_PATH` file; the user's `mcp.allowed`/`mcp.excluded` and folder
+  virtual home's copy of `settings.json`; the user's `mcp.allowed`/`mcp.excluded` and folder
   trust still apply), `opencode` and `mimo` (`mcp.humanize` merged into
   `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), `agy` (a plugin,
   `--add-dir <temp>/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
@@ -1581,8 +1598,10 @@ server, so such a turn is refused while [fake tools](#callbacks-as-tools) are of
 - The `-p` prompt is one argument (`--single=…`); Linux caps an argument at 32 pages, so a
   prompt over 131062 bytes raises before the process starts.
 - `--include-partial-messages`, `--agent-profile` and `--plugin-dir` are not fields.
-- Every turn is run with `GROK_FOLDER_TRUST=0`: Grok Build reads a project's skills, the ones a
-  flow mounts under `.agents/skills` included, only from a folder it trusts.
+- Every turn is run with `GROK_FOLDER_TRUST=0`: Grok Build reads a project's own skills only
+  from a folder it trusts.
+- Each process runs in a [virtual home](#virtual-homes) (`GROK_HOME`); a gateway account's
+  hidden `[model.*]` entry is written into its copy of `config.toml`, never into the user's.
 - A gateway account's session that `grok agent` opens or loads on a model other than its hidden
   `[model.*]` entry (`--model` is taken only for a model in the catalogue it fetched) is put on
   the entry with `session/set_model`.
@@ -1746,7 +1765,10 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
 | `skill_paths` | `()` | `--skill` per entry |
 
 `--session-id` rather than `--continue`, which resumes the newest session in the directory.
-pi 0.85.1 has no web tools of its own. Offered [fake tools](#callbacks-as-tools) add the
+Each process runs in a [virtual home](#virtual-homes) (`PI_CODING_AGENT_DIR`): a gateway
+account's provider (`humanize-<hash>`) is declared in its copy of `models.json`, never in the
+user's, and a `models.json` that is not plain JSON (pi takes comments) fails the turn with
+`ValueError`. pi 0.85.1 has no web tools of its own. Offered [fake tools](#callbacks-as-tools) add the
 `--extension`, which reads the bridge's argv from `HMZ_PI_TOOLS` and registers each tool under
 its own name.
 
@@ -1760,17 +1782,25 @@ one.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `headless_defaults` | `True` | writes Qwen's system-defaults layer with `general.preventSystemSleep: false` and `general.enableAutoUpdate: false` |
+| `headless_defaults` | `True` | `general.preventSystemSleep: false` and `general.enableAutoUpdate: false`, where the user's `settings.json` says nothing of either |
 | `compile_cache` | `True` | `NODE_COMPILE_CACHE` at `$TMPDIR/humanize-<uid>/compiled/qwen` unless set; not for anchored turns |
 | `partial_messages` | `False` | `--include-partial-messages` |
 
-- The effort is a settings file named by `QWEN_CODE_SYSTEM_SETTINGS_PATH`, one per effort,
-  shared by concurrent sessions at that effort, under one `hmz-qwen-*` temporary directory.
-  A `QWEN_CODE_SYSTEM_DEFAULTS_PATH` of the user's is watched for changes; settings the driver
-  cannot parse keep a fresh process per turn.
-- An agent offering [fake tools](#callbacks-as-tools) or serving a `PRE_TOOL_USE` table gets
-  a settings file of its own instead; the tools go in as `mcpServers.humanize`, and a change in
-  which names are offered restarts the process.
+- Each process runs in a [virtual home](#virtual-homes) (`QWEN_HOME`). The effort
+  (`model.reasoningEffort`), a `PRE_TOOL_USE` table (`hooks`, after the user's own, with
+  `disableAllHooks: false`) and offered [fake tools](#callbacks-as-tools)
+  (`mcpServers.humanize`) are merged into its copy of the user's `settings.json`; the user's
+  own other servers and hooks stay. A `settings.json` that is not plain JSON (Qwen takes
+  comments) fails the turn with `Unrecoverable`. The system layers are the machine's: a
+  `QWEN_CODE_SYSTEM_SETTINGS_PATH` or `QWEN_CODE_SYSTEM_DEFAULTS_PATH` of the user's is
+  watched for changes and never set. Settings the driver cannot parse keep a fresh process
+  per turn.
+- Being the user level, what is merged is outranked by the workspace's own
+  `.qwen/settings.json` and the system layer: a project that sets `disableAllHooks` or
+  `model.reasoningEffort` there gets its own way. A fenced agent may write its virtual home,
+  that copy included; Qwen Code reads it as the process starts.
+- A change of effort, of the hook table or of which tool names are offered restarts the
+  process.
 - Usage counts each assistant message once; the terminal summary fills only missing fields.
 
 ## A CLI of your own {#a-cli-of-your-own}
@@ -1910,7 +1940,6 @@ Set by drivers on a turn:
 | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` | `claude` | `1` |
 | `NODE_OPTIONS`, `HMZ_PRELOAD_AT`, `HMZ_PRELOAD_IN` | `kimi`, `pi`, `qwen`, `mimo` | the runtime-report preload, only while a `PRE_TOOL_USE` hook is hung |
 | `NODE_COMPILE_CACHE` | `pi`, `qwen` | `$TMPDIR/humanize-<uid>/compiled/<cli>`, unless already set |
-| `QWEN_CODE_SYSTEM_SETTINGS_PATH` | `qwen` | the per-effort settings file |
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`, `mimo` | the permission table |
 | `MIMOCODE_DISABLE_CLAUDE_CODE` | `mimo` | `1` where the fence hides `~/.claude.json` |
 | `PKG_NATIVE_CACHE_PATH` | `dsh` | inside the fence's `tmp`, when fenced |

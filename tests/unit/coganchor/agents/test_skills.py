@@ -99,10 +99,9 @@ def test_carried_says_where_each_skill_goes(tmp_path: Path) -> None:
     assert carried("cursor-agent", loaded) == (
         (str(tmp_path / "one"), ".cursor/skills/one"),
     )
-    assert carried("grok", loaded) == ((str(tmp_path / "one"), ".agents/skills/one"),)
     # Lodged in a virtual home's user-level skills instead: nothing goes in the workspace.
-    assert carried("claude", loaded) == ()
-    assert carried("codex", loaded) == ()
+    for backend in ("claude", "codex", "grok", "qwen", "pi", "omp"):
+        assert carried(backend, loaded) == ()
     assert carried("no-such-cli", loaded) == ()
 
 

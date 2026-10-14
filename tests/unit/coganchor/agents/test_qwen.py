@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -14,26 +13,37 @@ from hmz.coganchor.agents import (
     QwenCodeAgent,
     QwenCodeAgentConfig,
     QwenCodeSession,
+    Unrecoverable,
     driver,
 )
+from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.providers import Provider
 
-from .doubles_u5 import configured, gatewayed, heard, line, option, spawning
+from .doubles_u5 import (
+    configured,
+    gatewayed,
+    heard,
+    housed,
+    line,
+    option,
+    spawning,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
+    from pathlib import Path
 
     from hmz.coganchor.agents.event import Event
 
-_SETTINGS = "QWEN_CODE_SYSTEM_SETTINGS_PATH"
+_SYSTEM = "QWEN_CODE_SYSTEM_SETTINGS_PATH"
 
 
 @pytest.fixture(autouse=True)
 def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A home of the test's own, so that no configuration of whoever runs it is read."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    for one in (_SETTINGS, "QWEN_CODE_SYSTEM_DEFAULTS_PATH", "QWEN_HOME"):
+    for one in (_SYSTEM, "QWEN_CODE_SYSTEM_DEFAULTS_PATH", "QWEN_HOME"):
         monkeypatch.delenv(one, raising=False)
 
 
@@ -261,10 +271,20 @@ def test_what_the_agent_may_do_goes_on_the_command_line(
     assert option(argv, "--exclude-tools") == excluded
 
 
-def test_the_effort_is_written_into_a_settings_file_of_its_own(
+def test_the_effort_is_merged_into_a_copy_of_the_user_s_settings(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    theirs = tmp_path / "home/.qwen/settings.json"
+    theirs.parent.mkdir(parents=True)
+    said = {
+        "$version": 4,
+        "model": {"name": "theirs"},
+        "general": {"preventSystemSleep": True},
+        "mcpServers": {"mine": {"command": "mine"}},
+    }
+    theirs.write_text(json.dumps(said))
     spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    homes = housed(monkeypatch, "QWEN_HOME")
     agent = _agent(effort="high")
     heard(agent)
 
@@ -272,28 +292,77 @@ def test_the_effort_is_written_into_a_settings_file_of_its_own(
 
     env = spawned[0].env
     assert env is not None
-    settings = Path(env[_SETTINGS])
-    assert json.loads(settings.read_text())["model"] == {"reasoningEffort": "high"}
-    defaults = json.loads((settings.parent / "system-defaults.json").read_text())
-    assert defaults["general"] == {
-        "preventSystemSleep": False,
+    assert _SYSTEM not in env
+    (home,) = homes
+    settings = json.loads(home["settings.json"])
+    assert settings["model"] == {"name": "theirs", "reasoningEffort": "high"}
+    # What an unwatched turn defaults to, where the user said nothing of it.
+    assert settings["general"] == {
+        "preventSystemSleep": True,
         "enableAutoUpdate": False,
     }
+    assert settings["mcpServers"] == {"mine": {"command": "mine"}}
+    assert json.loads(theirs.read_text()) == said
 
 
-def test_without_headless_defaults_no_defaults_layer_is_pointed_at(
+def test_without_headless_defaults_none_is_said(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    homes = housed(monkeypatch, "QWEN_HOME")
     agent = _agent(effort="low", headless_defaults=False, compile_cache=False)
     heard(agent)
 
     _turn(agent.new(tmp_path))
 
     env = spawned[0].env
+    (home,) = homes
+    assert json.loads(home["settings.json"]) == {
+        "$version": 4,
+        "model": {"reasoningEffort": "low"},
+    }
     assert env is not None
-    assert not (Path(env[_SETTINGS]).parent / "system-defaults.json").exists()
     assert "NODE_COMPILE_CACHE" not in env
+    assert not (tmp_path / "home/.qwen/settings.json").exists()
+
+
+def test_the_flow_s_skills_are_lodged_in_the_virtual_home_not_the_workspace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    skill = tmp_path / "flow/greet"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: greet\n---\n")
+    spawning(monkeypatch, answers=_answering(*_TURN))
+    homes = housed(monkeypatch, "QWEN_HOME")
+    agent = _agent()
+    agent.loads([Loaded("greet", skill)])
+    heard(agent)
+    work = tmp_path / "work"
+    work.mkdir()
+
+    _turn(agent.new(work))
+
+    (home,) = homes
+    assert "skills/greet/SKILL.md" in home
+    assert not (work / ".agents").exists()
+    assert not (tmp_path / "home/.qwen/skills").exists()
+
+
+def test_an_unreadable_user_settings_file_refuses_the_turn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    theirs = tmp_path / "home/.qwen/settings.json"
+    theirs.parent.mkdir(parents=True)
+    theirs.write_text('{"a": 1 // theirs\n}')
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent()
+    heard(agent)
+
+    with pytest.raises(Unrecoverable, match="comments"):
+        _turn(agent.new(tmp_path))
+
+    assert not spawned
+    assert theirs.read_text() == '{"a": 1 // theirs\n}'
 
 
 def test_a_new_effort_restarts_the_process_and_resumes_the_conversation(
@@ -388,20 +457,10 @@ def test_a_shaped_turn_is_a_command_of_its_own_holding_the_schema(
     assert "".join(process.told).startswith("is it done?")
 
 
-def test_an_open_fence_is_left_as_it_is() -> None:
-    fence = Fence(write=("/",))
-    assert _agent().natively(fence) is fence
-
-
-def test_a_closed_fence_lets_the_settings_qwen_is_pointed_at_be_read(
-    tmp_path: Path,
-) -> None:
+def test_a_closed_fence_is_left_as_it_is(tmp_path: Path) -> None:
     fence = Fence(write=(str(tmp_path),), online=False)
 
-    granted = _agent().natively(fence)
-
-    assert len(granted.read) == len(fence.read) + 1
-    assert granted.write == fence.write
+    assert _agent().natively(fence) is fence
 
 
 def test_a_turn_through_a_gateway_is_pointed_at_it_as_an_openai_endpoint(

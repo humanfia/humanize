@@ -223,13 +223,34 @@ def test_a_virtual_home_naming_outside_itself_is_refused(
         Virtual.loads("{}")
 
 
+def test_qwen_grok_pi_and_omp_are_started_in_one_with_their_skills_lodged(
+    tmp_path: Path,
+) -> None:
+    skills = [("review", str(tmp_path))]
+    rewritten = {
+        "qwen": ("settings.json",),
+        "grok": ("config.toml",),
+        "pi": ("models.json", "settings.json"),
+        "omp": (),
+    }
+    for cli, rewrites in rewritten.items():
+        profile = named(cli)
+        assert profile is not None
+        assert not profile.mounts
+        made = virtual(profile, skills)
+        assert made is not None
+        assert made.rewrites == rewrites
+        assert made.lodges == "skills"
+        assert made.skills == (("review", str(tmp_path)),)
+
+
 def test_claude_and_codex_are_started_in_one_and_others_are_not(
     tmp_path: Path,
 ) -> None:
-    claude, codex, grok = named("claude"), named("codex"), named("grok")
+    claude, codex, litellm = named("claude"), named("codex"), named("litellm")
     assert claude is not None
     assert codex is not None
-    assert grok is not None
+    assert litellm is not None
     skills = [("review", str(tmp_path))]
 
     made = virtual(claude, skills)
@@ -244,7 +265,7 @@ def test_claude_and_codex_are_started_in_one_and_others_are_not(
     assert held.rewrites == ("config.toml",)
     assert "state_*.sqlite*" in held.private
     assert held.made == ()
-    assert virtual(grok, skills) is None
+    assert virtual(litellm, skills) is None
 
 
 def test_a_home_that_cannot_be_built_leaves_nothing(tmp_path: Path) -> None:

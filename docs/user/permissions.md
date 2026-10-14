@@ -248,8 +248,8 @@ says yes. The organisation's own `deny` rules still apply.
 
 A [container](/user/containers) or an [ssh host](/user/remote-execution) is held to the same
 grant as this machine. Every command the agent runs lands on the other machine and is fenced
-there, around that machine's own workdir and `$HOME`. Claude Code and Codex are started in a
-home of their own where they run: here, or on that machine where its own CLI is driven, so
+there, around that machine's own workdir and `$HOME`. Claude Code, Codex, Grok Build, Qwen
+Code and pi are started in a home of their own where they run: here, or on that machine where its own CLI is driven, so
 neither writes the settings of the machine it runs on
 ([Security](/user/security#what-a-flow-lets-its-agents-touch)). With `online` of `NONE`, those commands
 reach no host at all. The agent's temporary directory is kept on the other machine at the path

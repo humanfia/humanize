@@ -2146,9 +2146,12 @@ PROFILES = (
             ".claude/skills/*/SKILL.md",
             ".cursor/skills/*/SKILL.md",
         ),
-        # The shared one of the four, being the directory more than one of these CLIs has
-        # agreed to read: a skill mounted there is a skill Codex and Kimi read too.
-        mounts=".agents/skills",
+        # What it is started with a copy of in a virtual home for each process
+        # (:mod:`hmz.coganchor.homes`): `config.toml`, into which the `[model.*]` entry an
+        # account behind a gateway is asked for by is written, and which goes with it.
+        rewrites=("config.toml",),
+        # And a flow's own skills go beside the user's, in that same home.
+        lodges="skills",
         #
         # Two files: the accounts it has signed into, keyed by the way each was signed in, and
         # the tokens its MCP servers handed back, which are somebody else's and kept apart.
@@ -2550,13 +2553,18 @@ PROFILES = (
         # which a headless run has nobody to press: `--approve` overrides it for one run, and
         # pi shows no trust prompt at all under `-p`, `--mode json` or `--mode rpc`. So a
         # flow's skills are not mounted for pi: they would be copied into a directory the
-        # session is not permitted to read, which is a mount that quietly does nothing. What
-        # is not gated is `--skill <path>`, which loads a file or a directory outright and is
-        # additive even under `--no-skills` -- so that is the road, and it is taken as
-        # `PiAgentConfig(skill_paths=...)` where a flow asks for it rather than here, a mount
-        # being a directory this table names and that one a flag its driver builds.
+        # session is not permitted to read, which is a mount that quietly does nothing. They
+        # go where its own home's are instead, which is not gated (`lodges` below); a skill a
+        # flow names by path is `--skill`, as `PiAgentConfig(skill_paths=...)`.
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
+        # What it is started with a copy of in a virtual home for each process
+        # (:mod:`hmz.coganchor.homes`): `models.json`, into which the provider an account on a
+        # gateway is declared as is written, and `settings.json`, where pi saves the thinking
+        # level and the model a turn moves to as the defaults for the next. Both go with it.
+        rewrites=("models.json", "settings.json"),
+        # And a flow's own skills go beside the user's, in that same home.
+        lodges="skills",
         #
         # One file holding every provider it has been signed into, and the lock its own
         # processes serialize a refresh under. Worth knowing what these cost: pi checks
@@ -2865,11 +2873,12 @@ PROFILES = (
         beyond=("off",),
         # Its own under its home and the shared one under yours, and both of a project's own,
         # which -- unlike pi's -- are read in RPC mode with no trust to be granted first. A
-        # flow's skills go in the shared spelling of the two.
+        # flow's skills go beside the ones of its own home, in a virtual home for each process
+        # (:mod:`hmz.coganchor.homes`) that links to everything else of the user's.
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         works=(".omp/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
-        mounts=".agents/skills",
+        lodges="skills",
         # No `creds`, and so no `login` way below: omp keeps its sign-ins in `agent.db`, the
         # SQLite database it keeps its settings and its usage in too, which no copy answering
         # reads could stand in for. An agent given no provider runs as whatever this machine's
@@ -3085,10 +3094,10 @@ PROFILES = (
         searches=True,
         # `--fork-session`, which it takes alongside `--resume` and nowhere else.
         forks=True,
-        # The same variable its effort is already said through: the system settings layer,
-        # read for one process and outranking what the person who started the flow has
-        # configured. Its `hooks` block is the one Claude Code wrote, spelled the same way.
-        hooks=Hooked(seam="env", name="QWEN_CODE_SYSTEM_SETTINGS_PATH"),
+        # The same file its effort is already said in: the `settings.json` of the virtual
+        # home each process is started in, a copy of the user's with the run's own merged in.
+        # Its `hooks` block is the one Claude Code wrote, spelled the same way.
+        hooks=Hooked(seam="config", name="hooks"),
         aliases=("qwen", "qwen-code"),
         home_var="QWEN_HOME",
         home_dir=".qwen",
@@ -3107,8 +3116,12 @@ PROFILES = (
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         works=(".qwen/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
-        # The shared one of its two, so a flow's skills reach it there.
-        mounts=".agents/skills",
+        # What it rewrites as it starts: `settings.json`, which it migrates to the schema it
+        # is at -- and into which the run's own effort, hook table and the flow's callbacks are
+        # merged. A copy in a virtual home for each process (:mod:`hmz.coganchor.homes`).
+        rewrites=("settings.json",),
+        # And a flow's own skills go beside the user's, in that same home.
+        lodges="skills",
         #
         # No `creds`: what its own sign-in left behind, `oauth_creds.json` and the lock it was
         # rotated under, is a token 0.24.7 will not run on whatever it holds. Everything an

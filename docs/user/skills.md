@@ -125,8 +125,8 @@ skills only in a project you have trusted in pi, and humanize does not trust one
 
 ## The flow's skills
 
-A flow brings skills for some of its roles. Claude Code and Codex are started, a process at a
-time, in a home of their own -- copies of the settings they rewrite as they run, links to the
+A flow brings skills for some of its roles. Claude Code, Codex, Grok Build, Qwen Code, pi and
+Oh My Pi are started, a process at a time, in a home of their own -- copies of the settings they rewrite as they run, links to the
 rest of yours -- whose user-level `skills/` holds links to yours with the flow's beside them. That
 home goes when the process stops; nothing of yours, and nothing of the project's, is written.
 The other CLIs get each skill copied into your workspace, where they read a project's own, for
@@ -136,9 +136,12 @@ as long as a session of that role is open:
 | --- | --- |
 | `claude` | its own home's `skills/` (`$CLAUDE_CONFIG_DIR/skills/`) |
 | `codex` | its own home's `skills/` (`$CODEX_HOME/skills/`) |
+| `grok` | its own home's `skills/` (`$GROK_HOME/skills/`) |
+| `qwen` | its own home's `skills/` (`$QWEN_HOME/skills/`) |
+| `pi`, `omp` | its own home's `skills/` (`$PI_CODING_AGENT_DIR/skills/`) |
 | `cursor-agent` | `.cursor/skills/` in the workspace |
-| `agy`, `grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `qwen` | `.agents/skills/` in the workspace |
-| `dsh`, `pi` | <Badge type="danger" text="none" /> they carry only what you installed |
+| `agy`, `kimi`, `mcode`, `mimo`, `opencode` | `.agents/skills/` in the workspace |
+| `dsh` | <Badge type="danger" text="none" /> it carries only what you installed |
 
 A copy in the workspace goes when the last session using it ends, along with any directory that
 was made to hold it. An agent whose turns run on [another machine](/user/remote-execution) gets
@@ -161,8 +164,8 @@ the list. The copy lands in `.hmz/flows/`, skills and all, and is yours to edit:
 
 Nothing of yours is overwritten. For a CLI that gets the flow's skills in the workspace, a
 project skill of the same name is what the agent loads, and the flow's copy is not made: put
-your own `review-notes/SKILL.md` in `.agents/skills/` and `rlar`'s Grok reviewer reads yours.
-For Claude Code and Codex, the flow's skill takes the place of a skill of yours of the same name
+your own `review-notes/SKILL.md` in `.agents/skills/` and `rlar`'s Kimi reviewer reads yours.
+For a CLI started in a home of its own, the flow's skill takes the place of a skill of yours of the same name
 in their own home, and yours stays where it is; to use yours, copy the flow and edit its skill.
 
 ## Pitfalls
@@ -172,7 +175,7 @@ in their own home, and yours stays where it is; to use yours, copy the flow and 
   the instructions it was written for. Rename yours, or remove it for the run.
 - **An agent ignores your skill.** Check it is in a directory that CLI reads (the table above),
   as `<name>/SKILL.md`, and that the CLI's home variable points where you think.
-- **`dsh` or `pi` in a role that brings skills.** Neither gets the flow's copy. The role runs
+- **`dsh` in a role that brings skills.** It does not get the flow's copy. The role runs
   without it; give it another CLI if the skill matters.
 - **A skill from a git repository cannot be fetched.** The run is refused before it starts,
   naming the skill. Check the network, or the repository's address in the flow.

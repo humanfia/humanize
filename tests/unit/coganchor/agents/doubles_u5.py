@@ -13,6 +13,7 @@ import json
 import queue
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
@@ -198,6 +199,39 @@ def spawning(
 
     monkeypatch.setattr(subprocess, "Popen", popen)
     return spawned
+
+
+def housed(monkeypatch: pytest.MonkeyPatch, variable: str) -> list[dict[str, str]]:
+    """What each process found in the virtual home it was started in, as it was started.
+
+    Call after :func:`spawning`. The home goes with its process, which a stand-in may have
+    ended by the time a turn is over, so it is read as the process is spawned.
+
+    Args:
+      monkeypatch: The test's own.
+      variable: The variable naming the home.
+
+    Returns:
+      For each process spawned in one, every file under it -- through its links -- by its
+      path relative to the home, with what is in it.
+    """
+    seen: list[dict[str, str]] = []
+    popen = subprocess.Popen
+
+    def spying(argv: list[str], **kwargs: Any) -> Any:
+        env: dict[str, str] = kwargs.get("env") or {}
+        home = env.get(variable)
+        if home:
+            found: dict[str, str] = {}
+            for at, _, files in Path(home).walk(follow_symlinks=True):
+                for name in files:
+                    path = at / name
+                    found[str(path.relative_to(home))] = path.read_text()
+            seen.append(found)
+        return popen(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", spying)
+    return seen
 
 
 def configured(model: str, said: dict[str, Any]) -> dict[str, Any]:
