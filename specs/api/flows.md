@@ -405,7 +405,7 @@ a turn MUST be written as the kept conversation it carries on, without copying a
 
 ### 5.4 Resumption
 
-**5.4.1** Only an epic whose top call is of a resumable flow MUST be resumable. How a user asks
+**5.4.1** An epic MUST be resumable exactly where its top call is of a resumable flow. How a user asks
 for a resume, and which epic is picked up, is specified in `api/cli.md` and
 `features/epics.md`.
 
@@ -483,12 +483,13 @@ class Agent(Protocol):
         self, prompt: str, *, session: Session, env: Env | None = None,
         output_schema: type[T], budget: Budget | None = None,
     ) -> T: ...
-    def on_session_start(self, fn: HookFn[SessionStartHookParams, SessionStartHookResult] | None) -> None: ...
-    def on_user_prompt_submit(self, fn: HookFn[UserPromptSubmitHookParams, UserPromptSubmitHookResult] | None) -> None: ...
-    def on_pre_tool_use(self, fn: HookFn[PreToolUseHookParams, PreToolUseHookResult] | None) -> None: ...
-    def on_notification(self, fn: HookFn[NotificationHookParams, NotificationHookResult] | None) -> None: ...
-    def on_stop(self, fn: HookFn[StopHookParams, StopHookResult] | None) -> None: ...
-    def on_session_end(self, fn: HookFn[SessionEndHookParams, SessionEndHookResult] | None) -> None: ...
+    # Each takes HookFn[<Moment>HookParams, <Moment>HookResult] | None for its moment (§9).
+    def on_session_start(self, fn: HookFn[...] | None) -> None: ...
+    def on_user_prompt_submit(self, fn: HookFn[...] | None) -> None: ...
+    def on_pre_tool_use(self, fn: HookFn[...] | None) -> None: ...
+    def on_notification(self, fn: HookFn[...] | None) -> None: ...
+    def on_stop(self, fn: HookFn[...] | None) -> None: ...
+    def on_session_end(self, fn: HookFn[...] | None) -> None: ...
 ```
 
 **6.2.1** The class attributes `_permission`, `_skills`, `_tools` and `_clis` are part of the
@@ -1053,13 +1054,14 @@ NOT refuse it.
 and the agent MUST be told `reason`.
 
 **9.2.7** An `ASK_USER` result's `answer` MUST be told to the agent as the answer to its question.
-`answer` need not be one of `options`. `answer=None` MUST leave the question unanswered and let
+hmz MUST accept an `answer` that is not one of `options`. `answer=None` MUST leave the question unanswered and let
 the agent continue without an answer.
 
 **9.2.8** An `OUTWORLDER_RUN` result's `output` MUST be what the outworlder's `run` returns.
 
-**9.2.9** A `SUBAGENT_START` result's `context` and a `SUBAGENT_STOP` result MUST be fired for
-observation; whether a harness acts on them is not guaranteed.
+**9.2.9** hmz MUST fire `SUBAGENT_START` and `SUBAGENT_STOP` on every harness that serves their
+mixins. The `context` of a `SUBAGENT_START` result and every field of a `SUBAGENT_STOP` result
+MUST be delivered to no harness.
 
 ### 9.3 Hanging hooks
 
@@ -1539,7 +1541,7 @@ MUST raise `FlowRefError`.
 **13.2.6** In a `vcs-ref` without `#`, a final `:NAME` MUST be read as a flow name where the text
 before it holds a path after `://`, and as a port otherwise.
 
-**13.2.7** No part of `subdir` MUST start with `.`.
+**13.2.7** A `subdir` with a part starting with `.` MUST raise `FlowRefError`.
 
 ### 13.3 Ref resolution
 
