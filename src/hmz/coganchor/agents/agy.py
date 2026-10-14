@@ -14,11 +14,12 @@ import math
 import os
 import re
 import tempfile
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor import backends
+from hmz.coganchor.homes import merged, merger
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
-    from hmz.coganchor.homes import Home
+    from hmz.coganchor.homes import Virtual
 
     from .skills import Loaded
     from .tools import Toolbox
@@ -185,7 +186,8 @@ def _defined(config: AgentConfig) -> str | None:
     return _OFFLINE if offline else None
 
 
-def _agents(home: Path) -> None:
+@merger
+def _agents(home: Path, said: None = None) -> None:
     """Puts humanize's agents where agy finds them: in the virtual home a process starts in.
 
     Under agy's own home, beside the skills a flow lodges there, rather than in a directory
@@ -199,9 +201,11 @@ def _agents(home: Path) -> None:
     the user's own directory is never written, and goes on holding only what they put there.
 
     Args:
-      home: The virtual home (:meth:`AntigravityCLIAgent.homed`), built moments ago and not
-        yet started in.
+      home: The virtual home (:meth:`AntigravityCLIAgent.virtual`), built moments ago and not
+        yet started in -- wherever the CLI runs.
+      said: Nothing: what goes there is :data:`_DEFINED`.
     """
+    del said
     into = home / "agents"
     theirs = into.resolve() if into.is_symlink() else None
     if theirs is not None:
@@ -998,12 +1002,17 @@ class AntigravityCLIAgent(AgentBase):
                 "what holds it there is an agent of humanize's that is a file on this one"
             )
 
-    def homed(self, skills: Iterable[Loaded] | None = None) -> Home | None:
+    def virtual(
+        self,
+        skills: Iterable[Loaded] | None = None,
+        merges: Iterable[tuple[str, str]] = (),
+    ) -> Virtual | None:
         """The virtual home a process of agy starts in, with humanize's agents in it.
 
-        As every CLI's (:meth:`AgentBase.homed`), named to agy by `--app_data_dir` rather than
-        by a variable, and with the agents a turn may be started as (:func:`_agents`) in its
-        `agents/`: written there rather than into the user's own home.
+        As every CLI's (:meth:`AgentBase.virtual`), named to agy by `--app_data_dir` rather
+        than by a variable, and with the agents a turn may be started as (:func:`_agents`)
+        merged into its `agents/`: written there rather than into the user's own home, and --
+        that `agents/` being the home's own rather than a link -- never written back there.
 
         None for an account that names a home of its own with that flag, which is the home the
         process starts in, as it always was: one flag is all agy takes. Its turns run without
@@ -1012,14 +1021,14 @@ class AntigravityCLIAgent(AgentBase):
 
         Args:
           skills: The flow's skills the process is to carry, or None for every one.
+          merges: What its session merges into it besides.
 
         Returns:
-          The home, or None for an agy started somewhere it is not built.
+          It, or None for an agy started somewhere it is not built.
 
         Raises:
           Unserved: If the account names a home of its own and the turn would be started as
             an agent of humanize's.
-          OSError: If it could not be built.
         """
         if any(one.partition("=")[0] == "--app_data_dir" for one in self.node().args):
             if _defined(_settled(self.config)) is not None:
@@ -1029,19 +1038,7 @@ class AntigravityCLIAgent(AgentBase):
                     "humanize's, which is in a home of humanize's"
                 )
             return None
-        home = super().homed(skills)
-        if home is None:
-            return None
-        try:
-            _agents(home.at)
-        except BaseException:
-            home.drop()
-            raise
-        # Its `agents/` is now the home's own rather than a link the CLI replaced: what is in
-        # it is humanize's, and is not written back into the user's home.
-        return replace(
-            home, linked=tuple(one for one in home.linked if one != "agents")
-        )
+        return super().virtual(skills, (*merges, merged(_agents)))
 
     def natively(self, fence: Fence) -> Fence:
         """None of the fence, which is put around agy from outside in full.

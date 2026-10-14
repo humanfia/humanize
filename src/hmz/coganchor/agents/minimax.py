@@ -554,7 +554,11 @@ class MiniMaxCodeAgent(AgentBase):
             )
         return f"{_CUSTOM}{named}/{model}"
 
-    def homed(self, skills: Iterable[Loaded] | None = None) -> Home | None:
+    def homed(
+        self,
+        skills: Iterable[Loaded] | None = None,
+        merges: Iterable[tuple[str, str]] = (),
+    ) -> Home | None:
         """The virtual home a turn starts in, with every gateway provider added to its copy.
 
         As every CLI's (:meth:`AgentBase.homed`), and then each provider :meth:`through` has
@@ -563,6 +567,7 @@ class MiniMaxCodeAgent(AgentBase):
 
         Args:
           skills: The flow's skills the turn is to carry, or None for every one.
+          merges: What its session merges into it besides.
 
         Returns:
           The home, or None for a turn started somewhere it is not built.
@@ -571,7 +576,7 @@ class MiniMaxCodeAgent(AgentBase):
           subprocess.CalledProcessError: If MiniMax Code would not add one.
           OSError: If it could not be built.
         """
-        home = super().homed(skills)
+        home = super().homed(skills, merges)
         if home is None:
             return None
         # Only the gateway's up now: one gone from its port is a provider nothing answers.

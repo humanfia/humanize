@@ -254,7 +254,7 @@ srun --jobid=JOBID --overlap --nodes=1 --ntasks=1 --unbuffered --quiet --export=
 | `native` | `bool` | `False` | `--native` | | Run the CLI installed on the target. See [Native](#native-the-target-s-own-cli). |
 | `hushes` | `tuple[str, ...]` | `()` | `--hush NAME` (repeatable) | | Native: variables removed from the CLI's environment on the target. |
 | `projects` | `tuple[tuple[str, str], ...]` | `()` | `--project NAME=DIR` (repeatable) | | Native: credential directories written to the target for the turn; `NAME` is set to where each landed. |
-| `home` | `Virtual \| None` | `None` | `--home JSON` | | Native: the CLI's [virtual home](/reference/agents#virtual-homes), built on the target for the turn. Refused (`ValueError`) without `native`. |
+| `home` | `Virtual \| None` | `None` | `--home JSON` | | The CLI's [virtual home](/reference/agents#virtual-homes). Native: built on the target for the turn, with nothing merged. Supervised: built on the harness machine around the CLI the supervisor starts, its merges applied, and removed when the CLI exits; set for a [harness elsewhere](#where-the-harness-runs). |
 | `installs` | `str` | `""` | `--installs LINE` | `""` | Native: the install line quoted when the CLI is missing on the target. |
 | `fence` | `Fence \| None` | `None` | `--fence JSON` | `None` | What the agent may reach, held on both machines. `--fence` takes `Fence.dumps()` output. |
 
@@ -349,6 +349,19 @@ A turn with the harness elsewhere is spawned as `hmz internal anchor` on the har
 (bootstrapped as a [target](#bootstrapping-the-serving-half) is), with `harness` rewritten to
 `local` and `target` rewritten to `local:<remote_path>` (same machine) or `peer://<ticket>@<broker>`
 (third machine). This machine runs only the process carrying the three streams.
+
+The CLI there runs in a [virtual home](/reference/agents#virtual-homes) as it would here,
+built on the harness machine from that machine's user's own configuration (`AnchorConfig.home`,
+`--home JSON`) by the `hmz internal anchor` supervising it, with each driver's merges applied
+(Qwen Code's effort, hook table and MCP server; a gateway's entry in Grok Build's `config.toml`
+and pi's `models.json`; agy's agents), named to the CLI by its home variable or, for agy,
+`--app_data_dir` right after the program's name, and removed when the CLI exits. The home is
+kept on the harness machine as the CLI's state paths are: no path in it and no program run from
+it goes to the target. The flow's skills it carries are put there first: one tar, unpacked
+under `<cache>/skills/<16 hex digits of its sha256>` (the [target's cache](#bootstrapping-the-serving-half)),
+renamed into place whole, reused while a turn carries the same skills, and swept once no turn
+has carried them for 30 days. A failure to put them there fails the turn with
+`ConnectionError: could not carry the flow's skills to <harness>: <stderr>`.
 
 Where `shadow` is unset, the mirror on the harness machine is
 `<mirrors>/<name>`, where `<mirrors>` is `$HOME/.cache/humanize-mirrors` over ssh,
@@ -596,6 +609,7 @@ A path is answered from the target unless it is one of these:
 | `local_paths`, `local_execs`, and what every `redirects` entry is answered with | `AnchorConfig` |
 | The program that bridges the flow's tool callbacks, when offered (not for `omp`, which needs no bridge) | added to `local_execs` |
 | The agent's shelf of the flow's command lines, once any is shelved, and the Python they run | added to `local_execs`; the shelf to `local_paths` too |
+| The virtual home the anchor builds around the CLI (`home`), as files and as programs | `AnchorConfig.home` |
 
 | CLI | State paths kept here |
 | --- | --- |
@@ -730,7 +744,7 @@ machine, humanize books a meeting:
   its own (default `0.0.0.0:0`) and prints `hmz internal anchor rendezvous listening HOST PORT`
   on stderr.
 
-<small>Defined in [`src/hmz/coganchor/elsewhere.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/elsewhere.py), [`src/hmz/coganchor/rendezvous.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/rendezvous.py).</small>
+<small>Defined in [`src/hmz/coganchor/elsewhere.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/elsewhere.py) (`afar`, `_carried`), [`src/hmz/coganchor/rendezvous.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/rendezvous.py).</small>
 
 ## A fence on both machines {#a-fence-on-both-machines}
 

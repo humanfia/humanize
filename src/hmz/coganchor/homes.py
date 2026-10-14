@@ -26,15 +26,23 @@ built on the machine the CLI runs on as it starts and taken away when it stops:
 Nothing above the user level is touched: the system's own settings are wherever the CLI reads
 them, and the project's are the workspace's, read as the CLI always reads them.
 
-Two builders, one for each place a CLI can be: :func:`build`, here, for a CLI this machine
-starts, and :data:`SCRIPT`, a POSIX shell script that does the same on a target whose own CLI a
-native anchor drives (:func:`hmz.coganchor.anchor.drive`), where nothing of humanize runs.
+What humanize itself manages for a CLI that takes it at its user level alone -- Qwen Code's
+effort, a gateway's entry in Grok Build's `config.toml` -- is merged into those copies as the
+home is built (:attr:`Virtual.merges`), each by a function its driver names (:func:`merger`):
+said as data, so that a home built on another machine has them merged there too.
+
+Two builders, one for each place a CLI can be: :func:`build`, wherever humanize runs it -- here
+for a CLI this machine starts, and on a harness's own machine for one supervised there
+(:mod:`hmz.coganchor.elsewhere`) -- and :data:`SCRIPT`, a POSIX shell script that does the same
+on a target whose own CLI a native anchor drives (:func:`hmz.coganchor.anchor.drive`), where
+nothing of humanize runs and nothing is merged.
 """
 
 from __future__ import annotations
 
 import contextlib
 import fnmatch
+import importlib
 import json
 import logging
 import os
@@ -43,7 +51,7 @@ import stat
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from hmz.coganchor.atomic import writes
 
@@ -52,7 +60,17 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.backends import Profile
 
-__all__ = ["BACK", "SCRIPT", "Home", "Virtual", "build", "virtual", "words"]
+__all__ = [
+    "BACK",
+    "SCRIPT",
+    "Home",
+    "Virtual",
+    "build",
+    "merged",
+    "merger",
+    "virtual",
+    "words",
+]
 
 log = logging.getLogger(__name__)
 
@@ -86,6 +104,8 @@ class Virtual:
       skills: The flow's own skills, as `(name, the directory holding its SKILL.md)`.
       flag: The flag that moves the CLI's home where no variable does, which takes it relative
         to the directory `default` is in; "" for a CLI a variable moves.
+      merges: What a driver merges into the home once it is built, in order, as
+        `(the merger's name, its argument as JSON)` (:func:`merged`).
     """
 
     variable: str
@@ -99,6 +119,7 @@ class Virtual:
     kept: tuple[str, ...] = ()
     skills: tuple[tuple[str, str], ...] = ()
     flag: str = ""
+    merges: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         """Refuses a virtual home that would name something outside itself.
@@ -139,6 +160,7 @@ class Virtual:
                 "kept": list(self.kept),
                 "skills": [list(one) for one in self.skills],
                 "flag": self.flag,
+                "merges": [list(one) for one in self.merges],
             },
             separators=(",", ":"),
         )
@@ -164,6 +186,7 @@ class Virtual:
                 kept=tuple(held["kept"]),
                 skills=tuple((one, other) for one, other in held["skills"]),
                 flag=held.get("flag", ""),
+                merges=tuple((one, other) for one, other in held.get("merges", ())),
             )
         except (KeyError, TypeError) as wrong:
             raise ValueError(f"not a virtual home: {said!r}") from wrong
@@ -229,6 +252,62 @@ def virtual(
 def _globbed(name: str) -> bool:
     """Whether a name is a pattern rather than a name."""
     return any(one in name for one in "*?[")
+
+
+#: Every way of merging what a driver manages into a virtual home, by its name (:func:`merger`).
+_MERGERS: dict[str, Callable[[Path, Any], None]] = {}
+
+
+def merger(merging: Callable[[Path, Any], None]) -> Callable[[Path, Any], None]:
+    """Makes a function one way of merging what a driver manages into a virtual home.
+
+    Named by its module and its own name, which is how :func:`build` finds it on a machine
+    where nothing has imported it yet: a harness's own, where the home is built by the anchor
+    supervising the CLI there.
+
+    Args:
+      merging: It, which is called with the home just built and what :func:`merged` was given.
+
+    Returns:
+      It, as it was.
+    """
+    _MERGERS[f"{merging.__module__}:{merging.__qualname__}"] = merging
+    return merging
+
+
+def merged(merging: Callable[[Path, Any], None], said: Any = None) -> tuple[str, str]:
+    """One merge into a home, as :attr:`Virtual.merges` holds it.
+
+    Args:
+      merging: A function :func:`merger` made one.
+      said: What it is to be given, which crosses as JSON.
+
+    Returns:
+      `(its name, its argument as JSON)`.
+
+    Raises:
+      ValueError: If it is not one :func:`merger` made.
+    """
+    name = f"{merging.__module__}:{merging.__qualname__}"
+    if _MERGERS.get(name) is not merging:
+        raise ValueError(f"{name} is not a merger")
+    return name, json.dumps(said)
+
+
+def _merging(name: str) -> Callable[[Path, Any], None]:
+    """The merger of that name, its module imported first where none of it is here yet.
+
+    Raises:
+      ValueError: If humanize has no merger of that name.
+    """
+    module = name.partition(":")[0]
+    if name not in _MERGERS and module.startswith("hmz."):
+        with contextlib.suppress(ImportError):
+            importlib.import_module(module)
+    try:
+        return _MERGERS[name]
+    except KeyError:
+        raise ValueError(f"no merger {name!r}") from None
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,15 +447,21 @@ def build(
     Raises:
       OSError: If it could not be built, which is a turn that must not run: a CLI pointed at
         half a home is a CLI that has lost its settings.
+      ValueError: If one of its merges is none of humanize's. And whatever a merger raises,
+        for what it could not merge.
     """
     said = os.environ if environ is None else environ
     real = spec.real(said)
     at = Path(os.path.realpath(tempfile.mkdtemp(prefix="hmz-home-", dir=under)))
     try:
         linked = _built(spec, said, real, at, answered)
-    except OSError:
+        for name, argument in spec.merges:
+            _merging(name)(at, json.loads(argument))
+    except BaseException:
         shutil.rmtree(at, ignore_errors=True)
         raise
+    # What a merge made the home's own in place of a link is the driver's, never written back.
+    linked = tuple(one for one in linked if (at / one).is_symlink())
     sets = [(spec.variable, str(at))] if spec.variable else []
     argv: tuple[str, ...] = ()
     if spec.flag:

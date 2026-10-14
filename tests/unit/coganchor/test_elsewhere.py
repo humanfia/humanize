@@ -2,16 +2,28 @@
 
 from __future__ import annotations
 
+import io
 import shlex
 import subprocess
-from typing import Any
+import tarfile
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from hmz.coganchor import rendezvous, transport
 from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.elsewhere import HERE, SAME, afar, elsewhere, harnessed
-from hmz.coganchor.transport import CONTAINER_MIRRORS, REMOTE_MIRRORS, Target
+from hmz.coganchor.homes import Virtual
+from hmz.coganchor.transport import (
+    CONTAINER_MIRRORS,
+    REMOTE_CACHE,
+    REMOTE_MIRRORS,
+    Target,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
 
 
 def test_the_two_words_are_local_and_same() -> None:
@@ -168,3 +180,123 @@ def test_two_machines_meet_through_the_broker(
     started = broker[0]
     assert started[:4] == ["docker", "exec", "-i", "work"]
     assert started[-5:] == ["serve", "--peer", "t0@hub:7000", "--export", "/w"]
+
+
+class Carried:
+    """What the harness's machine was sent to run and fed, and what it answered with."""
+
+    def __init__(self, answer: subprocess.CompletedProcess[bytes]) -> None:
+        self.answer = answer
+        self.runs: list[tuple[list[str], bytes]] = []
+
+    def run(
+        self,
+        argv: Sequence[str],
+        feeding: bytes = b"",
+        timeout: float | None = None,
+    ) -> subprocess.CompletedProcess[bytes]:
+        self.runs.append((list(argv), feeding))
+        return self.answer
+
+
+def _carrying(
+    monkeypatch: pytest.MonkeyPatch, status: int = 0, landed: str = "/far/skills/ab"
+) -> Carried:
+    carried = Carried(
+        subprocess.CompletedProcess([], status, f"{landed}\n".encode(), b"no room")
+    )
+    monkeypatch.setattr(transport.Road, "run", carried.run)
+    return carried
+
+
+def _skilled(tmp_path: Path) -> Virtual:
+    review = tmp_path / "review"
+    (review / "scripts").mkdir(parents=True)
+    (review / "SKILL.md").write_text("the flow's review\n")
+    (review / "scripts" / "go.sh").write_text("echo go\n")
+    return Virtual(
+        variable="CLAUDE_CONFIG_DIR",
+        default=".claude",
+        lodges="skills",
+        skills=(("review", str(review)),),
+    )
+
+
+def _home(line: list[str]) -> Virtual:
+    (said,) = [one for one in options_of(line) if one.startswith("--home=")]
+    return Virtual.loads(said.removeprefix("--home="))
+
+
+def test_the_flows_skills_are_carried_to_the_harness_and_named_where_they_landed(
+    installed: None,
+    broker: list[list[str]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    carried = _carrying(monkeypatch)
+    home = _skilled(tmp_path)
+    config = AnchorConfig(harness="same", target="ssh://box", home=home)
+
+    line = afar(config, ["claude"])
+
+    assert _home(line).skills == (("review", "/far/skills/ab/review"),)
+    assert _home(line).variable == "CLAUDE_CONFIG_DIR"
+    ((argv, fed),) = carried.runs
+    assert argv[:2] == ["/bin/sh", "-c"]
+    assert f'd="{REMOTE_CACHE}/skills/' in argv[2]
+    with tarfile.open(fileobj=io.BytesIO(fed)) as packed:
+        assert sorted(packed.getnames()) == [
+            "review",
+            "review/SKILL.md",
+            "review/scripts",
+            "review/scripts/go.sh",
+        ]
+        held = packed.extractfile("review/SKILL.md")
+        assert held is not None
+        assert held.read() == b"the flow's review\n"
+
+
+def test_the_same_skills_are_carried_to_the_same_place(
+    installed: None,
+    broker: list[list[str]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    carried = _carrying(monkeypatch)
+    config = AnchorConfig(harness="same", target="ssh://box", home=_skilled(tmp_path))
+
+    afar(config, ["claude"])
+    afar(config, ["claude"])
+
+    first, again = (argv[2] for argv, _ in carried.runs)
+    assert first == again
+
+
+def test_a_home_with_no_skills_carries_nothing(
+    installed: None,
+    broker: list[list[str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    carried = _carrying(monkeypatch)
+    home = Virtual(variable="CODEX_HOME", default=".codex", rewrites=("config.toml",))
+
+    line = afar(AnchorConfig(harness="same", target="ssh://box", home=home), ["c"])
+
+    assert _home(line) == home
+    assert carried.runs == []
+
+
+@pytest.mark.parametrize(("status", "landed"), [(1, ""), (0, "")])
+def test_skills_that_cannot_be_carried_start_no_turn(
+    installed: None,
+    broker: list[list[str]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    status: int,
+    landed: str,
+) -> None:
+    _carrying(monkeypatch, status, landed)
+    config = AnchorConfig(harness="same", target="ssh://box", home=_skilled(tmp_path))
+
+    with pytest.raises(ConnectionError, match="could not carry the flow's skills"):
+        afar(config, ["claude"])

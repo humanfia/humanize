@@ -33,6 +33,11 @@ digest, an `ssh` to a host is opened once and ridden by every command after it, 
 the harness works in is kept between turns under a name derived from what it mirrors -- so the
 second turn against a workspace starts with its files already there, which is the largest
 single saving available to any of this.
+
+The CLI there runs in a virtual home as it would here (:mod:`hmz.coganchor.homes`): built on
+that machine, by the anchor supervising it, from that machine's user's own configuration
+(:attr:`~hmz.coganchor.anchor.AnchorConfig.home`). The flow's skills it carries are put there
+first, kept between turns under that machine's cache like the archive, by what they hold.
 """
 
 from __future__ import annotations
@@ -50,6 +55,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from hmz.coganchor.anchor import AnchorConfig
+    from hmz.coganchor.homes import Virtual
     from hmz.coganchor.rendezvous import Meeting
 
 __all__ = ["afar", "elsewhere", "harnessed"]
@@ -64,6 +70,20 @@ HERE = "local"
 #: A word rather than a second copy of the target, so that a flow which moves its work to
 #: another machine moves the harness with it and has one thing to change rather than two.
 SAME = "same"
+
+#: Puts the flow's skills, arriving on its input as a tar, at the directory `{at}` names on the
+#: harness's machine -- unless they are there already -- and prints where that is, as that
+#: machine spells it. Unpacked beside it and renamed into place, so that a turn finds them whole
+#: or not at all; and what no turn has carried there for a month is swept.
+_CARRYING = (
+    'd="{at}"; umask 077; '
+    'if [ -d "$d" ]; then cat >/dev/null; touch "$d"; else '
+    'mkdir -p "${{d%/*}}" && t=$(mktemp -d "$d.XXXXXX") && tar -xf - -C "$t" || exit 1; '
+    'mv "$t" "$d" 2>/dev/null; rm -rf "$t" "$d/${{t##*/}}"; fi; '
+    '[ -d "$d" ] || exit 1; '
+    'find "${{d%/*}}" -mindepth 1 -maxdepth 1 -mtime +30 -exec rm -rf {{}} + 2>/dev/null; '
+    'printf "%s\\n" "$d"'
+)
 
 
 def harnessed(where: str, target: str) -> Target:
@@ -101,8 +121,9 @@ def afar(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
     """The command this machine runs to have a supervised turn happen on another one.
 
     Everything that has to exist before the line can be run is made here: the archive is put
-    on the harness's machine, and -- where the work lands somewhere else again -- a meeting is
-    booked and the serving half is started on that third machine holding a ticket to it.
+    on the harness's machine, so are the flow's skills the CLI's virtual home carries, and --
+    where the work lands somewhere else again -- a meeting is booked and the serving half is
+    started on that third machine holding a ticket to it.
 
     Args:
       config: The settings, whose `harness` is somewhere other than here.
@@ -113,7 +134,7 @@ def afar(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
 
     Raises:
       ValueError: If the harness or the target cannot be read.
-      ConnectionError: If the archive cannot be put on the harness's machine.
+      ConnectionError: If the archive or the skills cannot be put on the harness's machine.
       OSError: If the serving half cannot be started where the work lands.
     """
     from hmz.coganchor.argv import options
@@ -154,8 +175,51 @@ def afar(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
         mirror = road.mirror(_named(config, work))
         setting.append(("HUMANIZE_SHADOW", mirror))
         inner = replace(inner, force=True)
+    if inner.home is not None and inner.home.skills:
+        inner = replace(inner, home=_carried(road, inner.home))
     return road.hmz(
         ["internal", "anchor", *options(inner), *argv], setting=tuple(setting)
+    )
+
+
+def _carried(road: Road, home: Virtual) -> Virtual:
+    """The virtual home, its flow's skills put on the harness's machine and named there.
+
+    One archive of them all, unpacked there under that machine's cache in a directory named
+    for what it holds (:data:`_CARRYING`): a turn carrying the skills the last one did finds
+    them there already. Links followed, since what a link points at here is not there.
+
+    Args:
+      road: The way to the harness's machine.
+      home: What the CLI's virtual home is made of, its skills named as this machine has them.
+
+    Returns:
+      It, its skills named as that machine has them.
+
+    Raises:
+      ConnectionError: If they cannot be put there.
+    """
+    import io
+    import tarfile
+
+    packed = io.BytesIO()
+    with tarfile.open(fileobj=packed, mode="w", dereference=True) as packing:
+        for name, whence in home.skills:
+            packing.add(whence, arcname=name)
+    carried = packed.getvalue()
+    at = f"{road.cache}/skills/{hashlib.sha256(carried).hexdigest()[:16]}"
+    # The cache is made, and checked to be that machine's user's own where it has to be, as
+    # the archive is put there.
+    road.installed()
+    done = road.run(["/bin/sh", "-c", _CARRYING.format(at=at)], carried)
+    landed = done.stdout.decode(errors="replace").strip()
+    if done.returncode != 0 or not landed.startswith("/"):
+        raise ConnectionError(
+            f"could not carry the flow's skills to {road.target.describe()}: "
+            f"{done.stderr.decode(errors='replace').strip()}"
+        )
+    return replace(
+        home, skills=tuple((name, f"{landed}/{name}") for name, _ in home.skills)
     )
 
 

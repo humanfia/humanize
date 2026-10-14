@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz import machine
+from hmz.coganchor.homes import merged, merger
 
 from .base import AgentBase, StreamSessionBase
 from .config import AgentConfig
@@ -34,7 +35,6 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
-    from hmz.coganchor.homes import Home
 
 #: What each kind of thing pi says a turn did reads as. A message is a list of parts and pi
 #: says each of them three times -- as it starts, once per fragment, and once with the whole
@@ -174,17 +174,17 @@ def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
     return f"{_DECLARED}{hashlib.sha256(spelled).hexdigest()[:12]}", declared
 
 
-def _declare(at: Path, named: str, declared: dict[str, Any]) -> None:
+@merger
+def _declare(home: Path, given: dict[str, Any]) -> None:
     """Adds one provider to a virtual home's copy of pi's `models.json`, and nothing else.
 
     Everything the file already holds is kept: it is where whoever uses pi here declares their
     own endpoints, and what is added is one more provider beside them. The copy is the
-    process's own (:meth:`PiSession._spawning`), so the user's file is never written.
+    process's own (:meth:`PiSession._merges`), so the user's file is never written.
 
     Args:
-      at: The copy, which is not there for a user with no file of their own.
-      named: What the provider is called.
-      declared: What it is.
+      home: The virtual home, whose copy is not there for a user with no file of their own.
+      given: `named`, what the provider is called, and `declared`, what it is.
 
     Raises:
       ValueError: If the file is there but is not JSON this can read -- pi takes comments in
@@ -192,6 +192,7 @@ def _declare(at: Path, named: str, declared: dict[str, Any]) -> None:
         Refused rather than run against half of somebody's own configuration.
       OSError: If it cannot be read, or written.
     """
+    at, named, declared = home / "models.json", given["named"], given["declared"]
     try:
         said: object = json.loads(at.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -460,7 +461,7 @@ class PiSession(StreamSessionBase):
             said["PI_GATEWAY_MODEL"] = config.model
         if (gateway := _gateway(said)) is not None:
             # An account on a gateway is one provider of pi's own, declared in the copy of
-            # its `models.json` in the virtual home the process starts in (:meth:`_spawning`),
+            # its `models.json` in the virtual home the process starts in (:meth:`_merges`),
             # and the turn is held to it: pi given
             # `--provider` takes the model as an id of that provider's -- the gateway's own
             # spelling, bare, or with the provider in front -- and one the file does not list
@@ -542,24 +543,18 @@ class PiSession(StreamSessionBase):
             added[_BRIDGE] = json.dumps(self._agent.toolbox.command())
         return preloaded(self._agent, added)
 
-    def _spawning(
-        self, argv: list[str]
-    ) -> tuple[list[str], dict[str, str] | None, Home | None]:
-        """One process, in a virtual home whose `models.json` declares the account's gateway.
+    def _merges(self) -> tuple[tuple[str, str], ...]:
+        """The provider :meth:`_command` held the turn to, for the home's `models.json`.
 
         The home is the user's own as :mod:`hmz.coganchor.homes` builds it -- copies of their
         `models.json` and `settings.json`, links to everything else, the flow's skills beside
-        theirs -- and the provider :meth:`_command` held the turn to is added to that copy,
-        which goes with the process: the user's own is never written.
+        theirs -- and the provider is added to that copy (:func:`_declare`), which goes with
+        the process: the user's own is never written. Nothing for a turn no gateway holds.
         """
-        spawned, environ, home = super()._spawning(argv)
-        if home is not None and self._declaring is not None:
-            try:
-                _declare(home.at / "models.json", *self._declaring)
-            except BaseException:
-                home.drop()
-                raise
-        return spawned, environ, home
+        if self._declaring is None:
+            return ()
+        named, declared = self._declaring
+        return (merged(_declare, {"named": named, "declared": declared}),)
 
     def _write(self, text: str, ticket: str = "") -> str:
         """Renders one thing to say as the `prompt` command pi reads it as.

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator, Mapping, Sequence
 
     from hmz.coganchor.fence import Fence
-    from hmz.coganchor.homes import Virtual
+    from hmz.coganchor.homes import Home, Virtual
     from hmz.coganchor.remote import RemoteClient
     from hmz.coganchor.supervisor import Launch
     from hmz.coganchor.transport import Target
@@ -214,12 +214,17 @@ class AnchorConfig:
         named to the CLI by setting that variable to where it landed. Never by argv: what is
         in a command line is in another user's `ps`. A file holding a refresh token is out to
         one turn at a time, and what the CLI refreshed it to is written back over it here.
-      home: The virtual home to start the target's own CLI in, or None for its own home: built
-        in the turn's private directory on the target (:data:`hmz.coganchor.homes.SCRIPT`),
+      home: The virtual home to start the CLI in, or None for its own home. Native, it is
+        built in the turn's private directory on the target (:data:`hmz.coganchor.homes.SCRIPT`),
         beside -- and never over -- anything `projects` put there for the same variable, with
         the flow's own skills written into its skills directory, and taken away with the rest
-        of that directory when the turn is over. What the CLI rewrites of its configuration
-        goes with it, and the target user's own is never written.
+        of that directory when the turn is over. Supervised, it is built on the machine the
+        harness runs on, around the CLI the supervisor starts there (:func:`connect`), with
+        what its driver manages merged in -- which is how a harness on another machine gets
+        one, its skills having been carried there (:func:`hmz.coganchor.elsewhere.afar`); a
+        CLI supervised here is started in one by whoever spawns it instead. Either way what
+        the CLI rewrites of its configuration goes with it, and the user's own is never
+        written.
       brings: What of a projected directory to bring back here before it is taken away, as
         `(VARIABLE/PATH, the directory on this machine)`: every file at or under `PATH` --
         which may be a glob -- inside the directory `VARIABLE` was projected as, put at the same
@@ -324,11 +329,6 @@ class AnchorConfig:
         if self.tells and not self.tells.startswith("/"):
             raise ValueError(
                 f"unsupported tell {self.tells!r}; expected an absolute path"
-            )
-        if self.home is not None and not self.native:
-            raise ValueError(
-                "a virtual home is built on the target for its own CLI: --home is for a "
-                "native session, and a supervised one is started in one by whoever spawns it"
             )
         projected = {name for name, _ in self.projects}
         for named, into in self.brings:
@@ -566,7 +566,8 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
       FileNotFoundError: If the agent is not on PATH.
       Unmirrored: If the mirror's path cannot be made a directory here.
       FileExistsError: If the mirror's directory holds other files, or mirrors another target.
-      OSError: If the target cannot be reached.
+      OSError: If the target cannot be reached, or the agent's virtual home (`config.home`)
+        cannot be built here.
     """
     config = config or AnchorConfig()
     # Answered before anything below is imported, and before a mirror is so much as looked
@@ -584,6 +585,30 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     if elsewhere(config):
         return subprocess.call(afar(config, command))
 
+    # Built before anything else of the turn, and taken away whatever becomes of it.
+    from hmz.coganchor import homes
+
+    home = homes.build(config.home) if config.home is not None else None
+    try:
+        return _supervised(command, config, home)
+    finally:
+        if home is not None:
+            home.drop()
+
+
+def _supervised(command: Sequence[str], config: AnchorConfig, home: Home | None) -> int:
+    """:func:`connect`, for a harness on this machine: the agent here, supervised.
+
+    Args:
+      command: The agent to run and its own arguments.
+      config: Where its work lands.
+      home: The virtual home it is started in, built here, or None for the user's own. Its
+        own like the agent's state directory, and kept here likewise: neither a path in it
+        nor a program run from it is sent to the target.
+
+    Returns:
+      The agent's own exit status.
+    """
     # Imported here rather than at the top: this half needs ptrace and an x86-64 register
     # map, which the machines reading the settings above are not required to have.
     from hmz.coganchor import __version__, statepaths, transport
@@ -595,7 +620,10 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     from hmz.coganchor.supervisor import Launch, Supervisor
 
     target, workspace, export = config.mount()
-    agent = statepaths.resolve(list(command))
+    # Named on the command line right after the CLI's own name, for one no variable moves.
+    moved = home.argv if home is not None else ()
+    agent = statepaths.resolve([*command[:1], *moved, *command[1:]])
+    kept = [str(home.at)] if home is not None else []
     # By the name the kernel has for it, through any symlink on the way there: where a
     # process is, is read back as that name, and a command started in a mirror named
     # otherwise would land outside it -- in the target's home, not the workdir. The name it
@@ -626,6 +654,7 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
         ),
         local_paths=tuple(
             agent.local_paths
+            + kept
             + [os.path.abspath(path) for path in config.local_paths]
             # What a path is answered with is this machine's business: mirroring a
             # provider's credentials onto the target would put them where the work lands,
@@ -638,6 +667,7 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
         ),
         local_programs=tuple(
             agent.local_programs
+            + kept
             + [os.path.abspath(path) for path in config.local_execs]
         ),
         redirects=redirects,
@@ -675,7 +705,7 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     launch = Launch(
         program=agent.program,
         argv=agent.argv,
-        env=dict(os.environ)
+        env=(home.environ(None) if home is not None else dict(os.environ))
         | {
             "HUMANIZE": __version__,
             "HUMANIZE_TARGET": target.describe(),

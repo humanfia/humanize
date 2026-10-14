@@ -70,6 +70,8 @@ import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+from hmz.coganchor.homes import merged, merger
+
 # What the protocol says a thing is, what a client may do, how a tool call is permitted and
 # what ends a turn having answered are the protocol's rather than Grok Build's, so they are
 # taken from the ACP client every such CLI here is driven through rather than said again.
@@ -93,8 +95,6 @@ if TYPE_CHECKING:
 
     import tomlkit
     from pydantic import BaseModel
-
-    from hmz.coganchor.homes import Home
 
 #: What the CLI is installed as.
 _COMMAND = "grok"
@@ -490,27 +490,18 @@ class GrokBuildSession(StreamSessionBase):
         """Restarts before settings or mounted flow resources change."""
         return self._launched is not None and self._launched != self._requested
 
-    def _spawning(
-        self, argv: list[str]
-    ) -> tuple[list[str], dict[str, str] | None, Home | None]:
-        """One process, in a virtual home whose `config.toml` holds the gateway's entry.
+    def _merges(self) -> tuple[tuple[str, str], ...]:
+        """The `[model.*]` entry a gateway account is asked for by, for the home's `config.toml`.
 
         The home is the user's own as :mod:`hmz.coganchor.homes` builds it -- a copy of their
         `config.toml`, links to everything else, the flow's skills beside theirs -- and the
-        `[model.*]` entry an account behind a gateway is asked for by (:func:`_routed`) is
-        put into that copy, which goes with the process: the user's own is never written. A
-        process in no virtual home is one :meth:`_model` has refused such an account for.
+        entry (:func:`_routed`) is put into that copy (:func:`_entered`), which goes with the
+        process: the user's own is never written. Nothing for an account no gateway holds.
         """
-        spawned, environ, home = super()._spawning(argv)
         named, entry = _routed(self._agent.config.model, self._environ() or os.environ)
-        if entry is None or home is None:
-            return spawned, environ, home
-        try:
-            _entered(home.at / "config.toml", named, entry)
-        except BaseException:
-            home.drop()
-            raise
-        return spawned, environ, home
+        if entry is None:
+            return ()
+        return (merged(_entered, {"named": named, "entry": entry}),)
 
     def _command(self) -> list[str]:
         """The `grok agent stdio` this conversation is held open on.
@@ -1338,16 +1329,16 @@ def _routed(
     return f"hmz-{hashlib.sha256(said).hexdigest()[:12]}/{model}", entry
 
 
-def _entered(at: Path, named: str, entry: dict[str, Any]) -> None:
+@merger
+def _entered(home: Path, said: dict[str, Any]) -> None:
     """Puts one `[model.*]` entry into a virtual home's copy of a Grok Build `config.toml`.
 
     The copy is the process's own, so it is written outright; what the user wrote in their
     file -- their comments and their order among it -- is kept in it all the same.
 
     Args:
-      at: The copy, which is not there for a user with no file of their own.
-      named: The entry's name.
-      entry: What it holds.
+      home: The virtual home, whose copy is not there for a user with no file of their own.
+      said: `named`, the entry's name, and `entry`, what it holds.
 
     Raises:
       Unrecoverable: If the file is there and is not TOML, which Grok Build would refuse
@@ -1355,10 +1346,11 @@ def _entered(at: Path, named: str, entry: dict[str, Any]) -> None:
     """
     import tomlkit
 
+    at = home / "config.toml"
     doc = _reading(at)
     if "model" not in doc:
         doc["model"] = tomlkit.table(is_super_table=True)
-    cast("dict[str, Any]", doc["model"])[named] = entry
+    cast("dict[str, Any]", doc["model"])[said["named"]] = said["entry"]
     at.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
 
