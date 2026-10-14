@@ -248,6 +248,7 @@ def test_stopping_what_never_started_does_nothing(sent: Sentry) -> None:
 
 
 def test_a_crash_is_reported_with_its_tags_made_plain(on: Sentry) -> None:
+    telemetry.start()
     why = RuntimeError("boom")
 
     telemetry.crash(why, doing="a flow at /Users/alice/secret", key="sk-abcdefghijk1")
@@ -257,6 +258,7 @@ def test_a_crash_is_reported_with_its_tags_made_plain(on: Sentry) -> None:
 
 
 def test_a_snag_is_a_warning_named_for_what_happened(on: Sentry) -> None:
+    telemetry.start()
     telemetry.snag("dead-key", sheet="flows", where="/home/bob/x")
 
     assert on.messages == [("snag: dead-key", "warning")]
@@ -272,6 +274,17 @@ def test_nothing_is_reported_while_reporting_is_off(sent: Sentry) -> None:
     assert sent.messages == []
 
 
+def test_nothing_is_reported_by_a_process_that_never_started_reporting(
+    on: Sentry,
+) -> None:
+    telemetry.crash(RuntimeError("boom"))
+    telemetry.snag("dead-key")
+
+    assert on.inits == []
+    assert on.exceptions == []
+    assert on.messages == []
+
+
 def test_what_the_layers_said_is_attached_scrubbed_as_yaml(
     on: Sentry, told: Callable[[str, Callable[[], object]], None]
 ) -> None:
@@ -285,6 +298,7 @@ def test_what_the_layers_said_is_attached_scrubbed_as_yaml(
         },
     )
 
+    telemetry.start()
     telemetry.crash(RuntimeError("boom"))
 
     said = yaml.safe_load(on.scopes[0].attached["u12-run.yaml"])
@@ -401,6 +415,161 @@ def test_an_exception_is_sent_without_its_frames_variables_or_paths(
 
 
 def test_a_credential_in_a_url_is_taken_out(on: Sentry) -> None:
+    telemetry.start()
     telemetry.crash(RuntimeError("x"), url="https://me:hunter2@example.com/repo")
 
     assert on.scopes[0].tags["url"] == "https://…@example.com/repo"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "ghs_abcdefghijklmnop",
+        "glpat-abcdefghijklmnop",
+        "hf_abcdefghijklmnopqr",
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N",
+        "Bearer abcdefghijklmnopqrstuvwxyz",
+        "https://up.example/x?X-Amz-Signature=abcdef0123",
+    ],
+)
+def test_every_credential_a_bundle_strikes_a_report_strikes(
+    key: str, on: Sentry
+) -> None:
+    telemetry.start()
+
+    telemetry.crash(RuntimeError("x"), said=f"failed with {key} here")
+
+    tag = on.scopes[0].tags["said"]
+    assert tag.startswith("failed with ")
+    assert tag.endswith("… here")
+    assert "abcdef" not in tag
+    assert "dozjg" not in tag
+
+
+def test_struck_out_is_said_by_whoever_asks() -> None:
+    said = telemetry.scrubbed(
+        'auth: Bearer abcdefghijklmnopqrstuvwx, "api_key": "s3cr3tv4lue"',
+        "[gone]",
+    )
+
+    assert said == 'auth: Bearer [gone], "api_key": "[gone]"'
+
+
+# ------------------------------------------------------------- what is timed
+
+
+def test_a_transaction_is_sent_as_plain_as_a_report(on: Sentry, tmp_path: Path) -> None:
+    telemetry.start()
+    theirs = tmp_path / "my-secret-project" / "flow.py"
+    ours = Path(telemetry.__file__).resolve()
+    event = _event(
+        type="transaction",
+        transaction="run ghp_abcdefghijklmnop at /Users/eve/work",
+        contexts={"trace": {"op": "flow", "data": {"thread.name": "/home/eve/x"}}},
+        tags={"where": "/Users/eve/y"},
+        spans=[
+            {
+                "op": "subprocess",
+                "description": "claude -p 'do the secret thing'",
+                "data": {"subprocess.cwd": str(theirs.parent), "subprocess.pid": 7},
+            },
+            {
+                "op": "function",
+                "description": "secret_step",
+                "data": {
+                    "code.filepath": str(theirs),
+                    "code.function": "secret_step",
+                    "code.namespace": "my_secret_project",
+                    "code.lineno": 9,
+                },
+            },
+            {"op": "function", "data": {"code.filepath": str(ours)}},
+            {"op": "http.client", "description": "GET https://a:b@h/x?token=abcdef"},
+        ],
+    )
+
+    said = on.inits[0]["before_send_transaction"](event, None)
+
+    assert {"server_name", "user", "extra", "breadcrumbs"}.isdisjoint(said)
+    assert said["transaction"] == "run … at ~/work"
+    assert said["contexts"]["trace"]["data"] == {"thread.name": "~/x"}
+    assert said["tags"] == {"where": "~/y"}
+    command, step, ours_span, fetch = said["spans"]
+    assert command == {
+        "op": "subprocess",
+        "description": "A command",
+        "data": {"subprocess.pid": 7},
+    }
+    assert step["data"] == {"code.filepath": "<not humanize>", "code.lineno": 9}
+    assert ours_span["data"] == {"code.filepath": "hmz/runtime/telemetry.py"}
+    assert fetch["description"] == "GET https://…@h/x?token=…"
+
+
+class Payload:
+    def __init__(self, json: Any) -> None:
+        self.json = json
+        self.bytes: bytes | None = b"stale"
+
+
+class Item:
+    def __init__(self, kind: str, json: Any) -> None:
+        self.type = kind
+        self.payload = Payload(json)
+
+
+class Envelope:
+    def __init__(self, *items: Item) -> None:
+        self.items = list(items)
+
+
+def test_a_profile_is_sent_with_its_frames_named_as_a_report_names_them(
+    on: Sentry, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sentry_sdk.transport import HttpTransport
+
+    sending: list[Envelope] = []
+
+    def sends(_: object, envelope: Envelope) -> None:
+        sending.append(envelope)
+
+    monkeypatch.setattr(HttpTransport, "capture_envelope", sends)
+    telemetry.start()
+    transport = on.inits[0]["transport"]
+    theirs = tmp_path / "my-secret-project" / "flow.py"
+    ours = Path(telemetry.__file__).resolve()
+    chunk = {
+        "profile": {
+            "frames": [
+                {
+                    "abs_path": str(theirs),
+                    "module": "my_secret_project",
+                    "function": "secret_step",
+                    "lineno": 9,
+                },
+                {
+                    "abs_path": str(ours),
+                    "module": "hmz.runtime.telemetry",
+                    "function": "crash",
+                    "lineno": 3,
+                },
+            ],
+            "thread_metadata": {"1": {"name": "/Users/eve/work"}},
+        },
+    }
+    event = {"spans": [{"description": "untouched /Users/eve"}]}
+    envelope = Envelope(Item("profile_chunk", chunk), Item("transaction", event))
+
+    transport.capture_envelope(object.__new__(transport), envelope)
+
+    assert sending == [envelope]
+    sent_chunk = envelope.items[0].payload
+    assert sent_chunk.bytes is None
+    theirs_frame, ours_frame = sent_chunk.json["profile"]["frames"]
+    assert theirs_frame == {
+        "abs_path": "<not humanize>",
+        "filename": "<not humanize>",
+        "lineno": 9,
+    }
+    assert ours_frame["filename"] == "hmz/runtime/telemetry.py"
+    assert sent_chunk.json["profile"]["thread_metadata"] == {"1": {"name": "~/work"}}
+    assert envelope.items[1].payload.json == event

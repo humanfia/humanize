@@ -31,7 +31,12 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.runtime.epic': ['hmz.coganchor', 'hmz.runtime.tracing'],
   'hmz.runtime.tracing': ['hmz.coganchor'],
   'hmz.runtime.watching': ['hmz.coganchor'],
-  'hmz.runtime.exporting': ['hmz.coganchor', 'hmz.runtime.epic', 'hmz.runtime.tracing'],
+  'hmz.runtime.exporting': [
+    'hmz.coganchor',
+    'hmz.runtime.epic',
+    'hmz.runtime.telemetry',
+    'hmz.runtime.tracing',
+  ],
   'hmz.runtime.backing': ['hmz.runtime.epic', 'hmz.runtime.exporting', 'hmz.runtime.settings'],
   'hmz.runtime.runner': [
     'hmz.coganchor',
