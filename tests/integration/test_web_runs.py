@@ -199,7 +199,8 @@ def test_a_side_question_is_asked_beside_the_run_and_never_of_it(
                 (key, "and you"),
             ]
             assert browser.post("/api/btw/leave").status == 200
-            assert browser.get("/api/btw").json() == {"open": [], "said": []}
+            left = browser.get("/api/btw").json()
+            assert (left["open"], left["said"]) == ([], [])
 
             # Nothing asked beside the run reached it: its one session said only its own.
             browser.post("/api/held/stop")
@@ -300,6 +301,59 @@ def test_an_epic_written_down_is_laid_out_as_a_timeline_and_each_span_read_whole
         for missing in (str(timeline["summary"]["spans"]), "nope"):
             gone = browser.get(f"/api/runs/{ran['name']}/timeline/span/{missing}")
             assert gone.status == 404
+
+
+def test_the_btw_agent_picked_for_an_epic_is_kept_with_it_and_asked_next(
+    tmp_path: Path, project: Path
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        with browser.follows() as heard:
+            browser.post("/api/held/start", _CHAT)
+            until(heard, _record("asked"), "chat asking")
+            (going,) = browser.get("/api/runs").json()["runs"]
+            epic = going["name"]
+            assert browser.get(f"/api/btw?epic={epic}").json()["agent"] == ""
+            asked = {"question": "what is it doing", "epic": epic}
+            assert browser.post("/api/btw", asked).status == 200
+
+            picked = browser.post(
+                "/api/btw/agent", {"epic": epic, "agent": "claude/other-model"}
+            )
+            assert picked.json() == {"agent": "claude/other-model:auto"}
+            again = browser.post("/api/btw", asked | {"question": "and now"})
+            assert again.status == 200, again.body
+            argv = started(tmp_path)[-1]["argv"]
+            assert argv[argv.index("--model") + 1] == "other-model"
+            # What was said before the agent changed stays to be read back.
+            said = browser.get(f"/api/btw?epic={epic}").json()
+            assert [one["question"] for one in said["said"]] == [
+                "what is it doing",
+                "and now",
+            ]
+            assert said["agent"] == "claude/other-model:auto"
+
+            bad = {"epic": epic, "agent": "no model"}
+            assert browser.post("/api/btw/agent", bad).status == 400
+            nowhere = {"epic": "nope", "agent": ""}
+            assert browser.post("/api/btw/agent", nowhere).status == 404
+            browser.post("/api/held/stop")
+            until(heard, _record("ended"), "the run ending")
+
+        at = Path(browser.get(f"/api/runs/{epic}").json()["at"])
+        lines = (at / "epic.jsonl").read_text().splitlines()
+        assert '"event": "btw", ' in next(one for one in lines if '"btw"' in one)
+
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        assert browser.get(f"/api/btw?epic={epic}").json()["agent"] == (
+            "claude/other-model:auto"
+        )
+        cleared = browser.post("/api/btw/agent", {"epic": epic, "agent": ""})
+        assert cleared.json() == {"agent": ""}
+        assert browser.get(f"/api/btw?epic={epic}").json()["agent"] == ""
 
 
 def test_a_session_of_an_earlier_epic_is_asked_beside_it_as_a_fork_of_its_history(
