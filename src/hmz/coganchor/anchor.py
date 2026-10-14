@@ -119,6 +119,14 @@ _WRITE_PRIVATELY = (
     ': > "$1" || exit 1; chmod 600 "$1" || exit 1; cat > "$1"'
 )
 
+#: Writing one file of a skill, from what arrives on stdin, with the mode in `$2`: beside it and
+#: moved over it, so that a skill on the target is never a file of it half written.
+_WRITE_WHOLE = (
+    'umask 077; mkdir -p "$(dirname -- "$1")" || exit 1; t="$1.hmz-new"; rm -f -- "$t"; '
+    'if cat > "$t" && chmod "$2" "$t" && mv -f -- "$t" "$1"; then exit 0; fi; '
+    'rm -f -- "$t"; exit 1'
+)
+
 #: Taking one of them away again, whatever it turned out to be.
 _SWEEP = 'rm -rf -- "$1"'
 
@@ -932,6 +940,8 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             # a refreshed sign-in is read back before the copy it is in is taken away.
             _brought_back(client, lent, workspace)
             _brought_home(client, config.brings, projected, workspace)
+            if session and config.home is not None:
+                _written_back(client, session, config.home, workspace)
             if told:
                 with contextlib.suppress(OSError):
                     os.unlink(told)
@@ -1291,6 +1301,7 @@ def _homed(
     """
     import errno
     import posixpath
+    import stat
     from pathlib import Path
 
     from hmz.coganchor.homes import SCRIPT, words
@@ -1319,16 +1330,21 @@ def _homed(
         root = Path(whence)
         for one in sorted(path for path in root.rglob("*") if path.is_file()):
             at = posixpath.join(landed, home.lodges, name, *one.relative_to(root).parts)
+            # Its owner's bits alone, a script's among them: the target need not be one user's.
+            mode = format(stat.S_IMODE(one.stat().st_mode) & 0o700, "o")
             status, said = _ran(
                 client,
-                ["/bin/sh", "-c", _WRITE_PRIVATELY, "humanize", at],
+                ["/bin/sh", "-c", _WRITE_WHOLE, "humanize", at, mode],
                 workspace,
                 feeding=one.read_bytes(),
             )
             if status != 0:
                 # A skill that could not be written is a turn that runs without it, as one a
-                # workspace could not take is.
+                # workspace could not take is -- and none of it, rather than half.
                 log.warning("could not carry %s to %s: %s", whence, at, said)
+                half = posixpath.join(landed, home.lodges, name)
+                with contextlib.suppress(OSError):
+                    _ran(client, ["/bin/sh", "-c", _SWEEP, "humanize", half], workspace)
                 break
     told = {home.variable: landed}
     if home.secures:
@@ -1441,6 +1457,36 @@ def _brought_home(
                     unpacking.extractall(into, filter="data")
         except (OSError, ValueError, tarfile.TarError) as why:
             log.warning("could not bring %s back from the target: %s", into, why)
+
+
+def _written_back(
+    client: RemoteClient, session: str, home: Virtual, workspace: str
+) -> None:
+    """Writes back what the CLI replaced of the links in its virtual home on the target.
+
+    :data:`hmz.coganchor.homes.BACK`, for the home :func:`_homed` built. Never raises, for the
+    reason :func:`_swept` does not.
+
+    Args:
+      client: The connection, which may already be broken.
+      session: The private directory the home is in.
+      home: What the virtual home is made of.
+      workspace: Where to run the command from, as the target names it.
+    """
+    import posixpath
+
+    from hmz.coganchor.homes import BACK
+
+    landed = posixpath.join(session, home.variable.lower())
+    try:
+        status, said = _ran(
+            client, ["/bin/sh", "-c", BACK, "humanize", landed], workspace
+        )
+    except (OSError, ValueError) as why:
+        log.warning("could not write back what %s replaced: %s", landed, why)
+        return
+    if status != 0:
+        log.warning("could not write back what %s replaced: %s", landed, said)
 
 
 def _swept(client: RemoteClient, session: str, workspace: str) -> None:

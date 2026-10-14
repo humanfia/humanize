@@ -379,3 +379,105 @@ def test_every_cli_that_takes_skills_at_its_home_is_started_in_one(
         profile = named(cli)
         assert profile is not None
         assert virtual(profile, skills) is None
+
+
+def _renamed(at: Path, said: str, *, mtime: int | None = None) -> None:
+    """What a CLI saving a file atomically does: writes another beside it, renames it over."""
+    beside = at.with_name(f".{at.name}.tmp")
+    beside.write_text(said)
+    if mtime is not None:
+        os.utime(beside, (mtime, mtime))
+    beside.replace(at)
+
+
+def test_a_credential_the_cli_replaced_by_rename_is_written_back(
+    tmp_path: Path,
+) -> None:
+    user = _user(tmp_path)
+    real = user / ".claude" / ".credentials.json"
+    real.chmod(0o600)
+    os.utime(real, (1_000_000, 1_000_000))
+    home = build(CLAUDE, {"HOME": str(user)}, under=tmp_path)
+
+    _renamed(home.at / ".credentials.json", "refreshed\n")
+    assert not (home.at / ".credentials.json").is_symlink()
+    home.drop()
+
+    assert real.read_text() == "refreshed\n"
+    assert real.stat().st_mode & 0o777 == 0o600
+    assert not home.at.exists()
+
+
+def test_an_older_replacement_does_not_clobber_a_newer_real_file(
+    tmp_path: Path,
+) -> None:
+    user = _user(tmp_path)
+    real = user / ".claude" / ".credentials.json"
+    home = build(CLAUDE, {"HOME": str(user)}, under=tmp_path)
+
+    _renamed(home.at / ".credentials.json", "stale\n", mtime=1_000_000)
+    real.write_text("another process's newer token\n")
+    home.drop()
+
+    assert real.read_text() == "another process's newer token\n"
+
+
+def test_what_a_cli_rewrites_is_still_discarded(tmp_path: Path) -> None:
+    user = _user(tmp_path)
+    home = build(CLAUDE, {"HOME": str(user)}, under=tmp_path)
+
+    _renamed(home.at / "settings.json", '{"rewritten": true}\n')
+    _renamed(home.at / ".claude.json", '{"rewritten": true}\n')
+    home.drop()
+
+    assert (user / ".claude" / "settings.json").read_text() == '{"theirs": true}\n'
+    assert (user / ".claude.json").read_text() == '{"outside": true}\n'
+
+
+def test_a_replaced_directory_is_merged_back_a_new_or_changed_file_at_a_time(
+    tmp_path: Path,
+) -> None:
+    user = _user(tmp_path)
+    sessions = user / ".claude" / "projects"
+    sessions.mkdir()
+    (sessions / "old.jsonl").write_text("theirs\n")
+    os.utime(sessions / "old.jsonl", (1_000_000, 1_000_000))
+    (sessions / "newer.jsonl").write_text("newer\n")
+    home = build(CLAUDE, {"HOME": str(user)}, under=tmp_path)
+    replaced = home.at / "projects.tmp"
+    replaced.mkdir()
+    (replaced / "old.jsonl").write_text("changed\n")
+    (replaced / "made.jsonl").write_text("made\n")
+    (replaced / "newer.jsonl").write_text("stale\n")
+    os.utime(replaced / "newer.jsonl", (1_000_000, 1_000_000))
+    (home.at / "projects").unlink()
+    replaced.rename(home.at / "projects")
+
+    home.drop()
+
+    assert (sessions / "old.jsonl").read_text() == "changed\n"
+    assert (sessions / "made.jsonl").read_text() == "made\n"
+    assert (sessions / "newer.jsonl").read_text() == "newer\n"
+
+
+def test_a_replaced_credential_goes_back_to_the_account_a_provider_answers_with(
+    tmp_path: Path,
+) -> None:
+    user = _user(tmp_path)
+    account = tmp_path / "account" / ".credentials.json"
+    account.parent.mkdir()
+    account.write_text("the account's\n")
+    os.utime(account, (1_000_000, 1_000_000))
+    named_ = str(user / ".claude" / ".credentials.json")
+    home = build(
+        CLAUDE,
+        {"HOME": str(user)},
+        under=tmp_path,
+        answered=lambda path: str(account) if path == named_ else None,
+    )
+
+    _renamed(home.at / ".credentials.json", "refreshed\n")
+    home.drop()
+
+    assert account.read_text() == "refreshed\n"
+    assert (user / ".claude" / ".credentials.json").read_text() == "token\n"
