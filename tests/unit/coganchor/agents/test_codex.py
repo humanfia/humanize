@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
 from pydantic import BaseModel
 
-from hmz.coganchor import gateway, providers
+from hmz.coganchor import AnchorConfig, gateway, providers
 from hmz.coganchor.agents import (
     CodexAgent,
     CodexAgentConfig,
@@ -24,13 +25,14 @@ from hmz.coganchor.agents import (
     Question,
     Verdict,
 )
+from hmz.coganchor.agents.base import KEEPING
 from hmz.coganchor.agents.codex import strict, turning, unattended
+from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
 from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
     from hmz.coganchor.agents import Occasion
 
@@ -843,3 +845,33 @@ def test_a_thread_whose_gateway_went_away_is_picked_up_on_a_server_at_the_next(
     assert len(routed) == 2
     assert routed[1].running
     assert server.called("thread/resume")[0]["threadId"] == "th-1"
+
+
+def test_a_recalled_thread_is_forked_by_a_codex_run_here_for_another_machine(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Brought in where this Codex keeps its threads, which it finds by id: no copy per place.
+
+    Its work is on another machine, at `/far/desk` as that machine names it, and it runs here
+    in this machine's mirror of that work -- where the fork is cut.
+    """
+    home = tmp_path / "home"
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    monkeypatch.setenv(KEEPING, "off")
+    mirror = tmp_path / "mirror"
+    (mirror / "desk").mkdir(parents=True)
+    rollout = Path("sessions", "2026", "10", "13", "rollout-2026-10-13-told.jsonl")
+    kept = tmp_path / "snapshot"
+    (kept / rollout).parent.mkdir(parents=True)
+    (kept / rollout).write_text('{"payload": {"id": "told"}}\n')
+    anchor = AnchorConfig(target="ssh://box", workspace="/far", shadow=str(mirror))
+    agent = _agent(machine=AnchoredConfig(anchor=anchor))
+
+    agent.recall("told", kept, "/far/desk").fork()("go on")
+
+    (forked,) = server.called("thread/fork")
+    assert (forked["threadId"], forked["cwd"]) == ("told", str(mirror / "desk"))
+    assert (home / rollout).read_text() == (kept / rollout).read_text()

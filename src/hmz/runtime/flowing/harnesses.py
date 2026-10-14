@@ -50,7 +50,9 @@ cut by that turn from a coganchor agent of its own there, on the harnesses that 
 elsewhere, and is refused on every other -- as is one whose turn works on another machine,
 on any harness. A session may also carry on a conversation a session kept, in this run or an
 earlier one: its first turn cuts it as a fork of that conversation, recalled from where it was
-kept, on the harness that kept it, where that harness forks, and on this machine -- and not
+kept, on the harness that kept it, where that harness forks, and by a CLI on this machine --
+one whose turns land on another machine included, run here in its mirror of the work, where
+the harness forks into another workdir or the mirror is at the work's own path -- and not
 where the run holds another copy of it, which is never replaced.
 
 :func:`open_outworlder` is the driver for whoever is outside the run.
@@ -401,7 +403,9 @@ class HarnessDriver:
             has taken a turn, `carry_on` is not where it says, or the workdir is not a
             directory here.
           UnsupportedOperation: If the harness cannot fork, or not into `placement`; or
-            `carry_on` was kept by another harness, or `placement` is on another machine.
+            `carry_on` was kept by another harness, or the CLI that would carry it on runs on
+            another machine -- or, forking only in place, here in a mirror of that machine's
+            work apart from it.
           HarnessNotInstalled: If the CLI is not installed on the machine its harness runs
             on: this one, or the environment's where its affinity has nowhere else.
           HarnessUnrecoverable: If the CLI cannot be configured as the session asks, or the
@@ -483,10 +487,6 @@ class HarnessDriver:
                 )
             if self._profile is None or not self._profile.forks:
                 raise UnsupportedOperation(f"{self.harness} cannot fork a session")
-            if placement.machine is not None:
-                raise UnsupportedOperation(
-                    f"{self.harness} cannot carry a kept conversation onto another machine"
-                )
         cwd = self._where(placement)
         hung = frozenset(kind for kind in _STARTING if kind in hooks)
         config = self._configured(permission, placement, hung)
@@ -495,6 +495,13 @@ class HarnessDriver:
             if self.harness in _NOWHERE
             else await self._harnessed(placement, config, hung=hung)
         )
+        if carry_on is not None and _afar(machine):
+            # Kept here, and carried on here: by a CLI here, in its mirror of the work where
+            # that is on another machine. One run there would look for it there.
+            raise UnsupportedOperation(
+                f"{self.harness} cannot carry a kept conversation onto another machine"
+                " its CLI runs on"
+            )
         if machine is None:
             self._check_installed()
         config = dataclasses.replace(config, machine=machine)
@@ -913,7 +920,8 @@ class HarnessDriver:
         Raises:
           HarnessUnrecoverable: If the agent cannot be built as configured.
           HarnessSandboxed: If its fence can be held neither by the CLI nor here.
-          UnsupportedOperation: If the CLI will not fork into `cwd`.
+          UnsupportedOperation: If the CLI will not fork into `cwd`, or will not carry the
+            kept conversation on in a mirror of another machine's work apart from it.
           SessionError: If the session to fork cannot be carried on from, or the kept
             conversation is not where it says.
         """
@@ -925,7 +933,17 @@ class HarnessDriver:
             agent.watch(listener)
         try:
             if carry_on is not None:
-                return agent, agent.recall(carry_on.id, carry_on.at, cwd).fork()
+                held = agent.recall(carry_on.id, carry_on.at, cwd)
+                if not type(held).forks_elsewhere and _apart(config.machine):
+                    # A CLI that forks only in the directory a conversation was had in,
+                    # run in a mirror named for this run's environment: refused here, as
+                    # a fork into another workdir is, rather than by the CLI once started.
+                    held.close()
+                    raise UnsupportedOperation(
+                        f"{self.harness} cannot carry a kept conversation into a mirror"
+                        " of another machine's work"
+                    )
+                return agent, held.fork()
             if parent is not None:
                 return agent, parent.coganchor.fork(into=agent, cwd=cwd)
         except NotImplementedError as refused:
@@ -943,6 +961,41 @@ class HarnessDriver:
         self._closed = True
         sessions, self._sessions = list(self._sessions), set()
         await asyncio.gather(*(one.close() for one in sessions))
+
+
+def _afar(machine: MachineConfig | None) -> bool:
+    """Whether a CLI whose turns land on `machine` runs there, rather than here.
+
+    There: the machine's own CLI, driven natively, and one under a harness put on another
+    machine, each keeping its conversations in its home on that machine. Here: every other,
+    one whose work is on another machine included -- run here in its mirror of that work,
+    keeping its conversations where a CLI working here does.
+    """
+    from hmz.coganchor.elsewhere import elsewhere
+    from hmz.coganchor.machines import AnchoredConfig
+
+    return isinstance(machine, AnchoredConfig) and (
+        machine.anchor.native or elsewhere(machine.anchor)
+    )
+
+
+def _apart(machine: MachineConfig | None) -> bool:
+    """Whether a CLI whose turns land on `machine` runs here in a mirror apart from the work.
+
+    A mirror kept at a path of its own -- under humanize's home, named for the container or
+    the job, as a docker, swarm, slurm or Apple container environment keeps it -- rather than
+    at the work's own path. A CLI there finds a conversation by the mirror's path, which a
+    later run's environment names anew.
+    """
+    from hmz.coganchor.machines import AnchoredConfig
+
+    if not isinstance(machine, AnchoredConfig) or _afar(machine):
+        return False
+    anchor = machine.anchor
+    if anchor.shadow is None:
+        return False
+    workspace = os.path.abspath(anchor.workspace or os.getcwd())  # noqa: PTH100, PTH109
+    return os.path.abspath(anchor.shadow) != workspace  # noqa: PTH100
 
 
 def _native(machine: AnchoredConfig) -> AnchoredConfig:
@@ -1186,7 +1239,7 @@ class HarnessSession:
         from hmz.coganchor.agents.base import KEPT
 
         harness = self._driver.harness
-        if self._agent.config.machine is not None:
+        if _afar(self._agent.config.machine):
             raise UnsupportedOperation(
                 f"{harness} keeps a conversation on another machine, not here"
             )

@@ -711,7 +711,8 @@ class AgentDriver(Protocol):
         Raises:
           UnsupportedOperation: If `fork_of` is given and the harness cannot fork, or not
             into `placement`; or `carry_on` is, and another harness kept it, this one
-            cannot fork, or `placement` is on another machine.
+            cannot fork, or the CLI that would carry it on runs on another machine -- or,
+            forking only in place, here in a mirror of that machine's work apart from it.
           SessionError: If `carry_on` is not where it says.
           HarnessNotInstalled: If the CLI is not installed where `placement` is.
           HarnessError: The leaf for why the CLI could not be started.

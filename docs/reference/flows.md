@@ -274,7 +274,11 @@ answers a **new** session of the call's agent of the same role, whose first `run
 copy on as a [fork](#fork): from where it stood when written, whatever the original session
 did afterwards. This holds in the run that wrote it and in every run [picking it
 up](#a-flow-that-can-be-picked-up), so one kept session can be carried on by several later
-runs, each a run of its own.
+runs, each a run of its own. A session whose turns work on another machine is kept and carried
+on the same way while its CLI runs here, [supervised](/reference/remote-execution#supervised-the-default)
+in a mirror of that machine's work; one whose CLI runs on that machine keeps its conversation
+there, and is refused as below. So is a harness that forks only in place, where that mirror
+is apart from the work: a container's or a job's, named for it, unlike an ssh host's.
 
 ```python
 session = await coder.spawn()
@@ -297,14 +301,15 @@ Refused by the write, with `StateNotSerializable` and nothing written down:
 | an [outworlder](#outworlder)'s | `an outworlder's session cannot be kept in a flow's state` |
 | its harness does not fork (`cursor-agent`, `mcode`, `agy`, `dsh`) | `<role>: <harness> cannot fork a session` (worded by the CLI's driver) |
 | its harness keeps conversations as database rows (`opencode`, `mimo`) | `<role>: …` (the conversation cannot be found as files) |
-| its last turn ran on another machine | `<role>: <harness> keeps a conversation on another machine, not here` |
+| its last turn's CLI ran on another machine: the machine's own, or under a harness put elsewhere | `<role>: <harness> keeps a conversation on another machine, not here` |
 
 Refused by the read-back session's first `run`, before the CLI starts or anything is copied:
 
 | Condition | Raises |
 | --- | --- |
 | the role's agent is now another harness | `UnsupportedOperation`: `<harness> cannot carry on a conversation <harness> kept` |
-| the turn's `env` is on another machine | `UnsupportedOperation`: `<harness> cannot carry a kept conversation onto another machine` |
+| the turn's `env` is on another machine and its CLI would run there: the machine's own, or under a harness put elsewhere | `UnsupportedOperation`: `<harness> cannot carry a kept conversation onto another machine its CLI runs on` |
+| the turn's `env` is a container or a job (`docker`, `swarm`, `slurm`, `apple-container`), its CLI run here in a mirror apart from the work, on a harness that forks only in place | `UnsupportedOperation`: `<harness> cannot carry a kept conversation into a mirror of another machine's work` |
 | the copy is gone (its epic deleted) | `SessionError`: `the session cannot be forked: <harness>: no conversation <id> under <dir>` |
 | the run already holds a different copy of the conversation | `SessionError`: `the session cannot be forked: <harness>: another copy of conversation <id> is kept at <path> already, which carrying this one on would replace` |
 | a harness that forks only in place, given another workdir than the conversation was had in | refused by the CLI |
@@ -2050,7 +2055,7 @@ FlowException
 | <code id="harnessunrecoverable">HarnessUnrecoverable</code> | `HarnessError` | any other failure no retry would change; a CLI that cannot be configured as asked |
 | <code id="outputschemaerror">OutputSchemaError</code> | `HarnessError`, `ValueError` | the answer is not the `output_schema` |
 | <code id="sessionerror">SessionError</code> | `HarnessError` | a session is closed, another agent's, busy, not taking a turn to steer, interrupted, not forkable yet, or its prompt was blocked by a hook |
-| <code id="unsupportedoperation">UnsupportedOperation</code> | `HarnessError` | the harness cannot do this at all (fork; fork elsewhere; outworlder fork or steer) |
+| <code id="unsupportedoperation">UnsupportedOperation</code> | `HarnessError` | the harness cannot do this at all (fork; fork elsewhere; carry a kept session on where its CLI cannot read it; outworlder fork or steer); any `NotImplementedError` from a turn |
 | <code id="enverror">EnvError</code> | `FlowException` | an environment could not do what it was asked |
 | <code id="envunavailable">EnvUnavailable</code> | `EnvError` | the machine is gone or the workdir does not exist |
 | <code id="envconnectionerror">EnvConnectionError</code> | `EnvError`, `ConnectionError` | the connection to a remote environment failed |

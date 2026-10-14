@@ -446,6 +446,10 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
 - **Sessions of a native or afar turn stay where that CLI keeps them**, on the other machine; a
   run copies what they log into its epic as they go and whole as they close
   ([Providers › Sessions on another machine](/reference/providers#sessions-on-another-machine)).
+  So only a supervised session, whose CLI keeps its conversation here, can be
+  [kept in a flow's state](/reference/flows#sessions-in-state) and carried on: writing a native
+  or afar one is refused with `StateNotSerializable`, and a kept one read back onto a native or
+  afar turn with `UnsupportedOperation`.
 - **Forks stay on one machine.** A fork into a session on another machine is refused with
   `UnsupportedOperation: <cli> cannot fork a session onto another machine`.
 

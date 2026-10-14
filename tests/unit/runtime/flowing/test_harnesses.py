@@ -12,10 +12,11 @@ from typing import TYPE_CHECKING, Any
 import pydantic
 import pytest
 
+from hmz.coganchor import AnchorConfig, backends
 from hmz.coganchor import agents as coganchor_agents
-from hmz.coganchor import backends
 from hmz.coganchor.agents import Question
 from hmz.coganchor.agents import base as coganchor_base
+from hmz.coganchor.machines import AnchoredConfig
 from hmz.flows import (
     AskUserHookAgentMixin,
     CostExceeded,
@@ -423,6 +424,42 @@ async def test_a_harness_that_cannot_fork_refuses_to(
 #: A conversation a session kept, as a flow's state wrote it down.
 TOLD = Kept(HarnessKind.CLAUDE, "told", Path("/runs/then/sessions/claude/.kept/1"))
 
+#: Work on another machine with the CLI run here, in this machine's mirror of that work.
+SHADOW = AnchoredConfig(
+    anchor=AnchorConfig(target="ssh://box", workspace="/w", shadow="/mirrors/w")
+)
+#: Work on another machine with the CLI run here, in a mirror at that work's own path.
+IN_PLACE = AnchoredConfig(anchor=AnchorConfig(target="ssh://box", workspace="/w"))
+#: Work on another machine with that machine's own CLI, driven natively.
+NATIVE = AnchoredConfig(
+    anchor=AnchorConfig(target="ssh://box", workspace="/w", native=True)
+)
+#: Work on another machine with the CLI under a harness put on a third.
+AFAR = AnchoredConfig(
+    anchor=AnchorConfig(target="ssh://box", workspace="/w", harness="ssh://gpu")
+)
+
+
+class Harbors:
+    """The run's harness runtimes, every one of which leaves the harness where it was put."""
+
+    def affinity(self, placement: Placement) -> tuple[str, ...]:
+        del placement
+        return ("local",)
+
+
+def _driven() -> HarnessDriver:
+    """A driver whose sessions on another machine have their harness where it was put."""
+    harbors: Any = Harbors()
+    return open_agent(_spec(), harbors)
+
+
+def _on(machine: Any) -> Placement:
+    """Work in `/w/desk` on the machine `machine` reaches."""
+    return Placement(
+        EnvBackendKind.SSH, "box", PurePosixPath("/w/desk"), machine=machine
+    )
+
 
 async def _carrying(
     driver: HarnessDriver, placement: Placement, kept: Kept = TOLD
@@ -447,16 +484,33 @@ async def test_a_session_keeps_its_conversation_once_its_cli_has_named_it(
     assert _cli(session).kept == [("conversation-1", kept.at)]
 
 
+@pytest.mark.parametrize("machine", [NATIVE, AFAR], ids=["native", "afar"])
 async def test_a_conversation_is_kept_only_by_a_cli_run_here(
-    coganchor: type[CLI], tmp_path: Path
+    coganchor: type[CLI], tmp_path: Path, machine: AnchoredConfig
 ) -> None:
     session = await _session(open_agent(_spec()), tmp_path)
     await session.turn(TurnRequest("go"), Sink())
-    _cli(session).config = Config(machine="a machine")
+    _cli(session).config = Config(machine=machine)
 
     with pytest.raises(UnsupportedOperation, match="on another machine"):
         session.keep(tmp_path)
     assert _cli(session).kept == []
+
+
+async def test_a_conversation_had_in_a_mirror_of_another_machines_work_is_kept(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    """Its CLI runs here, in the mirror, and keeps its conversations where one here does."""
+    session = await _driven().open(
+        _on(SHADOW), permission=Permission(), skills=(), hooks=HookTable()
+    )
+    await session.turn(TurnRequest("the codeword is papaya"), Sink())
+
+    kept = session.keep(tmp_path)
+
+    assert _cli(session).config.machine == SHADOW
+    assert (kept.harness, kept.id) == (HarnessKind.CLAUDE, "conversation-1")
+    assert _cli(session).kept == [("conversation-1", kept.at)]
 
 
 async def test_a_conversation_its_cli_did_not_keep_is_not_kept(
@@ -492,13 +546,13 @@ async def test_a_kept_conversation_is_carried_on_as_a_fork_cut_where_it_works(
             "claude cannot carry on a conversation codex kept",
         ),
         (TOLD, False, None, "claude cannot fork a session"),
-        (TOLD, True, "a machine", "cannot carry a kept conversation onto another"),
+        (TOLD, True, NATIVE, "onto another machine its CLI runs on"),
+        (TOLD, True, AFAR, "onto another machine its CLI runs on"),
     ],
-    ids=["kept-by-another", "unforked-harness", "other-machine"],
+    ids=["kept-by-another", "unforked-harness", "native", "afar"],
 )
 async def test_a_kept_conversation_is_refused_before_anything_is_built(
     coganchor: type[CLI],
-    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     kept: Kept,
     forks: bool,
@@ -506,14 +560,90 @@ async def test_a_kept_conversation_is_refused_before_anything_is_built(
     why: str,
 ) -> None:
     monkeypatch.setattr(backends, "named", returning(Profile(forks=forks)))
-    driver = open_agent(_spec())
+    driver = _driven()
     built = len(coganchor.built)
 
     with pytest.raises(UnsupportedOperation, match=why):
-        await _carrying(
-            driver, dataclasses.replace(_placed(tmp_path), machine=machine), kept
-        )
+        await _carrying(driver, _on(machine), kept)
     assert len(coganchor.built) == built
+
+
+async def test_a_kept_conversation_is_carried_on_by_a_cli_run_here_for_another_machine(
+    coganchor: type[CLI],
+) -> None:
+    """Work on another machine, its CLI here in a mirror of it: kept here, carried on here."""
+    session = await _carrying(_driven(), _on(SHADOW))
+
+    assert _cli(session).config.machine == SHADOW
+    assert _cli(session).recalled == [("told", TOLD.at, "/w/desk")]
+    await session.turn(TurnRequest("what was the word?"), Sink())
+    assert session.id == "conversation-1"
+
+
+async def test_a_harness_that_forks_in_place_is_refused_a_kept_conversation_in_a_mirror_apart(
+    coganchor: type[CLI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Its CLI would look for it by the mirror's path, which the environment names per run."""
+    closed: list[Recalled] = []
+
+    def close(self: Recalled) -> None:
+        closed.append(self)
+
+    monkeypatch.setattr(Recalled, "forks_elsewhere", False)
+    monkeypatch.setattr(Recalled, "close", close)
+
+    with pytest.raises(
+        UnsupportedOperation, match="into a mirror of another machine's"
+    ):
+        await _carrying(_driven(), _on(SHADOW))
+    agent = coganchor.built[-1]
+    assert agent.recalled == [("told", TOLD.at, "/w/desk")]
+    assert len(closed) == 1, "the recalled conversation let go"
+    assert agent.conversations == [], "and no turn taken"
+
+
+async def test_a_harness_that_forks_in_place_carries_on_in_a_mirror_at_the_works_own_path(
+    coganchor: type[CLI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Where a directory is named as it is there, as a session working here: the CLI's call."""
+    monkeypatch.setattr(Recalled, "forks_elsewhere", False)
+
+    session = await _carrying(_driven(), _on(IN_PLACE))
+
+    assert _cli(session).recalled == [("told", TOLD.at, "/w/desk")]
+    await session.turn(TurnRequest("what was the word?"), Sink())
+    assert session.id == "conversation-1"
+
+
+@pytest.mark.parametrize(
+    ("refused", "kind"),
+    [
+        (
+            NotImplementedError(
+                "claude cannot carry a conversation into another directory"
+            ),
+            UnsupportedOperation,
+        ),
+        (
+            RuntimeError("claude: another copy of conversation told is kept at /k"),
+            SessionError,
+        ),
+    ],
+    ids=["cannot-carry-it-there", "another-copy"],
+)
+async def test_a_kept_conversation_its_first_turn_cannot_bring_in_is_refused_there(
+    coganchor: type[CLI], tmp_path: Path, refused: Exception, kind: type[Exception]
+) -> None:
+    """As opening refuses the same: what the CLI cannot do, and a copy already held."""
+
+    def bringing(prompt: str) -> str:
+        raise refused
+
+    coganchor.reply = staticmethod(bringing)
+    session = await _carrying(open_agent(_spec()), _placed(tmp_path))
+
+    with pytest.raises(kind, match=str(refused)):
+        await session.turn(TurnRequest("go on"), Sink())
 
 
 async def test_a_kept_conversation_that_is_not_there_cannot_be_forked(

@@ -711,8 +711,11 @@ history; its first turn performs the fork.
   replaced, and one that differs refuses that turn before anything is copied, with a
   `RuntimeError` naming the CLI, the conversation and the copy already kept, which carrying this
   one on would replace. A Claude Code fork in another directory is cut from the transcript brought
-  in. A backend with no fork: `NotImplementedError`; nothing of the conversation under `kept`: a
-  `RuntimeError` naming the conversation and where it was looked for.
+  in, copied to where Claude runs for that directory: on an agent whose turns land on another
+  machine, this machine's mirror of it; on one whose Claude runs there, natively or under a
+  harness elsewhere, `NotImplementedError`. A backend with no fork: `NotImplementedError`;
+  nothing of the conversation under `kept`: a `RuntimeError` naming the conversation and where
+  it was looked for.
 - `session.keep(into)` is the other half: it copies the files `recall` would bring in --
   the conversation's own, lineage and all, and nothing else of `agent.kept()` -- into `into`,
   as they stand, leaving them as they were. Before any turn has landed, or with nothing of the
