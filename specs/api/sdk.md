@@ -172,9 +172,9 @@ the command that adds it.
 `role` names or cannot provide what `role` declares it requires, and `True` otherwise; `role`
 `None` MUST be answered for an agent that fills no declared role.
 
-**4.2.6** `Hmz.ready_to_open(backend)` MUST return whether the backend may be chosen as a
-fallback agent without the user choosing it: never for `litellm`, and for `dsh` only once its
-local account in this workspace is configured.
+**4.2.6** `Hmz.ready_to_open(backend)` MUST return whether the backend is permitted to be chosen
+as a fallback agent without the user choosing it: never for `litellm`, and for `dsh` only once
+its local account in this workspace is configured.
 
 ### 4.3 Reporting and settings carried to another daemon
 

@@ -190,25 +190,27 @@ host.
 
 ### 6.4 Status
 
-**6.4.1** The status of a host MUST carry the keys of the following table, and a client MUST read
+**6.4.1** The status of a host MUST carry the keys of the following list, and a client MUST read
 an absent `turn` as the host not holding a chat.
 
-| Key | Value |
-| --- | --- |
-| `attached` | Integer: the frontends attached. |
-| `clients` | `[{client, name, kind}]`, one per frontend attached. |
-| `slot` | The host's slot. |
-| `state` | `running`, `stopping` or `idle`. |
-| `run` | The run number of the epic going, else stopping, else the last; `0` for none. |
-| `flow` | That epic's flow as named, or `""`. |
-| `epic` | That epic's directory name, `""` before it has one. |
-| `task` | That epic's task, or `""`. |
-| `pending` | `[{question, role, text, mode}]`: every question waiting on a person. |
-| `ended` | How the last epic to end on this host ended, `{how, why, epic, at, run, flow, task}`, `at` in Unix seconds; `null` before one has ended. |
-| `turn` | Of a chat only: `running` while its agent answers, `done` between turns and once it is over. |
-| `budget`, `usage` | The epic going's budget and spending as JSON, an infinite limit as the text `"Infinity"`; `null` while stopping or idle. |
-| `flows` | The canonical refs of the flow calls in progress. |
-| `calls` | `[{ref, name, depth, seconds, id, parent}]`, oldest first; `seconds` rounded to 0.001; `parent` the index of the calling entry, or `null`. |
+- `attached`: Integer: the frontends attached.
+- `clients`: `[{client, name, kind}]`, one per frontend attached.
+- `slot`: The host's slot.
+- `state`: `running`, `stopping` or `idle`.
+- `run`: The run number of the epic going, else stopping, else the last; `0` for none.
+- `flow`: That epic's flow as named, or `""`.
+- `epic`: That epic's directory name, `""` before it has one.
+- `task`: That epic's task, or `""`.
+- `pending`: `[{question, role, text, mode}]`: every question waiting on a person.
+- `ended`: How the last epic to end on this host ended, `{how, why, epic, at, run, flow, task}`,
+  `at` in Unix seconds; `null` before one has ended.
+- `turn`: Of a chat only: `running` while its agent answers, `done` between turns and once it is
+  over.
+- `budget`, `usage`: The epic going's budget and spending as JSON, an infinite limit as the text
+  `"Infinity"`; `null` while stopping or idle.
+- `flows`: The canonical refs of the flow calls in progress.
+- `calls`: `[{ref, name, depth, seconds, id, parent}]`, oldest first; `seconds` rounded to 0.001;
+  `parent` the index of the calling entry, or `null`.
 
 **6.4.2** The host-process keys are `pid`, `workspace`, `started`, `kind` and `protocol`.
 
@@ -435,24 +437,29 @@ them in `elided`.
 
 **9.2.3** Every history record other than `printed` MUST carry `run`, its run number.
 
-**9.2.4** The history records MUST be those of the following table, with those fields.
+**9.2.4** The history records MUST be those of the following list, with those fields.
 
-| `type` | Fields |
-| --- | --- |
-| `started` | `flow`, `ref`, `task`, `by`, `client`, `roles` (agent roles not filled by the runtime), `names` (`{role: agent name}`), `outworlders`, `agents`, `envs` (`{role: spec}`), `params`, `budget`, `profile_flow`, `profile_environment`, `backup`, `resume` (`""`, or the text given), `began` (host monotonic seconds), `at` (Unix seconds) |
-| `opened` | `role`, `key` (`<agent>/<n>`), `agent`, `cli`, `model`, `counts` (token kinds the backend reports, sorted), `forks`, `person`, `kept` (directory of the session's logs, `""` for a person or the CLI's own home), `env`, `harness`, `mono`, `wall` |
-| `event` | `key`, `session`, `agent`, `cli`, `model`, `ident`, `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono`: the record `hmz exec --json` writes (`api/cli.md`) |
-| `asked` | `question` (`q<n>`), `role`, `text`, `options`, `mode` (`ask` or `listen`), `key` |
-| `answered` | `question`, `role`, `by`, `client`, `text` |
-| `withdrawn` | `question`, `why` (`away` or `over`) |
-| `said` | `text`, `key`, `by`, `client` |
-| `refused` | `agent`, `text`, `because` |
-| `unheld` | `agent`, `texts` |
-| `dropped` | `given` (`[{agent, text, by, client}]`), `queued` (`[{text, by, client, to}]`), `because` (`stopped` or `ended`) |
-| `printed` | `text`: one line printed in the host process |
-| `notice` | `text`: a notice of **hmz** about the epic, as `features/epics.md` defines notices |
-| `stopping` | `by`, `client` |
-| `ended` | `how` (`done`, `stopped`, `budget`, `refused`, `failed` or `crashed`), `why`, `mono` |
+- `started`: `flow`, `ref`, `task`, `by`, `client`, `roles` (agent roles not filled by the runtime),
+  `names` (`{role: agent name}`), `outworlders`, `agents`, `envs` (`{role: spec}`), `params`,
+  `budget`, `profile_flow`, `profile_environment`, `backup`, `resume` (`""`, or the text given),
+  `began` (host monotonic seconds), `at` (Unix seconds).
+- `opened`: `role`, `key` (`<agent>/<n>`), `agent`, `cli`, `model`, `counts` (token kinds the
+  backend reports, sorted), `forks`, `person`, `kept` (directory of the session's logs, `""` for a
+  person or the CLI's own home), `env`, `harness`, `mono`, `wall`.
+- `event`: `key`, `session`, `agent`, `cli`, `model`, `ident`, `kind`, `text`, `whose`, `tokens`,
+  `spent`, `at`, `mono`: the record `hmz exec --json` writes (`api/cli.md`).
+- `asked`: `question` (`q<n>`), `role`, `text`, `options`, `mode` (`ask` or `listen`), `key`.
+- `answered`: `question`, `role`, `by`, `client`, `text`.
+- `withdrawn`: `question`, `why` (`away` or `over`).
+- `said`: `text`, `key`, `by`, `client`.
+- `refused`: `agent`, `text`, `because`.
+- `unheld`: `agent`, `texts`.
+- `dropped`: `given` (`[{agent, text, by, client}]`), `queued` (`[{text, by, client, to}]`),
+  `because` (`stopped` or `ended`).
+- `printed`: `text`: one line printed in the host process.
+- `notice`: `text`: a notice of **hmz** about the epic, as `features/epics.md` defines notices.
+- `stopping`: `by`, `client`.
+- `ended`: `how` (`done`, `stopped`, `budget`, `refused`, `failed` or `crashed`), `why`, `mono`.
 
 **9.2.5** A conversation MUST be keyed `<agent>/<n>`, `<agent>` the agent's own name and `n` the
 count of sessions that agent opened in the epic, assigned once as the session opens.
@@ -470,21 +477,24 @@ count of sessions that agent opened in the epic, assigned once as the session op
 **9.3.1** A host MUST keep the latest of each snapshot, MUST send every snapshot on attach, and
 MUST send a snapshot to every frontend whenever it changes.
 
-**9.3.2** The snapshots MUST be those of the following table, with those fields and initial
+**9.3.2** The snapshots MUST be those of the following list, with those fields and initial
 values.
 
-| `type` | Fields | Initial |
-| --- | --- | --- |
-| `clients` | `clients`: `[{client, name, kind}]` | `[]` |
-| `claims` | `claims`: `{role: client}` | `{}` |
-| `away` | `all` (boolean), `of` (`{role: boolean}`) | `false`, `{}` |
-| `run` | `state`, the `started` fields of the epic going or the last (`run` `0` for none), `stopping` (run number or `null`), `epic` (`""` before it has one), `slot`, and of a chat `turn` | `idle` |
-| `sessions` | `run`, `open` (keys still open), `working` (keys with a turn open) | `0`, `[]`, `[]` |
-| `calls` | `calls`: `[{ref, name, depth, since, id, parent}]` | `[]` |
-| `waiting` | `queued` (`[{text, by, client, to}]`), `given` (`[{agent, text, by, client}]`) | `[]`, `[]` |
-| `pending` | `pending`: `[{question, run, role, text, options, mode, key, owner}]` | `[]` |
-| `usage` | `run`, `usage`, `budget`; sent at most once a second | `0`, `null`, `null` |
-| `board` | `items`: `[{key, value, about, whose, by, at}]`, or `null` for an epic with no board | `null` |
+- `clients`: `clients`: `[{client, name, kind}]`; initially `[]`.
+- `claims`: `claims`: `{role: client}`; initially `{}`.
+- `away`: `all` (boolean), `of` (`{role: boolean}`); initially `false`, `{}`.
+- `run`: `state`, the `started` fields of the epic going or the last (`run` `0` for none),
+  `stopping` (run number or `null`), `epic` (`""` before it has one), `slot`, and of a chat `turn`;
+  initially `idle`.
+- `sessions`: `run`, `open` (keys still open), `working` (keys with a turn open); initially `0`,
+  `[]`, `[]`.
+- `calls`: `calls`: `[{ref, name, depth, since, id, parent}]`; initially `[]`.
+- `waiting`: `queued` (`[{text, by, client, to}]`), `given` (`[{agent, text, by, client}]`);
+  initially `[]`, `[]`.
+- `pending`: `pending`: `[{question, run, role, text, options, mode, key, owner}]`; initially `[]`.
+- `usage`: `run`, `usage`, `budget`; sent at most once a second; initially `0`, `null`, `null`.
+- `board`: `items`: `[{key, value, about, whose, by, at}]`, or `null` for an epic with no board;
+  initially `null`.
 
 ### 9.4 `gone`
 
@@ -512,7 +522,7 @@ answer, else go into the first session with a turn open, in the order the epic o
 turn open; a line said with `to` `<agent>/<n>` MUST go into that session.
 
 **10.1.3** In a chat, a line said to an agent or session with no turn open MUST answer the
-waiting `listen` question this frontend may answer, and MUST go into no turn.
+waiting `listen` question this frontend is permitted to answer, and MUST go into no turn.
 
 **10.1.4** A line said with `to` `outworlder:<role>` MUST only answer that role's waiting
 `listen` question and MUST NOT go into any turn.
