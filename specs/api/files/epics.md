@@ -21,11 +21,12 @@ Out of scope:
 
 **2.1** **Epic directory** (`<epic>`): the directory **hmz** writes for one **epic**.
 
-**2.2** **Epic name**: the last path component of an epic directory.
+**2.2** The epic name (`features/epics.md` §2.1) of an **epic** MUST be the last path component
+of its epic directory.
 
 **2.3** **Record**: a JSON Lines file in an epic directory whose lines are events.
 
-**2.4** **Run record**: the record `<epic>/epic.jsonl`, which describes the **flow** the
+**2.4** **Epic record**: the record `<epic>/epic.jsonl`, which describes the **flow** the
 **epic** executes.
 
 **2.5** **Call record**: a record `<epic>/epic.<flow>_<id>.jsonl`, which describes one call of a
@@ -38,11 +39,10 @@ specifies for that event.
 **2.7** **Legible form** of a string: the string with every maximal run of characters outside
 `[A-Za-z0-9._@-]` replaced by one `-`, and every leading and trailing `-` removed.
 
-**2.8** **Agent spec**: a string of the form `cli[@provider]/model[:effort]` as the option `-a`
-spells an **agent**, specified in `api/cli.md`.
+**2.8** Every agent spec in a record MUST be spelled as `features/agents.md` §2.2 defines an
+agent spec.
 
-**2.9** **Env spec**: a string `<role>=<spec>` in which `<spec>` is spelled as the option `-e`
-spells an **env**, specified in `api/cli.md`.
+**2.9** **Role env spec**: an env spec of `api/settings.md` §2.9, preceded by `<role>=`.
 
 ## 3. The epic directory
 
@@ -91,11 +91,11 @@ form of the canonical reference of the called **flow**, or `flow` where that for
 **epic**; one **flow** called twice MUST have two call records.
 
 **4.7** A call made within a called **flow** MUST be written in the call record of that called
-**flow**, and not in the run record.
+**flow**, and not in the epic record.
 
-## 5. Events of the run record
+## 5. Events of the epic record
 
-**5.1** The first event of a run record MUST be `began`, written when the **epic** begins, with
+**5.1** The first event of an epic record MUST be `began`, written when the **epic** begins, with
 the keys:
 
 - `flow`: string, the **flow** as the **user** named it;
@@ -108,8 +108,8 @@ the keys:
 - `agents`: array with one object per **role**, with the string keys `agent` (the **role**),
   `name` (the name of the **agent** filling it), `backend` (the **harness**), `model`,
   `effort` and `provider` (the **account**, `""` for none);
-- `envs`: array of env specs, one per **env** the **user** gave;
-- `used`: array of env specs stating where each **env** was placed; present only where it
+- `envs`: array of role env specs, one per **env** the **user** gave;
+- `used`: array of role env specs stating where each **env** was placed; present only where it
   differs from `envs`;
 - `params`: object, the parameters given to the **flow**;
 - `budget`: object with the keys `duration` (number of seconds or `null`), `cost` (number of
@@ -120,13 +120,13 @@ the keys:
   profiled;
 - `backup`: array of the names of the backup targets of the **epic**; present only where it is
   not empty;
-- `spelling`: the integer `2`, stating that `envs` and `used` follow the env spec spelling of
+- `spelling`: the integer `2`, stating that `envs` and `used` follow the role env spec spelling of
   this document.
 
 **5.2** A reader MUST read the `envs` and `used` of a `began` event without `spelling` as an
 earlier spelling, and MUST convert each to the spelling of clause 2.9.
 
-**5.3** `hmz` MUST write the event `reopened` into the run record of an **epic** of a **chat**
+**5.3** `hmz` MUST write the event `reopened` into the epic record of an **epic** of a **chat**
 when the **user** carries that **chat** on, with the key `task` (string, the task given on
 carrying on), and MUST NOT write another `began` for it.
 
@@ -144,9 +144,9 @@ carrying on), and MUST NOT write another `began` for it.
   to the epic directory where they are kept in it, and an absolute path otherwise;
 - `parent`: string, the identifier of the **session** this one was forked from; present only for
   a forked **session**;
-- `harness`: string, `local`, `self`, or `<runtime>:<name>` naming the **runtime** the
-  **placement** of the **harness** used; present only where the **harness machine** is not
-  **this machine**.
+- `harness`: string, `local`, `self` or the `<backend>:<name>` of a harness runtime, where the
+  **harness** went as `features/placements.md` §4.6.1 states; present only where the **env
+  machine** is not **this machine**.
 
 **5.5** `hmz` MUST NOT write `opened` for a **session** whose **harness** never stated an
 identifier.
@@ -160,15 +160,15 @@ ends, however it ends, with the keys `flow` and `epic`, equal to those of the ma
 
 **5.8** A reader MUST match `returned` to `called` by the value of `epic`.
 
-**5.9** `hmz` MUST write the event `btw` into the run record each time the **user** sets or clears
+**5.9** `hmz` MUST write the event `btw` into the epic record each time the **user** sets or clears
 the **agent** of the side questions of the **epic**, with the key `agent` (string, an agent spec,
 or `""` where the **user** cleared it).
 
-**5.10** A reader MUST take the `agent` of the last `btw` event of a run record as the **agent**
+**5.10** A reader MUST take the `agent` of the last `btw` event of an epic record as the **agent**
 of the side questions of the **epic**, and MUST take the absence of `btw` as no **agent** set.
 
-**5.11** `hmz` MUST write the event `usage` into the run record immediately before each `ended`
-of the run record, with the keys `cost` (number, US dollars), `output_tokens` (integer) and
+**5.11** `hmz` MUST write the event `usage` into the epic record immediately before each `ended`
+of the epic record, with the keys `cost` (number, US dollars), `output_tokens` (integer) and
 `seconds` (number), stating what the budget of the **epic** counted since it began or was last
 reopened.
 
@@ -177,19 +177,19 @@ it describes stops, with the key `how` (string): `stopped` where the **flow** wa
 outside, ran out of budget or raised the cancellation of its **flow**; `failed` where it raised
 any other exception; and `done` otherwise.
 
-**5.13** A reader MUST take the end of a run record as the last `ended` after the last
-`reopened`, and MUST take a run record with no such `ended` as an **epic** that is running or
+**5.13** A reader MUST take the end of an epic record as the last `ended` after the last
+`reopened`, and MUST take an epic record with no such `ended` as an **epic** that is running or
 whose process was killed, telling the two apart by the lock of §9.1.
 
 **5.14** A reader MUST take the spending of an **epic** as the sum of all `usage` events of its
-run record.
+epic record.
 
-**5.15** `hmz` MUST write the event `backed` into the run record each time it backs the **epic**
+**5.15** `hmz` MUST write the event `backed` into the epic record each time it backs the **epic**
 up, with the keys `to` (string, the name of the backup target), `ok` (boolean), `error`
 (string, `""` where `ok` is `true`) and `why` (string, one of `session`, `interval`, `end` and
 `manual`).
 
-**5.16** `hmz` MUST write the event `imported` into the run record as the last event when it
+**5.16** `hmz` MUST write the event `imported` into the epic record as the last event when it
 imports the **epic**, with the keys `from` (string, the file name of the archive, or a
 description of the backup it was pulled from) and `head` (string, the commit of the
 **workspace** that the archive manifest states, `""` for none).
@@ -197,9 +197,9 @@ description of the backup it was pulled from) and `head` (string, the commit of 
 **5.17** A reader MUST ignore the `backup` key of `began` and every `backed` event preceding the
 last `imported` event.
 
-**5.18** `hmz` MAY write `backed` and `imported` events after the last `ended` of a run record.
+**5.18** `hmz` MAY write `backed` and `imported` events after the last `ended` of an epic record.
 
-**5.19** A run record MUST contain no events other than those of §5.
+**5.19** A epic record MUST contain no events other than those of §5.
 
 ## 6. Events of a call record
 
@@ -358,7 +358,7 @@ extension `.hmzepic` and the media type `application/vnd.hmz.epic+gzip`.
   otherwise);
 - `agents`: array of objects with the keys `agent`, `name`, `backend`, `model`, `effort`,
   `provider` and `runs` (an agent spec);
-- `envs`, `used`: arrays of env specs;
+- `envs`, `used`: arrays of role env specs;
 - `called`: array of objects with the keys `flow`, `task`, `record`, `under`, `began`, `ended`
   and `how`, one per call record;
 - `sessions`: array of objects with the keys `name`, `agent`, `backend`, `provider`, `session`,
@@ -397,4 +397,4 @@ directory however the import ends.
 **11.6** `hmz` MUST rewrite each `opened` event whose `where` is an absolute path so that `where`
 is `sessions/<backend>`, in every record of the imported **epic**.
 
-**11.7** `hmz` MUST append `imported` to the run record before the rename of clause 11.4.
+**11.7** `hmz` MUST append `imported` to the epic record before the rename of clause 11.4.

@@ -109,8 +109,8 @@ for its colours, MUST draw failures in red and warnings in yellow, MUST use the 
 
 **3.5** As it opens, the interface MUST, in the background and without delaying input:
 
-1. ask each installed harness's own account for its models, where that account's model list was
-   never fetched or is older than 7 days, reporting a failure only in its log;
+1. ask the harness machine's own sign-in of each installed harness for its models, where that
+   model list was never fetched or is older than 7 days, reporting a failure only in its log;
 2. fetch every flowverse index that has a URL and no local edits, one at a time, the
    `official` one included where it was never fetched, installing nothing;
 3. look for an epic of this directory that `/resume` can pick up;
@@ -528,17 +528,28 @@ and its question.
 
 **12.7** In btw mode, the btw agent key, `ctrl+g`, MUST drop a list titled `btw agent`
 offering `default` (no choice of the epic's own), the epic's current choice where it has one,
-and `another…`; `another…` MUST open the agent sheet (§16.5); picking MUST make the result the
-epic's btw agent choice (`features/btw.md` §8) and MUST show `btw agent: <spec>`, or
-`btw agent: default` where it was cleared. Where no epic is in view, the key MUST show
-`hmz: btw: no epic to keep an agent with` and change nothing.
+and `another…`.
 
-**12.8** `/btw` alone or `esc` MUST leave btw mode, say `btw: exited`, and close every side
+**12.8** Taking `another…` MUST open the agent sheet (§16.5).
+
+**12.9** Picking from the `btw agent` list MUST make the result the epic's btw agent choice
+(`features/btw.md` §8).
+
+**12.10** Picking from the `btw agent` list MUST show `btw agent: <spec>`, or `btw agent: default`
+where the choice was cleared.
+
+**12.11** Where no epic is in view, the btw agent key MUST refuse the pick, showing
+`hmz: btw: no epic to keep an agent with`.
+
+**12.12** `/btw` alone or `esc` MUST leave btw mode, say `btw: exited`, and close every side
 conversation btw mode opened.
 
-**12.9** An epic starting MUST leave btw mode, saying that a new flow started.
+**12.13** An epic starting MUST leave btw mode, saying that a new flow started.
 
-**12.10** A failure of a side question MUST be shown in red, prefixed `hmz: /btw:`.
+**12.14** A side question asked while the side conversation is answering an earlier one MUST be
+refused, showing `hmz: btw is still answering the last question` in red.
+
+**12.15** A failure of a side question MUST be shown in red, prefixed `hmz: /btw:`.
 
 ## 13. Status line
 
@@ -780,7 +791,7 @@ or a required environment role unset, naming those roles.
 and that serve every capability the role requires, and MUST say how to install a harness whose
 program is present but whose extra is missing.
 
-**16.5.3** `account` MUST offer this machine's own account first, as `as local`, then each saved
+**16.5.3** `account` MUST offer this machine's own sign-in first, as `as local`, then each saved
 account of the harness, and MUST offer adding an account (§19.7); `model` MUST offer the
 models last reported for that account and checking again; `effort` MUST offer the efforts that
 model takes, hardest first.

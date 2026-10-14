@@ -38,19 +38,21 @@ a name of the stated prefix followed by `<random>`, with mode `0700`.
 process needs an entry in it.
 
 **3.2** `hmz` MUST refuse to use `<mdir>` where it is not a directory, is not owned by the
-**user**, or is writable by its group or by others, and MUST then report that the **user** is to
-remove it.
+**user**, or is writable by its group or by others.
 
-**3.3** `hmz` MUST NOT locate `<mdir>` by `XDG_RUNTIME_DIR`.
+**3.3** `hmz` MUST report the refusal of clause 3.2 as
+`<mdir> is not a directory only this user can write; remove it`.
 
-**3.4** `hmz` MUST NOT remove `<mdir>`.
+**3.4** `hmz` MUST NOT locate `<mdir>` by `XDG_RUNTIME_DIR`.
 
-**3.5** `hmz` MUST create again, when it next needs it, every entry of `<mdir>` that is missing;
+**3.5** `hmz` MUST NOT remove `<mdir>`.
+
+**3.6** `hmz` MUST create again, when it next needs it, every entry of `<mdir>` that is missing;
 the **user** MAY delete any entry of `<mdir>` while **hmz** is not running.
 
 > Informative: an operating system that cleans its temporary directory can empty `<mdir>`.
 
-**3.6** `<mdir>` MUST contain no entries other than those specified in §4 to §8 and in
+**3.7** `<mdir>` MUST contain no entries other than those specified in §4 to §8 and in
 `api/files/harness-homes.md`.
 
 ## 4. Caches in the machine directory
@@ -76,46 +78,52 @@ model catalogue of one **account** of the **harness** `<cli>`, and of the sign-i
 `{"asked": <UTC timestamp to the second>, "models": [{"name": <string>, "efforts":
 [<string>, ...], "swarms": <bool>}, ...]}`.
 
-**4.6** `hmz` MUST write a model catalogue by atomic replacement, MUST ask the **harness** again
-for a catalogue older than 7 days, and MUST remove the catalogue of an **account** when it
-removes the **account**.
+**4.6** `hmz` MUST write a model catalogue by atomic replacement.
 
-**4.7** `<mdir>/pinned/<url-digest>/<commit>/` MUST be a `git` checkout of the repository at the
+**4.7** `hmz` MUST ask the **harness** again for a model catalogue as `features/accounts.md` §8.1
+states.
+
+**4.8** `hmz` MUST remove the model catalogue of an **account** when it removes the **account**.
+
+**4.9** `<mdir>/pinned/<url-digest>/<commit>/` MUST be a `git` checkout of the repository at the
 URL whose digest is `<url-digest>` (16 lowercase hexadecimal digits), detached at `<commit>`,
 that **hmz** clones for a flow reference pinned to a commit and for a release it installs.
 
-**4.8** `hmz` MUST create a checkout of clause 4.7 by cloning into
+**4.10** `hmz` MUST create a checkout of clause 4.9 by cloning into
 `<mdir>/pinned/<url-digest>/.<random>` and renaming it into place, and MUST NOT remove a checkout.
 
-**4.9** `<mdir>/skills/<owner>-<repo>-<digest>/`, where `<digest>` is 12 lowercase hexadecimal
+**4.11** `<mdir>/skills/<owner>-<repo>-<digest>/`, where `<digest>` is 12 lowercase hexadecimal
 digits of the SHA-256 of the URL, MUST be a `git` clone of a skill repository that a **role** of
 a **flow** not installed names by URL; `hmz` MUST fetch it again on each **epic** that names it.
 
-**4.10** `<mdir>/compiled/pi/` and `<mdir>/compiled/qwen/` are the Node.js compile caches of the
-**harnesses** `pi` and `qwen`, which **hmz** names in `NODE_COMPILE_CACHE` where that variable is
-not set; Node.js writes their content.
+**4.12** `<mdir>/compiled/pi/` and `<mdir>/compiled/qwen/` MUST be cache directories of the
+**harnesses** `pi` and `qwen`, which **hmz** names to them in `NODE_COMPILE_CACHE` where that
+variable is not set, and whose content those **harnesses** write; the **user** MAY delete them
+while no process of those **harnesses** runs.
 
-**4.11** `<mdir>/docker-ssh/<digest>/ssh`, where `<digest>` is 16 lowercase hexadecimal digits,
+**4.13** `<mdir>/docker-ssh/<digest>/ssh`, where `<digest>` is 16 lowercase hexadecimal digits,
 MUST be an executable shell script of mode `0700`, in a directory of mode `0700`, that runs
 `ssh` with the options of one docker **runtime** reached over ssh; `hmz` MUST write it by atomic
 replacement and MUST NOT remove it.
 
-**4.12** `<mdir>/tokens/<digest>`, where `<digest>` is 32 lowercase hexadecimal digits of the
+**4.14** `<mdir>/tokens/<digest>`, where `<digest>` is 32 lowercase hexadecimal digits of the
 SHA-256 of a secret, MUST hold that secret alone, with mode `0600`, in a directory of mode
 `0700`, for a command line that names a secret by file.
 
-**4.13** `hmz` MUST remove a file of clause 4.12 when the Slurm job whose secret it holds is
+**4.15** `hmz` MUST remove a file of clause 4.14 when the Slurm job whose secret it holds is
 stopped, and MAY leave every other such file.
 
-**4.14** `<mdir>/harness/` MUST be an empty directory that **hmz** mounts as the working directory
+**4.16** `<mdir>/harness/` MUST be an empty directory that **hmz** mounts as the working directory
 of a **harness** placed in a container on **this machine** without a working directory; `hmz`
 MUST NOT write into it and MUST NOT remove it.
 
-**4.15** `<mdir>/backup/<target>/` MUST be a `git` clone of the repository of the backup target
-`<target>`, and `<mdir>/backup/<target>.lock` an empty file on which a process holds an
-exclusive advisory lock while it uses that clone; `hmz` MUST NOT remove either.
+**4.17** `<mdir>/backup/<target>/` MUST be a `git` clone of the repository of the backup target
+`<target>`, and `<mdir>/backup/<target>.lock` an empty file that guards that clone; `hmz` MUST
+NOT remove either.
 
-**4.16** `hmz` MUST NOT write into a backup clone any `git` configuration other than
+**4.18** At most one process of `hmz` MUST use a clone of clause 4.17 at a time.
+
+**4.19** `hmz` MUST NOT write into a backup clone any `git` configuration other than
 `remote.origin.url`, `remote.origin.fetch` and, where `user.email` is not set in it,
 `user.name` and `user.email`.
 
@@ -155,8 +163,8 @@ with mode `0600`, written by atomic replacement.
 **6.3** The **daemon** MUST remove a stale `<mdir>/daemon.sock` before it binds the socket, and
 MUST remove `<mdir>/daemon.sock` and `<mdir>/daemon.json` when it closes.
 
-**6.4** `<mdir>/daemon.lock` MUST be an empty file of mode `0600` on which the **daemon** holds an
-exclusive advisory lock for its whole life; `hmz` MUST NOT remove it.
+**6.4** `<mdir>/daemon.lock` MUST be an empty file of mode `0600` that guards the **daemon** for
+its whole life; `hmz` MUST NOT remove it.
 
 **6.5** `<mdir>/daemon.log` MUST receive, appended, the standard output and standard error of the
 **daemon** and of each of its host processes while that process holds no **epic**, with mode
@@ -193,8 +201,10 @@ and MUST remove it when the computation ends.
 
 **7.6** `<mdir>/.<runtime-kind>.<runtime>.lock`, where `<runtime-kind>` is `docker`, `swarm`,
 `slurm` or `apple-container` and `<runtime>` is the name of a **runtime**, MUST be an empty file
-on which a process of **hmz** holds an exclusive advisory lock while it sizes, creates or submits
-containers, services or jobs on that **runtime**; `hmz` MUST NOT remove it.
+that guards that **runtime**; `hmz` MUST NOT remove it.
+
+**7.7** At most one process of **hmz** MUST size, create or submit containers, services or jobs on
+one **runtime** at a time.
 
 ## 8. Other process-private temporary directories
 
@@ -228,17 +238,14 @@ the absolute path of the **mirror**.
 the absolute path of the **mirror** and the **machine** it mirrors, written by atomic
 replacement each time a **harness** begins to use the **mirror**.
 
-**9.4** `<sha16>.journal` MUST be a file of mode `0600` holding, appended, one compact JSON array
-per line for each change a **harness** process makes to its knowledge of the files of the
-**mirror**: `["file", <path>, <kind>, <mode>, <remote size>, <remote mtime ns>, <content present>,
-<local size>, <local mtime ns>]`, `["dirty", <path>]`, `["forget", <path>]` or `["rename",
-<from>, <to>]`.
+**9.4** `<sha16>.journal` MUST be a file of mode `0600` in which the **harness** processes using
+the **mirror** record what they know of its files; its content is not specified.
 
-**9.5** `<sha16>.live` MUST be an empty file of mode `0600` on which each **harness** process
-using the **mirror** holds a shared advisory lock while it uses it.
+**9.5** `<sha16>.live` MUST be an empty file of mode `0600` that marks the **mirror** as used while
+any **harness** process uses it.
 
-**9.6** `hmz` MUST truncate `<sha16>.journal` when a **harness** process begins to use the
-**mirror** while no other process holds the lock of clause 9.5.
+**9.6** `hmz` MUST empty `<sha16>.journal` when a **harness** process begins to use the
+**mirror** while no other **harness** process uses it.
 
 **9.7** `hmz` MUST NOT remove the files of §9 when it removes the **mirror** they describe.
 

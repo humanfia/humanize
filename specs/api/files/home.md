@@ -96,24 +96,26 @@ values are specified in `api/settings.md`.
 
 **5.3** `hmz` MUST write `<home>/settings.yaml` by atomic replacement.
 
-**5.4** Each writer of `<home>/settings.yaml` MUST hold an exclusive advisory lock (`flock`) on
-`<home>/.settings.yaml.lock` while it reads the file, makes one change and writes the file, and
-MUST proceed without the lock where the lock is not granted within 30 seconds.
+**5.4** Each writer of `<home>/settings.yaml` MUST, by `<home>/.settings.yaml.lock`, keep every
+other writer out while it reads the file, makes one change and writes the file.
 
-**5.5** `hmz` MUST create `<home>/.settings.yaml.lock` empty, with mode `0600`, and MUST NOT
+**5.5** A writer that cannot keep the other writers out within 30 seconds, or cannot open
+`<home>/.settings.yaml.lock`, MUST proceed without keeping them out.
+
+**5.6** `hmz` MUST create `<home>/.settings.yaml.lock` empty, with mode `0600`, and MUST NOT
 remove it.
 
-**5.6** A reader of `<home>/settings.yaml` MUST NOT take the lock of clause 5.4.
+**5.7** A reader of `<home>/settings.yaml` MUST NOT wait for a writer.
 
-**5.7** `hmz` MUST treat a `<home>/settings.yaml` that is missing, unreadable, not valid YAML or
+**5.8** `hmz` MUST treat a `<home>/settings.yaml` that is missing, unreadable, not valid YAML or
 not a mapping as holding no settings.
 
-**5.8** `hmz` MUST NOT overwrite a `<home>/settings.yaml` that is unreadable, not valid YAML or
+**5.9** `hmz` MUST NOT overwrite a `<home>/settings.yaml` that is unreadable, not valid YAML or
 not a mapping.
 
-**5.9** `hmz` MUST NOT remove `<home>/settings.yaml`.
+**5.10** `hmz` MUST NOT remove `<home>/settings.yaml`.
 
-**5.10** The **user** MAY delete `<home>/settings.yaml` and `<home>/.settings.yaml.lock` while
+**5.11** The **user** MAY delete `<home>/settings.yaml` and `<home>/.settings.yaml.lock` while
 **hmz** is not running; every setting then takes its default.
 
 ## 6. Prompt history
@@ -231,8 +233,7 @@ an **env** whose **env machine** is **this machine**; its content is specified i
 `api/files/targets.md` §4.
 
 **10.2** `<home>/envs/mirrors/` holds the local mirrors of **envs** whose **env machine** is a
-container, a swarm service or a Slurm job; its content is specified in `api/files/targets.md`
-§6.
+container, a swarm service or a Slurm job; its content is specified in `api/files/targets.md` §6.
 
 ## 11. Epics
 

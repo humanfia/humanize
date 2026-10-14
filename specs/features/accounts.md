@@ -14,7 +14,7 @@ Out of scope:
 
 - The harness kinds, agent specs, retries and fallback chains: `features/agents.md`.
 - The LiteLLM gateway's lifecycle: `features/agents.md` §13.2.
-- The layout of `~/.hmz/providers/` and of the machine cache as files: `api/files/home.md` and
+- The layout of `<home>/providers/` and of the machine cache as files: `api/files/home.md` and
   `api/files/machine.md`.
 - Where a harness runs relative to its env: `features/placements.md`.
 - The account pages of the terminal and web frontends: `features/tui.md` and `features/web.md`.
@@ -24,8 +24,8 @@ Out of scope:
 **2.1** **Account name**: a name of one or more letters, digits, dots, dashes and underscores,
 starting with a letter or a digit.
 
-**2.2** **Machine's own account**: for each harness kind, the account with the empty name, which
-is the harness as the user has signed it in on the harness machine.
+**2.2** **Harness machine's own sign-in**: for each harness kind, the harness as the user has
+signed it in on the harness machine, under no account and with the empty account name.
 
 **2.3** **Way in**: one kind of account a harness kind offers, defined by the command it runs, the
 variables it asks for, the variables it sets, and the arguments it appends to every turn.
@@ -67,32 +67,33 @@ with a message stating the permitted characters.
 
 ### 3.2 Choosing an account
 
-**3.2.1** An agent MUST run as the account its agent spec names after `@`, and as the machine's
-own account where its agent spec names none.
+**3.2.1** An agent MUST run as the account its agent spec names after `@`, and as the harness
+machine's own sign-in where its agent spec names none, except as §7.1.2 states for the afar
+placement.
 
 **3.2.2** An agent spec naming an account that does not exist MUST be refused before the epic
 starts where it is given to `-a`, and otherwise before the agent's first turn, with a message
 naming the agent, the harness kind and the account.
 
-**3.2.3** hmz MUST NOT fall back to the machine's own account for an agent whose account does
-not exist.
+**3.2.3** hmz MUST NOT fall back to the harness machine's own sign-in for an agent whose account
+does not exist.
 
-### 3.3 The machine's own account
+### 3.3 The harness machine's own sign-in
 
-**3.3.1** The machine's own account MUST exist for every harness kind, and MUST NOT be listed
-among the accounts hmz made.
+**3.3.1** The harness machine's own sign-in MUST be offered for every harness kind, and MUST NOT
+be listed among the accounts hmz made.
 
-**3.3.2** hmz MUST hold no credentials for the machine's own account, and MUST NOT make, sign in,
-change or remove it.
+**3.3.2** hmz MUST hold no credentials for the harness machine's own sign-in, and MUST NOT make,
+sign in, change or remove it.
 
-**3.3.3** A turn under the machine's own account MUST run with its environment as hmz found it,
-with no account variable added or removed and no credential file substituted.
+**3.3.3** A turn under the harness machine's own sign-in MUST run with its environment as hmz found
+it, with no account variable added or removed and no credential file substituted.
 
 ## 4. Storage
 
 ### 4.1 Layout
 
-**4.1.1** Each account MUST be one directory `~/.hmz/providers/<cli>/<name>/`, as
+**4.1.1** Each account MUST be one directory `<home>/providers/<cli>/<name>/`, as
 `api/files/home.md` states.
 
 **4.1.2** The account's directory MUST hold a file `provider.json` stating the harness kind, the
@@ -253,26 +254,15 @@ removes the others: `CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_OAUTH_TOKEN`; `GEMI
 **6.1.5** An account's variables MUST reach the harness as its environment and MUST NOT be
 written on any command line.
 
-**6.1.6** On `litellm`, the account MUST be passed on the call, and nothing MUST be removed from
-this process's environment.
+**6.1.6** On `litellm`, the account MUST be passed on the call.
+
+**6.1.7** On `litellm`, hmz MUST NOT remove any variable from this process's environment for an
+account.
 
 ### 6.2 Credential files
 
-**6.2.1** The credential files of each harness kind MUST be the following, under the harness's
-configuration home unless written from `~` or from `$XDG_CONFIG_HOME`:
-
-| Kind | Credential files |
-| --- | --- |
-| `agy` | `antigravity-oauth-token` |
-| `claude` | `.credentials.json`, `.claude.json`, `~/.claude.json`, `$XDG_CONFIG_HOME/anthropic/` |
-| `codex` | `auth.json` |
-| `cursor-agent` | `cli-config.json`, `$XDG_CONFIG_HOME/cursor/auth.json`, `~/.cursor/auth.json` |
-| `grok` | `auth.json`, `mcp_credentials.json` |
-| `kimi` | `credentials/`, `oauth/` |
-| `mcode` | `config.yaml`, `auth/` |
-| `mimo`, `opencode` | `auth.json`, `mcp-auth.json` |
-| `pi` | `auth.json`, `auth.json.lock` |
-| `dsh`, `litellm`, `omp`, `qwen`, ACP | none |
+**6.2.1** The credential files of each harness kind MUST be those `api/files/harness-homes.md` §4.5
+lists, and an ACP harness MUST have none.
 
 **6.2.2** A turn under an account MUST read and write the account's copy of each credential file
 wherever the harness reads or writes its own, and MUST NOT read or write the harness's own.
@@ -286,15 +276,16 @@ NOT fall through to the harness's own file.
 **6.2.5** A turn that needs credential files substituted on a machine where hmz cannot substitute
 them MUST be refused rather than run with the harness's own credentials.
 
-**6.2.6** Any temporary copy of a credential hmz makes for a turn MUST be removed when that turn
+**6.2.6** A copy of a credential file that hmz makes for a harness to read MUST be used for reads
+alone, as `api/files/harness-homes.md` §4 states, and MUST be removed when the turn
 ends, whatever became of it.
 
 **6.2.7** A credential that is not a file (a system keychain entry) and a credential stored in
 the same database as the harness's sessions MUST NOT be held by an account.
 
 **6.2.8** Where a harness is launched with a virtual config home (`features/agents.md` §5.2),
-its credential files MUST be the account's, or for the machine's own account the user's real
-ones, and MUST NOT be copies discarded at exit.
+its credential files MUST be the account's, or for the harness machine's own sign-in the user's
+real ones, and MUST NOT be copies discarded at exit.
 
 ### 6.3 Gateway accounts
 
@@ -321,7 +312,9 @@ with the account's own variables withheld from the harness.
 harness lists of its own.
 
 **6.4.4** `claude`, `agy`, `codex`, `dsh`, `grok`, `kimi`, `pi`, `qwen`, `opencode`, `mimo` and
-`mcode` MUST support routed accounts, and no other harness kind MUST offer them.
+`mcode` MUST support routed accounts.
+
+**6.4.5** Every harness kind not listed in §6.4.4 MUST NOT offer routed accounts.
 
 ## 7. Which machine's credentials a harness reads
 
@@ -332,14 +325,15 @@ and hmz MUST NOT carry any sign-in of this machine to another machine for it.
 
 **7.1.2** An agent with an account MUST run as that account wherever its harness runs, with the
 account's variables and credential files made available to the harness on the harness machine
-for each turn.
+for each turn, except under the afar placement, where the agent MUST run as the harness
+machine's own sign-in (`features/placements.md` §5.3.3).
 
-**7.1.3** Where a harness runs on a machine other than this machine, the account's credential
+**7.1.3** Where a harness runs under the native placement, the account's credential
 files MUST be placed there in a directory only the harness machine's user can enter, unreadable
 by anyone else from the moment it exists, and MUST be removed when the turn ends, whatever became
 of it.
 
-**7.1.4** Where a harness on another machine has no way of reading credential files from a
+**7.1.4** Where a harness under the native placement has no way of reading credential files from a
 location hmz names, a turn needing them MUST be refused.
 
 **7.1.5** Commands the agent runs on an env machine other than the harness machine MUST NOT
@@ -355,8 +349,8 @@ key as a refreshing sign-in.
 **7.2.3** Turns whose harness runs on this machine MUST use a refreshing sign-in in place, and
 any number of them MUST be permitted to do so at once.
 
-**7.2.4** A turn whose harness runs on another machine MUST be lent a copy of a refreshing sign-in
-only while no other turn uses it, and no other turn MUST use it until the copy is returned.
+**7.2.4** A turn whose harness runs under the native placement MUST be lent a copy of a refreshing
+sign-in only while no other turn uses it, and no other turn MUST use it until the copy is returned.
 
 **7.2.5** A turn that finds a refreshing sign-in held the other way MUST be refused at once with
 the fault class `contended`, and MUST NOT wait for it.
@@ -365,32 +359,40 @@ the fault class `contended`, and MUST NOT wait for it.
 unless the account's file changed meanwhile, in which case hmz MUST say so and MUST NOT write over
 it.
 
-**7.2.7** Where the file system cannot lock an account's directory, hmz MUST log that it cannot
-hold the sign-in and MUST run the turn without holding it.
+**7.2.7** Where the file system of an account's directory does not let hmz hold a refreshing
+sign-in against other processes, hmz MUST log that it cannot hold the sign-in.
+
+**7.2.8** Where §7.2.7 applies, hmz MUST run the turn without holding the sign-in.
 
 ## 8. Model catalogues
 
 ### 8.1 Keeping and asking
 
 **8.1.1** hmz MUST keep each account's model catalogue in this machine's cache, as
-`api/files/machine.md` states, and never in `~/.hmz`.
+`api/files/machine.md` states, and never in the home.
 
-**8.1.2** The machine's own account's catalogue MUST be kept under a name no account can take.
+**8.1.2** The catalogue of the harness machine's own sign-in MUST be kept under a name no account
+can take.
 
-**8.1.3** hmz MUST ask for an account's catalogue when the account is made and when the user asks
-again, and the terminal frontend MUST ask again at start-up, without blocking, for each installed
-harness kind whose machine's own catalogue is missing or stale.
+**8.1.3** hmz MUST ask for a catalogue when the user asks for it.
 
-**8.1.4** A catalogue asked for more than 7 days ago, or never asked for, MUST be stale.
+**8.1.4** A frontend MUST ask for an account's catalogue when the user picks an account whose
+catalogue was never asked for.
 
-**8.1.5** Where the account sets its harness's endpoint variable, the catalogue MUST be the
+**8.1.5** The terminal frontend MUST ask again at start-up, without blocking, for the catalogue of
+the harness machine's own sign-in of each installed harness kind where that catalogue is missing or
+stale.
+
+**8.1.6** A catalogue asked for more than 7 days ago, or never asked for, MUST be stale.
+
+**8.1.7** Where the account sets its harness's endpoint variable, the catalogue MUST be the
 endpoint's model list, asked under the account's secret, following a redirect only to the same
 host and never from `https` to `http`; otherwise the catalogue MUST be what the harness lists
 when asked under the account.
 
-**8.1.6** An endpoint that does not answer MUST leave a catalogue already read from it in place.
+**8.1.8** An endpoint that does not answer MUST leave a catalogue already read from it in place.
 
-**8.1.7** Reading a catalogue MUST cost one file read and no network; a catalogue never asked for
+**8.1.9** Reading a catalogue MUST cost one file read and no network; a catalogue never asked for
 MUST read as empty and MUST NOT be guessed.
 
 ## 9. Expired and refused credentials
@@ -407,10 +409,12 @@ carried to the next place of its fallback chain where one is configured, as
 
 **9.1.3** hmz MUST NOT attempt to sign an account in again without the user.
 
-**9.1.4** The user MUST be able to sign an account in again from the account pages of the
-frontends, which MUST run the account's way in again over the same account.
+**9.1.4** hmz MUST let the user sign an account in again from the account pages of the
+frontends.
 
-**9.1.5** A turn refused because a model is not the account's to run MUST fail with the fault
+**9.1.5** Signing an account in again MUST run the account's way in again over the same account.
+
+**9.1.6** A turn refused because a model is not the account's to run MUST fail with the fault
 class `unlisted` and MUST NOT be reported as a credential failure.
 
 ## 10. One account, several harness kinds

@@ -21,39 +21,40 @@ Out of scope:
 
 ## 2. Definitions
 
-Terms in bold in `README.md §2` carry the meaning given there and are not redefined.
+**2.1** Every term of `README.md` §5 MUST carry the meaning given there.
 
-**2.1** **Server**: one process of `hmz web` answering HTTP.
+**2.2** **Server**: one process of `hmz web` answering HTTP.
 
-**2.2** **Key**: the secret text the server makes when it starts and prints in its address.
+**2.3** **Key**: the secret text the server makes when it starts and prints in its address.
 
-**2.3** **Address**: the text `http://127.0.0.1:<port>/?key=<key>` the server prints.
+**2.4** **Address**: the text `http://127.0.0.1:<port>/?key=<key>` the server prints.
 
-**2.4** **Admission cookie**: the cookie named `hmz-<port>` whose value is the key.
+**2.5** **Admission cookie**: the cookie named `hmz-<port>` whose value is the key.
 
-**2.5** **API request**: a request whose path starts with `/api/`.
+**2.6** **API request**: a request whose path starts with `/api/`.
 
-**2.6** **Write**: a `POST` request.
+**2.7** **Write**: a `POST` request.
 
-**2.7** **Refusal**: an answer whose status is 400 or above, whose body is a JSON object carrying
+**2.8** **Refusal**: an answer whose status is 400 or above, whose body is a JSON object carrying
 `error`, one sentence saying why.
 
-**2.8** **Stream**: an answer of media type `text/event-stream` (§6).
+**2.9** **Stream**: an answer of media type `text/event-stream` (§6).
 
-**2.9** **Workspace parameter**: the field `workspace` of a request: the query parameter of a
+**2.10** **Workspace parameter**: the field `workspace` of a request: the query parameter of a
 `GET`, or the body field of a `POST`, naming a **workspace** by an absolute path, `~` expanded.
 
-**2.10** **Slot parameter**: the field `slot` of a request, read as the workspace parameter is,
-naming a host of the workspace as `api/daemon.md §2.5` defines a slot.
+**2.11** **Slot parameter**: the field `slot` of a request, read as the workspace parameter is,
+naming a host of the workspace as `api/daemon.md §2.6` defines a slot.
 
-**2.11** **Daemon name**: `local` for this machine's daemon, or the name of an ssh daemon
+**2.12** **Daemon name**: `local` for this machine's daemon, or the name of an ssh daemon
 written in the `daemons` list of `api/settings.md`.
 
-**2.12** **Epic name**: the base name of an epic directory (`api/files/epics.md`).
+**2.13** An epic name (`features/epics.md` §2.1) MUST be written as `api/files/epics.md` §2.2
+states.
 
-**2.13** **Run row**: the JSON object §10.2 defines.
+**2.14** **Epic row**: the JSON object §10.2 defines.
 
-**2.14** **Notice**: the JSON object §15.1 defines.
+**2.15** **Notice**: the JSON object §15.1 defines.
 
 ## 3. Listening
 
@@ -280,18 +281,19 @@ slot, starting its host; `start` on a chat slot MUST start that slot's host wher
 **9.1.1** A side question MUST be asked as `features/btw.md` defines it, through side
 conversations the workspace's own host opens (`api/daemon.md §8.8`), and MUST NOT reach the epic.
 
-**9.1.2** The **btw** agent of an epic MUST resolve to the epic's own choice (§9.4), else `btw` of
-`api/settings.md`, else the agent of the flow's first agent role.
+**9.1.2** The **btw** agent of an epic MUST be chosen as `features/btw.md` §7.1 states, the
+epic's own choice being the one §9.4 sets.
 
 ### 9.2 `GET /api/btw`
 
 **9.2.1** `GET /api/btw` MUST take the workspace parameter and `epic` (an epic name, `""` for the
 epic in view on the workspace's own host).
 
-**9.2.2** It MUST answer `open` (the conversations a side conversation is open on, `""` for the
-btw agent's), `said` (each side question answered since, oldest first, as §9.3 answers it, the
-latest 200), `agent` (the btw agent that epic has chosen, in agent spec, `""` for none) and
-`default` (the `btw` setting of `api/settings.md`, `""` for the flow's first agent).
+**9.2.2** It MUST answer `open` (the conversations a side conversation is open on, `""` for the btw
+agent's), `said` (each side question answered in a side conversation still open, oldest first, as
+§9.3 answers it, the latest 200), `agent` (the btw agent that epic has chosen, as an agent spec,
+`""` for none) and `default` (the `btw` setting of `api/settings.md`, `""` for the flow's first
+agent).
 
 **9.2.3** It MUST NOT attach to any host; where the server follows none of the workspace, `open`
 and `said` MUST be `[]`.
@@ -304,10 +306,10 @@ and `said` MUST be `[]`.
 **9.3.2** The first question to a conversation MUST open a side conversation on it, and every
 later question to it MUST go on in that side conversation until it is left.
 
-**9.3.3** Where `epic` and `to` name a session the host no longer holds, the server MUST carry it
-on from where that epic kept it, tell the btw agent that epic rather than the epic going, and
-name the conversation `<epic>/<agent>/<n>`; a session that epic did not open, or whose agent it
-did not write, MUST be refused 404.
+**9.3.3** Where `epic` and `to` name a session the host (`features/daemons.md` §2.1) no longer
+holds, the server MUST carry it on from where that epic kept it, tell the btw agent that epic rather
+than the epic going, and name the conversation `<epic>/<agent>/<n>`; a session that epic did not
+open, or whose agent it did not write, MUST be refused 404.
 
 **9.3.4** It MUST answer `to`, `question`, `answer`, and `asked` (`[{to, question}]`, each
 session the btw agent asked on the way to its answer).
@@ -326,8 +328,8 @@ session the btw agent asked on the way to its answer).
 record the choice as the event `btw` of the epic's `epic.jsonl` (`api/files/epics.md`), and MUST
 answer `{"agent": <agent as written>}`.
 
-**9.4.3** A side conversation open on the btw agent MUST be opened again, with the new agent,
-at the next question asked of it; the side questions already answered MUST be kept.
+**9.4.3** A change of the btw agent MUST take effect as `features/btw.md` §8.7 states, keeping
+the asides as `features/btw.md` §8.8 states.
 
 **9.4.4** An `agent` that is not an agent spec MUST be refused 400; an epic of no such name MUST
 be refused 404.
@@ -350,13 +352,13 @@ workspace's where absent), `status` (an ending of `features/epics.md`, `running`
 `unfinished`), `flow`, `q` (text found in the task, flow or epic name), `offset` (default `0`)
 and `limit` (default `50`, at most `200`).
 
-**10.1.2** It MUST answer `runs` (run rows, newest first), `total`, `offset`, `limit`, `counts`
+**10.1.2** It MUST answer `runs` (epic rows, newest first), `total`, `offset`, `limit`, `counts`
 (`{ending: n}` over every epic) and `flows` (every flow, sorted); `offset` and `limit` that are
 not whole numbers MUST be refused 400.
 
-### 10.2 Run rows
+### 10.2 Epic rows
 
-**10.2.1** A run row MUST hold `name`, `workspace`, `flow`, `task` (its first line, cut at 240
+**10.2.1** An epic row MUST hold `name`, `workspace`, `flow`, `task` (its first line, cut at 240
 characters with `…`), `began`, `ended`, `how` (its ending, `running` while going, `unfinished`
 where its process went before it ended), `agents` (`[{name, role, runs}]`), `sessions` (a
 count), `resumable`, `spent`, `held` (whether a host is going with it), `slot` (that host's),
@@ -364,7 +366,7 @@ count), `resumable`, `spent`, `held` (whether a host is going with it), `slot` (
 
 ### 10.3 `GET /api/runs/{name}`
 
-**10.3.1** It MUST answer the run row of the epic, of whichever workspace, with `at`, the whole
+**10.3.1** It MUST answer the epic row of the epic, of whichever workspace, with `at`, the whole
 `task`, `ref`, `agents` (each `name`, `role`, `runs`, `backend`, `model`, `effort`, `provider`),
 `sessions` (each `agent`, `backend`, `provider`, `ident`, `name`, `at`, `flow`, `parent`,
 `harness`), `envs`, `used`, `params`, `budget`, `picked_up`, `earlier` (of a chat carried on, how
@@ -461,7 +463,7 @@ can fill it), `envs` (each `name`, `required`, `auto`, `cpu`, `memory`, `gpu`, `
 ### 11.3 `GET /api/backends`
 
 **11.3.1** It MUST answer `clis` (`{cli: {accounts: [{name, models: [{name, efforts}], asked}]}}`
-for each CLI installed, this machine's own account first as `""`), `installable`
+for each CLI installed, this machine's own sign-in first as `""`), `installable`
 (`{cli: [{name, efforts}]}`) and `envs` (`Runtimes.kinds()` of `api/sdk.md §10.2`).
 
 ### 11.4 `POST /api/flows/setup`
@@ -535,15 +537,22 @@ exist, and answer `workspace`, `flow`, `btw`, `details`, `reports` (`null` where
 credentials, `branch`, `policies`, `every`; and `defaults`).
 
 **13.1.2** `POST /api/settings` MUST take the workspace parameter and any of `btw` (text),
-`details` (boolean), `reports` (boolean) and `backup` (`{targets, defaults}`, every target), MUST
-write them as `api/settings.md` defines, and MUST answer as `GET` does.
+`details` (boolean), `reports` (boolean) and `backup` (`{targets, defaults}`, every target).
 
-**13.1.3** A target whose `url` equals the credential-free URL `GET` answered MUST keep the URL
+**13.1.3** `POST /api/settings` MUST write `btw`, `details` and `backup` as `api/settings.md`
+defines them.
+
+**13.1.4** `POST /api/settings` MUST write `reports` as the key `enable_sentry` of
+`api/settings.md`.
+
+**13.1.5** `POST /api/settings` MUST answer as `GET /api/settings` does.
+
+**13.1.6** A target whose `url` equals the credential-free URL `GET` answered MUST keep the URL
 written; a `url` still holding `***@` otherwise MUST be refused 400.
 
-**13.1.4** Any other field, or a value of another type, MUST be refused 400 and nothing written.
+**13.1.7** Any other field, or a value of another type, MUST be refused 400 and nothing written.
 
-**13.1.5** `POST /api/settings/forget` MUST take the workspace parameter, forget what that
+**13.1.8** `POST /api/settings/forget` MUST take the workspace parameter, forget what that
 workspace was set up with, and answer `forgot` (whether there was anything) beside what `GET`
 answers.
 

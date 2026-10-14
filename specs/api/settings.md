@@ -36,10 +36,10 @@ or does not hold a mapping at its top level.
 
 **2.6** A **writer** is any hmz process that changes the settings file.
 
-**2.7** A **place** is a harness, an optional account and a model, written
-`<harness>[@<account>]/<model>`, read as the corresponding parts of `api/cli.md §7.4`.
+**2.7** A place MUST be written as `features/agents.md` §2.3 defines it.
 
-**2.8** An **agent spec** is the text of an `-a` item after `<role>=` (`api/cli.md §7.4`).
+**2.8** An agent spec MUST be written as `features/agents.md` §2.2 defines it, which is the text
+of an `-a` item after `<role>=` (`api/cli.md` §7.4).
 
 **2.9** An **env spec** is the text of an `-e` item after `<role>=` (`api/cli.md §7.5`).
 
@@ -75,30 +75,24 @@ in a workspace entry, across every write.
 one workspace's `flow` key together with one flow entry, one workspace entry removed, the whole
 value of `fallbacks`, of `clis`, of `backup`, of `daemons` or of `notifications`, or one runtime.
 
-**3.3.2** A writer MUST hold an exclusive `flock` on the file `.settings.yaml.lock` beside the
-settings file while it reads the file, makes its change and writes the file.
+**3.3.2** A writer MUST guard, read and replace the settings file as `api/files/home.md` §5
+states for `<home>/settings.yaml`.
 
-**3.3.3** A writer that cannot open or lock the lock file, or has waited 30 seconds for the lock,
-MUST write without it.
-
-**3.3.4** A writer MUST apply its change to the content the file holds at the time of the write,
+**3.3.3** A writer MUST apply its change to the content the file holds at the time of the write,
 and MUST NOT write back any other value it read earlier.
 
-**3.3.5** A writer MUST write the whole file to a new file in the same directory and rename it over
-the settings file, so that a reader sees either the old content or the new.
-
-**3.3.6** A settings file that a write creates MUST have mode `0600`; a settings file that exists
+**3.3.4** A settings file that a write creates MUST have mode `0600`; a settings file that exists
 MUST keep its mode.
 
-**3.3.7** A writer MUST NOT write over an unreadable settings file.
+**3.3.5** A writer MUST NOT write over an unreadable settings file.
 
-**3.3.8** Every write MUST set the key `spelling` to `2`.
+**3.3.6** Every write MUST set the key `spelling` to `2`.
 
-**3.3.9** Where a write of `enable_sentry`, `details`, `btw`, `every_epic`, `backup` or a
+**3.3.7** Where a write of `enable_sentry`, `details`, `btw`, `every_epic`, `backup` or a
 workspace entry fails, or the file is unreadable, the process MUST keep the change in its own
 memory for as long as it runs and MUST NOT report an error.
 
-**3.3.10** Where a write of `fallbacks`, `clis`, `daemons`, `notifications` or a runtime fails, or
+**3.3.8** Where a write of `fallbacks`, `clis`, `daemons`, `notifications` or a runtime fails, or
 the file is unreadable, hmz MUST refuse the change with an error that names the file.
 
 ## 4. Machine keys
@@ -112,8 +106,8 @@ the file is unreadable, hmz MUST refuse the change with an error that names the 
 
 **4.1.3** Reading `enable_sentry` MUST NOT write it.
 
-**4.1.4** `HUMANIZE_SENTRY` (§11.2.4) MUST override `enable_sentry` for the process whose
-environment holds it, without writing the settings file.
+**4.1.4** `HUMANIZE_SENTRY` (§11.2.4) MUST override `enable_sentry` as
+`features/telemetry.md` §3.1 states.
 
 ### 4.2 `details`
 
@@ -130,7 +124,8 @@ or the empty string.
 **4.3.2** `btw` MUST name the agent that answers a side question of an epic that has not chosen
 one itself (`features/btw.md`).
 
-**4.3.3** An absent, empty or non-string `btw` MUST mean the first agent of the epic's flow.
+**4.3.3** An absent, empty or non-string `btw` MUST mean that the btw agent is chosen as
+`features/btw.md` §7.1 states without its item 2.
 
 ### 4.4 `every_epic`
 
@@ -503,13 +498,14 @@ the targets.
 **9.1.4** A target's `url` MUST be a non-empty string that git can push to with this machine's own
 credentials.
 
-**9.1.5** A target's `branch` MUST be a string, defaulting to `main`.
+**9.1.5** A target's `branch` MUST be a string, defaulting as `features/backups.md` §3.1.4
+states.
 
 **9.1.6** A target's `policies` MUST be a list of distinct values from `session`, `interval` and
 `end`, defaulting to the empty list, which means backing up on request alone.
 
-**9.1.7** A target's `every` MUST be an integer of at least 1, the minutes between `interval`
-backups, defaulting to 30.
+**9.1.7** A target's `every` MUST be the interval of `features/backups.md` §3.1.5 as an integer
+number of minutes.
 
 ### 9.2 Defaults
 
@@ -555,22 +551,16 @@ removing surrounding white space and lower-casing letters.
 **11.2.1** `HUMANIZE_HOME` MUST name the home; a relative value MUST be taken relative to the
 current directory.
 
-**11.2.2** `HUMANIZE_DAEMON` set to `off`, `0` or `no` MUST make `hmz` and `hmz web` hold epics in
-their own process; any other value MUST leave the daemon in use.
+**11.2.2** `HUMANIZE_DAEMON` MUST act as `features/daemons.md` §4 states.
 
-**11.2.3** `HUMANIZE_NAME` MUST be the name a frontend attaches to the daemon under, defaulting to
-the login name.
+**11.2.3** `HUMANIZE_NAME` MUST name the user part of a frontend's name (`api/daemon.md` §7.1.5).
 
-**11.2.4** `HUMANIZE_SENTRY` set to `on`, `1`, `true` or `yes` MUST turn error reports on for the
-process, set to `off`, `0`, `false` or `no` MUST turn them off, and any other value MUST be
-ignored.
+**11.2.4** `HUMANIZE_SENTRY` MUST act as the override of `features/telemetry.md` §3.1.
 
 **11.2.5** `HUMANIZE_SESSIONS` set to `off`, `0` or `no` MUST make every harness keep its sessions
 in its own home rather than in the epic (`api/files/epics.md`).
 
-**11.2.6** `HUMANIZE_WATCHDOG` MUST be a number of seconds a turn MAY stay silent before hmz acts
-on it, overriding every harness's own value; a value of 0 or less MUST turn the watchdog off, and
-a value that is not a number MUST be ignored.
+**11.2.6** `HUMANIZE_WATCHDOG` MUST act as `features/agents.md` §12.1.3 states.
 
 **11.2.7** `HUMANIZE_PRICES` MUST name the URL, where it contains `://`, or the file from which hmz
 refreshes model prices; `off`, `0`, `no`, `none` or the empty string MUST turn refreshing off.

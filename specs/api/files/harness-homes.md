@@ -30,8 +30,7 @@ outside any directory **hmz** creates.
 directory of the **user** that a **harness** reads as its configuration, that holds settings,
 model or provider declarations, agents, commands, skills, hooks or tool servers.
 
-**2.4** **Managed item**: a skill, agent, command, hook, tool server or model declaration that
-**hmz** adds to the configuration of a **harness** process for a **flow** or for an **account**.
+**2.4** The term managed item MUST carry the meaning `features/agents.md` §2.9 gives it.
 
 **2.5** **Virtual config home**: a process-private temporary directory on the **harness machine**
 that **hmz** creates for one **harness** process and that the process uses as its harness home.
@@ -114,13 +113,24 @@ place them in `/dev/shm/hmz-<pid>-<16 hexadecimal digits>-<random>/` of mode `07
 `<n>.<name>` of mode `0600` no larger than 1 MiB each, where `<pid>` is the process that staged
 them.
 
-**4.7** `hmz` MUST remove a staging directory of clause 4.6 when the process that staged it ends,
+**4.7** `hmz` MUST use a staged copy of clause 4.6 only to answer a read of the **harness** process,
+and MUST take it afresh from the credential file of the **account** once that file changes.
+
+**4.8** Every write of a **harness** process to a credential file of which `hmz` staged a copy MUST
+reach the credential file of the **account** at once, and MUST NOT reach the staged copy.
+
+**4.9** `hmz` MUST NOT write a staged copy back to the credential file of the **account**.
+
+**4.10** `hmz` MUST remove a staging directory of clause 4.6 when the process that staged it ends,
 and MUST remove every such directory of the **user** whose `<pid>` no longer runs before it
 creates another.
 
-**4.8** Where a **harness** runs under an **account** on a **machine** other than **this
-machine**, `hmz` MUST place copies of the credential files on that **machine** as
-`api/files/targets.md` §8 states.
+**4.11** Where a **harness** runs under an **account** in the native placement on a **machine**
+other than **this machine**, `hmz` MUST place copies of the credential files on that **machine**
+as `api/files/targets.md` §8 states.
+
+**4.12** Under the afar placement, `hmz` MUST NOT place any credential file of an **account** on the
+**harness machine** (`features/placements.md` §5.3.3).
 
 ## 5. Sessions kept in an epic
 
@@ -207,7 +217,7 @@ on which the hooks of a **harness** process report to **hmz**.
 `tools.sock` through which a **harness** process calls the tools a **flow** defines.
 
 **7.4** A directory with the prefix `humanize-preload-` MUST hold the Unix-domain socket
-`said.sock` on which a Node.js preload in a **harness** process reports what the process does.
+`said.sock` on which a **harness** process reports what it does.
 
 **7.5** A directory with the prefix `humanize-clis-` MUST hold the Unix-domain socket `cli.sock`
 and the directory `bin/`, holding one executable shell script of mode `0700` for each command
@@ -223,10 +233,10 @@ configuration of one LiteLLM gateway process, including the credentials of its *
 process, named to it in `TMPDIR`, `TMP` and `TEMP`, and MAY hold `cache/<variable>/` for each
 cache variable whose usual location the fence does not let the process write.
 
-**7.9** A directory with the prefix `hmz-homes-` MUST hold, for each turn of a **harness** that
-runs on another **machine** under an **account**, one file named by 32 lowercase hexadecimal
-digits whose lines are `<VARIABLE>=<path>`, naming the directory on that **machine** in which
-each harness home variable of the turn points; `hmz` MUST remove each such file when its turn
+**7.9** A directory with the prefix `hmz-homes-` MUST hold, for each turn of a **harness** that runs
+in the native placement on another **machine** under an **account**, one file named by 32 lowercase
+hexadecimal digits whose lines are `<VARIABLE>=<path>`, naming the directory on that **machine** in
+which each harness home variable of the turn points; `hmz` MUST remove each such file when its turn
 ends.
 
 **7.10** The **user** MUST NOT delete a directory of §6 or §7 while its process runs, and MAY

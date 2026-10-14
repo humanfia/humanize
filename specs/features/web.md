@@ -79,8 +79,8 @@ web` printed.
 **3.5** The page MUST offer the workspace `hmz web` was started in first wherever it offers a
 workspace for a new epic.
 
-**3.6** The page MUST NOT show a secret: an account MUST be shown by its CLI, its name, its way in
-and the names of the variables it sets, and never by a value.
+**3.6** The page MUST NOT show a secret: an account MUST be shown by its harness, its name, its way
+in and the names of the variables it sets, and never by a value.
 
 **3.7** The page MUST NOT show a URL with credentials signed into it; it MUST show such a URL with
 the credentials removed.
@@ -433,10 +433,10 @@ backup targets, `Profile flow` and `Profile environment`.
 
 **8.6** The form MUST show beside `Options` what is set.
 
-**8.7** An agent MUST be set up a part at a time, as `features/agents.md` specifies: a CLI installed
-here that can fill the role; the account it runs as, this machine's own or one made, with a way to
-make one; a model known runnable as that account, asking the CLI where none is known yet and
-accepting a typed model where it cannot say; and an effort that model takes.
+**8.7** An agent MUST be set up a part at a time, as `features/agents.md` specifies: a harness
+installed here that can fill the role; the account it runs as, this machine's own or one made, with
+a way to make one; a model known runnable as that account, asking the harness where none is known
+yet and accepting a typed model where it cannot say; and an effort that model takes.
 
 **8.8** An environment MUST be set up a part at a time, as `features/environments.md` specifies: its
 backend, a runtime of that backend saved or made there, and its directory, completed as it is typed
@@ -517,15 +517,15 @@ another, MUST be part of the address, and picking it MUST change nothing else on
 **11.2.1** `General` MUST let the user set whether a turn's working is shown, the btw agent, and
 whether errors are reported, as `features/btw.md` and `features/telemetry.md` specify.
 
-**11.2.2** `Accounts` MUST list every account by its CLI, way in and the names of the variables it
-sets, and MUST let the user ask again what it runs, correct it, copy it to another CLI, remove it,
-and make one, as `features/accounts.md` specifies.
+**11.2.2** `Accounts` MUST list every account by its harness, way in and the names of the variables
+it sets, and MUST let the user ask again what it runs, correct it, copy it to another harness,
+remove it, and make one, as `features/accounts.md` specifies.
 
 **11.2.3** Correcting an account MUST keep every value the user leaves blank, and MUST NOT show any
 value.
 
-**11.2.4** A way in that runs a CLI's own sign-in MUST be shown as needing a terminal, and MUST NOT
-be run from the page.
+**11.2.4** A way in that runs a harness's own sign-in MUST be shown as needing a terminal, and MUST
+NOT be run from the page.
 
 **11.2.5** The ways in through the local LiteLLM gateway MUST be grouped as the terminal interface
 groups them, with the command that adds the `litellm` extra where it is missing.

@@ -94,8 +94,8 @@ out, truncated to 32 characters, or `head`; `hmz` MUST NOT remove it.
 
 ## 5. The bundle
 
-**5.1** `<cache>/humanize-<digest>.pyz` MUST be the bundle of **hmz** of `api/files/machine.md`
-§5, copied to the **target**.
+**5.1** `<cache>/humanize-<digest>.pyz` MUST be the bundle of **hmz** of `api/files/machine.md` §5,
+copied to the **target**.
 
 **5.2** `hmz` MUST create `<cache>` where it is missing; in a docker container whose **runtime**
 names the user to execute as, `hmz` MUST give `<cache>` mode `0700` and refuse a `<cache>` that

@@ -27,66 +27,61 @@ Out of scope:
 
 **2.1** **Harness kind**: the name by which hmz identifies one harness, as listed in §3.1.
 
-**2.2** **Agent spec**: the text `[ROLE=]CLI[@ACCOUNT]/MODEL[:EFFORT]` that names an agent.
+**2.2** **Agent spec**: the text `<harness>[@<account>]/<model>[:<effort>]` that names an agent,
+read as `api/cli.md` §7.4 states.
 
-**2.3** **Turn**: one prompt sent to a harness and everything the harness does until it answers
-or fails.
+**2.3** **Place**: the text `<harness>[@<account>]/<model>`, identifying a harness kind, an
+account and a model, without an effort.
 
-**2.4** **Place**: the text `CLI[@ACCOUNT]/MODEL`, identifying a harness kind, an account and a
-model, without an effort.
-
-**2.5** **Effort**: how hard the model is asked to think, in the words of the harness's effort
+**2.4** **Effort**: how hard the model is asked to think, in the words of the harness's effort
 ladder (§4.3).
 
-**2.6** **Effort ladder**: the ordered list of efforts a harness kind accepts.
+**2.5** **Effort ladder**: the ordered list of efforts a harness kind accepts.
 
-**2.7** **Rung**: one of the four permission levels `read-only`, `workspace-write`, `auto` and
+**2.6** **Rung**: one of the four permission levels `read-only`, `workspace-write`, `auto` and
 `bypass`, ordered from tightest to loosest.
 
-**2.8** **Grant**: the four scopes `local`, `user`, `system` and `online` that a flow declares
+**2.7** **Grant**: the four scopes `local`, `user`, `system` and `online` that a flow declares
 for a role, each `NONE`, `READ` or `ALL`, as `api/flows.md` defines them.
 
-**2.9** **Confinement**: the restriction hmz places around the harness process and every process
+**2.8** **Confinement**: the restriction hmz places around the harness process and every process
 it starts, so that the agent touches no more than its grant allows.
 
-**2.10** **Managed item**: an item hmz supplies to a harness at launch that the user did not
+**2.9** **Managed item**: an item hmz supplies to a harness at launch that the user did not
 configure: a flow skill, a flow-declared subagent, a flow-declared command, the hmz tool server,
-or a hook hmz hangs.
+a hook hmz hangs, or a model declaration hmz adds for a flow or for an account.
 
-**2.11** **System level**: the harness machine's system-wide configuration of a harness.
+**2.10** **System level**: the harness machine's system-wide configuration of a harness.
 
-**2.12** **User level**: the harness machine's per-user configuration of a harness, together
+**2.11** **User level**: the harness machine's per-user configuration of a harness, together
 with the managed items of the agent.
 
-**2.13** **Project level**: the configuration of a harness found in the env's workspace.
+**2.12** **Project level**: the configuration of a harness found in the env's workspace.
 
-**2.14** **Virtual config home**: a directory, created on the harness machine for one harness
-process, that the harness reads and writes as its user-level configuration home.
-
-**2.15** **Fault class**: the classification hmz assigns to a failed turn, one of `contended`,
+**2.13** **Fault class**: the classification hmz assigns to a failed turn, one of `contended`,
 `spent`, `throttled`, `refused`, `unlisted`, `retired`, `missing`, `sandboxed`, `unmirrored`,
 `fenced`, `killed` and `dropped`, or unclassified.
 
-**2.16** **Fallback chain**: the ordered list of places to which a turn is carried once its own
+**2.14** **Fallback chain**: the ordered list of places to which a turn is carried once its own
 place has no retries left.
 
-**2.17** **Stand-in**: an agent at the next place of a fallback chain that takes a turn its
+**2.15** **Stand-in**: an agent at the next place of a fallback chain that takes a turn its
 original agent could not.
 
-**2.18** **Fake tool**: a tool a flow declares whose calls run in the flow's process.
+**2.16** **Fake tool**: a tool a flow declares whose calls run in the flow's process.
 
-**2.19** **Fake command line**: a program a flow declares that appears on the agent's `PATH` and
+**2.17** **Fake command line**: a program a flow declares that appears on the agent's `PATH` and
 whose runs are answered in the flow's process.
 
-**2.20** **Gateway**: a LiteLLM proxy that hmz runs on this machine's loopback interface to
+**2.18** **Gateway**: a LiteLLM proxy that hmz runs on this machine's loopback interface to
 carry an account the harness has no way in for of its own.
 
-**2.21** **ACP harness**: a harness the user adds by command line, driven over the Agent Client
+**2.19** **ACP harness**: a harness the user adds by command line, driven over the Agent Client
 Protocol.
 
-**2.22** **Human agent**: the agent whose turns are answered by the user at the prompt.
+**2.20** **Human agent**: the agent whose turns are answered by the user at the prompt.
 
-**2.23** **Watchdog window**: the time a turn is permitted to pass without any output from its
+**2.21** **Watchdog window**: the time a turn is permitted to pass without any output from its
 harness before the watchdog acts (§12).
 
 ## 3. Harnesses
@@ -123,15 +118,18 @@ naming it is read.
 
 ### 3.2 Installation
 
-**3.2.1** hmz MUST locate a harness's program on the `PATH` of the harness machine, and, where it
-is not on the `PATH`, in `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin` and
-`/bin`, in that order.
+**3.2.1** Other than under the native placement, hmz MUST locate a harness's program on the
+`PATH` of the harness machine, and, where it is not on the `PATH`, in `~/.local/bin`,
+`/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin` and `/bin`, in that order.
 
-**3.2.2** A session whose harness is not installed on the harness machine MUST be refused before
+**3.2.2** Under the native placement, hmz MUST locate a harness's program as
+`features/placements.md` §3.2.3 states.
+
+**3.2.3** A session whose harness is not installed on the harness machine MUST be refused before
 its first turn with `HarnessNotInstalled`, whose message MUST name the harness and the command
 that installs it.
 
-**3.2.3** The install command named under §3.2.2 MUST be the following, and for a harness with
+**3.2.4** The install command named under §3.2.3 MUST be the following, and for a harness with
 no install command the message MUST say `install <cli> and put it on PATH`:
 
 | Kind | Install command |
@@ -150,7 +148,7 @@ no install command the message MUST say `install <cli> and put it on PATH`:
 | `pi` | `npm i -g @earendil-works/pi-coding-agent` |
 | `qwen` | `npm i -g @qwen-code/qwen-code` |
 
-**3.2.4** A turn whose harness program cannot be started MUST fail with the fault class
+**3.2.5** A turn whose harness program cannot be started MUST fail with the fault class
 `missing`.
 
 ### 3.3 Capabilities served to flows
@@ -178,29 +176,23 @@ capability that the harness filling it does not serve.
 
 ### 4.1 Agent specs
 
-**4.1.1** An agent spec MUST be read as follows: `ROLE` is everything before the first `=`; `CLI`
-is everything before the first `/` and contains no `@`; `ACCOUNT` is everything between `@` and
-that `/`; `EFFORT` is everything after the last `:` where that text consists of words of letters
-joined by `-`, `_` or a space, or is empty; and `MODEL` is everything between the first `/` and
-that `:`, or to the end where no `EFFORT` was read.
+**4.1.1** hmz MUST read an agent spec, and an `-a` item, as `api/cli.md` §7.4 states.
 
-**4.1.2** A `MODEL` MUST be permitted to contain `/` and `:`.
-
-**4.1.3** A `MODEL` that is empty MUST be refused.
-
-**4.1.4** An `@` that is not followed by an account name MUST be refused.
-
-**4.1.5** An absent `ACCOUNT` MUST mean the harness machine's own sign-in of that harness, as
+**4.1.2** An absent `<account>` MUST mean the harness machine's own sign-in of that harness, as
 `features/accounts.md` defines it.
 
-**4.1.6** An absent `EFFORT`, an empty `EFFORT`, and the effort `auto` MUST each mean that no
+**4.1.3** An absent `<effort>`, an empty `<effort>`, and the effort `auto` MUST each mean that no
 effort is said to the harness.
 
-**4.1.7** Where an agent spec is given to `-a`, `ROLE` MUST be present and MUST be a Python
-identifier, and a role given twice MUST be refused, as `api/cli.md` states.
+**4.1.4** An agent spec naming an account that does not exist MUST be refused as
+`features/accounts.md` §3.2.2 states.
 
-**4.1.8** An effort not on the harness's ladder for that model, an account that does not exist,
-and a setting the harness cannot express MUST each be refused before the agent's first turn with
+**4.1.5** An effort not on the harness's ladder for that model MUST be refused before the epic
+starts where the agent spec is given to start the epic (`api/cli.md` §7.7 for `-a`), and
+otherwise before the agent's first turn with `HarnessUnrecoverable` naming the agent spec and the
+reason.
+
+**4.1.6** A setting the harness cannot express MUST be refused before the agent's first turn with
 `HarnessUnrecoverable` naming the agent spec and the reason.
 
 ### 4.2 Models
@@ -294,10 +286,8 @@ a workspace when the user runs it by hand.
 **5.1.7** hmz MUST NOT switch on or off any skill, subagent, command, hook or tool server that the
 user configured for the harness.
 
-**5.1.8** Configuration in the workspace that causes the harness to run a program (a hook, a tool
-server, or any other command the harness executes because the workspace names it) MUST be
-honoured only where the harness machine is the env machine; where they differ, the session MUST be
-refused with `UnsupportedOperation`, as `features/placements.md` states normatively.
+**5.1.8** Program-running configuration in the workspace MUST be honoured or refused as
+`features/placements.md` §7 states.
 
 **5.1.9** No permission field governs whether workspace configuration is honoured; a grant MUST
 NOT be read as such a field.
@@ -305,12 +295,13 @@ NOT be read as such a field.
 ### 5.2 Virtual config home
 
 **5.2.1** The following harnesses rewrite their own configuration while running, and each MUST be
-launched with a virtual config home: `claude` (which rewrites `.claude.json`), `codex` (which
-records project trust in `config.toml`) and `qwen` (which migrates its settings).
+launched with a virtual config home (`api/files/harness-homes.md` §2.5): `claude` (which rewrites
+`.claude.json`), `codex` (which records project trust in `config.toml`) and `qwen` (which migrates
+its settings).
 
 **5.2.2** The following harnesses offer no flag or environment variable through which hmz can add
-user-level configuration, and each MUST be launched with a virtual config home: `grok`, `pi`,
-`omp`, `mcode` and `agy`.
+user-level configuration, and each MUST be launched with a virtual config home wherever hmz adds
+a managed item to it: `grok`, `pi`, `omp`, `mcode` and `agy`.
 
 **5.2.3** hmz MUST build a virtual config home on the harness machine, for one harness process,
 from the user's configuration of that harness on that machine merged with the agent's managed
@@ -318,18 +309,21 @@ items, before that process starts.
 
 **5.2.4** Two harness processes MUST NOT share one virtual config home.
 
-**5.2.5** Every change the harness makes inside its virtual config home MUST be discarded when the
-process exits, except credentials (§5.2.7) and session records, which MUST be kept as
-`features/epics.md` states.
+**5.2.5** Every change the harness makes to a configuration file copied into its virtual config
+home MUST be discarded when the process exits.
 
-**5.2.6** hmz MUST NOT write any file of the user's real configuration of a harness, on any
+**5.2.6** Every other write the harness makes inside its virtual config home MUST reach the real
+harness home (`api/files/harness-homes.md` §6.8), except the session records kept in an epic as
+`api/files/harness-homes.md` §5 states.
+
+**5.2.7** hmz MUST NOT write any file of the user's real configuration of a harness, on any
 machine, in building, using or discarding a virtual config home.
 
-**5.2.7** Credential files read through a virtual config home MUST be the user's real credential
-files, or the account's files where the agent runs as an account, so that a credential the
-harness refreshes during the process persists after it exits.
+**5.2.8** Credential files read through a virtual config home MUST be the user's real credential
+files, or the account's files where the agent runs as an account, and MUST NOT be copied into it,
+so that a credential the harness refreshes during the process persists after it exits.
 
-**5.2.8** A change the user makes to the real configuration while a harness process runs MUST
+**5.2.9** A change the user makes to the real configuration while a harness process runs MUST
 take effect no later than that harness's next launch.
 
 ### 5.3 Managed items through flags and environment
@@ -361,9 +355,9 @@ be refused.
 skill of that name MUST take precedence over both, and the flow skill MUST take precedence over
 the user's.
 
-### 5.5 Program-running workspace configuration
+### 5.5 Program-running configuration
 
-**5.5.1** For each harness, program-running workspace configuration MUST be exactly the entries
+**5.5.1** For each harness, program-running configuration MUST be exactly the entries
 of the table below: a file, at the path given relative to the session directory or any directory
 above it up to the workspace, holding a non-empty value at any of the key paths given, where `*`
 stands for any one key of a table or any one item of a list; or a directory, written with a
@@ -372,8 +366,7 @@ trailing `/`, holding any entry.
 **5.5.2** A file of the table that hmz cannot read or cannot parse MUST count as holding
 program-running configuration.
 
-**5.5.3** The harnesses `dsh`, `litellm` MUST have no program-running workspace
-configuration.
+**5.5.3** The harnesses `dsh` and `litellm` MUST have no program-running configuration.
 
 | Harness | Path | Key paths |
 | --- | --- | --- |
@@ -912,7 +905,8 @@ harness produces any output.
 **12.1.2** The watchdog window MUST be 900 seconds, and 360 seconds for `dsh`.
 
 **12.1.3** The environment variable `HUMANIZE_WATCHDOG` MUST, where set to a positive number of
-seconds, replace the window, and MUST, where set to zero or less, disable the watchdog.
+seconds, replace the window, MUST, where set to zero or less, disable the watchdog, and MUST be
+ignored where it is not a number.
 
 **12.1.4** The watchdog MUST be paused while the turn waits on a person: a permission request, a
 question, or a hook that pauses.

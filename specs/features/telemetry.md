@@ -69,7 +69,9 @@ process at once.
 their settings, and the terminal interface MUST show there the sent list and the never-sent list.
 
 **3.2.6** Changing the answer to no in the terminal interface MUST stop reporting in that process
-at once; reports already handed to the network MAY still arrive.
+at once.
+
+> Informative: reports already handed to the network can still arrive.
 
 ### 3.3 Where reporting runs
 

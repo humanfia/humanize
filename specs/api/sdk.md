@@ -23,32 +23,30 @@ Out of scope:
 
 ## 2. Definitions
 
-Terms in bold in `README.md §2` carry the meaning given there and are not redefined.
+**2.1** Every term of `README.md` §5 MUST carry the meaning given there.
 
-**2.1** **Offered name**: a name listed in `hmz.sdk.__all__`.
+**2.2** **Offered name**: a name listed in `hmz.sdk.__all__`.
 
-**2.2** **Returned type**: a type that is not an offered name and that a member of an offered
+**2.3** **Returned type**: a type that is not an offered name and that a member of an offered
 name returns, accepts, or exposes as an attribute.
 
-**2.3** **Agent spec**: the text an `-a` option takes after `<role>=`, as `api/cli.md` defines
-it (`cli[@provider]/model[:effort]`).
+**2.4** An agent spec MUST be as `features/agents.md` §2.2 defines it: the text an `-a` option
+takes after `<role>=`.
 
-**2.4** **Environment spec**: the text an `-e` option takes after `<role>=`, as `api/cli.md`
+**2.5** **Environment spec**: the text an `-e` option takes after `<role>=`, as `api/cli.md`
 defines it.
 
-**2.5** **Flow name**: the text an `-f` option takes, as `api/cli.md` defines it: a name a flow
+**2.6** **Flow name**: the text an `-f` option takes, as `api/cli.md` defines it: a name a flow
 is offered under, a ref, or a path.
 
-**2.6** **Place**: a text `<cli>[@<account>]/<model>` naming one model run as one account, as
-`features/agents.md` defines it.
+**2.7** A place MUST be as `features/agents.md` §2.3 defines it.
 
-**2.7** **Host**: the object holding the epics of one slot of one workspace for every frontend
-attached to it, as `api/daemon.md §2` defines it.
+**2.8** The term host MUST carry the meaning `features/daemons.md` §2.1 gives it.
 
-**2.8** **Slot**: the text naming one of a workspace's hosts, as `api/daemon.md §2` defines it:
+**2.9** **Slot**: the text naming one of a workspace's hosts, as `api/daemon.md` §2.6 defines it:
 `""` for the workspace's own host, `chat:<hex>` for one chat's.
 
-**2.9** **Epic directory**: the directory one epic is written into, as `api/files/epics.md`
+**2.10** **Epic directory**: the directory one epic is written into, as `api/files/epics.md`
 defines it. An epic is named by its epic directory's base name.
 
 ## 3. The module
@@ -259,7 +257,7 @@ invalid: ` for a budget mapping `Budget` does not validate.
 **4.5.17** `Hmz.run` and `Hmz.runner` MUST raise `Refused` with the message `<epic> has no saved
 progress to resume from` for a `resume` path whose epic holds no journal entry.
 
-**4.5.18** A run line read by `Hmz.read` and passed field by field to `Hmz.run` MUST make an epic
+**4.5.18** A `Line` read by `Hmz.read` and passed field by field to `Hmz.run` MUST make an epic
 identical in effect to the one `Hmz.exec` makes of the same `argv`.
 
 **4.5.19** Where each agent's harness runs MUST NOT be a parameter of `Hmz.run`: it MUST follow

@@ -30,10 +30,10 @@ host** is a host that runs one chat of a workspace, beside the workspace host.
 holds, and **detaches** when it stops, without stopping them.
 
 **2.4** A host is **idle** when no frontend is attached to it, no epic is going, starting or
-stopping on it, and it keeps no ended epic for the next frontend under §5.4.
+stopping on it, and it keeps no ended epic for the next frontend under §5.5.
 
-**2.5** A daemon is **older** than a frontend when it speaks a protocol of an earlier humanize than
-the frontend, and **newer** when it speaks a protocol of a later one.
+**2.5** A daemon is **older** than a frontend when it speaks a protocol of an earlier release of
+hmz than the frontend, and **newer** when it speaks a protocol of a later one.
 
 **2.6** A **remote daemon** is the daemon of another machine, reached from this machine over ssh. A
 remote daemon is called an SSH daemon on the page of `hmz web`.
@@ -50,8 +50,8 @@ it.
 **3.3** The daemon MUST hold one workspace host per workspace, and one chat host per chat beside it;
 each host MUST run in a process of its own, standing in its workspace.
 
-**3.4** A workspace host MUST run one flow at a time; a chat host MUST NOT wait on the workspace
-host, and the workspace host MUST NOT wait on a chat host.
+**3.4** A chat host and the workspace host of one workspace MUST NOT wait on each other; how many
+epics each runs at a time is stated in `features/epics.md` §4.3.
 
 **3.5** Two spellings of one directory MUST name one workspace, and two directories MUST name two
 workspaces.
@@ -83,39 +83,47 @@ to start with its reason, without waiting out a timeout.
 
 **4.6** Asking the daemon which epics are going MUST NOT start a daemon or a host.
 
+**4.7** `HUMANIZE_DAEMON` MUST read as `off`, `0` or `no` in §4.2 and §4.3 where it is one of them
+after surrounding white space is removed and letters are lower-cased.
+
 ## 5. Epics outlive their frontends
 
-**5.1** The daemon and every host MUST outlive the terminal and the frontend that started them: no
-hangup, no closed terminal and no frontend exiting MUST end them.
+**5.1** The daemon and every host MUST outlive the terminal and the frontend that started them.
 
-**5.2** No frontend, and no failure of a frontend, MUST end an epic; only a request to stop it MUST.
+**5.2** A hangup, a closed terminal or a frontend exiting MUST NOT end the daemon or a host.
 
-**5.3** A host MUST go once it is idle, provided a frontend has attached to it at least once or 60
+**5.3** A frontend, or the failure of a frontend, MUST NOT end an epic other than by a request to
+stop it.
+
+**5.4** A host MUST go once it is idle, provided a frontend has attached to it at least once or 60
 seconds have passed since it started.
 
-**5.4** A host MUST keep an epic that ended while no frontend was attached, and that nobody stopped,
+**5.5** A host MUST keep an epic that ended while no frontend was attached, and that nobody stopped,
 until a frontend attaches; it MUST NOT keep a chat that folded away.
 
-**5.5** A chat host MUST fold its chat away as `features/chat.md` specifies, and MUST then go once
+**5.6** A chat host MUST fold its chat away as `features/chat.md` specifies, and MUST then go once
 it is idle.
 
-**5.6** The daemon MUST go once it holds no host, and MUST go 60 seconds after it started where no
+**5.7** The daemon MUST go once it holds no host, and MUST go 60 seconds after it started where no
 host ever came.
 
-**5.7** A host MUST go, telling every attached frontend why, when it is stopped, when the daemon
+**5.8** A host MUST go, telling every attached frontend why, when it is stopped, when the daemon
 goes, and when any frontend asks it to quit; every epic on it MUST be closed as a stop closes it.
 
-**5.8** A host that goes MUST give the epics it held time to release what they made, and the backups
-of those epics time to finish.
+**5.9** A host that goes MUST wait at most 15 seconds for the epics it held to release what they
+made.
 
-**5.9** What fails in the daemon or a host MUST be written down where the user can read it
+**5.10** A host that goes MUST then wait at most 15 seconds for the backups of those epics to
+finish.
+
+**5.11** What fails in the daemon or a host MUST be written down where the user can read it
 afterwards: what belongs to an epic into that epic, and what belongs to none beside the daemon, as
 `api/files/machine.md` specifies.
 
 ## 6. Frontends
 
-**6.1** Any number of frontends -- the terminal interface, `hmz web`, and programs using the SDK --
-MUST be able to attach to one host at once, each whole and each its own.
+**6.1** hmz MUST let any number of frontends -- the terminal interface, `hmz web`, and programs
+using the SDK -- attach to one host at once, each whole and each its own.
 
 **6.2** A frontend that attaches MUST be told everything kept of the epic going or the last one,
 from its start, then how everything stands, then everything as it happens.
@@ -126,7 +134,7 @@ name of the frontend that did it.
 **6.4** Each frontend MUST be named by the user and the kind of frontend; two frontends of one name
 MUST be told apart by a number.
 
-**6.5** Any attached frontend MUST be able to: start an epic; resume an epic; say a line to the
+**6.5** hmz MUST let any attached frontend: start an epic; resume an epic; say a line to the
 epic, to one agent, to one session or to one person; answer a question; stop an epic; force a
 stopping epic, closing every session under its open turn; set a role away or back; claim a role,
 take it over and release it; change the board; and ask a side question.
@@ -153,24 +161,21 @@ workspace's host, and MUST show the epic from its start.
 **7.2** Installing another release of hmz, by `hmz update` or otherwise, MUST NOT stop the daemon or
 any epic it holds.
 
-**7.3** Where a daemon is running after `hmz update` installs another release, `hmz update` MUST say
-`Epics held on this machine (pid <pid>) run hmz <version> until that daemon stops`.
+**7.3** Once a daemon of an earlier release than the one installed has gone, the next frontend that
+needs a daemon MUST start one of the release installed.
 
-**7.4** Once that daemon has gone, the next frontend that needs a daemon MUST start one of the
-release installed.
-
-**7.5** A frontend MUST NOT reach a daemon or host that is older than it, and MUST NOT start a
+**7.4** A frontend MUST NOT reach a daemon or host that is older than it, and MUST NOT start a
 daemon or host beside one.
 
-**7.6** A frontend that finds the epics of a workspace held by an older daemon MUST refuse them,
+**7.5** A frontend that finds the epics of a workspace held by an older daemon MUST refuse them,
 saying `the runs in <workspace> are held by an older humanize (pid <pid>); stop it with that
 version`, or `on this machine` in place of `in <workspace>` where the daemon itself is older.
 
-**7.7** The terminal interface and `hmz web` MUST say that refusal on standard error and exit 1
+**7.6** The terminal interface and `hmz web` MUST say that refusal on standard error and exit 1
 where they cannot serve without those epics; the page of `hmz web` MUST say it where the page asks
 for that workspace's epics, and MUST serve every other workspace.
 
-**7.8** A daemon or host MUST tell a frontend that is older than it ``held for frontends by a newer
+**7.7** A daemon or host MUST tell a frontend that is older than it ``held for frontends by a newer
 humanize; `hmz` of it reads it``, and MUST then detach it.
 
 ## 8. Remote daemons
@@ -198,14 +203,17 @@ machine MUST stay as they are.
 connect to it.
 
 **8.2.2** Reaching a remote daemon MUST start `hmz web` on its machine over ssh, listening on that
-machine's loopback alone, and MUST forward a port of this machine's loopback to it; nothing on the
-remote machine MUST listen beyond its own loopback.
+machine's loopback alone.
 
-**8.2.3** Whatever a frontend asks of a remote daemon MUST be asked of that `hmz web`, which holds
+**8.2.3** Reaching a remote daemon MUST forward a port of this machine's loopback to that `hmz web`.
+
+**8.2.4** hmz MUST NOT listen on the remote machine beyond its loopback.
+
+**8.2.5** Whatever a frontend asks of a remote daemon MUST be asked of that `hmz web`, which holds
 its own key, its own epics and its own refusals; the key MUST NOT be shown to the user or to the
 page.
 
-**8.2.4** A remote daemon MUST be in exactly one of these states:
+**8.2.6** A remote daemon MUST be in exactly one of these states:
 
 | State | Meaning |
 | --- | --- |
@@ -215,14 +223,16 @@ page.
 | `up` | Reached |
 | `failed` | Not reached, with the reason |
 
-**8.2.5** Each state MUST carry what was said last, including the last line of an install.
+**8.2.7** Each state MUST carry what was said last, including the last line of an install.
 
-**8.2.6** A connection to a remote daemon that drops MUST be tried again, waiting longer each time.
+**8.2.8** A connection to a remote daemon that drops or fails MUST be tried again after 1 second,
+the wait doubling after each further failure up to at most 60 seconds, and starting again at
+1 second once the remote daemon is `up`.
 
-**8.2.7** The frontend that reached a remote daemon going MUST stop the `hmz web` and the ssh
+**8.2.9** The frontend that reached a remote daemon going MUST stop the `hmz web` and the ssh
 connections it started there; the epics on that machine MUST keep going, held by its daemon.
 
-**8.2.8** Reaching a remote daemon MUST NOT ask the user for a password or to accept a host key; a
+**8.2.10** Reaching a remote daemon MUST NOT ask the user for a password or to accept a host key; a
 host that needs either MUST fail with what ssh said.
 
 ### 8.3 The hmz on a remote machine
@@ -253,7 +263,7 @@ installed on <name>.`
 a remote daemon everything it shows of Local: its workspaces, its epics, starting and steering epics
 there, its flows, and its daemon settings.
 
-**8.4.2** A frontend MUST be able to attach to the epics of a workspace on a remote daemon as it
+**8.4.2** hmz MUST let a frontend attach to the epics of a workspace on a remote daemon as it
 attaches on Local, as `features/web.md` and `features/tui.md` specify.
 
 **8.4.3** A frontend MUST say a remote daemon that is not `up` is unavailable, with its state,

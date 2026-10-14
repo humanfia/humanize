@@ -74,11 +74,13 @@ sessions of the epic or as spans of the epic's trace.
 **3.9** A side question MUST be answerable while the epic is running and after the epic has
 ended.
 
-**3.10** A frontend MUST answer at most one side question at a time per btw mode or btw panel,
-and MUST refuse a further side question while one is being answered, saying
-that the last question is still being answered.
+**3.10** A frontend MUST refuse a side question to a side conversation while that side
+conversation is answering an earlier one.
 
-**3.11** A failure to answer a side question MUST be reported to the user as a failure of the
+**3.11** A frontend MUST word the refusal of §3.10 as `features/tui.md` §12.14, `api/http.md` §9.3.5
+and `api/daemon.md` §8.8.10 state.
+
+**3.12** A failure to answer a side question MUST be reported to the user as a failure of the
 side question and MUST NOT be reported as a failure of the epic.
 
 ## 4. What a side conversation is told
@@ -142,8 +144,9 @@ agent told a snapshot (§4.11).
 
 **5.6** A session that has ended MUST be askable as §5.1 to §5.5 state.
 
-**5.7** In the web interface, a session of an epic that no **host** holds any longer MUST be
-askable, its session side copy being carried on from where that epic kept the session.
+**5.7** In the web interface, a session of an epic that no host (`features/daemons.md` §2.1)
+holds any longer MUST be askable, its session side copy being carried on from where that epic
+kept the session.
 
 **5.8** Where the session the user reads no longer exists, a frontend MUST refuse the side
 question, naming that session.
@@ -179,7 +182,7 @@ and the question.
 
 ## 7. Choosing the btw agent
 
-**7.1** The btw agent of an epic MUST be, in this order of precedence:
+**7.1** The btw agent of an epic MUST be the first of these that yields an agent:
 
 1. the btw agent choice recorded with that epic (§8);
 2. otherwise, the agent named by the `btw` setting of `settings.yaml`;
@@ -190,10 +193,11 @@ and the question.
 
 **7.2** Where none of §7.1's items yields an agent, there MUST be no btw agent.
 
-**7.3** The `btw` setting MUST name an agent by harness, account, model and effort, and MUST be
-absent where the flow's first agent is meant.
+**7.3** The `btw` setting MUST be an agent spec (`api/settings.md` §4.3.1).
 
-**7.4** A change of the `btw` setting MUST take effect from the next side conversation the btw
+**7.4** The `btw` setting MUST be absent where the agent §7.1 item 3 yields is meant.
+
+**7.5** A change of the `btw` setting MUST take effect from the next side conversation the btw
 agent opens, and MUST NOT change a side conversation already open.
 
 ## 8. The btw agent choice of an epic
@@ -217,32 +221,32 @@ closing and reopening the frontend, and the end of the epic.
 **8.6** A btw agent choice recorded with an epic MUST be shown and used by every frontend that
 asks side questions about that epic.
 
-**8.7** When the btw agent choice of an epic changes, hmz MUST close the btw agent's open side
-conversation for that epic, and the next side question MUST open a new side conversation with
-the newly chosen agent.
+**8.7** When the btw agent choice of an epic changes, hmz MUST open a new side conversation with
+the newly chosen agent at the next side question to the btw agent.
 
-**8.8** A btw agent choice MUST NOT change the agent of any session side copy.
+**8.8** When the btw agent choice of an epic changes, a frontend MUST keep the asides already
+shown.
 
-**8.9** A btw agent choice MUST NOT change the `btw` setting of `settings.yaml`.
+**8.9** A btw agent choice MUST NOT change the agent of any session side copy.
 
-**8.10** Where the side questions concern no epic, a frontend MUST apply a btw agent choice to
-the side conversations it opens until btw mode or the btw panel is closed, and MUST NOT record
-it.
+**8.10** A btw agent choice MUST NOT change the `btw` setting of `settings.yaml`.
+
+**8.11** Where no epic is in view, a frontend MUST refuse a btw agent choice
+(`features/tui.md` §12.11, `api/http.md` §9.4.4).
 
 ## 9. Lifetime of side conversations and asides
 
 **9.1** Every side question after the first, in one btw mode or one btw panel, MUST go on in
 the same side conversation as the first, so that a question MAY refer to an earlier one.
 
-**9.2** Leaving btw mode, by `/btw` alone or `esc`, MUST close every side conversation that btw
+**9.2** Leaving btw mode (`features/tui.md` §12.12) MUST close every side conversation that btw
 mode opened.
 
 **9.3** Closing the side conversations in the btw panel MUST close every side conversation the
 panel opened.
 
 **9.4** A new epic starting on the host the frontend follows MUST close every side conversation
-opened about the epic it replaces, and the terminal interface MUST then say that btw mode was
-left because a new flow started.
+opened about the epic it replaces (`features/tui.md` §12.13).
 
 **9.5** A frontend going away MUST close every side conversation it opened.
 
@@ -255,5 +259,5 @@ last 200 asides, so that a page opened again shows them.
 **9.8** The terminal interface MUST show each aside in the transcript the user reads, and MUST
 NOT keep asides after the transcript is cleared or the interface closes.
 
-**9.9** An answer to a side question MUST be distinguishable from every line of the epic's own:
-the terminal interface MUST draw it in cyan, prefixed `btw ·` and the question.
+**9.9** A frontend MUST show an answer to a side question distinguishably from every line of the
+epic's own (`features/tui.md` §12.5).

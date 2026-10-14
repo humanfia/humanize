@@ -22,69 +22,52 @@ Out of scope:
 
 ## 2. Definitions
 
-Terms in bold in `README.md §2` carry the meaning given there and are not redefined.
+**2.1** Every term of `README.md` §5 MUST carry the meaning given there.
 
-**2.1** **Daemon directory**: the directory `<tmp>/humanize-<uid>`, where `<tmp>` is the
-directory Python's `tempfile.gettempdir()` returns and `<uid>` is the decimal id of the current
-user.
+**2.2** **Daemon directory**: the machine directory `<mdir>` of `api/files/machine.md` §2.2.
 
-**2.2** **Socket**: the Unix stream socket `daemon.sock` in the daemon directory.
+**2.3** **Socket**: the Unix stream socket `daemon.sock` in the daemon directory.
 
-**2.3** **Daemon record**: the file `daemon.json` in the daemon directory.
+**2.4** **Daemon record**: the file `daemon.json` in the daemon directory.
 
-**2.4** **Workspace path**: a workspace directory as an absolute path with every symbolic link
+**2.5** **Workspace path**: a workspace directory as an absolute path with every symbolic link
 followed. Two spellings of one directory are one workspace path.
 
-**2.5** **Slot**: the text naming one host of a workspace: `""` for the workspace's own host, or
+**2.6** **Slot**: the text naming one host of a workspace: `""` for the workspace's own host, or
 `chat:` followed by 1 to 32 lowercase hexadecimal digits for the host of one chat.
 
-**2.6** **Host**: the holder of the epics of one slot of one workspace, shared by every frontend
-attached to it, reached only through the daemon.
+**2.7** The term host MUST carry the meaning `features/daemons.md` §2.1 gives it; each slot of a
+workspace names one host, which a client reaches only through the daemon.
 
-**2.7** **Frame**: one unit carried on a connection, as §5 defines it.
+**2.8** **Frame**: one unit carried on a connection, as §5 defines it.
 
-**2.8** **Control request**: one JSON object carried in a `CONTROL` frame, as §6 defines it.
+**2.9** **Control request**: one JSON object carried in a `CONTROL` frame, as §6 defines it.
 
-**2.9** **Request**: one JSON object a frontend sends in a `MESSAGE` frame, naming what it asks
+**2.10** **Request**: one JSON object a frontend sends in a `MESSAGE` frame, naming what it asks
 in its field `do`.
 
-**2.10** **Reply**: the message a host sends in answer to one request, with `type` `reply`.
+**2.11** **Reply**: the message a host sends in answer to one request, with `type` `reply`.
 
-**2.11** **Message**: one JSON object a host sends in a `MESSAGE` frame, naming its kind in its
+**2.12** **Message**: one JSON object a host sends in a `MESSAGE` frame, naming its kind in its
 field `type`.
 
-**2.12** **Client id**: the text `c<n>` a host gives one attached frontend, `n` counting from 1
+**2.13** **Client id**: the text `c<n>` a host gives one attached frontend, `n` counting from 1
 per host and never reused.
 
-**2.13** **History record**: a message that carries the field `seq` (§9.2).
+**2.14** **History record**: a message that carries the field `seq` (§9.2).
 
-**2.14** **Snapshot**: a message without `seq` that says how one thing stands now (§9.3).
+**2.15** **Snapshot**: a message without `seq` that says how one thing stands now (§9.3).
 
-**2.15** **Run number**: the number a host gives each epic it starts, counting from 1 per host.
+**2.16** **Epic number**: the number a host gives each epic it starts, counting from 1 per host.
 
 ## 3. The daemon directory
 
 **3.1** The daemon directory MUST NOT be under the **home** directory.
 
-**3.2** Where the daemon directory is absent, a client or the daemon MUST create it with mode
-`0700`.
+**3.2** The daemon directory, the socket and the daemon record MUST be created, refused and
+removed as `api/files/machine.md` §3 and §6 state.
 
-**3.3** A client MUST refuse to use a daemon directory that is not a directory, is not owned by
-the current user, or is writable by its group or by others, and MUST report
-`<dir> is not a directory only this user can write; remove it`.
-
-**3.4** The daemon MUST create the socket with mode `0600` and a listen backlog of 64.
-
-**3.5** The daemon MUST write the daemon record, mode `0600`, as one JSON object with the keys
-`pid` (integer, the daemon's process), `started` (text, UTC, `%Y-%m-%dT%H:%M:%SZ`), `kind`
-(`"daemon"`) and `protocol` (integer, §12).
-
-**3.6** The daemon MUST replace the daemon record atomically, so that a reader finds either the
-whole old record or the whole new one.
-
-**3.7** The daemon MUST remove the socket and the daemon record when it exits normally.
-
-**3.8** Where the full path of the socket exceeds 100 bytes, a client MUST connect by making the
+**3.3** Where the full path of the socket exceeds 100 bytes, a client MUST connect by making the
 daemon directory its current directory and naming the socket `daemon.sock`, and MUST restore its
 former current directory afterwards.
 
@@ -107,14 +90,15 @@ MUST read a listed host as live only where its `pid` names an existing process.
 
 **4.6** A client MUST name a workspace to the daemon by its workspace path.
 
-**4.7** A client that starts the daemon or a host MUST wait at most a bounded time for it to
-come up, and MUST report a failure the started process reports rather than wait for that bound to
-pass.
+**4.7** A client that starts the daemon or a host MUST wait at most 10 seconds for it to come up.
 
-**4.8** Where two clients start the daemon at once, exactly one daemon MUST come up, and both
+**4.8** A client that starts the daemon or a host MUST report a failure the started process reports
+as soon as it is reported, without waiting out the bound of §4.7.
+
+**4.9** Where two clients start the daemon at once, exactly one daemon MUST come up, and both
 clients MUST use it.
 
-**4.9** Where two clients start a host of one slot of one workspace at once, exactly one host
+**4.10** Where two clients start a host of one slot of one workspace at once, exactly one host
 MUST be taken on, and both clients MUST use it.
 
 ## 5. Frames
@@ -163,7 +147,9 @@ reserved for the host processes of **hmz**.
 on, in the order taken on, each with `pid`, `workspace`, `started` and `slot`.
 
 **6.2.3** Any other `do` MUST be answered `{"ok": false, "why": "no such request: <repr>"}`,
-`<repr>` being the Python representation of the `do` given.
+`<repr>` being the `do` given written as a Python literal: text in single quotes, a number as
+written, `True`, `False` or `None` for `true`, `false` or `null`, and a list or object in brackets
+or braces with each item so written.
 
 ### 6.3 Control requests to a host
 
@@ -197,7 +183,7 @@ an absent `turn` as the host not holding a chat.
 - `clients`: `[{client, name, kind}]`, one per frontend attached.
 - `slot`: The host's slot.
 - `state`: `running`, `stopping` or `idle`.
-- `run`: The run number of the epic going, else stopping, else the last; `0` for none.
+- `run`: The epic number of the epic going, else stopping, else the last; `0` for none.
 - `flow`: That epic's flow as named, or `""`.
 - `epic`: That epic's directory name, `""` before it has one.
 - `task`: That epic's task, or `""`.
@@ -298,7 +284,7 @@ and defaults; a field not sent MUST take its default.
 the defaults).
 
 **8.2.2** `start` MUST start the epic as `Hmz.run` of `api/sdk.md §4.5` does and MUST be answered
-with `run`, its run number.
+with `run`, its epic number.
 
 **8.2.3** `start` MUST be refused with `a flow to start is named` for a missing `flow`;
 `backup is a list of backup target names` for a `backup` that is not one; `this host has closed`;
@@ -372,32 +358,42 @@ the board's own refusal where the line is not the user's to change.
 (`s<n>`) and `forked` (boolean: whether it carries the history of a session).
 
 **8.8.2** `aside` with `key` (`<agent>/<n>`, a session of the last epic) and `fork` (boolean) MUST
-open the side conversation on that session: a fork of it where `fork` is `true` and its CLI forks,
-otherwise a new session of a copy of its agent.
+open the side conversation on that session: a fork of it where `fork` is `true` and its harness
+forks, otherwise a new session of a copy of its agent.
 
 **8.8.3** `aside` with `runs` (an agent spec) MUST open a new session of that agent in the
-workspace; with `runs` and `recall` (the CLI's id of a session an earlier epic kept), `kept`
+workspace; with `runs` and `recall` (the harness's id of a session an earlier epic kept), `kept`
 (where that epic kept it) and `cwd`, it MUST open a fork of that session where `fork` is `true`
-and its CLI forks it, otherwise a new session of that agent.
+and its harness forks it, otherwise a new session of that agent.
 
-**8.8.4** `aside` MUST be refused with `<key> has no conversation to ask`,
-`<runs> is not an agent that can be made here`,
-`an aside is about a conversation, or asks an agent` where it names neither, and
-`this frontend has gone`.
+**8.8.4** `aside` with a `key` that names no session MUST be refused with
+`<key> has no conversation to ask`.
 
-**8.8.5** `aside` with `side` and `prompt` MUST take one turn of that side conversation and be
-answered with `answer`, its text stripped; it MUST be refused with `no aside <side> is open` for a
-side this frontend has not open and `the aside is still answering the last question` while a turn
-of it is under way.
+**8.8.5** `aside` with a `runs` that names no agent this host makes MUST be refused with
+`<runs> is not an agent that can be made here`.
 
-**8.8.6** `unaside` MUST take `side`, MUST close that side conversation, and MUST be refused with
+**8.8.6** `aside` that names neither `key` nor `runs` MUST be refused with
+`an aside is about a conversation, or asks an agent`.
+
+**8.8.7** `aside` from a frontend that has gone MUST be refused with `this frontend has gone`.
+
+**8.8.8** `aside` with `side` and `prompt` MUST take one turn of that side conversation and be
+answered with `answer`, its text stripped.
+
+**8.8.9** `aside` with a `side` this frontend has not open MUST be refused with
 `no aside <side> is open`.
 
-**8.8.7** Every side conversation MUST be read-only, MUST carry no skills, MUST NOT be seen by the
-epic, MUST be answered only to the frontend that opened it, and MUST NOT write where any epic
-keeps its sessions nor into the CLI's own home.
+**8.8.10** `aside` with a `side` that is taking a turn MUST be refused with
+`the aside is still answering the last question`.
 
-**8.8.8** A side conversation MUST be closed by `unaside`, when its frontend leaves, when an epic
+**8.8.11** `unaside` MUST take `side`, MUST close that side conversation, and MUST be refused with
+`no aside <side> is open`.
+
+**8.8.12** Every side conversation MUST be read-only, MUST carry no skills, MUST NOT be seen by the
+epic, MUST be answered only to the frontend that opened it, and MUST NOT write where any epic
+keeps its sessions nor into the harness's own home.
+
+**8.8.13** A side conversation MUST be closed by `unaside`, when its frontend leaves, when an epic
 starts on the host, and when the host closes; no message announces side conversations.
 
 ### 8.9 `status`, `detach` and `quit`
@@ -435,7 +431,7 @@ record across the host's life.
 with each `start`, up to 32 MiB of JSON, dropping the oldest whole records first and counting
 them in `elided`.
 
-**9.2.3** Every history record other than `printed` MUST carry `run`, its run number.
+**9.2.3** Every history record other than `printed` MUST carry `run`, its epic number.
 
 **9.2.4** The history records MUST be those of the following list, with those fields.
 
@@ -445,7 +441,7 @@ them in `elided`.
   `began` (host monotonic seconds), `at` (Unix seconds).
 - `opened`: `role`, `key` (`<agent>/<n>`), `agent`, `cli`, `model`, `counts` (token kinds the
   backend reports, sorted), `forks`, `person`, `kept` (directory of the session's logs, `""` for a
-  person or the CLI's own home), `env`, `harness`, `mono`, `wall`.
+  person or the harness's own home), `env`, `harness`, `mono`, `wall`.
 - `event`: `key`, `session`, `agent`, `cli`, `model`, `ident`, `kind`, `text`, `whose`, `tokens`,
   `spent`, `at`, `mono`: the record `hmz exec --json` writes (`api/cli.md`).
 - `asked`: `question` (`q<n>`), `role`, `text`, `options`, `mode` (`ask` or `listen`), `key`.
@@ -472,6 +468,10 @@ count of sessions that agent opened in the epic, assigned once as the session op
 `Refused` message for `refused`, `<ExceptionType>: <message>` for `failed`, and a traceback for
 `crashed`.
 
+**9.2.8** `ended.how` MUST be read as the endings of `features/epics.md` §3.6: `done` as `done`,
+`stopped` and `budget` as `stopped`, `failed` and `crashed` as `failed`, and `refused` as an epic
+refused before it was created, which has no ending.
+
 ### 9.3 Snapshots
 
 **9.3.1** A host MUST keep the latest of each snapshot, MUST send every snapshot on attach, and
@@ -484,7 +484,7 @@ values.
 - `claims`: `claims`: `{role: client}`; initially `{}`.
 - `away`: `all` (boolean), `of` (`{role: boolean}`); initially `false`, `{}`.
 - `run`: `state`, the `started` fields of the epic going or the last (`run` `0` for none),
-  `stopping` (run number or `null`), `epic` (`""` before it has one), `slot`, and of a chat `turn`;
+  `stopping` (epic number or `null`), `epic` (`""` before it has one), `slot`, and of a chat `turn`;
   initially `idle`.
 - `sessions`: `run`, `open` (keys still open), `working` (keys with a turn open); initially `0`,
   `[]`, `[]`.
@@ -578,7 +578,8 @@ to that length followed by `… (<n> more characters)`, `n` the characters cut.
 
 **12.1** The protocol version this document defines MUST be `2`.
 
-**12.2** The daemon MUST write its protocol version in the daemon record (§3.5), and a host MUST
+**12.2** The daemon MUST write its protocol version in the daemon record
+(`api/files/machine.md` §6.2), and a host MUST
 send it in `welcome`.
 
 **12.3** A client finding a daemon of another protocol version, or of none, MUST NOT reach it
@@ -612,11 +613,11 @@ started where no host was ever taken on, and on `SIGTERM`.
 
 **13.2.1** Each host MUST run in a process of its own whose current directory is its workspace.
 
-**13.2.2** A workspace's own host MUST run its flows one at a time; each chat MUST have a host of
-its own, beside it, so that no chat waits on a flow and no flow waits on a chat.
+**13.2.2** The hosts of a workspace MUST run its epics as `features/daemons.md` §3
+states.
 
-**13.2.3** A host MUST send every line its process prints through Python's standard output or
-standard error to every frontend as a `printed` record, one line per record.
+**13.2.3** A host MUST send every line its process prints on its standard output or standard
+error to every frontend as a `printed` record, one line per record.
 
 **13.2.4** A host MUST ignore `SIGINT`.
 

@@ -925,13 +925,12 @@ turns concurrently.
 
 ### 8.3 Project configuration across machines
 
-**8.3.1** Program-running project configuration is the configuration that
-`features/agents.md` §5.5 lists for a turn's harness, found in the turn's workdir or a directory
-above it within the workspace.
+**8.3.1** Program-running configuration MUST be read as `features/placements.md` §2.9 defines
+it, found from the session directory (`features/placements.md` §2.1) of the turn.
 
 **8.3.2** Where a turn's placement is supervised or afar and its harness machine is not its env
 machine, opening a session, forking it into a workdir, carrying it on, and every later turn MUST
-raise `UnsupportedOperation` where program-running project configuration is present, as
+raise `UnsupportedOperation` where program-running configuration is present, as
 `features/placements.md` §7 specifies.
 
 **8.3.3** The message of the exception of clause 8.3.2 MUST name each file and key responsible.

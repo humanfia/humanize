@@ -49,10 +49,8 @@ hold the harness of a session.
 `PermissionRequest` moment (`api/flows.md`). A hook at the `AskUser` moment is not a gating
 hook.
 
-**2.9** **Program-running configuration**: configuration that a harness reads from files and
-that makes the harness start a program or change the environment of the programs it starts:
-hooks, stdio MCP servers, status lines, credential helpers, environment-variable overrides,
-plugins, and the Codex `notify` program.
+**2.9** **Program-running configuration**: the files and keys that `features/agents.md` §5.5.1
+lists for a harness, found from the session directory.
 
 **2.10** **Keep**: writing a session into a flow's state, which copies the session's
 conversation (`api/flows.md`).
@@ -75,21 +73,21 @@ local placement the harness machine MUST be this machine, and hmz MUST NOT make 
 machine and its harness machine is this machine. Under supervised placement the harness MUST
 work in a mirror on this machine.
 
-**3.1.4** A session MUST have placement **native** where its harness machine is its env
-machine and that machine is not this machine. Under native placement the harness MUST be the
-harness CLI installed on the env machine, and hmz MUST NOT make a mirror.
+**3.1.4** A session MUST have placement **native** where its harness is the harness program
+installed on its env machine, that machine is not this machine, and no harness runtime holds the
+harness. Under native placement hmz MUST NOT make a mirror.
 
 **3.1.5** A session MUST have placement **afar** where its harness machine is the machine of a
-harness runtime, which is neither this machine nor the env machine. Under afar placement the
-harness MUST work in a mirror on the harness machine.
+harness runtime and is not this machine, whether or not it is the env machine. Under afar
+placement the harness MUST work in a mirror on the harness machine.
 
-**3.1.6** A session of a harness that starts no CLI program MUST have placement local.
+**3.1.6** A session of a harness that starts no program of its own MUST have placement local.
 
 > Informative: summary of §3.1 and §5.
 >
 > | | local | supervised | native | afar |
 > | --- | --- | --- | --- | --- |
-> | Harness CLI runs on | this machine | this machine | env machine | harness runtime |
+> | Harness program runs on | this machine | this machine | env machine | harness runtime |
 > | Mirror | none | this machine | none | harness machine |
 > | Commands the agent runs | this machine | env machine | env machine | env machine |
 > | Harness's connections | this machine | this machine | env machine | harness machine |
@@ -105,8 +103,9 @@ x86-64 or aarch64.
 `/bin/sh` and a Python of version 3.12 or later. hmz MUST NOT require root, a compiler, a
 kernel module or an installed package on that machine.
 
-**3.2.3** A native session MUST require the harness CLI to be installed on the env machine
-and found on the `PATH` of the login hmz reaches it as.
+**3.2.3** A native session MUST require the harness program to be installed on the env machine
+and found on the `PATH` of the login hmz reaches it as, without
+looking in any other directory.
 
 ## 4. Choosing a placement
 
@@ -138,7 +137,7 @@ only where every entry before it has no room.
 **4.2.2** The entry `local` MUST always have room, and MUST give placement supervised.
 
 **4.2.3** The entry `self` MUST give placement native, and MUST have no room where the env
-machine has not got the harness CLI (`HarnessNotInstalled`) or cannot hold the session's
+machine has not got the harness program (`HarnessNotInstalled`) or cannot hold the session's
 fence (`HarnessSandboxed`).
 
 **4.2.4** An entry `<backend>:<name>` MUST give placement afar on the harness runtime it
@@ -150,8 +149,8 @@ where the role's permission fences anything at all (`HarnessSandboxed`).
 with the message `<where>: nowhere its affinity (<entries>) names has room for <cli>'s
 harness; the last: <refusal>`, where `<where>` spells the env as `<backend>[@<provider>]`.
 
-**4.2.6** Where an env machine cannot be asked whether it has the CLI or can hold a fence, hmz
-MUST raise `HarnessUnrecoverable` at once and MUST NOT try the next entry.
+**4.2.6** Where an env machine cannot be asked whether it has the harness program or can hold a
+fence, hmz MUST raise `HarnessUnrecoverable` at once and MUST NOT try the next entry.
 
 **4.2.7** An affinity with no entries MUST be treated as no affinity (§4.3).
 
@@ -161,10 +160,10 @@ MUST raise `HarnessUnrecoverable` at once and MUST NOT try the next entry.
 placement supervised.
 
 **4.3.2** A session on another machine with no affinity and no gating hook MUST have placement
-native where the env machine has the harness CLI and can hold the session's fence, and
+native where the env machine has the harness program and can hold the session's fence, and
 placement supervised otherwise.
 
-**4.3.3** hmz MUST ask an env machine whether it has the harness CLI over the same connection,
+**4.3.3** hmz MUST ask an env machine whether it has the harness program over the same connection,
 `PATH` and login that a native turn there uses, and MUST treat a machine that does not answer
 within 300 seconds as one that cannot be asked.
 
@@ -218,7 +217,7 @@ programs of §5.1.3.
 workspace on the env machine MUST be answered from the env machine through the mirror, except
 the paths of §5.1.3; every path outside it MUST be answered by the harness machine.
 
-**5.1.3** The following MUST stay on the harness machine: the harness CLI program and the
+**5.1.3** The following MUST stay on the harness machine: the harness program and the
 programs beside it in its own package, the interpreter it is started by, the harness's state
 directories (`features/agents.md`), hmz's own directories under the user's home, and the
 program that carries the flow's callbacks and command lines.
@@ -236,7 +235,7 @@ the agent and the commands it runs on the env machine.
 
 **5.1.7** A program that hmz started for a session MUST NOT outlive the session.
 
-**5.1.8** Under native placement the harness CLI, every program it starts and every file it
+**5.1.8** Under native placement the harness program, every program it starts and every file it
 touches MUST be the env machine's.
 
 ### 5.2 Network
@@ -252,10 +251,10 @@ command runs on.
 MUST be used on this machine, and MUST NOT be passed to the commands the agent runs on the env
 machine.
 
-**5.3.2** Under native placement, the account's variables MUST be given to the CLI as the
-turn's environment, never on a command line, and the account's credential files MUST be put in
-a directory on the env machine that only the target's own user can enter, for the turn alone,
-as `features/accounts.md` specifies.
+**5.3.2** Under native placement, the account's variables MUST be given to the harness program as
+the turn's environment, never on a command line, and the account's credential files MUST be put in a
+directory on the env machine that only the target's own user can enter, for the turn alone, as
+`features/accounts.md` specifies.
 
 **5.3.3** Under afar placement, the harness MUST run as the harness machine's sign-in; hmz
 MUST NOT send the account's variables or credential files to the harness machine.
@@ -277,7 +276,8 @@ the env machine names it, in the harness's environment.
 **5.6.1** Under supervised placement, a fence MUST be held on both machines: around the agent
 on the harness machine, and around every command the agent runs on the env machine.
 
-**5.6.2** Under native placement, a fence MUST be held around the CLI on the env machine.
+**5.6.2** Under native placement, a fence MUST be held around the harness program on the env
+machine.
 
 **5.6.3** Under afar placement, a session held to any fence that is not open MUST be refused
 with `HarnessSandboxed`.
@@ -345,7 +345,9 @@ env machine MUST fail, files already in the mirror MUST stay readable, and the a
 with its own status.
 
 **6.3.9** A request to the env machine that receives no answer MUST be abandoned on the harness
-machine; it MAY still take effect on the env machine.
+machine.
+
+> Informative: an abandoned request can still take effect on the env machine.
 
 ### 6.4 Limits
 
@@ -435,7 +437,7 @@ than the workdir's own (§6.1.2).
 **8.2.5** Carrying on a conversation kept by another harness MUST be refused with
 `UnsupportedOperation`.
 
-**8.2.6** A native or afar session's conversation MUST stay where that session's CLI keeps it,
+**8.2.6** A native or afar session's conversation MUST stay where that session's harness keeps it,
 on its harness machine; hmz MUST copy what the session logs into the epic as it goes and whole
 as it closes (`features/epics.md`).
 

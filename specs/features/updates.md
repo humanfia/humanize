@@ -74,18 +74,20 @@ previous fetch succeeded.
 
 ### 4.1 Choosing the installer
 
-**4.1.1** `hmz update` MUST fetch the newest release at once, whether or not the kept release is
-stale.
+**4.1.1** `hmz update` MUST choose the installer, and make the refusals of §4.2.1 to §4.2.3,
+before it asks for the newest release.
 
-**4.1.2** Where hmz was installed by `uv tool`, `hmz update` MUST run `uv tool upgrade hmz`.
+**4.1.2** `hmz update` MUST then fetch the newest release, whether or not the kept release is stale.
 
-**4.1.3** Where hmz was installed by `pipx`, `hmz update` MUST run `pipx upgrade hmz`.
+**4.1.3** Where hmz was installed by `uv tool`, `hmz update` MUST run `uv tool upgrade hmz`.
 
-**4.1.4** Where hmz was installed otherwise, `hmz update` MUST run `pip install --upgrade` with
+**4.1.4** Where hmz was installed by `pipx`, `hmz update` MUST run `pipx upgrade hmz`.
+
+**4.1.5** Where hmz was installed otherwise, `hmz update` MUST run `pip install --upgrade` with
 the Python executing hmz, or uv's `pip install --upgrade` against that Python where pip is not
 installed in it, naming `hmz` with every extra whose packages are all installed.
 
-**4.1.5** `hmz update` MUST keep the extras hmz was installed with.
+**4.1.6** `hmz update` MUST keep the extras hmz was installed with.
 
 ### 4.2 Refusals
 
@@ -96,7 +98,7 @@ not installed as a package.
 1 where hmz was installed from a checkout or a URL rather than from PyPI.
 
 **4.2.3** `hmz update` MUST NOT run any installer, MUST state why, and MUST exit 1 where the
-installer that installed hmz is not on `PATH`.
+installer §4.1 chose is `uv` or `pipx` and is not on `PATH`.
 
 **4.2.4** `hmz update` MUST NOT run any installer, MUST state why, and MUST exit 1 where the
 release source cannot be asked.

@@ -79,8 +79,8 @@ with N from 3, or a subsection of one numbered `### N.M`.
 
 **3.3.7** A specification MUST NOT use a heading deeper than `###`.
 
-**3.3.8** Every requirement section MUST consist of subsections only, and every subsection MUST
-consist of clauses and informative blocks only.
+**3.3.8** Every requirement section MUST consist either of subsections only or of clauses and
+informative blocks only, and every subsection MUST consist of clauses and informative blocks only.
 
 **3.3.9** A public Python interface MUST be given as signatures in a fenced `python` block,
 followed by the clauses that govern it.
@@ -111,6 +111,13 @@ other than the keywords of §4.1, and MUST NOT use a Latin abbreviation.
 
 **3.4.7** A specification MUST NOT call an epic a run.
 
+**3.4.8** A specification MUST reproduce every quoted identifier, string and message exactly as
+hmz emits or accepts it, even where it contains the word run.
+
+**3.4.9** The underscore-prefixed class attributes that `api/flows.md` lists (`_permission`,
+`_skills`, `_tools`, `_clis`, `_cpu_count`, `_memory`, `_gpu_count`, `_gpu_memory` and `_image`)
+MUST be read as public names of the flow API.
+
 ## 4. Keywords, numbering and citation
 
 ### 4.1 Keywords
@@ -132,13 +139,16 @@ REQUIRED, RECOMMENDED, NOT RECOMMENDED or OPTIONAL.
 
 **4.2.1** A clause of `## 2. Definitions` MUST be numbered `2.K`, K counting from 1.
 
-**4.2.2** A clause of a subsection `### N.M` MUST be numbered `N.M.K`, K counting from 1 within
+**4.2.2** A clause directly under a requirement section `## N.` MUST be numbered `N.K`, K counting
+from 1 within the section.
+
+**4.2.3** A clause of a subsection `### N.M` MUST be numbered `N.M.K`, K counting from 1 within
 the subsection.
 
-**4.2.3** A clause number MUST be written in bold at the start of its paragraph, as `**N.M.K**`,
-followed by one space and the clause's text.
+**4.2.4** A clause number MUST be written in bold at the start of its paragraph, as `**N.K**` or
+`**N.M.K**`, followed by one space and the clause's text.
 
-**4.2.4** Section, subsection and clause numbers MUST be consecutive within their parent, without
+**4.2.5** Section, subsection and clause numbers MUST be consecutive within their parent, without
 gaps.
 
 ### 4.3 Citation
@@ -220,8 +230,8 @@ written: one directory of one machine, filling one env role of an epic.
 is exactly one of: **local**, where both are this machine; **supervised**, where the harness
 machine is this machine, the env machine is another machine, and the harness works in a mirror;
 **native**, where the harness is the program installed on the env machine and runs there without
-a mirror; and **afar**, where the harness machine is a machine other than this machine and the
-harness works in a mirror there.
+a mirror; and **afar**, where the harness machine is a machine other than this machine, the env
+machine included, and the harness works in a mirror there.
 
 **5.3.9** A **mirror** is a directory on a harness machine that reproduces an env's workspace,
 filled on demand, in which a harness in the supervised or the afar placement works.

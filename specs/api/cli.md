@@ -170,8 +170,8 @@ or after it has ended, as §7.15.5 specifies.
 **6.1.1** `hmz` with an empty command line MUST open the terminal interface in the calling process
 on the current directory as its workspace, and MUST NOT start an epic.
 
-**6.1.2** Where `HUMANIZE_DAEMON` is `off`, `0` or `no` after surrounding white space is removed
-and letters are lower-cased, `hmz` MUST hold the epics in its own process.
+**6.1.2** Where `HUMANIZE_DAEMON` turns the daemon off (`features/daemons.md` §4), `hmz` MUST
+hold the epics in its own process.
 
 **6.1.3** Where standard input or standard output is not a terminal, `hmz` MUST hold the epics in
 its own process.
@@ -344,7 +344,7 @@ login.
 
 > Informative: `coder=claude/claude-opus-5:high`, `rev=codex@work/gpt-5:medium`,
 > `m=opencode/openrouter/qwen3:8b` (the model is `openrouter/qwen3:8b`, no effort), and
-> `m=ollama/qwen3:latest:auto` (the model is `qwen3:latest`).
+> `m=opencode/ollama/qwen3:latest:auto` (the model is `ollama/qwen3:latest`).
 
 ### 7.5 Writing an env
 
@@ -693,8 +693,8 @@ error and exit with status 1.
 
 ### 9.3 Updating
 
-**9.3.1** `hmz update` MUST ask PyPI, or the source `HUMANIZE_RELEASES` names, for the newest
-release of hmz, excluding pre-releases.
+**9.3.1** After §9.2, `hmz update` MUST ask PyPI, or the source `HUMANIZE_RELEASES` names, for the
+newest release of hmz, excluding pre-releases.
 
 **9.3.2** Where no answer comes, `hmz update` MUST write `hmz update: PyPI could not be asked for
 the newest release` to standard error and exit with status 1.
@@ -715,9 +715,9 @@ status 1.
 **9.3.7** Otherwise `hmz update` MUST write `Updated hmz to <new>` to standard output and exit
 with status 0.
 
-**9.3.8** Where a daemon runs on this machine, `hmz update` MUST write `Epics held on this machine
-(pid <pid>) run hmz <old> until that daemon stops` to standard output after §9.3.7, and MUST NOT
-stop or signal the daemon.
+**9.3.8** Where a daemon runs on this machine, `hmz update` MUST make the statement of
+`features/updates.md` §4.4.2 by writing `Epics held on this machine (pid <pid>) run hmz <old> until
+that daemon stops` to standard output after §9.3.7.
 
 ## 10. `hmz backup`
 

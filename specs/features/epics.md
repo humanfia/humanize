@@ -52,8 +52,8 @@ through a frontend.
 
 **2.10** **Ending**: the state in which an epic is read back, as §3.6 defines.
 
-**2.11** **Host slot**: one place on **this machine** in which epics of one workspace execute on
-behalf of frontends: the workspace's own slot, or one slot per chat.
+**2.11** **Host slot**: the slot (`api/daemon.md` §2.6) naming one host (`features/daemons.md` §2.1)
+of a workspace on **this machine**: the workspace host's, or one chat host's.
 
 **2.12** **Price list**: the list of per-token model prices kept on this machine
 (`features/monitoring.md` §3.3).
@@ -327,8 +327,8 @@ remembered setup that the save does not give.
 **4.1.5** A remembered empty list of backup targets MUST mean no targets, and no remembered
 backup targets MUST mean the default targets.
 
-**4.1.6** A remembered agent MUST consist of a CLI, an account, a model and an effort, and nothing
-else; a remembered entry that is not one MUST be read as nothing remembered.
+**4.1.6** A remembered agent MUST consist of a harness, an account, a model and an effort, and
+nothing else; a remembered entry that is not one MUST be read as nothing remembered.
 
 **4.1.7** Remembered setup MUST NOT turn on either profiling switch for an epic started by
 `hmz exec` or the SDK.
