@@ -6,9 +6,9 @@
 // reviewer carries `review-notes` and the actor does not. When the reviewer's Claude Code
 // starts, it starts in a home of its own: copies of the settings it rewrites, links to the rest
 // of yours, and a `skills/` holding links to yours with the flow's beside them. When it stops,
-// that home goes, all of it, and nothing of yours was written. Codex gets the same; another
-// backend gets the copy in the workspace (`.cursor/skills/`, `.agents/skills/`), or none for
-// `dsh` and `pi`. A simulation: the names of "your" two skills are invented.
+// that home goes, all of it, and nothing of yours was written. Codex, agy, Cursor, Kimi and
+// MiniMax get the same, opencode and MiMo are told where it is, grok, qwen and omp still get
+// the copy in the workspace (`.agents/skills/`), and `dsh` and `pi` get none. A simulation: the names of "your" two skills are invented.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
@@ -24,7 +24,7 @@ const BEATS = [
   "The flow's: in its own skills/ or a git repository, for the roles it names",
   "The reviewer's Claude Code starts in a home of its own, review-notes beside yours",
   'It stops: that home goes, all of it, and yours was never written',
-  'Codex gets the same; another backend gets it in the workspace, or none',
+  'Most CLIs get the same; a few get it in the workspace, or none',
 ]
 
 /** A mono character's advance at 11px. */
@@ -129,8 +129,8 @@ const madeBrace = computed(() => {
 /** Where each backend's copy lands, and the reviewer's backend chip for it. */
 const DEST = [
   { backend: 'claude', who: 'claude', dest: 'its home: skills/' },
-  { backend: 'codex', who: 'codex', dest: 'its home: skills/' },
-  { backend: 'cursor-agent', who: 'cursor, agy, …', dest: 'the workspace' },
+  { backend: 'codex', who: 'codex, agy, …', dest: 'its home: skills/' },
+  { backend: 'grok', who: 'grok, qwen, omp', dest: 'the workspace' },
   { backend: 'dsh', who: 'dsh, pi', dest: 'none' },
 ]
 /** From the flow's skill to the reviewer's slot for it: across the gap, or down on a phone. */
@@ -290,7 +290,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="5 / 8"
-    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's Claude Code starts, it starts in a home of its own: a copy of the .claude.json it rewrites, links to the rest of yours, and a skills/ directory with links to your skills and review-notes beside them. When it stops, that home goes, all of it, and nothing of yours was written. Codex gets the same; cursor-agent, agy and the rest get the copy in the workspace, and dsh and pi get none, carrying only what you installed."
+    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's Claude Code starts, it starts in a home of its own: a copy of the .claude.json it rewrites, links to the rest of yours, and a skills/ directory with links to your skills and review-notes beside them. When it stops, that home goes, all of it, and nothing of yours was written. Codex, agy, cursor-agent, kimi and mcode get the same; opencode and mimo are told where the flow's skills are; grok, qwen and omp get the copy in the workspace; and dsh and pi get none, carrying only what you installed."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

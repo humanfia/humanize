@@ -53,7 +53,8 @@ class Virtual:
     """What one CLI's virtual home is made of, wherever it is built.
 
     Attributes:
-      variable: The variable that moves the CLI's home, which is set to the virtual one.
+      variable: The variable that moves the CLI's home, which is set to the virtual one; ""
+        for a CLI that only a flag moves.
       default: Where that home is under the user's own where the variable is unset.
       rewrites: What under that home is copied rather than linked, relative to it.
       outside: For each of those kept outside the home while the variable is unset, where
@@ -74,6 +75,8 @@ class Virtual:
         the CLI made in the virtual home, where the user's has none, is moved into the user's
         as the home is dropped.
       skills: The flow's own skills, as `(name, the directory holding its SKILL.md)`.
+      flag: The flag that moves the CLI's home where no variable does, which takes it relative
+        to the directory `default` is in; "" for a CLI a variable moves.
     """
 
     variable: str
@@ -86,6 +89,7 @@ class Virtual:
     made: tuple[str, ...] = ()
     kept: tuple[str, ...] = ()
     skills: tuple[tuple[str, str], ...] = ()
+    flag: str = ""
 
     def __post_init__(self) -> None:
         """Refuses a virtual home that would name something outside itself.
@@ -96,8 +100,10 @@ class Virtual:
         for name in (self.variable, self.secures):
             if name and not name.replace("_", "a").isalnum():
                 raise ValueError(f"unsupported variable {name!r}")
-        if not self.variable:
-            raise ValueError("a virtual home needs the variable that moves it")
+        if not (self.variable or self.flag.startswith("--")):
+            raise ValueError(
+                "a virtual home needs the variable or the flag that moves it"
+            )
         for one in (
             self.default,
             *self.rewrites,
@@ -123,6 +129,7 @@ class Virtual:
                 "made": list(self.made),
                 "kept": list(self.kept),
                 "skills": [list(one) for one in self.skills],
+                "flag": self.flag,
             },
             separators=(",", ":"),
         )
@@ -147,13 +154,14 @@ class Virtual:
                 made=tuple(held["made"]),
                 kept=tuple(held["kept"]),
                 skills=tuple((one, other) for one, other in held["skills"]),
+                flag=held.get("flag", ""),
             )
         except (KeyError, TypeError) as wrong:
             raise ValueError(f"not a virtual home: {said!r}") from wrong
 
     def real(self, environ: Mapping[str, str]) -> Path:
         """The user's own home for this CLI, as a process with that environment finds it."""
-        moved = environ.get(self.variable)
+        moved = environ.get(self.variable) if self.variable else None
         if moved:
             return Path(moved)
         return Path(environ.get("HOME") or Path.home()) / self.default
@@ -180,7 +188,9 @@ def virtual(
       the user and carries no skills there -- every CLI that has not said otherwise -- and for
       one whose variable names a parent of its home rather than the home.
     """
-    if not (profile.rewrites or profile.lodges) or not profile.home_var:
+    if not (profile.rewrites or profile.lodges) or not (
+        profile.home_var or profile.home_flag
+    ):
         return None
     if profile.home_in:
         return None
@@ -203,6 +213,7 @@ def virtual(
         made=() if private else tuple(one for one in names if not _globbed(one)),
         kept=() if private else tuple(one for one in names if _globbed(one)),
         skills=tuple(skills) if profile.lodges else (),
+        flag="" if profile.home_var else profile.home_flag,
     )
 
 
@@ -221,6 +232,8 @@ class Home:
       sets: What a process started in it is to be started with on top of its environment.
       rewrites: What in it is a copy of its own, as :attr:`Virtual.rewrites`.
       kept: What of it is moved into the user's home as it is dropped, as :attr:`Virtual.kept`.
+      argv: What the CLI is told after its own name to be started in it: the flag naming it,
+        for a CLI no variable moves.
     """
 
     at: Path
@@ -228,6 +241,7 @@ class Home:
     sets: tuple[tuple[str, str], ...]
     rewrites: tuple[str, ...] = ()
     kept: tuple[str, ...] = ()
+    argv: tuple[str, ...] = ()
 
     def environ(self, environ: Mapping[str, str] | None) -> dict[str, str]:
         """The whole environment a process of the CLI is started in, given the one it had.
@@ -321,14 +335,25 @@ def build(
     except OSError:
         shutil.rmtree(at, ignore_errors=True)
         raise
-    sets = [(spec.variable, str(at))]
+    sets = [(spec.variable, str(at))] if spec.variable else []
+    argv: tuple[str, ...] = ()
+    if spec.flag:
+        # Relative to where the default home is, which is the only way such a flag takes one:
+        # climbing out of there, for a home that is somewhere else entirely.
+        whence = Path(said.get("HOME") or Path.home()) / spec.default
+        argv = (f"{spec.flag}={os.path.relpath(at, whence.parent)}",)
     if spec.secures and spec.secures not in said:
         # The user's own value of the home variable, or nothing: Claude Code names its
         # keychain item and finds `.credentials.json` by this, and an empty one is the home
         # it would have had with the variable unset.
         sets.append((spec.secures, said.get(spec.variable, "")))
     return Home(
-        at=at, real=real, sets=tuple(sets), rewrites=spec.rewrites, kept=spec.kept
+        at=at,
+        real=real,
+        sets=tuple(sets),
+        rewrites=spec.rewrites,
+        kept=spec.kept,
+        argv=argv,
     )
 
 

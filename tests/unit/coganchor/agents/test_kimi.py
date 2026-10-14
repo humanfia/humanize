@@ -8,6 +8,7 @@ import os
 import signal
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 import pytest
@@ -22,6 +23,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.hooks import Moment
 from hmz.coganchor.agents.kimi import LOG_LEVELS, READABLE
+from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.providers import Provider
 
@@ -29,7 +31,6 @@ from .doubles_u5 import UNREAL_PID, Process, configured, gatewayed, heard, spawn
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-    from pathlib import Path
 
     from hmz.coganchor.agents.event import Event, Question
 
@@ -299,6 +300,40 @@ def test_one_server_serves_every_session_and_stops_with_the_agent(
     assert len(server) == 1
     assert len(daemon.posted("/sessions")) == 2
     assert (UNREAL_PID, signal.SIGTERM) in signalled
+
+
+def test_the_server_is_started_in_a_virtual_home_carrying_the_flows_skills(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+) -> None:
+    del daemon
+    skill = tmp_path / "flow" / "review"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: review\n---\n", encoding="utf-8")
+    work = tmp_path / "work"
+    work.mkdir()
+    agent = made()
+    agent.loads([Loaded("review", skill)])
+
+    _turn(agent.new(work))
+
+    env = server[0].env
+    assert env is not None
+    home = Path(env["KIMI_CODE_HOME"])
+    assert (home / "skills" / "review").resolve() == skill
+    assert not (tmp_path / "home" / ".kimi-code" / "skills").exists()
+    assert list(work.iterdir()) == []
+    # Carrying others is another server, in a home carrying those.
+    agent.loads([])
+    _turn(agent.new(work))
+    assert len(server) == 2
+    again = server[1].env
+    assert again is not None
+    assert not (Path(again["KIMI_CODE_HOME"]) / "skills" / "review").exists()
+    agent.stop()
+    assert not Path(again["KIMI_CODE_HOME"]).exists()
 
 
 @pytest.mark.parametrize(

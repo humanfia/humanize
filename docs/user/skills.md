@@ -39,10 +39,9 @@ Neither set is a setting of the agent, and humanize never changes what you insta
 
 A flow's skill is how a flow teaches one role something the others need not know: `rlar`'s
 reviewer carries `review-notes`, which says how to read a change and write the review the actor
-is handed next. Claude Code and Codex are started in a home of their own for each process: your
-skills are linked into its `skills/`, and the flow's go beside them. Other CLIs get a copy in
-your workspace, where they read a project's own skills, for as long as a session of that role
-is open.
+is handed next. Most CLIs are started in a home of their own for each process: your skills are
+linked into its `skills/`, and the flow's go beside them. opencode and MiMo Code are told where
+the flow's skills are instead. Nothing is put in your workspace for any of these.
 
 <SkillTrip />
 
@@ -125,19 +124,24 @@ skills only in a project you have trusted in pi, and humanize does not trust one
 
 ## The flow's skills
 
-A flow brings skills for some of its roles. Claude Code and Codex are started, a process at a
-time, in a home of their own -- copies of the settings they rewrite as they run, links to the
-rest of yours -- whose user-level `skills/` holds links to yours with the flow's beside them. That
-home goes when the process stops; nothing of yours, and nothing of the project's, is written.
-The other CLIs get each skill copied into your workspace, where they read a project's own, for
-as long as a session of that role is open:
+A flow brings skills for some of its roles. Most CLIs are started, a process at a time, in a
+home of their own -- copies of the settings they rewrite as they run, links to the rest of yours
+-- whose user-level `skills/` holds links to yours with the flow's beside them. That home goes
+when the process stops; nothing of yours, and nothing of the project's, is written. opencode and
+MiMo Code are told where the flow's skills are, in the configuration humanize hands each run,
+and read them after their own. The rest get each skill copied into your workspace, where they
+read a project's own, for as long as a session of that role is open:
 
 | Backend | Put into |
 | --- | --- |
 | `claude` | its own home's `skills/` (`$CLAUDE_CONFIG_DIR/skills/`) |
 | `codex` | its own home's `skills/` (`$CODEX_HOME/skills/`) |
-| `cursor-agent` | `.cursor/skills/` in the workspace |
-| `agy`, `grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `qwen` | `.agents/skills/` in the workspace |
+| `agy` | its own home's `skills/` (named with `--app_data_dir`) |
+| `cursor-agent` | its own home's `skills/` (`$CURSOR_CONFIG_DIR/skills/`) |
+| `kimi` | its own home's `skills/` (`$KIMI_CODE_HOME/skills/`) |
+| `mcode` | its own home's `skills/` (`$MINIMAX_DATA_DIR/skills/`) |
+| `opencode`, `mimo` | named under `skills.paths` in the configuration of each run |
+| `grok`, `omp`, `qwen` | `.agents/skills/` in the workspace |
 | `dsh`, `pi` | <Badge type="danger" text="none" /> they carry only what you installed |
 
 A copy in the workspace goes when the last session using it ends, along with any directory that
@@ -162,8 +166,9 @@ the list. The copy lands in `.hmz/flows/`, skills and all, and is yours to edit:
 Nothing of yours is overwritten. For a CLI that gets the flow's skills in the workspace, a
 project skill of the same name is what the agent loads, and the flow's copy is not made: put
 your own `review-notes/SKILL.md` in `.agents/skills/` and `rlar`'s Grok reviewer reads yours.
-For Claude Code and Codex, the flow's skill takes the place of a skill of yours of the same name
-in their own home, and yours stays where it is; to use yours, copy the flow and edit its skill.
+For a CLI started in a home of its own, and for opencode and MiMo Code, the flow's skill takes
+the place of a skill of yours of the same name, and yours stays where it is; to use yours, copy
+the flow and edit its skill.
 
 ## Pitfalls
 

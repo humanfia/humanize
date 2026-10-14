@@ -2470,6 +2470,9 @@ class SessionBase(ABC):
           its virtual home, or None for a CLI started in the user's own.
         """
         home = self._agent.homed(self._carrying())
+        if home is not None and home.argv:
+            # Named on the command line, for a CLI no variable moves: right after its name.
+            argv = [*argv[:1], *home.argv, *argv[1:]]
         try:
             spawned = self._agent.spawned(argv, self.cwd, home)
         except BaseException:
@@ -5660,6 +5663,10 @@ class AgentBase(ABC):
                     private=profile.home_var in dict(projects),
                 )
             )
+            if home is not None and home.flag:
+                # Not for a CLI only a flag moves, whose command line is the target's to write:
+                # it runs in its own home there, and without the flow's skills.
+                home = None
             return replace(
                 anchor,
                 hushes=tuple(sorted(self.hushed())),

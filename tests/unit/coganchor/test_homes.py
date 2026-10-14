@@ -306,3 +306,56 @@ def test_a_projected_account_has_none_of_the_users_credentials_beside_it() -> No
     assert ".claude.json" in held.private
     assert ".claude.json" not in held.rewrites
     assert held.kept == ()
+
+
+def test_a_home_only_a_flag_moves_is_named_on_the_command_line(tmp_path: Path) -> None:
+    user = tmp_path / "user"
+    real = user / ".gemini" / "antigravity-cli"
+    (real / "conversations").mkdir(parents=True)
+    spec = Virtual(
+        variable="", default=".gemini/antigravity-cli", flag="--app_data_dir"
+    )
+
+    home = build(spec, {"HOME": str(user)}, under=tmp_path)
+
+    assert home.real == real
+    assert home.sets == ()
+    (said,) = home.argv
+    flag, _, where = said.partition("=")
+    assert flag == "--app_data_dir"
+    # Relative to `~/.gemini`, the one way agy takes it, and naming the home from there.
+    assert not where.startswith("/")
+    assert os.path.normpath(user / ".gemini" / where) == str(home.at)
+    assert (home.at / "conversations").resolve() == real / "conversations"
+    with pytest.raises(ValueError, match="needs"):
+        Virtual(variable="", default=".x")
+
+
+def test_every_cli_that_takes_skills_at_its_home_is_started_in_one(
+    tmp_path: Path,
+) -> None:
+    skills = [("review", str(tmp_path))]
+    for cli, variable in (
+        ("cursor-agent", "CURSOR_CONFIG_DIR"),
+        ("kimi", "KIMI_CODE_HOME"),
+        ("mcode", "MINIMAX_DATA_DIR"),
+    ):
+        profile = named(cli)
+        assert profile is not None
+        made = virtual(profile, skills)
+        assert made is not None
+        assert (made.variable, made.lodges, made.flag) == (variable, "skills", "")
+        assert made.skills == (("review", str(tmp_path)),)
+    mcode = named("mcode")
+    assert mcode is not None
+    assert "config.yaml" in mcode.rewrites
+    agy = named("agy")
+    assert agy is not None
+    made = virtual(agy, skills)
+    assert made is not None
+    assert (made.variable, made.flag, made.lodges) == ("", "--app_data_dir", "skills")
+    # Neither of these: opencode's are named in its config, and dsh takes none.
+    for cli in ("opencode", "mimo", "dsh"):
+        profile = named(cli)
+        assert profile is not None
+        assert virtual(profile, skills) is None

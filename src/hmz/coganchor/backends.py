@@ -639,6 +639,10 @@ class Profile:
       secures: A variable that keeps where it finds its sign-in where the user's own home
         would put it, for a CLI that names a keychain item or a credentials file after its
         home: set, in a virtual home, to the user's own value of `home_var`.
+      home_flag: The command-line flag that moves its home, for a CLI no variable moves --
+        given the home relative to the directory `home_dir` is in, which is the only way agy's
+        `--app_data_dir` takes one. What its virtual home is named to it by, in place of a
+        `home_var` it has not got.
       efforts: How hard this backend can be asked to think, hardest first, in its own wording.
         The whole ladder it has words for; a model of it takes some of them, and which ones is
         the backend's to say when it is asked what it runs.
@@ -767,6 +771,7 @@ class Profile:
     outside: tuple[tuple[str, str], ...] = ()
     lodges: str = ""
     secures: str = ""
+    home_flag: str = ""
     beyond: tuple[str, ...] = ()
     swarms: bool = False
     searches: bool = False
@@ -1493,6 +1498,10 @@ PROFILES = (
         # flag. So there is no variable to name here, and `directory()` reads the one place.
         home_var="",
         home_dir=".gemini/antigravity-cli",
+        # That flag, which is what names a virtual home to it. Relative to `~/.gemini` and
+        # never absolute -- `must not be absolute`, agy 1.3.4 says -- so a home elsewhere is
+        # named by climbing out of there.
+        home_flag="--app_data_dir",
         # One database per conversation, whose `steps` hold their payload as protobuf --
         # so a file per session after all, which is what makes it a directory that can be
         # staged and a conversation that can be read back. Not lines appended to, though:
@@ -1533,11 +1542,12 @@ PROFILES = (
         # loads whatever else it is doing, and `.agents/skills` under the workspace, which it
         # opens by name once it has been given that workspace -- traced, on a turn of its own
         # stream transport, opening `<workspace>/.agents/skills/<name>/SKILL.md`. Not under
-        # the user's own home: it never looks there. So the shared one is where a flow's
-        # skills are mounted, which is where its sibling backends put theirs.
+        # the user's own home: it never looks there. A flow's own go into the first, in the
+        # virtual home each process is started in, beside links to the user's -- with the
+        # agents humanize starts a turn as (:mod:`hmz.coganchor.agents.agy`), in `agents/`.
         skills=("skills/*/SKILL.md",),
         works=(".agents/skills/*/SKILL.md",),
-        mounts=".agents/skills",
+        lodges="skills",
         # What a sign-in leaves behind where there is no keyring to put it in -- a session on
         # a machine with no desktop, which is where a flow runs. The keyring is the first
         # choice and is not a path.
@@ -2341,13 +2351,12 @@ PROFILES = (
         # and `max` are the same thinking at two widths.
         swarms=True,
         # Kimi Code discovers both its own and the shared skill directories without a command
-        # line flag, including for sessions served by `kimi web`. The shared project directory
-        # is also where a flow can mount one skill for Claude, Codex or Kimi without installing
-        # it into any of their homes.
+        # line flag, including for sessions served by `kimi web`. A flow's own go into its
+        # own, in the virtual home its daemon is started in, beside links to the user's.
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         works=(".kimi-code/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
-        mounts=".agents/skills",
+        lodges="skills",
         #
         # A directory apiece: kimi keeps one file per endpoint it has signed into, named
         # after that endpoint, and a lock beside it that two of its processes rotate a
@@ -3347,8 +3356,9 @@ PROFILES = (
             ".agents/skills/*/SKILL.md",
             ".claude/skills/*/SKILL.md",
         ),
-        # The shared one of its three, as for the others that read it.
-        mounts=".agents/skills",
+        # None mounted: a flow's own are named to it in its config variable instead, under
+        # `skills.paths`, which it reads after every directory above -- so nothing is written
+        # anywhere for them (:mod:`hmz.coganchor.agents.opencode`).
         # One file per kind of thing signed into: the providers in one, the servers a session
         # reaches out to in the other.
         creds=("auth.json", "mcp-auth.json"),
@@ -3631,7 +3641,8 @@ PROFILES = (
             ".mimocode/skill/*/SKILL.md",
             ".agents/skills/*/SKILL.md",
         ),
-        mounts=".agents/skills",
+        # None mounted, as for opencode: a flow's own are named under `skills.paths` in its
+        # config variable.
         creds=("auth.json", "mcp-auth.json"),
         # The ones no way below names: a Bedrock key that stands in for the profile, and the
         # ones that would bypass the file outright. Every vendor's key it reads -- a hundred
@@ -3872,7 +3883,9 @@ PROFILES = (
         skills=("skills/*/SKILL.md",),
         config=("cursor/skills/*/SKILL.md",),
         works=(".cursor/skills/*/SKILL.md",),
-        mounts=".cursor/skills",
+        # A flow's own go into the first, in the virtual home each turn is started in, beside
+        # links to the user's.
+        lodges="skills",
         # What a login leaves behind: the account it shows, in the settings file, and the
         # tokens, which are not under its home at all. `cursor-agent` puts `auth.json` under
         # the directory every program keeps its configuration in on Linux, and under
@@ -3978,8 +3991,13 @@ PROFILES = (
             ".claude/skills/*/SKILL.md",
             ".agents/skills/*/SKILL.md",
         ),
-        # The shared one of the three, as for the others that read it.
-        mounts=".agents/skills",
+        # A flow's own go into its own, in the virtual home each turn is started in, beside
+        # links to the user's.
+        lodges="skills",
+        # What it rewrites: `config.yaml`, where `mcode provider add` puts the provider a
+        # LiteLLM gateway is added as (:mod:`hmz.coganchor.agents.minimax`). A copy in that
+        # virtual home, which goes with the turn.
+        rewrites=("config.yaml",),
         # Everything an account is: `config.yaml` holds a key and every provider added to it,
         # and `auth/` what a sign-in leaves -- a directory per build, and the lock two of its
         # processes refresh a token under.

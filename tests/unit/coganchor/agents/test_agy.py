@@ -113,7 +113,10 @@ def test_a_turn_is_a_user_line_and_the_steps_it_answers_with(
     events = _turn(session, "hello")
 
     (process,) = spawned
-    assert process.args == [
+    named, _, home = process.args[1].partition("=")
+    assert named == "--app_data_dir"
+    assert not home.startswith("/")  # agy takes it relative to ~/.gemini, and only so
+    assert [process.args[0], *process.args[2:]] == [
         "agy",
         "--output-format",
         "stream-json",
@@ -228,23 +231,68 @@ def test_without_the_workspace_added_no_directory_is(
         ({"web_search": False}, "hmz-offline", "run_command"),
     ],
 )
-def test_what_it_may_reach_is_an_agent_of_humanize_written_into_its_home(
+def test_what_it_may_reach_is_an_agent_of_humanize_written_into_its_virtual_home(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     said: dict[str, Any],
     named: str,
     tools: str,
 ) -> None:
+    real = tmp_path / "home/.gemini/antigravity-cli"
+    _card(real / "agents" / "mine.md", "the user's own")
     spawned = spawning(monkeypatch, answers=_answering(*_SAID))
     agent = _agent(**said)
+    heard(agent)
+    session = agent.new(tmp_path)
+
+    _turn(session)
+
+    assert option(spawned[0].args, "--agent") == named
+    home = (tmp_path / "home/.gemini" / spawned[0].args[1].partition("=")[2]).resolve()
+    defined = home / "agents" / f"{named}.md"
+    assert f"name: {named}" in defined.read_text()
+    assert tools in defined.read_text()
+    # Beside the user's own, which are linked rather than written to.
+    assert (home / "agents" / "mine.md").read_text() == "the user's own"
+    assert sorted(one.name for one in (real / "agents").iterdir()) == ["mine.md"]
+    session.close()
+    assert not home.exists()
+
+
+def _card(at: Path, text: str) -> None:
+    at.parent.mkdir(parents=True, exist_ok=True)
+    at.write_text(text, encoding="utf-8")
+
+
+def _own(agent: AntigravityCLIAgent, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Puts the agent on an account that names a home of its own."""
+    held = Provider("agy", "mine", way="login", args=("--app_data_dir=other",))
+    monkeypatch.setattr(agent, "node", lambda: held)
+
+
+def test_an_account_naming_its_own_home_runs_there(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_answering(*_SAID))
+    agent = _agent()
+    _own(agent, monkeypatch)
     heard(agent)
 
     _turn(agent.new(tmp_path))
 
-    assert option(spawned[0].args, "--agent") == named
-    defined = tmp_path / f"home/.gemini/antigravity-cli/agents/{named}.md"
-    assert f"name: {named}" in defined.read_text()
-    assert tools in defined.read_text()
+    assert agent.homed() is None
+    named = [one for one in spawned[0].args if one.startswith("--app_data_dir")]
+    assert named == ["--app_data_dir=other"]  # the account's, and no other
+
+
+def test_an_account_naming_its_own_home_cannot_be_held_to_reading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = _agent(permission="read-only")
+    _own(agent, monkeypatch)
+
+    with pytest.raises(Unserved, match="app_data_dir"):
+        agent.homed()
 
 
 def test_an_agent_with_the_web_and_every_rung_open_is_held_to_no_agent(
