@@ -101,7 +101,8 @@ internal  internal commands used by humanize; do not run directly
 ### 4.1 Streams
 
 **4.1.1** A command MUST write to standard output only what a program reading it is to parse:
-the answers of turns, the lines §8, §9 and §10 name as standard output, or an NDJSON stream.
+help and version text (§3), the answers of turns, an NDJSON stream, the lines §8 to §10 name as
+standard output, and what §11 relays or reports to standard output.
 
 **4.1.2** A command MUST write every diagnostic to standard error.
 
@@ -134,8 +135,8 @@ credential the URL carries.
 
 **5.1.1** Every command MUST exit with status 0 where it did what it was asked.
 
-**5.1.2** Every command MUST exit with status 2 on a usage error, and on every refusal this
-specification assigns status 2.
+**5.1.2** Every command other than `hmz internal hook` MUST exit with status 2 on a usage error,
+and on every refusal this specification assigns status 2.
 
 **5.1.3** A command MUST NOT exit with a status other than 0, 1 and 2, except as §5.2 specifies.
 
@@ -154,7 +155,13 @@ exit status of the program they ran, where that program ran.
 **5.2.5** `hmz internal anchor` MUST exit with status 127 where `--native` is given and the env
 machine has no such harness.
 
-**5.2.6** `hmz internal anchor` MUST exit with status 130 where it was interrupted.
+**5.2.6** `hmz internal anchor`, other than its `serve` and `rendezvous` subcommands, MUST exit
+with status 130 where it was interrupted.
+
+**5.2.7** `hmz exec` MUST exit with status 130 where it is interrupted before its epic has started
+or after it has ended, as §7.15.5 specifies.
+
+**5.2.8** `hmz internal hook` MUST exit with status 1 on a usage error.
 
 ## 6. The terminal interface (`hmz` with no command)
 
@@ -232,8 +239,8 @@ given after `--`.
 ### 7.2 Items
 
 **7.2.1** Each occurrence of `-a`, `-e` or `-p` MUST be split into items at every `,` that is
-followed, after optional white space, by a `<key>` of §7.6 and `=`; every other `,` MUST belong to
-the item that contains it.
+followed, after optional white space, by a `<key>` of §7.6, optionally preceded by `budget.`, and
+then `=`; every other `,` MUST belong to the item that contains it.
 
 **7.2.2** The items of every occurrence of one option MUST form one list, in the order written.
 
@@ -668,8 +675,8 @@ hmz update
 status 1.
 
 **9.2.2** Where hmz was installed from a URL or a local directory, `hmz update` MUST write
-`hmz update: hmz was installed from <url>, not PyPI; update it there` to standard error and exit
-with status 1.
+`hmz update: hmz was installed from <url>, not PyPI; update it there` to standard error, `<url>`
+written as §4.3.3 requires, and exit with status 1.
 
 **9.2.3** Where hmz was installed by `uv tool`, `hmz update` MUST run `uv tool upgrade hmz`.
 
@@ -924,7 +931,8 @@ answer, and where the socket cannot be reached or closes without answering.
 **11.5.3** Where the socket cannot be reached, `hmz internal hook` MUST write
 `hmz internal hook: <socket>: <reason>` to standard error and write nothing to standard output.
 
-**11.5.4** `hmz internal hook` MUST NOT exit with status 2.
+**11.5.4** `hmz internal hook` MUST NOT exit with status 2, and MUST exit with status 1 where its
+command line cannot be read.
 
 ### 11.6 `hmz internal tools`
 

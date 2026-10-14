@@ -71,9 +71,9 @@ in a workspace entry, across every write.
 
 ### 3.3 Writing
 
-**3.3.1** Every write MUST change exactly one thing: one machine key, one workspace's `flow` key
-together with one flow entry, one workspace entry removed, the whole value of `fallbacks`, of
-`clis`, of `backup`, of `daemons` or of `notifications`, or one runtime.
+**3.3.1** Every write other than that of §4.7.2 MUST change exactly one thing: one machine key,
+one workspace's `flow` key together with one flow entry, one workspace entry removed, the whole
+value of `fallbacks`, of `clis`, of `backup`, of `daemons` or of `notifications`, or one runtime.
 
 **3.3.2** A writer MUST hold an exclusive `flock` on the file `.settings.yaml.lock` beside the
 settings file while it reads the file, makes its change and writes the file.
@@ -94,9 +94,9 @@ MUST keep its mode.
 
 **3.3.8** Every write MUST set the key `spelling` to `2`.
 
-**3.3.9** Where a write of a machine key or of a workspace entry fails, or the file is unreadable,
-the process MUST keep the change in its own memory for as long as it runs and MUST NOT report an
-error.
+**3.3.9** Where a write of `enable_sentry`, `details`, `btw`, `every_epic`, `backup` or a
+workspace entry fails, or the file is unreadable, the process MUST keep the change in its own
+memory for as long as it runs and MUST NOT report an error.
 
 **3.3.10** Where a write of `fallbacks`, `clis`, `daemons`, `notifications` or a runtime fails, or
 the file is unreadable, hmz MUST refuse the change with an error that names the file.
@@ -161,12 +161,13 @@ over ssh (`features/daemons.md`).
 
 **4.6.2** Each entry MUST have the key `name` and MAY have the keys `host`, `user`, `port`,
 `identity_file`, `proxy_jump`, `options`, `alias` and `config`, with the types and validation of
-the fields of the same names of an ssh runtime (§8.2).
+the fields of the same names of an ssh runtime (§8.3), but for `options` (§4.6.4).
 
 **4.6.3** `name` MUST begin with a letter or a digit, MUST consist of letters, digits, `.`, `_`
 and `-`, and MUST NOT be `local` in any case.
 
-**4.6.4** `options` MUST be a list of two-element lists, each a keyword and its value.
+**4.6.4** `options` MUST be a list of two-element lists, each a keyword and its value, with the
+validation of §8.3.6 and §8.3.7.
 
 **4.6.5** An entry with a key outside §4.6.2, with an invalid value, or with a `name` an earlier
 entry has MUST be ignored when read and MUST be removed at the next write of `daemons`.
@@ -177,8 +178,9 @@ entry has MUST be ignored when read and MUST be removed at the next write of `da
 
 **4.7.1** `spelling` MUST be an integer that says how env specs in the file are written.
 
-**4.7.2** Where `spelling` is absent, hmz MUST, on first reading the file, rewrite every env spec
-of every flow entry in the spelling `api/cli.md §7.5` gives, and MUST then set `spelling` to `2`.
+**4.7.2** Where `spelling` is absent and the file holds an env spec in a spelling that
+`api/cli.md §7.5.13` refuses, hmz MUST, on first reading the file, rewrite in one write every such
+env spec of every flow entry as §4.7.3 specifies, setting `spelling` to `2`.
 
 **4.7.3** The rewriting of §4.7.2 MUST turn `local@/<dir>` into `local/<dir>`; `ssh@<name>/<dir>`,
 where no ssh runtime is written as `<name>`, into `ssh@[<name>]/<dir>`; and
