@@ -145,7 +145,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 
 | Part | Text | Condition |
 | --- | --- | --- |
-| btw | `btw · <target>` or `btw · btw agent`, cyan | [btw mode](#btw) on |
+| btw | `btw · <target>`, `btw · <spec>` (the epic's own btw agent) or `btw · btw agent`, cyan | [btw mode](#btw) on |
 | afk | `afk` | away for every role; |
 | | `afk <role>, <role>` | away for some roles; yellow |
 | details | `details`, muted | details on |
@@ -488,10 +488,11 @@ where it is one, else on the view being read:
 
 | Aspect | Rule |
 | --- | --- |
-| Enter | `/btw [question]`. Prints `btw · <target\|btw agent> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
+| Enter | `/btw [question]`. Prints `btw · <target\|spec\|btw agent> each line is a question; ctrl+g agent; /btw or esc to exit`. The status line starts `btw · …`. |
 | In btw mode | Every line not starting with `/` is one more turn of the same side conversation. |
 | Leave | `/btw` alone or `esc`: `btw: exited`; a run starting: `btw: exited -- a new flow started`. Side sessions are closed (`unaside`). |
-| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the one set on [General](#general-page), else the flow's first declared role with a session, else its configured agent. |
+| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the epic's own (<kbd>ctrl+g</kbd>), else the one set on [General](#general-page), else the flow's first declared role with a session, else its configured agent. |
+| Agent | <kbd>ctrl+g</kbd> in btw mode, over the log or the monitor: a **btw agent** dropdown of `default` (beside it the `btw` setting, else `the flow's first agent`), the epic's own where it has one (`chosen`), and `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up btw agent`, opened on the btw agent now). A pick other than the one in force appends `{"event": "btw", "agent": "<cli[@account]/model:effort>"}` (`""` for `default`) to the epic's `epic.jsonl` and prints `btw agent: <spec\|default>`; the btw agent's side conversation is closed as the next question to it is asked, which opens it as the new one. Every session's side conversation stays. The epic is the one going here, or the last; with none: `hmz: btw: no epic to keep an agent with`. |
 | Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that role. Ended sessions included. |
 | btw agent | Seeded with a snapshot (the last 32 of up to 80 observations, 600 characters each) and the list of sessions. It may reply with lines `@ask <agent>/<n>: <question>` (regex `^\s*@ask\s+(\S+?)\s*:\s*(\S.*)$`); each is put to that session's side copy (`btw · asking <key>: <question>`), and answers return as `<answer from="<key>">…</answer>`. At most 4 asks per question; failures return as `(session <k> not found)`, `(could not ask: <e>)`, `(no answer)`. |
 | Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. |
@@ -532,6 +533,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | editor | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | | Inserts a newline. |
 | editor | <kbd>↑</kbd> / <kbd>↓</kbd> | cursor on the first / last row | Older / newer [history](#history) entry. Otherwise moves the cursor. |
 | editor | <kbd>esc</kbd> | btw on, offers closed | Leaves btw mode. |
+| app | <kbd>ctrl+g</kbd> | btw on, over the log or the monitor | Picks the epic's [btw agent](#btw). |
 | editor | <kbd>space</kbd> | monitor up, editor empty | Passed to the monitor. |
 | offers | <kbd>↑</kbd> <kbd>↓</kbd> | offers open | Moves the highlight. |
 | offers | <kbd>tab</kbd> | offers open | Takes the highlight. |

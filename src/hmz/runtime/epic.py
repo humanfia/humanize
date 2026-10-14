@@ -133,6 +133,10 @@ JOURNAL = "epic.jsonl"
 #: What a line saying how one backup of the epic went is, in its own record.
 BACKED = "backed"
 
+#: What a line saying which agent side questions about the epic go to is, in its own record:
+#: its `agent` as `-a` spells one, or "" for none of its own.
+BTW = "btw"
+
 #: What the record of a flow another flow called is called, beside the run's own: which
 #: flow it is of, and an id of that call rather than of the flow -- a flow called twice is
 #: two records, since it is two runs of it and each opened its own sessions.
@@ -344,6 +348,8 @@ class Ran(NamedTuple):
         under in settings.
       backed: How its last backup to each target went, by target: `at`, `ok`, `error` --
         "" where it went -- and `why` it was backed up.
+      btw: The agent side questions about it go to, as `-a` spells one -- the last it was
+        given -- or "" for none of its own, which leaves it to settings and then the flow.
     """
 
     at: Path
@@ -369,6 +375,7 @@ class Ran(NamedTuple):
     spent: dict[str, Any] | None = None
     backup: tuple[str, ...] = ()
     backed: dict[str, dict[str, Any]] = {}  # noqa: RUF012 -- a NamedTuple's default
+    btw: str = ""
 
     @property
     def name(self) -> str:
@@ -1508,6 +1515,14 @@ def read(epic: Path) -> Ran | None:
             for one in events[_here(events) :]
             if one.get("event") == BACKED
         },
+        btw=next(
+            (
+                str(one.get("agent") or "")
+                for one in reversed(events)
+                if one.get("event") == BTW
+            ),
+            "",
+        ),
     )
 
 

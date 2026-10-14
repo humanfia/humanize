@@ -468,6 +468,38 @@ def test_the_btw_agent_is_the_one_settings_name_or_the_flows_first(
     assert btw.opened_as(chosen, agents, sessions) == expected
 
 
+@pytest.mark.parametrize(
+    ("kept", "chosen", "expected"),
+    [
+        ("codex@work/gpt:high", "claude/opus", {"runs": "codex@work/gpt:high"}),
+        ("", "claude/opus", {"runs": "claude/opus"}),
+        ("", "", {"key": "NeiKos496/1"}),
+    ],
+)
+def test_the_btw_agent_the_epic_keeps_comes_before_settings_and_the_flow(
+    kept: str, chosen: str, expected: dict[str, str]
+) -> None:
+    opened = btw.opened_as(
+        chosen, {"NeiKos496": "claude/sonnet"}, ["NeiKos496/1"], kept=kept
+    )
+
+    assert opened == expected
+
+
+def test_anew_opens_the_btw_agents_side_again_at_the_next_question() -> None:
+    runs = _Runs({"claude/opus": ["one", "two"]})
+    mode = runs.btw()
+    assert mode.ask("first", _snapshot()) == "one"
+
+    mode.anew()
+    assert runs.closed == []  # closed as the next question is asked, not under one
+
+    assert mode.ask("second", _snapshot()) == "two"
+    assert runs.closed == ["s1"]
+    assert [one.get("runs") for one in runs.opened] == ["claude/opus", "claude/opus"]
+    assert not mode.closed
+
+
 #: How a session an earlier run kept is opened: its agent, its conversation, where it is.
 _EARLIER = {"runs": "claude/opus", "recall": "abc", "kept": "/epics/x/sessions/claude"}
 

@@ -73,6 +73,11 @@ export function spelled({ cli, account, model, effort }) {
   return `${cli}${account ? `@${account}` : ''}/${model}${effort && effort !== 'auto' ? `:${effort}` : ''}`
 }
 
+/** An agent that fills no flow's role, picked a step at a time from every CLI here. */
+export function freeAgentPicker(name, kept, changed = () => {}) {
+  return agentPicker({ name, get clis() { return backends ? Object.keys(backends.clis) : [] } }, kept, changed)
+}
+
 /** A place a turn goes to, `CLI[@ACCOUNT]/MODEL`, picked a step at a time from every CLI here. */
 export function placePicker(kept, label, changed = () => {}) {
   const role = { name: label, get clis() { return backends ? Object.keys(backends.clis) : [] } }

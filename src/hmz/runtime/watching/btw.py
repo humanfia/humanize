@@ -312,9 +312,13 @@ def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -
 
 
 def opened_as(
-    chosen: str, agents: Mapping[str, str], sessions: Sequence[str]
+    chosen: str,
+    agents: Mapping[str, str],
+    sessions: Sequence[str],
+    *,
+    kept: str = "",
 ) -> dict[str, str] | None:
-    """What the btw agent is opened as: the one `/settings` names, or the flow's first.
+    """What the btw agent is opened as: the epic's, the one `/settings` names, or the flow's first.
 
     Args:
       chosen: The agent `/settings` names, as `-a` spells one, or "" for none.
@@ -322,14 +326,16 @@ def opened_as(
         by its role where it has none yet, with what it runs as, as `-a` spells one -- or ""
         for a role nothing is set up for.
       sessions: The run's conversations, `<agent>/<n>` apiece, oldest first.
+      kept: The agent the epic keeps for its side questions, as `-a` spells one, or "" for
+        none of its own.
 
     Returns:
       What to open a side conversation with -- `runs`, an agent as `-a` spells one, or
       `key`, one of the run's conversations to copy the agent of -- or None where there is
       nothing to open one as.
     """
-    if chosen:
-        return {"runs": chosen}
+    if kept or chosen:
+        return {"runs": kept or chosen}
     for name, runs in agents.items():
         if held := [key for key in sessions if key.startswith(f"{name}/")]:
             return {"key": held[0]}
@@ -390,6 +396,8 @@ class Btw:
         #: -- "" for the btw agent's own.
         self._sides: dict[str, str] = {}
         self._closed = False
+        #: Whether the btw agent's side conversation is to be opened again: see :meth:`anew`.
+        self._stale = False
 
     @property
     def closed(self) -> bool:
@@ -430,6 +438,17 @@ class Btw:
         if unasking:
             for side in held:
                 self._unaside(side)
+
+    def anew(self) -> None:
+        """Has the next question to the btw agent open its side conversation again.
+
+        As whoever it is by then: what changing the epic's btw agent does to a mode it is
+        on. The one open now is closed as that question is asked -- not under a question
+        being answered in it, nor before one being opened as the agent before is kept --
+        and the mode and every session's side conversation stay as they are.
+        """
+        with self._lock:
+            self._stale = True
 
     def _kept(self, key: str, side: str) -> str:
         """Holds a side conversation on the mode, or closes it for a mode that has gone.
@@ -493,6 +512,11 @@ class Btw:
 
     def _agent_turn(self, question: str, snapshot: FlowSnapshot) -> str:
         """One turn of the btw agent, carrying out whatever it asks of the sessions."""
+        with self._lock:
+            stale, self._stale = self._stale, False
+            side = self._sides.pop("", None) if stale else None
+        if side is not None:
+            self._unaside(side)
         side = self._sides.get("")
         if side is None:
             source = self._source()
