@@ -20,9 +20,9 @@ your own, a builtin, a VCS ref -- has them fetched as a run asks for them, into 
 in this machine's own place, `skills/<name>/`, and fetched again the next time.
 
 Nothing here installs anything into a CLI. What is fetched is put in a flow or where humanize
-keeps it, and what a session does with it is :func:`hmz.coganchor.agents.skills.mount`: put
-where that backend reads a project's own skills for as long as the session lives, and taken
-away again after. The skills the person at this machine installed are untouched, being theirs.
+keeps it, and a session lodges it in the virtual home its CLI is started in
+(:mod:`hmz.coganchor.homes`), never in the workspace. The skills the person at this machine
+installed are untouched, being theirs.
 """
 
 from __future__ import annotations

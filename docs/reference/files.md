@@ -335,7 +335,6 @@ Every path in this section is safe to delete while humanize is not running.
 | `${HUMANIZE_HOME:-$HOME/.hmz}/envs/` | as [above](#state-envs) |
 | `/tmp/humanize-slurm-<job>.out` on a Slurm job's node | what a `via: tcp` job's serving half says on its way up, which its port is read from; left to the node |
 | a `mktemp -d` directory (umask `077`) | per-session files of a native turn, including projected credentials (`0600`); removed after the turn |
-| `.humanize-carried/<uuid>` | claim file inside a directory carried to the target |
 
 ## Read, never written
 

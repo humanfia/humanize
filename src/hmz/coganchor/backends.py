@@ -617,11 +617,6 @@ class Profile:
         home and whose skills are not, so that one `home_var` cannot name both.
       works: The same, under the workspace rather than under either home: a skill kept beside
         the project it is for. A backend may read more than one such directory.
-      mounts: Which of those directories a flow's own skills are mounted into for the length
-        of a session -- written as the directory rather than as a glob, since this is the one
-        that is written to rather than read. Empty for a backend that reads none, whose
-        skills are all its own installed ones: a flow that brings skills brings that backend
-        none, which is a turn run without them rather than a run that will not start.
       rewrites: What under its home it rewrites while it runs, relative to the home -- the
         configuration it keeps its own notes in, which is the user's. Non-empty for a CLI whose
         every process is started in a virtual home instead (:mod:`hmz.coganchor.homes`), where
@@ -633,9 +628,10 @@ class Profile:
         at `~/.claude.json` until `CLAUDE_CONFIG_DIR` moves it inside: the copy is made of
         whichever of the two it would have read.
       lodges: Its user-level skills directory under that home, into whose virtual copy a
-        flow's own skills are put beside links to the user's -- in place of `mounts`, which a
-        backend that says this leaves empty. Empty for a backend whose flow skills are
-        mounted into the workspace instead.
+        flow's own skills are put beside links to the user's. Empty for a backend that can be
+        given no skills of a flow's: a flow that brings skills brings that backend none,
+        which is a turn run without them rather than a run that will not start. Never the
+        workspace: humanize places nothing of its own there.
       secures: A variable that keeps where it finds its sign-in where the user's own home
         would put it, for a CLI that names a keychain item or a credentials file after its
         home: set, in a virtual home, to the user's own value of `home_var`.
@@ -766,7 +762,6 @@ class Profile:
     shared: tuple[str, ...] = ()
     config: tuple[str, ...] = ()
     works: tuple[str, ...] = ()
-    mounts: str = ""
     rewrites: tuple[str, ...] = ()
     outside: tuple[tuple[str, str], ...] = ()
     lodges: str = ""

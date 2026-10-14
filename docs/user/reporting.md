@@ -222,7 +222,6 @@ typed.
 | `key-does-nothing` | a key pressed on the Accounts page of `/settings` on this machine's own account, where it does nothing | which menu, and what was asked |
 | `line-refused` | a typed line the agent refused | how long its refusal was |
 | `lines-never-sent` | typed lines still waiting when the flow ended | how many |
-| `skill-name-taken` | a skill a flow brought, where the CLI already loads another of that name | nothing more |
 | `native-credential-stays-here` | an account whose files could not all go with a turn to another machine | nothing more |
 | `watcher-raised` | something watching an agent failed on one of its events | the CLI, the kind of event, the type of error |
 

@@ -209,7 +209,7 @@ const scene = useScene({
     tl.to(one('.no-mark'), { autoAlpha: 1, duration: 0.4 }, T1 + 3.2)
     shake(tl, one('.no-mark'), T1 + 3.3, 4)
 
-    // 2 · the reviewer's session opens, and the skill is copied into the workspace.
+    // 2 · the reviewer's Claude Code starts in a home of its own, the skill beside yours.
     const T2 = T1 + 4.4
     tl.addLabel('beat-2', T2)
     cam.shot(l.shots.mount, T2, 1.4)
@@ -238,7 +238,7 @@ const scene = useScene({
     draw(tl, one('.read-path'), open + 2.05, { duration: 0.5 })
     rise(tl, one('.read-word'), open + 2.2, { y: 4 })
 
-    // 3 · the session ends: the copy goes, deepest first, and the directories made for it.
+    // 3 · it stops: that home goes, all of it, deepest first.
     const T3 = close - 0.25
     tl.addLabel('beat-3', T3)
     cam.shot(l.shots.ws, T3, 1.2)
@@ -290,7 +290,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="5 / 8"
-    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's Claude Code starts, it starts in a home of its own: a copy of the .claude.json it rewrites, links to the rest of yours, and a skills/ directory with links to your skills and review-notes beside them. When it stops, that home goes, all of it, and nothing of yours was written. Codex, Grok Build, Qwen Code, pi and Oh My Pi get the same; cursor-agent, agy and the rest get the copy in the workspace, and dsh gets none, carrying only what you installed."
+    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's Claude Code starts, it starts in a home of its own: a copy of the .claude.json it rewrites, links to the rest of yours, and a skills/ directory with links to your skills and review-notes beside them. When it stops, that home goes, all of it, and nothing of yours was written. Every other CLI gets the same, except that opencode and MiMo Code are told where the flow's skills are, and dsh gets none, carrying only what you installed. Nothing is put in the workspace."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

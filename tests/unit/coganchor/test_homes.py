@@ -236,7 +236,6 @@ def test_qwen_grok_pi_and_omp_are_started_in_one_with_their_skills_lodged(
     for cli, rewrites in rewritten.items():
         profile = named(cli)
         assert profile is not None
-        assert not profile.mounts
         made = virtual(profile, skills)
         assert made is not None
         assert made.rewrites == rewrites

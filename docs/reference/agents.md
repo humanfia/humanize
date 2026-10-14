@@ -1091,9 +1091,7 @@ brought skills in its [virtual home](#virtual-homes): linked into that home's sk
 beside links to the user's own, a brought skill taking the place of the user's of the same
 name. `opencode` and `mimo` are told where the brought skills are instead, under
 `skills.paths` in their config variable, which they read after their own skill directories.
-Any other backend that names a project skills directory (`Profile.mounts`) gets them copied
-there for the session's life, and removed after; there a project's own skill of the same name
-wins. Nothing is put in the workspace for any backend listed below.
+Any other backend gets none. Nothing is ever put in the workspace.
 
 | Backend | Put at | Skill directories read (`Profile.works`, relative to the workspace) |
 | --- | --- | --- |
@@ -1117,12 +1115,12 @@ wins. Nothing is put in the workspace for any backend listed below.
 
 - `pi` reads workspace skills only for a trusted project, which is why brought skills go to
   its user level; pass further paths with `PiAgentConfig.skill_paths` (`--skill`).
-- Under a native anchor, skills are [carried](/reference/remote-execution#native-the-target-s-own-cli)
-  into the target's workspace, or into the virtual home built there; under a supervised anchor
-  a virtual home is built here, where the CLI runs, and workspace copies reach the target only
-  where it reads this workspace. A harness on another machine gets neither, and neither do
-  `agy` under a native anchor (its home is moved by a flag, which the anchor does not write)
-  and `opencode`/`mimo` anywhere but here (the paths they are told are this machine's).
+- Under a native anchor, skills are written into the virtual home
+  [built on the target](/reference/remote-execution#native-the-target-s-own-cli); under a
+  supervised anchor a virtual home is built here, where the CLI runs. A harness on another
+  machine gets none, and neither do `agy` under a native anchor (its home is moved by a flag,
+  which the anchor does not write) and `opencode`/`mimo` anywhere but here (the paths they are
+  told are this machine's).
 
 ### Virtual homes {#virtual-homes}
 
@@ -1745,8 +1743,6 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
 - The fence also lets through the `baseUrl` of the model's provider in `models.yml` (else
   `models.yaml`) in omp's home, and of that provider's models; for a model named without a
   provider, of every provider declared there. Nothing is sent to omp under `online` `NONE`.
-- omp reads a project's `.omp/skills` and `.agents/skills` with no trust to grant, so a flow's
-  skills are mounted at `.agents/skills`.
 - No credential files: omp keeps its sign-ins in `agent.db`, beside its settings, which an
   account does not copy. An agent with no account runs as this machine's omp sign-in.
 

@@ -141,28 +141,6 @@ exit 0
 #: How long the end of a turn may spend bringing back what it wrote in a projected directory.
 _BRINGING = 30.0
 
-#: Where the turns using a carried directory write down that they are using it. Inside what
-#: they are using, so that removing it removes them, and a dotted name so that a CLI reading a
-#: directory of skills does not read this as one.
-_CLAIMS = ".humanize-carried"
-
-#: Claiming a directory this turn planted. The claims directory says a turn planted it, which
-#: is what tells it apart from one the project owns.
-_CLAIM = f'mkdir -p "$1/{_CLAIMS}" && : > "$1/{_CLAIMS}/$2"'
-
-#: Taking a share of one that was already there -- and only of one some turn planted. A
-#: directory with no claims in it is somebody's own, and this exits non-zero for it so that the
-#: turn leaves it entirely alone rather than mounting over it and later removing it.
-_SHARE = f'[ -d "$1/{_CLAIMS}" ] && : > "$1/{_CLAIMS}/$2"'
-
-#: Giving that claim up, and taking the whole thing away with the last of them. `rmdir`
-#: succeeds only on an empty directory, so it is the test and the removal at once -- another
-#: turn still holding a claim leaves a file in there and the mount stays where it is.
-_RELEASE = (
-    f'rm -f "$1/{_CLAIMS}/$2"; '
-    f'if rmdir "$1/{_CLAIMS}" 2>/dev/null; then rm -rf -- "$1"; fi; exit 0'
-)
-
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class AnchorConfig:
@@ -234,10 +212,6 @@ class AnchorConfig:
         the flow's own skills written into its skills directory, and taken away with the rest
         of that directory when the turn is over. What the CLI rewrites of its configuration
         goes with it, and the target user's own is never written.
-      carries: Directories to put in the target's copy of the workspace for the length of the
-        turn, as `(the directory on this machine, where it goes relative to the workspace)`.
-        Which is how a flow's own skills reach a CLI that reads them on the target: a mirror
-        is what pushes them under a supervisor, and there is no mirror here.
       brings: What of a projected directory to bring back here before it is taken away, as
         `(VARIABLE/PATH, the directory on this machine)`: every file at or under `PATH` --
         which may be a glob -- inside the directory `VARIABLE` was projected as, put at the same
@@ -281,7 +255,6 @@ class AnchorConfig:
     hushes: tuple[str, ...] = ()
     projects: tuple[tuple[str, str], ...] = ()
     home: Virtual | None = None
-    carries: tuple[tuple[str, str], ...] = ()
     brings: tuple[tuple[str, str], ...] = ()
     tells: str = ""
     installs: str = ""
@@ -362,18 +335,6 @@ class AnchorConfig:
                 raise ValueError(
                     f"unsupported bring {named}={into!r}; expected a projected VARIABLE, "
                     "a PATH inside it and an absolute path"
-                )
-        for whence, where in self.carries:
-            # Relative on the target's side, and only downwards: what is carried goes inside
-            # the workspace, and a `..` in it would be a flow writing outside the project.
-            if not whence.startswith("/"):
-                raise ValueError(
-                    f"unsupported carry {whence}={where!r}; expected an absolute path"
-                )
-            if not where or where.startswith("/") or ".." in where.split("/"):
-                raise ValueError(
-                    f"unsupported carry {whence}={where!r}; expected a path inside "
-                    "the workspace"
                 )
 
     def _fenceable(self, harness: str) -> None:
@@ -888,9 +849,8 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     turn's own that only the target's user may enter, named to the CLI by variable and never by
     argv, and taken away whatever happens -- except a sign-in that refreshes itself, which is
     let out to one turn at a time and whose refreshed copy is written back over the original
-    before it is taken away (:func:`_lending`). And what the flow carries -- its own skills --
-    is put into the target's copy of the workspace and taken out of it again, since there is
-    no mirror to push it.
+    before it is taken away (:func:`_lending`). And the flow's own skills go into the virtual
+    home the CLI is started in (`config.home`), never into the workspace.
 
     Args:
       command: The agent to run and its own arguments, e.g. `["claude", "--print"]`.
@@ -918,14 +878,11 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     if started_in != workspace and not started_in.startswith(workspace + "/"):
         raise ValueError(f"{started_in} is not inside {workspace}")
 
-    kept: list[str] = []
-    making: set[str] = set()
     lent: list[_Lent] = []
     session = ""
     projected: dict[str, str] = {}
     told = ""
-    # What this turn writes its claims on carried directories under. One per turn rather than
-    # per session: a turn is what plants them and a turn is what gives them up.
+    # What names this turn's file of where its projected variables landed.
     whose = uuid.uuid4().hex
     # A sign-in that refreshes itself is held for the whole turn before anything is reached:
     # one copy of it out at a time, and that copy brought back over the original at the end.
@@ -966,7 +923,6 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
                 said |= _homed(client, config.home, session, workspace, projected)
             if session and fence is not None:
                 fence["write"] = [*fence["write"], session]
-            _carried(client, config.carries, workspace, whose, kept, making)
             log.info("driving %s on %s", program, target.describe())
             argv = [*_wrapping(config.hushes, said), program, *command[1:]]
             return _drives(client, argv, started_in, dict(os.environ), fence)
@@ -979,9 +935,7 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             if told:
                 with contextlib.suppress(OSError):
                     os.unlink(told)
-            _swept(
-                client, session, kept, sorted(making, reverse=True), workspace, whose
-            )
+            _swept(client, session, workspace)
 
 
 def _fenced(client: RemoteClient, config: AnchorConfig) -> dict[str, Any] | None:
@@ -1268,8 +1222,7 @@ def _projected(
         :func:`_lending` found them.
       lent: Filled in with each of those as it lands, so that what the CLI refreshes it to can
         be brought back over the original however the turn ends -- given rather than answered
-        with, as :func:`_carried`'s are, so one that lands before a later one fails is still
-        brought back.
+        with, so one that lands before a later one fails is still brought back.
 
     Returns:
       The variable to set for each, naming where it landed.
@@ -1490,122 +1443,7 @@ def _brought_home(
             log.warning("could not bring %s back from the target: %s", into, why)
 
 
-def _carried(
-    client: RemoteClient,
-    carries: Sequence[tuple[str, str]],
-    workspace: str,
-    whose: str,
-    planted: list[str],
-    making: set[str],
-) -> None:
-    """Puts what the flow brings into the target's copy of the workspace, for this turn.
-
-    Inside the workspace, so these go through the filesystem calls the target already
-    exports. Nothing is written over: a directory of that name already there is the project's
-    own, and a flow does not get to replace what it finds -- the same rule a skill mounted on
-    this machine is held to.
-
-    Except one that another turn of the same flow put there, which this one shares rather than
-    leaves: two turns landing in one workspace want the same skills in the same place, and the
-    first to finish must not take them out from under the second. Each turn leaves a claim of
-    its own inside what it is using, and what was planted goes when the last claim on it does.
-    On the target rather than in a table here, because each turn is a process of its own and a
-    table in this one would be a table of one.
-
-    Args:
-      client: The open connection.
-      carries: What to put there, as `(the directory on this machine, where it goes)`.
-      workspace: The workspace, as the target names it.
-      whose: What this turn writes its claims under, which nothing else answers to.
-      planted: Filled in with what this turn has a claim on, as each claim is taken. Given
-        rather than answered with, because what has been planted has to be sweepable even
-        when this does not return: a round trip that times out part way through would
-        otherwise leave the directories it had already claimed in somebody's project with
-        nobody left holding the note to take them away.
-      making: Filled in the same way with the directories above those which had to be made
-        to hold them. Kept apart because the two come away differently: a claim is given up
-        and what it was on goes only with the last of them, and a directory goes only if it
-        is empty -- one the project already had is the project's, and a turn ending is not a
-        reason for it to disappear.
-    """
-    import posixpath
-    from pathlib import Path
-
-    for whence, where in carries:
-        root = Path(whence)
-        at = posixpath.join(workspace, where)
-        if _there(client, at):
-            # Somebody's own of that name, or another turn's. The claims directory is what
-            # tells the two apart, and taking a share of one is refused for anything else.
-            if _ran(
-                client, ["/bin/sh", "-c", _SHARE, "humanize", at, whose], workspace
-            )[0]:
-                log.info("%s is already on the target; leaving it alone", at)
-                continue
-            planted.append(at)
-            continue
-        # Which directories above it do not exist yet, noted before any of them is made: those
-        # are the ones this takes away again, and one that was already there was the
-        # project's before this turn and is the project's after it.
-        above = posixpath.dirname(at)
-        while above.startswith(workspace + "/") and not _there(client, above):
-            making.add(above)
-            above = posixpath.dirname(above)
-        planted.append(at)
-        try:
-            client.mkdir(at, mode=0o755, parents=True)
-            for one in sorted(path for path in root.rglob("*") if path.is_file()):
-                parts = one.relative_to(root).parts
-                if len(parts) > 1:
-                    client.mkdir(
-                        posixpath.join(at, *parts[:-1]), mode=0o755, parents=True
-                    )
-                with one.open("rb") as reading:
-                    client.write_file(posixpath.join(at, *parts), reading)
-        except OSError as why:
-            # A workspace that cannot be written is a skill the agent will not have, which is
-            # a turn that runs without it rather than a run that will not start.
-            log.warning("could not carry %s to %s: %s", whence, at, why)
-        _ran(client, ["/bin/sh", "-c", _CLAIM, "humanize", at, whose], workspace)
-
-
-def _there(client: RemoteClient, path: str) -> bool:
-    """Whether the target has anything of that name.
-
-    Args:
-      client: The open connection.
-      path: What to look for, as the target names it.
-
-    Returns:
-      Whether anything of that name is there. Asked of the name rather than of a directory
-      listing, because a *file* of that name is something already there too -- and one taken
-      for nothing there would be a file of the project's that this then removed.
-
-      Only a plain "there is nothing there" answers False. A target that could not be asked --
-      a directory above it nobody may read, a link that went quiet -- answers True, because
-      what this guards is whether to write into a path and then delete it: the answer that is
-      wrong in that direction destroys somebody's work, and the one that is wrong in this
-      direction costs a flow its skills for one turn.
-    """
-    import errno
-
-    from hmz.coganchor.proto import Op
-
-    try:
-        client.call(Op.STAT, path=path)
-    except OSError as why:
-        return why.errno not in (errno.ENOENT, errno.ENOTDIR)
-    return True
-
-
-def _swept(
-    client: RemoteClient,
-    session: str,
-    held: Sequence[str],
-    emptied: Sequence[str],
-    workspace: str,
-    whose: str,
-) -> None:
+def _swept(client: RemoteClient, session: str, workspace: str) -> None:
     """Takes away everything this turn put on the target, whatever became of it.
 
     Never raises: this runs on the way out of a turn that may itself be on its way out badly,
@@ -1613,33 +1451,21 @@ def _swept(
 
     Args:
       client: The connection, which may already be broken.
-      session: The private directory this turn's credentials went into, or "" for a turn that
-        projected none. It is this turn's alone, so it goes whole and without asking.
-      held: What this turn has a claim on, as the target names it. Each goes when the last
-        claim on it does, which is this one only where no other turn is holding it too.
-      emptied: Directories to remove only where nothing is left in them, deepest first --
-        something still inside one is somebody else's, and it stays.
+      session: The private directory this turn's credentials and home went into, or "" for a
+        turn that made none. It is this turn's alone, so it goes whole and without asking.
       workspace: Where to run the command from, as the target names it.
-      whose: What this turn wrote its claims under.
     """
-    for script, path, *rest in (
-        *([(_SWEEP, session)] if session else []),
-        *((_RELEASE, one, whose) for one in held),
-    ):
-        try:
-            status, said = _ran(
-                client, ["/bin/sh", "-c", script, "humanize", path, *rest], workspace
-            )
-        except (OSError, ValueError) as why:
-            log.warning("could not clear %s from the target: %s", path, why)
-            continue
-        if status != 0:
-            log.warning("could not clear %s from the target: %s", path, said)
-    for empty in emptied:
-        try:
-            client.rmdir(empty)
-        except OSError:
-            continue  # something is still in it, which is somebody's or another turn's
+    if not session:
+        return
+    try:
+        status, said = _ran(
+            client, ["/bin/sh", "-c", _SWEEP, "humanize", session], workspace
+        )
+    except (OSError, ValueError) as why:
+        log.warning("could not clear %s from the target: %s", session, why)
+        return
+    if status != 0:
+        log.warning("could not clear %s from the target: %s", session, said)
 
 
 def _wrapping(hushes: Sequence[str], said: Mapping[str, str]) -> list[str]:

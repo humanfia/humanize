@@ -39,9 +39,6 @@ def test_every_profile_is_well_formed(profile: Profile) -> None:
     assert set(profile.beyond) <= set(profile.efforts)
     assert profile.silence > 0
     assert all("{ident}" in one for one in profile.logs)
-    assert not profile.mounts or any(
-        (profile.skills, profile.shared, profile.config, profile.works)
-    )
     assert not profile.endpoint or profile.endpoint in profile.accounts()
     assert all(one.fault in backends.FAULTS for one in profile.signs)
     for way in profile.ways:

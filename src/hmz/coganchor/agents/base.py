@@ -41,7 +41,6 @@ from .codenames import codename
 from .config import PERMISSIONS, UNSAID, Unfenced, Unserved
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
-from .skills import Loaded, mount, unmount
 from .tools import Toolbox
 from .watchdog import Watchdog, held
 
@@ -72,6 +71,7 @@ if TYPE_CHECKING:
 
     from .allowance import Ledger
     from .config import AgentConfig, Budget
+    from .skills import Loaded
 
 
 class Journal(Protocol):
@@ -592,10 +592,6 @@ class SessionBase(ABC):
         #: The flow's own command lines this conversation is putting on the agent's PATH, held
         #: here as well as on the agent's shelf for the reason its tools are.
         self._clis: tuple[FakeCli, ...] = ()
-        #: And which of them are actually down in the workspace now, or None while none are.
-        #: The two differ for exactly as long as it takes the next turn to start, which is
-        #: where what was asked for is put where the backend reads it.
-        self._mounted: tuple[str, ...] | None = None
         #: The conversation on the agent this one falls back to, once a turn of this one has
         #: had to be taken there. Held for as long as this session is rather than opened per
         #: turn: what this conversation was is lost at the move, and losing a second one
@@ -667,22 +663,17 @@ class SessionBase(ABC):
         #: by whatever builds the call, since a command line and a process's own arguments
         #: are both built from a session that is already holding the turn.
         self._shaping: type[BaseModel] | None = None
-        #: What takes away what this session mounted, once it has mounted anything. However
-        #: the session ends -- closed, or let go of by a flow that opens one a turn -- what it
-        #: put in the workspace goes with it, so it is a finalizer rather than a line in
-        #: `close`: a Ralph loop drops a session a turn and closes none of them.
-        self._unmounting: Callable[[], None] | None = None
         #: What takes back what this session offered the agent, once it has offered anything,
         #: and None for one that never has -- a session that offers nothing pays for none of
-        #: this. A finalizer for the reason the unmounting is one: a loop that opens a session
-        #: a round and drops it closes none of them, and a callback still in front of the
-        #: model after the round that wrote it is one the flow can no longer see the point of.
+        #: this. A finalizer rather than a line in `close`: a loop that opens a session a round
+        #: and drops it closes none of them, and a callback still in front of the model after
+        #: the round that wrote it is one the flow can no longer see the point of.
         self._unoffering: Callable[[], None] | None = None
         #: And what takes back what it shelved, for the same reason and in the same way.
         self._unshelving: Callable[[], None] | None = None
         #: Whether a turn of this session is running now. Read by `close`, which is what a stop
-        #: reaches and so is called from another thread while a turn is under way: what the
-        #: turn is working by is not taken away underneath it.
+        #: reaches and so is called from another thread while a turn is under way: it does not
+        #: wait for the turn's logs to be copied.
         self._working = False
         #: What each turn of this conversation may spend, where it has been told something
         #: other than what its agent was configured with, and None where it has not.
@@ -1386,12 +1377,6 @@ class SessionBase(ABC):
                 yield from self._turning(prompt, schema=schema)
             finally:
                 self._working = False
-                if self._ended:
-                    # Closed while this turn was running -- a stop does not wait for a turn,
-                    # and the turn's own process is still reading the skills it was given.
-                    # So what the session mounted goes now, which is the first moment nothing
-                    # is working by it.
-                    self._unmounted()
 
     def _turning(
         self, prompt: str, *, schema: type[BaseModel] | None = None
@@ -1434,12 +1419,6 @@ class SessionBase(ABC):
         held = self._agent.waiting() if self._agent.waiting is not None else []
         if held:
             prompt = "\n\n".join([prompt, *held])
-        # Before the moments rather than only on the first turn: a session closed and then
-        # spoken to again -- which is what a stopped flow that carries on does -- had what it
-        # was working by taken away when it closed, and a turn without the flow's skills is a
-        # turn asked to do what it no longer has the means to do. A no-op for a session that
-        # is holding them already, which is every turn but the first.
-        self._mounts()
         if not self._started:
             self._started = True
             self._fire(Moment.SESSION_START, prompt=prompt)
@@ -2007,7 +1986,7 @@ class SessionBase(ABC):
         session._standing_for = self
         session._shaping = schema
         # The flow's skills go with the turn: the stand-in was made carrying them, and a
-        # session of it puts them where its own backend reads them, which is not where this
+        # session of it lodges them where its own backend reads them, which is not where this
         # one's does. Whichever of them this session carries, since it is this session's turn.
         session.loads(self._skills)
         # And so do the flow's own callbacks: a turn taken with none of them in front of the
@@ -2019,7 +1998,6 @@ class SessionBase(ABC):
         session.offers(self._agent.toolbox.offered())
         # And its command lines, for the same reason.
         session.shelves(self._agent.shelf.shelved())
-        session._mounts()
         yield from session._falling_back(prompt, schema=schema)
 
     def _shaped_ask(self, prompt: str, schema: type[BaseModel] | None) -> str:
@@ -2245,26 +2223,6 @@ class SessionBase(ABC):
             # And the conversation this one moved to, which is this conversation carried on
             # somewhere else: it ends when this one does.
             self._moved_to.close()
-        if not self._working:
-            # What the session mounted goes when the conversation does. Not while a turn is
-            # still running by it, though: this is called to stop an agent, and stopping one
-            # does not wait for the turn it is taking -- so a turn that is still reading those
-            # files would have them taken away underneath it. The turn itself lets go of them
-            # as it ends, which is the first moment nothing is using them.
-            self._unmounted()
-
-    def _unmounted(self) -> None:
-        """Takes away what this session mounted, once and whenever the last holder is done.
-
-        Calling the finalizer is what runs it, once, whichever gets there first: the close,
-        the end of a turn that outlived one, or collection for a session nobody closed.
-        """
-        if self._unmounting is not None:
-            self._unmounting()
-            self._unmounting = None
-        # And nothing is down, so the next turn puts down whatever this session carries then
-        # -- which is what a session closed and spoken to again is owed.
-        self._mounted = None
 
     def _shut(self) -> None:  # noqa: B027  -- empty on purpose, and so not abstract
         """Lets go of whatever is holding this conversation open.
@@ -2380,53 +2338,6 @@ class SessionBase(ABC):
         return os.path.join(  # noqa: PTH118 -- text, as every path on this line is
             mirror, os.path.relpath(where, workspace)
         )
-
-    def _mounts(self) -> None:
-        """Puts the skills this session carries where the backend reads them, as a turn opens.
-
-        Where that backend reads a project's own skills, for as long as this session carries
-        them: a flow works by the skills it carries, and a session of it that had none would
-        be a turn asked to do something the flow never gave it the means to do. As a turn
-        opens rather than when the session was made, since the directory it works in is
-        settled by then -- and per session, so a skill rewritten between turns is the one the
-        next turn carries.
-
-        Asked each turn rather than once, because which of them this session carries is a
-        thing a flow may change while the conversation is going: a session told to put one
-        down and take another up has the one it was told about from its next turn, which is
-        this one. A session carrying what it was already carrying does nothing at all here,
-        which is every turn but the first and every turn after a change.
-
-        Nothing at all for a flow that brings none, which is most of them, and for a backend
-        that reads no such directory: those carry what their CLI installed and no more.
-
-        Note:
-          Into the directory on this machine, never an anchored agent's mirror of the target.
-          A mirror is the target's copy -- coganchor makes it hold what the target holds, and
-          sweeps away what only it has -- so a skill written into one is a skill deleted, and
-          a mirror created here before coganchor has taken it over is a mirror coganchor
-          refuses to take over at all, which would be every turn of the run failing. A
-          container given this workspace reads this directory and gets them; a machine across
-          a network keeps its own, and a flow that brings skills is a flow to run here.
-        """
-        carrying = self._carrying()
-        if tuple(one.name for one in carrying) == self._mounted:
-            return  # already carrying exactly these, which is every turn but the first
-        # What it was carrying goes before what it is to carry arrives: two sets of skills in
-        # the one directory is the session carrying what it was told to put down.
-        self._unmounted()
-        if not carrying:
-            self._mounted = ()
-            return
-        workspace = self.cwd
-        if not os.path.isdir(workspace):  # noqa: PTH112
-            return  # a session that cannot say where it works is one that will not run
-        mounted = mount(self._agent.backend, workspace, carrying)
-        if mounted.at:
-            # A finalizer rather than a line in `close`, and callable so that whichever of
-            # the two gets there first is the one that runs -- once, whatever happens after.
-            self._unmounting = weakref.finalize(self, unmount, mounted)
-        self._mounted = tuple(one.name for one in carrying)
 
     def _carrying(self) -> tuple[Loaded, ...]:
         """The skills this session is to have down, as the flow brought them.
@@ -4057,9 +3968,10 @@ class AgentBase(ABC):
         #: allowance spend one allowance. Left unset by an agent driven by hand, which is not
         #: a run of anything and so is nobody's budget.
         self.allowance: Ledger | None = None
-        #: The skills the flow driving this agent brings, mounted onto every session it
-        #: opens. Set by whatever started the flow, since a skill is the flow's rather than
-        #: the agent's: the same agent under another flow carries that flow's instead.
+        #: The skills the flow driving this agent brings, lodged where every session it
+        #: opens reads them. Set by whatever started the flow, since a skill is the flow's
+        #: rather than the agent's: the same agent under another flow carries that flow's
+        #: instead.
         self._loads: tuple[Loaded, ...] = ()
         # The machine this agent's turns land on, once the first of them has brought it up.
         self._anchor: AnchorConfig | None = None
@@ -4717,7 +4629,7 @@ class AgentBase(ABC):
 
     @property
     def loaded(self) -> tuple[Loaded, ...]:
-        """The skills mounted onto every session this agent opens, which are the flow's."""
+        """The skills lodged for every session this agent opens, which are the flow's."""
         return self._loads
 
     @property
@@ -4986,7 +4898,7 @@ class AgentBase(ABC):
 
         Made at most once and kept: the agent that went down is not one to try again each
         turn, and a stand-in made afresh every time would be a new conversation and a new set
-        of skills mounted every turn.
+        of skills lodged every turn.
         Held only for as long as this agent is: it is this agent's answer.
 
         Returns:
@@ -5606,11 +5518,11 @@ class AgentBase(ABC):
         humanize. So, once the flow has shelved any command lines, is the shelf: the scripts
         on the agent's PATH, the socket beside them and the Python they start, all kept here.
 
-        Under an anchor driving the target's own CLI it is four other things, each of which a
+        Under an anchor driving the target's own CLI it is three other things, each of which a
         mirror and a tracer would otherwise have done: the variables a provider's account must
-        not be run beside, the credential files that account keeps, the skills the flow
-        carries, and the virtual home a CLI that rewrites its own configuration is started in
-        (:meth:`homed`), which the anchor builds there. The bridge is not among them, and
+        not be run beside, the credential files that account keeps, and the virtual home a CLI
+        is started in (:meth:`homed`) with the flow's skills lodged in it, which the anchor
+        builds there. The bridge is not among them, and
         cannot be: it is a program on this machine speaking to a socket in this process, and
         the CLI that would spawn it is elsewhere.
 
@@ -5626,7 +5538,6 @@ class AgentBase(ABC):
 
         if anchor.native:
             from hmz.coganchor import homes
-            from hmz.coganchor.agents.skills import carried
             from hmz.coganchor.backends import installing, named
             from hmz.coganchor.transport import Target
 
@@ -5672,7 +5583,6 @@ class AgentBase(ABC):
                 hushes=tuple(sorted(self.hushed())),
                 projects=projects,
                 home=home,
-                carries=carried(self.backend, self._loads),
                 installs=installing(self.backend),
                 brings=brings,
                 tells=str(self._telling()) if brings else "",

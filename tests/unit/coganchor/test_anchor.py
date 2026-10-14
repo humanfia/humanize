@@ -74,10 +74,6 @@ CUT = Fence(write=("/w",), scopes=("all", "read", "read"), online=False)
         ({"projects": (("", "/c"),)}, "unsupported projection"),
         ({"projects": (("A=B", "/c"),)}, "unsupported projection"),
         ({"projects": (("A", "c"),)}, "unsupported projection"),
-        ({"carries": (("skills", "s"),)}, "expected an absolute path"),
-        ({"carries": (("/skills", ""),)}, "inside the workspace"),
-        ({"carries": (("/skills", "/s"),)}, "inside the workspace"),
-        ({"carries": (("/skills", "a/../../s"),)}, "inside the workspace"),
         ({"fence": PATH_BY_PATH}, "drawn path by path"),
         ({"fence": LEVELLED, "harness": "ssh://box"}, "cannot hold a harness"),
         ({"fence": CUT, "net": "remote"}, "past it"),
@@ -94,10 +90,7 @@ def test_what_the_command_line_refuses_the_settings_refuse(
     "settings",
     [
         {"redirects": (("/a", "/b"),), "hushes": ("OPENAI_API_KEY",)},
-        {
-            "projects": (("CODEX_HOME", "/c"),),
-            "carries": (("/skills", ".claude/skills"),),
-        },
+        {"projects": (("CODEX_HOME", "/c"),)},
         {"fence": Fence(write=("/",))},
         {"fence": LEVELLED},
         {"fence": CUT},

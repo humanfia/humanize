@@ -222,42 +222,6 @@ def _skill(tmp_path: Path, said: str = "---\nname: review\n---\n") -> Path:
     return held
 
 
-def test_a_carried_skill_is_there_for_the_turn_and_gone_after_it(
-    driven: Driven, tmp_path: Path
-) -> None:
-    skill = _skill(tmp_path)
-
-    said = driven.run(
-        "/bin/sh",
-        "-c",
-        "cat .claude/skills/review/SKILL.md",
-        carries=((str(skill), ".claude/skills/review"),),
-    )
-
-    assert said.returncode == 0, said.stderr
-    assert "name: review" in said.stdout
-    assert not (driven.target / ".claude").exists()
-
-
-def test_a_carried_skill_never_replaces_the_projects_own(
-    driven: Driven, tmp_path: Path
-) -> None:
-    theirs = driven.target / ".claude" / "skills" / "review"
-    theirs.mkdir(parents=True)
-    (theirs / "SKILL.md").write_text("the project's own\n")
-    skill = _skill(tmp_path, "the flow's\n")
-
-    said = driven.run(
-        "/bin/sh",
-        "-c",
-        "cat .claude/skills/review/SKILL.md",
-        carries=((str(skill), ".claude/skills/review"),),
-    )
-
-    assert said.stdout == "the project's own\n"
-    assert (theirs / "SKILL.md").read_text() == "the project's own\n"
-
-
 @pytest.fixture
 def far(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Fakes:
     """Fake `docker` and `ssh` on `PATH`."""

@@ -192,14 +192,6 @@ def parser() -> ArgumentParser:
         "turn, made as this says",
     )
     built.add_argument(
-        "--carry",
-        metavar="DIR=PATH",
-        action="append",
-        default=[],
-        help="with --native, put this directory at PATH in the target's workspace for "
-        "the turn",
-    )
-    built.add_argument(
         "--installs",
         metavar="LINE",
         default="",
@@ -271,7 +263,6 @@ def settings(args: Namespace) -> AnchorConfig:
         hushes=tuple(args.hush),
         projects=tuple(_pair(said) for said in args.project),
         home=Virtual.loads(args.home) if args.home else None,
-        carries=tuple(_pair(said) for said in args.carry),
         brings=tuple(_pair(said) for said in args.bring),
         tells=args.tell,
         installs=args.installs,
@@ -342,7 +333,6 @@ def options(config: AnchorConfig) -> list[str]:
     for flag, pairs in (
         ("--redirect", config.redirects),
         ("--project", config.projects),
-        ("--carry", config.carries),
         ("--bring", config.brings),
     ):
         written += [f"{flag}={one}={other}" for one, other in pairs]

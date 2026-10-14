@@ -293,8 +293,8 @@ class PiAgentConfig(AgentConfig):
         ``--skill``. Empty, as pi ships. This is pi's only road for a skill that is not
         already installed on the machine: the two directories it discovers under the workspace
         -- `.pi/skills` and `.agents/skills` -- are gated on the project having been trusted,
-        which a headless run has nobody to press, so a flow's own skills mounted into one of
-        them would be read by nothing. ``--skill`` is not gated and is additive even under
+        which a headless run has nobody to press, so a skill put in one of them would be
+        read by nothing. ``--skill`` is not gated and is additive even under
         ``--no-skills``, so a path named here is loaded.
     """
 

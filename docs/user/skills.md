@@ -146,9 +146,8 @@ workspace:
 | `opencode`, `mimo` | named under `skills.paths` in the configuration of each run |
 | `dsh` | <Badge type="danger" text="none" /> it carries only what you installed |
 
-A copy in the workspace goes when the last session using it ends, along with any directory that
-was made to hold it. An agent whose turns run on [another machine](/user/remote-execution) gets
-them there.
+An agent whose turns run on [another machine](/user/remote-execution) gets them in the home
+built for it there.
 
 A flow may also name skills from a git repository. Installing the flow fetches them into its
 own `skills/`, so they travel with it like the rest of it and update when the flow does. A flow
