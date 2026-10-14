@@ -701,7 +701,7 @@ class Flows(Drafts[Chosen]):
             INSTALLED: "Flows ready to run here: pick one to set it up and run it, or "
             "install more from a flowverse.",
             ROLES: "Configure each role: an agent (CLI, account, model and effort) or an "
-            "environment; then what the flow takes and what a run may spend.",
+            "environment; then what the flow takes and what an epic may spend.",
             VERSES: "Indexes of flows to install, cloned under ~/.hmz/flowverses. "
             "Fetching, adding and removing one happen at once.",
             VERSE: f"Flows {escape(self._verse)} lists, at their newest release. Open one "
@@ -969,7 +969,7 @@ class Flows(Drafts[Chosen]):
                 _BUDGET,
                 "budget",
                 "set" if self._budget is not None else "none",
-                f"what a run may spend: {_spending(self._budget, unbounded=unbounded)}",
+                f"what an epic may spend: {_spending(self._budget, unbounded=unbounded)}",
             )
         )
         # Straight under the budget, the ones about the run rather than any role: two
@@ -1145,7 +1145,7 @@ class Flows(Drafts[Chosen]):
                     Budgeted,
                     Budgeted.of(self._budget) if self._budget is not None else None,
                     asked=f"Set budget for {self._flow}",
-                    about="A run stops at whichever limit it reaches first; at least one "
+                    about="An epic stops at whichever limit it reaches first; at least one "
                     "limit is required. Leave empty or 0 for no limit.",
                 )
             )
@@ -2006,7 +2006,7 @@ def _spending(held: Budget | None, *, unbounded: bool) -> str:
         return (
             "none needed; runs until you stop it"
             if unbounded
-            else "none set; a run needs one"
+            else "none set; an epic needs one"
         )
     return f"stops at {spent(held)}"
 

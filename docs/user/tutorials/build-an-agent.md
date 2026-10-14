@@ -392,7 +392,7 @@ to step 4.
 - **Build from a plan you wrote.** Phase 3 needs a plan, not the first two phases:
   `-p plan_file=…` names it. The [`humanize1`](https://humanfia.ai/flows/humanize1) page has more of the
   phases' params.
-- **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export run** on
+- **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export epic** on
   any of them gives you its trace. See [Tracing](/user/tracing).
 - **Write a flow of your own.** You have now run three that somebody else wrote. Whoever writes
   one is a **weaver**, and the [Weaver Guide](/weaver/) starts with [Build under

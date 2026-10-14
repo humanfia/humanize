@@ -833,7 +833,7 @@ what is needed.
 
 ### `… · 0 sessions, 0 slices` {#_0-sessions-0-slices}
 
-**Symptom.** [**export run**](/user/export) in `/epics` wrote the archive, but its trace holds
+**Symptom.** [**export epic**](/user/export) in `/epics` wrote the archive, but its trace holds
 nothing.
 
 **Cause.** In order of likelihood:

@@ -33,7 +33,7 @@ Sleep 1500ms
 Enter
 Sleep 3s
 
-# → goes into the flow under the cursor: its roles, what it takes and what a run may spend.
+# → goes into the flow under the cursor: its roles, what it takes and what an epic may spend.
 Right
 Sleep 2500ms
 

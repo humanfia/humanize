@@ -131,7 +131,7 @@ async def test_a_run_exported_from_epics_is_an_archive_where_it_was_asked_for(
         await on(pilot, Epics)
         await shows(pilot, "1 session")
         await pilot.press("enter")
-        await shows(pilot, "continue", "export run")
+        await shows(pilot, "continue", "export epic")
 
         await opens(pilot, "export")
         await on(pilot, Exporting)
@@ -193,7 +193,7 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
 
         # Another directory's epic is read and exported from here, but not carried on.
         await pilot.press("up", "enter")
-        await shows(pilot, "resume run")
+        await shows(pilot, "resume epic")
         await pilot.press("enter")
         await on(pilot, Epics)
         await shows(pilot, "this epic ran in ~/elsewhere; resume it from hmz there")
@@ -255,7 +255,7 @@ async def test_a_chat_has_no_exomyth_to_open(workspace: Path) -> None:
         await on(pilot, Epics)
         await shows(pilot, "1 session")
         await pilot.press("enter")
-        await shows(pilot, "graph", "export run")
+        await shows(pilot, "graph", "export epic")
         assert "Exomyth" not in screen(_app_of(pilot))
         await opens(pilot, "graph")
         await on(pilot, Graph)
@@ -335,7 +335,7 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
         assert _cursor(app) == here.path.name
 
         await pilot.press("enter")
-        await shows(pilot, "continue", "export run")
+        await shows(pilot, "continue", "export epic")
         await pilot.press("escape")
         await on(pilot, Epics)
 
@@ -368,7 +368,7 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
         await typed(pilot, "/epics")
         await on(pilot, Epics)
         await pilot.press("enter")
-        await shows(pilot, "export run")
+        await shows(pilot, "export epic")
         await opens(pilot, "export")
         await on(pilot, Exporting)
         await shows(pilot, "~/Downloads/")

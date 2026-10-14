@@ -89,7 +89,7 @@ const listed = [
 
 const place = [
   '  [m]monitor ›[/] [b B]workspace[/]',
-  '  [m]An environment of the run: where its sessions work.[/]',
+  '  [m]An environment of the epic: where its sessions work.[/]',
   '',
   `  [b]╭${'─'.repeat(W + 4)}╮[/]`,
   '   [m]kind              [/]LOCAL[n]1[/]',

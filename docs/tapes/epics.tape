@@ -32,7 +32,7 @@ Sleep 400ms
 # do with it. What there is depends on the run: a flow that says it can be picked up is one
 # to carry on.
 Enter
-Wait+Screen /resume run/
+Wait+Screen /resume epic/
 Sleep 1400ms
 Screenshot "/out/epic-does.png"
 Sleep 400ms
@@ -43,7 +43,7 @@ Sleep 400ms
 Down
 Sleep 400ms
 Enter
-Wait+Screen /Export run/
+Wait+Screen /Export epic/
 Sleep 600ms
 Type "/tm"
 Sleep 600ms

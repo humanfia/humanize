@@ -210,7 +210,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
   <span class="sel"> ⚙  <b>General</b>                                    details off · reports off </span> <span class="n">1</span>
-     <span class="m">this machine: what runs show, the /btw agent, error reports</span>
+     <span class="m">this machine: what epics show, the /btw agent, error reports</span>
    ────────────────────────────────────────────────────────────────────────
    ◉  <b>Accounts</b>                                                0 accounts
      <span class="m">what agents sign in as, under each CLI</span>
@@ -1275,7 +1275,7 @@ runtime of theirs is saved as `local`, and an ssh host only while none is saved 
 ### Changing it
 
 Change it where you set it: in [`/flow`](/reference/tui). Choose the flow, set each agent and
-environment, what a run may spend and whether it is profiled, and save. That save is what the next `hmz` here opens
+environment, what an epic may spend and whether it is profiled, and save. That save is what the next `hmz` here opens
 on. It only opens there: nothing runs until you send the first line.
 
 Saving checks the lot before any of it is kept. The flow is loaded, every role is checked

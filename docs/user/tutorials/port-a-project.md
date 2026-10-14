@@ -322,7 +322,7 @@ handed the last review to pick up from. See [Picking a run up](/user/resuming).
 - **Change how reviews are written.** The reviewer carries a [skill](/user/skills),
   `skills/review-notes/SKILL.md` in the flow's directory, which your copy lets you edit.
   DeepSeek Harness loads no skills, so on it the reviewer works from the prompt alone.
-- **See the flow's shape in a trace.** `/epics` in `hmz`, then **export run**, as in
+- **See the flow's shape in a trace.** `/epics` in `hmz`, then **export epic**, as in
   [Tracing](/user/tracing). The actor shows one session and the reviewer one per round.
 - **Next tutorial:** [Build a coding agent](/user/tutorials/build-an-agent), which starts from
   nothing but a sentence.

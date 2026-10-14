@@ -3149,7 +3149,7 @@ class Budgeted(BaseModel):
 
     duration: str = Field(
         default="",
-        description="maximum run duration: 1h30m, 90s, PT2H; empty for no limit",
+        description="maximum epic duration: 1h30m, 90s, PT2H; empty for no limit",
     )
     cost: float = Field(
         default=0.0, ge=0, description="maximum cost in US dollars, 0 for no limit"
@@ -10756,8 +10756,8 @@ class Does(Picks):
             held.append(
                 (
                     RESUMES,
-                    "resume run",
-                    "resume the flow from this run",
+                    "resume epic",
+                    "resume the flow from this epic",
                 )
             )
         held.append(
@@ -10766,8 +10766,8 @@ class Does(Picks):
         held.append(
             (
                 _EXPORTS,
-                "export run",
-                "the entire run as an archive, with its trace",
+                "export epic",
+                "the entire epic as an archive, with its trace",
             )
         )
         # Not for a chat, which is one conversation rather than a flow of them to lay out.
@@ -10797,7 +10797,7 @@ class Does(Picks):
         if chat:
             return "this chat cannot be continued here"
         return (
-            f"{escape(self._ran.flow)} is not resumable, so this run cannot be resumed"
+            f"{escape(self._ran.flow)} is not resumable, so this epic cannot be resumed"
         )
 
 
@@ -10904,9 +10904,9 @@ class Exporting(Form[str]):
 
     def _ask(self) -> None:
         """Says what an export is."""
-        self.query_one("#asked", Label).update("Export run")
+        self.query_one("#asked", Label).update("Export epic")
         self.query_one("#about", Label).update(
-            "The entire run as one archive, with its trace, to send to somebody "
+            "The entire epic as one archive, with its trace, to send to somebody "
             "who was not there. Credentials are struck out of every byte of it."
         )
         self._fill()

@@ -154,7 +154,7 @@ class Places:
             if older is not None and isinstance(why, older):
                 raise Refusal(str(why), 409) from why
             raise Refusal(
-                f"The runs of {place.workspace} could not be reached: {why}", 503
+                f"The epics of {place.workspace} could not be reached: {why}", 503
             ) from why
         with self._lock:
             if place.held.get(slot) is there:

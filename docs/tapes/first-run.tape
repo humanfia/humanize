@@ -1,4 +1,4 @@
-# A first run, set up: `/flow`, a flow, its one agent, what a run may spend, and saving.
+# A first run, set up: `/flow`, a flow, its one agent, what an epic may spend, and saving.
 #
 # No turn is taken. The backends here are stand-ins that run nothing, and the task is typed
 # and never sent. Nothing is fetched either: the official index is the one `stage.py` wrote
