@@ -593,7 +593,7 @@ interface](/reference/tui) in a line as it opens, the [web interface](/reference
 | --- | --- | --- |
 | Already the newest release | stdout `hmz <version> is the newest release`; nothing is run | `0` |
 | Updated | stdout `Updating hmz <old> to <new>: <line>`, the installer's own output, `Updated hmz to <new>` | `0` |
-| Installed from a checkout or a URL (`direct_url.json`) | stderr `hmz update: hmz was installed from <url>, not PyPI; update it there` | `1` |
+| Installed from a checkout or a URL (`direct_url.json`) | stderr `hmz update: hmz was installed from <url>, not PyPI; update it there`, the URL without its user, password, query or fragment | `1` |
 | The installer is not on `PATH` | stderr `hmz update: <uv\|pipx> installed hmz but is not on PATH` | `1` |
 | PyPI did not answer, or `HUMANIZE_RELEASES=off` | stderr `hmz update: PyPI could not be asked for the newest release` | `1` |
 | The installer failed | stderr `hmz update: <installer> exited <status>` | `1` |

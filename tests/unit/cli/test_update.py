@@ -178,6 +178,31 @@ def test_an_install_from_a_source_is_that_sources_to_move(
     assert f"installed from {source['url']}, not PyPI" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    ("url", "said"),
+    [
+        (
+            "git+https://x-access-token:ghs_abcdefghijkl@github.com/o/r.git@main",
+            "git+https://github.com/o/r.git@main",
+        ),
+        (
+            "https://pkgs.example:8443/hmz.whl?private_token=glpat-abc#sha256=00",
+            "https://pkgs.example:8443/hmz.whl",
+        ),
+        ("https://[::1/x", "a URL that could not be read"),
+    ],
+)
+def test_an_install_url_is_said_without_what_was_signed_into_it(
+    world: _World, capsys: pytest.CaptureFixture[str], url: str, said: str
+) -> None:
+    world.installed = _Installed({"url": url, "vcs_info": {}})
+    assert main(["update"]) == 1
+    err = capsys.readouterr().err
+    assert f"installed from {said}, not PyPI" in err
+    assert "ghs_" not in err
+    assert "glpat" not in err
+
+
 def test_no_install_at_all_is_refused(
     world: _World, capsys: pytest.CaptureFixture[str]
 ) -> None:

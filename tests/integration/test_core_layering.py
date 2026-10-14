@@ -55,6 +55,7 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.runtime.exporting": {
         "hmz.coganchor",
         "hmz.runtime.epic",
+        "hmz.runtime.telemetry",
         "hmz.runtime.tracing",
     },
     # An epic backed up to git repositories as a bundle lays it out, behind everything else.
