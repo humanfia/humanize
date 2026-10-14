@@ -301,7 +301,7 @@ its settings).
 
 **5.2.2** The following harnesses offer no flag or environment variable through which hmz can add
 user-level configuration, and each MUST be launched with a virtual config home wherever hmz adds
-a managed item to it: `grok`, `pi`, `omp`, `mcode` and `agy`.
+a managed item to it: `grok`, `pi`, `omp`, `mcode`, `agy`, `cursor-agent` and `kimi`.
 
 **5.2.3** hmz MUST build a virtual config home on the harness machine, for one harness process,
 from the user's configuration of that harness on that machine merged with the agent's managed
@@ -316,21 +316,26 @@ home MUST be discarded when the process exits.
 harness home (`api/files/harness-homes.md` §6.8), except the session records kept in an epic as
 `api/files/harness-homes.md` §5 states.
 
-**5.2.7** hmz MUST NOT write any file of the user's real configuration of a harness, on any
+**5.2.7** Where the harness replaces an entry that its virtual config home links to the real
+harness home, other than a configuration file copied under §5.2.5, hmz MUST write the
+replacement to the entry the link named, or to the account's file where the agent runs as an
+account, when the process exits, unless that entry is at least as new as the replacement.
+
+**5.2.8** hmz MUST NOT write any file of the user's real configuration of a harness, on any
 machine, in building, using or discarding a virtual config home.
 
-**5.2.8** Credential files read through a virtual config home MUST be the user's real credential
+**5.2.9** Credential files read through a virtual config home MUST be the user's real credential
 files, or the account's files where the agent runs as an account, and MUST NOT be copied into it,
 so that a credential the harness refreshes during the process persists after it exits.
 
-**5.2.9** A change the user makes to the real configuration while a harness process runs MUST
+**5.2.10** A change the user makes to the real configuration while a harness process runs MUST
 take effect no later than that harness's next launch.
 
 ### 5.3 Managed items through flags and environment
 
 **5.3.1** The following harnesses neither rewrite their configuration nor need a virtual config
 home, and each MUST receive its managed items through command-line flags or environment
-variables at launch: `opencode`, `mimo`, `kimi`, `cursor-agent`, `dsh` and every ACP harness.
+variables at launch: `opencode`, `mimo`, `dsh` and every ACP harness.
 
 **5.3.2** A harness listed in §5.3.1 MUST be launched with its configuration home as the user
 left it.

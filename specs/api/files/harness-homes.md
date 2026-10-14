@@ -175,15 +175,17 @@ machine** is not **this machine**, where `HUMANIZE_SESSIONS` is `off`, `0` or `n
 ## 6. Virtual config homes
 
 **6.1** For each process of the **harnesses** `claude`, `codex` and `qwen`, and for each process
-of the **harnesses** `grok`, `pi`, `omp`, `mcode` and `agy` to which **hmz** adds a managed item,
-`hmz` MUST create a virtual config home on the **harness machine** before the process starts.
+of the **harnesses** `grok`, `pi`, `omp`, `mcode`, `agy`, `cursor-agent` and `kimi` to which
+**hmz** adds a managed item, `hmz` MUST create a virtual config home on the **harness machine**
+before the process starts, as `features/agents.md` §5.2 states.
 
 **6.2** A virtual config home MUST be a directory under the temporary directory of the **harness
 machine**, of mode `0700`, owned by the **user** the **harness** process runs as.
 
-**6.3** A virtual config home MUST hold a copy of each user configuration file of the real harness
-home, merged with the managed items of the process, and MUST hold a symbolic link to each other
-entry of the real harness home.
+**6.3** A virtual config home MUST hold a copy of each configuration file of the real harness home
+that the **harness** rewrites while running, merged with the managed items of the process, a
+user-level skills directory holding the **user**'s skills and the flow's, and a symbolic link to
+each other entry of the real harness home.
 
 **6.4** `hmz` MUST NOT copy a credential file into a virtual config home; the virtual config home
 MUST reach each credential file of the **account** through a symbolic link or through the
@@ -201,7 +203,12 @@ the virtual config home and MUST NOT reach the real harness home.
 **6.8** A write a **harness** process makes through a symbolic link of clause 6.3 MUST reach the
 real harness home.
 
-**6.9** `hmz` MUST deliver every managed item to a **harness** process only through its virtual
+**6.9** Where a **harness** process replaces a symbolic link of clause 6.3 with a file or a
+directory, `hmz` MUST, when the process exits, write that file, or each new or changed file of
+that directory, to the entry the link named, or to the **account**'s file where §4 redirects it,
+unless that entry is at least as new.
+
+**6.10** `hmz` MUST deliver every managed item to a **harness** process only through its virtual
 config home, its command-line arguments, its environment, or a process-private temporary
 directory of §7.
 
