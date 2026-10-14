@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.2.0-beta.3](https://github.com/humanfia/humanize/compare/v0.2.0-beta.2...v0.2.0-beta.3) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **runtime:** runtimes take `harness` instead of `affinity`, and work on another machine with no setting no longer drops to a harness here when the CLI is missing or a gating hook is hung: set the runtime's harness to `local`. A saved `affinity` is still read, as its first entry with `self` as `env`.
+
+### Features
+
+* chat like Claude, no all-sessions log, Exomyth fixes, split profiling, TUI parity ([#422](https://github.com/humanfia/humanize/issues/422)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* many chats, each its own epic beside the workspace's flow, folding away when idle ([#427](https://github.com/humanfia/humanize/issues/427)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* rewrite specs as api/ and features/, pick the btw agent per epic, refuse cross-machine workspace hooks ([#444](https://github.com/humanfia/humanize/issues/444)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* **runtime:** let docker and swarm runtimes share a host: name prefix, exec user, running container ([#426](https://github.com/humanfia/humanize/issues/426)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* **runtime:** say where a harness runs with one setting, not four placements ([#446](https://github.com/humanfia/humanize/issues/446)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+
+
+### Fixes
+
+* **agents:** retry Codex's dropped streams and start every harness in a virtual config home ([#425](https://github.com/humanfia/humanize/issues/425)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* **coganchor:** build a harness's virtual home on its own machine under afar ([#445](https://github.com/humanfia/humanize/issues/445)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* **coganchor:** keep the turns of the shared-mirror test in the mirror at once ([#442](https://github.com/humanfia/humanize/issues/442)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* **coganchor:** let turns working in one mirror at once see each other's work ([#423](https://github.com/humanfia/humanize/issues/423)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* **flows:** keep and carry on supervised sessions, whose CLI runs here in a mirror ([#424](https://github.com/humanfia/humanize/issues/424)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* **telemetry:** scrub reports as bundles are, timings and profiles too, only where started ([#439](https://github.com/humanfia/humanize/issues/439)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+* **tui,web:** call an execution of a flow an epic in every label and message ([#447](https://github.com/humanfia/humanize/issues/447)) ([33ed4dd](https://github.com/humanfia/humanize/commit/33ed4ddc357394bba9311ace5e61d9f24a389e4e))
+
 ## [0.2.0-beta.2](https://github.com/humanfia/humanize/compare/v0.2.0-beta.1...v0.2.0-beta.2) (2026-10-13)
 
 
