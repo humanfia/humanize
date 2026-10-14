@@ -178,9 +178,9 @@ jobs:
           fi
           update="humanize-$version-macos-universal.app.tar.gz"
           mv "$bundle/macos/humanize.app.tar.gz" "../dist/$update"
-          # What the installed apps read at releases/latest/download/latest.json: the release
-          # that is latest, never a pre-release, offers its update to both architectures,
-          # signed. The signature is the .sig's text, which the app checks against its pubkey.
+          # What the installed apps read: the newest release that carries one, a pre-release
+          # only for an app that is one, offers its update to both architectures, signed. The
+          # signature is the .sig's text, which the app checks against its pubkey.
           release="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases"
           jq -n --arg version "$version" --arg notes "$release/tag/$TAG" \
             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg url "$release/download/$TAG/$update" \

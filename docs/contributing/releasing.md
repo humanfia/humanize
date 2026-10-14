@@ -59,8 +59,9 @@ else changes.
 
 ### The app's updates {#the-apps-updates}
 
-An installed app [updates itself](/user/desktop#updates) from
-`releases/latest/download/latest.json`: the latest release's, and so never a pre-release's. For
+An installed app [updates itself](/user/desktop#updates) from the `latest.json` of the newest
+release that carries one, found through GitHub's list of releases: never a pre-release's, unless
+the app is a pre-release itself. For
 that, `publish.yml` builds the app's update as well, `humanize-X.Y.Z-macos-universal.app.tar.gz`,
 signs it with the updater's key, attests it, and writes `latest.json`, which names the version,
 links the release as its notes, and offers the update with its signature to both

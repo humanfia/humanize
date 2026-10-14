@@ -41,8 +41,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZEQUZDQkVFQjNGOTZFOTQKUldTVWJ2bXo3c3V2YmV0Nk1TSjN1SEFDMWFLdVl3eEV1ZDc5UzIxTzZrUVI2OWJwb2ZoK1FXbW8K",
-      "endpoints": ["https://github.com/humanfia/humanize/releases/latest/download/latest.json"]
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZEQUZDQkVFQjNGOTZFOTQKUldTVWJ2bXo3c3V2YmV0Nk1TSjN1SEFDMWFLdVl3eEV1ZDc5UzIxTzZrUVI2OWJwb2ZoK1FXbW8K"
     }
   }
 }
