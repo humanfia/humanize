@@ -133,7 +133,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 | `hmz: nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` | yellow | always, before the first turn of a run whose `cost` limit no agent's price can enforce |
 | `✻ Worked for <s>s · <agent>` | dim | always |
 | `❯ <task> · by <name>` | | a run another frontend started |
-| `<agent>'s harness runs here` / `<agent>'s harness runs on its environment's machine` / `<agent>'s harness runs on the runtime <backend>:<name>` | dim | once per agent per run, where the session reports a harness placement (`opened.harness` not empty) |
+| `<agent>'s harness runs here` / `<agent>'s harness runs on its environment's machine` / `<agent>'s harness runs on the runtime <backend>:<name>` | dim | once per agent per run, where the session reports where its harness went (`opened.harness` not empty: `local`, `env`, or `<backend>:<name>`; `self`, which an earlier humanize wrote, is said as `env`) |
 | `— stopping the flow —` / `— <name> is stopping the flow —` | | this / another frontend stopped the run |
 | `hmz: <why>` / `hmz: stopped -- <why>` / `— the flow is done —` | red / yellow / — | run ended refused-failed-crashed / by its budget / normally |
 
@@ -145,7 +145,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 
 | Part | Text | Condition |
 | --- | --- | --- |
-| btw | `btw · <target>` or `btw · btw agent`, cyan | [btw mode](#btw) on |
+| btw | `btw · <target>`, `btw · <spec>` (the epic's own btw agent) or `btw · btw agent`, cyan | [btw mode](#btw) on |
 | afk | `afk` | away for every role; |
 | | `afk <role>, <role>` | away for some roles; yellow |
 | details | `details`, muted | details on |
@@ -488,10 +488,11 @@ where it is one, else on the view being read:
 
 | Aspect | Rule |
 | --- | --- |
-| Enter | `/btw [question]`. Prints `btw · <target\|btw agent> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
+| Enter | `/btw [question]`. Prints `btw · <target\|spec\|btw agent> each line is a question; ctrl+g agent; /btw or esc to exit`. The status line starts `btw · …`. |
 | In btw mode | Every line not starting with `/` is one more turn of the same side conversation. |
 | Leave | `/btw` alone or `esc`: `btw: exited`; a run starting: `btw: exited -- a new flow started`. Side sessions are closed (`unaside`). |
-| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the one set on [General](#general-page), else the flow's first declared role with a session, else its configured agent. |
+| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the epic's own (<kbd>ctrl+g</kbd>), else the one set on [General](#general-page), else the flow's first declared role with a session, else its configured agent. |
+| Agent | <kbd>ctrl+g</kbd> in btw mode, over the log or the monitor: a **btw agent** dropdown of `default` (beside it the `btw` setting, else `the flow's first agent`), the epic's own where it has one (`chosen`), and `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up btw agent`, opened on the btw agent now). A pick other than the one in force appends `{"event": "btw", "agent": "<cli[@account]/model:effort>"}` (`""` for `default`) to the epic's `epic.jsonl` and prints `btw agent: <spec\|default>`; the btw agent's side conversation is closed as the next question to it is asked, which opens it as the new one. Every session's side conversation stays. The epic is the one going here, or the last; with none: `hmz: btw: no epic to keep an agent with`. |
 | Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that role. Ended sessions included. |
 | btw agent | Seeded with a snapshot (the last 32 of up to 80 observations, 600 characters each) and the list of sessions. It may reply with lines `@ask <agent>/<n>: <question>` (regex `^\s*@ask\s+(\S+?)\s*:\s*(\S.*)$`); each is put to that session's side copy (`btw · asking <key>: <question>`), and answers return as `<answer from="<key>">…</answer>`. At most 4 asks per question; failures return as `(session <k> not found)`, `(could not ask: <e>)`, `(no answer)`. |
 | Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. |
@@ -532,6 +533,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | editor | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | | Inserts a newline. |
 | editor | <kbd>↑</kbd> / <kbd>↓</kbd> | cursor on the first / last row | Older / newer [history](#history) entry. Otherwise moves the cursor. |
 | editor | <kbd>esc</kbd> | btw on, offers closed | Leaves btw mode. |
+| app | <kbd>ctrl+g</kbd> | btw on, over the log or the monitor | Picks the epic's [btw agent](#btw). |
 | editor | <kbd>space</kbd> | monitor up, editor empty | Passed to the monitor. |
 | offers | <kbd>↑</kbd> <kbd>↓</kbd> | offers open | Moves the highlight. |
 | offers | <kbd>tab</kbd> | offers open | Takes the highlight. |
@@ -1715,13 +1717,13 @@ never read.`
 | `options` | `additional ssh options: KEYWORD=VALUE, …` |
 | `workdir` | `default working directory when -e specifies none: /abs or ~/path` |
 | `falls back to` | `runtimes to try in order if this one cannot: docker:box, ssh:gpu2`. Entries apart by commas, saved as the runtime's [`fallback`](/reference/machines#falling-back); its row then ends `· falls back to <entries>`. |
-| `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>, slurm:<name>; blank for self where the CLI is there, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
+| `harness runs on` | `where an agent's harness runs, and nowhere else: env (the CLI on this runtime's machine), local (here), or ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>, slurm:<name>; blank for env`. The runtime's [`harness`](/reference/remote-execution#harness-setting), one value. |
 
 Button: **Done**, `adds ssh/<name>, and checks its resources` / `updates …`.
 
 Refusals: `an ssh host named <name> already exists; edit it from its row, or choose a
 different name`, `port: '<x>' must be a number`, `options: '<x>' is not KEYWORD=VALUE`, and a
-[fallback or affinity refused](/reference/machines#validation).
+[fallback or harness refused](/reference/machines#validation).
 
 #### docker host form {#docker-form}
 
@@ -1755,7 +1757,7 @@ not respond: …`), then **Done** (`adds docker/<name> and detects host resource
 Refusals: `a docker host named <name> already exists; …`, `memory: '<x>' must be a number and
 unit, such as 64G or 512M`, `cpus: '<x>' is not a number`, `max containers: '<x>' must be a
 number`, `run args: …`, `tls: home directory does not exist for '<x>'`, and an
-[affinity refused](/reference/machines#validation).
+[harness refused](/reference/machines#validation).
 
 #### docker swarm form {#swarm-form}
 
@@ -2094,7 +2096,7 @@ run: `This environment is not in the epic.`
 | `image` | the image the flow declares for the role |
 | `grants` | the role's environment capabilities (class names without `EnvMixin`), or `nothing beyond running in it` |
 | `needs` | `<n> CPUs · <x> GiB memory · <n> GPU(s) · <x> GiB per GPU` (declared parts only) |
-| `harness` | `<placement>: <where>`, the placement being each session's [`opened.harness`](/reference/daemon#history-records). `<where>`: `local` (with an anchored environment) `on this machine; what it runs lands here`; `local` (no anchor) `on this machine, in this workdir`; `self` `on this environment's machine, with the CLI installed there`; `<backend>:<name>` `on a runtime of its own, reaching this environment through the anchor`. Where its sessions went different ways: `<placement> for <key>, <key> · <placement> for <key>`. |
+| `harness` | `<setting>: <where>`, the setting being each session's [`opened.harness`](/reference/daemon#history-records). `<where>`: `local` (with an anchored environment) `on this machine; what it runs lands here`; `local` (no anchor) `on this machine, in this workdir`; `env` (also `self`, which an earlier humanize wrote) `on this environment's machine, with the CLI installed there`; `<backend>:<name>` `on a runtime of its own, reaching this environment through the anchor`. Where its sessions went different ways: `<setting> for <key>, <key> · <setting> for <key>`. |
 | `status` | `<w> of <n> session(s) working` |
 | `Sessions` | `●\|○ <role> · session <n> · <spec>` (or the bare key before its first turn); `enter` or a click reads it and leaves the monitor. |
 
