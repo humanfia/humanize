@@ -405,7 +405,10 @@ class HarnessDriver:
           UnsupportedOperation: If the harness cannot fork, or not into `placement`; or
             `carry_on` was kept by another harness, or the CLI that would carry it on runs on
             another machine -- or, forking only in place, here in a mirror of that machine's
-            work apart from it.
+            work apart from it; or the CLI runs on another machine than its work, and the
+            work's project configuration would have it start programs there (hooks, MCP
+            servers and the like).
+          HarnessDropped: If the work's machine cannot be reached to read that configuration.
           HarnessNotInstalled: If the CLI is not installed on the machine its harness runs
             on: this one, or the environment's where its affinity has nowhere else.
           HarnessUnrecoverable: If the CLI cannot be configured as the session asks, or the
@@ -921,12 +924,15 @@ class HarnessDriver:
           HarnessUnrecoverable: If the agent cannot be built as configured.
           HarnessSandboxed: If its fence can be held neither by the CLI nor here.
           UnsupportedOperation: If the CLI will not fork into `cwd`, or will not carry the
-            kept conversation on in a mirror of another machine's work apart from it.
+            kept conversation on in a mirror of another machine's work apart from it; or it
+            runs on another machine than its work, whose project would have it start programs.
+          HarnessDropped: If the work's machine cannot be reached to read that project.
           SessionError: If the session to fork cannot be carried on from, or the kept
             conversation is not where it says.
         """
         from hmz.coganchor.agents.skills import Loaded
 
+        self.crossed(config.machine, cwd)
         agent = self._made_as(config)
         agent.loads(Loaded(name=one.name, at=one.at) for one in skills)
         for listener in self._listeners:
@@ -951,6 +957,31 @@ class HarnessDriver:
         except (RuntimeError, ValueError, OSError) as refused:
             raise SessionError(f"the session cannot be forked: {refused}") from refused
         return agent, agent.new(cwd)
+
+    def crossed(self, machine: MachineConfig | None, cwd: str | None) -> None:
+        """Refuses a CLI run apart from its work where the work's project would start programs.
+
+        Its hooks, the MCP servers it spawns and the like run where the CLI does, which -- in a
+        mirror here, or under a harness on a third machine -- is not the work's machine: see
+        :mod:`hmz.coganchor.crossing`. Work here, and a CLI native to the work's machine, run
+        them where the project is, and are not asked.
+
+        Raises:
+          UnsupportedOperation: If the work's project would.
+          HarnessDropped: If the work's machine cannot be reached to read it.
+          HarnessUnrecoverable: If what reaches it cannot be read.
+        """
+        from hmz.coganchor import crossing
+        from hmz.coganchor.machines import AnchoredConfig
+
+        if not isinstance(machine, AnchoredConfig) or self._profile is None:
+            return
+        try:
+            crossing.refuse(machine.anchor, self._profile.launchers, cwd, self._named())
+        except (NotImplementedError, OSError, ValueError) as refused:
+            raise cast(
+                "HarnessError", harnessing.harness_error(refused, self._named())
+            ) from refused
 
     def forget(self, session: HarnessSession) -> None:
         """Drops a session that has closed from those the driver closes."""
@@ -1446,6 +1477,11 @@ class HarnessSession:
             and GoalCommandAgentMixin in self._driver.capabilities
         )
         body = request.prompt.removeprefix(_GOAL) if goal else request.prompt
+        # Asked again before every turn and not only as the session opened: the CLI reads its
+        # project's settings as each turn starts it, and a turn before may have written some.
+        await asyncio.to_thread(
+            self._driver.crossed, self._agent.config.machine, self._session.cwd
+        )
         self._begin(sink, limits)
         try:
             if not self._started:

@@ -115,7 +115,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 | Stopping | None: `/stop` is refused, and [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) starts another chat and leaves this one going. |
 | Leaving | [`/exit`](#leaving-and-letting-go) and `ctrl+q` ask nothing. |
 | Beside it | Each chat runs on a host of its own, its own epic, beside every other chat and the flow of this directory, which may be started or `/resume`d while chats go. A chat nobody reads for **60 s** between turns folds away. |
-| `/epics` | No `Exomyth` row for a chat's epic; `continue` in place of `resume run`: one still going is read where it is, one folded away is carried on, in the same epic, by the next line you say. |
+| `/epics` | No `Exomyth` row for a chat's epic; `continue` in place of `resume epic`: one still going is read where it is, one folded away is carried on, in the same epic, by the next line you say. |
 
 ### Turn lines {#turn-lines}
 
@@ -145,7 +145,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 
 | Part | Text | Condition |
 | --- | --- | --- |
-| btw | `btw · <target>` or `btw · btw agent`, cyan | [btw mode](#btw) on |
+| btw | `btw · <target>`, `btw · <spec>` (the epic's own btw agent) or `btw · btw agent`, cyan | [btw mode](#btw) on |
 | afk | `afk` | away for every role; |
 | | `afk <role>, <role>` | away for some roles; yellow |
 | details | `details`, muted | details on |
@@ -488,10 +488,11 @@ where it is one, else on the view being read:
 
 | Aspect | Rule |
 | --- | --- |
-| Enter | `/btw [question]`. Prints `btw · <target\|btw agent> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
+| Enter | `/btw [question]`. Prints `btw · <target\|spec\|btw agent> each line is a question; ctrl+g agent; /btw or esc to exit`. The status line starts `btw · …`. |
 | In btw mode | Every line not starting with `/` is one more turn of the same side conversation. |
 | Leave | `/btw` alone or `esc`: `btw: exited`; a run starting: `btw: exited -- a new flow started`. Side sessions are closed (`unaside`). |
-| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the one set on [General](#general-page), else the flow's first declared role with a session, else its configured agent. |
+| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the epic's own (<kbd>ctrl+g</kbd>), else the one set on [General](#general-page), else the flow's first declared role with a session, else its configured agent. |
+| Agent | <kbd>ctrl+g</kbd> in btw mode, over the log or the monitor: a **btw agent** dropdown of `default` (beside it the `btw` setting, else `the flow's first agent`), the epic's own where it has one (`chosen`), and `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up btw agent`, opened on the btw agent now). A pick other than the one in force appends `{"event": "btw", "agent": "<cli[@account]/model:effort>"}` (`""` for `default`) to the epic's `epic.jsonl` and prints `btw agent: <spec\|default>`; the btw agent's side conversation is closed as the next question to it is asked, which opens it as the new one. Every session's side conversation stays. The epic is the one going here, or the last; with none: `hmz: btw: no epic to keep an agent with`. |
 | Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that role. Ended sessions included. |
 | btw agent | Seeded with a snapshot (the last 32 of up to 80 observations, 600 characters each) and the list of sessions. It may reply with lines `@ask <agent>/<n>: <question>` (regex `^\s*@ask\s+(\S+?)\s*:\s*(\S.*)$`); each is put to that session's side copy (`btw · asking <key>: <question>`), and answers return as `<answer from="<key>">…</answer>`. At most 4 asks per question; failures return as `(session <k> not found)`, `(could not ask: <e>)`, `(no answer)`. |
 | Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. |
@@ -532,6 +533,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | editor | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | | Inserts a newline. |
 | editor | <kbd>↑</kbd> / <kbd>↓</kbd> | cursor on the first / last row | Older / newer [history](#history) entry. Otherwise moves the cursor. |
 | editor | <kbd>esc</kbd> | btw on, offers closed | Leaves btw mode. |
+| app | <kbd>ctrl+g</kbd> | btw on, over the log or the monitor | Picks the epic's [btw agent](#btw). |
 | editor | <kbd>space</kbd> | monitor up, editor empty | Passed to the monitor. |
 | offers | <kbd>↑</kbd> <kbd>↓</kbd> | offers open | Moves the highlight. |
 | offers | <kbd>tab</kbd> | offers open | Takes the highlight. |
@@ -1142,16 +1144,16 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | Title | `<when> · <flow>` |
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).`, then a line per target it was backed up to: `<target>: backed up <when>` or `<target>: failed <when>: <error>` |
 | Keys | `enter choose   esc back` |
-| `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
+| `resume epic` | `resume the flow from this epic`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `graph` | `its agents, called flows and sessions, read back`. Opens its [graph](#an-epic-s-graph). |
 | `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
-| `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+| `export epic` | `the entire epic as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 | `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for a [chat](#chat). |
 | `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
 
-A [chat](#chat)'s epic offers `continue` (`carry the conversation on`) in place of `resume run`: the one a host still holds is read where it is, and one folded away is set up and carried on, in the same epic, by the next line said; one of another directory, or that cannot be, is refused `this chat cannot be continued here`.
+A [chat](#chat)'s epic offers `continue` (`carry the conversation on`) in place of `resume epic`: the one a host still holds is read where it is, and one folded away is set up and carried on, in the same epic, by the next line said; one of another directory, or that cannot be, is refused `this chat cannot be continued here`.
 
-Rows in order: `resume run` or `continue`, `graph`, `export run`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
+Rows in order: `resume epic` or `continue`, `graph`, `export epic`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
 
 ### An epic's graph {#an-epic-s-graph}
 

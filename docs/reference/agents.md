@@ -736,6 +736,30 @@ first turn:
 /tmp/elsewhere is not inside /srv/project, which is the workspace this agent's turns land in
 ```
 
+### A project's own programs {#a-projects-own-programs}
+
+`Profile.launchers` lists the files in a project that make a CLI start a program. Each entry
+is a path relative to the session's directory, plus dotted key paths into that file (`*` is
+any one key or item). A path ending in `/` is a directory of plugins. An anchored session whose
+CLI runs on another machine than its work is refused while any of these is set
+([Remote execution](/reference/remote-execution#a-projects-own-programs)).
+
+| Backend | Files and keys |
+| --- | --- |
+| `claude` | `.claude/settings.json`, `.claude/settings.local.json`: `hooks.*.*.hooks.*.command`, `statusLine`, `subagentStatusLine`, `fileSuggestion`, `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh`, `otelHeadersHelper`, `enabledPlugins.*`, `extraKnownMarketplaces`; `.mcp.json`: `mcpServers.*.command`, `mcpServers.*.headersHelper` |
+| `agy` | `.agents/mcp_config.json`: `mcpServers.*.command`; `.agents/hooks.json`: `*.*.*.hooks.*.command`; `.agents/plugins/` |
+| `codex` | `.codex/config.toml`: `mcp_servers.*.command`, `mcp_servers.*.http_headers_helper`, `hooks`; `.codex/hooks.json`: `hooks.*.*.hooks.*.command` |
+| `cursor-agent` | `.cursor/hooks.json`: `hooks.*.*.command`; `.cursor/mcp.json`: `mcpServers.*.command` |
+| `grok` | `.grok/config.toml`: `mcp_servers.*.command`, `plugins`; `.grok/hooks/`; `.claude/settings.json`, `.claude/settings.local.json`: `hooks.*.*.hooks.*.command` |
+| `kimi` | `.kimi-code/mcp.json`: `mcpServers.*.command` |
+| `pi` | `.pi/settings.json`: `extensions`, `packages`, `npmCommand`; `.pi/mcp.json`: `mcpServers.*.command`; `.pi/extensions/` |
+| `omp` | `.omp/settings.json`, `.omp/config.yml`: `extensions`; `.omp/mcp.json`, `.omp/.mcp.json`, `mcp.json`, `.mcp.json`: `mcpServers.*.command`; `.omp/extensions/`; `hooks/` and `tools/` under `.omp`, `.claude`, `.codex`, `.gemini` |
+| `qwen` | `.qwen/settings.json`: `hooks.*.*.hooks.*.command`, `mcpServers.*.command`, `tools.discoveryCommand`, `tools.callCommand`, `ui.statusLine.command` |
+| `opencode` | `opencode.json(c)`, `.opencode/opencode.json(c)`: `mcp.*.command`, `plugin`, `formatter.*.command`, `lsp.*.command`; `.opencode/plugins/`, `.opencode/plugin/` |
+| `mimo` | the same as `opencode`, named `mimocode` |
+| `mcode` | `.mcp.json`: `mcpServers.*.command`, `mcpServers.*.headersHelper` |
+| `dsh`, `litellm` | none |
+
 ### Async and batches {#awaiting-a-turn}
 
 `aturn`, `apursue` and `abatch` are awaitable twins with the same arguments; each turn runs on
@@ -2055,4 +2079,4 @@ class Unhooked(ValueError): ...
 
 `CommandSessionBase` (one command per turn) and `StreamSessionBase` (one long-lived process fed
 a line at a time) are the two shapes a driver subclasses; the contract is
-[`specs/coganchor/agents.md`](https://github.com/humanfia/humanize/blob/main/specs/coganchor/agents.md).
+[`specs/features/agents.md`](https://github.com/humanfia/humanize/blob/main/specs/features/agents.md).

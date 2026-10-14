@@ -15,14 +15,14 @@ end of this page you will have found a run, exported its trace and read it.
 2. Move to the run with <kbd>↑</kbd> <kbd>↓</kbd> and press <kbd>enter</kbd>. In a long list,
    press <kbd>/</kbd> first (or the **Search…** button) and type part of the run's flow, task
    or name to narrow it.
-3. Choose **export run**. humanize gathers the trace and packs the run into an archive, then
+3. Choose **export epic**. humanize gathers the trace and packs the run into an archive, then
    says what it wrote under the list.
 4. Open [ui.perfetto.dev](https://ui.perfetto.dev) and drop in `traces/export.trace.json` from
    the archive. Nothing is uploaded: Perfetto reads the file in your browser.
 
 <HmzCast name="epics" alt="/epics listing two runs, going into the newest, and exporting it: the archive's path, its size, and 1 session, 10 slices, 3 programs" />
 
-To read a run without leaving the terminal, choose **Exomyth** instead of **export run**: every
+To read a run without leaving the terminal, choose **Exomyth** instead of **export epic**: every
 session is a row of bars under the session that started it. <kbd>w</kbd> <kbd>s</kbd> zoom,
 <kbd>a</kbd> <kbd>d</kbd> pan, <kbd>←</kbd> <kbd>→</kbd> step from span to span, <kbd>enter</kbd>
 shows the one under the cursor whole, <kbd>p</kbd> its process, and <kbd>v</kbd> picks a stretch
@@ -84,7 +84,7 @@ session of Claude Code. Its `/epics` list:
   enter open   / search   tab actions   esc close
 ```
 
-<kbd>↓</kbd> to the second run, <kbd>enter</kbd>, **export run**, and say where it goes
+<kbd>↓</kbd> to the second run, <kbd>enter</kbd>, **export epic**, and say where it goes
 ([Exporting a run](/user/export)):
 
 ```text

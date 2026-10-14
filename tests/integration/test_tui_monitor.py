@@ -8,10 +8,14 @@ from typing import TYPE_CHECKING
 import pytest
 from textual.app import App
 
+from hmz.runtime.epic import BTW, epics, note, read
 from hmz.runtime.watching.monitor import Monitor
 from hmz.tui import Humanize
+from hmz.tui.dropdown import Dropdown
 from hmz.tui.monitoring import Details, Halts, Monitoring
+from hmz.tui.pick import Agent, Confirms
 from tests.integration.doubles_tui import (
+    MODEL,
     RUNS,
     SIZE,
     TALKS,
@@ -20,10 +24,12 @@ from tests.integration.doubles_tui import (
     onto,
     opened,
     own_flow,
+    picks,
     screen,
     set_up_own_flow,
     shows,
     stand_in,
+    started,
     typed,
     until,
 )
@@ -151,6 +157,66 @@ async def test_btw_with_nothing_running_still_answers(workspace: Path) -> None:
         await typed(pilot, "/btw hey")
 
         await shows(pilot, "btw · btw agent", "heard hey")
+
+
+async def test_ctrl_g_in_btw_picks_the_btw_agent_and_keeps_it_with_the_epic(
+    workspace: Path,
+) -> None:
+    own_flow(workspace)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await set_up_own_flow(pilot)
+        await typed(pilot, "wait a moment")
+        await shows(pilot, "still on it")
+        await pilot.press("left")
+        await on(pilot, Monitoring)
+        await typed(pilot, "/btw")
+        await shows(pilot, "btw · btw agent", "ctrl+g agent")
+
+        await pilot.press("ctrl+g")
+        await on(pilot, Dropdown)
+        await pilot.press("down", "enter")  # another…
+        await on(pilot, Agent)
+        await picks(pilot, "effort", "low")
+        await pilot.press("escape")
+        await on(pilot, Confirms)
+        await pilot.press("enter")  # save
+        await on(pilot, Monitoring)
+        await shows(pilot, f"btw agent: claude/{MODEL}:low")
+        await typed(pilot, "what is it doing")
+        # The btw agent is opened as the one picked: a read-only copy, at its effort.
+        await until(pilot, lambda: _asides(workspace) != [], "the btw agent opening")
+
+    (aside,) = _asides(workspace)
+    assert aside[aside.index("--effort") + 1] == "low"
+    (epic,) = epics(workspace)
+    assert (ran := read(epic)) is not None
+    assert ran.btw == f"claude/{MODEL}:low"
+
+
+async def test_ctrl_g_in_btw_puts_the_epic_back_on_the_default_agent(
+    workspace: Path,
+) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await working(pilot)
+        (epic,) = epics(workspace)
+        note(epic, BTW, agent=f"claude/{MODEL}:low")
+        await typed(pilot, "/btw")
+        await shows(pilot, "ctrl+g agent")
+
+        await pilot.press("ctrl+g")
+        await on(pilot, Dropdown)
+        await pilot.press("up", "enter")  # default, above the one chosen
+        await shows(pilot, "btw agent: default")
+
+    assert (ran := read(epic)) is not None
+    assert ran.btw == ""
+
+
+def _asides(workspace: Path) -> list[list[str]]:
+    """The stand-ins started read-only for a side question, oldest first."""
+    return [one for one in started(workspace) if "plan" in one]
 
 
 async def test_the_epic_opens_from_the_monitor_and_is_stopped_there(

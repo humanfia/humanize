@@ -25,7 +25,7 @@ provider's directory. Two agents of one CLI can therefore run as two accounts at
 | a bad name | `'a/b' is not a valid account name: letters, digits, dot, dash and underscore, starting with a letter or a digit` |
 | an agent whose `provider` names no account (raised the first time a turn needs it; a run given one in an `-a` spec is [refused](/reference/cli#what-is-refused-before-anything-runs) before it starts instead) | `<agent id>: no <cli> provider called '<name>'` |
 
-<small>Defined in [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py), [`specs/coganchor/providers.md`](https://github.com/humanfia/humanize/blob/main/specs/coganchor/providers.md).</small>
+<small>Defined in [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py), [`specs/features/accounts.md`](https://github.com/humanfia/humanize/blob/main/specs/features/accounts.md).</small>
 
 ## Storage
 

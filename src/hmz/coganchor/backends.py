@@ -46,6 +46,7 @@ __all__ = [
     "Asked",
     "Bundled",
     "Hooked",
+    "Launcher",
     "Model",
     "Profile",
     "Sign",
@@ -391,6 +392,29 @@ class Hooked:
 
     seam: Literal["flag", "env", "config"]
     name: str
+
+
+@dataclass(frozen=True, slots=True)
+class Launcher:
+    """One file of a project's own that can make its CLI start a program, and where in it.
+
+    A hook, an MCP server it spawns, a helper it asks for a key, a plugin it loads: each is a
+    program the CLI starts on the machine the CLI runs on, because a project said so. Which is
+    the work's machine wherever the CLI is too, and some other one wherever it is not -- see
+    :mod:`hmz.coganchor.crossing`, which reads these.
+
+    Attributes:
+      path: The file, relative to a directory the CLI works in, in `/`-separated parts; or
+        a directory, ending in `/`, of programs the CLI loads, which counts where it holds
+        anything.
+      keys: Where in it, as dotted key paths -- `hooks`, `mcpServers.*.command` -- `*` being
+        any one key of a table or item of a list. One that is there and holds anything says
+        the file starts something. Empty for a file whose being there at all says so, and
+        for a directory.
+    """
+
+    path: str
+    keys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -746,6 +770,10 @@ class Profile:
         and a turn under one of them is this CLI speaking its own protocol to a gateway on
         loopback that speaks the account's onward. Empty for a backend nobody has said which
         of its ways that is, which is offered none of them.
+      launchers: The files of a project's own this CLI reads that can make it start a
+        program -- its hooks, the MCP servers it spawns, the helpers it asks -- searched for
+        in the directory it works in and every one above it up to the workspace. Empty for a
+        CLI that reads none, or one nobody has written down.
     """
 
     name: str
@@ -787,6 +815,7 @@ class Profile:
     installs: str = ""
     hosts: tuple[str, ...] = ()
     routes: str = ""
+    launchers: tuple[Launcher, ...] = ()
 
     def takes(self, effort: str) -> bool:
         """Whether this backend has a word for a rung by that name.
@@ -1067,6 +1096,58 @@ LITELLM_SDK = "litellm>=1.105"
 
 #: Every backend humanize drives, as each of them reported itself. Codex says which efforts
 #: each of its models takes and they differ, so they are written down as it gave them.
+#: What a project's own Claude Code settings start, in either of its two files: its hooks'
+#: commands, the lines drawn under the prompt, the files it suggests, the helpers it asks for
+#: a key, a cloud's credentials or telemetry's headers, and the plugins it installs and loads
+#: (each of which may bring hooks and MCP servers of its own). Read off the settings
+#: reference; `env` is not among them, since what it sets reaches programs that run on the
+#: work's machine or are named here already.
+_CLAUDE_KEYS = (
+    "hooks.*.*.hooks.*.command",
+    "statusLine",
+    "subagentStatusLine",
+    "fileSuggestion",
+    "apiKeyHelper",
+    "awsAuthRefresh",
+    "awsCredentialExport",
+    "gcpAuthRefresh",
+    "otelHeadersHelper",
+    "enabledPlugins.*",
+    "extraKnownMarketplaces",
+)
+
+#: The MCP servers a project's `.mcp.json` has a CLI spawn over stdio, and the command one
+#: over HTTP asks for its headers. Read by more than one CLI, Claude's spelling being theirs.
+_MCP_JSON = Launcher(
+    ".mcp.json", ("mcpServers.*.command", "mcpServers.*.headersHelper")
+)
+
+_CLAUDE_LAUNCHERS = (
+    Launcher(".claude/settings.json", _CLAUDE_KEYS),
+    Launcher(".claude/settings.local.json", _CLAUDE_KEYS),
+    _MCP_JSON,
+)
+
+#: What an opencode project starts, under either of its names for its config: the MCP
+#: servers it spawns, the npm plugins it installs and loads, its formatters and its language
+#: servers. Its own plugin directories are loaded too, in process. mimocode is a fork of it,
+#: and reads the same under its own name.
+_OPENCODE_KEYS = ("mcp.*.command", "plugin", "formatter.*.command", "lsp.*.command")
+
+
+def _opencoded(name: str) -> tuple[Launcher, ...]:
+    """What an opencode, or a fork of it calling itself `name`, reads that starts a program."""
+    return (
+        *(
+            Launcher(f"{where}{name}.{kind}", _OPENCODE_KEYS)
+            for where in ("", f".{name}/")
+            for kind in ("json", "jsonc")
+        ),
+        Launcher(f".{name}/plugins/"),
+        Launcher(f".{name}/plugin/"),
+    )
+
+
 PROFILES = (
     Profile(
         name="claude",
@@ -1140,6 +1221,7 @@ PROFILES = (
         # Claude names its keychain item, and finds `.credentials.json`, by its home; this
         # keeps both where the user's own would be.
         secures="CLAUDE_SECURESTORAGE_CONFIG_DIR",
+        launchers=_CLAUDE_LAUNCHERS,
         # Three places, and the last of them is the one people forget: the session lives in
         # `.credentials.json`, the account it belongs to -- with the API key a run was
         # approved for beside it -- lives in `.claude.json`, which sits outside the home
@@ -1463,6 +1545,13 @@ PROFILES = (
     ),
     Profile(
         name="agy",
+        # Its MCP servers, its hooks -- a table per hook name, of events -- and the plugins
+        # it loads out of the workspace's `.agents`, each of which may bring both.
+        launchers=(
+            Launcher(".agents/mcp_config.json", ("mcpServers.*.command",)),
+            Launcher(".agents/hooks.json", ("*.*.*.hooks.*.command",)),
+            Launcher(".agents/plugins/"),
+        ),
         # Its log is every request going to `daily-cloudcode-pa`, the binary names the plain
         # one beside it, the sign-in is refreshed at `oauth2` and read back at `www`'s
         # userinfo, and the key way talks to the Gemini API. Its eligibility check fetches the
@@ -1663,6 +1752,16 @@ PROFILES = (
     ),
     Profile(
         name="codex",
+        # What a trusted project's `.codex` has it start: its MCP servers, the command one
+        # over HTTP asks for its headers, and its hooks, in its config or a file of their own.
+        # The rest that would -- `notify`, a provider's auth command -- it ignores there.
+        launchers=(
+            Launcher(
+                ".codex/config.toml",
+                ("mcp_servers.*.command", "mcp_servers.*.http_headers_helper", "hooks"),
+            ),
+            Launcher(".codex/hooks.json", ("hooks.*.*.hooks.*.command",)),
+        ),
         # A ChatGPT sign-in's turns go to `chatgpt.com/backend-api/codex` and are refreshed
         # at `auth.openai.com/oauth/token`; a key's go to the API.
         hosts=("chatgpt.com", "auth.openai.com", "api.openai.com"),
@@ -2091,6 +2190,14 @@ PROFILES = (
     ),
     Profile(
         name="grok",
+        # Its project config's MCP servers and plugins, its hook files, and the hooks of a
+        # project's Claude settings, which it honours too.
+        launchers=(
+            Launcher(".grok/config.toml", ("mcp_servers.*.command", "plugins")),
+            Launcher(".grok/hooks/"),
+            Launcher(".claude/settings.json", ("hooks.*.*.hooks.*.command",)),
+            Launcher(".claude/settings.local.json", ("hooks.*.*.hooks.*.command",)),
+        ),
         # Its log is two hosts: the OIDC issuer a sign-in is refreshed at, and the chat proxy
         # every turn goes to. The API is the key way's.
         hosts=("cli-chat-proxy.grok.com", "auth.x.ai", "api.x.ai"),
@@ -2297,6 +2404,8 @@ PROFILES = (
     ),
     Profile(
         name="kimi",
+        # Its project's MCP servers; its hooks and its status line are its user's alone.
+        launchers=(Launcher(".kimi-code/mcp.json", ("mcpServers.*.command",)),),
         # Two regions, each an OAuth host and a coding API -- `.com` mainland, `.ai` global --
         # and the Moonshot platform's own two for a key.
         hosts=(
@@ -2507,6 +2616,13 @@ PROFILES = (
     ),
     Profile(
         name="pi",
+        # The extensions and packages a project's settings load into it, the npm it installs
+        # them with, its MCP servers, and the extensions it loads out of `.pi` itself.
+        launchers=(
+            Launcher(".pi/settings.json", ("extensions", "packages", "npmCommand")),
+            Launcher(".pi/mcp.json", ("mcpServers.*.command",)),
+            Launcher(".pi/extensions/"),
+        ),
         # The providers its sign-in reaches are these: Anthropic, ChatGPT, GitHub Copilot
         # (whose token is traded for at `api.github.com`), xAI, Kimi and OpenRouter -- each
         # one's API and where it is refreshed. Signing in itself, at `github.com` and the
@@ -2837,6 +2953,22 @@ PROFILES = (
     ),
     Profile(
         name="omp",
+        # The extensions its settings name, the ones it loads -- with hooks and tools -- out of
+        # `.omp` and the other CLIs' directories it reads, and the MCP servers it spawns.
+        launchers=(
+            Launcher(".omp/settings.json", ("extensions",)),
+            Launcher(".omp/config.yml", ("extensions",)),
+            Launcher(".omp/mcp.json", ("mcpServers.*.command",)),
+            Launcher(".omp/.mcp.json", ("mcpServers.*.command",)),
+            Launcher("mcp.json", ("mcpServers.*.command",)),
+            _MCP_JSON,
+            *(
+                Launcher(f".{under}/{kind}/")
+                for under in ("omp", "claude", "codex", "gemini")
+                for kind in ("hooks", "tools")
+            ),
+            Launcher(".omp/extensions/"),
+        ),
         # pi's hosts, being pi's providers: omp signs in to the same ones and takes the same
         # vendors' keys, and a provider of its own declared in `models.yml` is let through by
         # its driver, as pi's `models.json` is by pi's.
@@ -3068,6 +3200,20 @@ PROFILES = (
     ),
     Profile(
         name="qwen",
+        # Its hooks, MCP servers, the commands that discover and call a project's own tools,
+        # and its status line: read unless the folder is untrusted, which by default none is.
+        launchers=(
+            Launcher(
+                ".qwen/settings.json",
+                (
+                    "hooks.*.*.hooks.*.command",
+                    "mcpServers.*.command",
+                    "tools.discoveryCommand",
+                    "tools.callCommand",
+                    "ui.statusLine.command",
+                ),
+            ),
+        ),
         # Where a turn goes when no variable says where: the DashScope API in either region,
         # and the Coding Plan's and Token Plan's own hosts in either, which is where the
         # machine's own account, configured through `/auth`, sends its turns from a settings
@@ -3304,6 +3450,7 @@ PROFILES = (
     ),
     Profile(
         name="opencode",
+        launchers=_opencoded("opencode"),
         # Zen, and the two subscriptions it signs in to itself: ChatGPT's and Copilot's. The
         # model catalogue it fetches falls back to a snapshot it ships, so it is not needed.
         # And the APIs of the vendors whose keys it is signed in with below, each where that
@@ -3601,6 +3748,7 @@ PROFILES = (
     ),
     Profile(
         name="mimo",
+        launchers=_opencoded("mimocode"),
         # MiMo's API, which serves both the free default and a key, and its token plan's
         # three regions -- and the APIs of the vendors whose keys are ways in of their own
         # below, each the one host that vendor's provider in its catalogue is at, since an
@@ -3862,6 +4010,11 @@ PROFILES = (
         # this name, because a backend here is called what it is installed as, so that `-a`
         # takes the word somebody would type at a shell to run the thing itself.
         name="cursor-agent",
+        # Its hooks and its MCP servers, which it shares with the editor.
+        launchers=(
+            Launcher(".cursor/hooks.json", ("hooks.*.*.command",)),
+            Launcher(".cursor/mcp.json", ("mcpServers.*.command",)),
+        ),
         # `api2.cursor.sh` signs in and configures; the host a turn then goes to is one the
         # server names at run time, under `cursor.sh` rather than written in the bundle.
         hosts=("*.cursor.sh",),
@@ -3947,6 +4100,8 @@ PROFILES = (
         # reason `cursor-agent` is what that one takes: the word somebody would type at a
         # shell to run the thing itself.
         name="mcode",
+        # The MCP servers of a workspace's `.mcp.json`, connected to with nobody asked.
+        launchers=(_MCP_JSON,),
         # Its agent service in each of the three places it is served from, which is where a
         # sign-in is refreshed, where the managed models answer and where its own permission
         # check and web search go; its API in both regions, where a key's turns go; and the

@@ -343,7 +343,7 @@ H/epics/<ws>/<stamp>-<hex6>/
     profile.jsonl                   programs, for a run whose environment was profiled
     flow-profile.jsonl              the flow's own Python, for a run whose flow was profiled
     sessions/<cli>/…                the run's sessions, laid out as the CLI's home
-    traces/export.trace.json        written by "export run" on /epics, replaced each time
+    traces/export.trace.json        written by "export epic" on /epics, replaced each time
     traces/<%Y%m%dT%H%M%SZ>.trace.json   written by Epics.traced, one per call
 ```
 
@@ -431,7 +431,7 @@ into its own epic and records `picked_up`.
 
 ## Export {#export}
 
-*export run* on `/epics`, `Epics.bundled(epic, output=…)`, or `hmz.runtime.exporting.bundle` writes one
+*export epic* on `/epics`, `Epics.bundled(epic, output=…)`, or `hmz.runtime.exporting.bundle` writes one
 gzip-compressed tar archive of a run, under the extension `.hmzepic`:
 
 | Property | Value |
@@ -441,7 +441,7 @@ gzip-compressed tar archive of a run, under the extension `.hmzepic`:
 | Write | to `.<name>.<random>.new` (mode `0600`, kept), then renamed over; exporting a run again replaces the archive |
 | Refused | `ValueError: <dir> is not a run` for a directory holding no epic |
 
-*export run* first writes `traces/export.trace.json` (the run's trace, replacing any earlier
+*export epic* first writes `traces/export.trace.json` (the run's trace, replacing any earlier
 one), then the archive, and reports `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`.
 
 **Members**, under `<epic>/`, each scrubbed (below):

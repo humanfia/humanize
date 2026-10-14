@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 import pydantic
 import pytest
 
-from hmz.coganchor import AnchorConfig, backends
+from hmz.coganchor import AnchorConfig, backends, crossing
 from hmz.coganchor import agents as coganchor_agents
 from hmz.coganchor.agents import Question
 from hmz.coganchor.agents import base as coganchor_base
@@ -221,6 +221,7 @@ class Profile:
     name: str = "claude"
     searches: bool = True
     forks: bool = True
+    launchers: tuple[Any, ...] = ()
 
 
 def _cli(session: HarnessSession) -> CLI:
@@ -467,6 +468,116 @@ async def _carrying(
     return await driver.open(
         placement, permission=Permission(), skills=(), hooks=HookTable(), carry_on=kept
     )
+
+
+# -- a project that would start programs on the CLI's machine ---------------------------
+
+
+#: What claude reads that starts a program, as its profile would say.
+MCP = (backends.Launcher(".mcp.json", ("mcpServers.*.command",)),)
+
+
+@pytest.fixture
+def launching(
+    coganchor: type[CLI], monkeypatch: pytest.MonkeyPatch
+) -> list[tuple[Any, ...]]:
+    """A project whose `.mcp.json` spawns a server, wherever it is read from."""
+    monkeypatch.setattr(backends, "named", returning(Profile(launchers=MCP)))
+    asked: list[tuple[Any, ...]] = []
+
+    def found(*said: Any) -> list[str]:
+        asked.append(said)
+        return [".mcp.json: mcpServers.*.command"]
+
+    monkeypatch.setattr(crossing, "found", found)
+    return asked
+
+
+@pytest.mark.parametrize(
+    "machine", [SHADOW, IN_PLACE, AFAR], ids=["mirror", "in-place", "afar"]
+)
+async def test_a_cli_apart_from_its_work_is_refused_a_project_that_would_start_programs(
+    launching: list[tuple[Any, ...]], machine: AnchoredConfig
+) -> None:
+    driver = _driven()
+    built = len(CLI.built)
+
+    with pytest.raises(
+        UnsupportedOperation, match=r"\.mcp\.json: mcpServers"
+    ) as refused:
+        await driver.open(
+            _on(machine), permission=Permission(), skills=(), hooks=HookTable()
+        )
+
+    assert "ssh://box" in str(refused.value)
+    assert launching == [(machine.anchor, MCP, "/w/desk")]
+    assert len(CLI.built) == built, "refused before an agent is built"
+
+
+async def test_a_cli_native_to_its_work_is_not_asked_about_its_project(
+    launching: list[tuple[Any, ...]],
+) -> None:
+    session = await _driven().open(
+        _on(NATIVE), permission=Permission(), skills=(), hooks=HookTable()
+    )
+
+    assert _cli(session).config.machine == NATIVE
+    assert launching == []
+
+
+async def test_a_cli_beside_its_work_here_is_not_asked_about_its_project(
+    launching: list[tuple[Any, ...]], tmp_path: Path
+) -> None:
+    await _session(open_agent(_spec()), tmp_path)
+
+    assert launching == []
+
+
+async def test_a_session_moved_apart_from_its_work_is_refused_there_too(
+    launching: list[tuple[Any, ...]], tmp_path: Path
+) -> None:
+    session = await _session(_driven(), tmp_path)
+
+    with pytest.raises(UnsupportedOperation, match="mcpServers"):
+        await session.move(_on(SHADOW))
+
+
+async def test_a_turn_is_refused_once_a_turn_before_has_written_such_a_project(
+    coganchor: type[CLI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The CLI reads its project's settings as each turn starts it."""
+    monkeypatch.setattr(backends, "named", returning(Profile(launchers=MCP)))
+    written: list[str] = []
+
+    def found(*_: Any) -> list[str]:
+        return list(written)
+
+    monkeypatch.setattr(crossing, "found", found)
+    session = await _driven().open(
+        _on(SHADOW), permission=Permission(), skills=(), hooks=HookTable()
+    )
+    await session.turn(TurnRequest("write an .mcp.json"), Sink())
+    written.append(".mcp.json: mcpServers.*.command")
+
+    with pytest.raises(UnsupportedOperation, match="mcpServers"):
+        await session.turn(TurnRequest("go on"), Sink())
+    assert _cli(session).conversations[0].prompts == ["write an .mcp.json"]
+
+
+async def test_a_work_machine_that_cannot_be_read_drops_the_session(
+    coganchor: type[CLI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(backends, "named", returning(Profile(launchers=MCP)))
+
+    def found(*_: Any) -> list[str]:
+        raise ConnectionResetError("the road went quiet")
+
+    monkeypatch.setattr(crossing, "found", found)
+
+    with pytest.raises(HarnessDropped, match="went quiet"):
+        await _driven().open(
+            _on(SHADOW), permission=Permission(), skills=(), hooks=HookTable()
+        )
 
 
 async def test_a_session_keeps_its_conversation_once_its_cli_has_named_it(

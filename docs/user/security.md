@@ -215,6 +215,12 @@ reference](/reference/providers).
 - **`/afk` is about questions, not actions.** It decides whether a flow may ask you something.
   It never makes an agent ask before it acts.
 - **A `dsh` agent works with full access** whatever its flow declares.
+- **A project's hooks run only on the project's own machine.** Project settings such as
+  Claude Code's `hooks` or a `.mcp.json` stdio server start programs where the CLI runs. If
+  a flow's agent runs on a different machine from its environment's work (the supervised or
+  third-machine arrangement), humanize refuses to open the session while the project has
+  any such setting. Run the agent natively on that machine, or remove the setting. See
+  [Remote execution](/reference/remote-execution#a-projects-own-programs).
 
 ## Troubleshooting
 

@@ -70,6 +70,43 @@ this machine            harness machine            target
 
 <small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`AnchorConfig.capabilities`), [`src/hmz/coganchor/places.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/places.py), [`src/hmz/coganchor/elsewhere.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/elsewhere.py).</small>
 
+### A project's own programs {#a-projects-own-programs}
+
+A CLI starts some programs because the project it works in says so: hooks, MCP servers it
+spawns over stdio, helper commands, plugins. It starts them where the CLI runs. A flow session
+runs only where that is the work's own machine:
+
+| Arrangement | CLI and work on one machine | A project that would start programs |
+| --- | --- | --- |
+| No anchor (work here) | yes | allowed |
+| Native | yes | allowed |
+| Afar, beside the work (`harness="same"`) | yes | allowed |
+| Supervised | no | refused |
+| Afar, third machine | no | refused |
+
+In a supervised or third-machine arrangement, humanize reads the files the CLI's
+`Profile.launchers` lists when a session opens, moves or carries on a conversation, and again
+before each turn. It reads them from the target's copy of the workspace, in the session's
+directory and each directory above it up to the workspace. A file counts if a listed key holds
+a value other than `null`, `false` or an empty string, table or list. A file listed with no keys,
+or a listed plugin directory that is not empty, counts by being there. If anything counts, the
+open or the turn fails with `UnsupportedOperation` before the CLI starts. The error names
+every file and key it found:
+
+```text
+claude runs on another machine than its work on ssh://box, and the project's own configuration
+there would have it start programs on claude's machine rather than the work's:
+.claude/settings.json: hooks.*.*.hooks.*.command; .mcp.json: mcpServers.*.command. Run it
+natively on ssh://box, or take those out of the project
+```
+
+A file that cannot be parsed, or that the target will not let be read, counts and is named
+`(unreadable)`. If the target cannot be reached, the open or the turn fails with
+`HarnessDropped`. The per-CLI files and keys are listed under
+[Agents](/reference/agents#a-projects-own-programs).
+
+<small>Defined in [`src/hmz/coganchor/crossing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/crossing.py) and `HarnessDriver.crossed` in [`src/hmz/runtime/flowing/harnesses.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnesses.py).</small>
+
 ## Targets {#targets}
 
 A target spelling names the machine the work lands on. The same grammar names a harness
@@ -451,7 +488,7 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
 - **Forks stay on one machine.** A fork into a session on another machine is refused with
   `UnsupportedOperation: <cli> cannot fork a session onto another machine`.
 
-<small>Defined in [`src/hmz/runtime/flowing/harnesses.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnesses.py) (`HarnessDriver._harnessed`, `_native_on`, `_has_cli`, `_fenceable`), [`src/hmz/runtime/flowing/affinity.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/affinity.py) (`Harbors`), [`src/hmz/runtime/runner.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/runner.py), [`src/hmz/runtime/epic.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/epic.py) (`harnessed`, `harbor`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Where the harness runs).</small>
+<small>Defined in [`src/hmz/runtime/flowing/harnesses.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnesses.py) (`HarnessDriver._harnessed`, `_native_on`, `_has_cli`, `_fenceable`), [`src/hmz/runtime/flowing/affinity.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/affinity.py) (`Harbors`), [`src/hmz/runtime/runner.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/runner.py), [`src/hmz/runtime/epic.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/epic.py) (`harnessed`, `harbor`), [`specs/features/placements.md`](https://github.com/humanfia/humanize/blob/main/specs/features/placements.md) §4.</small>
 
 ## Supervised arrangement {#supervised-the-default}
 
@@ -772,7 +809,7 @@ An export bounds which paths a request may name; it does not confine what the co
 runs can do. Listen on a non-loopback address only with a secret `--token`.
 :::
 
-<small>Defined in [`src/hmz/cli/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/cli/anchor.py), [`src/hmz/coganchor/serve/`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/serve), [`specs/coganchor/serve.md`](https://github.com/humanfia/humanize/blob/main/specs/coganchor/serve.md).</small>
+<small>Defined in [`src/hmz/cli/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/cli/anchor.py), [`src/hmz/coganchor/serve/`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/serve), [`specs/features/placements.md`](https://github.com/humanfia/humanize/blob/main/specs/features/placements.md) §10.</small>
 
 ## Where the account lives {#where-the-account-lives}
 
@@ -863,6 +900,7 @@ from hmz.coganchor.anchor import NotInstalled
 | A Slurm job's listening serving half (`via: tcp`) | token-authenticated, the token set in its batch script, never on a command line on the node; the traffic is not encrypted, so it stays within the cluster's network |
 | A broker port | open on every interface for the life of the process that booked a third-machine harness; pairing requires a 128-bit ticket known to exactly two machines |
 | A mirror overwrites a directory it did not create | never without `force` |
+| A flow session's CLI starts a program its project names on a machine other than the work's | never: refused when the session opens ([a project's own programs](#a-projects-own-programs)) |
 
 ## Environment variables
 
