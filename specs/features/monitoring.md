@@ -260,8 +260,8 @@ identifier.
 **5.2.2** hmz MUST record a flow profile of an epic only where the epic was started with
 `profile_flow` on (`--profile-flow` on `hmz exec`).
 
-**5.2.3** Each profiling switch MUST be an option of one epic, given as its budget is given; no
-setting of a workspace MUST turn either on for an epic started by `hmz exec` or the SDK.
+**5.2.3** Each profiling switch MUST be an option of one epic, given as its budget is given; a
+setting of a workspace MUST NOT turn either on for an epic started by `hmz exec` or the SDK.
 
 **5.2.4** An epic MUST record which profiling switches it was started with, and an epic that
 records neither MUST read back as profiled in neither way.

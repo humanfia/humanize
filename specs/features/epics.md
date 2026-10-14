@@ -152,7 +152,7 @@ declares a parameter of that name.
 
 ### 3.4 Budget
 
-**3.4.1** Every epic MUST execute under a budget that sets at least one limit, and no limit MUST
+**3.4.1** Every epic MUST execute under a budget that sets at least one limit, and a limit MUST NOT
 be negative.
 
 **3.4.2** An epic of the `chat` flow that is given no budget MUST execute under a budget whose
