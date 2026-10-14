@@ -92,7 +92,7 @@ harness MUST work in a mirror on the harness machine.
 > | Harness CLI runs on | this machine | this machine | env machine | harness runtime |
 > | Mirror | none | this machine | none | harness machine |
 > | Commands the agent runs | this machine | env machine | env machine | env machine |
-> | Harness's own network connections | this machine | this machine | env machine | harness machine |
+> | Harness's connections | this machine | this machine | env machine | harness machine |
 > | Account used on | this machine | this machine | env machine | harness machine |
 
 ### 3.2 Platform requirements

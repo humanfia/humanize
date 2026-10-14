@@ -252,10 +252,10 @@ any of these from a label the caller gives.
 
 ### 7.2 Allocation
 
-**7.2.1** Before any agent starts, hmz MUST hold what the role asks against what the runtime may
-hand out — its saved CPUs, memory and GPUs, each the daemon's own where saved as zero or empty,
-its GPU memory and its container limit — less what the runtime's running containers hold, read
-off their labels.
+**7.2.1** Before any agent starts, hmz MUST hold what the role asks against what the runtime is
+saved to hand out — its saved CPUs, memory and GPUs, each the daemon's own where saved as zero
+or empty, its GPU memory and its container limit — less what the runtime's running containers
+hold, read off their labels.
 
 **7.2.2** hmz MUST hand out GPUs as the first GPUs that no running container holds among those
 of the daemon's host that answer when asked, each by the CDI name it answered under, else by
@@ -332,7 +332,7 @@ its runtime names when the env is probed, never restarted, and removed when the 
 
 **8.2** The service MUST be created from the image a `docker` env's container would be (§7.1.2),
 with the workdir mounted at its own path on whichever node the task lands on; every node the
-task may land on MUST have the workdir at that path.
+task can land on MUST have the workdir at that path.
 
 **8.3** The task MUST run as this user where the manager is on this machine, and as the owner
 of the workdir on the manager's host otherwise.
@@ -350,7 +350,7 @@ limit, and its CPUs and memory where saved, less what the runtime's services hol
 MUST raise `ResourceUnmet` as §7.2.4 says, and §7.2.3 MUST hold.
 
 **8.7** A task no node takes for want of room MUST raise `ResourceUnmet` with the scheduler's
-words: at once where no node that may take a task could ever hold it, and after 30 seconds
+words: at once where no node able to take a task could ever hold it, and after 30 seconds
 otherwise. The service MUST be removed first.
 
 **8.8** A task that fails, or does not run within 600 seconds of being placed, MUST raise
@@ -407,7 +407,7 @@ time, constraint and run arguments, each where set, and MUST ask for exactly the
 
 **10.3** The job MUST receive nothing of this process's environment but `HOME` and `USER`.
 
-**10.4** The workdir MUST be the same path on this machine and on every node the job may land
+**10.4** The workdir MUST be the same path on this machine and on every node the job can land
 on; hmz MUST NOT mount or copy it, and the role's declared image MUST be ignored.
 
 **10.5** The job MUST be named as §7.1.8 says, and MUST carry in its comment the labels of §7.1.9
