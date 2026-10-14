@@ -1000,8 +1000,7 @@ role.
 **15.10** `Host.asked(client, said)` MUST carry out one request of `api/daemon.md §8` for that
 frontend and return its answer without the `type` and `to` fields of a reply.
 
-**15.11** `Host.status()` MUST return the status of `api/daemon.md §6.3` without the keys marked
-there as the host process's.
+**15.11** `Host.status()` MUST return the keys of `api/daemon.md §6.4.1`.
 
 **15.12** `Host.close()` MUST close every epic of the host and let every frontend go with `gone`,
 and MUST wait at most 15 seconds, counted from the first call, for those epics to release what
