@@ -24,6 +24,7 @@ from hmz.coganchor.agents import (
     FakeTool,
     Unserved,
 )
+from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
 from tests.integration.doubles_agents import (
@@ -81,10 +82,19 @@ def called(name):
     return "no tool " + name
 
 
+def home():
+    named = [one.partition("=")[2] for one in argv if one.startswith("--app_data_dir=")]
+    at = pathlib.Path(os.environ["HOME"], ".gemini", *named[-1:] or ["antigravity-cli"])
+    return " ".join(sorted("%s/%s" % (kind, one.name) for kind in ("agents", "skills")
+                           for one in (at / kind).iterdir() if (at / kind).is_dir()))
+
+
 def turn(said):
     note(said)
     if said.startswith("call "):
         said = called(said.removeprefix("call "))
+    if said == "home":
+        said = home()
     if said == "crash":
         print("agy: something broke", file=sys.stderr, flush=True)
         sys.exit(3)
@@ -120,6 +130,32 @@ def agy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standins:
     held = standins(tmp_path, monkeypatch)
     held.install("agy", AGY)
     return held
+
+
+def test_a_turn_runs_in_a_virtual_home_of_humanizes_agents_and_the_flows_skills(
+    agy: Standins, tmp_path: Path
+) -> None:
+    real = tmp_path / "home" / ".gemini" / "antigravity-cli"
+    (real / "agents").mkdir(parents=True)
+    (real / "agents" / "mine.md").write_text("the user's own\n")
+    skill = tmp_path / "flow" / "review"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: review\n---\n")
+    agent = AntigravityCLIAgent(
+        AntigravityCLIAgentConfig(
+            model="gemini-stand-in", effort="high", permission="read-only"
+        )
+    )
+    agent.loads([Loaded("review", skill)])
+
+    said = agent.new()("home")
+
+    found = said.split()
+    assert "agents/hmz-read-only.md" in found
+    assert "agents/mine.md" in found
+    assert "skills/review" in found
+    assert sorted(one.name for one in (real / "agents").iterdir()) == ["mine.md"]
+    assert not (real / "skills").exists()
 
 
 def test_a_turn_says_what_it_did_and_what_it_spent(agy: Standins) -> None:

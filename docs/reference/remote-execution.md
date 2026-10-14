@@ -217,7 +217,7 @@ srun --jobid=JOBID --overlap --nodes=1 --ntasks=1 --unbuffered --quiet --export=
 | `native` | `bool` | `False` | `--native` | | Run the CLI installed on the target. See [Native](#native-the-target-s-own-cli). |
 | `hushes` | `tuple[str, ...]` | `()` | `--hush NAME` (repeatable) | | Native: variables removed from the CLI's environment on the target. |
 | `projects` | `tuple[tuple[str, str], ...]` | `()` | `--project NAME=DIR` (repeatable) | | Native: credential directories written to the target for the turn; `NAME` is set to where each landed. |
-| `carries` | `tuple[tuple[str, str], ...]` | `()` | `--carry DIR=PATH` (repeatable) | | Native: directories put into the target's workspace at `PATH` for the turn. |
+| `home` | `Virtual \| None` | `None` | `--home JSON` | | Native: the CLI's [virtual home](/reference/agents#virtual-homes), built on the target for the turn. Refused (`ValueError`) without `native`. |
 | `installs` | `str` | `""` | `--installs LINE` | `""` | Native: the install line quoted when the CLI is missing on the target. |
 | `fence` | `Fence \| None` | `None` | `--fence JSON` | `None` | What the agent may reach, held on both machines. `--fence` takes `Fence.dumps()` output. |
 
@@ -253,8 +253,6 @@ as a usage error and exits 2.
 | a redirect that is not two absolute paths | `unsupported redirect 'a=b'; expected two absolute paths` |
 | an empty hush, or one containing `=` | `unsupported hush 'A=B'; expected a variable name` |
 | a projection without a variable name and an absolute path | `unsupported projection X='rel'; expected a variable name and an absolute path` |
-| a carry whose source is not absolute | `unsupported carry rel='b'; expected an absolute path` |
-| a carry whose destination is empty, absolute or contains `..` | `unsupported carry /a='../b'; expected a path inside the workspace` |
 | a non-open `fence` with no `scopes` (drawn path by path) | `a fence drawn path by path cannot be held on another machine; draw it from its levels with Fence.of` |
 | a non-open `fence` with a harness on another machine | `a fence is drawn around this machine's paths, and cannot hold a harness on another machine` |
 | a `fence` with `online=False` and `net="remote"` | `a fence that cuts the network keeps the agent's own connections here; --net remote would send them past it` |
@@ -621,7 +619,8 @@ traced or supervised. The sequence per turn:
    turn is using refuses this one with `OSError` (`EBUSY`) before anything reaches the target.
    A supervised turn holds the same lock shared, for the refresh-token files its redirects
    answer.
-5. Put each `carries` directory into the target's workspace (below).
+5. If `home` is set, build it in the turn's private directory (made for it where `projects`
+   made none), with the flow's skills in its skills directory (below).
 6. Start the CLI as `env [-u HUSHED]... NAME=VALUE... PROGRAM ARGS...` in `chdir` (default the
    workspace), with this process's environment layered on the target's.
 7. Relay stdin, stdout and stderr byte for byte; forward the first `SIGINT`/`SIGTERM` to the
@@ -629,14 +628,14 @@ traced or supervised. The sequence per turn:
 8. Read each refresh-token file back from the target; one the CLI changed, that is still a whole
    sign-in, is written atomically over the file it was copied from here, unless that file
    changed meanwhile (then it is left, with a warning that the account may need signing in
-   again). Then remove the credential directory and release carried directories, whatever
-   happened.
+   again). Then remove the private directory, whatever happened.
 
 | What does not follow the CLI | How it crosses |
 | --- | --- |
 | The account's variables | Sent as the turn's environment. Every variable the provider [hushes](/reference/providers#variables-taken-away) is removed on the target with `env -u`, since the target's own shell profile would otherwise supply it. |
 | The account's credential files | `--project NAME=DIR`, written through stdin, never argv. |
-| The flow's skills | `--carry DIR=PATH`. An existing path not planted by humanize is left alone. A planted one holds a claim file per turn under `PATH/.humanize-carried/`; it is removed when the last claim is released. Directories created above it are removed if empty. |
+| The flow's skills | Written into the skills directory of the CLI's [virtual home](/reference/agents#virtual-homes) (`--home`), never into the workspace. A CLI with no virtual home on the target gets none. |
+| The CLI's [virtual home](/reference/agents#virtual-homes) | `--home JSON`. Built in the turn's private directory by a POSIX shell script on the target, around the target user's own home (`$VARIABLE`, else `$HOME/<default>`), never over a credential `--project` put there; the home variable is set to it, and `Profile.secures` to the projected directory under an account and to the target user's value otherwise. Under a projected account, the session paths stay in it rather than being linked, and are brought back by `--bring`. Removed with the private directory. |
 
 Credential files cross only where a variable of the backend's own moves the directory they are
 in:
@@ -656,7 +655,7 @@ refused rather than run as whatever account the target is signed into.
 - The CLI keeps its sessions on the target; a run copies what they log into its epic
   ([Providers › Sessions on another machine](/reference/providers#sessions-on-another-machine)).
 
-<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`drive`, `_installed`, `_projected`, `_carried`, `_swept`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_reaching`, `_projecting`).</small>
+<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`drive`, `_installed`, `_projected`, `_homed`, `_swept`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_reaching`, `_projecting`).</small>
 
 ## Afar arrangement and the rendezvous {#being-introduced}
 

@@ -681,7 +681,6 @@ its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
 | `--native` | off | Run the CLI installed on the target instead of supervising one here. |
 | `--hush NAME` | — | With `--native`, unset this variable for the CLI on the target. Repeatable. |
 | `--project NAME=DIR` | — | With `--native`, put this credentials directory on the target for the session and set `NAME` to it. Repeatable. |
-| `--carry DIR=PATH` | — | With `--native`, put this directory into the target's workspace at `PATH` for the turn. Repeatable. |
 | `--bring NAME/PATH=DIR` | — | With `--native`, copy what the turn wrote at `PATH` (may be a glob) inside the directory `--project` set `NAME` to back into `DIR`, at the same place, before that directory is removed. Repeatable. |
 | `--tell DIR` | — | With `--native`, keep a file of `NAME=PATH` lines in `DIR` on this machine while the turn runs, one per `--project` that landed at `PATH` on the target. |
 | `--installs LINE` | — | With `--native`, the install line to report where the target lacks the CLI. |

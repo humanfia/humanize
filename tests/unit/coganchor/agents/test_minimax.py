@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import subprocess
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import BaseModel
@@ -24,9 +25,6 @@ from hmz.coganchor.backends import Model
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.providers import Provider
 from tests.unit.coganchor.agents.doubles_u4 import Spawner, fenceable, offering
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 _MODEL = "minimax/MiniMax-M3"
 
@@ -408,7 +406,7 @@ def routed(monkeypatch: pytest.MonkeyPatch) -> _Configured:
     return configured
 
 
-def test_a_turn_through_a_gateway_asks_for_it_as_a_provider_added_once(
+def test_a_turn_through_a_gateway_asks_for_it_as_a_provider_added_to_its_home(
     spawner: Spawner, routed: _Configured, tmp_path: Path
 ) -> None:
     spawner.answering(_turn(outputTokens=4))
@@ -418,7 +416,14 @@ def test_a_turn_through_a_gateway_asks_for_it_as_a_provider_added_once(
     session("one")
     result = list(session.stream("two"))[-1]
 
-    (added,) = routed.ran
+    # Once a turn, each into the copy of `config.yaml` in the virtual home that turn starts
+    # in -- which goes with it -- and never into the account's own.
+    added, again = routed.ran
+    assert added == again
+    homes = [one["MINIMAX_DATA_DIR"] for one in routed.envs]
+    assert homes == [(one.env or {})["MINIMAX_DATA_DIR"] for one in spawner.started]
+    assert len(set(homes)) == 2
+    assert not any(Path(one).exists() for one in homes)
     named = added[4]
     assert named.startswith("hmz-4321-")
     assert added == [
@@ -444,13 +449,7 @@ def test_a_turn_through_a_gateway_asks_for_it_as_a_provider_added_once(
 
     agent.stop()
 
-    assert routed.ran[-1] == [
-        "mcode",
-        "provider",
-        "remove",
-        f"custom_provider:{named}",
-        "--yes",
-    ]
+    assert len(routed.ran) == 2  # nothing to take out of the account's own
 
 
 def test_another_model_is_another_provider_beside_the_first(
@@ -465,12 +464,6 @@ def test_another_model_is_another_provider_beside_the_first(
     names = [one[4] for one in routed.ran]
     assert len(set(names)) == 2
     assert all(one[2] == "add" for one in routed.ran)
-
-    agent.stop()
-
-    assert sorted(one[3] for one in routed.ran[2:]) == sorted(
-        f"custom_provider:{one}" for one in names
-    )
 
 
 def test_a_gateway_mcode_will_not_add_fails_the_turn(

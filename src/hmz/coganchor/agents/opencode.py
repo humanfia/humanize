@@ -398,15 +398,17 @@ class OpencodeSession(CommandSessionBase):
         And, for a gateway account, which of the gateway's models its config lists: the one
         this turn names, in place of the one the account was made with.
 
-        And, where the flow is offering callbacks, the server they are reached through, in the
-        config variable: see :meth:`_offering`.
+        And, where the flow is offering callbacks or this session carries skills of the flow's,
+        the server they are reached through and where those skills are, in the config
+        variable: see :meth:`_offering`.
         """
         config = self._agent.config
         environment = dict(super()._environment())
         if bare := self._gatewayed():
             environment[_GATEWAY_MODEL] = bare
-        if self._agent.toolbox.offered():
-            environment[type(self).configures] = self._offering(environment)
+        lodged = self._lodging()
+        if self._agent.toolbox.offered() or lodged:
+            environment[type(self).configures] = self._offering(environment, lodged)
         if not _tabled(config):
             return environment
         # A word this table has no row for falls to the row that says nothing, as codex and
@@ -435,16 +437,36 @@ class OpencodeSession(CommandSessionBase):
             return environment
         return {**environment, type(self).permits: json.dumps(allowed)}
 
-    def _offering(self, environment: Mapping[str, str]) -> str:
-        """The config this turn runs under, with the flow's own callbacks added to it.
+    def _lodging(self) -> list[str]:
+        """Where the flow's skills this session carries are, for a CLI started on this machine.
+
+        Named to it under `skills.paths` in its config variable, which it reads at the user's
+        level after every skill directory it finds on its own -- so a flow's skill of the same
+        name as one of those is the one it loads, and nothing is written anywhere to say so,
+        the workspace least of all. None for a CLI on another machine, where these paths are
+        not: it runs without them.
+
+        Returns:
+          The directory holding each one's `SKILL.md`.
+        """
+        from hmz.coganchor.elsewhere import elsewhere
+
+        anchor = self._agent.anchor
+        if anchor is not None and (anchor.native or elsewhere(anchor)):
+            return []
+        return [str(one.at) for one in self._carrying() if one.name]
+
+    def _offering(self, environment: Mapping[str, str], lodged: list[str]) -> str:
+        """The config this turn runs under, with the flow's callbacks and skills added to it.
 
         Added to whatever that variable already says rather than in place of it: a gateway
         account says its provider there, and a person may have exported one of their own. A
         run is one process, so what is offered is said afresh every turn and nothing has to
-        notice it changing.
+        notice it changing. The skills go after any paths it already names.
 
         Args:
           environment: What this turn sets on top of this process's own.
+          lodged: Where the flow's skills this session carries are (:meth:`_lodging`).
 
         Returns:
           The config, as the JSON the variable holds.
@@ -458,17 +480,25 @@ class OpencodeSession(CommandSessionBase):
         held = environment.get(named)
         if held is None and named not in self._agent.hushed():
             held = os.environ.get(named)
-        server = {
-            "type": "local",
-            "command": self._agent.toolbox.command(),
-            "enabled": True,
-        }
         try:
             config: dict[str, Any] = json.loads(held) if held else {}
-            config["mcp"] = {**config.get("mcp", {}), "humanize": server}
+            if self._agent.toolbox.offered():
+                server = {
+                    "type": "local",
+                    "command": self._agent.toolbox.command(),
+                    "enabled": True,
+                }
+                config["mcp"] = {**config.get("mcp", {}), "humanize": server}
+            if lodged:
+                skills = config.get("skills", {})
+                config["skills"] = {
+                    **skills,
+                    "paths": [*skills.get("paths", []), *lodged],
+                }
         except (ValueError, TypeError, AttributeError) as why:
             raise ValueError(
-                f"{named} is not a JSON object the flow's callbacks can be added to"
+                f"{named} is not a JSON object the flow's callbacks and skills can be "
+                "added to"
             ) from why
         return json.dumps(config, separators=(",", ":"))
 

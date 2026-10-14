@@ -351,6 +351,22 @@ SIGNS: tuple[Sign, ...] = (
     Sign("dropped", r"\b50[234]\b"),
     Sign("dropped", r"bad gateway|service unavailable|gateway time-?out"),
     Sign("dropped", r"timed out|timeout"),
+    # Codex's, and here rather than on its profile because they have to be read last. When the
+    # response stream breaks partway through a turn it says `stream disconnected before
+    # completion: ...` around whatever the transport said, which names no status and no errno.
+    # And while it tries again by itself, `Reconnecting... n/5` goes out filed under
+    # `codexErrorInfo.responseStreamDisconnected` -- for any failure it tries again, a rate
+    # limit or a `503` among them, with that failure's own words beside it. So these are
+    # what is left once every sign above has had its say: a wrapped `rate limit exceeded` is
+    # still a rate limit, and only a break that says nothing more is read as the wire. Not a
+    # line that names `content_filter`, though: Codex files the provider's content-filter stop
+    # in the same sentence, and a response the provider refused to finish is not the wire --
+    # asked again it is refused again -- so that one stays unrecognised, as it was.
+    Sign(
+        "dropped",
+        r"(?m)^(?!.*content_filter).*"
+        r"(?:stream disconnected before completion|responseStreamDisconnected)",
+    ),
 )
 
 
@@ -601,11 +617,28 @@ class Profile:
         home and whose skills are not, so that one `home_var` cannot name both.
       works: The same, under the workspace rather than under either home: a skill kept beside
         the project it is for. A backend may read more than one such directory.
-      mounts: Which of those directories a flow's own skills are mounted into for the length
-        of a session -- written as the directory rather than as a glob, since this is the one
-        that is written to rather than read. Empty for a backend that reads none, whose
-        skills are all its own installed ones: a flow that brings skills brings that backend
-        none, which is a turn run without them rather than a run that will not start.
+      rewrites: What under its home it rewrites while it runs, relative to the home -- the
+        configuration it keeps its own notes in, which is the user's. Non-empty for a CLI whose
+        every process is started in a virtual home instead (:mod:`hmz.coganchor.homes`), where
+        each of these is a copy of the user's that goes with the process and everything else
+        is a link to theirs. Empty for a CLI started in the user's own home, which is every
+        one that has not said otherwise.
+      outside: For each of those it keeps outside its home while `home_var` is unset, where --
+        `(path under the home, path under the user's own)`. Claude Code's `.claude.json` is
+        at `~/.claude.json` until `CLAUDE_CONFIG_DIR` moves it inside: the copy is made of
+        whichever of the two it would have read.
+      lodges: Its user-level skills directory under that home, into whose virtual copy a
+        flow's own skills are put beside links to the user's. Empty for a backend that can be
+        given no skills of a flow's: a flow that brings skills brings that backend none,
+        which is a turn run without them rather than a run that will not start. Never the
+        workspace: humanize places nothing of its own there.
+      secures: A variable that keeps where it finds its sign-in where the user's own home
+        would put it, for a CLI that names a keychain item or a credentials file after its
+        home: set, in a virtual home, to the user's own value of `home_var`.
+      home_flag: The command-line flag that moves its home, for a CLI no variable moves --
+        given the home relative to the directory `home_dir` is in, which is the only way agy's
+        `--app_data_dir` takes one. What its virtual home is named to it by, in place of a
+        `home_var` it has not got.
       efforts: How hard this backend can be asked to think, hardest first, in its own wording.
         The whole ladder it has words for; a model of it takes some of them, and which ones is
         the backend's to say when it is asked what it runs.
@@ -729,7 +762,11 @@ class Profile:
     shared: tuple[str, ...] = ()
     config: tuple[str, ...] = ()
     works: tuple[str, ...] = ()
-    mounts: str = ""
+    rewrites: tuple[str, ...] = ()
+    outside: tuple[tuple[str, str], ...] = ()
+    lodges: str = ""
+    secures: str = ""
+    home_flag: str = ""
     beyond: tuple[str, ...] = ()
     swarms: bool = False
     searches: bool = False
@@ -1091,10 +1128,18 @@ PROFILES = (
         # reach for, as `Skill(<name>)`.
         skills=("skills/*/SKILL.md",),
         works=(".claude/skills/*/SKILL.md",),
-        # Where a flow's own skills go for the length of a session: the directory Claude
-        # reads a project's skills out of, which is the one place a skill can be given to it
-        # without touching what the person at this machine has installed.
-        mounts=".claude/skills",
+        # What Claude rewrites as it runs: `.claude.json`, with every project it was opened in
+        # and what it was told there, the backups it keeps of that, and `settings.json` where
+        # a turn changes a setting. Copied into a virtual home for each process, so that none
+        # of it is written into the user's (:mod:`hmz.coganchor.homes`).
+        rewrites=(".claude.json", "backups", "settings.json"),
+        outside=((".claude.json", ".claude.json"),),
+        # And a flow's own skills go where the user's are, in that same home: beside them,
+        # without a line of either the user's or the project's being written.
+        lodges="skills",
+        # Claude names its keychain item, and finds `.credentials.json`, by its home; this
+        # keeps both where the user's own would be.
+        secures="CLAUDE_SECURESTORAGE_CONFIG_DIR",
         # Three places, and the last of them is the one people forget: the session lives in
         # `.credentials.json`, the account it belongs to -- with the API key a run was
         # approved for beside it -- lives in `.claude.json`, which sits outside the home
@@ -1448,6 +1493,10 @@ PROFILES = (
         # flag. So there is no variable to name here, and `directory()` reads the one place.
         home_var="",
         home_dir=".gemini/antigravity-cli",
+        # That flag, which is what names a virtual home to it. Relative to `~/.gemini` and
+        # never absolute -- `must not be absolute`, agy 1.3.4 says -- so a home elsewhere is
+        # named by climbing out of there.
+        home_flag="--app_data_dir",
         # One database per conversation, whose `steps` hold their payload as protobuf --
         # so a file per session after all, which is what makes it a directory that can be
         # staged and a conversation that can be read back. Not lines appended to, though:
@@ -1488,11 +1537,12 @@ PROFILES = (
         # loads whatever else it is doing, and `.agents/skills` under the workspace, which it
         # opens by name once it has been given that workspace -- traced, on a turn of its own
         # stream transport, opening `<workspace>/.agents/skills/<name>/SKILL.md`. Not under
-        # the user's own home: it never looks there. So the shared one is where a flow's
-        # skills are mounted, which is where its sibling backends put theirs.
+        # the user's own home: it never looks there. A flow's own go into the first, in the
+        # virtual home each process is started in, beside links to the user's -- with the
+        # agents humanize starts a turn as (:mod:`hmz.coganchor.agents.agy`), in `agents/`.
         skills=("skills/*/SKILL.md",),
         works=(".agents/skills/*/SKILL.md",),
-        mounts=".agents/skills",
+        lodges="skills",
         # What a sign-in leaves behind where there is no keyring to put it in -- a session on
         # a machine with no desktop, which is where a flow runs. The keyring is the first
         # choice and is not a path.
@@ -1656,9 +1706,12 @@ PROFILES = (
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         works=(".agents/skills/*/SKILL.md", ".codex/skills/*/SKILL.md"),
-        # The shared one of its two, being the directory more than one of these CLIs has
-        # agreed to read: a flow's skill mounted there is one whichever of them is driving.
-        mounts=".agents/skills",
+        # What its app server rewrites: `config.toml`, where it writes the trust of every
+        # workspace it opened a thread that may write in. A copy in a virtual home for each
+        # server, which goes with it (:mod:`hmz.coganchor.homes`).
+        rewrites=("config.toml",),
+        # And a flow's own skills go beside the user's, in that same home.
+        lodges="skills",
         # One file, whichever way it was signed into: the subscription's tokens and an API
         # key land in the same place, under the mode that says which of them is in force.
         creds=("auth.json",),
@@ -2098,9 +2151,12 @@ PROFILES = (
             ".claude/skills/*/SKILL.md",
             ".cursor/skills/*/SKILL.md",
         ),
-        # The shared one of the four, being the directory more than one of these CLIs has
-        # agreed to read: a skill mounted there is a skill Codex and Kimi read too.
-        mounts=".agents/skills",
+        # What it is started with a copy of in a virtual home for each process
+        # (:mod:`hmz.coganchor.homes`): `config.toml`, into which the `[model.*]` entry an
+        # account behind a gateway is asked for by is written, and which goes with it.
+        rewrites=("config.toml",),
+        # And a flow's own skills go beside the user's, in that same home.
+        lodges="skills",
         #
         # Two files: the accounts it has signed into, keyed by the way each was signed in, and
         # the tokens its MCP servers handed back, which are somebody else's and kept apart.
@@ -2293,13 +2349,12 @@ PROFILES = (
         # and `max` are the same thinking at two widths.
         swarms=True,
         # Kimi Code discovers both its own and the shared skill directories without a command
-        # line flag, including for sessions served by `kimi web`. The shared project directory
-        # is also where a flow can mount one skill for Claude, Codex or Kimi without installing
-        # it into any of their homes.
+        # line flag, including for sessions served by `kimi web`. A flow's own go into its
+        # own, in the virtual home its daemon is started in, beside links to the user's.
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         works=(".kimi-code/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
-        mounts=".agents/skills",
+        lodges="skills",
         #
         # A directory apiece: kimi keeps one file per endpoint it has signed into, named
         # after that endpoint, and a lock beside it that two of its processes rotate a
@@ -2502,13 +2557,18 @@ PROFILES = (
         # which a headless run has nobody to press: `--approve` overrides it for one run, and
         # pi shows no trust prompt at all under `-p`, `--mode json` or `--mode rpc`. So a
         # flow's skills are not mounted for pi: they would be copied into a directory the
-        # session is not permitted to read, which is a mount that quietly does nothing. What
-        # is not gated is `--skill <path>`, which loads a file or a directory outright and is
-        # additive even under `--no-skills` -- so that is the road, and it is taken as
-        # `PiAgentConfig(skill_paths=...)` where a flow asks for it rather than here, a mount
-        # being a directory this table names and that one a flag its driver builds.
+        # session is not permitted to read, which is a mount that quietly does nothing. They
+        # go where its own home's are instead, which is not gated (`lodges` below); a skill a
+        # flow names by path is `--skill`, as `PiAgentConfig(skill_paths=...)`.
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
+        # What it is started with a copy of in a virtual home for each process
+        # (:mod:`hmz.coganchor.homes`): `models.json`, into which the provider an account on a
+        # gateway is declared as is written, and `settings.json`, where pi saves the thinking
+        # level and the model a turn moves to as the defaults for the next. Both go with it.
+        rewrites=("models.json", "settings.json"),
+        # And a flow's own skills go beside the user's, in that same home.
+        lodges="skills",
         #
         # One file holding every provider it has been signed into, and the lock its own
         # processes serialize a refresh under. Worth knowing what these cost: pi checks
@@ -2817,11 +2877,12 @@ PROFILES = (
         beyond=("off",),
         # Its own under its home and the shared one under yours, and both of a project's own,
         # which -- unlike pi's -- are read in RPC mode with no trust to be granted first. A
-        # flow's skills go in the shared spelling of the two.
+        # flow's skills go beside the ones of its own home, in a virtual home for each process
+        # (:mod:`hmz.coganchor.homes`) that links to everything else of the user's.
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         works=(".omp/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
-        mounts=".agents/skills",
+        lodges="skills",
         # No `creds`, and so no `login` way below: omp keeps its sign-ins in `agent.db`, the
         # SQLite database it keeps its settings and its usage in too, which no copy answering
         # reads could stand in for. An agent given no provider runs as whatever this machine's
@@ -3037,10 +3098,10 @@ PROFILES = (
         searches=True,
         # `--fork-session`, which it takes alongside `--resume` and nowhere else.
         forks=True,
-        # The same variable its effort is already said through: the system settings layer,
-        # read for one process and outranking what the person who started the flow has
-        # configured. Its `hooks` block is the one Claude Code wrote, spelled the same way.
-        hooks=Hooked(seam="env", name="QWEN_CODE_SYSTEM_SETTINGS_PATH"),
+        # The same file its effort is already said in: the `settings.json` of the virtual
+        # home each process is started in, a copy of the user's with the run's own merged in.
+        # Its `hooks` block is the one Claude Code wrote, spelled the same way.
+        hooks=Hooked(seam="config", name="hooks"),
         aliases=("qwen", "qwen-code"),
         home_var="QWEN_HOME",
         home_dir=".qwen",
@@ -3059,8 +3120,12 @@ PROFILES = (
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         works=(".qwen/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
-        # The shared one of its two, so a flow's skills reach it there.
-        mounts=".agents/skills",
+        # What it rewrites as it starts: `settings.json`, which it migrates to the schema it
+        # is at -- and into which the run's own effort, hook table and the flow's callbacks are
+        # merged. A copy in a virtual home for each process (:mod:`hmz.coganchor.homes`).
+        rewrites=("settings.json",),
+        # And a flow's own skills go beside the user's, in that same home.
+        lodges="skills",
         #
         # No `creds`: what its own sign-in left behind, `oauth_creds.json` and the lock it was
         # rotated under, is a token 0.24.7 will not run on whatever it holds. Everything an
@@ -3299,8 +3364,9 @@ PROFILES = (
             ".agents/skills/*/SKILL.md",
             ".claude/skills/*/SKILL.md",
         ),
-        # The shared one of its three, as for the others that read it.
-        mounts=".agents/skills",
+        # None mounted: a flow's own are named to it in its config variable instead, under
+        # `skills.paths`, which it reads after every directory above -- so nothing is written
+        # anywhere for them (:mod:`hmz.coganchor.agents.opencode`).
         # One file per kind of thing signed into: the providers in one, the servers a session
         # reaches out to in the other.
         creds=("auth.json", "mcp-auth.json"),
@@ -3583,7 +3649,8 @@ PROFILES = (
             ".mimocode/skill/*/SKILL.md",
             ".agents/skills/*/SKILL.md",
         ),
-        mounts=".agents/skills",
+        # None mounted, as for opencode: a flow's own are named under `skills.paths` in its
+        # config variable.
         creds=("auth.json", "mcp-auth.json"),
         # The ones no way below names: a Bedrock key that stands in for the profile, and the
         # ones that would bypass the file outright. Every vendor's key it reads -- a hundred
@@ -3824,7 +3891,9 @@ PROFILES = (
         skills=("skills/*/SKILL.md",),
         config=("cursor/skills/*/SKILL.md",),
         works=(".cursor/skills/*/SKILL.md",),
-        mounts=".cursor/skills",
+        # A flow's own go into the first, in the virtual home each turn is started in, beside
+        # links to the user's.
+        lodges="skills",
         # What a login leaves behind: the account it shows, in the settings file, and the
         # tokens, which are not under its home at all. `cursor-agent` puts `auth.json` under
         # the directory every program keeps its configuration in on Linux, and under
@@ -3930,8 +3999,13 @@ PROFILES = (
             ".claude/skills/*/SKILL.md",
             ".agents/skills/*/SKILL.md",
         ),
-        # The shared one of the three, as for the others that read it.
-        mounts=".agents/skills",
+        # A flow's own go into its own, in the virtual home each turn is started in, beside
+        # links to the user's.
+        lodges="skills",
+        # What it rewrites: `config.yaml`, where `mcode provider add` puts the provider a
+        # LiteLLM gateway is added as (:mod:`hmz.coganchor.agents.minimax`). A copy in that
+        # virtual home, which goes with the turn.
+        rewrites=("config.yaml",),
         # Everything an account is: `config.yaml` holds a key and every provider added to it,
         # and `auth/` what a sign-in leaves -- a directory per build, and the lock two of its
         # processes refresh a token under.

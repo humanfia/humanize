@@ -158,8 +158,9 @@ Aliases hushed together: `CLAUDE_CODE_OAUTH_TOKEN`/`ANTHROPIC_OAUTH_TOKEN`,
 `OPENAI_BASE_URL`/`OPENAI_API_BASE`, `XAI_API_KEY`/`GROK_CODE_XAI_API_KEY`.
 
 **Other variables read for a CLI.** `NODE_COMPILE_CACHE` (pi, qwen) and `NODE_OPTIONS`
-(appended to, never replaced) are respected if already set; `QWEN_CODE_SYSTEM_DEFAULTS_PATH`
-is read from the turn's environment to know which files to watch.
+(appended to, never replaced) are respected if already set; `QWEN_CODE_SYSTEM_SETTINGS_PATH` and
+`QWEN_CODE_SYSTEM_DEFAULTS_PATH` are read from the turn's environment to know which files to
+watch, and never set.
 
 ## Set for processes humanize starts
 
@@ -178,7 +179,6 @@ is read from the turn's environment to know which files to watch.
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`/`mimo` turns with a rung, web switch or fence to express | a JSON permission table |
 | `MIMOCODE_DISABLE_CLAUDE_CODE` | `mimo` turns whose fence does not allow reading `~/.claude.json` | `1` |
 | `MIMO_GATEWAY_MODEL` | `mimo` turns under a gateway account | the turn's model, without a leading `humanize/` |
-| `QWEN_CODE_SYSTEM_SETTINGS_PATH` | every `qwen` turn | a per-session settings file |
 | `NODE_COMPILE_CACHE` | `pi`, `qwen` turns on this machine, unless already set | `$TMPDIR/humanize-<uid>/compiled/pi`, `…/compiled/qwen` |
 | `NODE_OPTIONS`, `HMZ_PRELOAD_AT` | `kimi`, `pi`, `qwen`, `mimo` turns on this machine with an `on_pre_tool_use` hook hung | `--require <preload>` appended; the preload's report socket (the preload sets `HMZ_PRELOAD_IN` itself and removes all three from programs the CLI starts) |
 | `DSH_HOME` | `dsh` turns | the kept directory |

@@ -8,7 +8,6 @@ into it; an `abort` stops it.
 
 from __future__ import annotations
 
-import json
 import shutil
 import threading
 from typing import TYPE_CHECKING
@@ -304,9 +303,8 @@ def test_a_turn_through_a_litellm_gateway_reaches_the_accounts_endpoint(
         for one in psutil.Process().children(recursive=True)
         if one.status() != psutil.STATUS_ZOMBIE
     )
-    # Taken back out of pi's own file with the gateway it named.
-    models = tmp_path / "home/.pi/agent/models.json"
-    assert json.loads(models.read_text())["providers"] == {}
+    # Declared in a copy of pi's file in its virtual home, never in the user's own.
+    assert not (tmp_path / "home/.pi/agent/models.json").exists()
 
 
 #: What a stand-in pi runs to load the extension it was handed and call one tool of it: the

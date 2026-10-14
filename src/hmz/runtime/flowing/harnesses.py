@@ -387,7 +387,7 @@ class HarnessDriver:
         Args:
           placement: Where it works.
           permission: What it may touch, as :mod:`hmz.runtime.flowing.harnessing` maps it.
-          skills: What skills it is given, mounted where its CLI reads them.
+          skills: What skills it is given, lodged where its CLI reads them.
           hooks: What is hung on the agent.
           fork_of: A session of this driver to carry on from, or None for a fresh one.
           carry_on: A conversation a session kept to carry on from, as a fork of it, or

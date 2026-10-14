@@ -8,6 +8,7 @@ that failed says `turn.failed`, and exits non-zero. A session is carried on by `
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -33,7 +34,6 @@ from tests.integration.doubles_agents import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
 MODEL = "custom_provider:gateway/minimax-stand-in"
 CONFIG = MiniMaxCodeAgentConfig(model=MODEL, effort="", permission="bypass")
@@ -207,7 +207,7 @@ def endpoint() -> Iterator[Endpoint]:
 def test_mcode_under_an_account_a_gateway_holds_runs_the_model_through_it(
     endpoint: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    held = standins(tmp_path, monkeypatch, "LITELLM_GATEWAY_KEY")
+    held = standins(tmp_path, monkeypatch, "LITELLM_GATEWAY_KEY", "MINIMAX_DATA_DIR")
     held.install("mcode", ROUTED)
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
@@ -236,14 +236,21 @@ def test_mcode_under_an_account_a_gateway_holds_runs_the_model_through_it(
 
     assert said == ["say hi", "say more"]
     assert [one["model"] for one in endpoint.asked] == ["stand-in", "stand-in"]
-    added, turn, _, removed = held.calls("mcode")
+    added, turn, again, _ = held.calls("mcode")
     named = added.flag("--name") or ""
     assert named.startswith(f"hmz-{through.port}-")
     assert added.stdin == (
         f"provider add --name {named} --base-url {through.url} --api-format "
         "openai-completions --model stand-in --api-key-env MCODE_PROVIDER_API_KEY"
     )
-    assert removed.stdin == f"provider remove custom_provider:{named} --yes"
+    # Added once a turn, into the copy of `config.yaml` in the virtual home that turn starts
+    # in -- never the account's own -- and so with nothing to take out afterwards.
+    assert again.stdin == added.stdin
+    home = added.env["MINIMAX_DATA_DIR"]
+    assert home == turn.env["MINIMAX_DATA_DIR"]
+    assert home != again.env["MINIMAX_DATA_DIR"]
+    assert home is not None
+    assert not Path(home).exists()
     assert turn.flag("--model") == f"custom_provider:{named}/stand-in"
     assert turn.env["LITELLM_GATEWAY_KEY"] is None
     assert not through.running

@@ -8,6 +8,7 @@ workspace the CLI is given is the target's own copy.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -15,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from hmz.coganchor import AnchorConfig
+from hmz.coganchor.homes import Virtual
 from tests.integration.doubles_anchor import Fakes, fakes
 
 #: Long enough for a pipe, a handshake and a shell; short enough that a hang fails.
@@ -221,42 +223,6 @@ def _skill(tmp_path: Path, said: str = "---\nname: review\n---\n") -> Path:
     return held
 
 
-def test_a_carried_skill_is_there_for_the_turn_and_gone_after_it(
-    driven: Driven, tmp_path: Path
-) -> None:
-    skill = _skill(tmp_path)
-
-    said = driven.run(
-        "/bin/sh",
-        "-c",
-        "cat .claude/skills/review/SKILL.md",
-        carries=((str(skill), ".claude/skills/review"),),
-    )
-
-    assert said.returncode == 0, said.stderr
-    assert "name: review" in said.stdout
-    assert not (driven.target / ".claude").exists()
-
-
-def test_a_carried_skill_never_replaces_the_projects_own(
-    driven: Driven, tmp_path: Path
-) -> None:
-    theirs = driven.target / ".claude" / "skills" / "review"
-    theirs.mkdir(parents=True)
-    (theirs / "SKILL.md").write_text("the project's own\n")
-    skill = _skill(tmp_path, "the flow's\n")
-
-    said = driven.run(
-        "/bin/sh",
-        "-c",
-        "cat .claude/skills/review/SKILL.md",
-        carries=((str(skill), ".claude/skills/review"),),
-    )
-
-    assert said.stdout == "the project's own\n"
-    assert (theirs / "SKILL.md").read_text() == "the project's own\n"
-
-
 @pytest.fixture
 def far(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Fakes:
     """Fake `docker` and `ssh` on `PATH`."""
@@ -311,3 +277,78 @@ def test_a_turn_told_not_to_share_ssh_connections_opens_its_own(
     assert said.returncode == 0, said.stderr
     assert far.calls("ssh")
     assert not any("ControlMaster=auto" in argv for argv in far.calls("ssh"))
+
+
+def test_a_virtual_home_is_built_on_the_target_and_gone_after_the_turn(
+    driven: Driven, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = tmp_path / "codex-home"
+    (real / "skills" / "mine").mkdir(parents=True)
+    (real / "skills" / "mine" / "SKILL.md").write_text("theirs\n")
+    (real / "config.toml").write_text("theirs = true\n")
+    (real / "auth.json").write_text("a token\n")
+    monkeypatch.setenv("CODEX_HOME", str(real))
+    home = Virtual(
+        variable="CODEX_HOME",
+        default=".codex",
+        rewrites=("config.toml",),
+        lodges="skills",
+        made=("sessions",),
+        skills=(("review", str(_skill(tmp_path))),),
+    )
+
+    said = driven.run(
+        "/bin/sh",
+        "-c",
+        'echo "$CODEX_HOME"; echo trusted >> "$CODEX_HOME/config.toml"; '
+        'cat "$CODEX_HOME/auth.json"; ls "$CODEX_HOME/skills"; '
+        'cat "$CODEX_HOME/skills/review/SKILL.md"; : > "$CODEX_HOME/sessions/kept"',
+        home=home,
+    )
+
+    assert said.returncode == 0, said.stderr
+    landed, *rest = said.stdout.splitlines()
+    assert landed != str(real)
+    assert rest == ["a token", "mine", "review", "---", "name: review", "---"]
+    assert (real / "config.toml").read_text() == "theirs = true\n"
+    assert (real / "sessions" / "kept").exists()
+    assert not Path(landed).exists()
+    assert not (driven.target / ".agents").exists()
+
+
+def test_a_native_home_keeps_a_skills_exec_bit_and_writes_back_a_replaced_sign_in(
+    driven: Driven, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = tmp_path / "codex-home"
+    real.mkdir()
+    (real / "config.toml").write_text("theirs = true\n")
+    (real / "auth.json").write_text("a token\n")
+    (real / "auth.json").chmod(0o600)
+    os.utime(real / "auth.json", (1_000_000, 1_000_000))
+    monkeypatch.setenv("CODEX_HOME", str(real))
+    skill = _skill(tmp_path)
+    (skill / "run.sh").write_text("#!/bin/sh\necho ran\n")
+    (skill / "run.sh").chmod(0o755)
+    home = Virtual(
+        variable="CODEX_HOME",
+        default=".codex",
+        rewrites=("config.toml",),
+        lodges="skills",
+        skills=(("review", str(skill)),),
+    )
+
+    said = driven.run(
+        "/bin/sh",
+        "-c",
+        '"$CODEX_HOME/skills/review/run.sh"; '
+        'printf "refreshed\\n" > "$CODEX_HOME/auth.json.tmp"; '
+        'mv "$CODEX_HOME/auth.json.tmp" "$CODEX_HOME/auth.json"; '
+        'printf "x\\n" > "$CODEX_HOME/c.tmp"; mv "$CODEX_HOME/c.tmp" "$CODEX_HOME/config.toml"',
+        home=home,
+    )
+
+    assert said.returncode == 0, said.stderr
+    assert said.stdout.splitlines() == ["ran"]
+    assert (real / "auth.json").read_text() == "refreshed\n"
+    assert (real / "auth.json").stat().st_mode & 0o777 == 0o600
+    assert (real / "config.toml").read_text() == "theirs = true\n"

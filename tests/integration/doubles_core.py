@@ -19,7 +19,8 @@ it drives the real CLI. It answers a prompt as a model would be asked to:
   directory it was started in -- the work, wherever the workspace is.
 
 Every turn reports 10 input and 7 output tokens. Each start is written as one JSON line to
-`standin.log` in its home, `$CLAUDE_CONFIG_DIR` -- its argv, its working directory and the
+`standin.log` in its home -- the user's own, which `$CLAUDE_CONFIG_DIR` names a virtual copy
+of (:mod:`hmz.coganchor.homes`) -- its argv, its working directory and the
 session it opened -- since that is where the fence humanize runs a CLI in lets it write.
 """
 
@@ -102,7 +103,11 @@ if "--resume" in flags:
 else:
     session = flags["--session-id"]
 transcript = projects / f"{session}.jsonl"
-with (home / "standin.log").open("a") as log:
+# In the user's own home rather than the virtual one it is started in, which goes with it:
+# where Claude Code keeps its sign-in, by the variable that keeps it there.
+kept = os.environ.get("CLAUDE_SECURESTORAGE_CONFIG_DIR")
+own = home if kept is None else pathlib.Path(kept or pathlib.Path.home() / ".claude")
+with (own / "standin.log").open("a") as log:
     log.write(json.dumps({"argv": argv, "cwd": os.getcwd(), "session": session}) + "\n")
 spent = {"in": 0, "out": 0}
 
