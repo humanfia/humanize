@@ -200,7 +200,7 @@ class Held:
         """
         takes = _ACTS.get(do)
         if takes is None:
-            raise Refusal(f"There is no {do} to ask of a run.", 404)
+            raise Refusal(f"There is no {do} to ask of an epic.", 404)
         if extra := sorted(set(said) - set(takes)):
             raise Refusal(f"{do} takes no {', '.join(extra)}.")
         asked: dict[str, Any] = {"do": do}
@@ -216,7 +216,7 @@ class Held:
         except Refused as why:
             raise Refusal(str(why), 409) from why
         except (OSError, TimeoutError) as why:
-            raise Refusal(f"The runs could not be asked: {why}", 503) from why
+            raise Refusal(f"The epics could not be asked: {why}", 503) from why
 
     def btw(
         self,
@@ -290,7 +290,7 @@ class Held:
         except Refused as why:
             raise Refusal(str(why), 409) from why
         except (OSError, TimeoutError) as why:
-            raise Refusal(f"The runs could not be asked: {why}", 503) from why
+            raise Refusal(f"The epics could not be asked: {why}", 503) from why
         if not answer:
             raise Refusal("The agent returned no answer.", 502)
         said = {
@@ -447,7 +447,9 @@ class Held:
             elif kind == "welcome":
                 self._me = str(message.get("client") or "")
             elif kind == "gone":
-                self._gone = str(message.get("why") or "the runs let this interface go")
+                self._gone = str(
+                    message.get("why") or "the epics let this interface go"
+                )
             self._changed.notify_all()
         # Kept first and followed after: what is worked out of a record is the page's figures,
         # and a record that cannot be worked out is still a record a page reads.

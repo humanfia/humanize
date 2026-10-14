@@ -1134,14 +1134,14 @@ class Place(Sheet[str]):
         if place is None:
             # The run it was of has gone, and a new run's environments are not this one.
             self.query_one("#about", Label).update(
-                "This environment is not in the run."
+                "This environment is not in the epic."
             )
             listing.set_options([])
             self._footed(Key("esc", "back"))
             return
         self.query_one("#asked", Label).update(escape(place.role or place.kind))
         self.query_one("#about", Label).update(
-            "An environment of the run: where its sessions work."
+            "An environment of the epic: where its sessions work."
         )
         by = {one.who: one for one in self._sessions()}
         using = [by.get(key, Drawn(key)) for key in place.sessions]

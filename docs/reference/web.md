@@ -108,7 +108,7 @@ this order.
 | `405` | A method other than `GET` outside `/api/` | `Only the page's own files are here.` |
 | `400` | A field a request does not take, or of another type | e.g. `start takes no rounds.`, `say takes text as text.` |
 | `409` | The runs refused the request | Their own sentence, as [`Refused`](/reference/sdk#refused) gives it. |
-| `503` | The runs could not be asked | `The runs could not be asked: <why>` |
+| `503` | The epics could not be asked | `The epics could not be asked: <why>` |
 | `500` | Anything else, with a traceback on `hmz web`'s stderr | `Something went wrong here: <why>` |
 
 Which name the server was reached by is not asked: a port forwarded over ssh, or proxied on to

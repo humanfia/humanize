@@ -149,14 +149,14 @@ where the budget is:
 ```text
   hmz › /flow › Installed › ralph_loop                            ● unsaved changes
   Configure each role: an agent (CLI, account, model and effort) or an environment;
-  then what the flow takes and what a run may spend.
+  then what the flow takes and what an epic may spend.
 
   ╭──────────────────────────────────────────────────────────────────────────────╮
   │ agent                                          claude/claude-opus-5-5:high ▸ │
   │   agent                                                                      │
   │──────────────────────────────────────────────────────────────────────────────│
   │ budget                                                                 set ▸ │
-  │   what a run may spend: stops at 20m, $0.50                                  │
+  │   what an epic may spend: stops at 20m, $0.50                                │
   │──────────────────────────────────────────────────────────────────────────────│
   │ profile flow                                                         ○ off ▾ │
   │   traced only                                                                │

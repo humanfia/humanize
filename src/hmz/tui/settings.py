@@ -152,7 +152,7 @@ class _Page(NamedTuple):
 #: The pages, in the order of :data:`PAGES`.
 _PAGES = (
     _Page(
-        "General", "⚙", "this machine: what runs show, the /btw agent, error reports"
+        "General", "⚙", "this machine: what epics show, the /btw agent, error reports"
     ),
     _Page("Notifications", "♪", "which epics on this machine you are told of"),
     _Page("Daemons", "⇄", "this machine's and other machines', reached over ssh"),

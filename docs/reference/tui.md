@@ -259,8 +259,8 @@ Each command's line in the completion list:
 | --- | --- | --- |
 | `/flow` | `Switch flow` | `Set up the running flow's agents` — a run is going |
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
-| `/epics` | `View and manage runs here, or of another daemon` | |
-| `/resume` | `Resume the last run in this directory` | |
+| `/epics` | `View and manage epics here, or of another daemon` | |
+| `/resume` | `Resume the last epic in this directory` | |
 | `/settings` | `Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace, usage` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
@@ -286,10 +286,10 @@ Every message is red and prefixed `hmz: `.
 | `/stop` | nothing running | `no flow is running` |
 | `/stop` | a [chat](#chat) going | `a chat is not stopped: /clear starts another` |
 | `/stop` | stopping | `the flow is already stopping: it is finishing the turn it was in` |
-| `/resume` | a run going | `cannot resume a run while a flow is running: press ctrl+c twice to stop it first` |
+| `/resume` | a run going | `cannot resume an epic while a flow is running: press ctrl+c twice to stop it first` |
 
-| `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
-| `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
+| `/resume` | stopping | `cannot resume an epic while the flow is still stopping: it is finishing the turn it was in` |
+| `/resume` | any argument | `/resume takes no arguments: it resumes the last epic here; use /epics to choose another epic` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
 | `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, daemons, accounts, fallback, runtimes, backup, workspace or usage` |
 | `/epics <word>` | not `@` and a daemon's name | `/epics takes a daemon as @<name>: choose @local, @<daemon>, …` |
@@ -302,8 +302,8 @@ Every message is red and prefixed `hmz: `.
 
 Opens the [flow menu](#choosing-a-flow) on Installed. With `[flow]` (a name as offered, or a
 path), opens inside that flow's roles. While a run is going, opens on the running flow's roles
-and offers nothing else. Saving while a run is going says `the current run keeps its original roles;
-changes will apply to the next run`.
+and offers nothing else. Saving while a run is going says `the current epic keeps its original roles;
+changes will apply to the next epic`.
 
 ### `/btw [question]` {#btw-command}
 
@@ -691,7 +691,7 @@ answers as buttons, the first focused as it opens. Each button's tooltip says wh
 
 ### Path completion {#path-completion}
 
-A form's path rows -- **Export run**'s `to`, **Import epic**'s `file`, the ssh host form's `identity file`, the docker
+A form's path rows -- **Export epic**'s `to`, **Import epic**'s `file`, the ssh host form's `identity file`, the docker
 host form's `socket` and `tls`, **Import ssh hosts**'s `from`, and the environment
 form's `workdir` on this machine -- complete as they are written, as a shell does:
 
@@ -769,7 +769,7 @@ removing happen at once.
 | --- | --- | --- |
 | first screen | `hmz › /flow` | `Flows to run, and the flowverses more are installed from.` |
 | Installed | `hmz › /flow › Installed` | `Flows ready to run here: pick one to set it up and run it, or install more from a flowverse.` |
-| roles | `hmz › /flow › Installed › <flow>` (`hmz › <flow>` when opened on it) | `Configure each role: an agent (CLI, account, model and effort) or an environment; then what the flow takes and what a run may spend.` |
+| roles | `hmz › /flow › Installed › <flow>` (`hmz › <flow>` when opened on it) | `Configure each role: an agent (CLI, account, model and effort) or an environment; then what the flow takes and what an epic may spend.` |
 | Flowverses | `hmz › /flow › Flowverses` | `Indexes of flows to install, cloned under ~/.hmz/flowverses. Fetching, adding and removing one happen at once.` |
 | a flowverse | `hmz › /flow › Flowverses › <verse>` | `Flows <verse> lists, at their newest release. Open one for its others; installing happens at once.` |
 | a flow's releases | `hmz › /flow › Flowverses › <verse> › <flow>` | `Releases of <flow>, newest first. Pick one to install it, or to switch to it.` |
@@ -821,7 +821,7 @@ top, `esc` leaves, and params are not asked.
 | each agent role (declared order) | `<cli>/<model>:<effort> ▸` or `not set ▸`; under it `agent[ · as <account>]` | [agent sheet](#what-each-agent-is) |
 | each environment role | the `-e` spec after `<role>=`, or `not set`, then `▸`; under it `environment` | [environment form](#where-each-agent-works) |
 | `params` (flows that take any) | the params changed from their defaults, or `defaults`, then `▸` | [params sheet](#setting-a-flow-up) |
-| `budget` | `set ▸` or `none ▸`; under it `what a run may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
+| `budget` | `set ▸` or `none ▸`; under it `what an epic may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
 | <span id="profiling-row"></span>`profile flow` (straight under `budget`) | a switch, `● on ▾` or `○ off ▾`: the flow's remembered value, else off; under it `samples the flow's own Python` or `traced only` | nothing: `enter` drops `on` and `off` (see dropdown); a run started profiles the flow's own Python where it is on, sent as `profile_flow` |
 | `profile environment` (straight under `profile flow`) | the same switch; under it `samples the programs agents start` or `traced only` | the same; a run started is [profiled](/reference/tracing#profiling-a-run) where it is on, sent as `profile_environment`. Both remembered per flow on save as `workspaces.<dir>.flows.<flow>.profile_flow` and `.profile_environment` |
 | <span id="backup-row"></span>`backup` (straight under `profile environment`) | the targets an epic goes to, `<a>, <b> ▸`, or `none ▸`; under it `where each epic is backed up`, with ` (the defaults)` until others are chosen | **Backup**: a switch per [target](#backup-page), named, its URL under it; **Done** `backs each epic up to the targets switched on`. With no target, nothing opens: `no backup targets: add one on /settings backup`. Remembered per flow on save as `workspaces.<dir>.flows.<flow>.backup` (untouched, nothing is written, so the defaults go on applying); a run started passes those settings still has as `backup`. |
@@ -1055,11 +1055,11 @@ under the list. Equivalent on the command line: [`-p`](/reference/cli#writing-pa
 | Element | Value |
 | --- | --- |
 | Title | `Set budget for <flow>` |
-| About | `A run stops at whichever limit it reaches first; at least one limit is required. Leave empty or 0 for no limit.` |
+| About | `An epic stops at whichever limit it reaches first; at least one limit is required. Leave empty or 0 for no limit.` |
 
 | Row | Kind | Default | About |
 | --- | --- | --- | --- |
-| `duration` | written | `""` | `maximum run duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-p budget.duration`](/reference/cli#writing-a-budget); reopens in days, hours, minutes and seconds, e.g. `6h`, `12d`, `1m30s`) |
+| `duration` | written | `""` | `maximum epic duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-p budget.duration`](/reference/cli#writing-a-budget); reopens in days, hours, minutes and seconds, e.g. `6h`, `12d`, `1m30s`) |
 | `cost` | written | `0.0` | `maximum cost in US dollars, 0 for no limit` |
 | `output_tokens` | written | `0` | `maximum output tokens, 0 for no limit` |
 | `graceful` | ▾ `● on`/`○ off` | `on` | `finish the current turn when a limit is reached` |
@@ -1069,12 +1069,12 @@ Button: **Set** (`all of the above`). Rows, keys and typing are as on the
 
 ```text
   hmz › /flow › Installed › ralph_loop › Set budget for ralph_loop
-  A run stops at whichever limit it reaches first; at least one limit is
+  An epic stops at whichever limit it reaches first; at least one limit is
   required. Leave empty or 0 for no limit.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ duration                                                             20m │
-  │   maximum run duration: 1h30m, 90s, PT2H; empty for no limit             │
+  │   maximum epic duration: 1h30m, 90s, PT2H; empty for no limit            │
   │──────────────────────────────────────────────────────────────────────────│
   │ cost                                                                 0.5 │
   │   maximum cost in US dollars, 0 for no limit                             │
@@ -1101,7 +1101,7 @@ Button: **Set** (`all of the above`). Rows, keys and typing are as on the
 
 Row summary: `stops at <duration>, <n> out, <money>[, even mid-turn]` for the limits set, the
 duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 12d, $5.00`;
-`stops at 1m30s, 12.0k out, $0.50, even mid-turn`); unset: `none set; a run needs one`, or for
+`stops at 1m30s, 12.0k out, $0.50, even mid-turn`); unset: `none set; an epic needs one`, or for
 `chat` `none needed; runs until you stop it`.
 
 ## `/epics` {#the-runs-that-have-already-happened}
@@ -1144,10 +1144,10 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | Title | `<when> · <flow>` |
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).`, then a line per target it was backed up to: `<target>: backed up <when>` or `<target>: failed <when>: <error>` |
 | Keys | `enter choose   esc back` |
-| `resume epic` | `resume the flow from this epic`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
+| `resume epic` | `resume the flow from this epic`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this epic cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `graph` | `its agents, called flows and sessions, read back`. Opens its [graph](#an-epic-s-graph). |
 | `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
-| `export epic` | `the entire epic as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+| `export epic` | `the entire epic as an archive, with its trace`. Opens **Export epic** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 | `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for a [chat](#chat). |
 | `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
 
@@ -1178,8 +1178,8 @@ asked, `model` and its thinking, the tool's name with what went in and `⎿ ` wh
 until `enter` says it whole (and again cuts it). **Search…** or `/` narrows them. Keys `enter whole   /
 search   tab actions   esc back`.
 
-**Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
-there. Credentials are struck out of every byte of it.`), `Export run` as its step of the way
+**Export epic** (`The entire epic as one archive, with its trace, to send to somebody who was not
+there. Credentials are struck out of every byte of it.`), `Export epic` as its step of the way
 across the top: one row `to   file, or directory to put <run>.hmzepic in`, a
 [path](#path-completion), holding `~/Downloads/` (`~/` where there is none) until a letter
 typed replaces it; **Done** `writes the archive there`, `~` expanded; error `where to export to
@@ -1201,7 +1201,7 @@ ssh as the [Daemons page](#daemons-page) reaches it, off the screen.
 | Empty | `reaching <daemon>…` while it is read; `no epic on <daemon> yet`; or why it was not reached, in red |
 
 `enter`, `m` or a click opens the epic's menu: **export** (not while it runs: the
-[Export run](#the-runs-that-have-already-happened) form, the archive that daemon makes brought
+[Export epic](#the-runs-that-have-already-happened) form, the archive that daemon makes brought
 here, `<path> · <size>`), **upload** (backs it up there: `backing <name> up to <a>, <b>`),
 **copy name**, **copy task** and **copy workspace**; and first, on an epic a host there holds,
 **follow** (`read it as it goes, and say something to it`).
@@ -1217,8 +1217,8 @@ and is followed.
 
 #### Following an epic there {#afar}
 
-`<workspace> · <daemon>` across the top, then `The runs of this directory on <daemon>, as its
-own web page reads them. A line typed is said to the run, or answers what it asks.` The
+`<workspace> · <daemon>` across the top, then `The epics of this directory on <daemon>, as its
+own web page reads them. A line typed is said to the epic, or answers what it asks.` The
 transcript: `— <flow> started —`, `❯ <task>` and each line said or answer given, `⏺ <words>`
 of each agent's turn, `⏺ <agent> is working` as one begins, `? <question>` (not what a flow
 waiting on its next line says back), `hmz: <failure>` in red, `— the flow is <how> —`; the whole
@@ -1316,13 +1316,13 @@ are used; the budget counts from zero.
 | Message (`hmz: `, red) | Condition |
 | --- | --- |
 | `no flow has been run here, so there is nothing to resume` | no run here |
-| `no run here was of a flow that can be resumed, so there is nothing to resume` | the scan found none |
+| `no epic here was of a flow that can be resumed, so there is nothing to resume` | the scan found none |
 | `<epic> cannot be read, so there is nothing to resume` | unreadable record |
 | `<run> cannot be resumed: <why>` | the flow will not load, `<why>` as the flow API says it (for a run of `local/x`, from before flows were named after an `@`: `local/x: a flow of local is called @local/x now`) |
 | `<flow> does not support resuming, so <run> cannot be resumed` | the flow is not resumable now |
 | `<run> has no saved state to resume: enter a task to start the flow from the beginning` | no journal entry |
-| `cannot resume a run while a flow is running: press ctrl+c twice to stop it first` | a run going |
-| `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` | a run stopping |
+| `cannot resume an epic while a flow is running: press ctrl+c twice to stop it first` | a run going |
+| `cannot resume an epic while the flow is still stopping: it is finishing the turn it was in` | a run stopping |
 
 `/resume` is unlisted while refused, and while the last background look found nothing (at
 mount, after flowverse fetches, after `/epics` closes, when a run ends). Command-line
@@ -1344,7 +1344,7 @@ Storage keys are in [Settings](/reference/settings).
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ ⚙  General                                      details off · reports on │
-  │    this machine: what runs show, the /btw agent, error reports           │
+  │    this machine: what epics show, the /btw agent, error reports          │
   │──────────────────────────────────────────────────────────────────────────│
   │ ♪  Notifications                                5 of 5 kinds · system on │
   │    which epics on this machine you are told of                           │
@@ -2034,7 +2034,7 @@ the [cost readout](#cost-readout).
 `ctrl+t` or a click on `graph`/`list` switches; the choice and the opened agents persist for
 the process, not across launches. `Exomyth`, at the right of the same line, opens the epic going
 in [Exomyth](#exomyth), as `ctrl+e` does, the epic being the one the host says the run writes
-(`the run has not written its epic yet`, dim, before it has). It is there only while a run
+(`the epic has not been written yet`, dim, before it has). It is there only while a run
 goes, and never for a `chat`; the status line then also offers `ctrl+e Exomyth`.
 
 | Element | Rule |
@@ -2083,9 +2083,9 @@ commands`, dropped from the **end** to fit.
 ### Environment page {#an-environment-s-page}
 
 A menu over the monitor: `monitor › <role>`, the title being the environment's role (or kind).
-About: `An environment of the run: where its sessions work.` Redrawn every 0.5 s. Keys: `enter
+About: `An environment of the epic: where its sessions work.` Redrawn every 0.5 s. Keys: `enter
 read session   esc back`; `←`, `backspace` or a click on `monitor` go back too. Gone from the
-run: `This environment is not in the run.`
+run: `This environment is not in the epic.`
 
 | Row | Value |
 | --- | --- |

@@ -78,7 +78,7 @@ class Afar(ModalScreen[None]):
             yield Label(id="about")
             yield RichLog(id="said", wrap=True, markup=True)
             yield Label(id="standing")
-            yield Input(placeholder="say something to the run", id="line")
+            yield Input(placeholder="say something to the epic", id="line")
             yield Label("enter send   esc back", id="keys")
 
     def on_mount(self) -> None:
@@ -87,8 +87,8 @@ class Afar(ModalScreen[None]):
             f"{escape(self._workspace)}{_DOT}{escape(self._daemon)}"
         )
         self.query_one("#about", Label).update(
-            f"The runs of this directory on {escape(self._daemon)}, as its own web page "
-            "reads them. A line typed is said to the run, or answers what it asks."
+            f"The epics of this directory on {escape(self._daemon)}, as its own web page "
+            "reads them. A line typed is said to the epic, or answers what it asks."
         )
         self._stands()
         self._link.heard(self._told)

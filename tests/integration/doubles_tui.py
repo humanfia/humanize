@@ -301,7 +301,7 @@ async def set_up_own_flow(pilot: Pilot[None]) -> None:
     await typed(pilot, "/flow")
     await on(pilot, Flows)
     await opens(pilot, OWN)
-    await shows(pilot, trail("Installed", OWN), "a run needs one")
+    await shows(pilot, trail("Installed", OWN), "an epic needs one")
     await opens(pilot, "\x1ebudget")
     await on(pilot, Configures)
     await opens(pilot, "cost")

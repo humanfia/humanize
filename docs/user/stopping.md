@@ -150,7 +150,7 @@ What to look at, by number:
 | `/stop` | at the prompt, on any transcript or the monitor | Sent once. You typed it out on purpose, so it is not asked twice. Offered only while a flow runs and is not already stopping. Typed otherwise, it says why it did nothing. |
 | `Stop`, then `Force stop` | on the epic's page: <kbd>enter</kbd> on `◫ epic` on [the monitor](/user/monitor) | Each asks first. `Force stop` replaces `Stop` while the flow winds down. Not on a chat. |
 | <kbd>ctrl+c</kbd> | on an `hmz exec` line | One press. |
-| a budget | `-p budget.…` on `hmz exec`, or what a run may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
+| a budget | `-p budget.…` on `hmz exec`, or what an epic may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
 
 ## What the next <kbd>ctrl+c</kbd> does
 
@@ -271,13 +271,13 @@ The flow is winding down: a loop finishing its round, or a backend slow to notic
 cut off. Press <kbd>ctrl+c</kbd> once more to close every agent still in a turn. The line
 `— closed 1 conversation(s) mid-turn —` says how many it closed.
 
-### `hmz: cannot resume a run while the flow is still stopping: it is finishing the turn it was in`
+### `hmz: cannot resume an epic while the flow is still stopping: it is finishing the turn it was in`
 
 A run is picked up from where it wrote down it got to, and it is still writing that. Wait until
 the status line reads `◉ <flow>`, or press <kbd>ctrl+c</kbd> to end the wait, then `/resume`
 again.
 
-### `hmz: cannot resume a run while a flow is running: press ctrl+c twice to stop it first`
+### `hmz: cannot resume an epic while a flow is running: press ctrl+c twice to stop it first`
 
 `/resume` picks up a run that has stopped. Stop the one that is running first.
 

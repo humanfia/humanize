@@ -185,7 +185,7 @@ Press <kbd>enter</kbd> on one and choose **resume epic**:
 ```
 
 The **resume epic** row is there only when the flow, as it is today, can be picked up. When it
-cannot, the line under the list says `<flow> is not resumable, so this run cannot be resumed`.
+cannot, the line under the list says `<flow> is not resumable, so this epic cannot be resumed`.
 <kbd>esc</kbd>, <kbd>←</kbd> or a click on `/epics` across the top goes back to the runs.
 
 ## Check that it worked
@@ -241,14 +241,14 @@ At the prompt, `/resume` typed when it cannot carry a run on says why:
 | It says | Means | Do |
 | --- | --- | --- |
 | `no flow has been run here, so there is nothing to resume` | Nothing has run in this directory. | Start `hmz` where the run started. |
-| `no run here was of a flow that can be resumed, so there is nothing to resume` | Every run here was of a flow that cannot be. | Start the flow afresh. |
+| `no epic here was of a flow that can be resumed, so there is nothing to resume` | Every run here was of a flow that cannot be. | Start the flow afresh. |
 | `<run> cannot be resumed: <flow>: a flow of local is called @local/<flow> now` | The run is from before flows of anywhere but `official` were named after an `@`, and is not carried on under the new name. | Start `$@local/<flow>` afresh. |
 | `<flow> does not support resuming, so <run> cannot be resumed` | The flow has been changed since that run and no longer can be. | Start it afresh. |
 | `<run> has no saved state to resume: enter a task to start the flow from the beginning` | The run was killed before it saved anything. | Type the task: the flow starts from the top. |
 | `<run> cannot be read, so there is nothing to resume` | The run's record is damaged. | Pick another run from `/epics`. |
-| `cannot resume a run while a flow is running: press ctrl+c twice to stop it first` | A flow is running. | [Stop](/user/stopping) it first. |
-| `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` | The flow is closing out its turn. | Wait for it to finish. |
-| `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` | Something was typed after it. | Use `/epics` to choose a run. |
+| `cannot resume an epic while a flow is running: press ctrl+c twice to stop it first` | A flow is running. | [Stop](/user/stopping) it first. |
+| `cannot resume an epic while the flow is still stopping: it is finishing the turn it was in` | The flow is closing out its turn. | Wait for it to finish. |
+| `/resume takes no arguments: it resumes the last epic here; use /epics to choose another epic` | Something was typed after it. | Use `/epics` to choose a run. |
 
 From a script, `--resume` with nothing to carry on is refused before any agent starts, with
 exit status 2:

@@ -101,7 +101,7 @@ Before Textual is imported, `hmz` sets `TEXTUAL_DISABLE_KITTY_KEY=1` in its own 
 | --- | --- | --- |
 | The interface closed normally | — | `0` |
 | This machine's runs are held by an older humanize (daemon `protocol` not `2`), or this directory's by a host one left | `hmz: the runs on this machine are held by an older humanize (pid <n>); stop it with that version`, or `the runs in <dir> …` | `1` |
-| The host let go of the interface ([`gone`](/reference/daemon#gone)) | `hmz: <why>` (or `hmz: disconnected from the runs`), printed as the interface closes | `1` |
+| The host let go of the interface ([`gone`](/reference/daemon#gone)) | `hmz: <why>` (or `hmz: disconnected from the epics`), printed as the interface closes | `1` |
 | No host could be linked in 3 tries | `hmz: runs cannot be detached from the terminal (<OSError>), so they will run in this process instead` | the interface's |
 
 ## `hmz exec` {#hmz-exec}

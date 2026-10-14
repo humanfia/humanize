@@ -48,7 +48,7 @@ def _does(
             False,
             "",
             ["graph", "export", "exomyth", *_COPIES],
-            "ralph is not resumable, so this run cannot be resumed",
+            "ralph is not resumable, so this epic cannot be resumed",
         ),
         (
             True,

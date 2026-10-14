@@ -318,7 +318,7 @@ leaves it out. Nothing is left to answer, so the focus moves on to **Done**:
 ```text
   hmz › @local/onbox                                         ● unsaved changes
   Configure each role: an agent (CLI, account, model and effort) or an
-  environment; then what the flow takes and what a run may spend.
+  environment; then what the flow takes and what an epic may spend.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ builder                          claude/claude-haiku-4-5-20251001:high ▸ │
@@ -331,7 +331,7 @@ leaves it out. Nothing is left to answer, so the focus moves on to **Done**:
   │   environment                                                            │
   │──────────────────────────────────────────────────────────────────────────│
   │ budget                                                             set ▸ │
-  │   what a run may spend: stops at 10m                                     │
+  │   what an epic may spend: stops at 10m                                   │
   │──────────────────────────────────────────────────────────────────────────│
   │ profile flow                                                     ○ off ▾ │
   │   traced only                                                            │

@@ -39,11 +39,14 @@ Sleep 400ms
 
 # The whole run as one archive, with a trace of its sessions -- and the programs it ran --
 # gathered into it on the way. Where it goes is asked, and the path completes as it is
-# typed: `/tm` and tab is `/tmp/`, enter keeps it and enter on done exports.
+# typed: `/tm` and tab is `/tmp/`, enter keeps it and enter on done exports. It is two rows
+# down, past graph.
+Down
+Sleep 400ms
 Down
 Sleep 400ms
 Enter
-Wait+Screen /Export run/
+Wait+Screen /Export epic/
 Sleep 600ms
 Type "/tm"
 Sleep 600ms

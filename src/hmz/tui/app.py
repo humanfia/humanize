@@ -2761,7 +2761,7 @@ class Humanize(App[None]):
 
     def refused_resume(self) -> str:
         """Why `/resume` cannot run now, which is a flow still going, or "" where it can."""
-        return self._mid_run_why("cannot resume a run")
+        return self._mid_run_why("cannot resume an epic")
 
     def nothing_to_resume(self) -> bool:
         """Whether there was no run here to carry on, as it was last looked for.
@@ -2883,7 +2883,7 @@ class Humanize(App[None]):
             named = str(answer.get("epic") or "")
             ran = self.hmz.epics.read(self.hmz.epics.under() / named) if named else None
             if ran is None:
-                self.show("the run has not written its epic yet", "dim")
+                self.show("the epic has not been written yet", "dim")
             else:
                 self.push_screen(Exomyth(ran))
 
@@ -3892,8 +3892,8 @@ class Humanize(App[None]):
         noticing, so what was changed is written down and is what the next run starts on.
         """
         self.show(
-            "[dim]the current run keeps its original roles; changes will apply "
-            "to the next run[/dim]"
+            "[dim]the current epic keeps its original roles; changes will apply "
+            "to the next epic[/dim]"
         )
 
     @work
@@ -4202,8 +4202,8 @@ class Humanize(App[None]):
         """
         if argv:
             self.show(
-                "hmz: /resume takes no arguments: it resumes the last run "
-                "here; use /epics to choose another run",
+                "hmz: /resume takes no arguments: it resumes the last epic "
+                "here; use /epics to choose another epic",
                 "red",
             )
             return
@@ -4247,7 +4247,7 @@ class Humanize(App[None]):
                 None,
                 None,
                 (
-                    "no run here was of a flow that can be resumed, so there is nothing "
+                    "no epic here was of a flow that can be resumed, so there is nothing "
                     "to resume"
                 ),
             )
@@ -4273,7 +4273,7 @@ class Humanize(App[None]):
         try:
             *_, why = await asyncio.to_thread(self._last_run)
         except Exception as failed:  # noqa: BLE001 -- a store that cannot be read is said on use
-            self.log(f"failed to look for a run to resume: {failed}")
+            self.log(f"failed to look for an epic to resume: {failed}")
             why = ""
         if looking == self._resume_looks:
             self._no_resume = why
@@ -4364,7 +4364,7 @@ class Humanize(App[None]):
         """
         # Before anything is read, since it is the one refusal that is about now rather than
         # about the record: a run picked up is a flow started, and there is one going.
-        if self._mid_run("cannot resume a run"):
+        if self._mid_run("cannot resume an epic"):
             return
         if ran is None:
             ran, why = self._unresumable(epic)
@@ -4776,7 +4776,7 @@ class Humanize(App[None]):
         if self._quitting:
             return  # asked for, on the way out
         self._quitting = True
-        self.exit(return_code=1, message=f"hmz: {why or 'disconnected from the runs'}")
+        self.exit(return_code=1, message=f"hmz: {why or 'disconnected from the epics'}")
 
     def _started(self, record: dict[str, Any]) -> None:
         """Takes a run that has just started as the one in front of us.
@@ -5429,13 +5429,13 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "epics",
-        "View and manage runs here, or of another daemon",
+        "View and manage epics here, or of another daemon",
         lambda app, argv: app.action_epics(argv[0] if argv else ""),
         takes="[@daemon]",
     ),
     Command(
         "resume",
-        "Resume the last run in this directory",
+        "Resume the last epic in this directory",
         lambda app, argv: app.action_resume(argv),
         # Turned down with a flow going. And left out of the list with nothing here to carry
         # on, which is looked for off the screen, reading a flow being running it -- and so

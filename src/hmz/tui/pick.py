@@ -3149,7 +3149,7 @@ class Budgeted(BaseModel):
 
     duration: str = Field(
         default="",
-        description="maximum run duration: 1h30m, 90s, PT2H; empty for no limit",
+        description="maximum epic duration: 1h30m, 90s, PT2H; empty for no limit",
     )
     cost: float = Field(
         default=0.0, ge=0, description="maximum cost in US dollars, 0 for no limit"
@@ -10796,7 +10796,7 @@ class Does(Picks):
         if chat:
             return "this chat cannot be continued here"
         return (
-            f"{escape(self._ran.flow)} is not resumable, so this run cannot be resumed"
+            f"{escape(self._ran.flow)} is not resumable, so this epic cannot be resumed"
         )
 
 
