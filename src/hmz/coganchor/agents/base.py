@@ -41,13 +41,19 @@ from .codenames import codename
 from .config import PERMISSIONS, UNSAID, Unfenced, Unserved
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
-from .skills import Loaded, mount, unmount
 from .tools import Toolbox
 from .watchdog import Watchdog, held
 
 if TYPE_CHECKING:
     import asyncio
-    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+    from collections.abc import (
+        Callable,
+        Generator,
+        Iterable,
+        Iterator,
+        Mapping,
+        Sequence,
+    )
     from pathlib import Path
 
     from pydantic import BaseModel
@@ -58,12 +64,14 @@ if TYPE_CHECKING:
     from hmz.coganchor.fallbacks import Answer
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.gateway import Gateway
+    from hmz.coganchor.homes import Home
     from hmz.coganchor.machines import MachineConfig
     from hmz.coganchor.providers import Provider
     from hmz.coganchor.tailing import Tail
 
     from .allowance import Ledger
     from .config import AgentConfig, Budget
+    from .skills import Loaded
 
 
 class Journal(Protocol):
@@ -197,6 +205,16 @@ def _ended(proc: subprocess.Popen[str]) -> None:
     # And what the turn was answering its credential paths out of: a supervisor takes its own
     # copies away when it is done, and a supervisor that was killed here never got to.
     swept(proc.pid)
+
+
+@contextlib.contextmanager
+def _dropped(home: Home | None) -> Generator[None]:
+    """Drops a process's virtual home once what it is held around is over, whichever way."""
+    try:
+        yield
+    finally:
+        if home is not None:
+            home.drop()
 
 
 def _reaped(proc: subprocess.Popen[str], swept: Callable[[int], None]) -> None:
@@ -574,10 +592,6 @@ class SessionBase(ABC):
         #: The flow's own command lines this conversation is putting on the agent's PATH, held
         #: here as well as on the agent's shelf for the reason its tools are.
         self._clis: tuple[FakeCli, ...] = ()
-        #: And which of them are actually down in the workspace now, or None while none are.
-        #: The two differ for exactly as long as it takes the next turn to start, which is
-        #: where what was asked for is put where the backend reads it.
-        self._mounted: tuple[str, ...] | None = None
         #: The conversation on the agent this one falls back to, once a turn of this one has
         #: had to be taken there. Held for as long as this session is rather than opened per
         #: turn: what this conversation was is lost at the move, and losing a second one
@@ -649,22 +663,17 @@ class SessionBase(ABC):
         #: by whatever builds the call, since a command line and a process's own arguments
         #: are both built from a session that is already holding the turn.
         self._shaping: type[BaseModel] | None = None
-        #: What takes away what this session mounted, once it has mounted anything. However
-        #: the session ends -- closed, or let go of by a flow that opens one a turn -- what it
-        #: put in the workspace goes with it, so it is a finalizer rather than a line in
-        #: `close`: a Ralph loop drops a session a turn and closes none of them.
-        self._unmounting: Callable[[], None] | None = None
         #: What takes back what this session offered the agent, once it has offered anything,
         #: and None for one that never has -- a session that offers nothing pays for none of
-        #: this. A finalizer for the reason the unmounting is one: a loop that opens a session
-        #: a round and drops it closes none of them, and a callback still in front of the
-        #: model after the round that wrote it is one the flow can no longer see the point of.
+        #: this. A finalizer rather than a line in `close`: a loop that opens a session a round
+        #: and drops it closes none of them, and a callback still in front of the model after
+        #: the round that wrote it is one the flow can no longer see the point of.
         self._unoffering: Callable[[], None] | None = None
         #: And what takes back what it shelved, for the same reason and in the same way.
         self._unshelving: Callable[[], None] | None = None
         #: Whether a turn of this session is running now. Read by `close`, which is what a stop
-        #: reaches and so is called from another thread while a turn is under way: what the
-        #: turn is working by is not taken away underneath it.
+        #: reaches and so is called from another thread while a turn is under way: it does not
+        #: wait for the turn's logs to be copied.
         self._working = False
         #: What each turn of this conversation may spend, where it has been told something
         #: other than what its agent was configured with, and None where it has not.
@@ -1368,12 +1377,6 @@ class SessionBase(ABC):
                 yield from self._turning(prompt, schema=schema)
             finally:
                 self._working = False
-                if self._ended:
-                    # Closed while this turn was running -- a stop does not wait for a turn,
-                    # and the turn's own process is still reading the skills it was given.
-                    # So what the session mounted goes now, which is the first moment nothing
-                    # is working by it.
-                    self._unmounted()
 
     def _turning(
         self, prompt: str, *, schema: type[BaseModel] | None = None
@@ -1416,12 +1419,6 @@ class SessionBase(ABC):
         held = self._agent.waiting() if self._agent.waiting is not None else []
         if held:
             prompt = "\n\n".join([prompt, *held])
-        # Before the moments rather than only on the first turn: a session closed and then
-        # spoken to again -- which is what a stopped flow that carries on does -- had what it
-        # was working by taken away when it closed, and a turn without the flow's skills is a
-        # turn asked to do what it no longer has the means to do. A no-op for a session that
-        # is holding them already, which is every turn but the first.
-        self._mounts()
         if not self._started:
             self._started = True
             self._fire(Moment.SESSION_START, prompt=prompt)
@@ -1989,7 +1986,7 @@ class SessionBase(ABC):
         session._standing_for = self
         session._shaping = schema
         # The flow's skills go with the turn: the stand-in was made carrying them, and a
-        # session of it puts them where its own backend reads them, which is not where this
+        # session of it lodges them where its own backend reads them, which is not where this
         # one's does. Whichever of them this session carries, since it is this session's turn.
         session.loads(self._skills)
         # And so do the flow's own callbacks: a turn taken with none of them in front of the
@@ -2001,7 +1998,6 @@ class SessionBase(ABC):
         session.offers(self._agent.toolbox.offered())
         # And its command lines, for the same reason.
         session.shelves(self._agent.shelf.shelved())
-        session._mounts()
         yield from session._falling_back(prompt, schema=schema)
 
     def _shaped_ask(self, prompt: str, schema: type[BaseModel] | None) -> str:
@@ -2227,26 +2223,6 @@ class SessionBase(ABC):
             # And the conversation this one moved to, which is this conversation carried on
             # somewhere else: it ends when this one does.
             self._moved_to.close()
-        if not self._working:
-            # What the session mounted goes when the conversation does. Not while a turn is
-            # still running by it, though: this is called to stop an agent, and stopping one
-            # does not wait for the turn it is taking -- so a turn that is still reading those
-            # files would have them taken away underneath it. The turn itself lets go of them
-            # as it ends, which is the first moment nothing is using them.
-            self._unmounted()
-
-    def _unmounted(self) -> None:
-        """Takes away what this session mounted, once and whenever the last holder is done.
-
-        Calling the finalizer is what runs it, once, whichever gets there first: the close,
-        the end of a turn that outlived one, or collection for a session nobody closed.
-        """
-        if self._unmounting is not None:
-            self._unmounting()
-            self._unmounting = None
-        # And nothing is down, so the next turn puts down whatever this session carries then
-        # -- which is what a session closed and spoken to again is owed.
-        self._mounted = None
 
     def _shut(self) -> None:  # noqa: B027  -- empty on purpose, and so not abstract
         """Lets go of whatever is holding this conversation open.
@@ -2363,53 +2339,6 @@ class SessionBase(ABC):
             mirror, os.path.relpath(where, workspace)
         )
 
-    def _mounts(self) -> None:
-        """Puts the skills this session carries where the backend reads them, as a turn opens.
-
-        Where that backend reads a project's own skills, for as long as this session carries
-        them: a flow works by the skills it carries, and a session of it that had none would
-        be a turn asked to do something the flow never gave it the means to do. As a turn
-        opens rather than when the session was made, since the directory it works in is
-        settled by then -- and per session, so a skill rewritten between turns is the one the
-        next turn carries.
-
-        Asked each turn rather than once, because which of them this session carries is a
-        thing a flow may change while the conversation is going: a session told to put one
-        down and take another up has the one it was told about from its next turn, which is
-        this one. A session carrying what it was already carrying does nothing at all here,
-        which is every turn but the first and every turn after a change.
-
-        Nothing at all for a flow that brings none, which is most of them, and for a backend
-        that reads no such directory: those carry what their CLI installed and no more.
-
-        Note:
-          Into the directory on this machine, never an anchored agent's mirror of the target.
-          A mirror is the target's copy -- coganchor makes it hold what the target holds, and
-          sweeps away what only it has -- so a skill written into one is a skill deleted, and
-          a mirror created here before coganchor has taken it over is a mirror coganchor
-          refuses to take over at all, which would be every turn of the run failing. A
-          container given this workspace reads this directory and gets them; a machine across
-          a network keeps its own, and a flow that brings skills is a flow to run here.
-        """
-        carrying = self._carrying()
-        if tuple(one.name for one in carrying) == self._mounted:
-            return  # already carrying exactly these, which is every turn but the first
-        # What it was carrying goes before what it is to carry arrives: two sets of skills in
-        # the one directory is the session carrying what it was told to put down.
-        self._unmounted()
-        if not carrying:
-            self._mounted = ()
-            return
-        workspace = self.cwd
-        if not os.path.isdir(workspace):  # noqa: PTH112
-            return  # a session that cannot say where it works is one that will not run
-        mounted = mount(self._agent.backend, workspace, carrying)
-        if mounted.at:
-            # A finalizer rather than a line in `close`, and callable so that whichever of
-            # the two gets there first is the one that runs -- once, whatever happens after.
-            self._unmounting = weakref.finalize(self, unmount, mounted)
-        self._mounted = tuple(one.name for one in carrying)
-
     def _carrying(self) -> tuple[Loaded, ...]:
         """The skills this session is to have down, as the flow brought them.
 
@@ -2435,6 +2364,34 @@ class SessionBase(ABC):
           The variables to add, which are set for the turn and for nothing else.
         """
         return self._agent.environment()
+
+    def _spawning(
+        self, argv: list[str]
+    ) -> tuple[list[str], dict[str, str] | None, Home | None]:
+        """One process of this session, as what to spawn, what with, and the home it is in.
+
+        The virtual home (:meth:`AgentBase.homed`) is built here for the skills this session
+        carries now, and is the caller's to drop once the process is over.
+
+        Args:
+          argv: The backend's own command.
+
+        Returns:
+          The command, its whole environment -- or None to inherit this process's own -- and
+          its virtual home, or None for a CLI started in the user's own.
+        """
+        home = self._agent.homed(self._carrying())
+        if home is not None and home.argv:
+            # Named on the command line, for a CLI no variable moves: right after its name.
+            argv = [*argv[:1], *home.argv, *argv[1:]]
+        try:
+            spawned = self._agent.spawned(argv, self.cwd, home)
+        except BaseException:
+            if home is not None:
+                home.drop()
+            raise
+        environ = self._environ()
+        return spawned, (environ if home is None else home.environ(environ)), home
 
     def _environ(self) -> dict[str, str] | None:
         """The whole environment this session's processes are started with.
@@ -2928,30 +2885,34 @@ class CommandSessionBase(SessionBase):
             # Spawned rather than called: a supervisor forks the agent and takes the process's
             # signal handling with it, which a flow pumping turns from threads of its own has
             # no way to lend it. Whether there is one to spawn -- an anchor, a provider's own
-            # paths, both -- is the agent's to say.
-            argv = self._agent.spawned(argv, self.cwd)
+            # paths, both -- is the agent's to say. And in a virtual home for a CLI that is
+            # started in one, which goes once the turn's process is over.
+            argv, environ, home = self._spawning(argv)
             out: list[str] = []
             err: list[str] = []
             said: queue.Queue[Event | None] = queue.Queue()
-            with subprocess.Popen(
-                argv,
-                # No prompt on stdin means no stdin at all: inheriting ours would let the agent
-                # read the terminal a flow is being watched from.
-                stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                encoding="utf-8",
-                # The agents draw progress bars and check marks: their bytes must never fail a
-                # turn, whatever encoding the machine running the flow happens to be set to.
-                errors="replace",
-                # This process's own, less what the agent's provider hushes and plus what it
-                # and the backend set. None rather than a copy where there is nothing to say,
-                # so that a turn inherits the environment as it always did.
-                env=self._environ(),
-                # The directory the session was opened at, which is this one unless it was
-                # opened at another; an anchored turn is put there by the anchor instead.
-                cwd=None if self._agent.anchor is not None else where,
-            ) as proc:
+            with (
+                _dropped(home),
+                subprocess.Popen(
+                    argv,
+                    # No prompt on stdin means no stdin at all: inheriting ours would let the agent
+                    # read the terminal a flow is being watched from.
+                    stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    encoding="utf-8",
+                    # The agents draw progress bars and check marks: their bytes must never fail a
+                    # turn, whatever encoding the machine running the flow happens to be set to.
+                    errors="replace",
+                    # This process's own, less what the agent's provider hushes and plus what it
+                    # and the backend set. None rather than a copy where there is nothing to say,
+                    # so that a turn inherits the environment as it always did.
+                    env=environ,
+                    # The directory the session was opened at, which is this one unless it was
+                    # opened at another; an anchored turn is put there by the anchor instead.
+                    cwd=None if self._agent.anchor is not None else where,
+                ) as proc,
+            ):
                 assert proc.stdout is not None  # noqa: S101
                 assert proc.stderr is not None  # noqa: S101
                 # Where a stop or a cut-off reaches it. Written before a line has been read,
@@ -3101,6 +3062,10 @@ class StreamSessionBase(SessionBase):
         self._complaints: list[str] = []
         #: What ends the process if the session is dropped while it is still up.
         self._reaper: weakref.finalize[..., Any] | None = None
+        #: What drops the virtual home the process is in, for a CLI started in one, and the
+        #: skills that home was built carrying: a process carrying others is started again.
+        self._unhoming: weakref.finalize[..., Any] | None = None
+        self._lodged: tuple[str, ...] | None = None
         #: Who is reading the process's complaints, so a failed turn can wait for the last.
         self._draining: threading.Thread | None = None
 
@@ -3129,7 +3094,12 @@ class StreamSessionBase(SessionBase):
           subprocess.CalledProcessError: If the agent exits rather than answering.
         """
         with self._lock:
-            if schema is not self._shaping or self._stale() or self.elsewhere():
+            if (
+                schema is not self._shaping
+                or self._stale()
+                or self.elsewhere()
+                or self._relodged()
+            ):
                 self._shut()
             self._shaping = schema
             argv = self._command()
@@ -3303,6 +3273,8 @@ class StreamSessionBase(SessionBase):
         with contextlib.suppress(OSError, ValueError):
             if proc.stdout is not None:
                 proc.stdout.close()
+        if self._unhoming is not None:
+            self._unhoming()
 
     def _say(self, text: str, ticket: str = "") -> None:
         """Writes one line of JSON to the agent, whole, whoever else is writing.
@@ -3371,21 +3343,33 @@ class StreamSessionBase(SessionBase):
         # And where the shelf was, for the same reason: a process started without it on its
         # PATH is started again once it is there (:meth:`elsewhere`).
         pathed = self._agent.shelf.where()
-        argv = self._agent.spawned(argv, self.cwd)
-        started = subprocess.Popen(
-            argv,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1,  # a line at a time, which is what the protocol is made of
-            # This process's own, less what the agent's provider hushes and plus what it and
-            # the backend set, as for a session that is one command per turn.
-            env=self._environ(),
-            # And in the directory the session was opened at, as for one of those: a backend
-            # held open across its turns is held open where its conversation is rooted.
-            cwd=None if self._agent.anchor is not None else where,
+        argv, environ, home = self._spawning(argv)
+        try:
+            started = subprocess.Popen(
+                argv,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,  # a line at a time, which is what the protocol is made of
+                # This process's own, less what the agent's provider hushes and plus what it and
+                # the backend set, as for a session that is one command per turn.
+                env=environ,
+                # And in the directory the session was opened at, as for one of those: a backend
+                # held open across its turns is held open where its conversation is rooted.
+                cwd=None if self._agent.anchor is not None else where,
+            )
+        except BaseException:
+            if home is not None:
+                home.drop()
+            raise
+        # Dropped with the process: as the session lets go of it, or as it is collected.
+        if self._unhoming is not None:
+            self._unhoming()
+        self._unhoming = None if home is None else weakref.finalize(self, home.drop)
+        self._lodged = (
+            None if home is None else tuple(one.name for one in self._carrying())
         )
         assert started.stderr is not None  # noqa: S101
         # Which account it was started as, so that an agent that falls back is an agent whose
@@ -3413,6 +3397,17 @@ class StreamSessionBase(SessionBase):
 
         self._reaper = weakref.finalize(self, _reaped, started, swept)
         return started
+
+    def _relodged(self) -> bool:
+        """Whether the process up is in a virtual home carrying other skills than this session's.
+
+        A virtual home is built as its process starts, so a session told to carry other skills
+        is answered as one asking for another shape is: by a process started again, which
+        resumes the conversation in a home carrying them.
+        """
+        return self._lodged is not None and self._lodged != tuple(
+            one.name for one in self._carrying()
+        )
 
     def _restarted(self) -> None:
         """Told that a new process is up, for whatever was measured against the old one.
@@ -3973,9 +3968,10 @@ class AgentBase(ABC):
         #: allowance spend one allowance. Left unset by an agent driven by hand, which is not
         #: a run of anything and so is nobody's budget.
         self.allowance: Ledger | None = None
-        #: The skills the flow driving this agent brings, mounted onto every session it
-        #: opens. Set by whatever started the flow, since a skill is the flow's rather than
-        #: the agent's: the same agent under another flow carries that flow's instead.
+        #: The skills the flow driving this agent brings, lodged where every session it
+        #: opens reads them. Set by whatever started the flow, since a skill is the flow's
+        #: rather than the agent's: the same agent under another flow carries that flow's
+        #: instead.
         self._loads: tuple[Loaded, ...] = ()
         # The machine this agent's turns land on, once the first of them has brought it up.
         self._anchor: AnchorConfig | None = None
@@ -3985,6 +3981,8 @@ class AgentBase(ABC):
         self._tailed = False
         # Where its native turns say they moved the CLI's home to, once one is to.
         self._told: Path | None = None
+        # Where the virtual homes its processes are started in are built, once one is.
+        self._homes: Path | None = None
         #: Which account its turns run as: the one it was configured with, or the one this
         #: machine is signed into. Looked up once, when the first turn needs it, and held
         #: from then on -- an account taken away while a flow is running is not a reason for
@@ -4413,7 +4411,7 @@ class AgentBase(ABC):
         import tempfile
         from dataclasses import replace
 
-        from hmz.coganchor import backends, providers, statepaths
+        from hmz.coganchor import backends, homes, providers, statepaths
 
         environ = self._environ()
         profile = backends.named(self.backend)
@@ -4433,6 +4431,9 @@ class AgentBase(ABC):
             # added -- would otherwise be read as the whole of the user's own.
             if profile.home_dir or profile.home_var:
                 writes.append(profile.directory(environ))
+            # And the virtual homes it is started in instead, for a CLI that is.
+            if homes.virtual(profile) is not None:
+                writes.append(self._homing())
             # Wherever else it keeps its sign-in, which a token refreshed mid-turn is written
             # back to: Claude's `~/.config/anthropic` beside its home, among them.
             writes.extend(path for path, _ in profile.credentials())
@@ -4628,7 +4629,7 @@ class AgentBase(ABC):
 
     @property
     def loaded(self) -> tuple[Loaded, ...]:
-        """The skills mounted onto every session this agent opens, which are the flow's."""
+        """The skills lodged for every session this agent opens, which are the flow's."""
         return self._loads
 
     @property
@@ -4897,7 +4898,7 @@ class AgentBase(ABC):
 
         Made at most once and kept: the agent that went down is not one to try again each
         turn, and a stand-in made afresh every time would be a new conversation and a new set
-        of skills mounted every turn.
+        of skills lodged every turn.
         Held only for as long as this agent is: it is this agent's answer.
 
         Returns:
@@ -5111,6 +5112,72 @@ class AgentBase(ABC):
                 self._told = Path(made)
             return self._told
 
+    def homed(self, skills: Iterable[Loaded] | None = None) -> Home | None:
+        """A virtual home for one process of this agent's CLI, built now, or None for none.
+
+        For a CLI that rewrites its own configuration as it runs, or takes the flow's skills
+        at its user level (:attr:`~hmz.coganchor.backends.Profile.rewrites`,
+        :attr:`~hmz.coganchor.backends.Profile.lodges`): a directory of copies of what it
+        rewrites and links to the rest of the user's home, with the flow's skills beside the
+        user's own (:mod:`hmz.coganchor.homes`). Whoever starts the process starts it with
+        :meth:`~hmz.coganchor.homes.Home.environ` and hands the home to :meth:`spawned`, and
+        drops it once the process is over: what the CLI wrote of its configuration goes with
+        it, and the user's own is never written.
+
+        Built on this machine, which is where such a process runs -- unless the CLI is the
+        target's own, whose virtual home the anchor builds there (:meth:`_reaching`), or runs
+        under a harness on another machine, which keeps its own.
+
+        Args:
+          skills: The flow's skills the process is to carry, or None for every one this agent
+            was given.
+
+        Returns:
+          The home, or None for a CLI started in the user's own.
+
+        Raises:
+          OSError: If it could not be built.
+        """
+        from hmz.coganchor import homes
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.elsewhere import elsewhere
+        from hmz.coganchor.providers.redirect import Swaps
+
+        profile = named(self.backend)
+        anchor = self._anchor
+        if profile is None or (
+            anchor is not None and (anchor.native or elsewhere(anchor))
+        ):
+            return None
+        carrying = self._loads if skills is None else skills
+        spec = homes.virtual(
+            profile, ((one.name, str(one.at)) for one in carrying if one.name)
+        )
+        if spec is None:
+            return None
+        provider = self.provider
+        swaps = Swaps.of(provider.swaps() if provider is not None else ())
+        return homes.build(
+            spec, self._environ(), under=self._homing(), answered=swaps.swap
+        )
+
+    def _homing(self) -> Path:
+        """Where this agent's virtual homes are built: a directory of its own, only this user's.
+
+        Returns:
+          It, made the first time it is asked for and taken away with the agent -- every home
+          still in it with it, for a process nobody was left to drop the home of.
+        """
+        import tempfile
+        from pathlib import Path
+
+        with self._holding:
+            if self._homes is None:
+                made = os.path.realpath(tempfile.mkdtemp(prefix="hmz-home-"))
+                weakref.finalize(self, _swept, made)
+                self._homes = Path(made)
+            return self._homes
+
     def _keeping_swaps(self) -> tuple[tuple[str, str], ...]:
         """The paths this agent's sessions are kept at, and where its turn keeps them instead.
 
@@ -5251,7 +5318,9 @@ class AgentBase(ABC):
             name: value for name, value in os.environ.items() if name not in hushed
         } | dict(added)
 
-    def spawned(self, argv: list[str], cwd: str = "") -> list[str]:
+    def spawned(
+        self, argv: list[str], cwd: str = "", home: Home | None = None
+    ) -> list[str]:
         """One turn of this agent, as the command to actually spawn.
 
         Every backend renders its own call and then comes here, so that what a turn is wrapped
@@ -5286,6 +5355,8 @@ class AgentBase(ABC):
             or "" for the workspace itself. An anchored turn is told there rather than put
             there: the agent is started in this machine's mirror of that directory, which is
             the anchor's to work out.
+          home: The virtual home the process is started in (:meth:`homed`), whose paths a
+            supervisor answers as it answers the real home's; None for the user's own.
 
         Returns:
           The command to spawn, which is `argv` itself for an agent that is neither anchored,
@@ -5298,8 +5369,8 @@ class AgentBase(ABC):
         fence = self.fenced()
         if fence is not None and self._config.machine is not None:
             # Held by the anchor rather than around it, on both machines: see `_abroad`.
-            return self._wrapped(argv, cwd, fence)
-        wrapped = self._wrapped(argv, cwd)
+            return self._wrapped(argv, cwd, fence, home)
+        wrapped = self._wrapped(argv, cwd, home=home)
         if fence is None:
             return wrapped
         rest = self.natively(fence)
@@ -5311,7 +5382,11 @@ class AgentBase(ABC):
         return [*wrapper(rest.granting(read=_programs(argv[0]))), *wrapped]
 
     def _wrapped(
-        self, argv: list[str], cwd: str = "", fence: Fence | None = None
+        self,
+        argv: list[str],
+        cwd: str = "",
+        fence: Fence | None = None,
+        home: Home | None = None,
     ) -> list[str]:
         """:meth:`spawned`, short of the fence: the CLI under its account and its anchor.
 
@@ -5320,6 +5395,7 @@ class AgentBase(ABC):
           cwd: Where the session works, as :meth:`spawned` takes it.
           fence: What an anchored agent is held to, which its anchor is told to hold it to;
             None for an agent that is not anchored, or not fenced.
+          home: The virtual home it is started in, as :meth:`spawned` takes it.
 
         Returns:
           The command to spawn, before a fence is put around it.
@@ -5362,6 +5438,10 @@ class AgentBase(ABC):
         # And the sessions, which a turn keeps in the run's own directory rather than in the
         # CLI's home: answered by the same supervisor, never with a copy.
         kept = self._keeping_swaps()
+        if home is not None:
+            # A CLI in a virtual home names both through it, past a link the supervisor
+            # never sees followed: said again under that home, and answered the same.
+            swaps, kept = home.spelled(swaps), home.spelled(kept)
         if anchor is None:
             from hmz.coganchor.providers.redirect import command
 
@@ -5440,9 +5520,11 @@ class AgentBase(ABC):
 
         Under an anchor driving the target's own CLI it is three other things, each of which a
         mirror and a tracer would otherwise have done: the variables a provider's account must
-        not be run beside, the credential files that account keeps, and the skills the flow
-        carries. The bridge is not among them, and cannot be: it is a program on this machine
-        speaking to a socket in this process, and the CLI that would spawn it is elsewhere.
+        not be run beside, the credential files that account keeps, and the virtual home a CLI
+        is started in (:meth:`homed`) with the flow's skills lodged in it, which the anchor
+        builds there. The bridge is not among them, and
+        cannot be: it is a program on this machine speaking to a socket in this process, and
+        the CLI that would spawn it is elsewhere.
 
         Args:
           anchor: Where this agent's turns land.
@@ -5455,8 +5537,8 @@ class AgentBase(ABC):
         from dataclasses import replace
 
         if anchor.native:
-            from hmz.coganchor.agents.skills import carried
-            from hmz.coganchor.backends import installing
+            from hmz.coganchor import homes
+            from hmz.coganchor.backends import installing, named
             from hmz.coganchor.transport import Target
 
             bridged = not (self._toolbox.empty() or self.pipes_tools)
@@ -5479,11 +5561,28 @@ class AgentBase(ABC):
                 )
             projects = self._projecting(provider)
             brings = self._bringing(projects)
+            profile = named(self.backend)
+            # The CLI's virtual home, built on the target as this machine builds one for a
+            # CLI it starts (:meth:`homed`). Its conversations stay in it where the account
+            # was projected there, which is where they are brought back from.
+            home = (
+                None
+                if profile is None
+                else homes.virtual(
+                    profile,
+                    ((one.name, str(one.at)) for one in self._loads if one.name),
+                    private=profile.home_var in dict(projects),
+                )
+            )
+            if home is not None and home.flag:
+                # Not for a CLI only a flag moves, whose command line is the target's to write:
+                # it runs in its own home there, and without the flow's skills.
+                home = None
             return replace(
                 anchor,
                 hushes=tuple(sorted(self.hushed())),
                 projects=projects,
-                carries=carried(self.backend, self._loads),
+                home=home,
                 installs=installing(self.backend),
                 brings=brings,
                 tells=str(self._telling()) if brings else "",

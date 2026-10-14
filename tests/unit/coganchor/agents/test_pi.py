@@ -8,9 +8,18 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.coganchor.agents import Failed, PiAgent, PiAgentConfig, PiSession, driver
+from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 
-from .doubles_u5 import configured, heard, line, option, routing, spawning
+from .doubles_u5 import (
+    configured,
+    heard,
+    housed,
+    line,
+    option,
+    routing,
+    spawning,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -348,35 +357,57 @@ def test_an_agent_without_a_fence_has_none() -> None:
     assert _agent().fenced() is None
 
 
-def test_a_turn_through_a_gateway_declares_it_at_the_turns_model_until_the_agent_stops(
+def test_a_turn_through_a_gateway_declares_it_in_a_copy_of_the_user_s_models(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     routing(monkeypatch, "pi")
     _declared(tmp_path, {"mine": {"baseUrl": "https://gw.example"}})
+    models = tmp_path / "home/.pi/agent/models.json"
+    before = models.read_bytes()
     spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    homes = housed(monkeypatch, "PI_CODING_AGENT_DIR")
     agent = _agent(model="openai/gpt-5", provider="gw")
     heard(agent)
 
     _turn(agent.new(tmp_path))
 
     (process,) = spawned
-    models = tmp_path / "home/.pi/agent/models.json"
+    (home,) = homes
     named = option(process.args, "--provider")
     assert named is not None
-    assert json.loads(models.read_text())["providers"][named] == {
-        "baseUrl": "http://127.0.0.1:4321/v1",
-        "api": "openai-completions",
-        "apiKey": "$PI_GATEWAY_KEY",
-        "models": [{"id": "openai/gpt-5"}],
+    assert json.loads(home["models.json"])["providers"] == {
+        "mine": {"baseUrl": "https://gw.example"},
+        named: {
+            "baseUrl": "http://127.0.0.1:4321/v1",
+            "api": "openai-completions",
+            "apiKey": "$PI_GATEWAY_KEY",
+            "models": [{"id": "openai/gpt-5"}],
+        },
     }
     assert option(process.args, "--model") == "openai/gpt-5"
     env = process.env or {}
     assert env["PI_GATEWAY_KEY"] == "sk-master"
     assert "OPENAI_API_KEY" not in env
-    assert "upstream-secret" not in json.dumps(env) + models.read_text()
+    assert "upstream-secret" not in json.dumps(env) + home["models.json"]
+    assert models.read_bytes() == before
 
-    agent.stop()
 
-    assert json.loads(models.read_text())["providers"] == {
-        "mine": {"baseUrl": "https://gw.example"}
-    }
+def test_the_flow_s_skills_are_lodged_in_the_virtual_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    skill = tmp_path / "flow/greet"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: greet\n---\n")
+    spawning(monkeypatch, answers=_rpc(*_SAID))
+    homes = housed(monkeypatch, "PI_CODING_AGENT_DIR")
+    agent = _agent()
+    agent.loads([Loaded("greet", skill)])
+    heard(agent)
+    work = tmp_path / "work"
+    work.mkdir()
+
+    _turn(agent.new(work))
+
+    (home,) = homes
+    assert "skills/greet/SKILL.md" in home
+    assert list(work.iterdir()) == []

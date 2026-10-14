@@ -17,9 +17,9 @@ See what a Claude Code agent will carry of yours and of this project:
 ls ~/.claude/skills .claude/skills
 ```
 
-Then run a flow that brings a skill, such as [`rlar`](https://humanfia.ai/flows/rlar), and list `.claude/skills`
-again while its reviewer works: `review-notes` is there, the flow's own, until the reviewer's
-session ends.
+Then run a flow that brings a skill, such as [`rlar`](https://humanfia.ai/flows/rlar), and watch its reviewer
+read `review-notes`, the flow's own, out of a skills directory beside yours. Neither directory
+above changes.
 
 ## Before you start
 
@@ -39,78 +39,60 @@ Neither set is a setting of the agent, and humanize never changes what you insta
 
 A flow's skill is how a flow teaches one role something the others need not know: `rlar`'s
 reviewer carries `review-notes`, which says how to read a change and write the review the actor
-is handed next. For as long as a session of that role is open, the skill is copied into your
-workspace, where the CLI reads a project's own skills, and it goes again when the last such
-session ends.
+is handed next. Most CLIs are started in a home of their own for each process: your skills are
+linked into its `skills/`, and the flow's go beside them. opencode and MiMo Code are told where
+the flow's skills are instead. Nothing is put in your workspace for any of these.
 
 <SkillTrip />
 
 ## Example: watch a flow's skill arrive and leave
 
-A scratch project with one bug in it, and `rlar` with Claude Code in both roles:
+A scratch project with one bug in it, and `rlar` with Claude Code acting and Codex reviewing:
 
 ```sh
 mkdir -p /tmp/skills-demo && cd /tmp/skills-demo
 printf 'def add(a, b):\n    return a - b\n' > calc.py
-ls .claude/skills                                # ①
 
 hmz exec -f rlar \
-    -a actor=claude/claude-haiku-4-5-20251001:low \
-    -a reviewer=claude/claude-haiku-4-5-20251001:low \
-    -p budget.cost=0.3 "fix add() in calc.py" &         # ②
+    -a actor=claude/claude-haiku-4-5:low \
+    -a reviewer=codex/gpt-6-luna:low \
+    -p budget.cost=0.3 "fix add() in calc.py"          # ①
 
-find .claude                                     # ③, once the reviewer has started
-wait; ls .claude                                 # ④, once the run has ended
+ls -A                                            # ②, once the run has ended
 ```
 
-```text
-ls: cannot access '.claude/skills': No such file or directory                      ①
-.claude                                                                            ③
-.claude/skills
-.claude/skills/review-notes
-.claude/skills/review-notes/SKILL.md
-ls: cannot access '.claude': No such file or directory                             ④
-```
-
-The run itself, on stderr, shows the reviewer finding the skill and reading it:
+The run, on stderr, shows the reviewer reading the skill out of its own home:
 
 ```text
-● reviewer is working
-● I'll review the task and check what has been done.
-● Read(/tmp/skills-demo/TASK.md)
-● Bash(ls -la /tmp/skills-demo)
-● Read(/tmp/skills-demo/calc.py)
-● Bash(cd /tmp/skills-demo && git status 2>&1 || echo "Not a git repo")
-● Bash(find /tmp/skills-demo/.claude -type f 2>/dev/null)
-● Read(/tmp/skills-demo/.claude/skills/review-notes/SKILL.md)                      ⑤
+● Golem99 is working
+● Bash(/bin/zsh -lc "cat /var/folders/…/hmz-home-…/hmz-home-…/skills/review-notes/SKILL.md")   ③
 …
-✻ input 76 · output 1.8k · cache_read 191.6k · cache_write 9.6k · $0.04 · claude-haiku-4-5-20251001 · reviewer
+```
+
+```text
+calc.py                                                                            ②
 ```
 
 ### What each part means
 
-1. **Before the run** the project has no skills of its own, so a Claude Code agent here would
-   carry only yours, from `~/.claude/skills/`.
-2. **`reviewer=claude/…`** puts Claude Code in the role that brings `review-notes`. With Codex
-   there instead, the same skill would land in `.agents/skills/`: see the table under
-   [The flow's skills](#the-flow-s-skills).
-3. **While the run is on**, `.claude/skills/review-notes/SKILL.md` is in your workspace. Claude
-   Code reads a project's skills from there, so the reviewer loads it with yours. The actor, a
-   Claude Code agent in the same directory, can see it too while it is there; a flow gives a
-   skill to a role, not a fence round it.
-4. **Once the run has ended**, the copy is gone, and so is the `.claude` directory that was
-   made to hold it. A directory that was already yours stays.
-5. **The reviewer reads the skill** as part of its turn. What it says, `review-notes` in this
-   case, is how the reviewer goes about its work: read the repository, not the summary.
+1. **`reviewer=codex/…`** puts Codex in the role that brings `review-notes`. Codex is started in
+   a home of its own, made for that one app server: a copy of your `config.toml`, links to the
+   rest of `~/.codex`, and a `skills/` holding links to yours and `review-notes` beside them.
+   Claude Code in that role gets the same, under `$CLAUDE_CONFIG_DIR`.
+2. **Once the run has ended**, the project holds only what the agents wrote. No skill was
+   copied into it, and the reviewer's home is gone with its server, together with whatever
+   Codex wrote into its copy of `config.toml`, such as that it trusts this directory.
+3. **The reviewer reads the skill** as part of its turn. What it says, `review-notes` in this
+   case, is how the reviewer goes about its work: read the repository, not the summary. The
+   actor, given no skills, has none of them in its home.
 
 ## Check that it worked
 
 - **Yours:** list the directories for that CLI in the table below. A skill is a subdirectory
   holding a `SKILL.md`.
-- **The flow's:** list the copy's directory while a session of that role is open, as in the
-  example. After the run, nothing of it is left behind.
-- **In the transcript:** a CLI that uses a skill says so when the turn reaches for it, such as
-  Claude Code's `Read(…/.claude/skills/review-notes/SKILL.md)` in the example.
+- **The flow's:** a CLI that uses a skill says so when the turn reaches for it, as the
+  reviewer's `cat …/hmz-home-…/skills/review-notes/SKILL.md` in the example. After the run,
+  nothing of it is left behind.
 
 ## Your skills, CLI by CLI
 
@@ -142,19 +124,30 @@ skills only in a project you have trusted in pi, and humanize does not trust one
 
 ## The flow's skills
 
-A flow brings skills for some of its roles. For as long as a session of that role is open,
-each of them is copied into your workspace, where that CLI reads a project's own skills:
+A flow brings skills for some of its roles. Every CLI but opencode, MiMo Code and dsh is started,
+a process at a time, in a home of their own -- copies of the settings they rewrite as they run,
+links to the rest of yours -- whose user-level `skills/` holds links to yours with the flow's
+beside them. That home goes when the process stops; nothing of yours, and nothing of the
+project's, is written. opencode and MiMo Code are told where the flow's skills are, in the
+configuration humanize hands each run, and read them after their own. Nothing goes in your
+workspace:
 
-| Backend | Copied into |
+| Backend | Put into |
 | --- | --- |
-| `claude` | `.claude/skills/` |
-| `cursor-agent` | `.cursor/skills/` |
-| `agy`, `codex`, `grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `qwen` | `.agents/skills/` |
-| `dsh`, `pi` | <Badge type="danger" text="none" /> they carry only what you installed |
+| `claude` | its own home's `skills/` (`$CLAUDE_CONFIG_DIR/skills/`) |
+| `codex` | its own home's `skills/` (`$CODEX_HOME/skills/`) |
+| `grok` | its own home's `skills/` (`$GROK_HOME/skills/`) |
+| `qwen` | its own home's `skills/` (`$QWEN_HOME/skills/`) |
+| `pi`, `omp` | its own home's `skills/` (`$PI_CODING_AGENT_DIR/skills/`) |
+| `agy` | its own home's `skills/` (named with `--app_data_dir`) |
+| `cursor-agent` | its own home's `skills/` (`$CURSOR_CONFIG_DIR/skills/`) |
+| `kimi` | its own home's `skills/` (`$KIMI_CODE_HOME/skills/`) |
+| `mcode` | its own home's `skills/` (`$MINIMAX_DATA_DIR/skills/`) |
+| `opencode`, `mimo` | named under `skills.paths` in the configuration of each run |
+| `dsh` | <Badge type="danger" text="none" /> it carries only what you installed |
 
-When the last session using a skill ends, the copy goes, along with any directory that was made
-to hold it. An agent whose turns run on [another machine](/user/remote-execution) gets them
-there.
+An agent whose turns run on [another machine](/user/remote-execution) gets them in the home
+built for it there.
 
 A flow may also name skills from a git repository. Installing the flow fetches them into its
 own `skills/`, so they travel with it like the rest of it and update when the flow does. A flow
@@ -171,18 +164,16 @@ the list. The copy lands in `.hmz/flows/`, skills and all, and is yours to edit:
 
 ### Keep one of yours in place of the flow's
 
-Nothing of yours is overwritten. If your project already has a skill of the same name where the
-CLI reads them, that one is what the agent loads, and the flow's copy is not made. Put your own
-`review-notes/SKILL.md` in `.claude/skills/` and `rlar`'s Claude Code reviewer reads yours.
+Nothing of yours is overwritten. The flow's skill takes the place of a skill of yours of the
+same name at the user level, and yours stays where it is. A project skill of the same name is
+read by the CLI as it reads any project skill. To use yours in place of the flow's, copy the flow
+and edit its skill.
 
 ## Pitfalls
 
-- **A skill of yours shadows the flow's.** A skill of the same name already in the project
-  wins, so a flow can run without the instructions it was written for. Rename yours, or
-  remove it for the run.
 - **An agent ignores your skill.** Check it is in a directory that CLI reads (the table above),
   as `<name>/SKILL.md`, and that the CLI's home variable points where you think.
-- **`dsh` or `pi` in a role that brings skills.** Neither gets the flow's copy. The role runs
+- **`dsh` in a role that brings skills.** It does not get the flow's copy. The role runs
   without it; give it another CLI if the skill matters.
 - **A skill from a git repository cannot be fetched.** The run is refused before it starts,
   naming the skill. Check the network, or the repository's address in the flow.

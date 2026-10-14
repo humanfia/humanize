@@ -8,12 +8,13 @@ Qwen refuses `--json-schema` with persistent stream-json input. What it writes o
 line, the session it opened and the answer it ended on among them.
 
 How hard it thinks is the one setting with no flag. It is a setting of the CLI's own
-`settings.json`, and the run is pointed at a file of ours through `QWEN_CODE_SYSTEM_SETTINGS_PATH`
-rather than having it written into the user's -- two agents of one flow may think at two
-efforts, and neither is a reason to change what the person who started the flow has configured.
-Beside that file goes the other end of the same idea: the layer Qwen Code reads under
-everyone, saying what a turn nobody is watching defaults to. Anything they have configured,
-at any layer of their own, still wins.
+`settings.json`, so each process is started in a virtual home (:mod:`hmz.coganchor.homes`)
+whose `settings.json` is a copy of the user's with the run's own settings merged in: the
+effort, the hook table, the server carrying the flow's callbacks. Two agents of one flow may
+think at two efforts, and neither is a reason to change what the person who started the flow
+has configured -- their own file is never written, and the system layers are left to the
+machine. Beside those goes what a turn nobody is watching defaults to, said only where their
+own settings say nothing of it.
 
 Everything else here is Qwen Code's own answer rather than one of ours. Where it is not --
 that defaults layer, the compile cache, the partial stream -- there is a field of
@@ -36,11 +37,7 @@ import contextlib
 import json
 import os
 import re
-import shutil
-import tempfile
-import threading
 import uuid
-import weakref
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -50,7 +47,7 @@ from hmz import machine
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
 from .config import UNSAID, AgentConfig
-from .event import Event, Failed, Usage
+from .event import Event, Failed, Unrecoverable, Usage
 from .hooks import WAITING, Gate, Moment
 from .preload import preloaded
 
@@ -59,27 +56,25 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
-    from hmz.coganchor.fence import Fence
+    from hmz.coganchor.homes import Home
 
     from .tools import Toolbox
 
-# : What the CLI is installed as, and the variable that points one run at a settings file of : ours.
-# The system layer rather than the user's own: it is read for this process only, and : what it says
-# outranks the file the person who started the flow has configured. The same : variable
-# `hmz.coganchor.backends` names as this CLI's hook seam, since a settings file for one run is : one
-# thing whether what is in it is an effort or a table of moments; the suite holds the two :
-# spellings together rather than leaving them free to drift apart.
+#: What the CLI is installed as.
 _COMMAND = "qwen"
-_SETTINGS = "QWEN_CODE_SYSTEM_SETTINGS_PATH"
+
+#: The user-level settings file under its home, which a process is started with a copy of in
+#: its virtual home, the run's own settings merged in -- the key
+#: `hmz.coganchor.backends` names as this CLI's hook seam being one of them.
+_SETTINGS = "settings.json"
+
+#: The variables that move the two system layers, which are the machine's and are only read
+#: here: a file one of them names is watched like any other settings file.
+_SYSTEM = "QWEN_CODE_SYSTEM_SETTINGS_PATH"
+_DEFAULTS = "QWEN_CODE_SYSTEM_DEFAULTS_PATH"
 
 #: What the server carrying a flow's own callbacks is called among the CLI's MCP servers.
 _SERVER = "humanize"
-
-#: The other end of that: the layer Qwen Code reads *under* everyone, which it looks for
-#: beside the system settings file -- so pointing one at a file of ours has already moved
-#: this one, and writing it is saying what a turn defaults to rather than what it must be.
-_DEFAULTS = "QWEN_CODE_SYSTEM_DEFAULTS_PATH"
-_DEFAULTS_FILE = "system-defaults.json"
 
 #: What a turn hmz drives defaults to, and the two places Qwen Code itself says otherwise:
 #: `general.preventSystemSleep` is on unless it is told, and `general.enableAutoUpdate` is
@@ -94,16 +89,13 @@ _DEFAULTS_FILE = "system-defaults.json"
 #: nothing here was read against. An unattended turn has nobody to notice either, which is
 #: why this is the one place the default is humanize's and not the CLI's.
 #:
-#: Said at the defaults layer rather than the system one, so a person who has configured
-#: either, at any layer of their own, still gets what they configured.
+#: Said in the virtual home's `settings.json` only where the user's own says nothing of
+#: either, so a person who has configured either still gets what they configured.
 _HEADLESS = {"general": {"preventSystemSleep": False, "enableAutoUpdate": False}}
 
-#: The format the files written here are already in, so that Qwen Code has nothing to migrate
-#: and does not rewrite them. Not a nicety: it rewrites by renaming the file aside and a new
-#: one over it, and every session at one effort reads the same two files -- so a first burst
-#: of sessions can have one of them read a name that is briefly nothing and run at the CLI's
-#: own effort with none of this said. A version it does not know is one it leaves alone too,
-#: because what is written here needs none of the migrations it would look for.
+#: The format a `settings.json` written here from nothing is in, so that Qwen Code has
+#: nothing to migrate in it. One copied from the user's keeps the version theirs is at, and
+#: Qwen Code migrates the copy -- which is the virtual home's, and goes with it.
 #:
 #: Four is the version Qwen Code is at -- `SETTINGS_VERSION = 4`, against which its own
 #: `needsMigration` answers no and leaves the file alone. It is worth pinning only for as
@@ -160,7 +152,7 @@ _CACHE = ("compiled", "qwen")
 #: flag and its mode are written in `_turn` only where there is a rung to write them for, and
 #: an agent carrying :data:`~hmz.coganchor.agents.config.UNSAID` is run with neither -- left
 #: at whatever `qwen` itself is run at, which is the shape the effort already has, where
-#: `_writing` puts no `model` section at all rather than an empty rung in one.
+#: `_managed` puts no `model` section at all rather than an empty rung in one.
 _PERMITTED = {
     "read-only": "yolo",
     "workspace-write": "yolo",
@@ -256,151 +248,33 @@ _KINDS = {
 #: them: it took the `timeout` of Claude Code's hook table and not the unit under it.
 _A_SECOND = 1000
 
-#: Where the settings files that say how hard to think are kept, one per effort there is, for
-#: the turns that have no gate to put beside them. One directory for the process rather than
-#: one per session: a flow that opens a session a turn would otherwise leave a directory behind
-#: for every turn it ran, and what is in these files is the effort and nothing else -- so two
-#: sessions at one effort are one file.
-#:
-#: Keyed by whether the headless defaults go beside it as well as by the effort, because the
-#: defaults file is found by sitting next to the settings one: two agents of a flow that
-#: differ on that cannot share a directory, or the second would be reading the first's answer.
-_EFFORTS: dict[tuple[str, bool], Path] = {}
-_EFFORT_LOCK = threading.Lock()
 
-#: The one directory every settings file of this process is kept under, made the first time
-#: one is asked for. One directory rather than one per effort and one per gate, because a
-#: fenced CLI has to be let read it: under `system=none` the system's temporary directory is
-#: not the CLI's to read, and a settings file it cannot read is a turn run at none of what it
-#: says. So :meth:`QwenCodeAgent.natively` grants this, to read -- and to read only, which is
-#: why it is not the fence's own `tmp`: a file the agent may write is a file whose hook table
-#: the agent may take out of its own way.
-_ROOT: list[Path] = []
-
-#: What the directory is called when the headless defaults are *not* written into it, the
-#: plain effort being the name when they are: the default keeps the name it had, and the
-#: other is a name of its own rather than the same one holding different bytes.
-_AS_CONFIGURED = ".as-configured"
-
-
-def _root() -> Path:
-    """The directory every settings file of this process is kept under, made once."""
-    with _EFFORT_LOCK:
-        if not _ROOT:
-            _ROOT.append(Path(tempfile.mkdtemp(prefix="hmz-qwen-")))
-        return _ROOT[0]
-
-
-def _thinking(
+def _managed(
     effort: str,
     gate: Gate | None = None,
     toolbox: Toolbox | None = None,
-    *,
-    headless: bool = True,
-) -> Path:
-    """The settings file a turn at one effort is run against, written once.
+) -> dict[str, Any]:
+    """What the run itself says in the `settings.json` of its virtual home, over the user's.
 
-    Qwen Code has no flag for how hard to think: it is a setting of its own `settings.json`,
-    so a run is pointed at a file of ours instead of having it written into the user's. The
-    system layer, which is the one that outranks what they have configured -- and the layer
-    whose hooks Qwen Code runs whether or not this directory is one it trusts, since folder
-    trust is about what a *workspace* brought rather than what the run was started with.
-
-    What a turn defaults to is written beside it, because that is where Qwen Code looks for
-    the defaults layer -- under the settings file it was pointed at, which is this directory.
+    Qwen Code has no flag for how hard to think, nor for a hook table or an MCP server of one
+    run's: each is a setting of its own `settings.json`. So they are merged into the user
+    level of the virtual home each process is started in (:func:`_merged`), which is a copy of
+    the user's own -- and theirs is never written. The user level rather than the system one,
+    which is the machine's and is left to it: a system setting of theirs still outranks this.
 
     Args:
-      effort: How hard the turn is to think, as Qwen Code words it.
-      gate: Where this agent's moments are served, whose directory the file then goes in, or
-        None for a turn with nowhere to serve them -- an anchored one, whose CLI runs where
-        the socket is not.
-      toolbox: The flow's own callbacks this agent is offering, whose directory the file then
-        goes in too, or None for an agent offering none.
-      headless: Whether to say beside it what a turn nobody is watching defaults to, or leave
-        the layer unwritten so that the CLI's own answer stands.
-
-    Returns:
-      The file's path.
-    """
-    root = _root()
-    # Asked once, and outside the lock: a gate that could not be served answers with "", and
-    # that turn wants the same file a turn with no gate at all wants rather than one written
-    # beside a socket that is not there -- `Path("").parent` being this directory, which is
-    # the project.
-    at = gate.address() if gate is not None else ""
-    served = toolbox.address() if toolbox is not None else ""
-    named = effort if headless else f"{effort}{_AS_CONFIGURED}"
-    with _EFFORT_LOCK:
-        if at or served:
-            # Named for the gate's own directory and the toolbox's, and gone when either is,
-            # so that the file goes when the agent does: what is in it names that agent's
-            # sockets, so it is no more reusable than they are, and a table kept in a
-            # dictionary here would be an entry per agent for as long as this process ran.
-            # The path is the sockets and the effort, so it is the same path every time -- a
-            # settings file that moved would restart an unchanged CLI. Not in either socket's
-            # directory itself, which is in the system's temporary directory where a fenced
-            # CLI may not read it.
-            where = root / "-".join(
-                Path(one).parent.name for one in (at, served) if one
-            )
-            if not where.exists():
-                for owner in (gate if at else None, toolbox if served else None):
-                    if owner is not None:
-                        weakref.finalize(
-                            owner, shutil.rmtree, where, ignore_errors=True
-                        )
-            held = _writing(
-                where / named,
-                effort,
-                gate if at else None,
-                toolbox if served else None,
-                headless=headless,
-            )
-        else:
-            held = _EFFORTS.get((effort, headless))
-            if held is None:
-                # Concurrent first turns must agree on the path as well as its contents: a
-                # changed path would make the next turn restart an otherwise unchanged CLI.
-                held = _writing(
-                    Path(tempfile.mkdtemp(prefix=f"{named}-", dir=root)),
-                    effort,
-                    None,
-                    headless=headless,
-                )
-                _EFFORTS[effort, headless] = held
-        return held
-
-
-def _writing(
-    where: Path,
-    effort: str,
-    gate: Gate | None,
-    toolbox: Toolbox | None = None,
-    *,
-    headless: bool = True,
-) -> Path:
-    """Writes the files a turn is run against, and says where the first of them is.
-
-    Written again whenever it is asked for rather than remembered, since a gate's directory is
-    only ever asked about for the one agent whose it is and the answer is the same bytes every
-    time -- so there is nothing to keep and nothing to grow.
-
-    Args:
-      where: The directory to put them in, made if it is not there.
       effort: How hard the turn is to think, as Qwen Code words it.
       gate: Where this agent's moments are served, or None for a turn with nowhere to serve
         them -- and one serving nothing writes no table either.
       toolbox: The flow's own callbacks this agent is offering, or None for none.
-      headless: Whether the defaults layer is written beside the settings one at all.
 
     Returns:
-      The settings file's path.
+      The settings, as a fragment of the file.
     """
-    where.mkdir(parents=True, exist_ok=True)
     # The rung, where there is one. An agent at none writes no `model` section at all, so
     # Qwen Code reads its own settings for it and the model thinks at whatever that account
     # gives it -- `reasoningEffort: ""` is a value it would read as a rung spelled wrong.
-    said: dict[str, Any] = {**_VERSION}
+    said: dict[str, Any] = {}
     if effort:
         said["model"] = {"reasoningEffort": effort}
     table = gate.table(WAITING * _A_SECOND) if gate is not None else {}
@@ -410,9 +284,7 @@ def _writing(
         # turns every hook off with them, said only here, with a table to carry: it is one
         # setting for the whole of them, so a person who has it on has a flow whose gate
         # quietly does nothing -- and a run with no table to serve has nothing to insist on,
-        # so it says nothing and leaves their answer alone. Said at the system layer, which
-        # is this run's alone: what they configured is untouched, and is theirs again the
-        # moment the run ends.
+        # so it says nothing and leaves their answer alone.
         said |= {"hooks": table, "disableAllHooks": False}
     if toolbox is not None:
         # The flow's own callbacks, as the one way Qwen Code takes a tool it was not shipped
@@ -425,28 +297,66 @@ def _writing(
         said["mcpServers"] = {
             _SERVER: {"command": argv[0], "args": argv[1:], "trust": True}
         }
-    held = where / "settings.json"
-    _wholly(held, json.dumps(said))
-    if headless:
-        _wholly(where / _DEFAULTS_FILE, json.dumps({**_VERSION, **_HEADLESS}))
-    return held
+    return said
 
 
-def _wholly(where: Path, said: str) -> None:
-    """Puts a file in place whole, or leaves the one that is there.
+def _merged(at: Path, managed: dict[str, Any], *, headless: bool) -> None:
+    """Merges what the run says into a virtual home's copy of the user's `settings.json`.
 
-    Beside and then over, because a second session of the same agent writing the same bytes to
-    the same path is a file that is briefly nothing -- and a Qwen Code starting just then reads
-    a settings file with no effort in it and runs at the CLI's own. Which is the failure the
-    CLI's own rewrites are already guarded against here, arriving from our side instead.
+    What the run says wins for its own entries -- the effort, the `humanize` server, the
+    switch that would turn its hooks off -- and nothing of the user's is dropped: their hooks
+    stay, the run's after them at each moment, and so do their servers. What a turn nobody is
+    watching defaults to (:data:`_HEADLESS`) is said only where their file says nothing of it.
 
     Args:
-      where: Where the file goes.
-      said: What is to be in it.
+      at: The copy, which is not there for a user with no file of their own.
+      managed: What the run says, as :func:`_managed` made it.
+      headless: Whether to say what an unwatched turn defaults to at all.
+
+    Raises:
+      Unrecoverable: If the user's file is there and is not a JSON object -- Qwen Code takes
+        comments in it, which this cannot keep. Refused rather than written over: a turn run
+        against half of somebody's settings is a turn run against settings they never wrote.
     """
-    beside = where.with_name(f"{where.name}.{os.getpid()}.{threading.get_ident()}")
-    beside.write_text(said, encoding="utf-8")
-    beside.replace(where)
+    try:
+        raw: object = json.loads(at.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raw = dict(_VERSION)
+    except (OSError, UnicodeError, ValueError) as unread:
+        said = (
+            f"{_COMMAND}: the user's settings.json cannot be read as plain JSON ({unread}),"
+            " so the run's own settings cannot be merged into a copy of it: take its"
+            " comments out"
+        )
+        raise Unrecoverable(1, [_COMMAND], "", said) from unread
+    if not isinstance(raw, dict):
+        said = f"{_COMMAND}: the user's settings.json is not a JSON object"
+        raise Unrecoverable(1, [_COMMAND], "", said)
+    held = cast("dict[str, Any]", raw)
+    for key, value in managed.items():
+        theirs = held.get(key)
+        if key == "hooks" and isinstance(theirs, dict):
+            ours = cast("dict[str, list[Any]]", value)
+            hooks = cast("dict[str, Any]", theirs)
+            held[key] = hooks | {
+                moment: [*_listed(hooks.get(moment)), *table]
+                for moment, table in ours.items()
+            }
+        elif isinstance(value, dict) and isinstance(theirs, dict):
+            held[key] = cast("dict[str, Any]", theirs) | cast("dict[str, Any]", value)
+        else:
+            held[key] = value
+    for key, value in _HEADLESS.items() if headless else ():
+        theirs = held.get(key)
+        kept = cast("dict[str, Any]", theirs) if isinstance(theirs, dict) else {}
+        held[key] = value | kept
+    at.parent.mkdir(parents=True, exist_ok=True)
+    at.write_text(json.dumps(held, indent=2) + "\n", encoding="utf-8")
+
+
+def _listed(said: object) -> list[Any]:
+    """A moment's entries of a hook table, or none for anything that is not a list of them."""
+    return list(cast("list[Any]", said)) if isinstance(said, list) else []
 
 
 def _asked(config: AgentConfig, named: str, *, default: bool) -> bool:
@@ -575,6 +485,8 @@ class QwenCodeSession(StreamSessionBase):
         The names of the callbacks in front of the agent among them: Qwen Code lists what an
         MCP server has when it starts it and holds that list for the life of the process, so
         a flow offering another between two turns is answered by a process that was told.
+        And what the run says in its virtual home's settings (:meth:`_managing`): a hook hung
+        or taken down moves the table, and a moved table is a process started again under it.
         """
         environment = self._environ() or dict(os.environ)
         native = self._native(environment)
@@ -584,6 +496,7 @@ class QwenCodeSession(StreamSessionBase):
             self._carrying(),
             self._agent.toolbox.names(),
             environment,
+            json.dumps(self._managing(), sort_keys=True),
             native if native is not None else object(),
         )
 
@@ -596,25 +509,17 @@ class QwenCodeSession(StreamSessionBase):
         cwd = Path(self.cwd)
         theirs = Path(environment.get("HOME") or Path.home())
         qwen = cwd / Path(environment.get("QWEN_HOME") or theirs / ".qwen").expanduser()
-        system = cwd / Path(environment[_SETTINGS]).expanduser()
-        # Empty reads as unset, which is how Qwen itself reads it: an empty variable leaves
-        # it looking beside the system settings file, which is the file written here.
-        named = environment.get(_DEFAULTS) or ""
-        defaults = cwd / Path(named or system.parent / _DEFAULTS_FILE).expanduser()
-        settings = {
-            qwen / "settings.json",
-            cwd / ".qwen/settings.json",
-            system,
-            defaults,
-        }
-        # Qwen migrates the files hmz generates on startup (format and schema version).
-        # Effort and the headless defaults are already process inputs of their own; their
-        # own cache files are not user edits. A defaults file the environment names is
-        # somebody else's, so it stays watched like every other settings file here -- and so
-        # is the one beside ours for an agent that asked for none: a file nothing here wrote
-        # is a file whose changing is news.
-        ours = {system, defaults} if self._headless() and not named else {system}
-        paths = settings - ours
+        # The user's own home rather than the virtual one a process is started in, which is
+        # made of it: its `settings.json` is a copy of theirs, and the rest links to theirs.
+        # And a system layer the machine names, which is the machine's and is watched as any
+        # other settings file is; one it does not name is where Qwen Code keeps it, untouched.
+        settings = {qwen / _SETTINGS, cwd / ".qwen" / _SETTINGS}
+        settings.update(
+            cwd / Path(named).expanduser()
+            for named in (environment.get(_SYSTEM), environment.get(_DEFAULTS))
+            if named
+        )
+        paths = set(settings)
         roots = (cwd, *cwd.parents, theirs)
         for root in roots:
             paths.update(root / name for name in ("QWEN.md", "AGENTS.md", ".env"))
@@ -801,51 +706,20 @@ class QwenCodeSession(StreamSessionBase):
         return ["--session-id", self._minted]
 
     def _environment(self) -> dict[str, str]:
-        """What the turn runs with, plus the settings file that says how hard to think.
+        """What the turn runs with: the provider's, where Node caches the CLI, and the preload.
 
-        Written once per session and pointed at rather than written into the user's own
-        settings: two agents of one flow may be run at two efforts, and neither is a reason to
-        change what the person who started the flow has configured. The system layer, because
-        that is the one that outranks what they have configured.
-
-        The hook table goes in the same file, for the same reason and by the same route: a
-        `PreToolUse` read off the stream this session reads arrives after Qwen Code has
-        announced the tool and is about to run it, and Qwen Code's own table is the one place
-        it stops and waits to be told. Not for an anchored turn, whose `qwen` runs on another
-        machine and could not reach the socket the relay carries the moment to -- and not for
-        an agent with nothing hung on that moment: a table is a program the CLI starts and
-        waits for before every tool it runs, so writing one for hooks that are not there is a
-        relay spawned per file read, one after another, for nobody. Hanging one or taking it
-        down moves the file, and a moved settings file is a process started again under it.
-        So does the server carrying the flow's own callbacks, for an agent offering any.
-
-        And where the CLI's compiled bundle is kept between processes, unless whoever started
-        the flow has said where themselves: a session a turn is a Node process a turn, and
-        eight of them starting at once compile the same bundle eight times.
+        Where the CLI's compiled bundle is kept between processes, unless whoever started the
+        flow has said where themselves: a session a turn is a Node process a turn, and eight
+        of them starting at once compile the same bundle eight times.
 
         And the preload, for an agent something is listening to: Qwen Code is a Node program, so
         what a turn of it actually runs, reads, writes and opens can be read from inside the process
         it runs in. :mod:`hmz.coganchor.agents.preload` is what decides whether one is wanted.
+
+        What it is to think at, its hook table and the flow's callbacks are not variables: they
+        are in its virtual home's `settings.json` (:meth:`_spawning`).
         """
-        gate = (
-            self._agent.hooks.gate()
-            if self._agent.anchor is None
-            and self._agent.hooks.hooked(Moment.PRE_TOOL_USE)
-            else None
-        )
-        self._tabled = gate is not None and gate.serving
-        box = self._agent.toolbox
-        held = {
-            **super()._environment(),
-            _SETTINGS: str(
-                _thinking(
-                    self.effort,
-                    gate,
-                    box if box.offered() else None,
-                    headless=self._headless(),
-                )
-            ),
-        }
+        held = dict(super()._environment())
         # Whoever said where, said it: the provider's own variables are in `held` and the
         # flow's are in this process's environment, and either outranks a cache of ours.
         # And not for an anchored turn: it runs on another machine, where a path named from
@@ -860,6 +734,49 @@ class QwenCodeSession(StreamSessionBase):
             with contextlib.suppress(OSError):
                 held[_COMPILED] = str(machine().joinpath(*_CACHE))
         return preloaded(self._agent, held)
+
+    def _managing(self) -> dict[str, Any]:
+        """What the run says in its virtual home's `settings.json`, as :func:`_managed` makes it.
+
+        The hook table only where it can be served: a `PreToolUse` read off the stream this
+        session reads arrives after Qwen Code has announced the tool and is about to run it,
+        and Qwen Code's own table is the one place it stops and waits to be told. Not for an
+        anchored turn, whose `qwen` runs on another machine and could not reach the socket the
+        relay carries the moment to -- and not for an agent with nothing hung on that moment:
+        a table is a program the CLI starts and waits for before every tool it runs, so
+        writing one for hooks that are not there is a relay spawned per file read, one after
+        another, for nobody.
+        """
+        gate = (
+            self._agent.hooks.gate()
+            if self._agent.anchor is None
+            and self._agent.hooks.hooked(Moment.PRE_TOOL_USE)
+            else None
+        )
+        self._tabled = gate is not None and gate.serving
+        box = self._agent.toolbox
+        return _managed(self.effort, gate, box if box.offered() else None)
+
+    def _spawning(
+        self, argv: list[str]
+    ) -> tuple[list[str], dict[str, str] | None, Home | None]:
+        """One process, in a virtual home whose `settings.json` carries the run's settings.
+
+        The home is the user's own as :mod:`hmz.coganchor.homes` builds it -- a copy of their
+        `settings.json`, links to everything else, the flow's skills beside theirs -- and what
+        :meth:`_managing` says is merged into that copy (:func:`_merged`). A process with no
+        virtual home, which is one whose CLI is on another machine, is started without them.
+        """
+        spawned, environ, home = super()._spawning(argv)
+        if home is not None:
+            try:
+                _merged(
+                    home.at / _SETTINGS, self._managing(), headless=self._headless()
+                )
+            except BaseException:
+                home.drop()
+                raise
+        return spawned, environ, home
 
     def _headless(self) -> bool:
         """Whether this turn is given the layer saying what an unwatched turn defaults to."""
@@ -1134,31 +1051,3 @@ class QwenCodeAgent(AgentBase):
     def new(self, cwd: str | os.PathLike[str] | None = None) -> QwenCodeSession:
         """Opens a new Qwen Code session, in the directory it is given or in this one."""
         return QwenCodeSession(self, cwd)
-
-    def natively(self, fence: Fence) -> Fence:
-        """Enforces none of the fence, and lets the CLI read the settings it is run against.
-
-        Qwen Code has two things that look like a way to hold itself to a fence, and neither
-        is one. Its `--sandbox` is a container, docker or podman, or Seatbelt on a Mac: never
-        the process tree it runs in here, and not there to start on a machine with neither.
-        And its `permissions` rules hold its own tools and the commands whose paths and hosts
-        it can read off the command line, and nothing a command it runs goes on to do -- a
-        script, an interpreter, a build. They are not even worth saying the fence again in:
-        a rule is matched against a command line whole, so `echo a > here; echo b > there`
-        with `there` outside the fence is refused entirely rather than half run, which is a
-        command the fence itself lets do what it may. So nothing of the fence is said to the
-        CLI but its web tools, taken off the command line where the network is cut.
-
-        What it does need from outside is the settings files this driver writes for it, which
-        are in the system's temporary directory: granted to read, since `system=none` would
-        otherwise keep from the CLI the file that says its effort and its hooks.
-
-        Args:
-          fence: The fence this agent is held to.
-
-        Returns:
-          The fence, with the settings files granted to read.
-        """
-        if fence.open:
-            return fence
-        return fence.granting(read=[_root()])

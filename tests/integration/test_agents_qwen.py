@@ -9,6 +9,7 @@ it was pointed at for the answer -- a local LiteLLM gateway, run for real, in fr
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 
 import pytest
@@ -16,6 +17,7 @@ from pydantic import BaseModel
 
 from hmz.coganchor import providers
 from hmz.coganchor.agents import Failed, FakeTool, QwenCodeAgent, QwenCodeAgentConfig
+from hmz.coganchor.agents.hooks import Moment
 from hmz.coganchor.gateway import gatewayable
 from tests.integration.doubles_agents import (
     CHATTING,
@@ -45,7 +47,7 @@ def record(said):
 
 def served(name, word):
     import subprocess
-    with open(os.environ["QWEN_CODE_SYSTEM_SETTINGS_PATH"]) as held:
+    with open(os.path.join(os.environ["QWEN_HOME"], "settings.json")) as held:
         server = json.load(held)["mcpServers"]["humanize"]
     assert server["trust"] is True
     bridge = subprocess.Popen([server["command"], *server["args"]],
@@ -72,6 +74,11 @@ def turn(said):
     note(said)
     if said.startswith("tool "):
         said = served(*said.split()[1:])
+    if said == "settings":
+        with open(os.path.join(os.environ["QWEN_HOME"], "settings.json")) as held:
+            settings = json.load(held)
+        said = json.dumps([one["hooks"][0]["command"].split()[0]
+                           for one in settings["hooks"]["PreToolUse"]])
     if said == "crash":
         print("qwen: something broke", file=sys.stderr, flush=True)
         sys.exit(3)
@@ -261,3 +268,24 @@ def test_a_tool_of_the_flows_own_is_reached_through_the_settings_file(
     session.offers([FakeTool("whisper", "Whispers a word.", whisper, Word)])
     assert session("tool whisper HI") == "whisper:hi"
     assert len({one.pid for one in qwen.calls()}) == 2
+
+
+def test_the_run_s_hooks_go_beside_the_user_s_in_a_copy_of_their_settings(
+    qwen: Standins, tmp_path: Path
+) -> None:
+    theirs = tmp_path / "home/.qwen/settings.json"
+    theirs.parent.mkdir(parents=True)
+    mine = {"matcher": "*", "hooks": [{"type": "command", "command": "mine"}]}
+    theirs.write_text(json.dumps({"hooks": {"PreToolUse": [mine]}}))
+    before = theirs.read_bytes()
+    agent = QwenCodeAgent(CONFIG)
+    agent.hooks.on(Moment.PRE_TOOL_USE, lambda _occasion: None)
+    work = tmp_path / "work"
+    work.mkdir()
+
+    commands = json.loads(agent.new(work)("settings"))
+
+    assert commands[0] == "mine"
+    assert len(commands) == 2
+    assert theirs.read_bytes() == before
+    assert list(work.iterdir()) == []

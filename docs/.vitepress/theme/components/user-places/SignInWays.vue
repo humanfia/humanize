@@ -449,7 +449,7 @@ const BACKENDS: Backend[] = [
       ENV,
     ],
     note:
-      'A gateway way is written into pi’s own models.json as a provider named humanize-<hash>, ' +
+      'A gateway way is written into a per-process copy of pi’s models.json as a provider named humanize-<hash>, ' +
       'its key as $PI_GATEWAY_KEY rather than as itself, and every turn is run with --provider ' +
       'naming it.',
   },

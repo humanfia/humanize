@@ -593,7 +593,7 @@ interface](/reference/tui) in a line as it opens, the [web interface](/reference
 | --- | --- | --- |
 | Already the newest release | stdout `hmz <version> is the newest release`; nothing is run | `0` |
 | Updated | stdout `Updating hmz <old> to <new>: <line>`, the installer's own output, `Updated hmz to <new>` | `0` |
-| Installed from a checkout or a URL (`direct_url.json`) | stderr `hmz update: hmz was installed from <url>, not PyPI; update it there` | `1` |
+| Installed from a checkout or a URL (`direct_url.json`) | stderr `hmz update: hmz was installed from <url>, not PyPI; update it there`, the URL without its user, password, query or fragment | `1` |
 | The installer is not on `PATH` | stderr `hmz update: <uv\|pipx> installed hmz but is not on PATH` | `1` |
 | PyPI did not answer, or `HUMANIZE_RELEASES=off` | stderr `hmz update: PyPI could not be asked for the newest release` | `1` |
 | The installer failed | stderr `hmz update: <installer> exited <status>` | `1` |
@@ -681,7 +681,6 @@ its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
 | `--native` | off | Run the CLI installed on the target instead of supervising one here. |
 | `--hush NAME` | — | With `--native`, unset this variable for the CLI on the target. Repeatable. |
 | `--project NAME=DIR` | — | With `--native`, put this credentials directory on the target for the session and set `NAME` to it. Repeatable. |
-| `--carry DIR=PATH` | — | With `--native`, put this directory into the target's workspace at `PATH` for the turn. Repeatable. |
 | `--bring NAME/PATH=DIR` | — | With `--native`, copy what the turn wrote at `PATH` (may be a glob) inside the directory `--project` set `NAME` to back into `DIR`, at the same place, before that directory is removed. Repeatable. |
 | `--tell DIR` | — | With `--native`, keep a file of `NAME=PATH` lines in `DIR` on this machine while the turn runs, one per `--project` that landed at `PATH` on the target. |
 | `--installs LINE` | — | With `--native`, the install line to report where the target lacks the CLI. |

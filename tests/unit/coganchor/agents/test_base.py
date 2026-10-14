@@ -624,27 +624,31 @@ def test_a_session_carries_the_flows_skills_it_was_told(tmp_path: Path) -> None:
     assert session.skills == ("a", "b", "c")
 
 
-def test_a_turn_mounts_the_skills_and_closing_takes_them_away(tmp_path: Path) -> None:
+def test_a_cli_that_rewrites_its_home_is_started_in_a_virtual_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "settings.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(real))
     skill = tmp_path / "flow" / "review"
     skill.mkdir(parents=True)
     (skill / "SKILL.md").write_text("---\nname: review\n---\n", encoding="utf-8")
-    work = tmp_path / "work"
-    work.mkdir()
     agent = Scripted(backend="claude")
     agent.loads([Loaded("review", skill)])
-    session = agent.new(work)
-    mounted = work / ".claude" / "skills" / "review" / "SKILL.md"
-    assert not mounted.exists()
-    session("go")
-    assert mounted.exists()
-    session.loads([])
-    session("go")
-    assert not mounted.exists()
-    session.loads(None)
-    session("go")
-    assert mounted.exists()
-    session.close()
-    assert not mounted.exists()
+
+    home = agent.homed()
+
+    assert home is not None
+    assert home.real == real
+    assert (home.at / "skills" / "review" / "SKILL.md").exists()
+    assert not (home.at / "settings.json").is_symlink()
+    assert home.environ({})["CLAUDE_CONFIG_DIR"] == str(home.at)
+    assert agent.homed([]) is not None
+    home.drop()
+    assert not home.at.exists()
+    assert (real / "settings.json").exists()
+    assert Scripted(backend="dsh").homed() is None
 
 
 # -- where a session works, and its forks ----------------------------------------------

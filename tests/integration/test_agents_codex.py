@@ -92,6 +92,17 @@ def turn(thread, said, asked):
     if said == "unfinished":
         done(thread, status="failed", error={"message": "it could not finish"})
         return
+    drops = pathlib.Path(sys.argv[0]).with_name("drops")
+    if said == "drop" and drops.exists() and int(drops.read_text()):
+        # The response stream broken as codex reports it: retrying by itself, then giving up.
+        drops.write_text(str(int(drops.read_text()) - 1))
+        lost = {"responseStreamDisconnected": {"httpStatusCode": None}}
+        notify("error", threadId=thread, turnId="turn-1", willRetry=True,
+               error={"message": "Reconnecting... 5/5", "codexErrorInfo": lost})
+        done(thread, status="failed", error={
+            "message": "stream disconnected before completion: error decoding response body",
+            "codexErrorInfo": lost})
+        return
     if said == "approve":
         send({"id": "ok-1", "method": "item/commandExecution/requestApproval",
               "params": {"itemId": "i-0", "threadId": thread, "turnId": "turn-1",
@@ -249,6 +260,32 @@ def test_a_failed_turn_is_a_failure_with_what_codex_said(codex: Standins) -> Non
     with pytest.raises(Failed, match="it could not finish"):
         session("unfinished")
     assert session("unfinished", suppress=True) == ""
+
+
+def test_a_broken_response_stream_is_taken_again_in_the_session(
+    codex: Standins,
+) -> None:
+    session = CodexAgent(CONFIG).new()
+    assert session("one") == "one"
+    (codex.bin / "drops").write_text("1")
+
+    assert session("drop") == "drop"
+
+    assert codex.said().count("drop") == 2
+    assert session.id == "t-1"
+    assert len(_told(codex, "thread/start")) == 1
+
+
+def test_a_response_stream_that_keeps_breaking_fails_as_dropped(
+    codex: Standins,
+) -> None:
+    (codex.bin / "drops").write_text("2")
+
+    with pytest.raises(Failed, match="stream disconnected before completion") as failed:
+        CodexAgent(CONFIG).new()("drop")
+
+    assert failed.value.fault == "dropped"
+    assert codex.said().count("drop") == 2
 
 
 def test_a_server_that_dies_mid_turn_fails_the_turn(codex: Standins) -> None:

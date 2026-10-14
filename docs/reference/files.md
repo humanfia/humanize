@@ -65,7 +65,6 @@ M/
 ├── pinned/<blake2b-8(url)>/<sha>/      checkouts of git+ refs and of releases installed
 ├── skills/<owner>-<repo>-<sha256[:12]>/  skill repositories a never-installed flow names by URL
 ├── .<backend>.<name>.lock              held while a run allocates from a runtime
-├── .pi.models.lock                     held while a turn adds a gateway to pi's models.json
 ├── compiled/{pi,qwen}/                 Node compile caches
 ├── docker-ssh/<sha256[:16]>/ssh        ssh shim for docker over ssh
 └── patched/<cli>-<pid>-<rand>/         patched CLI copies (unused in production)
@@ -314,7 +313,7 @@ Every path in this section is safe to delete while humanize is not running.
 | `$TMPDIR/hmz-fence-XXXXXXXX/` (`0700`) | a fenced process's `TMPDIR`; `cache/<var>` inside for redirected caches | when the process ends (left on `SIGKILL`) |
 | the same path, on a machine a supervised agent's commands run on | that agent's commands' `TMPDIR` there | kept |
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock` | sockets a CLI reports hooks, tool calls and preload events on | with the session |
-| `$TMPDIR/hmz-dsh-*/humanize.patch.yml`, `hmz-qwen-*/` | per-session CLI configuration | with the session |
+| `$TMPDIR/hmz-dsh-*/humanize.patch.yml` | per-session CLI configuration | with the session |
 | `$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>/` | checkouts of [`git+` refs](/reference/flows#refs), and of the releases [installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`, checked out detached at `<sha>`, renamed into place; one per commit | never; cloned again when missing |
 | `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
 | `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>/` | clones of skill repositories a role of a flow that was never installed names by URL ([Skills](/reference/flows#the-skills-a-flow-brings)), fetched again each run that names them | kept |
@@ -336,7 +335,6 @@ Every path in this section is safe to delete while humanize is not running.
 | `${HUMANIZE_HOME:-$HOME/.hmz}/envs/` | as [above](#state-envs) |
 | `/tmp/humanize-slurm-<job>.out` on a Slurm job's node | what a `via: tcp` job's serving half says on its way up, which its port is read from; left to the node |
 | a `mktemp -d` directory (umask `077`) | per-session files of a native turn, including projected credentials (`0600`); removed after the turn |
-| `.humanize-carried/<uuid>` | claim file inside a directory carried to the target |
 
 ## Read, never written
 
@@ -347,8 +345,9 @@ Every path in this section is safe to delete while humanize is not running.
 | `$DSH_HOME` (`~/.dsh`): `settings.yaml`, `.credentials.yaml`, `.env` | DeepSeek Harness key and endpoint |
 
 Antigravity's permission profiles `hmz-read-only.md`, `hmz-read-only-web.md` and
-`hmz-offline.md` are written into Antigravity's own home, `~/.gemini/antigravity-cli/agents/`,
-when their content changes.
+`hmz-offline.md` are written into the `agents/` of the
+[virtual home](/reference/agents#virtual-homes) each agy process is started in, beside links to
+your own; `~/.gemini/antigravity-cli/agents/` is never written.
 
 ## Retention
 

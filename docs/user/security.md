@@ -136,6 +136,16 @@ What that comes to in practice:
   its CLI's own settings, login and sessions, a temporary directory of its own, the
   shared `/tmp` and `/var/tmp`, the devices, and on Linux `/proc`. On macOS its login
   includes the login keychain, which is where Claude Code keeps it.
+- **Claude Code, Codex, Grok Build, Qwen Code and pi never write your settings.** Each process
+  starts in a home of its own, made for it and removed when it stops: copies of the files the
+  CLI rewrites as it runs (Claude Code's `.claude.json`, its backups and `settings.json`;
+  Codex's and Grok Build's `config.toml`; Qwen Code's `settings.json`; pi's `models.json` and
+  `settings.json`), links to the rest of yours, so its login and sessions are your own, and the
+  flow's skills beside yours (Oh My Pi gets that home for the skills alone). What it writes
+  into a copy, such as that it trusts the workspace, goes with it, and so does what humanize
+  adds there: Qwen Code's effort, hooks and tool server, a gateway account's model entry for
+  Grok Build or provider for pi. Your system-wide settings and the project's own are read as
+  the CLI always reads them.
 - **`user` of `ALL`** lets an agent change whatever your user account may change, anywhere
   on the machine, the file permissions being what hold it; run as root, the rest of the
   machine stays at `system`.

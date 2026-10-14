@@ -16,13 +16,11 @@ import os
 import threading
 import urllib.parse
 import uuid
-import weakref
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz import machine
-from hmz.coganchor import atomic
 
 from .base import AgentBase, StreamSessionBase
 from .config import AgentConfig
@@ -31,11 +29,12 @@ from .hooks import arriving
 from .preload import preloaded
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Iterator, Mapping
+    from collections.abc import Iterator, Mapping
 
     from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
+    from hmz.coganchor.homes import Home
 
 #: What each kind of thing pi says a turn did reads as. A message is a list of parts and pi
 #: says each of them three times -- as it starts, once per fragment, and once with the whole
@@ -138,21 +137,8 @@ _CHANGING = ("bash", "edit", "write", "powershell")
 #: being theirs to answer, and answer that instead of their own.
 _ABORTING = 5.0
 
-#: The lock every turn takes to add a gateway to pi's `models.json`, under humanize's
-#: directory for this machine. The file is the user's own and read whole by every pi that
-#: starts, so it is changed by reading it, adding one provider, and moving the result into
-#: place -- and two turns doing that at once would each write back what the other had not
-#: added yet, one of them starting a pi that has never heard of its provider. Not beside the
-#: file: that directory is pi's, and a lock left in it is clutter nobody there asked for.
-_DECLARING = ".pi.models.lock"
-
-
 #: What every provider humanize declares in pi's `models.json` is called, before its hash.
 _DECLARED = "humanize-"
-
-#: Where each agent has declared a local LiteLLM gateway of its own, as :func:`_host` writes
-#: it: every one it has had, since one that went away is started again at another port.
-_LENT: weakref.WeakKeyDictionary[AgentBase, set[str]] = weakref.WeakKeyDictionary()
 
 
 def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
@@ -165,9 +151,8 @@ def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
     under, so the secret never lands in a file that is the user's own.
 
     The name is made of what is declared, so that two accounts on two gateways are two
-    providers and one account's every turn is the one -- written once, and then left as it
-    is, but for one at a local LiteLLM gateway's port, which :meth:`PiAgent.stop` takes back
-    out. Not the account's name: that is humanize's, and nothing the way was answered with.
+    providers and one account's every turn is the one. Not the account's name: that is
+    humanize's, and nothing the way was answered with.
 
     Args:
       said: The variables the account sets.
@@ -189,112 +174,42 @@ def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
     return f"{_DECLARED}{hashlib.sha256(spelled).hexdigest()[:12]}", declared
 
 
-def _declare(home: Path, named: str, declared: dict[str, Any]) -> None:
-    """Adds one provider to the `models.json` under pi's home, and nothing else to it.
+def _declare(at: Path, named: str, declared: dict[str, Any]) -> None:
+    """Adds one provider to a virtual home's copy of pi's `models.json`, and nothing else.
 
     Everything the file already holds is kept: it is where whoever uses pi here declares their
-    own endpoints, and what is added is one more provider beside them. A file already holding
-    this provider as it is declared is not written at all, which is every turn but an
-    account's first.
+    own endpoints, and what is added is one more provider beside them. The copy is the
+    process's own (:meth:`PiSession._spawning`), so the user's file is never written.
 
     Args:
-      home: pi's home, as the turn will find it.
+      at: The copy, which is not there for a user with no file of their own.
       named: What the provider is called.
       declared: What it is.
 
     Raises:
       ValueError: If the file is there but is not JSON this can read -- pi takes comments in
-        it, which a rewrite would lose -- or holds something other than providers by name.
-        Refused rather than written over: it is somebody's own configuration.
+        it, which this cannot keep -- or holds something other than providers by name.
+        Refused rather than run against half of somebody's own configuration.
       OSError: If it cannot be read, or written.
     """
-    # Through a link to wherever it is kept -- a dotfiles checkout, say -- rather than over
-    # the link: a file moved into place at the link's own name would cut it.
-    at = (home / "models.json").resolve()
-    with _locked():
-        try:
-            said: object = json.loads(at.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            said = {}
-        except ValueError as unread:
-            msg = (
-                f"{at} is not JSON humanize can read (pi takes comments, which a rewrite "
-                f"would lose), so the gateway {declared['baseUrl']} cannot be added to it: "
-                f"add {json.dumps({named: declared})} under its providers by hand"
-            )
-            raise ValueError(msg) from unread
-        held = cast("dict[str, Any]", said) if isinstance(said, dict) else None
-        providers = held.setdefault("providers", {}) if held is not None else None
-        if held is None or not isinstance(providers, dict):
-            msg = f"{at} holds no providers by name to add the gateway to"
-            raise ValueError(msg)
-        if cast("dict[str, Any]", providers).get(named) == declared:
-            return
-        cast("dict[str, Any]", providers)[named] = declared
-        at.parent.mkdir(parents=True, exist_ok=True)
-        atomic.writes(
-            at,
-            json.dumps(held, indent=2) + "\n",
-            mode=None if at.exists() else 0o600,
-        )
-
-
-def _withdraw(home: Path, host: str) -> None:
-    """Takes every provider :func:`_gateway` named that is at `host` out of `models.json`.
-
-    What a local LiteLLM gateway was declared as is at a port of loopback that is nobody's
-    once it has gone, so it is taken back out with it rather than left for every pi after to
-    read. Nothing else in the file is touched, and a file this cannot read is left as it is.
-
-    Args:
-      home: pi's home, as the turn found it.
-      host: Where the gateway was, as :func:`_host` writes one.
-    """
-    at = (home / "models.json").resolve()
-    with _locked(), contextlib.suppress(OSError, ValueError):
+    try:
         said: object = json.loads(at.read_text(encoding="utf-8"))
-        held = cast("dict[str, Any]", said) if isinstance(said, dict) else {}
-        providers = held.get("providers")
-        if not isinstance(providers, dict):
-            return
-        declared = cast("dict[str, Any]", providers)
-        gone = [
-            named
-            for named, one in declared.items()
-            if named.startswith(_DECLARED)
-            and isinstance(one, dict)
-            and _host(str(cast("dict[str, Any]", one).get("baseUrl", ""))) == host
-        ]
-        if not gone:
-            return
-        for named in gone:
-            del declared[named]
-        atomic.writes(at, json.dumps(held, indent=2) + "\n", mode=None)
-
-
-@contextlib.contextmanager
-def _locked() -> Generator[None]:
-    """Holds the lock `models.json` is changed under, for as long as the block runs.
-
-    Where it cannot be had the block runs anyway -- a machine directory this cannot make, a
-    filesystem with no `flock` -- which is a write that might meet another rather than a turn
-    that never starts.
-    """
-    import fcntl
-
-    try:
-        fd = os.open(
-            machine() / _DECLARING, os.O_CREAT | os.O_RDONLY | os.O_CLOEXEC, 0o600
+    except FileNotFoundError:
+        said = {}
+    except ValueError as unread:
+        msg = (
+            f"{at.name} is not JSON humanize can read (pi takes comments, which humanize "
+            f"cannot keep), so the gateway {declared['baseUrl']} cannot be added to a copy "
+            f"of it: add {json.dumps({named: declared})} under its providers by hand"
         )
-    except OSError:
-        yield
-        return
-    try:
-        with contextlib.suppress(OSError):
-            fcntl.flock(fd, fcntl.LOCK_EX)
-        yield
-    finally:
-        os.close(fd)  # which lets go of the lock too
+        raise ValueError(msg) from unread
+    held = cast("dict[str, Any]", said) if isinstance(said, dict) else None
+    providers = held.setdefault("providers", {}) if held is not None else None
+    if held is None or not isinstance(providers, dict):
+        msg = f"{at.name} holds no providers by name to add the gateway to"
+        raise ValueError(msg)
+    cast("dict[str, Any]", providers)[named] = declared
+    at.write_text(json.dumps(held, indent=2) + "\n", encoding="utf-8")
 
 
 def _host(url: str) -> str:
@@ -378,8 +293,8 @@ class PiAgentConfig(AgentConfig):
         ``--skill``. Empty, as pi ships. This is pi's only road for a skill that is not
         already installed on the machine: the two directories it discovers under the workspace
         -- `.pi/skills` and `.agents/skills` -- are gated on the project having been trusted,
-        which a headless run has nobody to press, so a flow's own skills mounted into one of
-        them would be read by nothing. ``--skill`` is not gated and is additive even under
+        which a headless run has nobody to press, so a skill put in one of them would be
+        read by nothing. ``--skill`` is not gated and is additive even under
         ``--no-skills``, so a path named here is loaded.
     """
 
@@ -484,6 +399,9 @@ class PiSession(StreamSessionBase):
         #: The names of the callbacks the process now up was started with. The extension
         #: lists them once, as pi loads it, so a flow offering others is a pi started again.
         self._telling: tuple[str, ...] = ()
+        #: The provider an account on a gateway is declared as for the process about to
+        #: start, as :func:`_gateway` names it, or None for an account on none.
+        self._declaring: tuple[str, dict[str, Any]] | None = None
 
     @property
     def named(self) -> str | None:
@@ -522,7 +440,7 @@ class PiSession(StreamSessionBase):
             "--session-id",
             pinned,
         ]
-        from hmz.coganchor import backends, providers
+        from hmz.coganchor import providers
 
         if self._agent.anchor is not None and providers.routed(self._agent.provider):
             # Refused before its gateway is started for nothing, for the reason below.
@@ -541,16 +459,17 @@ class PiSession(StreamSessionBase):
             # whole id under `--provider`.
             said["PI_GATEWAY_MODEL"] = config.model
         if (gateway := _gateway(said)) is not None:
-            # An account on a gateway is one provider of pi's own, declared in its
-            # `models.json` as the turn starts, and the turn is held to it: pi given
+            # An account on a gateway is one provider of pi's own, declared in the copy of
+            # its `models.json` in the virtual home the process starts in (:meth:`_spawning`),
+            # and the turn is held to it: pi given
             # `--provider` takes the model as an id of that provider's -- the gateway's own
             # spelling, bare, or with the provider in front -- and one the file does not list
             # as a custom id of the same provider, so whatever the gateway serves is a model
             # this account can name. Only for a turn on this machine: an anchored one's pi
-            # reads the home of the machine it runs on, which nothing here writes -- so it is
+            # reads the home of the machine it runs on, which nothing here builds -- so it is
             # refused here, saying why, rather than started to refuse a provider it has never
             # heard of in words that would send somebody looking at the wrong machine.
-            named, declared = gateway
+            named, _ = gateway
             if self._agent.anchor is not None:
                 msg = (
                     f"pi: the {config.provider} account is a gateway, which pi "
@@ -559,12 +478,8 @@ class PiSession(StreamSessionBase):
                     "models.json, or run this agent here"
                 )
                 raise ValueError(msg)
-            profile = backends.named(self._agent.backend)
-            if profile is not None:
-                _declare(profile.directory(self._environ()), named, declared)
-            if through is not None:
-                _LENT.setdefault(self._agent, set()).add(_host(declared["baseUrl"]))
             argv += ["--provider", named]
+        self._declaring = gateway
         if self._id is None and self._forked_from is not None:
             # `--fork` opens this session on top of the one it names, so the turns of that
             # conversation are here and what follows them is not written into it. The id
@@ -626,6 +541,25 @@ class PiSession(StreamSessionBase):
         if self._telling:
             added[_BRIDGE] = json.dumps(self._agent.toolbox.command())
         return preloaded(self._agent, added)
+
+    def _spawning(
+        self, argv: list[str]
+    ) -> tuple[list[str], dict[str, str] | None, Home | None]:
+        """One process, in a virtual home whose `models.json` declares the account's gateway.
+
+        The home is the user's own as :mod:`hmz.coganchor.homes` builds it -- copies of their
+        `models.json` and `settings.json`, links to everything else, the flow's skills beside
+        theirs -- and the provider :meth:`_command` held the turn to is added to that copy,
+        which goes with the process: the user's own is never written.
+        """
+        spawned, environ, home = super()._spawning(argv)
+        if home is not None and self._declaring is not None:
+            try:
+                _declare(home.at / "models.json", *self._declaring)
+            except BaseException:
+                home.drop()
+                raise
+        return spawned, environ, home
 
     def _write(self, text: str, ticket: str = "") -> str:
         """Renders one thing to say as the `prompt` command pi reads it as.
@@ -1065,28 +999,6 @@ class PiAgent(AgentBase):
           ValueError: If it is not JSON.
         """
         return json.loads((home / "models.json").read_text(encoding="utf-8"))
-
-    def stop(self) -> None:
-        """Stops the agent, as every agent stops, and takes its gateways out of `models.json`.
-
-        A turn through a local LiteLLM gateway declared it there, at a port that is nobody's
-        once the gateway is gone: see :func:`_withdraw`. pi's home is found as a turn finds
-        it, less the gateway -- which asking for the turn's whole environment would start
-        again, the agent's having just been taken down.
-        """
-        super().stop()
-        lent = _LENT.pop(self, set())
-        from hmz.coganchor import backends
-
-        profile = backends.named(self.backend)
-        if not lent or profile is None:
-            return
-        hushed = self.hushed()
-        home = profile.directory(
-            {name: value for name, value in os.environ.items() if name not in hushed}
-        )
-        for host in lent:
-            _withdraw(home, host)
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> PiSession:
         """Opens a new pi session, in the directory it is given or in this one."""

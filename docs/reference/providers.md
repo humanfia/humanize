@@ -669,8 +669,9 @@ adds this to the agent's composition and opens its session on `<route>` instead 
 
 Grok Build reads which API a model speaks only from an `api_backend` on a `[model.*]` entry of
 `$GROK_HOME/config.toml` (the `GROK_CONFIG` overlay cannot set `model`). A turn under a grok
-`openai-gateway` or `anthropic-gateway` account merges one entry into that file, keeping
-everything else in it, and runs with `--model` naming it:
+`openai-gateway` or `anthropic-gateway` account merges one entry into the copy of that file in
+the process's [virtual home](/reference/agents#virtual-homes), keeping everything else in it,
+and runs with `--model` naming it; the user's own `config.toml` is never written:
 
 ```toml
 [model."hmz-<12 hex digits>/<model>"]
@@ -681,17 +682,19 @@ env_key = "XAI_API_KEY"
 hidden = true
 ```
 
-The entry is named by a hash of its contents, so the same endpoint, model and API reuse one
-entry. The key is never written; it is read from `XAI_API_KEY`. An `anthropic-gateway` turn
+The entry is named by a hash of its contents, so the same endpoint, model and API ask for
+one name. The key is never written; it is read from `XAI_API_KEY`. An `anthropic-gateway` turn
 also sets `GROK_CONFIG` to `{"models": {"extra_headers": {"x-api-key": <key>,
 "anthropic-version": "2023-06-01"}}}`, laid over the `GROK_CONFIG` the turn would otherwise
 have (none under an account, which hushes it): grok 1.0.46 drops a model's own headers on
 `grok agent stdio`. A turn on another machine is refused for an `anthropic-gateway` account,
-and for an `openai-gateway` account whose anchor drives the target's own CLI.
+and for an `openai-gateway` account whose anchor drives the target's own CLI or runs its
+harness on another machine.
 
 pi reads a gateway only from `models.json` in its home (`$PI_CODING_AGENT_DIR`, else
-`~/.pi/agent`). Before each turn under a `pi` gateway account on this machine, the driver adds
-one provider there and appends `--provider <name>` to the turn:
+`~/.pi/agent`). Each process under a `pi` gateway account on this machine starts in a
+[virtual home](/reference/agents#virtual-homes) whose copy of `models.json` has one provider
+added, and the turn gets `--provider <name>`; the user's own `models.json` is never written:
 
 ```json
 {
@@ -708,19 +711,13 @@ one provider there and appends `--provider <name>` to the turn:
 
 - The key is `$PI_GATEWAY_KEY`, which pi resolves from the turn's environment; the secret is
   written neither to the file nor to the command line.
-- Everything else in the file is kept, and a file already holding the provider as declared is
-  not written. A new file is `0600`; an existing one keeps its mode. Writers on one machine
-  serialise on `flock` of `.pi.models.lock` in the [machine directory](/reference/files).
-- A file that is not plain JSON (pi also takes comments) or has no `providers` object is never
-  rewritten: the turn raises `ValueError` naming the entry to add by hand.
+- Everything else in the user's file is kept in the copy, which goes with the process.
+- A file that is not plain JSON (pi also takes comments) or has no `providers` object fails
+  the turn with `ValueError` naming the entry to add by hand.
 - With `--provider`, pi takes any model id, bare or `<name>/`-prefixed, as an id of that
   provider, listed or not.
-- A symlinked `models.json` is written through the link.
-- Entries are never removed: changing an account's URL, model or protocol adds another. The
-  one exception is an account [through LiteLLM](#through-litellm), whose `PI_GATEWAY_MODEL` is
-  the turn's model and whose entries, at the gateway's port, `agent.stop()` removes.
 - A gateway turn of an anchored agent raises `ValueError` before it starts: its pi reads
-  the target's `models.json`, which is not written.
+  the target's `models.json`, which nothing here builds.
 
 ### Hosts reachable under a cut network
 
@@ -768,13 +765,13 @@ account's on the other.
 | `agy` | as `claude` | `openai-gateway`: `AGY_LLM_GATEWAY_URL`, `AGY_LLM_GATEWAY_API_KEY`, `AGY_LLM_GATEWAY_WIRE_PROTOCOL=openai` |
 | `codex` | as `claude` | `openai-gateway`: `CODEX_PROVIDER_URL`, `CODEX_PROVIDER_KEY`, and its `-c model_providers.humanize.*` arguments, `wire_api=responses`; codex asks `{base_url}/responses`, which the gateway serves with no `/v1` |
 | `dsh` | as `claude` | `openai-gateway`: `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY`, `DSH_GATEWAY_API=openai-completions` |
-| `grok` | as `claude` | `openai-gateway`: `GROK_XAI_API_BASE_URL`, `XAI_API_KEY`, and `GROK_GATEWAY_API_BACKEND` `chat_completions` rather than the way's `responses`. The model is asked for by its hidden `[model.*]` entry, and a session `grok agent` opens on another model -- the first of the gateway's catalogue -- is put on it with `session/set_model`. `agent.stop()` takes the entries naming any gateway the agent had out of `config.toml`. |
+| `grok` | as `claude` | `openai-gateway`: `GROK_XAI_API_BASE_URL`, `XAI_API_KEY`, and `GROK_GATEWAY_API_BACKEND` `chat_completions` rather than the way's `responses`. The model is asked for by its hidden `[model.*]` entry, and a session `grok agent` opens on another model -- the first of the gateway's catalogue -- is put on it with `session/set_model`. The entry is in the virtual home's copy of `config.toml` only. |
 | `kimi` | as `claude` | `openai-gateway`: `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_PROVIDER_TYPE=openai` |
 | `pi` | as `claude` | `openai-gateway`: `PI_GATEWAY_URL`, `PI_GATEWAY_KEY`, `PI_GATEWAY_API` (`openai-completions`); the `models.json` provider ([gateways](#gateways)) lists the turn's model |
 | `qwen` | as `claude` | `openai-gateway`: `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `QWEN_DEFAULT_AUTH_TYPE=openai`; `--auth-type openai` |
 | `opencode` | as `claude` | `openai-gateway`: `OPENCODE_GATEWAY_URL`, `OPENCODE_GATEWAY_KEY`, `OPENCODE_GATEWAY_NPM` (`@ai-sdk/openai-compatible`), `OPENCODE_CONFIG_CONTENT`; `OPENCODE_GATEWAY_MODEL` is the turn's model |
 | `mimo` | as `claude` | `openai-gateway`: `MIMO_GATEWAY_URL`, `MIMO_GATEWAY_KEY`, `MIMO_GATEWAY_API` (`@ai-sdk/openai-compatible`), `MIMOCODE_CONFIG_CONTENT`; `MIMO_GATEWAY_MODEL` is the turn's model |
-| `mcode` | as `claude` | `openai-gateway`: `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_GATEWAY_FORMAT` `openai-completions`. The way's command is not run: the first turn naming a model runs `mcode provider add --name hmz-PORT-DIGEST --base-url URL --api-format openai-completions --model MODEL --api-key-env MCODE_PROVIDER_API_KEY` (no `--use`; `DIGEST` is 8 hex of SHA-256 of the gateway's key and the model) under the account's paths, once per gateway and model, and the turn asks for `custom_provider:hmz-PORT-DIGEST/MODEL`; `agent.stop()` runs `mcode provider remove` for each, after its turns have stopped. A model is required (`Unserved`). |
+| `mcode` | as `claude` | `openai-gateway`: `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_GATEWAY_FORMAT` `openai-completions`. The way's command is not run: each turn runs `mcode provider add --name hmz-PORT-DIGEST --base-url URL --api-format openai-completions --model MODEL --api-key-env MCODE_PROVIDER_API_KEY` (no `--use`; `DIGEST` is 8 hex of SHA-256 of the gateway's key and the model) for every gateway and model the agent has named, into the copy of `config.yaml` in the turn's [virtual home](/reference/agents#virtual-homes), and asks for `custom_provider:hmz-PORT-DIGEST/MODEL`; the account's own `config.yaml` is never written, and nothing is removed afterwards. A model is required (`Unserved`). |
 
 Each `litellm-<way>` asks and sets what `litellm`'s own `<way>` does ([Ways by
 backend](#ways-by-backend)), and is offered only while the gateway can be started here
@@ -791,7 +788,7 @@ for a backend that names `routes`, `Accounts.wants(cli)` is the line that instal
 | The turn | `agent.environment()` is the `routes` way answered by the gateway (`gateway.spoken`): its URL variable the gateway's `http://127.0.0.1:PORT` (with `/v1` after it for `opencode`, `mimo` and `pi` only, whose SDKs add only the operation; every other backend, `claude` and any CLI that appends `/v1/...` itself included, gets the bare URL), its secret the master key, plus what that way sets, and `127.0.0.1` and `localhost` added to `NO_PROXY`; its `args`, filled in, are appended (`gateway.argued`). `claude` is also given the agent's model as every model it reaches for on its own (`ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_`, `_OPUS_`, `ANTHROPIC_SMALL_FAST_MODEL`); `agy` is given it as the one model its gateway serves (`AGY_LLM_GATEWAY_MODELS`), the only one its `--model` then takes; `kimi` the agent's model as `KIMI_MODEL_NAME`, its daemon started again for another; `dsh` runs on its pi-ai `gateway` route, at the adapter's own effort, as under its own `openai-gateway`. `agent.hushed()` is `hushes()` and everything the account sets, so none of it reaches the CLI. |
 | Fenced | `agent.fenced()` adds `127.0.0.1:PORT` to the hosts. `providers.composed` adds none of the account's variables, so the account's own endpoint opens no host for the CLI. |
 | Anchored | supervised with the harness here: the gateway runs here, its variables are kept here (`private`), and with `net` `remote` `127.0.0.1:PORT` is kept local (`net_allow`). Driven natively, or with the harness elsewhere, the CLI is not on this machine, and the agent is refused the account (`Unserved`) where it is configured. |
-| Stopped | by `agent.stop()`, and when the agent or the gateway is collected: `SIGTERM` to its process group, `SIGKILL` after 5 s, and every child. `pi`'s `agent.stop()` also removes every `humanize-` provider at `127.0.0.1:PORT` from `models.json`. |
+| Stopped | by `agent.stop()`, and when the agent or the gateway is collected: `SIGTERM` to its process group, `SIGKILL` after 5 s, and every child. |
 | Models | `models.ask(cli, account)` reads what is behind the gateway, never the CLI: a gateway account's endpoint, asked as `litellm`'s are, or `litellm`'s own catalogue narrowed to `PREFIX/`. A model that reasons takes the CLI's whole ladder -- but under `agy`, which refuses `--effort` for every model its gateway serves, none, and its driver sends no `--effort` through a gateway. A bare id is sent to `PREFIX/id`. |
 
 A turn of the `litellm` backend itself is sent with the same mapping (`gateway.spelled`,

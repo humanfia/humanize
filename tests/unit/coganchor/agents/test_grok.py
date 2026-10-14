@@ -19,10 +19,11 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.agents.config import Unfenced
 from hmz.coganchor.agents.event import Unrecoverable
 from hmz.coganchor.agents.hooks import Moment
+from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.providers import Provider
 
-from .doubles_u5 import configured, heard, line, option, spawning
+from .doubles_u5 import configured, heard, housed, line, option, spawning
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -383,12 +384,17 @@ def test_a_messages_gateway_is_sent_its_key_as_a_header(
     }
 
 
-def test_a_gateway_model_is_declared_in_grok_config_and_run_by_its_own_name(
+def test_a_gateway_model_is_declared_in_a_copy_of_grok_config_and_run_by_its_name(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("GROK_GATEWAY_API_BACKEND", "responses")
     monkeypatch.setenv("GROK_XAI_API_BASE_URL", "http://gw.example/v1")
+    theirs = tmp_path / "home/.grok/config.toml"
+    theirs.parent.mkdir(parents=True)
+    theirs.write_text('# theirs\n[model."mine"]\nmodel = "m"\n')
+    before = theirs.read_bytes()
     spawned = spawning(monkeypatch, answers=_acp())
+    homes = housed(monkeypatch, "GROK_HOME")
     agent = _agent()
     heard(agent)
 
@@ -397,7 +403,10 @@ def test_a_gateway_model_is_declared_in_grok_config_and_run_by_its_own_name(
     named = option(spawned[0].args, "--model") or ""
     assert named.startswith("hmz-")
     assert named.endswith("/grok-4")
-    declared = tomllib.loads((tmp_path / "home/.grok/config.toml").read_text())
+    (home,) = homes
+    assert home["config.toml"].startswith("# theirs\n")
+    declared = tomllib.loads(home["config.toml"])
+    assert declared["model"]["mine"] == {"model": "m"}
     assert declared["model"][named] == {
         "model": "grok-4",
         "base_url": "http://gw.example/v1",
@@ -405,6 +414,29 @@ def test_a_gateway_model_is_declared_in_grok_config_and_run_by_its_own_name(
         "env_key": "XAI_API_KEY",
         "hidden": True,
     }
+    assert theirs.read_bytes() == before
+
+
+def test_the_flow_s_skills_are_lodged_in_the_virtual_home_not_the_workspace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    skill = tmp_path / "flow/greet"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: greet\n---\n")
+    spawning(monkeypatch, answers=_acp())
+    homes = housed(monkeypatch, "GROK_HOME")
+    agent = _agent()
+    agent.loads([Loaded("greet", skill)])
+    heard(agent)
+    work = tmp_path / "work"
+    work.mkdir()
+
+    _turn(agent.new(work))
+
+    (home,) = homes
+    assert "skills/greet/SKILL.md" in home
+    assert list(work.iterdir()) == []
+    assert not (tmp_path / "home/.grok/skills").exists()
 
 
 def test_a_gateway_speaking_no_api_grok_knows_is_unrecoverable(
@@ -522,24 +554,3 @@ def test_a_session_opened_on_the_model_asked_for_is_left_on_it(
 
     told = _told(spawned[0].told)
     assert "session/set_model" not in [one["method"] for one in told]
-
-
-@pytest.mark.usefixtures("routed")
-def test_stopping_takes_the_gateways_entries_out_of_grok_config(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    spawning(monkeypatch, answers=_acp())
-    config = tmp_path / "home/.grok/config.toml"
-    config.parent.mkdir(parents=True)
-    config.write_text(
-        '# theirs\n[model."hmz-0/m"]\nmodel = "m"\nbase_url = "http://gw.example/v1"\n'
-    )
-    agent = _agent(provider="gw")
-    heard(agent)
-    _turn(agent.new(tmp_path))
-    assert len(tomllib.loads(config.read_text())["model"]) == 2
-
-    agent.stop()
-
-    assert list(tomllib.loads(config.read_text())["model"]) == ["hmz-0/m"]
-    assert config.read_text().startswith("# theirs\n")

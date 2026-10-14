@@ -95,6 +95,7 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
+    from hmz.coganchor.homes import Home
 
 #: `-c` keys this driver may take. They are process configuration of the app server, and
 #: none of them is already a field of AgentConfig -- model, effort and permission are asked
@@ -297,9 +298,11 @@ _EXTERNAL = {"type": "externalSandbox"}
 #: What an app server knows and cannot be told again: the account it was started as, the
 #: names of the flow's own callbacks it was told about, the command it was started with and
 #: the fence it was started inside -- and where the agent's shelf was, whose command lines
-#: are on its PATH only if it was anywhere (:meth:`Shelf.where`). See
-#: :meth:`CodexAgent._knowing`.
-type _Knows = tuple[str, tuple[str, ...], tuple[str, ...], Fence | None, str]
+#: are on its PATH only if it was anywhere (:meth:`Shelf.where`), and the flow's skills its
+#: virtual home was built carrying. See :meth:`CodexAgent._knowing`.
+type _Knows = tuple[
+    str, tuple[str, ...], tuple[str, ...], Fence | None, str, tuple[str, ...]
+]
 
 #: The sandboxes a rung may ask for that confine a command at all, and so the ones
 #: :data:`_LANDLOCK` has anything to do with.
@@ -639,7 +642,12 @@ _CALLED = {
 class _AppServer:
     """A `codex app-server` of our own, spoken to in JSON-RPC over its stdio."""
 
-    def __init__(self, argv: list[str], env: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        argv: list[str],
+        env: Mapping[str, str] | None = None,
+        home: Home | None = None,
+    ) -> None:
         """Starts the server and introduces this flow to it.
 
         Args:
@@ -647,6 +655,8 @@ class _AppServer:
           env: The whole environment to start it in, which is this process's own less what the
             agent's provider hushes and plus what it sets, or None to inherit this one. The
             server is the agent's, so its account is the agent's too.
+          home: The virtual home it is started in, which is dropped once it is down; None for
+            one started in the user's own.
 
         Raises:
           subprocess.CalledProcessError: If it will not be introduced to, which is every turn
@@ -659,7 +669,9 @@ class _AppServer:
         #: has been set up as something its server reads only as it starts, starts another
         #: rather than going on talking to this one. Kept here rather than on the agent, so
         #: that two starting at once cannot leave the agent believing either is the other.
-        self.knows: _Knows = ("", (), (), None, "")
+        self.knows: _Knows = ("", (), (), None, "", ())
+        #: The virtual home it was started in, dropped once it is down.
+        self.home = home
         #: Whose turns run here, so that what is teed can be what nobody is watching. Held
         #: weakly: the agent holds the server, and the finalizer that takes the server down is
         #: the agent's -- so a server holding its agent back would be an agent nothing could
@@ -1293,6 +1305,8 @@ class _AppServer:
                 # Reaped rather than left: a flow that runs agent after agent would otherwise
                 # gather a zombie for each one it let go of.
                 self._proc.wait()
+                if self.home is not None:
+                    self.home.drop()
                 return
 
             # Provider wrappers and Codex share this dedicated group. Taking down the group
@@ -1305,6 +1319,8 @@ class _AppServer:
             with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.killpg(self._proc.pid, signal.SIGKILL)
             self._proc.wait()
+            if self.home is not None:
+                self.home.drop()
 
     def _write(self, message: dict[str, Any]) -> None:
         """Puts one JSON-RPC message on the server's stdin.
@@ -2252,6 +2268,7 @@ class CodexAgent(AgentBase):
             tuple(self._argv(offering)),
             self.config.fence,
             self.shelf.where(),
+            tuple(one.name for one in self.loaded),
         )
         self._retiring = [one for one in self._retiring if not one._stopped]
         # The LiteLLM gateway every server of an account it holds was pointed at, gone: they
@@ -2292,7 +2309,21 @@ class CodexAgent(AgentBase):
         Returns:
           The server, taken for one turn where `taking` says so and by no turn otherwise.
         """
-        server = _AppServer(self.spawned(list(knows[2])), self._environ())
+        # In a virtual home of its own, carrying every skill this agent was given: what the
+        # server writes of its `config.toml` -- the trust of each workspace it opens a thread
+        # in -- lands in the copy there, and goes with the server.
+        home = self.homed()
+        try:
+            environ = self._environ()
+            server = _AppServer(
+                self.spawned(list(knows[2]), home=home),
+                environ if home is None else home.environ(environ),
+                home,
+            )
+        except BaseException:
+            if home is not None:
+                home.drop()
+            raise
         server.knows = knows
         if taking:
             server.share()

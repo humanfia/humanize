@@ -374,7 +374,7 @@ class Agent(Protocol):
 | Class attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `_permission` | `Permission` | `Permission()` | What the role's sessions may touch; they run under exactly this. See [Permissions](#what-each-agent-may-do). |
-| `_skills` | `tuple[str, ...]` | `()` | Skills mounted into the role's sessions. See [Skills](#the-skills-a-flow-brings). |
+| `_skills` | `tuple[str, ...]` | `()` | Skills given to the role's sessions. See [Skills](#the-skills-a-flow-brings). |
 | `_tools` | `tuple[FakeTool, ...]` | `()` | The flow's functions the role's sessions offer the agent as tools; needs `FakeToolAgentMixin`. See [Fake tools](#fake-tools). |
 | `_clis` | `tuple[FakeCli, ...]` | `()` | The flow's command lines the role's sessions put on the agent's PATH; any harness but `litellm`. See [Fake command lines](#fake-clis). |
 
@@ -1607,8 +1607,9 @@ class Reviewer(Agent):
   the existing copy.
 - The flow's own skill wins a name also held by a repository; a `#<skill>` URL whose skill
   the flow has of its own gives the role the flow's.
-- Skills are mounted where the harness reads a project's skills for the session's lifetime,
-  then removed. Nothing is installed. A harness that reads no project skills carries none.
+- Skills are lodged at the harness's user level, in the [virtual home](/reference/agents#virtual-homes)
+  each of its processes is started in, or named in its configuration (`opencode`, `mimo`);
+  never in the workspace. Nothing is installed. A harness with neither carries none.
 - [`derive(skills=…)`](#derive) narrows them for part of a flow.
 
 ## Flowverses {#flowverses}

@@ -18,8 +18,12 @@ say why where they are set.
 **Nothing is sent that nobody said yes to.** The setting is `enable_sentry` and it has three
 answers rather than two: on, off, and the absence that means nobody has been asked yet. Only
 the interface asks, because only the interface has somebody to ask; a headless run reports if
-the answer is already yes and is silent otherwise. `HUMANIZE_SENTRY=on|off` answers for one
-process without writing anything down, which is what a scripted install and this suite use.
+the answer is already yes and is silent otherwise. And only a process that started reporting
+reports: the interface, `hmz exec`, a host, or a program that called `Hmz().reports()`. One that
+only crashes, or only snags, says nothing -- a script that never asked to report is not one
+that reports because somebody once answered yes in a terminal. `HUMANIZE_SENTRY=on|off`
+answers for one process without writing anything down, which is what a scripted install and
+this suite use.
 
 A leaf: it names nothing of humanize but the settings it reads and the home they are in, so
 every layer may report and none of them has to be reached into to do it. What goes with a
@@ -48,6 +52,7 @@ __all__ = [
     "crash",
     "enabled",
     "held",
+    "scrubbed",
     "snag",
     "start",
     "stop",
@@ -83,13 +88,49 @@ KEPT = (
     "no keys, tokens, or account credentials -- not even environment variable names",
 )
 
-#: How much of a string may be a path, a key or a sentence somebody typed. Everything that
-#: reaches a report goes through this, however it got there.
+#: How much of a string may be a path or a sentence somebody typed. Everything that reaches a
+#: report goes through this, however it got there.
 _HOME = re.compile(r"/(?:home|homes|Users)/[^/\s:'\"]+")
-_KEYS = re.compile(
-    r"\b(?:sk|pk|ghp|gho|github_pat|xai|sk-ant|sk-proj)[-_][A-Za-z0-9_\-]{8,}\b"
+#: What is struck out as a credential, here and in every bundle an epic is exported as: one list,
+#: so that a report never carries a key a bundle would not. Read in order. Where a pattern names a
+#: group `kept`, that much of the match is what said a credential follows and stays.
+_STRUCK: tuple[re.Pattern[str], ...] = (
+    # A user and a password signed into a URL, which is how a private flowverse is added and
+    # how several of these gateways are configured. Only the run immediately after `//`, so a
+    # comment holding an address is left alone.
+    re.compile(r"(?<=//)[^/\s@\"'<>]+(?=@)"),
+    # A token signed into a query string, which is how every pre-signed URL there is carries
+    # one. The name must end where the word does and whatever comes before it must end at a
+    # separator: `?max_tokens=` is what a turn cost and `?monkey=` is somebody's parameter.
+    re.compile(
+        r"(?i)(?P<kept>[?&](?:[a-z0-9.-]+[_-])?"
+        r"(?:access_token|token|api[_-]?key|key|secret|sig|signature|password"
+        r"|credential)=)[^&\s\"'<>]+"
+    ),
+    # The shapes the vendors mint keys in. A prefix and a separator, which is what makes these
+    # safe to strike on sight: no English word begins `sk-` or `ghp_`.
+    re.compile(
+        r"\b(?:sk|pk|ghp|gho|ghu|ghs|ghr|github_pat|glpat|xai|xoxb|xoxp|hf)"
+        r"[-_][A-Za-z0-9_-]{12,}\b"
+    ),
+    # Google's, which has no separator, and a JWT, which is three pieces of base64 with a dot
+    # between each -- what half of these CLIs actually hold a session open with.
+    re.compile(r"\bAIza[A-Za-z0-9_-]{16,}\b"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"),
+    # What an Authorization header is, wherever a log happened to write one down.
+    re.compile(r"(?i)\b(?P<kept>bearer\s+)[A-Za-z0-9._~+/=-]{16,}"),
+    # And a value something named itself: `"api_key": "..."` in JSON, `SOMETHING_TOKEN=...` in
+    # an environment. The name must end there -- `token`, not `tokens` -- because
+    # `input_tokens` is how every one of these backends writes down what a turn cost.
+    re.compile(
+        r"(?i)(?P<kept>\"[A-Za-z0-9_.-]*(?:token|secret|api[_-]?key|password|credential)\""
+        r"\s*:\s*\")[^\"]{4,}"
+    ),
+    re.compile(
+        r"(?i)\b(?P<kept>[A-Za-z0-9_]*(?:token|secret|api[_-]?key|password|credential)=)"
+        r"[^\s\"',}]{4,}"
+    ),
 )
-_CREDS = re.compile(r"(?<=//)[^/\s@]+(?=@)")
 _LONG = 500
 
 #: What a failed command says of itself, which is the whole command line. A turn is a command,
@@ -211,8 +252,17 @@ def start() -> bool:
     try:
         import sentry_sdk
         from sentry_sdk.integrations.argv import ArgvIntegration
+        from sentry_sdk.transport import HttpTransport
     except ImportError:  # pragma: no cover -- an install missing its own dependency
         return False
+
+    class Scrubbing(HttpTransport):
+        """The SDK's own transport, which a profile reaches with no `before_send` on the way."""
+
+        def capture_envelope(self, envelope: Any) -> None:
+            _profiled(envelope)
+            super().capture_envelope(envelope)
+
     try:
         sentry_sdk.init(
             dsn=DSN,
@@ -244,7 +294,8 @@ def start() -> bool:
             disabled_integrations=[ArgvIntegration()],
             release=_version(),
             before_send=_before_send,
-            before_send_transaction=_before_send,
+            before_send_transaction=_before_send_transaction,
+            transport=Scrubbing,
         )
     except Exception:  # noqa: BLE001 -- a reporter that cannot start reports nothing
         return False
@@ -314,12 +365,14 @@ def held() -> dict[str, object]:
 def crash(why: BaseException, **said: object) -> None:
     """Reports one failure, with everything the layers said about the run it happened in.
 
+    Only where :func:`start` has: this never starts reporting itself.
+
     Args:
       why: What went wrong.
       said: Anything else worth knowing, as short strings: what was being done, and by which
         part of humanize.
     """
-    if not start():
+    if not _started:
         return
     import sentry_sdk
 
@@ -338,12 +391,14 @@ def snag(name: str, **said: object) -> None:
     finding out that humanize does not work the way they expected. That is the half of the
     feedback a stack trace never carries, and on an early tool it is the more useful half.
 
+    Only where :func:`start` has, as with :func:`crash`.
+
     Args:
       name: What happened, as one hyphenated word -- `dead-key`, `changes-dropped`.
       said: What is worth knowing about it: counts, which sheet, which key. Never what was
         typed, and never what anything was called by anybody but humanize.
     """
-    if not start():
+    if not _started:
         return
     import sentry_sdk
 
@@ -433,6 +488,82 @@ def _before_send(event: Any, hint: Any) -> Any:
     return event
 
 
+def _before_send_transaction(event: Any, hint: Any) -> Any:
+    """The last thing every timing goes through: what a report goes through, and its spans.
+
+    A transaction is a report without an exception and with spans, and a span says what was
+    timed in whatever words the integration that timed it chose. A subprocess span is named by
+    its command line, which for a turn is the task; one timed by its code names the file the
+    code is in. Both are put the way a report puts them.
+
+    Args:
+      event: The transaction, as the SDK built it.
+      hint: What it was built from, which is not read.
+
+    Returns:
+      The transaction to send, with what must not leave taken out of it.
+    """
+    event = _before_send(event, hint)
+    if event.get("transaction"):
+        event["transaction"] = _plainer(str(event["transaction"]))
+    trace: Any = event.get("contexts", {}).get("trace")
+    spans: list[Any] = [*event.get("spans", [])]
+    if isinstance(trace, dict):
+        spans.append(trace)
+    for span in spans:
+        _spanned(span)
+    for held_ in ("contexts", "tags"):
+        if held_ in event:
+            event[held_] = _plainly(event[held_])
+    return event
+
+
+def _spanned(span: dict[str, Any]) -> None:
+    """One span of a transaction, named the way a report may name it.
+
+    Args:
+      span: The span, changed in place.
+    """
+    if span.get("op") == "subprocess":
+        span["description"] = "A command"
+    elif span.get("description"):
+        span["description"] = _plainer(str(span["description"]))
+    if not isinstance(span.get("data"), dict):
+        return
+    data: dict[str, Any] = span["data"]
+    # Where the command ran, which is the project it ran in.
+    data.pop("subprocess.cwd", None)
+    if "code.filepath" in data:
+        where = _under(str(data["code.filepath"]))
+        data["code.filepath"] = _THEIRS if where is None else where
+        if where is None:
+            data.pop("code.function", None)
+            data.pop("code.namespace", None)
+    span["data"] = _plainly(data)
+
+
+def _profiled(envelope: Any) -> None:
+    """Each profile in what is about to be sent, its frames named as a report's are.
+
+    A profile is every frame that was running, sampled, which is a traceback many times over
+    -- and it reaches the transport with no `before_send` on its way, so it is put plain here.
+
+    Args:
+      envelope: What the SDK is sending, changed in place.
+    """
+    for item in envelope.items:
+        if item.type not in ("profile", "profile_chunk"):
+            continue
+        said: Any = item.payload.json
+        if not isinstance(said, dict):
+            continue
+        said = cast("dict[str, Any]", said)
+        for frame in said.get("profile", {}).get("frames", []):
+            _framed(frame)
+        item.payload.json = _plainly(said)
+        item.payload.bytes = None
+
+
 def _framed(frame: dict[str, Any]) -> None:
     """One frame of a traceback, named the way a report may name it.
 
@@ -492,10 +623,28 @@ def _plainer(said: str) -> str:
       -- and cut short, since a long string in a report is a file somebody pasted.
     """
     said = _RAN.sub("A command ", said)
-    said = _HOME.sub("~", said)
-    said = _CREDS.sub("…", said)
-    said = _KEYS.sub("…", said)
+    said = scrubbed(_HOME.sub("~", said))
     return said if len(said) <= _LONG else said[:_LONG] + "…"
+
+
+def scrubbed(said: str, instead: str = "…") -> str:
+    """One string, with every credential in it struck out.
+
+    What a report is put through, and what every byte of an exported bundle is: two errands
+    with different promises about everything else, and the same one about credentials.
+
+    Args:
+      said: The text, as it was written.
+      instead: What stands where a credential was.
+
+    Returns:
+      The same text with each credential replaced by `instead`.
+    """
+    for pattern in _STRUCK:
+        said = pattern.sub(
+            lambda found: (found.groupdict().get("kept") or "") + instead, said
+        )
+    return said
 
 
 def _version() -> str:
