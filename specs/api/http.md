@@ -203,7 +203,7 @@ attach to it again after 2 seconds; it MUST NOT attach again to a chat's host.
 
 **7.6** The server MUST attach to a host held by an older **hmz** never, refusing 409 with the
 text of `api/daemon.md §12.3`; a host it cannot reach MUST be refused 503,
-`The runs of <workspace> could not be reached: <why>`.
+`The epics of <workspace> could not be reached: <why>`.
 
 ## 8. The epics held
 
@@ -255,7 +255,7 @@ them, per host.
 ### 8.3 `POST /api/held/{do}`
 
 **8.3.1** `{do}` MUST be one of `start`, `say`, `answer`, `stop`, `force`, `afk`, `claim`,
-`release` and `board`; any other MUST be refused 404, `There is no <do> to ask of a run.`
+`release` and `board`; any other MUST be refused 404, `There is no <do> to ask of an epic.`
 
 **8.3.2** The body MUST carry the workspace and slot parameters and exactly the fields the
 request of that name takes in `api/daemon.md §8`; a further field MUST be refused 400,
@@ -265,7 +265,7 @@ request of that name takes in `api/daemon.md §8`; a further field MUST be refus
 the host's answer: its fields, with `ok` `true`.
 
 **8.3.4** A request the host refuses MUST be refused 409 with the host's sentence; one the host
-cannot be asked MUST be refused 503, `The runs could not be asked: <why>`.
+cannot be asked MUST be refused 503, `The epics could not be asked: <why>`.
 
 **8.3.5** `start` MUST first write what the flow is started with as the workspace's set-up of
 that flow, as §11.4 does, and MUST answer with `slot`, the host it started on, beside the host's
