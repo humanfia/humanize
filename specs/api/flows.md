@@ -405,7 +405,8 @@ a turn MUST be written as the kept conversation it carries on, without copying a
 
 ### 5.4 Resumption
 
-**5.4.1** An epic MUST be resumable exactly where its top call is of a resumable flow. How a user asks
+**5.4.1** An epic MUST be resumable exactly where its top call is of a resumable flow. How a user
+asks
 for a resume, and which epic is picked up, is specified in `api/cli.md` and
 `features/epics.md`.
 
@@ -924,19 +925,19 @@ turns concurrently.
 
 ### 8.3 Project configuration across machines
 
-**8.3.1** Project configuration is the set of files in a turn's workdir that make a harness run
-programs: hooks, stdio MCP servers, status lines, credential helpers, environment-variable
-overrides, plugins, and the Codex `notify` program.
+**8.3.1** Program-running project configuration is the configuration that
+`features/agents.md` §5.5 lists for a turn's harness, found in the turn's workdir or a directory
+above it within the workspace.
 
-**8.3.2** hmz MUST honour project configuration only where the turn's harness machine is its env
-machine, which is placements local and native.
+**8.3.2** Where a turn's placement is supervised or afar and its harness machine is not its env
+machine, opening a session, forking it into a workdir, carrying it on, and every later turn MUST
+raise `UnsupportedOperation` where program-running project configuration is present, as
+`features/placements.md` §7 specifies.
 
-**8.3.3** In placements supervised and afar, opening a session in a workdir holding project
-configuration MUST raise `UnsupportedOperation`, and the exception's message MUST name each file
-and key responsible.
+**8.3.3** The message of the exception of clause 8.3.2 MUST name each file and key responsible.
 
 **8.3.4** How project configuration is layered with hmz's own configuration is specified in
-`features/agents.md`.
+`features/agents.md` §5.
 
 ### 8.4 `SteeringAgentMixin.steer`
 
@@ -1054,7 +1055,8 @@ NOT refuse it.
 and the agent MUST be told `reason`.
 
 **9.2.7** An `ASK_USER` result's `answer` MUST be told to the agent as the answer to its question.
-hmz MUST accept an `answer` that is not one of `options`. `answer=None` MUST leave the question unanswered and let
+hmz MUST accept an `answer` that is not one of `options`. `answer=None` MUST leave the question
+unanswered and let
 the agent continue without an answer.
 
 **9.2.8** An `OUTWORLDER_RUN` result's `output` MUST be what the outworlder's `run` returns.

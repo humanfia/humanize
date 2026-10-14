@@ -390,8 +390,17 @@ harness would read as project-level.
 **7.5** The error of §7.4 MUST name each file that holds such configuration and each key in it,
 and MUST be raised before the harness is started.
 
-**7.6** The files and keys that count as program-running configuration for each harness MUST be
-those listed in `features/agents.md`.
+**7.6** Under supervised and afar placement, hmz MUST make the check of §7.4 again before every
+turn, and MUST refuse the turn with `UnsupportedOperation` where it finds such configuration.
+
+**7.7** An afar placement whose harness machine is the env machine MUST be treated as local and
+native are under §7.3.
+
+**7.8** Where the env machine cannot be reached for the check of §7.4, hmz MUST raise
+`HarnessDropped`.
+
+**7.9** The files and keys that count as program-running configuration for each harness MUST be
+those listed in `features/agents.md` §5.5.
 
 ## 8. Moving, forking, keeping and carrying on
 

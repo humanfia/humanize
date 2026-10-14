@@ -69,7 +69,7 @@ There are three ways in:
 | Way in | Picks up | Runs it with |
 | --- | --- | --- |
 | `/resume` at the prompt | the last run here of a flow that can be picked up | that run's own agents, environments, params, budget and task |
-| `/epics`, then **resume run** | any run you choose | the same: that run's own setup |
+| `/epics`, then **resume epic** | any run you choose | the same: that run's own setup |
 | `hmz exec --resume` | the newest run of the `-f` flow here that saved something | the line's own `-a`, `-e` and `-p`, budget included |
 
 A run whose environments were written down as `local@/srv/x`, `docker@local/srv/x`,
@@ -169,7 +169,7 @@ To carry on an **older** run than the last, open `/epics`. Runs you can pick up 
 ![The /epics list: two runs, newest first, the newer marked
 "resumable"](/demo/epics.png)
 
-Press <kbd>enter</kbd> on one and choose **resume run**:
+Press <kbd>enter</kbd> on one and choose **resume epic**:
 
 ```text
   hmz › /epics › 2026-09-30 05:38 · stateful_ralph
@@ -177,14 +177,14 @@ Press <kbd>enter</kbd> on one and choose **resume run**:
   It stopped with 1 agent in 1 session.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
-  │ resume run                resume the flow from this run                  │
-  │ export run                the entire run as an archive, with its trace   │
+  │ resume epic               resume the flow from this epic                 │
+  │ export epic               the entire epic as an archive, with its trace  │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
   enter choose   esc back
 ```
 
-The **resume run** row is there only when the flow, as it is today, can be picked up. When it
+The **resume epic** row is there only when the flow, as it is today, can be picked up. When it
 cannot, the line under the list says `<flow> is not resumable, so this run cannot be resumed`.
 <kbd>esc</kbd>, <kbd>←</kbd> or a click on `/epics` across the top goes back to the runs.
 

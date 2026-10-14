@@ -285,7 +285,7 @@ class Held:
             answer = mode.ask(question, snapshot)
         except Left as why:
             raise Refusal(
-                "A new run started, which closed what was asked.", 409
+                "A new epic started, which closed what was asked.", 409
             ) from why
         except Refused as why:
             raise Refusal(str(why), 409) from why

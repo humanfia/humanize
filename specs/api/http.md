@@ -290,7 +290,8 @@ epic in view on the workspace's own host).
 
 **9.2.2** It MUST answer `open` (the conversations a side conversation is open on, `""` for the
 btw agent's), `said` (each side question answered since, oldest first, as §9.3 answers it, the
-latest 200) and `agent` (the btw agent that epic has chosen, in agent spec, `""` for none).
+latest 200), `agent` (the btw agent that epic has chosen, in agent spec, `""` for none) and
+`default` (the `btw` setting of `api/settings.md`, `""` for the flow's first agent).
 
 **9.2.3** It MUST NOT attach to any host; where the server follows none of the workspace, `open`
 and `said` MUST be `[]`.
@@ -313,7 +314,7 @@ session the btw agent asked on the way to its answer).
 
 **9.3.5** A question to a side conversation still answering MUST be refused 409,
 `btw is still answering the last question asked of it.`; a question closed by a new epic starting
-409, `A new run started, which closed what was asked.`; an empty answer 502,
+409, `A new epic started, which closed what was asked.`; an empty answer 502,
 `The agent returned no answer.`
 
 ### 9.4 `POST /api/btw/agent`
@@ -323,9 +324,12 @@ session the btw agent asked on the way to its answer).
 
 **9.4.2** It MUST set that epic's btw agent to `agent`, or clear it where `agent` is `""`, MUST
 record the choice as the event `btw` of the epic's `epic.jsonl` (`api/files/epics.md`), and MUST
-answer as `GET /api/btw` answers for that epic.
+answer `{"agent": <agent as written>}`.
 
-**9.4.3** An `agent` that is not an agent spec MUST be refused 400; an epic of no such name MUST
+**9.4.3** A side conversation open on the btw agent MUST be opened again, with the new agent,
+at the next question asked of it; the side questions already answered MUST be kept.
+
+**9.4.4** An `agent` that is not an agent spec MUST be refused 400; an epic of no such name MUST
 be refused 404.
 
 ### 9.5 `POST /api/btw/leave`

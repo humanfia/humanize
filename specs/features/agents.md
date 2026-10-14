@@ -361,6 +361,70 @@ be refused.
 skill of that name MUST take precedence over both, and the flow skill MUST take precedence over
 the user's.
 
+### 5.5 Program-running workspace configuration
+
+**5.5.1** For each harness, program-running workspace configuration MUST be exactly the entries
+of the table below: a file, at the path given relative to the session directory or any directory
+above it up to the workspace, holding a non-empty value at any of the key paths given, where `*`
+stands for any one key of a table or any one item of a list; or a directory, written with a
+trailing `/`, holding any entry.
+
+**5.5.2** A file of the table that hmz cannot read or cannot parse MUST count as holding
+program-running configuration.
+
+**5.5.3** The harnesses `dsh`, `litellm` MUST have no program-running workspace
+configuration.
+
+| Harness | Path | Key paths |
+| --- | --- | --- |
+| `agy` | `.agents/mcp_config.json` | `mcpServers.*.command` |
+| `agy` | `.agents/hooks.json` | `*.*.*.hooks.*.command` |
+| `agy` | `.agents/plugins/` | any entry |
+| `claude` | `.claude/settings.json` | `hooks.*.*.hooks.*.command`, `statusLine`, `subagentStatusLine`, `fileSuggestion`, `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh`, `otelHeadersHelper`, `enabledPlugins.*`, `extraKnownMarketplaces` |
+| `claude` | `.claude/settings.local.json` | `hooks.*.*.hooks.*.command`, `statusLine`, `subagentStatusLine`, `fileSuggestion`, `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh`, `otelHeadersHelper`, `enabledPlugins.*`, `extraKnownMarketplaces` |
+| `claude` | `.mcp.json` | `mcpServers.*.command`, `mcpServers.*.headersHelper` |
+| `codex` | `.codex/config.toml` | `mcp_servers.*.command`, `mcp_servers.*.http_headers_helper`, `hooks` |
+| `codex` | `.codex/hooks.json` | `hooks.*.*.hooks.*.command` |
+| `cursor-agent` | `.cursor/hooks.json` | `hooks.*.*.command` |
+| `cursor-agent` | `.cursor/mcp.json` | `mcpServers.*.command` |
+| `grok` | `.grok/config.toml` | `mcp_servers.*.command`, `plugins` |
+| `grok` | `.grok/hooks/` | any entry |
+| `grok` | `.claude/settings.json` | `hooks.*.*.hooks.*.command` |
+| `grok` | `.claude/settings.local.json` | `hooks.*.*.hooks.*.command` |
+| `kimi` | `.kimi-code/mcp.json` | `mcpServers.*.command` |
+| `mcode` | `.mcp.json` | `mcpServers.*.command`, `mcpServers.*.headersHelper` |
+| `mimo` | `mimocode.json` | `mcp.*.command`, `plugin`, `formatter.*.command`, `lsp.*.command` |
+| `mimo` | `mimocode.jsonc` | `mcp.*.command`, `plugin`, `formatter.*.command`, `lsp.*.command` |
+| `mimo` | `.mimocode/mimocode.json` | `mcp.*.command`, `plugin`, `formatter.*.command`, `lsp.*.command` |
+| `mimo` | `.mimocode/mimocode.jsonc` | `mcp.*.command`, `plugin`, `formatter.*.command`, `lsp.*.command` |
+| `mimo` | `.mimocode/plugins/` | any entry |
+| `mimo` | `.mimocode/plugin/` | any entry |
+| `omp` | `.omp/settings.json` | `extensions` |
+| `omp` | `.omp/config.yml` | `extensions` |
+| `omp` | `.omp/mcp.json` | `mcpServers.*.command` |
+| `omp` | `.omp/.mcp.json` | `mcpServers.*.command` |
+| `omp` | `mcp.json` | `mcpServers.*.command` |
+| `omp` | `.mcp.json` | `mcpServers.*.command`, `mcpServers.*.headersHelper` |
+| `omp` | `.omp/hooks/` | any entry |
+| `omp` | `.omp/tools/` | any entry |
+| `omp` | `.claude/hooks/` | any entry |
+| `omp` | `.claude/tools/` | any entry |
+| `omp` | `.codex/hooks/` | any entry |
+| `omp` | `.codex/tools/` | any entry |
+| `omp` | `.gemini/hooks/` | any entry |
+| `omp` | `.gemini/tools/` | any entry |
+| `omp` | `.omp/extensions/` | any entry |
+| `opencode` | `opencode.json` | `mcp.*.command`, `plugin`, `formatter.*.command`, `lsp.*.command` |
+| `opencode` | `opencode.jsonc` | `mcp.*.command`, `plugin`, `formatter.*.command`, `lsp.*.command` |
+| `opencode` | `.opencode/opencode.json` | `mcp.*.command`, `plugin`, `formatter.*.command`, `lsp.*.command` |
+| `opencode` | `.opencode/opencode.jsonc` | `mcp.*.command`, `plugin`, `formatter.*.command`, `lsp.*.command` |
+| `opencode` | `.opencode/plugins/` | any entry |
+| `opencode` | `.opencode/plugin/` | any entry |
+| `pi` | `.pi/settings.json` | `extensions`, `packages`, `npmCommand` |
+| `pi` | `.pi/mcp.json` | `mcpServers.*.command` |
+| `pi` | `.pi/extensions/` | any entry |
+| `qwen` | `.qwen/settings.json` | `hooks.*.*.hooks.*.command`, `mcpServers.*.command`, `tools.discoveryCommand`, `tools.callCommand`, `ui.statusLine.command` |
+
 ## 6. Permissions and confinement
 
 ### 6.1 Approvals

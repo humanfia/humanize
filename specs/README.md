@@ -144,7 +144,7 @@ gaps.
 ### 4.3 Citation
 
 **4.3.1** A citation of another specification MUST give its path relative to `specs/` and, where
-it cites a part of it, a section sign and the number, as `api/flows.md §3.4` or
+it cites a part of it, a section sign and the number, as `api/flows.md §3.1` or
 `api/cli.md §7.5.2`.
 
 **4.3.2** A citation within one specification MUST give the section sign and the number alone,

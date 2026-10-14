@@ -306,7 +306,7 @@ has the rest.
 
 - **`README.md`** follows [standard-readme](https://github.com/RichardLitt/standard-readme),
   says what humanize does and how to use it, and links here.
-- **`specs/`** holds each package's contract. Do not edit one unless you were asked to.
+- **`specs/`** holds the contract of everything humanize shows to the outside. Do not edit a SPEC unless you were asked to.
 - **Docstrings** are Google style, and `ruff` checks them.
 
 The site deploys to [docs.humanfia.ai/humanize](https://docs.humanfia.ai/humanize/) from

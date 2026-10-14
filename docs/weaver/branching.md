@@ -284,7 +284,7 @@ async def arms(task, *, agents, envs, params, ctx):
 2. **A new session** of the same role, every time it is read, whose first turn forks the kept
    conversation. Run `hmz exec --resume -p arm=…` once per arm, each a run of its own: an arm
    that writes nothing to the state leaves the kept session in the run the next arm picks up.
-   To pick a given run up, name its epic: `Hmz().run(…, resume=<epic>)`, or *resume run* on
+   To pick a given run up, name its epic: `Hmz().run(…, resume=<epic>)`, or *resume epic* on
    `/epics`.
 
 Only a CLI that forks can be carried on this way, on this machine, and on the harness that kept

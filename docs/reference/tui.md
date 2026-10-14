@@ -115,7 +115,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 | Stopping | None: `/stop` is refused, and [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) starts another chat and leaves this one going. |
 | Leaving | [`/exit`](#leaving-and-letting-go) and `ctrl+q` ask nothing. |
 | Beside it | Each chat runs on a host of its own, its own epic, beside every other chat and the flow of this directory, which may be started or `/resume`d while chats go. A chat nobody reads for **60 s** between turns folds away. |
-| `/epics` | No `Exomyth` row for a chat's epic; `continue` in place of `resume run`: one still going is read where it is, one folded away is carried on, in the same epic, by the next line you say. |
+| `/epics` | No `Exomyth` row for a chat's epic; `continue` in place of `resume epic`: one still going is read where it is, one folded away is carried on, in the same epic, by the next line you say. |
 
 ### Turn lines {#turn-lines}
 
@@ -1144,16 +1144,16 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | Title | `<when> · <flow>` |
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).`, then a line per target it was backed up to: `<target>: backed up <when>` or `<target>: failed <when>: <error>` |
 | Keys | `enter choose   esc back` |
-| `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
+| `resume epic` | `resume the flow from this epic`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `graph` | `its agents, called flows and sessions, read back`. Opens its [graph](#an-epic-s-graph). |
 | `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
-| `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+| `export epic` | `the entire epic as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 | `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for a [chat](#chat). |
 | `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
 
-A [chat](#chat)'s epic offers `continue` (`carry the conversation on`) in place of `resume run`: the one a host still holds is read where it is, and one folded away is set up and carried on, in the same epic, by the next line said; one of another directory, or that cannot be, is refused `this chat cannot be continued here`.
+A [chat](#chat)'s epic offers `continue` (`carry the conversation on`) in place of `resume epic`: the one a host still holds is read where it is, and one folded away is set up and carried on, in the same epic, by the next line said; one of another directory, or that cannot be, is refused `this chat cannot be continued here`.
 
-Rows in order: `resume run` or `continue`, `graph`, `export run`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
+Rows in order: `resume epic` or `continue`, `graph`, `export epic`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
 
 ### An epic's graph {#an-epic-s-graph}
 

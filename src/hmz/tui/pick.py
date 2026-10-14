@@ -10756,8 +10756,8 @@ class Does(Picks):
             held.append(
                 (
                     RESUMES,
-                    "resume run",
-                    "resume the flow from this run",
+                    "resume epic",
+                    "resume the flow from this epic",
                 )
             )
         held.append(
@@ -10766,8 +10766,8 @@ class Does(Picks):
         held.append(
             (
                 _EXPORTS,
-                "export run",
-                "the entire run as an archive, with its trace",
+                "export epic",
+                "the entire epic as an archive, with its trace",
             )
         )
         # Not for a chat, which is one conversation rather than a flow of them to lay out.
@@ -10904,9 +10904,9 @@ class Exporting(Form[str]):
 
     def _ask(self) -> None:
         """Says what an export is."""
-        self.query_one("#asked", Label).update("Export run")
+        self.query_one("#asked", Label).update("Export epic")
         self.query_one("#about", Label).update(
-            "The entire run as one archive, with its trace, to send to somebody "
+            "The entire epic as one archive, with its trace, to send to somebody "
             "who was not there. Credentials are struck out of every byte of it."
         )
         self._fill()

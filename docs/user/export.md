@@ -11,7 +11,7 @@ timeline of the run and what each CLI was, with every credential struck out.
 
 ## Try it
 
-Open `/epics`, press <kbd>enter</kbd> on the run, choose **export run**, and type where the
+Open `/epics`, press <kbd>enter</kbd> on the run, choose **export epic**, and type where the
 archive goes -- or press **done** as it stands, and it goes to `~/Downloads/` (your home, where
 there is no `Downloads`), as a browser's export would.
 
@@ -57,13 +57,13 @@ budget. Open the run in `/epics`:
   It stopped with 1 agent in 3 sessions.                                        ③
 
   ╭──────────────────────────────────────────────────────────────────────────╮
-  │ export run                the entire run as an archive, with its trace   │
+  │ export epic               the entire epic as an archive, with its trace  │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
   enter choose   esc back
 ```
 
-Choose **export run**. A form asks where the archive goes: a file, or a directory to put it
+Choose **export epic**. A form asks where the archive goes: a file, or a directory to put it
 in under the run's name (made if it is not there yet). The path completes as you type, the way
 a shell completes one: what it could become is listed under the form, <kbd>tab</kbd> finishes
 as much as those share and then steps through them, and `~` is your home. Here `iss`,

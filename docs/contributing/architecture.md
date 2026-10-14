@@ -82,7 +82,7 @@ page of `/settings`.
 
 **You need:** the CLI installed and signed in, so a system test can drive it; its `--help`
 and a turn or two of its own logs, since several steps copy what it really writes; and which
-kind of driver it needs, which `specs/coganchor/agents.md` says.
+kind of driver it needs, which `specs/features/agents.md` says.
 
 ### 1. Describe it, in `coganchor/`
 
@@ -213,32 +213,47 @@ Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and wi
 
 ## SPECs
 
-`specs/` mirrors `src/hmz/`, and the file for your layer is its contract, in MUST and MUST NOT
-terms. Pick a layer in the diagram to open its SPEC. Change the code to match the SPEC, and do
-not edit a SPEC unless you were asked to. Propose a SPEC change separately.
+`specs/` states everything humanize shows to the outside, in MUST, MUST NOT and MAY terms, and
+nothing about how it is built. `specs/api/` holds the interfaces: the flow API, the SDK, the
+daemon protocol, the HTTP API, the command line, `settings.yaml`, and every file humanize may
+leave on disk. `specs/features/` holds one file per feature. `specs/README.md` holds the rules
+every SPEC is written by and the terms they share. Pick a layer in the diagram to open the SPEC
+that governs what it shows. Change the code to match the SPEC, and do not edit a SPEC unless you
+were asked to. Propose a SPEC change separately. How the layers are built and may name one
+another is this page's business, not a SPEC's.
 
 ::: details Every SPEC
 | | |
 | --- | --- |
-| `specs/SPEC.md` | The tree, what each layer is, and how layers may name one another |
-| `specs/cli.md` | Every command line |
-| `specs/tui.md` | Every behaviour the terminal interface must have |
-| `specs/web.md` | Every behaviour the web interface must have |
-| `specs/sdk.md` | How a tool that is not humanize reaches humanize |
-| `specs/daemon.md` | Holding every workspace's runs on a machine apart from a terminal, for the frontends that read them |
-| `specs/runtime/SPEC.md` | What a run is, and what humanize remembers of one |
-| `specs/runtime/doing.md` | humanize as one object: a workspace and everything doable in it |
-| `specs/runtime/flowing.md` | What humanize does to a flow: the engine, the drivers, refs, resuming |
-| `specs/runtime/tracing.md` | The collect API and what a trace must hold |
-| `specs/runtime/watching.md` | A run read as it happens, as every interface reads it |
-| `specs/flows.md` | The flow API: what a flow imports, declares and is handed |
-| `specs/coganchor/SPEC.md` | Driving a coding agent CLI, and what an anchor entitles you to |
-| `specs/coganchor/agents.md` | The agent and session contract every backend keeps |
-| `specs/coganchor/providers.md` | Which account an agent runs as |
-| `specs/coganchor/machines.md` | What a machine is |
-| `specs/coganchor/serve.md` | The half that ships to a target |
-| `specs/coganchor/linux.md` | What the anchor intercepts on the target |
-| `specs/desktop.md` | The macOS app in `desktop/`, beside the package: a window on `hmz web` |
+| `specs/README.md` | How a SPEC is written, numbered and cited; the terms every SPEC shares |
+| `specs/api/flows.md` | The flow API: what a flow imports, declares and is handed |
+| `specs/api/sdk.md` | `hmz.sdk`: how a program that is not humanize drives it |
+| `specs/api/daemon.md` | The daemon's protocol, as a frontend sees it |
+| `specs/api/http.md` | Every HTTP endpoint `hmz web` serves |
+| `specs/api/cli.md` | Every command line |
+| `specs/api/settings.md` | Every key of `settings.yaml`, and every environment variable read |
+| `specs/api/files/home.md` | `~/.hmz` |
+| `specs/api/files/workspace.md` | What humanize may leave in a workspace, and what never |
+| `specs/api/files/epics.md` | An epic's directory, its records, and `.hmzepic` archives |
+| `specs/api/files/machine.md` | Per-user temporary and cache directories |
+| `specs/api/files/harness-homes.md` | What humanize keeps or builds for each CLI's home |
+| `specs/api/files/desktop.md` | The macOS app's files |
+| `specs/api/files/targets.md` | What humanize may leave on another machine, container or job |
+| `specs/features/epics.md` | Starting, stopping, budgeting and picking up an epic |
+| `specs/features/agents.md` | Driving coding agent CLIs: configuration, permissions, faults |
+| `specs/features/accounts.md` | Which account an agent runs as |
+| `specs/features/placements.md` | Where a CLI runs against where its work is, and mirrors |
+| `specs/features/environments.md` | Local, ssh, docker, swarm, Apple container and Slurm envs |
+| `specs/features/chat.md` | The chat flow, in every frontend |
+| `specs/features/btw.md` | Side questions |
+| `specs/features/monitoring.md` | The live monitor, cost, notices, traces and profiles |
+| `specs/features/backups.md` | Git backups, export and import |
+| `specs/features/telemetry.md` | What is reported, and what never |
+| `specs/features/updates.md` | `hmz update` and update notices |
+| `specs/features/daemons.md` | One daemon per machine, and remote daemons |
+| `specs/features/tui.md` | Every behaviour the terminal interface must have |
+| `specs/features/web.md` | Every behaviour the web interface must have |
+| `specs/features/desktop.md` | The macOS app in `desktop/`: a window on `hmz web` |
 :::
 
 ## Next steps

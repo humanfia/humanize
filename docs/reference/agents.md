@@ -1958,4 +1958,4 @@ class Unhooked(ValueError): ...
 
 `CommandSessionBase` (one command per turn) and `StreamSessionBase` (one long-lived process fed
 a line at a time) are the two shapes a driver subclasses; the contract is
-[`specs/coganchor/agents.md`](https://github.com/humanfia/humanize/blob/main/specs/coganchor/agents.md).
+[`specs/features/agents.md`](https://github.com/humanfia/humanize/blob/main/specs/features/agents.md).

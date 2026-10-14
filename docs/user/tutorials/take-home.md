@@ -285,14 +285,14 @@ the top one, the loop you just stopped:
   It stopped with 2 agents in 12 sessions.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
-  │ resume run                resume the flow from this run                  │
-  │ export run                the entire run as an archive, with its trace   │
+  │ resume epic               resume the flow from this epic                 │
+  │ export epic               the entire epic as an archive, with its trace  │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
   enter choose   esc back
 ```
 
-Choose **export run**. Back on the list of runs, the line under it says where the archive went,
+Choose **export epic**. Back on the list of runs, the line under it says where the archive went,
 in this project's `.hmz/`. The trace is also at `traces/export.trace.json` inside the
 directory named under the screen's title. Drag it into
 [ui.perfetto.dev](https://ui.perfetto.dev):

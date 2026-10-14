@@ -82,7 +82,7 @@ runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
 
 `desktop/` is [the macOS app](/user/desktop): a window on `hmz web`'s page, in Rust with
 [Tauri](https://tauri.app/), held to
-[its spec](https://github.com/humanfia/humanize/blob/main/specs/desktop.md). Working on it
+[its spec](https://github.com/humanfia/humanize/blob/main/specs/features/desktop.md). Working on it
 takes a Mac, [Rust](https://rustup.rs/), Node and pnpm. Built from `main`, its version is
 `0.0.0`, and it installs nothing: `pnpm dev` opens it against the `hmz` on your `PATH`, and
 `HUMANIZE_HMZ` names another, such as this checkout's:

@@ -526,9 +526,12 @@ dim, then the answer in cyan.
 **12.6** Each ask line the btw agent sends MUST be shown, dim, as `btw · asking <agent>/<n>:`
 and its question.
 
-**12.7** In btw mode, the btw agent key, `ctrl+b`, MUST open the agent sheet titled
-`Set up btw agent` (§16.6), showing the btw agent in force, and saving it MUST make the
-choice the epic's btw agent choice (`features/btw.md` §8).
+**12.7** In btw mode, the btw agent key, `ctrl+g`, MUST drop a list titled `btw agent`
+offering `default` (no choice of the epic's own), the epic's current choice where it has one,
+and `another…`; `another…` MUST open the agent sheet (§16.5); picking MUST make the result the
+epic's btw agent choice (`features/btw.md` §8) and MUST show `btw agent: <spec>`, or
+`btw agent: default` where it was cleared. Where no epic is in view, the key MUST show
+`hmz: btw: no epic to keep an agent with` and change nothing.
 
 **12.8** `/btw` alone or `esc` MUST leave btw mode, say `btw: exited`, and close every side
 conversation btw mode opened.
@@ -845,10 +848,10 @@ on the Daemons page with how it stands, turning the list to the one picked.
 ### 17.2 One epic
 
 **17.2.1** `enter`, `→` or a click on an epic MUST open its menu with these rows, each where
-offered: `resume run` or, for a chat, `continue`; `graph`; `export run`; `Exomyth`; `upload`;
+offered: `resume epic` or, for a chat, `continue`; `graph`; `export epic`; `Exomyth`; `upload`;
 `copy name`, `copy task`, `copy path`.
 
-**17.2.2** `resume run` MUST pick the epic up as `/resume` does, and MUST be refused for an epic
+**17.2.2** `resume epic` MUST pick the epic up as `/resume` does, and MUST be refused for an epic
 of another directory, saying where it ran; while an epic is going; and for an epic whose flow is
 not resumable or that cannot be resumed here, saying why.
 
@@ -862,7 +865,7 @@ called.
 tool call with what went in and came out, and what was said, in order, each cut to 6 lines until
 opened, searchable.
 
-**17.2.6** `export run` MUST ask where the archive goes, a file or a directory, starting from
+**17.2.6** `export epic` MUST ask where the archive goes, a file or a directory, starting from
 the downloads directory, and MUST say where it landed, how big it is and what it holds.
 
 **17.2.7** `upload` MUST be offered where a backup target exists, and MUST queue a backup to the
@@ -1200,7 +1203,7 @@ states where its row's context holds.
 | 24.1.8 | editor | `shift+enter`, `ctrl+j` | break the line |
 | 24.1.9 | editor, first or last row | `↑`, `↓` | older or newer history entry |
 | 24.1.10 | editor, btw mode, offers closed | `esc` | leave btw mode |
-| 24.1.11 | editor, btw mode | `ctrl+b` | agent sheet for the btw agent |
+| 24.1.11 | editor, btw mode | `ctrl+g` | btw agent list |
 | 24.1.12 | offers open | `↑`, `↓` | move the highlight |
 | 24.1.13 | offers open | `tab` | take the highlight |
 | 24.1.14 | offers open | `esc` | hide offers until the text changes |

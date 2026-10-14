@@ -490,7 +490,7 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
 - **Forks stay on one machine.** A fork into a session on another machine is refused with
   `UnsupportedOperation: <cli> cannot fork a session onto another machine`.
 
-<small>Defined in [`src/hmz/runtime/flowing/harnesses.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnesses.py) (`HarnessDriver._harnessed`, `_native_on`, `_has_cli`, `_fenceable`), [`src/hmz/runtime/flowing/affinity.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/affinity.py) (`Harbors`), [`src/hmz/runtime/runner.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/runner.py), [`src/hmz/runtime/epic.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/epic.py) (`harnessed`, `harbor`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Where the harness runs).</small>
+<small>Defined in [`src/hmz/runtime/flowing/harnesses.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnesses.py) (`HarnessDriver._harnessed`, `_native_on`, `_has_cli`, `_fenceable`), [`src/hmz/runtime/flowing/affinity.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/affinity.py) (`Harbors`), [`src/hmz/runtime/runner.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/runner.py), [`src/hmz/runtime/epic.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/epic.py) (`harnessed`, `harbor`), [`specs/features/placements.md`](https://github.com/humanfia/humanize/blob/main/specs/features/placements.md) §4.</small>
 
 ## Supervised arrangement {#supervised-the-default}
 
@@ -810,7 +810,7 @@ An export bounds which paths a request may name; it does not confine what the co
 runs can do. Listen on a non-loopback address only with a secret `--token`.
 :::
 
-<small>Defined in [`src/hmz/cli/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/cli/anchor.py), [`src/hmz/coganchor/serve/`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/serve), [`specs/coganchor/serve.md`](https://github.com/humanfia/humanize/blob/main/specs/coganchor/serve.md).</small>
+<small>Defined in [`src/hmz/cli/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/cli/anchor.py), [`src/hmz/coganchor/serve/`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/serve), [`specs/features/placements.md`](https://github.com/humanfia/humanize/blob/main/specs/features/placements.md) §10.</small>
 
 ## Where the account lives {#where-the-account-lives}
 
