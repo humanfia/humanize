@@ -5,333 +5,372 @@
 This specification defines how **hmz** starts, identifies, limits, stops, ends, records and picks
 up an **epic**: the loading of the **flow** the epic executes, the parameters and budget the epic
 is given, the setup a **workspace** remembers between epics, the states in which an epic ends,
-and the number of epics that MAY execute at once in one workspace.
+and how many epics execute at once in one workspace.
 
 Out of scope:
 
 - The grammar of flow references, of agent and environment specifications and of the budget
   flags (`api/cli.md`, `api/flows.md`).
 - The layout and record format of an epic directory (`api/files/epics.md`).
+- The settings file in which remembered setup is kept (`api/settings.md`).
 - Where an agent's harness and an environment are placed, and fallback between runtimes
   (`features/placements.md`, `features/environments.md`).
 - Which agents and accounts exist and how a turn is taken (`features/agents.md`,
   `features/accounts.md`).
 - The `chat` flow and its conversation semantics (`features/chat.md`).
-- Live figures, traces and notices of an epic (`features/monitoring.md`).
+- Live figures, traces, profiles and notices of an epic (`features/monitoring.md`).
 - Backups, export and import of an epic (`features/backups.md`).
 
 ## 2. Definitions
 
-**2.1** **Epic name**: the identifier by which hmz names one epic, unique within the
-workspace in which the epic executed.
+**2.1** **Epic name**: the identifier by which hmz names one epic.
 
-**2.2** **Budget**: the set of limits under which an epic executes, consisting of zero or more of
-a **cost limit** (US dollars), an **output-token limit** (tokens written by agents) and a
-**duration limit** (wall-clock time), together with a **graceful** flag.
+**2.2** **Budget**: the set of limits under which an epic or a flow call executes, consisting of
+one or more of a **cost limit** (US dollars), an **output-token limit** (tokens written by
+agents) and a **duration limit** (wall-clock time), together with a **graceful** flag.
 
 **2.3** **Spent**: the cost, output tokens and seconds that the budget of an epic counted when
 the epic ended.
 
-**2.4** **Resumable flow**: a flow whose declaration states that an epic of it can be picked up.
+**2.4** **Resumable flow**: a flow whose declaration states that an epic of it can be picked up
+(`api/flows.md`).
 
 **2.5** **Flow state**: the values a resumable flow writes for itself while an epic of it
-executes, as defined in `api/flows.md`.
+executes (`api/flows.md`).
 
 **2.6** **Picking up**: starting a new epic of a resumable flow from the flow state an earlier
 epic of that flow left; the earlier epic is the **origin** of the new one.
 
-**2.7** **Stopping**: a request, from a **user** or a **frontend**, that an executing epic end
-before its flow returns.
+**2.7** **Stopping**: a request, made by a **user** through a **frontend** or by a signal, that
+an executing epic end before its flow returns.
 
-**2.8** **Forcing**: a request, made while an epic is stopping, that every session of the epic
-still in a turn be closed without waiting for the flow to unwind.
+**2.8** **Forcing**: a request, made while an epic is stopping, that every **session** of the
+epic still in a turn be closed without waiting for the flow to unwind.
 
-**2.9** **Remembered setup**: what a workspace keeps, per flow, of how the last epic of that flow
-was set up through a frontend.
+**2.9** **Remembered setup**: what a workspace keeps, per flow, of how that flow was last set up
+through a frontend.
 
-**2.10** **Ending**: the state in which an epic is read back once it is no longer executing, as
-defined in §8.
+**2.10** **Ending**: the state in which an epic is read back, as §3.6 defines.
 
-**2.11** **Host slot**: one place on this **machine** where epics of one workspace execute on
+**2.11** **Host slot**: one place on **this machine** in which epics of one workspace execute on
 behalf of frontends: the workspace's own slot, or one slot per chat.
 
-## 3. Starting an epic
+**2.12** **Price list**: the list of per-token model prices kept on this machine
+(`features/monitoring.md` §3.3).
 
-**3.1** hmz MUST start an epic when, and only when, a user or a program asks for one through
-`hmz exec` (`api/cli.md`), a frontend (`features/tui.md`, `features/web.md`), or the SDK
-(`api/sdk.md`).
+## 3. Lifecycle
 
-**3.2** hmz MUST refuse a request to start an epic, before any agent starts and before any
-session opens, where any of the following holds:
+### 3.1 Starting
 
-**3.2.1** The flow named cannot be found or cannot be loaded (§4).
+**3.1.1** hmz MUST start an epic only when a user or a program asks for one through `hmz exec`
+(`api/cli.md`), a frontend (`features/tui.md`, `features/web.md`) or the SDK (`api/sdk.md`).
 
-**3.2.2** A role is given that the flow does not declare.
+**3.1.2** hmz MUST refuse to start an epic whose flow cannot be found or loaded (§3.2).
 
-**3.2.3** A role is given more than once.
+**3.1.3** hmz MUST refuse to start an epic that is given a **role** the flow does not declare.
 
-**3.2.4** A required role that hmz does not fill itself is not given.
+**3.1.4** hmz MUST refuse to start an epic that is given one role more than once.
 
-**3.2.5** A role that hmz fills itself (an outworlder role or a local-environment role) is given.
+**3.1.5** hmz MUST refuse to start an epic that leaves out a required role which hmz does not
+fill itself.
 
-**3.2.6** An agent is given whose harness differs from the harness its role names, or whose
-harness does not serve the capabilities its role declares.
+**3.1.6** hmz MUST refuse to start an epic that is given a role which hmz fills itself: an
+outworlder role or a local-environment role (`api/flows.md`).
 
-**3.2.7** An agent or environment specification cannot be read or names a runtime that is not
-saved.
+**3.1.7** hmz MUST refuse to start an epic that is given an **agent** whose **harness** differs
+from the harness its role names, or whose harness does not serve the capabilities its role
+declares.
 
-**3.2.8** A parameter is given that the flow does not declare, or whose value cannot be read as
-the declared type.
+**3.1.8** hmz MUST refuse to start an epic that is given an agent or environment specification
+that cannot be read, or that names a **runtime** which is not saved.
 
-**3.2.9** No budget limit is given, unless the flow is `chat` (§6.2).
+**3.1.9** hmz MUST refuse to start an epic that is given a parameter the flow does not declare,
+or a parameter value that cannot be read as the declared type.
 
-**3.2.10** A backup target is named that does not exist (`features/backups.md`).
+**3.1.10** hmz MUST refuse to start an epic that is given no budget, unless its flow is `chat`
+(§3.4.2).
 
-**3.2.11** Picking up is requested and §9.5 forbids it.
+**3.1.11** hmz MUST refuse to start an epic that names a backup target which does not exist
+(`features/backups.md` §3.2).
 
-**3.3** Where a request is refused under §3.2, hmz MUST state the reason, and MUST NOT create an
-epic directory.
+**3.1.12** hmz MUST refuse to start an epic that asks to pick up where §3.7.5 forbids it.
 
-**3.4** hmz MUST probe every environment of the epic before the flow is called; where an
-environment cannot be reached or cannot hold what its role declares, and no fallback runtime
-holds it (`features/environments.md`), hmz MUST refuse the epic with the reason before the flow
-is called.
+**3.1.13** hmz MUST make every refusal under §3.1.2 to §3.1.12 before any agent starts and
+before any session opens, MUST state the reason, and MUST NOT create an epic directory for the
+refused request.
 
-**3.5** Once the checks of §3.2 and §3.4 pass, hmz MUST create exactly one epic, MUST record in
-it the flow's canonical reference, the task, the workspace, each role's agent and environment as
-given, the environment actually used for each role where it differs, the parameters, the
-budget, the profiling switches, the backup targets and, where picked up, the origin
-(`api/files/epics.md`).
+**3.1.14** `hmz exec` MUST exit with status 2 for every refusal under §3.1.2 to §3.1.12.
 
-**3.6** hmz MUST call the flow with the task, with every given agent and environment, with the
-workspace for every local-environment role, and with the epic's outworlder for every
-outworlder role.
+**3.1.15** hmz MUST probe every **env** of the epic before the flow is called; where an env
+cannot be reached or cannot hold what its role declares, and no fallback runtime holds it
+(`features/environments.md`), hmz MUST refuse the epic with the reason before the flow is
+called.
 
-**3.7** An epic started by `hmz exec` MUST have an outworlder that is away, so that every
-question the flow asks a person is answered as `api/flows.md` defines for an away outworlder.
+**3.1.16** hmz MUST create exactly one epic for each request that passes §3.1.2 to §3.1.12,
+and MUST record in it the flow's canonical reference, the task, the workspace, each role's agent
+and env as given, the env actually used for each role where it differs from the env given, the
+parameters, the budget, the profiling switches, the backup targets and, where it picks up, its
+origin (`api/files/epics.md`).
 
-**3.8** Starting an epic MUST NOT change the remembered setup of any workspace, unless the epic
-is started through a frontend that saves the setup (§10.2).
+**3.1.17** hmz MUST call the flow with the task, every given agent and env, the workspace for
+every local-environment role left out, and the epic's outworlder for every outworlder role left
+out.
 
-## 4. Loading the flow
+**3.1.18** An epic started by `hmz exec` MUST have an outworlder that is away, so that every
+question its flow asks a person is answered as `api/flows.md` defines for an away outworlder.
 
-**4.1** hmz MUST resolve the flow reference of an epic as `api/flows.md` defines, before the
+**3.1.19** Starting an epic through `hmz exec` or the SDK MUST NOT change the remembered setup of
+any workspace.
+
+### 3.2 Loading the flow
+
+**3.2.1** hmz MUST resolve the flow reference of an epic as `api/flows.md` defines, before the
 epic is created.
 
-**4.2** Where a reference names nothing, hmz MUST state which of the following holds: the flow
-is not installed although an index lists it; the reference uses a spelling that is no longer
-accepted, together with the current spelling; a path lacks its leading `./`; an index that could
-hold the flow has not been fetched.
+**3.2.2** Where a flow reference resolves to nothing, hmz MUST state which of the following
+holds: an index lists the flow but it is not installed; the reference uses a spelling no longer
+accepted, together with the accepted spelling; a path lacks its leading `./`; an index that
+could hold the flow has not been fetched.
 
-**4.3** Where a flow fails while it is imported, hmz MUST refuse the epic with the failure's
-reason.
+**3.2.3** Where a flow fails while it is imported, hmz MUST refuse the epic and state the
+failure's reason.
 
-**4.4** hmz MUST load the flow as it is on disk when the epic starts; a change to the flow's
-files after an epic started MUST NOT change that epic, and MUST take effect for the next epic
-that loads it.
+**3.2.4** hmz MUST load a flow as its files are when the epic starts; a change to those files
+after the epic started MUST NOT affect that epic, and MUST take effect for the next epic that
+loads the flow while no other epic of this process uses it.
 
-**4.5** A flow fetched from a version-control reference MUST be fixed, for the whole epic, to
-the commit the reference resolved to when it was first fetched in that epic.
+**3.2.5** A flow named by a version-control reference MUST be fixed, for the whole epic, to the
+commit the reference resolved to when the epic first fetched it.
 
-## 5. Parameters
+### 3.3 Parameters
 
-**5.1** hmz MUST hand the flow exactly the parameters given, each validated against the type the
-flow declares for it, and the declared default for each parameter not given.
+**3.3.1** hmz MUST hand the flow every parameter given, validated against the type the flow
+declares for it, and the declared default for every parameter not given.
 
-**5.2** `budget` MUST NOT be accepted as the name of a flow parameter; it is reserved for the
-budget (§6).
+**3.3.2** hmz MUST reserve the parameter name `budget` for the budget, and MUST refuse a flow that
+declares a parameter of that name.
 
-## 6. Budget
+### 3.4 Budget
 
-**6.1** Every epic MUST execute under a budget that sets at least one of a cost limit, an
-output-token limit and a duration limit, and no limit MUST be negative.
+**3.4.1** Every epic MUST execute under a budget that sets at least one limit, and no limit MUST
+be negative.
 
-**6.2** An epic of the `chat` flow MUST execute under a budget whose cost limit is unbounded
-where no budget is given.
+**3.4.2** An epic of the `chat` flow that is given no budget MUST execute under a budget whose
+cost limit is unbounded.
 
-**6.3** The graceful flag MUST default to true.
+**3.4.3** The graceful flag of a budget MUST be true unless it is given as false.
 
-**6.4** The cost and output tokens of every turn taken anywhere in an epic MUST count against
+**3.4.4** The cost and output tokens of every turn taken anywhere in an epic MUST count against
 the budget of the epic and against the budget of every flow call above that turn.
 
-**6.5** A duration limit MUST be a deadline measured from the start of the epic or flow call it
-belongs to, and MUST NOT be a sum over concurrent turns.
+**3.4.5** A duration limit MUST be a deadline counted from the start of the epic or flow call
+whose budget it is, and MUST NOT be a sum over concurrent turns.
 
-**6.6** The budget in force for a flow call MUST be the tighter of its own budget and what remains
-of every budget above it.
+**3.4.6** The budget in force for a flow call MUST be the tighter, limit by limit, of the call's
+own budget and what remains of every budget above it.
 
-**6.7** A cost incurred by a model for which no price is known MUST count as zero against a cost
-limit.
+**3.4.7** The cost of a turn taken by a model that the price list does not price MUST count as
+zero against a cost limit.
 
-**6.8** Where the epic has a finite cost limit and any agent of the epic runs a model for which
-no price is known, hmz MUST state, before the first turn and without asking, that the cost limit
-cannot stop what that model spends.
+**3.4.8** Where an epic has a finite cost limit and an agent of the epic runs a model that the
+price list does not price, hmz MUST state, before the first turn and without asking, that the
+cost limit cannot stop what that model spends.
 
-**6.9** Where the epic has a finite cost limit and the price list kept on this machine is missing
-or older than one day, hmz MUST attempt to refresh it before the first turn, MUST NOT wait longer
-than the fetch's own timeout, and MUST stop waiting once the epic is stopped; for any other epic
-hmz MUST refresh a stale price list without delaying the epic (`features/monitoring.md` §5).
+**3.4.9** Where an epic has a finite cost limit and the price list is missing or stale
+(`features/monitoring.md` §3.3), hmz MUST attempt to refresh the price list before the first
+turn, MUST wait no longer than that fetch's own timeout, and MUST stop waiting once the epic is
+stopped.
 
-**6.10** Once a limit of a budget is reached, every later turn under that budget MUST be refused,
-and the flow call that owns the budget MUST be ended.
+**3.4.10** Where an epic has no finite cost limit and the price list is missing or stale, hmz
+MUST refresh it without delaying the epic.
 
-**6.11** Where the graceful flag is true, a turn under way when its budget is spent MUST be
-allowed to finish before the flow call is ended; where it is false, that turn MUST be interrupted
-at once.
+**3.4.11** Once a limit of a budget is reached, hmz MUST refuse every later turn under that
+budget and MUST end the flow call that owns that budget.
 
-**6.12** An epic ended because a limit of its own budget was reached MUST be recorded as
-`stopped`, and MUST NOT be recorded as `failed`.
+**3.4.12** Where the graceful flag is true, hmz MUST let a turn under way when its budget is spent
+finish before the owning flow call is ended.
 
-**6.13** `hmz exec` MUST state, on standard error and as one line naming the limit, that its
-epic was stopped by its budget, and MUST exit with status zero in that case.
+**3.4.13** Where the graceful flag is false, hmz MUST interrupt a turn under way at the moment its
+budget is spent.
 
-**6.14** hmz MUST record the spent figures of an epic when it ends, and MUST read back no spent
-figures for an epic that is still executing or that ended without recording them.
+**3.4.14** hmz MUST record an epic ended because a limit of its own budget was reached as
+`stopped`, and MUST NOT record it as `failed`.
 
-## 7. Stopping and forcing
+**3.4.15** `hmz exec` MUST state on standard error, in one line naming the limit, that its epic
+was stopped by its budget, and MUST exit with status 0 in that case.
 
-**7.1** Any frontend attached to the host slot of an executing epic MAY stop it; `hmz exec` MUST
-stop its epic on an interrupt, a terminate or a hangup signal.
+**3.4.16** hmz MUST record the spent figures of an epic when the epic ends.
 
-**7.2** Stopping MUST interrupt every turn under way and MUST cancel the flow, which then unwinds;
-sessions, environments and temporary directories the flow opened MUST be closed or removed as the
-flow unwinds.
+**3.4.17** hmz MUST read back no spent figures for an epic that is executing or that ended
+without recording them.
 
-**7.3** A file an agent was writing when its turn was interrupted MUST be left as it was at the
-moment of interruption.
+### 3.5 Stopping and forcing
 
-**7.4** Any frontend attached to the host slot of a stopping epic MAY force it; forcing MUST
-close every session still in a turn and MUST state how many sessions it closed.
+**3.5.1** Any frontend attached to the host slot of an executing epic MAY stop it.
 
-**7.5** `hmz exec` MUST exit with status 128 plus the number of the signal that stopped it, and
-only after the epic has closed everything it opened.
+**3.5.2** `hmz exec` MUST stop its epic on an interrupt, a terminate or a hangup signal.
 
-**7.6** An epic ended by stopping or forcing MUST be recorded as `stopped`.
+**3.5.3** Stopping MUST interrupt every turn under way and MUST cancel the flow, which then
+unwinds.
 
-**7.7** An epic of the `chat` flow MUST NOT be offered a stop by any frontend; how a chat ends
-is defined in `features/chat.md`.
+**3.5.4** As a stopped flow unwinds, hmz MUST close every session and env, and remove every
+temporary directory, that the flow opened and has not handed to flow state.
 
-## 8. Ending states
+**3.5.5** hmz MUST leave a file that an agent was writing when its turn was interrupted as it was
+at the moment of interruption.
 
-**8.1** Every epic MUST be read back in exactly one of the following endings:
+**3.5.6** Any frontend attached to the host slot of a stopping epic MAY force it.
 
-**8.1.1** `running`: the epic has recorded no end and a process on this machine holds it.
+**3.5.7** Forcing MUST close every session of the epic still in a turn, and MUST state how many
+sessions it closed.
 
-**8.1.2** `done`: the flow returned.
+**3.5.8** `hmz exec` MUST exit with status 128 plus the number of the signal that stopped its
+epic, and MUST exit only after the epic has closed everything it opened.
 
-**8.1.3** `failed`: the flow raised an error other than a stop or a budget exhaustion.
+**3.5.9** hmz MUST record an epic ended by stopping or forcing as `stopped`.
 
-**8.1.4** `stopped`: the epic was stopped or forced, or was ended by its budget.
+**3.5.10** A frontend MUST NOT offer a stop for an epic of the `chat` flow; how a chat ends is
+defined in `features/chat.md`.
 
-**8.1.5** `unfinished`: the epic has recorded no end and no process holds it.
+### 3.6 Ending states
 
-**8.2** Once an epic has recorded an end, hmz MUST NOT reopen it, except as §9.9 provides for
-`chat`.
+**3.6.1** hmz MUST read back every epic in exactly one of the endings `running`, `done`,
+`failed`, `stopped` and `unfinished`.
 
-**8.3** A frontend reporting how an epic ended MUST additionally distinguish, among endings
-other than `done` and `stopped`, an epic refused before its flow was called, an epic ended by
-its budget, a failure the flow raised, and a failure inside hmz itself, and MUST state the reason
-for each.
+**3.6.2** An epic MUST read back as `running` while it has recorded no end and a process on this
+machine holds it.
 
-**8.4** hmz MUST record, for every flow call within an epic, the task it was called with, when
-it began, when it ended, and how it ended, so that the epic reads back as the tree of flow calls
+**3.6.3** An epic MUST read back as `done` where its flow returned.
+
+**3.6.4** An epic MUST read back as `failed` where its flow, or hmz on its behalf, raised an
+error other than a stop or a budget exhaustion.
+
+**3.6.5** An epic MUST read back as `stopped` where §3.4.14 or §3.5.9 applies.
+
+**3.6.6** An epic MUST read back as `unfinished` while it has recorded no end and no process on
+this machine holds it.
+
+**3.6.7** hmz MUST NOT reopen an epic that has recorded an end, except as §3.7.9 provides.
+
+**3.6.8** Where a frontend reports how the last epic of a host slot ended, it MUST distinguish an
+epic refused before its flow was called, an epic ended by its budget, an error the flow raised
+and an error inside hmz, and MUST state the reason for each.
+
+**3.6.9** hmz MUST record, for every flow call within an epic, the task it was called with, when
+it began, when it ended and how it ended, so that the epic reads back as the tree of flow calls
 it made, however deep and however many executed concurrently.
 
-**8.5** A flow call ended by a cancellation from outside it or by its budget MUST be read back
-as `stopped`.
+**3.6.10** hmz MUST read back a flow call that ended by a cancellation from outside it, or by a
+budget, as `stopped`.
 
-## 9. Picking up
+**3.6.11** hmz MUST record, for every session an epic opened, which agent opened it, which flow
+call opened it, the account and model its turns ran as, the identifier its harness gave it, the
+session it was forked from where there is one, and where it is kept (`api/files/epics.md`).
 
-**9.1** Picking up MUST be available only for an epic of a resumable flow that recorded flow
+### 3.7 Picking up
+
+**3.7.1** Picking up MUST be available only for an epic of a resumable flow that recorded flow
 state.
 
-**9.2** hmz MUST keep the flow state of a resumable epic inside that epic as it is written, so
-that it is available to a later epic even where the earlier epic's process was killed.
+**3.7.2** hmz MUST keep the flow state of an epic inside that epic as the flow writes it, so that
+the flow state is available to a later epic even where the process of the earlier epic was
+killed.
 
-**9.3** An epic that picks up MUST be a new epic with a new epic name, MUST record its origin,
-and MUST start from a copy of the origin's flow state; the origin MUST NOT be changed.
+**3.7.3** An epic that picks up MUST be a new epic with its own epic name, MUST record its
+origin, and MUST start from a copy of the origin's flow state.
 
-**9.4** `hmz exec --resume` MUST pick up the newest epic of the named flow in the current
-workspace that can be picked up, and MUST use the agents, environments, parameters and budget
-given on its own command line.
+**3.7.4** Picking up MUST NOT change the origin.
 
-**9.5** hmz MUST refuse to pick up, with the reason, where the flow is not resumable, where no
-epic of the flow in this workspace recorded flow state, or where the origin was imported and
-§9.10 forbids it.
+**3.7.5** hmz MUST refuse to pick up, stating the reason, where the flow is not resumable as it
+is now, where no epic of the flow in the workspace recorded flow state, or where the origin was
+imported and §3.7.10 forbids it.
 
-**9.6** On picking up, the top-level flow call MUST continue from the flow state; a nested flow
-call MUST continue from the earlier call with the same callee, task, agents, environments and
-parameters, and MUST start afresh otherwise.
+**3.7.6** `hmz exec --resume` MUST pick up the newest epic of the named flow in the current
+workspace that can be picked up, and MUST use the agents, envs, parameters and budget given on
+its own command line.
 
-**9.7** A session written into flow state MUST be carried on, in the epic that picks up, from
-the conversation as it was when it was written; every other session MUST start fresh. The
-conditions under which such a session cannot be carried on are defined in `api/flows.md`.
+**3.7.7** On picking up, the top-level flow call MUST continue from the flow state; a nested flow
+call MUST continue from the earlier call that had the same callee, task, agents, envs and
+parameters, and MUST start afresh where there is none.
 
-**9.8** What the origin spent MUST NOT count against the budget of the epic that picks up.
+**3.7.8** A session written into flow state MUST be carried on, in the epic that picks up, from
+its conversation as it was when it was written, subject to the conditions `api/flows.md` defines;
+every other session MUST start fresh.
 
-**9.9** An epic of the `chat` flow MUST be carried on in the same epic rather than in a new one;
-that epic MUST record that it was opened again, MUST read back as `running` until it ends again,
-and MUST read back as having spent the sum of what each opening spent.
+**3.7.9** What the origin spent MUST NOT count against the budget of the epic that picks up.
 
-**9.10** hmz MUST refuse to pick up an imported epic unless the workspace it executed in exists
+**3.7.10** An epic of the `chat` flow that is carried on MUST continue in the same epic rather
+than a new one; that epic MUST record that it was opened again, MUST read back as `running`
+until it ends again, and MUST read back as having spent the sum of what each opening spent.
+
+**3.7.11** hmz MUST refuse to pick up an imported epic unless the workspace it executed in exists
 on this machine at the same absolute path and, where that workspace is a git repository and the
-epic recorded a commit, that repository holds that commit; the refusal MUST state which
+epic recorded a commit, the repository holds that commit; the refusal MUST state which
 condition failed.
 
-## 10. Remembered setup
+## 4. Workspaces
 
-**10.1** A workspace MUST remember, per flow, the last setup saved for that flow through a
-frontend: the flow, each agent role's agent, each environment role's environment, the
-parameters, the budget, the two profiling switches and the backup targets.
+### 4.1 Remembered setup
 
-**10.2** A frontend MUST save the setup of a flow when its user saves that flow's setup, and
-MUST offer the saved setup the next time that flow is set up in that workspace.
+**4.1.1** A workspace MUST remember, per flow, the last setup saved for that flow through a
+frontend: each agent role's agent, each env role's env, the parameters, the budget, the two
+profiling switches and the backup targets.
 
-**10.3** Saving the agents of a flow MUST NOT erase its remembered environments, parameters,
-budget, profiling switches or backup targets where those are not given in the same save.
+**4.1.2** A workspace MUST remember which flow was last set up in it.
 
-**10.4** For backup targets, an empty list remembered MUST mean no targets, and nothing
-remembered MUST mean the default targets.
+**4.1.3** A frontend MUST offer the remembered setup of a flow the next time that flow is set up
+in the same workspace.
 
-**10.5** A remembered agent MUST consist of a CLI, an account, a model and an effort, and
-nothing else; a remembered entry that is not one MUST be read as nothing remembered.
+**4.1.4** Saving one part of a flow's setup MUST NOT erase the other parts of that flow's
+remembered setup that the save does not give.
 
-**10.6** The remembered setup MUST NOT turn on either profiling switch for an epic started by
-`hmz exec` or the SDK; profiling MUST be an option of each epic (`features/monitoring.md` §7).
+**4.1.5** A remembered empty list of backup targets MUST mean no targets, and no remembered
+backup targets MUST mean the default targets.
 
-**10.7** Two frontends saving setup for one workspace MUST NOT overwrite what the other saved
-for a different key.
+**4.1.6** A remembered agent MUST consist of a CLI, an account, a model and an effort, and nothing
+else; a remembered entry that is not one MUST be read as nothing remembered.
 
-## 11. Identity
+**4.1.7** Remembered setup MUST NOT turn on either profiling switch for an epic started by
+`hmz exec` or the SDK.
 
-**11.1** Every epic MUST have an epic name that encodes the UTC moment it was created, to the
-millisecond, followed by a random suffix, such that epic names sort in the order the epics were
-created.
+**4.1.8** Two frontends saving setup for one workspace MUST NOT overwrite each other's writes to
+different entries.
 
-**11.2** hmz MUST keep every epic under the workspace in which it executed (`api/files/epics.md`),
-and MUST list a workspace's epics in the order they were created.
+### 4.2 Identity
 
-**11.3** A frontend MUST address an executing epic by its epic name once the epic has one.
+**4.2.1** hmz MUST give every epic an epic name consisting of the UTC moment the epic was
+created, to the millisecond, followed by a random suffix, such that epic names sort in the order
+their epics were created.
 
-**11.4** A directory under a workspace's epics that holds no epic record MUST be read as no epic,
-and MUST NOT cause listing to fail.
+**4.2.2** hmz MUST keep every epic under the workspace in which it executed
+(`api/files/epics.md`).
 
-## 12. Concurrency
+**4.2.3** hmz MUST list the epics of a workspace in the order they were created.
 
-**12.1** At most one epic of a flow other than `chat` MUST execute at a time in the workspace's
-own host slot; a request to start a second MUST be refused while the first executes or stops.
+**4.2.4** A frontend MUST address an executing epic by its epic name once the epic has one.
 
-**12.2** Any number of `chat` epics MAY execute in one workspace, each in a host slot of its own,
+**4.2.5** hmz MUST read a directory among a workspace's epics that holds no epic record as no
+epic, and MUST NOT fail to list the other epics because of it.
+
+### 4.3 Concurrency
+
+**4.3.1** At most one epic of a flow other than `chat` MUST execute at a time in a workspace's own
+host slot.
+
+**4.3.2** hmz MUST refuse a request to start an epic in a workspace's own host slot while another
+epic executes or stops there.
+
+**4.3.3** Any number of `chat` epics MAY execute in one workspace, each in a host slot of its own,
 concurrently with the epic of the workspace's own host slot.
 
-**12.3** An epic started by `hmz exec` without a daemon MUST execute in its own process and MUST
-NOT be refused because another epic executes in the same workspace.
+**4.3.4** An epic started by `hmz exec` MUST execute in the process of that command, and MUST NOT
+be refused because another epic executes in the same workspace.
 
-**12.4** Epics of different workspaces MUST execute independently of one another.
+**4.3.5** Epics of different workspaces MUST execute independently of one another.
 
-**12.5** hmz MUST report whether an epic is held by a process on this machine, whichever process
+**4.3.6** hmz MUST report whether an epic is held by a process on this machine, whichever process
 holds it.
 
-> Informative: a frontend's request to start an epic goes to the host slot, held in a daemon
+> Informative: a frontend's request to start an epic goes to a host slot, held in a **daemon**
 > where one runs (`features/daemons.md`); attaching and detaching a frontend does not affect the
 > epic.
