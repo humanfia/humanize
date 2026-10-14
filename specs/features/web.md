@@ -4,16 +4,15 @@
 
 This document specifies the behaviour of the page that `hmz web` serves: how the user reaches it,
 how it lays out the workspaces and epics of a daemon, how the user reads, steers, starts, imports
-and backs up epics through it, its settings pages, how it reaches the daemons of other machines,
-how it notifies the user, and the interaction rules it follows. It specifies only what the user
-sees and does on the page.
+and backs up epics through it, its settings pages, how it reaches the daemons of other machines, how
+it notifies the user, and the interaction rules it follows. It specifies only what the user sees and
+does on the page.
 
 Out of scope:
 
 - The command line of `hmz web` and its exit statuses: `api/cli.md`.
 - Every HTTP endpoint, header, refusal status and event stream the page uses: `api/http.md`.
-- The daemon, hosts, attaching and the lifetime of epics: `features/daemons.md` and
-  `api/daemon.md`.
+- The daemon, hosts, attaching and the lifetime of epics: `features/daemons.md` and `api/daemon.md`.
 - What a chat is and how it folds away: `features/chat.md`.
 - What a side question is, and the btw agent: `features/btw.md`.
 - What an epic records, its figures and its timeline: `features/epics.md` and
@@ -31,8 +30,8 @@ Out of scope:
 **2.1** The **page** is the single web page `hmz web` serves, together with every view and dialog
 drawn in it.
 
-**2.2** **Local** is the daemon of this machine as the page names it. Local is always present on
-the page.
+**2.2** **Local** is the daemon of this machine as the page names it. Local is always present on the
+page.
 
 **2.3** An **SSH daemon** is the daemon of another machine that the user has added to the page, and
 that the page reaches over ssh as `features/daemons.md` §8 specifies.
@@ -49,8 +48,8 @@ settings.
 **2.7** An **address** is the part of the page's URL that names one view or dialog, of one daemon.
 
 **2.8** A **notice** is a record that one epic on one machine ended, asked a person a question, or
-waits for what to say next, as §15 specifies. A **notification** is a notice as the page presents
-it to the user, with the daemon it came from and whether the user has read it.
+waits for what to say next, as §15 specifies. A **notification** is a notice as the page presents it
+to the user, with the daemon it came from and whether the user has read it.
 
 **2.9** The **Exomyth** of an epic is the page's view of that epic's timeline and flame graph.
 
@@ -72,8 +71,8 @@ specifies.
 printed address, as `api/http.md` specifies.
 
 **3.3** A browser that has not opened the printed address of the running `hmz web` MUST be shown
-`This browser is not let in.` in place of every view, with the instruction to open the address
-`hmz web` printed.
+`This browser is not let in.` in place of every view, with the instruction to open the address `hmz
+web` printed.
 
 **3.4** The page MUST serve every workspace of the daemon shown, wherever `hmz web` was started.
 
@@ -98,8 +97,8 @@ the credentials removed.
 control that hides the sidebar, the entries `New epic`, `Search epics` and `Flows`, the workspaces
 of the daemon shown as §5 specifies, and the daemon bar.
 
-**4.1.3** The `Flows` entry MUST show how many installed flows have a newer release, where at
-least one has.
+**4.1.3** The `Flows` entry MUST show how many installed flows have a newer release, where at least
+one has.
 
 **4.1.4** On a screen as narrow as a phone's, the sidebar MUST be a drawer opened by a button, and
 every view MUST be usable without horizontal scrolling of the page.
@@ -160,8 +159,7 @@ MUST be a word or a short phrase, and MUST NOT be a sentence.
 **4.4.7** Wherever the page shortens a text -- a path above all -- it MUST show the whole text on
 hover, without delay.
 
-**4.4.8** The page MUST offer to copy every path, link, task and identifier that it shows in a
-menu.
+**4.4.8** The page MUST offer to copy every path, link, task and identifier that it shows in a menu.
 
 **4.4.9** The page MUST say every refusal and every failure where it happened, in one sentence, and
 MUST NOT hide it.
@@ -183,8 +181,8 @@ typed.
 ## 5. Workspaces and the epics list
 
 **5.1** The sidebar MUST show every workspace of the daemon shown as a folder: each workspace an
-epic ran in, each workspace written down in the settings, and each workspace the user opened by
-its path.
+epic ran in, each workspace written down in the settings, and each workspace the user opened by its
+path.
 
 **5.2** A workspace the user opens by its path MUST be written down in the settings, and MUST stay
 in the sidebar from then on.
@@ -217,8 +215,8 @@ sessions it opened; a chat MUST NOT be expandable. The page MUST remember in thi
 epics are expanded.
 
 **5.12** The menu of an epic MUST offer: open it, its Exomyth (not for a chat), resume it where it
-can be resumed, a new epic like it, copying its link, its task and its name, exporting it once it
-is no longer going, uploading it, and stopping it while a host is going with it (not for a chat).
+can be resumed, a new epic like it, copying its link, its task and its name, exporting it once it is
+no longer going, uploading it, and stopping it while a host is going with it (not for a chat).
 
 **5.13** The sidebar MUST list a bounded number of epics at first and MUST offer `Show more` while
 more exist.
@@ -234,8 +232,7 @@ asking.
 was written down once it has ended, as `features/epics.md` specifies.
 
 **6.1.2** The page MUST name every agent by its own name: its node, its sessions `<agent>/<n>`, its
-log, its address and what is said to it. The role the agent fills MUST be shown only after the
-name.
+log, its address and what is said to it. The role the agent fills MUST be shown only after the name.
 
 **6.1.3** The page MUST name a person by the role the person answers.
 
@@ -245,10 +242,10 @@ name.
 ### 6.2 Graph and list
 
 **6.2.1** An epic other than a chat MUST open as a graph: one node per agent, in a frame for the
-flow it worked in, each saying what it runs, whether it is working or idle and for how long, and
-its tokens; one node per person, drawn apart from agents; one arrow for each direction in which
-the epic handed over from one agent to another, with how many times; the last handover and the
-working agent marked.
+flow it worked in, each saying what it runs, whether it is working or idle and for how long, and its
+tokens; one node per person, drawn apart from agents; one arrow for each direction in which the epic
+handed over from one agent to another, with how many times; the last handover and the working agent
+marked.
 
 **6.2.2** Each node MUST show one lane per session the agent opened, with a mark for each turn over
 the epic's time, and MUST mark a turn still open.
@@ -264,8 +261,7 @@ first; the page MUST remember the choice in this browser.
 ### 6.3 The panel
 
 **6.3.1** Beside the graph, the page MUST offer a panel that the user can hide and show, with the
-tabs `Epic`, `Aside`, `Board` where the epic has a board, and `People` where its flow has a
-person.
+tabs `Epic`, `Aside`, `Board` where the epic has a board, and `People` where its flow has a person.
 
 **6.3.2** `Epic` MUST show: how long the epic has gone, what it has spent and how fast, one meter
 for each limit of its budget, its task, who handed to whom, its spending by model and by kind of
@@ -287,8 +283,8 @@ MUST let the user close them, and MUST say that side questions never reach the e
 **6.3.7** `Board` MUST let the user edit, remove and add lines of the epic's board, and MUST NOT
 offer to change a line the flow owns.
 
-**6.3.8** `People` MUST, for each person the flow has, let the user claim the role for this
-browser, take it over from another frontend, release it, and set it away or back.
+**6.3.8** `People` MUST, for each person the flow has, let the user claim the role for this browser,
+take it over from another frontend, release it, and set it away or back.
 
 ### 6.4 Steering an epic that is going
 
@@ -309,8 +305,8 @@ its open turn.
 
 **6.5.1** A session MUST open as its transcript, drawn as the terminal interface draws it.
 
-**6.5.2** A line typed under a session MUST go into that session, or MUST answer what that
-session's open turn asks.
+**6.5.2** A line typed under a session MUST go into that session, or MUST answer what that session's
+open turn asks.
 
 **6.5.3** The page MUST offer one log per agent, across its sessions, and one log per person, of
 what the person was asked and answered; a line typed under one MUST go to whose it is.
@@ -340,9 +336,8 @@ something in it, with what was said before drawn above.
 
 ### 6.7 An epic written down
 
-**6.7.1** An epic that has ended MUST show how it was set up -- its agents, environments,
-parameters and budget -- the tree of flows it called, its sessions, what it spent and how long it
-took.
+**6.7.1** An epic that has ended MUST show how it was set up -- its agents, environments, parameters
+and budget -- the tree of flows it called, its sessions, what it spent and how long it took.
 
 **6.7.2** The page MUST offer `Read turns`, which reads the epic's handovers and each session's
 turns back out of the logs it kept.
@@ -383,8 +378,8 @@ NOT offer to resume it.
 **7.2** The Exomyth MUST have a `Timeline` tab and a `Flame` tab.
 
 **7.3** The timeline MUST draw each process of the epic's timeline -- each flow, each session, and
-each program a profiled epic ran -- as a row of its tracks under a ruler of time, each process
-under the process that started it, and MUST draw no arrow between processes.
+each program a profiled epic ran -- as a row of its tracks under a ruler of time, each process under
+the process that started it, and MUST draw no arrow between processes.
 
 **7.4** The user MUST be able to fold and open each process, and to fold or open all of them with
 `Collapse` and `Expand`.
@@ -398,7 +393,7 @@ under the process that started it, and MUST draw no arrow between processes.
 | Wheel | Scroll through the processes |
 | Click on a span | Pick the span and show it whole with what it carried |
 | Double-click on a span, or F | Zoom to the span or process picked |
-| Drag across the chart or the ruler | Pick a stretch of time and sum its spans and tokens by category |
+| Drag across the chart or ruler | Pick a stretch of time; sum its spans and tokens by category |
 | / | Find spans by their words; Enter or N the next, Shift+Enter or Shift+N the previous |
 | 0 or Home | Show the whole epic |
 | Escape | Let go of what is picked |
@@ -412,9 +407,8 @@ they nest.
 **7.8** The flame graph MUST be weighable by `Time`, `Tokens in`, `Tokens out` or `Count`, MUST be
 invertible bottom up, and MUST zoom to a frame on a click.
 
-**7.9** Under the flame graph, the page MUST show every slice name summed in a table -- count,
-total and own time, average, median, 95th percentile, longest, and tokens -- sortable by any
-column.
+**7.9** Under the flame graph, the page MUST show every slice name summed in a table -- count, total
+and own time, average, median, 95th percentile, longest, and tokens -- sortable by any column.
 
 **7.10** The Exomyth MUST draw in the theme shown, and MUST stay responsive with an epic of fifty
 thousand spans.
@@ -433,23 +427,23 @@ path with completion as it is typed.
 
 **8.4** The form MUST offer a box for the task; Enter in it MUST start the epic.
 
-**8.5** `Options` MUST hold what the flow is set up with, as that workspace last set it up: for
-each agent role an agent, for each environment role an environment, the parameters, the budget,
-the backup targets, `Profile flow` and `Profile environment`.
+**8.5** `Options` MUST hold what the flow is set up with, as that workspace last set it up: for each
+agent role an agent, for each environment role an environment, the parameters, the budget, the
+backup targets, `Profile flow` and `Profile environment`.
 
 **8.6** The form MUST show beside `Options` what is set.
 
-**8.7** An agent MUST be set up a part at a time, as `features/agents.md` specifies: a CLI
-installed here that can fill the role; the account it runs as, this machine's own or one made,
-with a way to make one; a model known runnable as that account, asking the CLI where none is known
-yet and accepting a typed model where it cannot say; and an effort that model takes.
+**8.7** An agent MUST be set up a part at a time, as `features/agents.md` specifies: a CLI installed
+here that can fill the role; the account it runs as, this machine's own or one made, with a way to
+make one; a model known runnable as that account, asking the CLI where none is known yet and
+accepting a typed model where it cannot say; and an effort that model takes.
 
-**8.8** An environment MUST be set up a part at a time, as `features/environments.md` specifies:
-its backend, a runtime of that backend saved or made there, and its directory, completed as it is
-typed where it is on this machine.
+**8.8** An environment MUST be set up a part at a time, as `features/environments.md` specifies: its
+backend, a runtime of that backend saved or made there, and its directory, completed as it is typed
+where it is on this machine.
 
-**8.9** Each agent and each environment set up on the form MUST come to what `-a` and `-e` spell,
-as `api/cli.md` specifies.
+**8.9** Each agent and each environment set up on the form MUST come to what `-a` and `-e` spell, as
+`api/cli.md` specifies.
 
 **8.10** The backup targets MUST default to the default targets until a choice is saved.
 
@@ -458,7 +452,7 @@ as `api/cli.md` specifies.
 **8.12** Starting an epic MUST write down what the form holds for that workspace, as `Save` does.
 
 **8.13** The form MUST refuse to save or start where a role has no agent, or where, for every flow
-but chat, no limit says what the epic may spend.
+but chat, no limit bounds what the epic spends.
 
 **8.14** Once the epic starts, the page MUST go to it; for a chat, to its conversation.
 
@@ -537,28 +531,26 @@ be run from the page.
 groups them, with the command that adds the `litellm` extra where it is missing.
 
 **11.2.6** `Fallback` MUST let the user set, for each step, where a turn goes when a place cannot
-take it and how it is tried again, and MUST let the user clear a step, as
-`features/placements.md` specifies.
-
-**11.2.7** `Runtimes` MUST list every runtime, and MUST let the user add one from its backend's
-fields, change it, check it, remove it after confirmation, and import hosts from the ssh config,
-as `features/environments.md` specifies.
-
-**11.2.8** The runtime form MUST offer one field for each setting the backend's runtime takes,
-including a docker or swarm runtime's `Name prefix`, each labelled with the setting's name in
-words.
-
-**11.2.9** `Backup` MUST list every backup target with its repository, branch, policies and
-whether it is a default, and MUST let the user add, edit and remove one, as `features/backups.md`
+take it and how it is tried again, and MUST let the user clear a step, as `features/placements.md`
 specifies.
 
+**11.2.7** `Runtimes` MUST list every runtime, and MUST let the user add one from its backend's
+fields, change it, check it, remove it after confirmation, and import hosts from the ssh config, as
+`features/environments.md` specifies.
+
+**11.2.8** The runtime form MUST offer one field for each setting the backend's runtime takes,
+including a docker or swarm runtime's `Name prefix`, each labelled with the setting's name in words.
+
+**11.2.9** `Backup` MUST list every backup target with its repository, branch, policies and whether
+it is a default, and MUST let the user add, edit and remove one, as `features/backups.md` specifies.
+
 **11.2.10** `Backup` MUST offer `Download`, which lists every epic a target holds -- by machine and
-then by workspace, those already present marked -- with the target picked where there is more
-than one, and downloads the epic picked as an import does, opening it.
+then by workspace, those already present marked -- with the target picked where there is more than
+one, and downloads the epic picked as an import does, opening it.
 
 **11.2.11** `Workspace` MUST show what a workspace was last set up with, for any workspace the
-daemon serves, and MUST let the user forget it; forgetting a workspace where no epic ran MUST
-remove it from the sidebar.
+daemon serves, and MUST let the user forget it; forgetting a workspace where no epic ran MUST remove
+it from the sidebar.
 
 **11.2.12** `Usage` MUST show what the epics spent by day and by flow, of every workspace or of one,
 looking back 7, 30, 90 or 365 days.
@@ -580,9 +572,8 @@ left out.
 **11.3.2** `Daemons` MUST list Local and every SSH daemon with its state, and MUST let the user add,
 edit, import, connect and remove SSH daemons as §13 specifies.
 
-**11.3.3** `Notifications` MUST let the user switch each kind of notification on and off --
-`Done`, `Failed`, `Stopped`, `Questions` and `Chat turns` -- and switch system notifications on
-and off.
+**11.3.3** `Notifications` MUST let the user switch each kind of notification on and off -- `Done`,
+`Failed`, `Stopped`, `Questions` and `Chat turns` -- and switch system notifications on and off.
 
 **11.3.4** In a browser, `Notifications` MUST offer `Allow`, and the page MUST ask the browser for
 leave to show system notifications only when the user presses it.
@@ -599,13 +590,13 @@ other daemon's.
 `Hateful Silver`, `Devoted Pink`, `Self-Negating Plum`, `Dominant Azure`, `Surviving Jade` and
 `Lamenting Orchid`.
 
-**12.3** Under `Auto`, the default, the page MUST follow the browser's light or dark preference
-with a pair, or with one theme picked for light and one picked for dark.
+**12.3** Under `Auto`, the default, the page MUST follow the browser's light or dark preference with
+a pair, or with one theme picked for light and one picked for dark.
 
 **12.4** The user MUST be able to pick one theme to use whatever the browser's preference is.
 
-**12.5** The user MUST be able to make a theme on `Light` or `Dark`, or a pair of the user's own,
-to duplicate any theme or pair, and to edit any of the user's own.
+**12.5** The user MUST be able to make a theme on `Light` or `Dark`, or a pair of the user's own, to
+duplicate any theme or pair, and to edit any of the user's own.
 
 **12.6** Editing a theme MUST let the user set its name, its base, each of its colours, and a
 picture -- still or moving -- behind the page, the sidebar, the panel and dialogs, each to cover,
@@ -649,9 +640,9 @@ digits, `.`, `_` and `-`.
 **13.4** The user MUST be able to add an SSH daemon a part at a time -- its name, host, user, port,
 identity file, proxy jump and ssh options -- as an ssh runtime is set up.
 
-**13.5** The user MUST be able to import hosts from the ssh config, each added under its `Host`
-and resolved through the ssh config each time it is reached; hosts already added MUST be skipped.
-The page MUST NOT write to the ssh config.
+**13.5** The user MUST be able to import hosts from the ssh config, each added under its `Host` and
+resolved through the ssh config each time it is reached; hosts already added MUST be skipped. The
+page MUST NOT write to the ssh config.
 
 **13.6** Removing an SSH daemon MUST ask for confirmation, and MUST forget only how to reach it,
 leaving everything on that machine as it is.
@@ -675,17 +666,16 @@ reach it; the menu MUST offer `Connect` on an SSH daemon that failed and `Manage
 **13.12** An SSH daemon that is not `up` MUST be said to be unavailable where the page asks it
 something, with its state.
 
-**13.13** The page MUST NOT ask the user for a password or a host key; an SSH daemon that needs
-one MUST fail.
+**13.13** The page MUST NOT ask the user for a password or a host key; an SSH daemon that needs one
+MUST fail.
 
 ## 14. Release notice
 
-**14.1** Where a newer release of hmz is out than the one serving the page, as
-`features/updates.md` specifies, the page MUST mark the daemon bar and MUST offer `Update` in its
-menu.
+**14.1** Where a newer release of hmz is out than the one serving the page, as `features/updates.md`
+specifies, the page MUST mark the daemon bar and MUST offer `Update` in its menu.
 
-**14.2** `Update` MUST copy the command `hmz update` for the user to run in a terminal, and MUST
-NOT update anything itself.
+**14.2** `Update` MUST copy the command `hmz update` for the user to run in a terminal, and MUST NOT
+update anything itself.
 
 ## 15. Notifications
 
@@ -728,15 +718,14 @@ after a few seconds.
 **15.2.7** The sidebar MUST mark each epic that has an unread notification, and each folded
 workspace that holds such an epic.
 
-**15.2.8** Every notification of the epic the page is on MUST be read while the user is on it, and
-a new one of that epic MUST be read as it comes, without a card and without a system
-notification.
+**15.2.8** Every notification of the epic the page is on MUST be read while the user is on it, and a
+new one of that epic MUST be read as it comes, without a card and without a system notification.
 
 ### 15.3 System notifications
 
 **15.3.1** While the page is hidden or not focused, and unless the user switched system
 notifications off, the page MUST show each new notification as a system notification: in a browser
-through the browser, once the browser allows it, and in the desktop app as
-`features/desktop.md` §9 specifies.
+through the browser, once the browser allows it, and in the desktop app as `features/desktop.md` §9
+specifies.
 
 **15.3.2** A click on a system notification MUST bring the page forward on the epic it is about.
