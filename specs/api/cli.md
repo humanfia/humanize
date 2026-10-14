@@ -120,7 +120,7 @@ any purpose other than writing escapes.
 
 ### 4.3 Secrets
 
-**4.3.1** No command MUST write the value of a credential to any stream.
+**4.3.1** A command MUST NOT write the value of a credential to any stream.
 
 **4.3.2** Where a command writes an account, it MUST write the account's harness, its name and
 the names of the environment variables it sets, and MUST NOT write their values.
@@ -137,7 +137,7 @@ credential the URL carries.
 **5.1.2** Every command MUST exit with status 2 on a usage error, and on every refusal this
 specification assigns status 2.
 
-**5.1.3** No command other than those §5.2 names MUST exit with a status other than 0, 1 and 2.
+**5.1.3** A command MUST NOT exit with a status other than 0, 1 and 2, except as §5.2 specifies.
 
 ### 5.2 Statuses particular to commands
 
@@ -190,11 +190,13 @@ interface, and MUST exit with status 1.
 `hmz` MUST write `hmz: backing epics up` to standard error and wait for them for at most 15
 seconds.
 
-**6.2.2** Where a backup has not finished after that wait, `hmz` MUST write `hmz: a backup took
-longer than 15s and was left; `hmz backup EPIC` sends it again` to standard error and exit.
+**6.2.2** Where a backup has not finished after that wait, `hmz` MUST write
+``hmz: a backup took longer than 15s and was left; `hmz backup EPIC` sends it again`` to standard
+error and exit.
 
-**6.2.3** `hmz` MUST exit with status 0 where the interface closed normally, and with status 1
-where the daemon let go of the interface first.
+**6.2.3** `hmz` MUST exit with status 0 where the interface closed normally.
+
+**6.2.4** `hmz` MUST exit with status 1 where the daemon let go of the interface first.
 
 ## 7. `hmz exec`
 
@@ -225,7 +227,7 @@ given after `--`.
 
 **7.1.7** Options MUST be accepted in any order, before or after `<task>`.
 
-**7.1.8** No option of `hmz exec` MUST have an equivalent environment variable.
+**7.1.8** An option of `hmz exec` MUST NOT have an equivalent environment variable.
 
 ### 7.2 Items
 
@@ -476,10 +478,11 @@ affinity of its env's runtime names (`features/placements.md`).
 
 ### 7.8 Where a harness runs
 
-**7.8.1** No option of `hmz exec` MUST say where a harness runs; it MUST be decided as
-`features/placements.md` specifies.
+**7.8.1** An option of `hmz exec` MUST NOT say where a harness runs.
 
-**7.8.2** Where an env moves to a fallback runtime, `hmz exec` MUST write
+**7.8.2** Where each harness runs MUST be decided as `features/placements.md` specifies.
+
+**7.8.3** Where an env moves to a fallback runtime, `hmz exec` MUST write
 `hmz exec: <runtime> cannot hold '<role>': <reason>; using <runtime>` to standard error, each
 `<runtime>` written as `<backend>:<name>`.
 
@@ -518,7 +521,7 @@ be a usage error.
 `hmz exec: backing the epic up` to standard error and wait for them for at most 60 seconds.
 
 **7.11.5** Where a backup has not finished after that wait, `hmz exec` MUST write
-`hmz exec: a backup took longer than 60s and was left; `hmz backup EPIC` sends it again` to
+``hmz exec: a backup took longer than 60s and was left; `hmz backup EPIC` sends it again`` to
 standard error, and MUST exit as the epic had it.
 
 ### 7.12 Output for a person
@@ -769,20 +772,24 @@ status 1.
 
 **10.4.1** `<epic>` after `--pull` MUST be an epic's name or `<machine>/<workspace>/<name>`.
 
-**10.4.2** `hmz backup --pull` MUST download the epic from the first target, in the order of §10.3.1,
-that holds it, into this machine's epics as an import (`features/backups.md`), MUST write the
-path it now has to standard output, and MUST exit with status 0.
+**10.4.2** `hmz backup --pull` MUST download the epic from the first target that holds it, in
+the order of §10.3.1, into this machine's epics as an import (`features/backups.md`).
 
-**10.4.3** Where a target holds epics of that name from more than one machine, `hmz backup --pull`
+**10.4.3** Once it has downloaded the epic, `hmz backup --pull` MUST write the path the epic now
+has to standard output.
+
+**10.4.4** `hmz backup --pull` MUST exit with status 0 once it has downloaded the epic.
+
+**10.4.5** Where a target holds epics of that name from more than one machine, `hmz backup --pull`
 MUST answer with a usage error that lists each as `<machine>/<workspace>/<name>`.
 
-**10.4.4** Where the epic is already on this machine, `hmz backup --pull` MUST write a diagnostic
+**10.4.6** Where the epic is already on this machine, `hmz backup --pull` MUST write a diagnostic
 beginning `hmz backup: ` and exit with status 1.
 
-**10.4.5** Where every target answered and none holds the epic, `hmz backup --pull` MUST answer
+**10.4.7** Where every target answered and none holds the epic, `hmz backup --pull` MUST answer
 with a usage error.
 
-**10.4.6** Where a target could not be read and no other held the epic, `hmz backup --pull` MUST
+**10.4.8** Where a target could not be read and no other held the epic, `hmz backup --pull` MUST
 write `hmz backup: no target that answered holds <epic>` to standard error and exit with status 1.
 
 ## 11. `hmz internal`
