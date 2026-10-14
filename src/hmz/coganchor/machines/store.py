@@ -36,9 +36,9 @@ __all__ = [
     "APPLE_CONTAINER",
     "BACKENDS",
     "DOCKER",
+    "ENV",
     "HERE",
     "IMPORTED",
-    "SELF",
     "SLURM",
     "SPELLING",
     "SSH",
@@ -73,10 +73,10 @@ APPLE_CONTAINER = "apple-container"
 SLURM = "slurm"
 BACKENDS = (SSH, DOCKER, SWARM, APPLE_CONTAINER, SLURM)
 
-#: The two places a harness may be put that are not a runtime of their own, as an affinity
-#: names them: natively on the machine of the runtime the work is on, and on this machine,
-#: anchored to it.
-SELF = "self"
+#: The two places a harness may be put that are not a runtime of their own, as a runtime's
+#: harness setting names them: natively on the machine of the runtime the work is on, and on
+#: this machine, anchored to it.
+ENV = "env"
 HERE = "local"
 
 #: How a runtime was made: typed in field by field, or read off an ssh config.
@@ -222,10 +222,10 @@ def _named(name: str) -> str:
 
 
 def affine(entry: str) -> tuple[str, str] | None:
-    """One entry of an affinity, read: the runtime it names, if it names one.
+    """A harness setting, read: the runtime it names, if it names one.
 
     Args:
-      entry: As an affinity holds it: `self`, `local`, or `<backend>:<name>`.
+      entry: As a runtime holds it: `env`, `local`, or `<backend>:<name>`.
 
     Returns:
       `(backend, name)` for a runtime, None for one of the two places that are not one.
@@ -233,37 +233,34 @@ def affine(entry: str) -> tuple[str, str] | None:
     Raises:
       ValueError: For anything else.
     """
-    if entry in (SELF, HERE):
+    if entry in (ENV, HERE):
         return None
     backend, colon, name = entry.partition(":")
     if not colon or backend not in BACKENDS or not _NAMED.match(name):
         raise ValueError(
-            f"{entry!r} is not where a harness runs: {SELF}, {HERE} or "
+            f"{entry!r} is not where a harness runs: {ENV}, {HERE} or "
             f"<{'|'.join(BACKENDS)}>:<runtime name>"
         )
     return backend, name
 
 
-def _affinity(runtime: Runtime) -> None:
-    """Refuses an affinity that is not one.
+def _harness(runtime: Runtime) -> None:
+    """Refuses a harness setting that is not one.
 
-    An entry that does not read, one named twice, or the runtime itself -- which is its own
-    machine, and so :data:`SELF` rather than a runtime the harness is put on beside it.
+    One that does not read, or the runtime itself -- which is its own machine, and so
+    :data:`ENV` rather than a runtime the harness is put on beside it.
 
     Raises:
       ValueError: For one of those.
     """
-    for at, entry in enumerate(runtime.affinity):
-        try:
-            named = affine(entry)
-        except ValueError as why:
-            raise ValueError(f"{runtime.name}: {why}") from None
-        if entry in runtime.affinity[:at]:
-            raise ValueError(f"{runtime.name}: {entry} is in its affinity twice")
-        if named == (runtime.backend, runtime.name):
-            raise ValueError(
-                f"{runtime.name}: its affinity names itself; {SELF} is its own machine"
-            )
+    try:
+        named = affine(runtime.harness)
+    except ValueError as why:
+        raise ValueError(f"{runtime.name}: {why}") from None
+    if named == (runtime.backend, runtime.name):
+        raise ValueError(
+            f"{runtime.name}: its harness names itself; {ENV} is its own machine"
+        )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -291,8 +288,8 @@ class SSHRuntime:
       fallback: The runtimes an environment an `-e` puts here moves to, in order, where this
         one cannot hold it -- each `<backend>:<name>`, as `ssh:gpu2` or `docker:box`.
       made: How it was made: :data:`TYPED` or :data:`IMPORTED`.
-      affinity: Where the harness of an agent working on it runs, in the order tried: the
-        next only where the one before has no room. See :func:`affine` for an entry.
+      harness: Where the harness of an agent working on it runs, and nowhere else: see
+        :func:`affine`.
     """
 
     backend: ClassVar[str] = SSH
@@ -309,11 +306,11 @@ class SSHRuntime:
     workdir: str = ""
     fallback: tuple[str, ...] = ()
     made: str = TYPED
-    affinity: tuple[str, ...] = ()
+    harness: str = ENV
 
     def __post_init__(self) -> None:
         _named(self.name)
-        _affinity(self)
+        _harness(self)
         if not self.host and not self.alias:
             raise ValueError(
                 f"{self.name}: an ssh host requires a hostname or an alias"
@@ -434,8 +431,8 @@ class DockerRuntime:
       fallback: The runtimes an environment an `-e` puts here moves to, in order, where this
         one cannot hold it -- each `<backend>:<name>`.
       made: How it was made, which is :data:`TYPED`.
-      affinity: Where the harness of an agent working on it runs, in the order tried: the
-        next only where the one before has no room. See :func:`affine` for an entry.
+      harness: Where the harness of an agent working on it runs, and nowhere else: see
+        :func:`affine`.
     """
 
     backend: ClassVar[str] = DOCKER
@@ -459,11 +456,11 @@ class DockerRuntime:
     workdir: str = ""
     fallback: tuple[str, ...] = ()
     made: str = TYPED
-    affinity: tuple[str, ...] = ()
+    harness: str = ENV
 
     def __post_init__(self) -> None:
         _named(self.name)
-        _affinity(self)
+        _harness(self)
         _endpoint(self.endpoint)
         if self.tls_dir and not self.endpoint.startswith("tcp://"):
             raise ValueError(f"{self.name}: TLS certificates require a tcp:// endpoint")
@@ -624,8 +621,8 @@ class SwarmRuntime:
       fallback: The runtimes an environment an `-e` puts here moves to, in order, where this
         one cannot hold it -- each `<backend>:<name>`.
       made: How it was made, which is :data:`TYPED`.
-      affinity: Where the harness of an agent working on it runs, in the order tried: the
-        next only where the one before has no room. See :func:`affine` for an entry.
+      harness: Where the harness of an agent working on it runs, and nowhere else: see
+        :func:`affine`.
     """
 
     backend: ClassVar[str] = SWARM
@@ -645,11 +642,11 @@ class SwarmRuntime:
     workdir: str = ""
     fallback: tuple[str, ...] = ()
     made: str = TYPED
-    affinity: tuple[str, ...] = ()
+    harness: str = ENV
 
     def __post_init__(self) -> None:
         _named(self.name)
-        _affinity(self)
+        _harness(self)
         _endpoint(self.endpoint)
         if self.tls_dir and not self.endpoint.startswith("tcp://"):
             raise ValueError(f"{self.name}: TLS certificates require a tcp:// endpoint")
@@ -761,8 +758,8 @@ class AppleContainerRuntime:
       fallback: The runtimes an environment an `-e` puts here moves to, in order, where this
         one cannot hold it -- each `<backend>:<name>`.
       made: How it was made, which is :data:`TYPED`.
-      affinity: Where the harness of an agent working on it runs, in the order tried: the
-        next only where the one before has no room. See :func:`affine` for an entry.
+      harness: Where the harness of an agent working on it runs, and nowhere else: see
+        :func:`affine`.
     """
 
     backend: ClassVar[str] = APPLE_CONTAINER
@@ -776,11 +773,11 @@ class AppleContainerRuntime:
     workdir: str = ""
     fallback: tuple[str, ...] = ()
     made: str = TYPED
-    affinity: tuple[str, ...] = ()
+    harness: str = ENV
 
     def __post_init__(self) -> None:
         _named(self.name)
-        _affinity(self)
+        _harness(self)
         if self.image and not re.fullmatch(r"[^\s]+", self.image):
             raise ValueError(f"{self.name}: invalid image {self.image!r}")
         for said in self.run_args:
@@ -856,8 +853,8 @@ class SlurmRuntime:
       fallback: The runtimes an environment an `-e` puts here moves to, in order, where this
         one cannot hold it -- each `<backend>:<name>`.
       made: How it was made, which is :data:`TYPED`.
-      affinity: Where the harness of an agent working on it runs, in the order tried: the
-        next only where the one before has no room. See :func:`affine` for an entry.
+      harness: Where the harness of an agent working on it runs, and nowhere else: see
+        :func:`affine`.
     """
 
     backend: ClassVar[str] = SLURM
@@ -878,11 +875,11 @@ class SlurmRuntime:
     workdir: str = ""
     fallback: tuple[str, ...] = ()
     made: str = TYPED
-    affinity: tuple[str, ...] = ()
+    harness: str = ENV
 
     def __post_init__(self) -> None:
         _named(self.name)
-        _affinity(self)
+        _harness(self)
         for value, what in (
             (self.partition, "partition"),
             (self.account, "account"),
@@ -1253,6 +1250,14 @@ def _read(backend: str, name: str, said: object) -> Runtime | None:
         for key, value in cast("dict[Any, Any]", said).items()
         if key not in ("backend", "name")
     }
+    # An earlier humanize wrote an ordered `affinity` instead, tried until one had room:
+    # read as its first entry, which was where a harness went whenever it could.
+    if "affinity" in fields:
+        was = fields.pop("affinity")
+        if not isinstance(was, list):
+            return None
+        for first in cast("list[object]", was)[:1]:
+            fields.setdefault("harness", ENV if first == "self" else first)
     try:
         return new(backend, name, **fields)
     except ValueError:
@@ -1403,7 +1408,7 @@ def imports(
                 workdir=already.workdir if already is not None else "",
                 fallback=already.fallback if already is not None else (),
                 made=IMPORTED,
-                affinity=already.affinity if already is not None else (),
+                harness=already.harness if already is not None else ENV,
             )
         except ValueError:
             if names is not None:

@@ -277,7 +277,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="45 / 83"
-    label="A container per environment. The line hmz exec -f boxed -e box=docker@gpubox/home/me/myproject names the role (box), the backend (docker), the saved daemon (gpubox) and the directory (/home/me/myproject). The daemon gpubox, saved to hand out 4 CPUs and 8G, starts a container for the role from its image, python:3.12-slim, with exactly the CPUs and memory the role declares, here 2 CPUs and 4G. The directory on the daemon's host is mounted into the container at the same path. The agent's CLI runs on this machine by default, its harness here, since the image has no CLI and the daemon's affinity is blank; it works in a mirror of the directory kept under ~/.hmz/envs/mirrors/. Each command it runs, such as hostname, lands in the container through docker exec, and prints the container's id. Its edit lands in /home/me/myproject. When the run ends the container goes, its share goes back to the daemon, and the work stays in the directory."
+    label="A container per environment. The line hmz exec -f boxed -e box=docker@gpubox/home/me/myproject names the role (box), the backend (docker), the saved daemon (gpubox) and the directory (/home/me/myproject). The daemon gpubox, saved to hand out 4 CPUs and 8G, starts a container for the role from its image, python:3.12-slim, with exactly the CPUs and memory the role declares, here 2 CPUs and 4G. The directory on the daemon's host is mounted into the container at the same path. The agent's CLI runs on this machine, its harness here, since the image has no CLI and the daemon is saved with its harness set to local; it works in a mirror of the directory kept under ~/.hmz/envs/mirrors/. Each command it runs, such as hostname, lands in the container through docker exec, and prints the container's id. Its edit lands in /home/me/myproject. When the run ends the container goes, its share goes back to the daemon, and the work stays in the directory."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
@@ -381,7 +381,7 @@ const scene = useScene({
             <rect class="chip-ring" :x="-(L.mach.w - 24) / 2" y="-14" :width="L.mach.w - 24" height="28" rx="7" />
           </g>
         </g>
-        <g class="aff"><text class="dim" :x="L.mach.x + 12" :y="L.mach.y + 78">affinity blank: the image has no CLI,</text></g>
+        <g class="aff"><text class="dim" :x="L.mach.x + 12" :y="L.mach.y + 78">harness local: the image has no CLI,</text></g>
         <g class="aff"><text class="dim" :x="L.mach.x + 12" :y="L.mach.y + 93">so the CLI runs here, with your sign-in</text></g>
         <g class="mirror">
           <rect class="mirror-box" :x="L.mach.x + 12" :y="L.mach.y + 102" :width="L.mach.w - 24" height="42" rx="7" />

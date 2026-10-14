@@ -118,11 +118,11 @@ naming it is read.
 
 ### 3.2 Installation
 
-**3.2.1** Other than under the native placement, hmz MUST locate a harness's program on the
+**3.2.1** Other than under harness location env, hmz MUST locate a harness's program on the
 `PATH` of the harness machine, and, where it is not on the `PATH`, in `~/.local/bin`,
 `/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin` and `/bin`, in that order.
 
-**3.2.2** Under the native placement, hmz MUST locate a harness's program as
+**3.2.2** Under harness location env, hmz MUST locate a harness's program as
 `features/placements.md` §3.2.3 states.
 
 **3.2.3** A session whose harness is not installed on the harness machine MUST be refused before

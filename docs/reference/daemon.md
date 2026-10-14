@@ -391,8 +391,8 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | --- | --- |
 | `""` | A person, or an agent working on this machine without an anchor. |
 | `local` | Harness here, work on another machine. |
-| `self` | Harness on the environment's machine (native CLI). |
-| `<backend>:<name>` | Harness on the saved runtime of that name, which the affinity of the runtime the work is on sent it to (`docker:gpubox`). |
+| `env` | Harness on the environment's machine (native CLI). `self`, written by an earlier humanize, means the same. |
+| `<backend>:<name>` | Harness on the saved runtime of that name, which the harness setting of the runtime the work is on named (`docker:gpubox`). |
 
 `ended.how` and `why`:
 

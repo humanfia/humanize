@@ -12,7 +12,7 @@ checked against that declaration and opened as a driver
 :func:`~hmz.runtime.flowing.environments.open_env`) -- which starts no CLI and reaches no
 machine; each environment given is probed, which does reach it -- moved down the fallback list
 of the runtime its `-e` named where that runtime cannot hold it --, and each agent's harness is
-settled on those machines, as the affinity of the runtime each is says; and then the flow is
+settled on those machines, as the harness setting of the runtime each is says; and then the flow is
 run by
 :func:`~hmz.runtime.flowing.engine.run_flow`, written down as it goes into an epic that also
 holds the engine's journal of a flow that can be picked up. What refuses a run before it has
@@ -52,8 +52,8 @@ if TYPE_CHECKING:
         OutworlderDriver,
         SessionHandle,
     )
-    from hmz.runtime.flowing.affinity import Harbors
     from hmz.runtime.flowing.declaring import EnvRole
+    from hmz.runtime.flowing.harbors import Harbors
     from hmz.runtime.flowing.harnesses import Listener
     from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
     from hmz.runtime.flowing.spi import Placement
@@ -327,9 +327,9 @@ class Runner:
             raise Refused(str(why)) from why
         # Made last, once everything that could refuse the run has had its say: a driver
         # starts nothing as it is made, and none is made for a run that is refused.
-        #: The runtimes the agents' harnesses go to where the runtime their work is on has
-        #: an affinity: opened the way an environment is, probed with them before the flow
-        #: is called, and closed with them.
+        #: The runtimes the agents' harnesses go to where the harness setting of the runtime
+        #: their work is on names one: opened the way an environment is, probed with them
+        #: before the flow is called, and closed with them.
         self._harbors = _harbors()
         self._agents = _agent_drivers(agents_given, self._harbors)
         self._envs, self._unopened = _env_drivers(envs_given, declared)
@@ -698,8 +698,8 @@ class Runner:
 
         Raises:
           Refused: If an environment cannot be reached -- nor any runtime its runtime falls
-            back to --, an agent's harness has nowhere the affinity of one of them names
-            with room, or the drivers do not meet what the flow declares -- before the flow
+            back to --, an agent's harness cannot run where the harness setting of one
+            of them says, or the drivers do not meet what the flow declares -- before the flow
             has been called.
           BaseException: Whatever the flow raised, as it raised it.
         """
@@ -813,7 +813,7 @@ class Runner:
         Where its runtime cannot hold it -- the role's declared resources among what it is
         held to -- an environment moves down that runtime's fallback list, and the driver and
         the spec of the runtime that did hold it are the role's from then on: what the flow is
-        handed, what the epic says it ran on, and whose affinity says where a harness of work
+        handed, what the epic says it ran on, and whose harness setting says where a harness of work
         there goes -- the runtime that held the role, never the one it was moved off.
 
         Raises:
@@ -865,12 +865,12 @@ class Runner:
         Every agent against every environment, the workspace among them: which environment a
         flow puts which agent's sessions in is the flow's to decide as it runs, so a harness
         that could not be put on one of them is one the run could fail on part way through.
-        Which opens and probes every runtime an affinity sends a harness to.
+        Which opens and probes every runtime a harness setting sends a harness to.
 
         Raises:
           HarnessError: The refusal, as the agent's first session there would have had it.
-          EnvError: Where an affinity ends on a runtime that cannot be reached.
-          ResourceUnmet: Where it ends on one with no share left.
+          EnvError: Where a harness setting names a runtime that cannot be reached.
+          ResourceUnmet: Where it names one with no share left.
         """
         from hmz.runtime.flowing.harnesses import HarnessDriver
 
@@ -1129,7 +1129,7 @@ def _agent_drivers(
 
 def _harbors() -> Harbors:
     """The run's harness runtimes, none of them opened yet."""
-    from hmz.runtime.flowing.affinity import Harbors
+    from hmz.runtime.flowing.harbors import Harbors
 
     return Harbors()
 

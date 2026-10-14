@@ -4904,7 +4904,9 @@ class Humanize(App[None]):
         if self._harnessed.get(agent) == where:
             return
         self._harnessed[agent] = where
-        said = {"local": "here", "self": "on its environment's machine"}.get(
+        # `self` is what a run of before harness settings wrote for `env`.
+        native = "on its environment's machine"
+        said = {"local": "here", "env": native, "self": native}.get(
             where, f"on the runtime {where}"
         )
         self.show(f"[dim]{escape(short(agent))}'s harness runs {escape(said)}[/dim]")

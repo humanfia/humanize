@@ -22,6 +22,7 @@ from hmz.flows import (
     CostExceeded,
     DurationExceeded,
     EnvBackendKind,
+    EnvUnavailable,
     FakeCli,
     FakeCommand,
     FakeTool,
@@ -444,9 +445,9 @@ AFAR = AnchoredConfig(
 class Harbors:
     """The run's harness runtimes, every one of which leaves the harness where it was put."""
 
-    def affinity(self, placement: Placement) -> tuple[str, ...]:
+    def setting(self, placement: Placement) -> str:
         del placement
-        return ("local",)
+        return "local"
 
 
 def _driven() -> HarnessDriver:
@@ -460,6 +461,60 @@ def _on(machine: Any) -> Placement:
     return Placement(
         EnvBackendKind.SSH, "box", PurePosixPath("/w/desk"), machine=machine
     )
+
+
+@dataclass
+class Setting:
+    """The run's harness runtimes, where every runtime's harness setting is `said`."""
+
+    said: str
+    refusal: Exception = field(default_factory=lambda: EnvUnavailable("unreachable"))
+    asked: list[str] = field(default_factory=list[str])
+
+    def setting(self, placement: Placement) -> str:
+        del placement
+        return self.said
+
+    async def machine(self, entry: str) -> Exception:
+        self.asked.append(entry)
+        return self.refusal
+
+
+async def test_a_hook_that_gates_tools_refuses_a_harness_set_to_run_on_its_env() -> (
+    None
+):
+    hooks = HookTable()
+
+    async def gate(handle: SessionHandle, fields: dict[str, Any]) -> Any:
+        del handle, fields
+
+    hooks.set(HookKind.PRE_TOOL_USE, gate)
+    harbors: Any = Setting("env")
+
+    with pytest.raises(UnsupportedOperation) as refused:
+        await open_agent(_spec(), harbors).open(
+            _on(IN_PLACE), permission=Permission(), skills=(), hooks=hooks
+        )
+
+    said = str(refused.value)
+    assert "harness cannot run where its harness setting (env) says" in said
+    assert "set the harness of the runtime it is on to local" in said
+
+
+async def test_a_harness_runtime_that_cannot_be_reached_refuses_with_no_fallback() -> (
+    None
+):
+    harbors: Any = Setting("docker:gpu")
+
+    with pytest.raises(EnvUnavailable) as refused:
+        await open_agent(_spec(), harbors).open(
+            _on(IN_PLACE), permission=Permission(), skills=(), hooks=HookTable()
+        )
+
+    assert str(refused.value).endswith(
+        "harness cannot run where its harness setting (docker:gpu) says: unreachable"
+    )
+    assert harbors.asked == ["docker:gpu"]
 
 
 async def _carrying(

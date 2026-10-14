@@ -61,7 +61,7 @@ M/
 ├── prices.json                         the price table
 ├── releases.json                       the newest release of hmz
 ├── models/<cli>/<account>.json         model catalogues, `_local` for the CLI's own sign-in
-├── harness/                            workdir of a harness an affinity puts on a docker daemon or Apple containers here
+├── harness/                            workdir of a harness a harness setting puts on a docker daemon or Apple containers here
 ├── pinned/<blake2b-8(url)>/<sha>/      checkouts of git+ refs and of releases installed
 ├── skills/<owner>-<repo>-<sha256[:12]>/  skill repositories a never-installed flow names by URL
 ├── .<backend>.<name>.lock              held while a run allocates from a runtime
@@ -268,7 +268,7 @@ same path on a shared filesystem. A docker or swarm runtime that sets a
 
 ### `M/harness/`
 
-An empty directory mounted as the workdir of a harness an affinity puts on a docker runtime
+An empty directory mounted as the workdir of a harness a harness setting puts on a docker runtime
 whose daemon is on this machine, or on an Apple container, saved without a workdir
 ([Harness placement](/reference/flows#harness-placement)): a container needs a directory of
 this user's on the host to mount. Created by the run; nothing is written into it by humanize.

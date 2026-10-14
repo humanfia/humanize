@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// An agent on your machine whose work lands on another one. The routes are the default
-// arrangement in `specs/features/placements.md` and `reference/remote-execution`: the project's
+// An agent on your machine whose work lands on another one. The routes are those of harness
+// location local in `specs/features/placements.md` and `reference/remote-execution`: the project's
 // files, the commands and whatever those commands reach are the target's; the agent's own link
 // to its model provider, its settings and its login stay here. The agent reads and writes a
 // local copy of the target's workspace, which humanize keeps in step with it.

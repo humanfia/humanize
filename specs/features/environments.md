@@ -58,7 +58,7 @@ and whose owning process no longer exists.
 **3.1.1** hmz MUST NOT connect to an env machine, start a container or service, or submit a
 job when it makes an env; it MUST do so when it first probes the env.
 
-**3.1.2** hmz MUST probe every env of an epic, and every harness runtime its affinities reach
+**3.1.2** hmz MUST probe every env of an epic, and every harness runtime its harness settings name
 (`features/placements.md §4.4`), before any agent starts.
 
 **3.1.3** hmz MUST bring up every env of an epic concurrently; the first refusal MUST stop the
@@ -157,14 +157,14 @@ replaces it.
 with `EnvUnavailable: the <kind label> '<name>' cannot be read; fix or remove it:
 runtimes.<kind>.<name> in <settings file>`.
 
-**4.2.4** An affinity entry or fallback entry naming a runtime nobody saved MUST be accepted when
-saved, and MUST count as having no room, or as unable to hold the env, when used.
+**4.2.4** A harness setting or fallback entry naming a runtime nobody saved MUST be accepted
+when saved, and MUST be refused, or count as unable to hold the env, when used.
 
-### 4.3 Affinity and fallback fields
+### 4.3 Harness and fallback fields
 
-**4.3.1** A runtime of every kind MUST accept an affinity, whose meaning is
-`features/placements.md §4`. hmz MUST refuse an affinity entry that is none of `self`, `local`
-and `<backend>:<name>`, one given twice, and one naming the runtime itself.
+**4.3.1** A runtime of every kind MUST accept a harness setting, whose meaning is
+`features/placements.md §4`. hmz MUST refuse a harness setting that is none of `local`, `env`
+and `<backend>:<name>`, and one naming the runtime itself.
 
 **4.3.2** A runtime of every kind MUST accept a fallback list of `<backend>:<name>` entries,
 whose meaning is §11. hmz MUST refuse an entry of another shape, one given twice, and one
@@ -185,8 +185,8 @@ password.
 **5.1** A `local` env MUST be a directory on this machine, which MUST exist when the env is made;
 otherwise hmz MUST raise `EnvUnavailable: there is no directory <path> on this machine`.
 
-**5.2** A `local` env MUST take no provider and no affinity, and its sessions MUST have placement
-local (`features/placements.md §3.1.2`).
+**5.2** A `local` env MUST take no provider and no harness setting, and its sessions MUST have
+env location local (`features/placements.md §3.1.2`).
 
 **5.3** A `LocalEnv` role MUST be filled with the workspace the epic was started in; a `LocalEnv`
 role given an env on another machine MUST be refused with `CapabilityMissing`.
@@ -205,7 +205,7 @@ file, jump host, configuration file and every other option MUST be passed as `ss
 **6.4** hmz MUST NOT read or print what an identity file holds.
 
 **6.5** An ssh runtime imported from an ssh configuration MUST name the configuration's `Host`
-alias, never what it resolved to; re-importing it MUST keep its workdir, affinity and fallback
+alias, never what it resolved to; re-importing it MUST keep its workdir, harness and fallback
 list, and MUST NOT overwrite a runtime that was typed rather than imported.
 
 **6.6** An ssh runtime with neither a host nor an alias, with an option that has a field of its
@@ -392,9 +392,9 @@ to a whole MiB, and with `container`'s own size where the role declares none.
 memory (this machine's where saved as zero) and its container limit, less the size of every
 running container of the runtime; a shortage MUST raise `ResourceUnmet`, and §7.2.3 MUST hold.
 
-> Informative: a harness cannot be supervised on macOS (`features/placements.md §3.2.1`), so a
-> session in an Apple container needs `self` with an image holding the CLI, or a harness
-> runtime, in the runtime's affinity.
+> Informative: a mirrored session cannot run on macOS (`features/placements.md §3.2.1`), so a
+> session in an Apple container needs the harness setting `env` with an image holding the CLI,
+> or a harness runtime.
 
 ## 10. `slurm`
 

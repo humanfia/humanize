@@ -133,7 +133,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 | `hmz: nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` | yellow | always, before the first turn of a run whose `cost` limit no agent's price can enforce |
 | `✻ Worked for <s>s · <agent>` | dim | always |
 | `❯ <task> · by <name>` | | a run another frontend started |
-| `<agent>'s harness runs here` / `<agent>'s harness runs on its environment's machine` / `<agent>'s harness runs on the runtime <backend>:<name>` | dim | once per agent per run, where the session reports a harness placement (`opened.harness` not empty) |
+| `<agent>'s harness runs here` / `<agent>'s harness runs on its environment's machine` / `<agent>'s harness runs on the runtime <backend>:<name>` | dim | once per agent per run, where the session reports where its harness went (`opened.harness` not empty: `local`, `env`, or `<backend>:<name>`; `self`, which an earlier humanize wrote, is said as `env`) |
 | `— stopping the flow —` / `— <name> is stopping the flow —` | | this / another frontend stopped the run |
 | `hmz: <why>` / `hmz: stopped -- <why>` / `— the flow is done —` | red / yellow / — | run ended refused-failed-crashed / by its budget / normally |
 
@@ -1717,13 +1717,13 @@ never read.`
 | `options` | `additional ssh options: KEYWORD=VALUE, …` |
 | `workdir` | `default working directory when -e specifies none: /abs or ~/path` |
 | `falls back to` | `runtimes to try in order if this one cannot: docker:box, ssh:gpu2`. Entries apart by commas, saved as the runtime's [`fallback`](/reference/machines#falling-back); its row then ends `· falls back to <entries>`. |
-| `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>, slurm:<name>; blank for self where the CLI is there, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
+| `harness runs on` | `where an agent's harness runs, and nowhere else: env (the CLI on this runtime's machine), local (here), or ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>, slurm:<name>; blank for env`. The runtime's [`harness`](/reference/remote-execution#harness-setting), one value. |
 
 Button: **Done**, `adds ssh/<name>, and checks its resources` / `updates …`.
 
 Refusals: `an ssh host named <name> already exists; edit it from its row, or choose a
 different name`, `port: '<x>' must be a number`, `options: '<x>' is not KEYWORD=VALUE`, and a
-[fallback or affinity refused](/reference/machines#validation).
+[fallback or harness refused](/reference/machines#validation).
 
 #### docker host form {#docker-form}
 
@@ -1757,7 +1757,7 @@ not respond: …`), then **Done** (`adds docker/<name> and detects host resource
 Refusals: `a docker host named <name> already exists; …`, `memory: '<x>' must be a number and
 unit, such as 64G or 512M`, `cpus: '<x>' is not a number`, `max containers: '<x>' must be a
 number`, `run args: …`, `tls: home directory does not exist for '<x>'`, and an
-[affinity refused](/reference/machines#validation).
+[harness refused](/reference/machines#validation).
 
 #### docker swarm form {#swarm-form}
 
@@ -2096,7 +2096,7 @@ run: `This environment is not in the run.`
 | `image` | the image the flow declares for the role |
 | `grants` | the role's environment capabilities (class names without `EnvMixin`), or `nothing beyond running in it` |
 | `needs` | `<n> CPUs · <x> GiB memory · <n> GPU(s) · <x> GiB per GPU` (declared parts only) |
-| `harness` | `<placement>: <where>`, the placement being each session's [`opened.harness`](/reference/daemon#history-records). `<where>`: `local` (with an anchored environment) `on this machine; what it runs lands here`; `local` (no anchor) `on this machine, in this workdir`; `self` `on this environment's machine, with the CLI installed there`; `<backend>:<name>` `on a runtime of its own, reaching this environment through the anchor`. Where its sessions went different ways: `<placement> for <key>, <key> · <placement> for <key>`. |
+| `harness` | `<setting>: <where>`, the setting being each session's [`opened.harness`](/reference/daemon#history-records). `<where>`: `local` (with an anchored environment) `on this machine; what it runs lands here`; `local` (no anchor) `on this machine, in this workdir`; `env` (also `self`, which an earlier humanize wrote) `on this environment's machine, with the CLI installed there`; `<backend>:<name>` `on a runtime of its own, reaching this environment through the anchor`. Where its sessions went different ways: `<setting> for <key>, <key> · <setting> for <key>`. |
 | `status` | `<w> of <n> session(s) working` |
 | `Sessions` | `●\|○ <role> · session <n> · <spec>` (or the bare key before its first turn); `enter` or a click reads it and leaves the monitor. |
 

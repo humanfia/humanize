@@ -122,7 +122,7 @@ def run(
 
 Equivalent to `Run(self.runner(flow, agents=…, envs=…, params=…, budget=…, profile_flow=…,
 profile_environment=…, resume=…), task, outworlder=outworlder)`. Nothing starts. Where each agent's harness runs is not a parameter:
-it is the `affinity` of the [runtime](#runtimes) its work is on.
+it is the `harness` setting of the [runtime](#runtimes) its work is on.
 
 | Parameter | Accepts | Default |
 | --- | --- | --- |
@@ -347,7 +347,7 @@ named by `-e <role>=ssh@<name>` and `-e <role>=docker@<name>`. `backend` is `"ss
 | `all(backend: str = "")` | `list[Runtime]` | By backend, then name. |
 | `find(backend, name)` | `Runtime \| None` | |
 | `where(backend, name)` | `Path` | Where it is kept. `ValueError`: bad backend or name. |
-| `new(backend, name, **fields)` | `Runtime` | Builds and validates one; saves nothing. `ValueError`: unknown field or bad value. `new(**p.held())` equals `p`. `affinity=["self", "docker:gpubox", "local"]` sets where the harness of work on it runs ([Remote execution › Affinity](/reference/remote-execution#affinity)). |
+| `new(backend, name, **fields)` | `Runtime` | Builds and validates one; saves nothing. `ValueError`: unknown field or bad value. `new(**p.held())` equals `p`. `harness="docker:gpubox"` (default `"env"`; also `"local"`) sets where the harness of work on it runs ([Remote execution › The harness setting](/reference/remote-execution#harness-setting)). |
 | `add(runtime)` | `Runtime` | Saves a new one. `ValueError`: name taken. `OSError`. |
 | `write(runtime)` | `Runtime` | Saves, replacing any of that name. `OSError`. |
 | `remove(backend, name)` | `bool` | `ValueError`: bad backend or name. |
@@ -621,4 +621,4 @@ them.
 | `Ran` | `at: Path`, `flow`, `task`, `workspace`, `began`, `ended` (`""` while running or abandoned), `how` (`done`, `failed`, `stopped`, or `""`), `agents: tuple[Drove, ...]`, `sessions: tuple[Session, ...]`, `called: tuple[Called, ...]`, `resumable: bool`, `ref`, `envs: tuple[str, ...]` (as `-e` spells them, a run's kept in an older spelling included), `params: dict`, `budget: dict \| None`, `picked_up: str` (epic name or `""`), `profile_flow: bool`, `profile_environment: bool` (whether its flow, and the programs its agents started, were [profiled](/reference/tracing#profiling-a-run)); property `name` |
 | `Drove` | `agent` (the role), `backend`, `model`, `effort` (`""` = auto), `provider` (`""` = as local), `name` (what the agent filling it is called; `""` in an epic written before agents had names); property `spec` (`-a` spelling after `<role>=`) |
 | `Called` | `flow`, `task`, `record` (file in the epic), `began`, `ended`, `how`, `calls: tuple[Called, ...]` |
-| `Session` | `agent`, `backend`, `provider` (`local` = as local), `ident` (backend's id), `name`, `at`, `flow`, `parent` (forked-from id or `""`), `record`, `where` (kept-session path), `harness` (`local`, `self`, the `<backend>:<name>` of a runtime an affinity sent it to, or `""` for work on this machine) |
+| `Session` | `agent`, `backend`, `provider` (`local` = as local), `ident` (backend's id), `name`, `at`, `flow`, `parent` (forked-from id or `""`), `record`, `where` (kept-session path), `harness` (`local`, `env`, the `<backend>:<name>` of a runtime a harness setting named, or `""` for work on this machine) |

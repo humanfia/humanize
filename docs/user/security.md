@@ -217,9 +217,10 @@ reference](/reference/providers).
 - **A `dsh` agent works with full access** whatever its flow declares.
 - **A project's hooks run only on the project's own machine.** Project settings such as
   Claude Code's `hooks` or a `.mcp.json` stdio server start programs where the CLI runs. If
-  a flow's agent runs on a different machine from its environment's work (the supervised or
-  third-machine arrangement), humanize refuses to open the session while the project has
-  any such setting. Run the agent natively on that machine, or remove the setting. See
+  a flow's agent runs on a different machine from its environment's work (harness `local`
+  with the work elsewhere, or a harness runtime other than the work's machine), humanize
+  refuses to open the session while the project has any such setting. Run the agent on that
+  machine (harness `env`), or remove the setting. See
   [Remote execution](/reference/remote-execution#a-projects-own-programs).
 
 ## Troubleshooting

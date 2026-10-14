@@ -1368,7 +1368,7 @@ Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
 | `killed` | 1 | constant | yes | the machine it runs on may be out of memory |
 | `missing` | none | — | no | |
 | `sandboxed` | none | — | no | this machine will not let it sandbox itself; run it without one, or somewhere it can |
-| `unmirrored` | none | — | no | that path cannot be made here; use a workdir whose path you can create here, or put self in the affinity of the runtime the work is on |
+| `unmirrored` | none | — | no | that path cannot be made here; use a workdir whose path you can create here, or set the harness of the runtime the work is on to env |
 | unclassified | the place's | the place's | no | |
 
 `Unrecoverable` is never retried or carried.

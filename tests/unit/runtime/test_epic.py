@@ -414,14 +414,14 @@ def harbored() -> Iterator[str]:
     epic.harbor(target, target)
 
 
-def test_where_a_harness_ran_is_said_as_an_affinity_says_it(
+def test_where_a_harness_ran_is_said_as_a_harness_setting_says_it(
     workspace: Path, monkeypatch: pytest.MonkeyPatch, harbored: str
 ) -> None:
     monkeypatch.setattr(machines, "AnchoredConfig", Anchored)
 
     assert epic.harnessed(None) == store.HERE
     assert epic.harnessed(cast("Any", object())) == store.HERE
-    assert epic.harnessed(cast("Any", Anchored(Anchor(native=True)))) == store.SELF
+    assert epic.harnessed(cast("Any", Anchored(Anchor(native=True)))) == store.ENV
     assert epic.harnessed(cast("Any", Anchored(Anchor()))) == store.HERE
     assert (
         epic.harnessed(cast("Any", Anchored(Anchor(harness="ssh://u12-box"))))
@@ -434,7 +434,7 @@ def test_where_a_harness_ran_is_said_as_an_affinity_says_it(
 
     with Epic("f", "t", workspace) as one:
         said = _opened(one, Agent(machine=Anchored(Anchor(native=True))), "s1")
-    assert said["harness"] == store.SELF
+    assert said["harness"] == store.ENV
 
 
 # ----------------------------------------------------------- calling a flow

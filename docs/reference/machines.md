@@ -20,7 +20,7 @@ machines) is [Remote execution](/reference/remote-execution).
 | **Environment** | A working directory on a machine that a flow role is given: a `LocalEnv`, or a role filled with `-e`. |
 | **Runtime** | An ssh host, a docker daemon, a docker swarm, this Mac's Apple containers or the Slurm cluster this machine submits to, saved under a name under `runtimes` in `$HUMANIZE_HOME/settings.yaml`, so that `-e` can name it and an environment is put on it. |
 | **Endpoint** | The docker daemon a container is run on, spelled as `docker --host`/`--context` spell one. |
-| **Mirror** | The directory on the harness machine a supervised agent works in, reproducing the target's workspace. |
+| **Mirror** | The directory on the harness machine a supervised agent works in (harness `local` or on a harness runtime), reproducing the target's workspace. |
 | **Capability** | A word a machine setting, a machine or an anchor answers to (`remote`, `isolated`, …), or an environment mixin a driver serves. |
 
 ## Agent machine settings
@@ -349,8 +349,8 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | `slurm@NAME/…` | a new job of one task submitted with `sbatch` as `NAME` asks, on whichever node the cluster gives it | `target="slurm://<job id>[?python=<python>]"` once the job runs (`via: srun`), or `target="tcp://<node>:<port>"` with the job's `token` (`via: tcp`); `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<job name>/` |
 | `slurm/…` | a new job with the cluster's defaults, nothing saved | the same, with provider `local` |
 
-Where the harness goes for such a session (supervised here, native on the machine, or on
-another runtime) is decided by the `affinity` of the runtime it is on: see
+Where the harness goes for such a session (`local`: supervised here; `env`: native on the
+machine; or on another runtime) is decided by the `harness` setting of the runtime it is on: see
 [Remote execution › Where the harness runs](/reference/remote-execution#where-the-harness-runs).
 A `local` environment's work always has its harness here.
 
@@ -390,7 +390,7 @@ shares that machine and its connection.
 | `slurm` | `SlurmMachine` | the serving half over `srun --jobid=<job> --overlap`, a step of the job; or over TCP to the serving half the job runs (`via: tcp`) | the ssh probe, run on the job's node, after the job is running |
 
 - Nothing connects until the run probes its environments, which it does before any agent
-  starts (and for every runtime an affinity puts a harness on too). Every environment of the
+  starts (and for every runtime a harness setting puts a harness on too). Every environment of the
   run is brought up at once -- a Slurm job may wait in its queue -- and the first refusal
   stops the rest; of several refusals, the first role's in declaration order is raised.
 - Every command runs in its own process group with stdin closed; a timeout, cancellation or
@@ -430,9 +430,9 @@ run closes it.
 | Image | the role's `_image` (`ImageEnvMixin`), else the runtime's `image`, else `python:3.12-slim` |
 | Workdir | a directory of the daemon's host, bind-mounted at its own path; what is written there outlives the container |
 | Limits | exactly the role's `_cpu_count`, `_memory` and `_gpu_count` as hard limits; nothing the role does not declare is limited; no GPU unless `GPUEnvMixin` is declared |
-| OCI runtime and arguments | the runtime's `runtime` (OCI runtime) and `run_args`; for the container an affinity's `docker:<name>` puts a harness in, `--cap-add SYS_PTRACE` before them |
+| OCI runtime and arguments | the runtime's `runtime` (OCI runtime) and `run_args`; for the container a harness setting `docker:<name>` puts a harness in, `--cap-add SYS_PTRACE` before them |
 | Labels | `humanize.provider`, `humanize.role`, `humanize.host` (this host's name), `humanize.pid` (this process), plus `humanize=<uid>`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` |
-| Agents | anchored to the container over `docker exec`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex>`, or native in the container, as the runtime's `affinity` says |
+| Agents | anchored to the container over `docker exec`; native in the container (`env`), supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex>` (`local`), or on another runtime, as the runtime's `harness` says |
 | Derived environments | inside the same container |
 
 Where the runtime sets `exec_user`, `exec_env` or `exec_wrapper`, every `docker exec` into the
@@ -510,13 +510,13 @@ the container keeps it: humanize only works in it.
 | Name, image, OCI runtime, arguments, labels | the container's own: the runtime may not set `image`, `runtime`, `run_args`, `name_prefix`, `cpus`, `memory`, `gpus`, `gpu_memory` or `max_containers`, a role's `_image` is not used, and no label is added |
 | Resources | what the probe in the container says, as for an ssh host: `nproc`, `MemTotal` of `/proc/meminfo` (the host's, whatever memory limit the container was started with) and the GPUs `nvidia-smi` lists. Nothing is handed out or counted; a role declaring more than that is refused as on any machine (`ResourceUnmet: … needs <n> CPUs, and the environment given has <m>`) |
 | Workdir | a path inside the container, as the container sees it; it is not mounted by humanize |
-| Agents | anchored to the container over `docker exec`, with the runtime's `exec_user`, `exec_env` and `exec_wrapper`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>-<8 hex>/<12 hex>`, one directory per environment, or native in the container |
+| Agents | anchored to the container over `docker exec`, with the runtime's `exec_user`, `exec_env` and `exec_wrapper`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>-<8 hex>/<12 hex>`, one directory per environment (`local`), or native in the container (`env`), as the runtime's `harness` says |
 | Closing | removes that environment's mirror directory and nothing else; the container is left running |
 | Several runs or environments at once | each works in the container independently, with mirrors of its own |
 
 Two things humanize cannot do for a container it did not start:
 
-- **Add a capability.** A harness an affinity's `docker:<name>` puts in a container of its own
+- **Add a capability.** A harness a harness setting `docker:<name>` puts in a container of its own
   is started with `--cap-add SYS_PTRACE`, which its supervisor needs to borrow descriptors under
   docker's default seccomp profile. A running container keeps what it was started with: start it
   with `--cap-add SYS_PTRACE` if a harness is to run in it.
@@ -533,7 +533,7 @@ Two things humanize cannot do for a container it did not start:
   "exec_user": "1000:1000",
   "exec_env": ["TMPDIR=/scratch/u1000"],
   "exec_wrapper": ["/usr/local/bin/limit", "--nproc", "256"],
-  "affinity": ["local"]
+  "harness": "local"
 }
 ```
 
@@ -556,7 +556,7 @@ harness, files, derived environments -- is as for a [docker environment](#docker
 | Workdir | a directory of the node the task lands on, bind-mounted at its own path: every node it may land on must have it at that path (a shared filesystem, or `constraints` keeping it where the directory is). The task runs as this user where the manager is this machine, else as the workdir's owner on the manager's host |
 | Reservations and limits | `--reserve-cpu`/`--limit-cpu` and `--reserve-memory`/`--limit-memory`, both exactly the role's `_cpu_count` and `_memory`; `--generic-resource <gpu_resource>=<_gpu_count>` for a role declaring GPUs; nothing the role does not declare |
 | Placement | `--constraint` for each of the runtime's `constraints` |
-| Arguments | the runtime's `run_args`; for the task of a harness an affinity puts on the swarm, `--cap-add SYS_PTRACE` (Engine 20.10 or newer). Services take no OCI `--runtime` |
+| Arguments | the runtime's `run_args`; for the task of a harness a harness setting puts on the swarm, `--cap-add SYS_PTRACE` (Engine 20.10 or newer). Services take no OCI `--runtime` |
 | Labels | on the service: those of a docker environment's container |
 | Reached | `docker exec` against: the daemon the runtime's `nodes` names for the node's host, else the manager's own where the task landed on the manager, else `ssh://<the node's address>` (docker's ssh transport, as this machine's `ssh` resolves it) |
 
@@ -623,9 +623,9 @@ run closes it. Everything else is as for a
 | Name | `humanize-<provider>-<role>-<8 hex>`, which is also the container's id |
 | Workdir | a directory of this Mac, bind-mounted at its own path; `~/…` is this user's home |
 | Limits | the role's `_cpu_count` and `_memory` as the virtual machine's size (`--cpus`, `--memory`); a role declaring neither gets `container`'s default; a role declaring `GPUEnvMixin` is refused, a container being given no GPU |
-| Arguments | the runtime's `run_args`; for the container an affinity's `apple-container:<name>` puts a harness in, `--cap-add SYS_PTRACE` before them |
+| Arguments | the runtime's `run_args`; for the container a harness setting `apple-container:<name>` puts a harness in, `--cap-add SYS_PTRACE` before them |
 | Labels | as a docker environment's container's, less `humanize.gpus` |
-| Agents | anchored to the container over `container exec`, as the runtime's `affinity` says |
+| Agents | anchored to the container over `container exec`, as the runtime's `harness` says |
 
 Allocation holds an exclusive `flock` on `$TMPDIR/humanize-<uid>/.apple-container.<name>.lock`
 until the container is up and labelled: `container system status` and `container list` (60 s
@@ -651,10 +651,10 @@ apple-container has no GPU to hand out, Apple's containers being given none, and
 These and the shortages above name a saved runtime `apple-container@<p>`, and this Mac's with
 nothing saved `apple-container` alone.
 
-The agent's CLI can only be supervised here on Linux, and a Mac is not: with the default (or
-`local`) affinity, a session in an Apple container whose image has no CLI fails its first turn.
-Put `self` in the runtime's affinity with an image that has the CLI, or another runtime that
-can hold the harness. See [Containers › Apple containers](/user/containers#apple-containers).
+The agent's CLI can only be supervised here on Linux, and a Mac is not: with the harness
+`local`, a session in an Apple container fails its first turn, and with the default `env` one
+whose image has no CLI is refused. Keep `env` with an image that has the CLI, or set the
+harness to another runtime that can hold it. See [Containers › Apple containers](/user/containers#apple-containers).
 
 To remove humanize's Apple containers by hand: `container list` shows them as
 `humanize-<provider>-<role>-<8 hex>`; `container delete --force <id>` removes one.
@@ -680,7 +680,7 @@ mirrors, files, derived environments -- is as for an [ssh host](#environment-dri
 | Environment | `--export HOME,USER`: nothing of this process's environment but whose it is |
 | Labels | in the job's comment, URL-encoded: `humanize.provider`, `humanize.role`, `humanize.host`, `humanize.pid`, `humanize.name`, plus `humanize=<uid>`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` |
 | Reached | `via: srun` (default): every connection is `srun --jobid=<job> --overlap`, a step of the job on its node; `via: tcp`: the job's batch step is the serving half, and every connection dials `<node>:<port>` with a secret only this run was told. The runtime's `python` is tried first on the node |
-| Agents | anchored to the job's node; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<job name>/<12 hex>` where the node has no CLI (it needs none), or as the runtime's `affinity` says. Every command lands on the job's node, within its allocation |
+| Agents | anchored to the job's node; native on the node (`env`, the default, which needs the CLI there), supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<job name>/<12 hex>` (`local`, the node needing no CLI), or on another runtime, as the runtime's `harness` says. Every command lands on the job's node, within its allocation |
 
 Allocation holds an exclusive `flock` on `$TMPDIR/humanize-<uid>/.slurm.<name>.lock` while
 what is free is worked out and the job is submitted, and not while the job waits in the queue:
@@ -757,7 +757,7 @@ runtimes:
       workdir: ~/project
       fallback: ['docker:box', 'ssh:gpu2']
       made: typed
-      affinity: [self, 'docker:gpubox', local]
+      harness: 'docker:gpubox'
 ```
 
 ### An ssh host {#an-ssh-host}
@@ -778,7 +778,7 @@ runtimes:
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=ssh@NAME`: absolute, `~` or `~/…`. |
 | `fallback` | `tuple[str, ...]` | `()` | Saved runtimes, each `<backend>:<name>`, to move an environment to in order when this one cannot hold it: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | `typed` or `imported`. |
-| `affinity` | `tuple[str, ...]` | `()` | Where the harness of an agent working on it runs, in the order tried: `self`, `local`, `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`, `slurm:<name>`. Empty: on it where its CLI is, else here. See [Remote execution › Affinity](/reference/remote-execution#affinity). |
+| `harness` | `str` | `"env"` | Where the harness of an agent working on it runs, and nowhere else: `env` (the CLI on its own machine), `local` (here), or another saved runtime as `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`, `slurm:<name>`. An `affinity` list an earlier humanize saved is read as its first entry (`self` as `env`). See [Remote execution › The harness setting](/reference/remote-execution#harness-setting). |
 
 `target()` is `ssh://[user@]<alias or host>[:port][?F=…&HostName=…&IdentityFile=…&ProxyJump=…&<options>]`.
 These options come before humanize's own `ssh` options, and `ssh` keeps the first value it
@@ -812,7 +812,7 @@ Two runtimes at one host with different options use different ssh master connect
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=docker@NAME`. |
 | `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | Always `typed`. |
-| `affinity` | `tuple[str, ...]` | `()` | As for an ssh host. |
+| `harness` | `str` | `"env"` | As for an ssh host. |
 
 `daemon()` returns the [`Endpoint`](#endpoints): `tls_dir` becomes `?tls=<absolute dir>`, and
 `ssh:<name>` becomes `ssh://[user@]host[:port]` carrying every option of that ssh runtime.
@@ -841,6 +841,7 @@ that order; every environment on the runtime is reached through a target carryin
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=swarm@NAME`; a directory every node it may land on has. |
 | `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | Always `typed`. |
+| `harness` | `str` | `"env"` | As for an ssh host. |
 
 `daemon()` returns the manager's [`Endpoint`](#endpoints), as a docker daemon's does.
 `store.node_of(via)` is how a `nodes` value is reached: `ssh:<name>` for a saved ssh runtime of
@@ -877,7 +878,7 @@ of the Mac they may have between them.
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=apple-container@NAME`. |
 | `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | Always `typed`. |
-| `affinity` | `tuple[str, ...]` | `()` | As for an ssh host. |
+| `harness` | `str` | `"env"` | As for an ssh host. |
 
 ```json
 {
@@ -888,7 +889,7 @@ of the Mac they may have between them.
   "memory": 17179869184,
   "max_containers": 4,
   "workdir": "/Users/me/project",
-  "affinity": ["self"]
+  "harness": "env"
 }
 ```
 
@@ -915,7 +916,7 @@ to -- there is no daemon to name -- and how a job of humanize's is asked for on 
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=slurm@NAME`; a directory every node a job may land on has, at the same path. |
 | `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | Always `typed`. |
-| `affinity` | `tuple[str, ...]` | `()` | As for an ssh host. |
+| `harness` | `str` | `"env"` | As for an ssh host. |
 
 ```json
 {
@@ -976,9 +977,8 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | a fallback entry not `<backend>:<name>` | `x: fallback 'gpu2' must be <backend>:<name>, the backend one of ssh, docker, swarm, apple-container, slurm` |
 | a fallback naming the runtime itself | `x: a runtime cannot fall back to itself` |
 | a fallback entry named twice | `x: fallback ssh:gpu2 is named twice` |
-| an affinity entry that is not `self`, `local` or `<backend>:<name>` | `x: 'here' is not where a harness runs: self, local or <ssh\|docker\|swarm\|apple-container\|slurm>:<runtime name>` |
-| an affinity entry twice | `x: local is in its affinity twice` |
-| an affinity naming the runtime itself | `x: its affinity names itself; self is its own machine` |
+| a harness that is not `env`, `local` or `<backend>:<name>` | `x: 'here' is not where a harness runs: env, local or <ssh\|docker\|swarm\|apple-container\|slurm>:<runtime name>` |
+| a harness naming the runtime itself | `x: its harness names itself; env is its own machine` |
 | `add` over an existing one | `ssh host 'gpu' already exists` |
 | `ssh:<name>` naming no ssh runtime (at `daemon()`) | `ssh:nobody: ssh host 'nobody' not found` |
 | a `config` or `tls_dir` under a `~user` with no home (at `write`) | `the config file '<value>': home directory not found` |
@@ -991,7 +991,7 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 - `import_ssh(config=None, names=None, *, update=False)` writes one runtime per host, named
   after its `Host` with characters outside `[A-Za-z0-9._-]` replaced by `-`, holding
   `alias` (and `config` where not the default). An existing runtime is left alone unless
-  `update=True`, which rewrites an imported one and keeps its `workdir`, `fallback` and `affinity`; a typed one is never
+  `update=True`, which rewrites an imported one and keeps its `workdir`, `fallback` and `harness`; a typed one is never
   overwritten. With `names`, a host the config lacks raises `ssh config has no host <names>`,
   and a host that cannot be imported raises `<alias> cannot be imported: <why>`.
 
