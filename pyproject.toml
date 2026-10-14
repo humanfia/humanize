@@ -28,6 +28,9 @@ classifiers = [
 ]
 dependencies = [
     "dateparser>=1.4.3",
+    # The settings a CLI reads out of a project are JSON with comments and trailing commas,
+    # as the CLIs read them, and what a hook there says is read before a session elsewhere.
+    "json5>=0.12",
     # Which release of humanize is newer than the one running, and which extras an install
     # took, are PEP 440's and PEP 508's rules: `hmz update` reads both.
     "packaging>=26.2",
