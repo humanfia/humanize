@@ -69,7 +69,7 @@ directory in which that conversation was held (`features/agents.md`).
 **3.1.1** A session MUST have exactly one placement at any time.
 
 **3.1.2** A session MUST have placement **local** where its env machine is this machine. Under
-local placement the harness machine MUST be this machine and no mirror MUST be made.
+local placement the harness machine MUST be this machine, and hmz MUST NOT make a mirror.
 
 **3.1.3** A session MUST have placement **supervised** where its env machine is not this
 machine and its harness machine is this machine. Under supervised placement the harness MUST
@@ -77,7 +77,7 @@ work in a mirror on this machine.
 
 **3.1.4** A session MUST have placement **native** where its harness machine is its env
 machine and that machine is not this machine. Under native placement the harness MUST be the
-harness CLI installed on the env machine, and no mirror MUST be made.
+harness CLI installed on the env machine, and hmz MUST NOT make a mirror.
 
 **3.1.5** A session MUST have placement **afar** where its harness machine is the machine of a
 harness runtime, which is neither this machine nor the env machine. Under afar placement the
@@ -234,7 +234,7 @@ env machine.
 **5.1.6** The common signals, `SIGINT` and `SIGTERM` among them, MUST travel both ways between
 the agent and the commands it runs on the env machine.
 
-**5.1.7** No program that hmz started for a session MUST outlive the session.
+**5.1.7** A program that hmz started for a session MUST NOT outlive the session.
 
 **5.1.8** Under native placement the harness CLI, every program it starts and every file it
 touches MUST be the env machine's.
@@ -349,14 +349,15 @@ machine; it MAY still take effect on the env machine.
 
 ### 6.4 Limits
 
-**6.4.1** Only file contents, modes and modification times MUST cross between mirror and env
-machine; ownership, device nodes, extended attributes and a directory's own mode and times
-MUST NOT be expected to cross.
+**6.4.1** hmz MUST carry file contents, file modes and file modification times between the
+mirror and the env machine; hmz MAY leave ownership, device nodes, extended attributes and a
+directory's own mode and times uncarried.
 
-**6.4.2** hmz MUST NOT be required to keep the mirror consistent with changes that another
-writer makes to the same files on the env machine while a turn writes them.
+**6.4.2** Where another writer changes on the env machine a file that a turn writes, hmz MAY
+leave either change in place; §6.3 makes no guarantee for such a file.
 
-**6.4.3** hmz MUST NOT intercept a 32-bit process started under a supervised or afar agent.
+**6.4.3** A 32-bit process started under a supervised or afar agent MAY run against the mirror
+with nothing it does carried to the env machine.
 
 **6.4.4** Renaming or linking between a path in the workspace and a path kept on the harness
 machine MUST fail.
@@ -475,8 +476,14 @@ Python at `PATH`, absolute or under `~/`, before any other.
 
 **9.1.11** `tcp://HOST:PORT` MUST name a serving half listening at that address.
 
-**9.1.12** `peer://TICKET@HOST:PORT` MUST name a serving half waiting at a broker; only hmz
-MUST write such a target, and a `peer://` target with a harness elsewhere MUST be refused.
+**9.1.12** `peer://TICKET@HOST:PORT` MUST name a serving half waiting at the broker at
+`HOST:PORT` under `TICKET`.
+
+**9.1.13** A `peer://` target given together with a harness machine other than this machine
+MUST be refused with `ValueError`.
+
+> Informative: hmz writes `peer://` targets itself when it places a harness afar; a user has no
+> reason to write one.
 
 ### 9.2 Endpoints
 
