@@ -6,6 +6,7 @@ import errno
 import json
 import os
 import stat
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -234,6 +235,171 @@ def test_a_record_matches_the_target_by_kind_size_and_time(
     assert FileRecord("file", 0o100644, 5, 9).matches_remote(entry) is matches
 
 
+def test_a_file_written_while_its_directory_is_listed_waits_for_the_next_flush(
+    mirror: Mirror, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mirror.tree.ensure_content(mirror.path("a.txt"))
+    mirror.tree.note_write(mirror.path("a.txt"))
+    mirror.tree.note_write(mirror.path("late.txt"))
+    listing = mirror.target.listdir
+
+    def landing(path: str) -> dict[str, Any]:
+        # Another turn's writes, landing between the flush and the listing it was for.
+        Path(mirror.path("a.txt")).write_bytes(b"edited")
+        Path(mirror.path("late.txt")).write_bytes(b"late")
+        return listing(path)
+
+    monkeypatch.setattr(mirror.target, "listdir", landing)
+    mirror.tree.invalidate()
+    mirror.tree.ensure_directory(mirror.path())
+
+    assert Path(mirror.path("a.txt")).read_bytes() == b"edited"
+    assert Path(mirror.path("late.txt")).read_bytes() == b"late"
+    assert mirror.tree.flush() == 2
+    assert mirror.target.written == {"/w/a.txt": b"edited", "/w/late.txt": b"late"}
+
+
+def test_a_placeholder_written_over_is_not_fetched_over(mirror: Mirror) -> None:
+    mirror.tree.ensure_directory(mirror.path())
+    mirror.tree.note_write(mirror.path("a.txt"))
+    Path(mirror.path("a.txt")).write_bytes(b"new")  # opened to truncate, so not fetched
+
+    mirror.tree.ensure_content(mirror.path("a.txt"))
+
+    assert Path(mirror.path("a.txt")).read_bytes() == b"new"
+    assert mirror.target.read == []
+
+
+def test_a_write_landing_while_its_file_is_pushed_is_pushed_too(
+    mirror: Mirror, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mirror.tree.ensure_directory(mirror.path())
+    mirror.tree.note_write(mirror.path("new.txt"))
+    Path(mirror.path("new.txt")).write_bytes(b"half")
+    sending = mirror.target.write_file
+    racing = [b"half and the rest"]
+
+    def landing(path: str, source: Any, mode: int | None = None) -> dict[str, Any]:
+        said = sending(path, source, mode)
+        while racing:
+            Path(mirror.path("new.txt")).write_bytes(racing.pop())
+        return said
+
+    monkeypatch.setattr(mirror.target, "write_file", landing)
+    assert mirror.tree.flush() == 1
+    assert mirror.tree.flush() == 1
+    assert mirror.target.written == {"/w/new.txt": b"half and the rest"}
+
+
+# ---------------------------------------------------------- turns sharing one mirror
+
+
+@pytest.fixture
+def turns(mirror: Mirror) -> tuple[ShadowTree, ShadowTree]:
+    """Two turns working in the one mirror at once, each a tree of its own."""
+    router: Any = Router(Layout(mirror.path(), "/w"))
+    client: Any = mirror.target
+    return (
+        ShadowTree(client, router, mirror=mirror.path()),
+        ShadowTree(client, router, mirror=mirror.path()),
+    )
+
+
+def test_a_file_another_turn_has_not_pushed_yet_is_pushed_not_swept(
+    mirror: Mirror, turns: tuple[ShadowTree, ShadowTree]
+) -> None:
+    one, other = turns
+    one.ensure_directory(mirror.path())
+    one.note_write(mirror.path("made.txt"))
+    Path(mirror.path("made.txt")).write_bytes(b"MARK")
+
+    other.ensure_directory(mirror.path())
+
+    assert Path(mirror.path("made.txt")).read_bytes() == b"MARK"
+    assert mirror.target.written == {"/w/made.txt": b"MARK"}
+    assert one.flush() == 0
+
+
+def test_a_file_another_turn_pushed_is_not_made_a_placeholder_again(
+    mirror: Mirror, turns: tuple[ShadowTree, ShadowTree]
+) -> None:
+    one, other = turns
+    one.ensure_directory(mirror.path())
+    one.note_write(mirror.path("made.txt"))
+    Path(mirror.path("made.txt")).write_bytes(b"MARK")
+    assert one.flush() == 1
+
+    other.ensure_directory(mirror.path())
+
+    assert Path(mirror.path("made.txt")).read_bytes() == b"MARK"
+    assert (one.flush(), other.flush()) == (0, 0)
+    assert mirror.target.tree["/w/made.txt"].body == b"MARK"
+
+
+def test_what_one_turn_fetched_another_reads_as_it_is(
+    mirror: Mirror, turns: tuple[ShadowTree, ShadowTree]
+) -> None:
+    one, other = turns
+    one.ensure_content(mirror.path("a.txt"))
+
+    other.ensure_directory(mirror.path())
+    assert Path(mirror.path("a.txt")).read_bytes() == b"hello"
+    other.ensure_content(mirror.path("a.txt"))
+
+    assert Path(mirror.path("a.txt")).read_bytes() == b"hello"
+    assert mirror.target.read == ["/w/a.txt"]
+
+
+def test_a_rename_one_turn_makes_is_known_to_the_others(
+    mirror: Mirror, turns: tuple[ShadowTree, ShadowTree]
+) -> None:
+    one, other = turns
+    one.ensure_directory(mirror.path())
+    other.ensure_directory(mirror.path())
+    mirror.target.tree["/w/b.txt"] = mirror.target.tree.pop("/w/a.txt")
+    Path(mirror.path("a.txt")).rename(mirror.path("b.txt"))
+    one.rename(mirror.path("a.txt"), mirror.path("b.txt"))
+
+    other.ensure_content(mirror.path("b.txt"))
+
+    assert Path(mirror.path("b.txt")).read_bytes() == b"hello"
+
+
+def test_a_turn_alone_in_a_mirror_knows_nothing_of_turns_gone(
+    mirror: Mirror, turns: tuple[ShadowTree, ShadowTree]
+) -> None:
+    one, other = turns
+    one.ensure_content(mirror.path("a.txt"))
+    one.close()
+    other.close()
+    # Changed while nobody worked in it, keeping the size and time it had.
+    Path(mirror.path("a.txt")).write_bytes(b"\0" * 5)
+    os.utime(mirror.path("a.txt"), ns=(5_000_000_000, 5_000_000_000))
+    router: Any = Router(Layout(mirror.path(), "/w"))
+    client: Any = mirror.target
+
+    ShadowTree(client, router, mirror=mirror.path()).ensure_content(
+        mirror.path("a.txt")
+    )
+
+    assert Path(mirror.path("a.txt")).read_bytes() == b"hello"
+
+
+def test_a_mirror_that_cannot_be_shared_is_kept_alone(
+    mirror: Mirror, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "blocked").write_text("not a directory")
+    monkeypatch.setenv(SHADOWS, str(tmp_path / "blocked"))
+    router: Any = Router(Layout(mirror.path(), "/w"))
+    client: Any = mirror.target
+
+    tree = ShadowTree(client, router, mirror=mirror.path())
+    tree.ensure_content(mirror.path("a.txt"))
+
+    assert Path(mirror.path("a.txt")).read_bytes() == b"hello"
+    tree.close()
+
+
 # ------------------------------------------------------------------- the mirror's root
 
 
@@ -274,6 +440,60 @@ def test_a_mirror_is_reused_for_its_own_target_only(tmp_path: Path) -> None:
         prepare_shadow_root(str(tmp_path / "m"), target="ssh://b")
     prepare_shadow_root(str(tmp_path / "m"), target="ssh://b", force=True)
     prepare_shadow_root(str(tmp_path / "m"), target="ssh://b")
+
+
+def test_a_turn_starting_while_another_records_the_mirror_finds_it_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "m"
+    prepare_shadow_root(str(root), target="ssh://a")
+    (root / "kept.txt").write_text("what the target has")
+    turns: list[str] = []
+
+    def starting(dumping: Any) -> Any:
+        def dumped(*args: Any, **kwargs: Any) -> Any:
+            if not turns:
+                turns.append("another")
+                prepare_shadow_root(str(root), target="ssh://a")
+            return dumping(*args, **kwargs)
+
+        return dumped
+
+    # Another turn starts in the mirror just as this one writes its record.
+    monkeypatch.setattr(json, "dump", starting(json.dump))
+    monkeypatch.setattr(json, "dumps", starting(json.dumps))
+    prepare_shadow_root(str(root), target="ssh://a")
+
+    assert turns == ["another"]
+    assert (root / "kept.txt").read_text() == "what the target has"
+
+
+def test_turns_starting_in_one_mirror_at_once_are_none_refused(tmp_path: Path) -> None:
+    root = tmp_path / "m"
+    prepare_shadow_root(str(root), target="ssh://a")
+    (root / "kept.txt").write_text("what the target has")
+    refused: list[OSError] = []
+    together = threading.Barrier(3)
+
+    def turn() -> None:
+        together.wait()
+        for _ in range(20):
+            try:
+                prepare_shadow_root(str(root), target="ssh://a")
+            except OSError as why:
+                refused.append(why)
+
+    # Three turns of one run starting in their mirror at once, again and again: with the
+    # record truncated and then filled, one or another of them read it empty.
+    turns = [threading.Thread(target=turn) for _ in range(3)]
+    for one in turns:
+        one.start()
+    for one in turns:
+        one.join()
+
+    assert refused == []
+    # The record alone: nothing written beside it is left there.
+    assert len(list(Path(os.environ[SHADOWS]).iterdir())) == 1
 
 
 def test_a_file_is_no_root(tmp_path: Path) -> None:

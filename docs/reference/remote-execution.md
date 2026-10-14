@@ -503,7 +503,8 @@ network is answered from the target.
 
 - The mirror is prepared before the target is reached. Its guard, recorded outside the
   directory in `~/.cache/humanize/shadows/<sha256(path)[:16]>.json` (or under
-  `$HUMANIZE_SHADOWS`):
+  `$HUMANIZE_SHADOWS`), written whole beside it and moved into place, so that a turn starting
+  while another records the mirror reads the record and not half of it:
 
   | Condition | Without `force` |
   | --- | --- |
@@ -527,6 +528,19 @@ network is answered from the target.
   target's error is the agent's error.
 - Completing a remote command invalidates every cached directory listing.
 - The mirror is authoritative: what the target does not have is deleted from it.
+- A file written since it was last pushed is pushed before what the target says of it is
+  taken: it is never deleted, made a placeholder or fetched over first.
+- Turns working in one mirror at once, as the sessions of one run on one environment do, share
+  what they know of it. Each turn appends every change to that knowledge (a file fetched, made
+  a placeholder, written, pushed, renamed or removed) to `<sha256(path)[:16]>.journal` beside
+  the mirror's guard, reads the others' changes from it, and holds its lock while it changes
+  the mirror, network calls included. A file one turn wrote is pushed by whichever turn next
+  flushes, not deleted as one the target lacks, and one it pushed or fetched is not made a
+  placeholder again under it. A turn starting with no other in the mirror (none holding
+  `<sha256(path)[:16]>.live`) begins the journal again. Where the two cannot be opened or
+  locked, the turn works alone and logs `<mirror> cannot be shared with other turns working in
+  it, which may then lose what this one writes: <reason>`. Each turn still reads a directory
+  again only after its own commands.
 
 ### What stays on this machine
 
@@ -861,6 +875,6 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 | `HUMANIZE_RENDEZVOUS` | `hmz internal anchor`, the in-process broker | default `--broker`; the address advertised to both halves |
 | `HUMANIZE_RENDEZVOUS_PORT` | the in-process broker | the port it listens on; `0` or unset for any |
 | `HUMANIZE_SSH_REUSE` | every `ssh` humanize runs | `off`, `0`, `no`, `false` (any case, trimmed) or empty disables connection sharing |
-| `HUMANIZE_SHADOWS` | the mirror guard | where mirror records are kept, instead of `~/.cache/humanize/shadows` |
+| `HUMANIZE_SHADOWS` | the mirror guard and journal | where mirror records and journals are kept, instead of `~/.cache/humanize/shadows` |
 | `XDG_RUNTIME_DIR` | every `ssh` humanize runs | where `humanize-ssh-<uid>/` control sockets are made |
 | `HUMANIZE`, `HUMANIZE_TARGET`, `HUMANIZE_WORKSPACE` | set for the agent | see [Variables the agent is given](#variables-the-agent-is-given) |

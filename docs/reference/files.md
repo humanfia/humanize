@@ -303,6 +303,7 @@ Epics are never deleted by humanize.
 | `M/docker-ssh/<sha256[:16]>/ssh` | shim for `docker` over `ssh://` with options; directory and file `0700`; touched on each use, written again if gone |
 | `M/patched/<cli>-<pid>-<rand>/` | `0700`; directories of dead processes are removed |
 | `~/.cache/humanize/shadows/<sha256(path)[:16]>.json` | `{"shadow": "<abs path>", "target": "<target>"}` per mirror; moved by [`HUMANIZE_SHADOWS`](/reference/environment#humanize-shadows); never removed |
+| `~/.cache/humanize/shadows/<sha256(path)[:16]>.journal`, `….live` | what the turns working in a mirror know of it, one JSON change a line, and the lock each holds shared while it works there; `0600`; begun again by a turn starting alone; moved and kept as the record is |
 
 Every path in this section is safe to delete while humanize is not running.
 

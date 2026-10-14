@@ -707,7 +707,9 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     supervisor = Supervisor(
         client,
         router,
-        ShadowTree(client, router),
+        # Shared with every other turn working in the same mirror, which is the normal case
+        # for the sessions of one run on one environment.
+        ShadowTree(client, router, mirror=shadow_root),
         walls.around(launch) if walls is not None else launch,
         netproxy=netproxy,
         token=config.token,
@@ -730,6 +732,7 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             walls.stop()
         if netproxy is not None:
             netproxy.close()
+        supervisor.shadow.close()
         client.close()
         link.close()
 

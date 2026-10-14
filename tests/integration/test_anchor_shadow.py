@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -9,11 +11,15 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor.policy import Layout, Router
+from hmz.coganchor.providers import redirect
 from hmz.coganchor.shadow import ShadowTree, prepare_shadow_root
 from tests.integration.doubles_anchor import VIRTUAL, linked
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+#: Whether a turn can be supervised here, in a mirror of its own target's work.
+SUPERVISED = sys.platform == "linux" and redirect.supervises()
 
 
 @dataclass(frozen=True)
@@ -157,6 +163,76 @@ def test_nothing_outside_the_mirror_or_not_a_file_is_pushed(
 
     assert mirrored.tree.flush() == 0
     assert not (mirrored.target / "made").exists()
+
+
+def test_turns_sharing_a_mirror_lose_nothing_either_wrote(tmp_path: Path) -> None:
+    mirror = tmp_path / "mirror"
+    mirror.mkdir()
+    router = Router(layouts=(Layout.create(str(mirror), VIRTUAL),))
+    with linked(tmp_path / "target") as link:
+        (link.real / "read.txt").write_text("read by one turn")
+        one, other = (ShadowTree(link.client, router, mirror=str(mirror)) for _ in "12")
+        one.ensure_content(str(mirror / "read.txt"))
+        one.note_write(str(mirror / "pushed.txt"))
+        (mirror / "pushed.txt").write_text("pushed by one turn")
+        one.flush()
+
+        other.ensure_directory(str(mirror))
+        other.note_write(str(mirror / "pending.txt"))
+        (mirror / "pending.txt").write_text("not pushed yet by the other")
+        # One reads the directory again, as a turn does once a command of its own has run.
+        one.invalidate()
+        one.ensure_directory(str(mirror))
+        one.flush()
+        other.flush()
+
+        for name, said in (
+            ("read.txt", "read by one turn"),
+            ("pushed.txt", "pushed by one turn"),
+            ("pending.txt", "not pushed yet by the other"),
+        ):
+            assert (mirror / name).read_text() == said
+            assert (link.real / name).read_text() == said
+
+
+@pytest.mark.skipif(not SUPERVISED, reason="no turn can be supervised here")
+@pytest.mark.parametrize("round_", range(3))
+def test_turns_working_in_one_mirror_at_once_push_all_each_wrote(
+    tmp_path: Path, round_: int
+) -> None:
+    target, mirror = tmp_path / "target", tmp_path / "mirror"
+    target.mkdir()
+    mirror.mkdir()
+
+    def turn(n: int) -> subprocess.Popen[str]:
+        # Writes a file, runs a command on the target, writes another and runs one again:
+        # each command reads the directory back, with the other turns' files in it.
+        return subprocess.Popen(
+            [
+                *(sys.executable, "-Pm", "hmz", "internal", "anchor"),
+                *("--target", "local:", "--workspace", str(target)),
+                *("--shadow", str(mirror), "/bin/sh", "-c"),
+                (
+                    f"printf 'one {n}' > one{n}; ls > /dev/null; "
+                    f"printf 'two {n}' > two{n}; ls > /dev/null"
+                ),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    # Three turns of one run on one environment, as a flow's sessions are. Each knowing only
+    # what it did itself, every round of this lost or zeroed some of the six files.
+    turns = [turn(n) for n in range(3)]
+    for one in turns:
+        _, err = one.communicate(timeout=60)
+        assert one.returncode == 0, err
+
+    for n in range(3):
+        for name, said in ((f"one{n}", f"one {n}"), (f"two{n}", f"two {n}")):
+            assert (target / name).read_text() == said
+            assert (mirror / name).read_text() == said
 
 
 def test_a_directory_the_target_lacks_is_left_unmade(mirrored: Mirrored) -> None:

@@ -15,6 +15,11 @@ Only two things cross the network per file:
 
 A remote command may change anything, so finishing one bumps a *generation*
 counter that invalidates every cached directory listing.
+
+Several turns may work in one mirror at once, each a supervisor process of its
+own.  What a tree knows about the mirror -- which files hold their content, which
+were written and not yet pushed -- is what keeps it from deleting or zeroing what
+is there, so the turns share it: see :class:`_Ledger`.
 """
 
 from __future__ import annotations
@@ -27,11 +32,14 @@ import logging
 import os
 import shutil
 import stat as stat_module
-from dataclasses import dataclass, replace
+from dataclasses import astuple, dataclass, replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from hmz.coganchor import atomic
+
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
 
     from hmz.coganchor.policy import Layout, Router
     from hmz.coganchor.remote import RemoteClient
@@ -77,16 +85,170 @@ class FileRecord:
         )
 
 
-class ShadowTree:
-    """Keeps the local mirror consistent with the target."""
+class _Ledger:
+    """What every turn working in one mirror knows about it, kept beside its record.
 
-    def __init__(self, client: RemoteClient, router: Router) -> None:
+    Each turn is a supervisor process of its own, and a tree that knows only what its own
+    turn did takes the others' work for something to put right. A file another turn has
+    written and not pushed yet is one the target lacks, and is swept away; one it has pushed
+    or fetched is one this tree has no record of, and is made a placeholder again -- which
+    that turn then reads as its content, or pushes as its own edit, zeroes and all.
+
+    So what a tree changes in what it knows is appended to a journal here, and what the others
+    changed is read from it, under a lock each holds for as long as it changes the mirror:
+    every turn in a mirror is then one tree, as every process of one agent always was. A
+    journal nobody else is reading is begun again -- a turn alone in a mirror knows what one
+    always has, nothing -- which a lock each turn holds shared for as long as it lives tells.
+
+    Args:
+      base: Where the two files are kept, less their suffixes.
+
+    Raises:
+      OSError: If they cannot be opened or locked here.
+    """
+
+    def __init__(self, base: str) -> None:
+        import fcntl
+
+        os.makedirs(os.path.dirname(base), exist_ok=True)
+        flags = os.O_CREAT | os.O_CLOEXEC
+        self._journal = os.open(
+            base + ".journal", flags | os.O_RDWR | os.O_APPEND, 0o600
+        )
+        try:
+            self._live = os.open(base + ".live", flags | os.O_RDONLY, 0o600)
+        except OSError:
+            os.close(self._journal)
+            raise
+        self._seen = 0
+        self._depth = 0
+        self._told: list[bytes] = []
+        try:
+            fcntl.flock(self._journal, fcntl.LOCK_EX)
+            try:
+                try:
+                    fcntl.flock(self._live, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    pass  # another turn is here: what it knows is where this one starts
+                else:
+                    os.ftruncate(self._journal, 0)
+                fcntl.flock(self._live, fcntl.LOCK_SH)
+            finally:
+                fcntl.flock(self._journal, fcntl.LOCK_UN)
+        except OSError:
+            os.close(self._journal)
+            os.close(self._live)
+            raise
+
+    @contextlib.contextmanager
+    def held(self, replay: Callable[[list[Any]], None]) -> Generator[None]:
+        """Holds the mirror for the block, having first caught up with the other turns.
+
+        Args:
+          replay: What applies one entry another turn appended.
+        """
+        import fcntl
+
+        if not self._depth:
+            fcntl.flock(self._journal, fcntl.LOCK_EX)
+            try:
+                self._catch_up(replay)
+            except BaseException:
+                fcntl.flock(self._journal, fcntl.LOCK_UN)
+                raise
+        self._depth += 1
+        try:
+            yield
+        finally:
+            self._depth -= 1
+            if not self._depth:
+                try:
+                    self._write_out()
+                finally:
+                    fcntl.flock(self._journal, fcntl.LOCK_UN)
+
+    def close(self) -> None:
+        """Lets go of the mirror: the turns still in it go on without this one."""
+        os.close(self._journal)
+        os.close(self._live)
+
+    def tell(self, entry: list[Any]) -> None:
+        """Appends one change, for the others to read once the mirror is let go of."""
+        self._told.append(json.dumps(entry, separators=(",", ":")).encode())
+
+    def _catch_up(self, replay: Callable[[list[Any]], None]) -> None:
+        end = os.fstat(self._journal).st_size
+        chunks: list[bytes] = []
+        while self._seen < end:
+            chunk = os.pread(self._journal, end - self._seen, self._seen)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            self._seen += len(chunk)
+        for line in b"".join(chunks).splitlines():
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue  # half a line, from a turn killed while writing it
+            replay(entry)
+
+    def _write_out(self) -> None:
+        if not self._told:
+            return
+        # Begun on a line of its own, so that half of one a killed turn left is only that.
+        blob = memoryview(b"\n" + b"\n".join(self._told) + b"\n")
+        self._told.clear()
+        try:
+            while blob:
+                blob = blob[os.write(self._journal, blob) :]
+        except OSError as why:
+            log.warning(
+                "the other turns in this mirror will not hear of a change: %s", why
+            )
+        self._seen = os.fstat(self._journal).st_size
+
+
+class ShadowTree:
+    """Keeps the local mirror consistent with the target.
+
+    Args:
+      client: The target.
+      router: Which paths are the target's, and as what.
+      mirror: The mirror's root, for a tree to share what it knows with every other turn
+        working in it; None for one that keeps it to itself.
+    """
+
+    def __init__(
+        self, client: RemoteClient, router: Router, mirror: str | None = None
+    ) -> None:
         self._client = client
         self._router = router
         self._dirs: dict[str, int] = {}
         self._files: dict[str, FileRecord] = {}
         self._dirty_candidates: set[str] = set()
         self._generation = 0
+        self._ledger: _Ledger | None = None
+        if mirror is not None:
+            try:
+                self._ledger = _Ledger(_registry_entry(mirror).removesuffix(".json"))
+            except OSError as why:
+                log.warning(
+                    "%s cannot be shared with other turns working in it, which may then "
+                    "lose what this one writes: %s",
+                    mirror,
+                    why,
+                )
+
+    def close(self) -> None:
+        """Stops sharing what this tree knows, for the other turns in the mirror to go on alone.
+
+        A tree not closed is let go of when its process ends.
+        """
+        if self._ledger is not None:
+            self._ledger.close()
+            self._ledger = None
 
     # ------------------------------------------------------------------ queries
 
@@ -106,48 +268,52 @@ class ShadowTree:
         layout = self._router.layout_for(local_dir)
         if layout is None or self._dirs.get(local_dir) == self._generation:
             return
-        self.flush()
-        virtual = layout.to_virtual(local_dir)
-        try:
-            listing = self._client.listdir(virtual)
-        except OSError as exc:
-            if exc.errno in (errno.ENOENT, errno.ENOTDIR, errno.EACCES):
-                self._dirs[local_dir] = self._generation
-                self._drop_local(local_dir)
-                return
-            raise
-        self._apply_listing(layout, local_dir, listing)
-        self._dirs[local_dir] = self._generation
+        with self._shared():
+            self.flush()
+            virtual = layout.to_virtual(local_dir)
+            try:
+                listing = self._client.listdir(virtual)
+            except OSError as exc:
+                if exc.errno in (errno.ENOENT, errno.ENOTDIR, errno.EACCES):
+                    self._dirs[local_dir] = self._generation
+                    self._drop_local(local_dir)
+                    return
+                raise
+            self._apply_listing(layout, local_dir, listing)
+            self._dirs[local_dir] = self._generation
 
     def ensure_content(self, local_path: str) -> None:
         """Fetch a file's bytes if the local copy is still a placeholder."""
         if not self._router.is_remote_path(local_path):
             return
-        self.ensure_path(local_path)
-        # Opening a symlink reads whatever it points at, so that is the file
-        # whose content has to be here.
-        path = self._follow_links(local_path)
-        layout = self._router.layout_for(path)
-        record = self._files.get(path)
-        if layout is None or record is None or record.kind != "file":
-            return
-        if record.content_present:
-            return
-        virtual = layout.to_virtual(path)
-        scratch = path + _FETCH_SUFFIX
-        try:
-            with open(scratch, "wb") as sink:
-                meta = self._client.read_file(virtual, sink)
-            os.chmod(scratch, stat_module.S_IMODE(record.mode))
-            os.replace(scratch, path)
-        except OSError:
-            _unlink_quietly(scratch)
-            raise
-        os.utime(path, ns=(meta["mtime_ns"], meta["mtime_ns"]))
-        record.remote_size = meta["size"]
-        record.remote_mtime_ns = meta["mtime_ns"]
-        record.content_present = True
-        self._record_local_state(path, record)
+        with self._shared():
+            self.ensure_path(local_path)
+            # Opening a symlink reads whatever it points at, so that is the file
+            # whose content has to be here.
+            path = self._follow_links(local_path)
+            layout = self._router.layout_for(path)
+            record = self._files.get(path)
+            if layout is None or record is None or record.kind != "file":
+                return
+            # Here already, or written over since: newer than what the target has to give.
+            if record.content_present or self._unpushed(path):
+                return
+            virtual = layout.to_virtual(path)
+            scratch = path + _FETCH_SUFFIX
+            try:
+                with open(scratch, "wb") as sink:
+                    meta = self._client.read_file(virtual, sink)
+                os.chmod(scratch, stat_module.S_IMODE(record.mode))
+                os.replace(scratch, path)
+            except OSError:
+                _unlink_quietly(scratch)
+                raise
+            os.utime(path, ns=(meta["mtime_ns"], meta["mtime_ns"]))
+            record.remote_size = meta["size"]
+            record.remote_mtime_ns = meta["mtime_ns"]
+            record.content_present = True
+            self._record_local_state(path, record)
+            self._keep(path, record)
 
     def _follow_links(self, local_path: str) -> str:
         """Resolve local symlinks, materialising each directory on the way."""
@@ -169,20 +335,30 @@ class ShadowTree:
         Without this the new name has no record, so a placeholder that was
         never fetched would be read as zeroes through it.
         """
-        record = self._files.get(source)
-        if record is None:
-            return
-        copy = replace(record)
-        self._files[target] = copy
-        self._record_local_state(target, copy)
+        with self._shared():
+            record = self._files.get(source)
+            if record is None:
+                return
+            copy = replace(record)
+            self._record_local_state(target, copy)
+            self._keep(target, copy)
 
     def note_write(self, local_path: str) -> None:
         """Remember that the tracee is about to write here, so ``flush`` looks."""
-        if self._router.is_remote_path(local_path):
-            self._dirty_candidates.add(local_path)
+        if not self._router.is_remote_path(local_path):
+            return
+        with self._shared():
+            if local_path not in self._dirty_candidates:
+                self._dirty_candidates.add(local_path)
+                self._tell("dirty", local_path)
 
     def forget(self, local_path: str) -> None:
         """Drop state for a path the tracee removed or renamed away."""
+        with self._shared():
+            self._drop(local_path)
+            self._tell("forget", local_path)
+
+    def _drop(self, local_path: str) -> None:
         covers = _subtree_test(local_path)
         self._files = {
             key: value for key, value in self._files.items() if not covers(key)
@@ -200,7 +376,12 @@ class ShadowTree:
         Without this a renamed placeholder would lose its record, so its
         content would never be fetched and the file would read as zeroes.
         """
-        self.forget(target)
+        with self._shared():
+            self._move(source, target)
+            self._tell("rename", source, target)
+
+    def _move(self, source: str, target: str) -> None:
+        self._drop(target)
         covers = _subtree_test(source)
         rebase = _subtree_rebase(source, target)
         self._files = {
@@ -221,7 +402,14 @@ class ShadowTree:
         Called before any remote command runs and before re-reading a
         directory, so the target never observes stale content.  Returns the
         number of files pushed.
+
+        Every turn working in the mirror is flushed for, whichever does it: a file another
+        turn wrote is on the target before this one reads a directory holding it.
         """
+        with self._shared():
+            return self._flush()
+
+    def _flush(self) -> int:
         pushed = 0
         for local_path in sorted(self._dirty_candidates):
             layout = self._router.layout_for(local_path)
@@ -248,15 +436,18 @@ class ShadowTree:
         virtual = layout.to_virtual(local_path)
         with open(local_path, "rb") as source:
             meta = self._client.write_file(virtual, source, info.st_mode)
+        # As it was before it was read: a write landing while it was being sent is one the
+        # next flush sees, not one taken for what went.
         record = FileRecord(
             kind="file",
             mode=info.st_mode,
             remote_size=meta.get("size", info.st_size),
             remote_mtime_ns=meta.get("mtime_ns", 0),
             content_present=True,
+            local_size=info.st_size,
+            local_mtime_ns=info.st_mtime_ns,
         )
-        self._files[local_path] = record
-        self._record_local_state(local_path, record)
+        self._keep(local_path, record)
         log.debug("pushed %s -> %s (%d bytes)", local_path, virtual, info.st_size)
 
     # ---------------------------------------------------------------- internals
@@ -276,6 +467,8 @@ class ShadowTree:
         self._remove_vanished(local_dir, expected)
 
     def _apply_entry(self, local_path: str, entry: dict[str, Any]) -> None:
+        if self._unpushed(local_path):
+            return  # the next flush carries it there, over whatever the target has
         kind = entry["kind"]
         if kind == "dir":
             self._apply_dir(local_path, entry)
@@ -290,13 +483,15 @@ class ShadowTree:
         ):
             _remove_any(local_path)
         os.makedirs(local_path, exist_ok=True)
-        self._files[local_path] = FileRecord(
+        record = FileRecord(
             kind="dir",
             mode=entry["mode"],
             remote_size=entry["size"],
             remote_mtime_ns=entry["mtime_ns"],
             content_present=True,
         )
+        if self._files.get(local_path) != record:
+            self._keep(local_path, record)
 
     def _apply_link(self, local_path: str, entry: dict[str, Any]) -> None:
         target = entry.get("target", "")
@@ -307,12 +502,15 @@ class ShadowTree:
             pass
         _remove_any(local_path)
         os.symlink(target, local_path)
-        self._files[local_path] = FileRecord(
-            kind="link",
-            mode=entry["mode"],
-            remote_size=entry["size"],
-            remote_mtime_ns=entry["mtime_ns"],
-            content_present=True,
+        self._keep(
+            local_path,
+            FileRecord(
+                kind="link",
+                mode=entry["mode"],
+                remote_size=entry["size"],
+                remote_mtime_ns=entry["mtime_ns"],
+                content_present=True,
+            ),
         )
 
     def _apply_file(self, local_path: str, entry: dict[str, Any]) -> None:
@@ -339,8 +537,8 @@ class ShadowTree:
                 handle.truncate(entry["size"])
         os.chmod(local_path, stat_module.S_IMODE(entry["mode"]))
         os.utime(local_path, ns=(entry["mtime_ns"], entry["mtime_ns"]))
-        self._files[local_path] = fresh
         self._record_local_state(local_path, fresh)
+        self._keep(local_path, fresh)
 
     def _remove_vanished(self, local_dir: str, expected: set[str]) -> None:
         try:
@@ -350,8 +548,10 @@ class ShadowTree:
         for name in present - expected:
             # Scratch files from an interrupted fetch are swept too: nothing
             # else ever removes them, and a fetch can never be in flight here
-            # because both run on the supervisor's single thread.
+            # because both run holding the mirror, whichever turn runs them.
             path = os.path.join(local_dir, name)
+            if self._unpushed(path):
+                continue  # made since the flush before this listing: the next one sends it
             self._note_unforwarded(path)
             _remove_any(path)
             self.forget(path)
@@ -402,6 +602,60 @@ class ShadowTree:
         if os.path.isdir(local_dir) and not os.path.islink(local_dir):
             _remove_any(local_dir)
         self.forget(local_dir)
+
+    def _unpushed(self, local_path: str) -> bool:
+        """Whether a file here was written since it was last pushed, by any turn in the mirror.
+
+        Such a file is newer than anything the target says of it. A flush is what finds
+        them, and each listing is read right after one -- but a turn's write lands when its
+        own process gets to it, which is no later than this turn's next look only for a turn
+        that is this one.
+        """
+        if local_path not in self._dirty_candidates:
+            return False
+        try:
+            info = os.lstat(local_path)
+        except OSError:
+            return False
+        if not stat_module.S_ISREG(info.st_mode):
+            return False
+        record = self._files.get(local_path)
+        return record is None or (record.local_size, record.local_mtime_ns) != (
+            info.st_size,
+            info.st_mtime_ns,
+        )
+
+    @contextlib.contextmanager
+    def _shared(self) -> Generator[None]:
+        """Holds the mirror for the block, knowing what every other turn in it has done."""
+        if self._ledger is None:
+            yield
+            return
+        with self._ledger.held(self._replay):
+            yield
+
+    def _keep(self, local_path: str, record: FileRecord) -> None:
+        self._files[local_path] = record
+        self._tell("file", local_path, *astuple(record))
+
+    def _tell(self, *entry: Any) -> None:
+        if self._ledger is not None:
+            self._ledger.tell(list(entry))
+
+    def _replay(self, entry: list[Any]) -> None:
+        """Applies one change another turn in the mirror made to what it knows."""
+        try:
+            what, path, *rest = entry
+            if what == "file":
+                self._files[path] = FileRecord(*rest)
+            elif what == "dirty":
+                self._dirty_candidates.add(path)
+            elif what == "forget":
+                self._drop(path)
+            elif what == "rename":
+                self._move(path, *rest)
+        except (TypeError, ValueError):
+            log.debug("ignoring a journal entry %r", entry)
 
     def _record_local_state(self, local_path: str, record: FileRecord) -> None:
         try:
@@ -482,8 +736,9 @@ def prepare_shadow_root(path: str, *, force: bool = False, target: str = "") -> 
             path,
         )
     os.makedirs(os.path.dirname(record), exist_ok=True)
-    with open(record, "w", encoding="utf-8") as handle:
-        json.dump({"shadow": path, "target": target}, handle)
+    # Whole or not at all: a turn starting in this mirror reads it while another is writing
+    # it, and half a record is none -- a mirror refused as somebody else's directory.
+    atomic.writes(Path(record), json.dumps({"shadow": path, "target": target}))
 
 
 def _recorded_target(record: str) -> str | None:
