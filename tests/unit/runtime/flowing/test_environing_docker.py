@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 import shutil
-from pathlib import PurePosixPath
+import subprocess
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import pytest
@@ -251,6 +253,26 @@ def test_a_container_is_named_for_its_runtime_and_role_and_started_from_its_imag
     assert machine.resources(gpus=True) == Resources()
 
 
+def test_a_runtime_naming_a_prefix_names_its_containers_after_it() -> None:
+    trainer, _ = _roles()
+    stored = runtime(
+        Runtime(name="gpubox", endpoint="tcp://gpubox:2376", name_prefix="team-a")
+    )
+    workdir = PurePosixPath("/srv/x")
+
+    machine = DockerMachine("gpubox", workdir, stored=stored, role=trainer)
+    unnamed = DockerMachine("gpubox", workdir, stored=stored)
+
+    assert re.fullmatch(r"team-a-trainer-[0-9a-f]{8}", machine.name)
+    assert re.fullmatch(r"team-a-[0-9a-f]{8}", unnamed.name)
+    assert machine.identity == machine.target
+    assert machine.target.startswith(f"docker://{machine.name}@")
+    there = machine.placement(workdir).machine
+    assert isinstance(there, AnchoredConfig)
+    assert there.anchor.shadow is not None
+    assert f"/mirrors/{machine.name}/" in there.anchor.shadow
+
+
 def test_a_runtime_whose_daemon_cannot_be_reached_as_written_is_unavailable() -> None:
     with pytest.raises(EnvUnavailable, match="docker@box"):
         DockerMachine(
@@ -465,3 +487,180 @@ async def test_closing_takes_the_container_down_and_nothing_brings_it_up_again(
     with pytest.raises(EnvError, match="closed"):
         await driver.exec(["true"], timeout=0)
     assert len(daemon.made) == 1
+
+
+# ------------------------------------------------------------- a running container it names
+
+
+def test_a_running_container_is_reached_as_its_runtime_says_to_run_in_it() -> None:
+    stored = runtime(
+        Runtime(
+            name="kept",
+            container="build-box",
+            exec_user="1000:1000",
+            exec_env=("TMPDIR=/scratch/u 1",),
+            exec_wrapper=("/usr/local/bin/limit", "64"),
+        )
+    )
+    workdir = PurePosixPath("/srv/x")
+
+    one = DockerMachine("kept", workdir, stored=stored, named="box")
+    two = DockerMachine("kept", workdir, stored=stored, named="box")
+
+    assert (one.name, one.attached) == ("build-box", "build-box")
+    assert one.target == (
+        "docker://build-box?user=1000:1000&env=TMPDIR=/scratch/u%201"
+        "&exec=/usr/local/bin/limit&exec=64"
+    )
+    assert one.identity == one.target == two.target
+    first = one.placement(workdir).machine
+    second = two.placement(workdir).machine
+    assert isinstance(first, AnchoredConfig)
+    assert isinstance(second, AnchoredConfig)
+    assert first.anchor.target == one.target
+    # Two environments in one container, each in a mirror of its own.
+    assert first.anchor.shadow != second.anchor.shadow
+
+
+def test_a_container_of_its_own_is_reached_as_its_runtime_says_to_run_in_it() -> None:
+    stored = runtime(Runtime(name="gpubox", exec_user="7", exec_wrapper=("/w",)))
+
+    machine = DockerMachine("gpubox", PurePosixPath("/x"), stored=stored, named="b")
+
+    assert machine.attached == ""
+    assert machine.name.startswith("humanize-gpubox-b-")
+    assert machine.target == f"docker://{machine.name}?user=7&exec=/w"
+
+    prefixed = DockerMachine(
+        "gpubox",
+        PurePosixPath("/x"),
+        stored=runtime(Runtime(name="gpubox", name_prefix="team-a", exec_user="7")),
+        named="b",
+    )
+
+    assert re.fullmatch(r"team-a-b-[0-9a-f]{8}", prefixed.name)
+    assert prefixed.target == f"docker://{prefixed.name}?user=7"
+
+
+class _Inspected:
+    """What `docker inspect` answers about the container, and what it was asked."""
+
+    def __init__(self, status: int, out: str, err: str = "") -> None:
+        self.status, self.out, self.err = status, out, err
+        self.asked: list[list[str]] = []
+
+    def __call__(
+        self, argv: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        self.asked.append(argv)
+        return subprocess.CompletedProcess(argv, self.status, self.out, self.err)
+
+
+@pytest.fixture
+def running(daemon: type[_Config], monkeypatch: pytest.MonkeyPatch) -> _Inspected:
+    """A daemon whose container `build-box` is running, and nothing else may be asked."""
+    inspected = _Inspected(0, "true\n")
+
+    def allocations(endpoint: str, labels: Any, *, seconds: float) -> list[Held]:
+        raise AssertionError("a running container's runtime holds nothing to count")
+
+    monkeypatch.setattr(subprocess, "run", inspected)
+    monkeypatch.setattr(machines, "allocations", allocations)
+    return inspected
+
+
+def _made(*mirrors: str) -> None:
+    """Makes the mirror directories, as the agents working in them would have."""
+    for one in mirrors:
+        Path(one).mkdir(parents=True)
+
+
+def _there(*mirrors: str) -> tuple[bool, ...]:
+    """Which of the mirror directories are still there."""
+    return tuple(Path(one).is_dir() for one in mirrors)
+
+
+def _kept(**more: Any) -> Any:
+    return runtime(Runtime(name="kept", container="build-box", **more))
+
+
+async def test_a_running_container_is_found_running_and_left_so(
+    daemon: type[_Config], running: _Inspected
+) -> None:
+    trainer, _ = _roles()
+    machine = DockerMachine(
+        "kept", PurePosixPath("/work"), stored=_kept(), role=trainer
+    )
+    other = DockerMachine("kept", PurePosixPath("/work"), stored=_kept(), named="b")
+    driver = MachineEnvDriver(machine, PurePosixPath("/work"))
+    mine = machine.placement(PurePosixPath("/work")).machine
+    theirs = other.placement(PurePosixPath("/work")).machine
+    assert isinstance(mine, AnchoredConfig)
+    assert isinstance(theirs, AnchoredConfig)
+    assert mine.anchor.shadow is not None
+    assert theirs.anchor.shadow is not None
+    _made(mine.anchor.shadow, theirs.anchor.shadow)
+
+    await driver.probe()
+    await driver.probe()
+
+    assert daemon.made == []
+    assert running.asked == [
+        [
+            "docker",
+            "inspect",
+            "--type",
+            "container",
+            "--format",
+            "{{.State.Running}}",
+            "build-box",
+        ]
+    ]
+    # What the container says it has, and nothing the role asked for of the runtime.
+    assert (driver.cpu_count, driver.memory, driver.gpu_count) == (16, 1 << 30, 2)
+
+    await driver.close()
+
+    assert daemon.stopped == 0
+    assert _there(mine.anchor.shadow, theirs.anchor.shadow) == (False, True)
+
+
+@pytest.mark.parametrize(
+    ("answer", "why"),
+    [
+        (
+            (0, "false\n", ""),
+            "cannot work in the container build-box: it is not running",
+        ),
+        (
+            (1, "", "Error: No such container: build-box\n"),
+            "cannot work in the container build-box: Error: No such container",
+        ),
+    ],
+    ids=["stopped", "missing"],
+)
+async def test_a_running_container_that_is_not_is_unavailable(
+    daemon: type[_Config],
+    running: _Inspected,
+    answer: tuple[int, str, str],
+    why: str,
+) -> None:
+    running.status, running.out, running.err = answer
+    machine = DockerMachine("kept", PurePosixPath("/x"), stored=_kept())
+
+    with pytest.raises(EnvUnavailable, match=why):
+        await machine.probe()
+    assert daemon.made == []
+
+
+async def test_a_running_container_whose_daemon_cannot_be_asked_is_a_connection_error(
+    daemon: type[_Config], running: _Inspected, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refused(*_: Any, **__: Any) -> Any:
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(machines, "info", refused)
+
+    with pytest.raises(EnvConnectionError, match="could not connect to docker@kept"):
+        await DockerMachine("kept", PurePosixPath("/x"), stored=_kept()).probe()
+    assert running.asked == []

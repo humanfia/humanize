@@ -400,7 +400,8 @@ class Target:
     port: int = 0
     path: str = ""           # a `local:` directory, a meeting's ticket, a container's daemon,
                              # a Slurm job's Python: slurm://JOBID?python=PATH
-    options: tuple[tuple[str, str], ...] = ()  # ssh://HOST?KEYWORD=VALUE&...; `F` the config
+    options: tuple[tuple[str, str], ...] = ()  # ssh://HOST?KEYWORD=VALUE&...; `F` the config;
+                             # docker://CONTAINER?user=UID[:GID]&env=NAME=VALUE&exec=WORD
     @classmethod
     def parse(cls, spec: str) -> Target: ...
     def describe(self) -> str: ...
@@ -417,6 +418,7 @@ class Road:
     cache: str
     mirrors: str
     python: str = ""  # the Python tried there before every other
+    owned: bool = False  # cache and mirrors are the far side's user's own, checked there
     @classmethod
     def to(cls, target: Target) -> Road: ...
     def line(self, argv: Sequence[str]) -> list[str]: ...
@@ -445,6 +447,7 @@ def python_command(
     bundle: str = "",
     setting: Sequence[tuple[str, str]] = (),
     python: str = "",  # tried first: absolute, or `~/` for that machine's home
+    owned: Sequence[str] = (),  # made first, refused unless this user's own, then 0700
 ) -> list[str]: ...
 def ssh_flags(options: Sequence[tuple[str, str]]) -> tuple[str, ...]: ...
 def bundled() -> tuple[Path, str]: ...
@@ -503,7 +506,7 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
 - Supervising a turn MUST require Linux on x86-64 or aarch64, refusing any other at start-up with
   where it can run instead, and MUST ask that only of the harness's machine — where the account
   goes too. `check` MUST answer what a target is without running anything on it.
-- A target MUST be `ssh://[USER@]HOST[:PORT]`, `docker://CONTAINER[@ENDPOINT]`,
+- A target MUST be `ssh://[USER@]HOST[:PORT]`, `docker://CONTAINER[?OPTIONS][@ENDPOINT]`,
   `apple-container://CONTAINER`, `slurm://JOBID[?python=PATH]`, `tcp://HOST:PORT`,
   `peer://TICKET@HOST:PORT` or `local[:DIR]`, and an endpoint `local`,
   `unix:///PATH`, `tcp://HOST:PORT[?tls=DIR]`, `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` or
@@ -511,10 +514,15 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   process's environment leaves it. Every `docker` on a container's road MUST name any other
   endpoint on its own command line and MUST be run without the variables that would take it
   elsewhere, an `ssh://` one's options MUST reach the `ssh` docker dials with, and nothing MUST
-  be needed inside the container but `/bin/sh` and a Python of at least 3.12. A Slurm job's road
-  MUST be a step of that job sharing its allocation on its one node, passing nothing of this
-  process's environment or directory but whose it is, and MUST try the Python its target names
-  before any the node has.
+  be needed inside the container but `/bin/sh` and a Python of at least 3.12. A container's
+  options MUST be only `user=UID[:GID]`, at most once, `env=NAME=VALUE` and `exec=WORD`, and
+  every command on its road MUST run as that user, with those variables and under those words
+  in the order written, which MUST survive its spelling being read back; a road naming a user
+  MUST keep the archive and mirrors in directories named for that user, and MUST refuse one
+  that is not a directory of that user's own before anything is put in it or run from it. A
+  Slurm job's road MUST be a step of that job sharing its allocation on its one node, passing
+  nothing of this process's environment or directory but whose it is, and MUST try the Python
+  its target names before any the node has.
 - A supervised agent MUST start in the workspace, or the directory in it the session opened at,
   named as the target names it, and MUST see the target inside it: the same names, contents, sizes,
   modes and timestamps at the same paths, with failures answered by the target's own error.

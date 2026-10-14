@@ -114,6 +114,25 @@ _PORT_MAX = 65535
 #: The fields a runtime holds as a mapping of one string to another.
 _MAPPINGS = ("options", "nodes")
 
+#: What the name of a container or a service a runtime brings up may start with in place of
+#: humanize's own: one word of letters, digits, dashes and underscores, from a letter or a
+#: digit to a letter or a digit -- which a swarm takes in a service's name, as docker does in
+#: a container's.
+_PREFIX = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?\Z")
+
+#: How long a name prefix may be: what the 63 characters a swarm takes in a service's name leave
+#: once the dash and the 8 hex digits every name ends with are added.
+_PREFIX_MAX = 63 - len("-01234567")
+
+#: A container as docker names one, by its name or its id.
+_CONTAINER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
+
+#: Who a command in a container runs as: the numeric `UID[:GID]` docker's `-u` takes.
+_EXEC_USER = re.compile(r"[0-9]+(?::[0-9]+)?\Z")
+
+#: What a variable a command in a container is given may be called.
+_VARIABLE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+
 
 def _text(value: str, what: str) -> str:
     """A value that is one line of text holding no double quote, or ValueError.
@@ -170,6 +189,26 @@ def _falls_back(backend: str, name: str, fallback: tuple[str, ...]) -> None:
         if one in seen:
             raise ValueError(f"{name}: fallback {one} is named twice")
         seen.add(one)
+
+
+def _prefixed(name: str, prefix: str) -> None:
+    """Refuses a name prefix that is not one, or that leaves no room for the rest of a name.
+
+    Raises:
+      ValueError: For one that :data:`_PREFIX` does not match, or one longer than
+        :data:`_PREFIX_MAX`.
+    """
+    if prefix and not _PREFIX.match(prefix):
+        raise ValueError(
+            f"{name}: invalid name prefix {prefix!r}: letters, digits, dashes and "
+            "underscores, starting and ending with a letter or a digit"
+        )
+    if len(prefix) > _PREFIX_MAX:
+        raise ValueError(
+            f"{name}: name prefix {prefix!r} is longer than {_PREFIX_MAX} characters: "
+            "with a dash and 8 hex digits after it, a swarm service's name would be "
+            "longer than 63"
+        )
 
 
 def _named(name: str) -> str:
@@ -372,10 +411,20 @@ class DockerRuntime:
         `ssh:<name>` for the stored ssh runtime of that name, or `context:<name>` for a
         docker context.
       tls_dir: For `tcp://`, the directory holding `ca.pem`, `cert.pem` and `key.pem`.
+      container: A container already running on the daemon, by name or id, that every
+        environment put here works in -- never started, counted, taken down or stopped
+        here -- or "" for a container of its own per environment.
+      exec_user: The `UID[:GID]` every command in an environment's container runs as, or ""
+        for the container's own user.
+      exec_env: `NAME=VALUE` variables every such command runs with.
+      exec_wrapper: The words of a program in the container every such command runs under,
+        which runs the command it is given after them.
       image: What a container is started from where the flow says nothing.
       runtime: The OCI runtime to start a container under, e.g. `nvidia`, or "" for the
         daemon's default.
       run_args: What else `docker run` is told.
+      name_prefix: What the name of a container it starts begins with, before the role's
+        name and 8 hex digits; "" for `humanize-<name>`.
       cpus: How many CPUs it may hand out, or 0 for as many as it has.
       memory: How many bytes of memory, or 0 for as many as it has.
       gpus: The GPUs it may hand out, by device id -- `("0", "1")` -- or none.
@@ -394,9 +443,14 @@ class DockerRuntime:
     name: str
     endpoint: str = "local"
     tls_dir: str = ""
+    container: str = ""
+    exec_user: str = ""
+    exec_env: tuple[str, ...] = ()
+    exec_wrapper: tuple[str, ...] = ()
     image: str = ""
     runtime: str = ""
     run_args: tuple[str, ...] = ()
+    name_prefix: str = ""
     cpus: float = 0.0
     memory: int = 0
     gpus: tuple[str, ...] = ()
@@ -414,6 +468,7 @@ class DockerRuntime:
         if self.tls_dir and not self.endpoint.startswith("tcp://"):
             raise ValueError(f"{self.name}: TLS certificates require a tcp:// endpoint")
         _text(self.tls_dir, "the TLS directory")
+        _exec(self)
         if self.image and not re.fullmatch(r"[^\s]+", self.image):
             raise ValueError(f"{self.name}: invalid image {self.image!r}")
         if self.runtime and not _WORD.match(self.runtime):
@@ -423,6 +478,7 @@ class DockerRuntime:
                 raise ValueError(
                     f"{self.name}: argument {said!r} cannot contain newlines"
                 )
+        _prefixed(self.name, self.name_prefix)
         for gpu in self.gpus:
             if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]*", gpu):
                 raise ValueError(f"{self.name}: invalid GPU id {gpu!r}")
@@ -456,9 +512,74 @@ class DockerRuntime:
         """
         return daemon_of(self.endpoint, self.tls_dir)
 
+    def exec_options(self) -> tuple[tuple[str, str], ...]:
+        """What every `docker exec` into an environment's container is told besides it.
+
+        Returns:
+          `(KEY, VALUE)` pairs, as :attr:`hmz.coganchor.transport.Target.options` holds a
+          docker target's: the user, then each variable, then each word of the wrapper.
+        """
+        return (
+            *((("user", self.exec_user),) if self.exec_user else ()),
+            *(("env", one) for one in self.exec_env),
+            *(("exec", one) for one in self.exec_wrapper),
+        )
+
     def held(self) -> dict[str, Any]:
         """It as it is written down."""
         return {"backend": DOCKER, **_fields(self)}
+
+
+def _exec(runtime: DockerRuntime) -> None:
+    """Refuses a docker runtime's container, or what is run in it, that is not one.
+
+    A runtime naming a running container starts none, so what it would start one with or
+    hand out of its daemon is refused beside it rather than left to say nothing.
+
+    Raises:
+      ValueError: For a container docker would not name so, an exec user that is not
+        `UID[:GID]`, a variable that is not `NAME=VALUE`, an empty word of a wrapper, a
+        value of more than one line; or, beside a container, anything to start one with.
+    """
+    name = runtime.name
+    if runtime.container and not _CONTAINER.match(runtime.container):
+        raise ValueError(f"{name}: invalid container {runtime.container!r}")
+    if runtime.exec_user and not _EXEC_USER.match(runtime.exec_user):
+        raise ValueError(f"{name}: exec user {runtime.exec_user!r} is not UID[:GID]")
+    for said in runtime.exec_env:
+        variable, equals, _ = said.partition("=")
+        if not equals or not _VARIABLE.match(variable) or set(said) & set("\n\r\0"):
+            raise ValueError(f"{name}: exec variable {said!r} is not NAME=VALUE")
+    for said in runtime.exec_wrapper:
+        if not said or set(said) & set("\n\r\0"):
+            raise ValueError(
+                f"{name}: exec wrapper word {said!r} is empty or two lines"
+            )
+    if runtime.container:
+        starting = [
+            what
+            for given, what in (
+                (runtime.image, "an image"),
+                (runtime.runtime, "an OCI runtime"),
+                (runtime.run_args, "run arguments"),
+                (runtime.name_prefix, "a name prefix"),
+                (
+                    runtime.cpus
+                    or runtime.memory
+                    or runtime.gpus
+                    or runtime.gpu_memory,
+                    "what it may hand out",
+                ),
+                (runtime.max_containers, "a container limit"),
+            )
+            if given
+        ]
+        if starting:
+            raise ValueError(
+                f"{name}: a runtime working in the running container "
+                f"{runtime.container} starts none, so it cannot say "
+                f"{' or '.join(starting)}"
+            )
 
 
 #: What a placement constraint is, as `docker service create --constraint` takes one: an
@@ -486,6 +607,8 @@ class SwarmRuntime:
       image: What a task is started from where the flow says nothing. Every node it may land
         on has to be able to pull it.
       run_args: What else `docker service create` is told.
+      name_prefix: What the name of a service it creates begins with, before the role's
+        name and 8 hex digits; "" for `humanize-<name>`.
       cpus: How many CPUs its tasks may reserve all told, or 0 for as many as the swarm's
         nodes have room for.
       memory: How many bytes of memory, likewise.
@@ -512,6 +635,7 @@ class SwarmRuntime:
     tls_dir: str = ""
     image: str = ""
     run_args: tuple[str, ...] = ()
+    name_prefix: str = ""
     cpus: float = 0.0
     memory: int = 0
     gpu_resource: str = ""
@@ -537,6 +661,7 @@ class SwarmRuntime:
                 raise ValueError(
                     f"{self.name}: argument {said!r} cannot contain newlines"
                 )
+        _prefixed(self.name, self.name_prefix)
         for amount, what in (
             (self.cpus, "CPUs"),
             (self.memory, "memory"),

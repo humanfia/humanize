@@ -27,7 +27,6 @@ import contextlib
 import hashlib
 import math
 import os
-import secrets
 import shutil
 import socket
 import subprocess
@@ -52,6 +51,7 @@ from .environing_docker import (
     Asked,
     Has,
     Share,
+    _called,  # pyright: ignore[reportPrivateUsage]
     _held,  # pyright: ignore[reportPrivateUsage]
     _mirrors,  # pyright: ignore[reportPrivateUsage]
     _stale,  # pyright: ignore[reportPrivateUsage]
@@ -118,11 +118,7 @@ class AppleContainerMachine(SSHMachine):
         from hmz.coganchor.transport import APPLE, Target
 
         role_name = role.name if role is not None else named
-        name = "-".join(
-            one
-            for one in ("humanize", provider, role_name, secrets.token_hex(4))
-            if one
-        )
+        name = _called(provider, role_name)
         super().__init__(provider, Target.parse(f"{APPLE}://{name}").describe())
         self.identity = self.target
         self.name = name

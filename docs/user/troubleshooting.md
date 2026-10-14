@@ -1011,6 +1011,21 @@ looked.
 
 **Verify.** `docker run --rm <image> python3 --version` prints 3.12 or newer.
 
+### `humanize: /tmp/humanize-… is not a directory this user owns`
+
+**Symptom.** The first turn on a docker target that names a `user` fails with this.
+
+**Cause.** humanize keeps its copy of itself, and a harness's mirrors, in directories of that
+user's own in the container (`/tmp/humanize-<UID>` and `/tmp/humanize-mirrors-<UID>`), and
+uses one only where it is a directory, not a link, that this user owns. Another user of the
+container made one of these first, or a link stands in its place.
+
+**Fix.** Remove the directory the message names, in the container, as root or as its owner:
+`docker exec -u 0 <container> rm -rf <dir>`.
+
+**Verify.** The turn starts, and `docker exec <container> ls -ld /tmp/humanize-<UID>` shows a
+`drwx------` directory owned by that UID.
+
 ### `humanize intercepts syscalls with a Linux seccomp filter and a ptrace supervisor, and this host is 'darwin'. …`
 
 **Symptom.** An agent whose work lands elsewhere will not start on a Mac.

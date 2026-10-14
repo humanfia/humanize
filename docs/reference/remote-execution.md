@@ -80,7 +80,7 @@ machine in `AnchorConfig.harness`.
 | `local` | this machine, standing in for another | the serving half is a child process here | yes | none |
 | `local:DIR` | this machine, with `DIR` standing in for the far side's copy of the workspace | as `local` | yes | none |
 | `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` | a host reached with the system `ssh` | the serving half is bootstrapped over `ssh` and spoken to on its pipes | yes | POSIX `/bin/sh`, Python >= 3.12 |
-| `docker://CONTAINER[@ENDPOINT]` | a running container | the serving half is bootstrapped with `docker exec -i`, running as the container's user | yes | `docker` here; `/bin/sh` and Python >= 3.12 in the container |
+| `docker://CONTAINER[?OPTIONS][@ENDPOINT]` | a running container | the serving half is bootstrapped with `docker exec -i`, running as the container's user or the one `OPTIONS` names, with its variables and under its wrapper | yes | `docker` here; `/bin/sh` and Python >= 3.12 in the container |
 | `apple-container://CONTAINER` | a running Apple container on this Mac | the serving half is bootstrapped with `container exec -i`, running as the container's user | yes | Apple's `container` here; `/bin/sh` and Python >= 3.12 in the container |
 | `slurm://JOBID[?python=PATH]` | the node a running Slurm job of this user's was given | the serving half is bootstrapped with `srun --jobid=JOBID --overlap`, a step of that job sharing its allocation, running as this user | yes | `srun` here; `/bin/sh` and Python >= 3.12 on the node (`PATH`, absolute or under `~/`, is tried first) |
 | `tcp://HOST:PORT` | a serving half [left listening](#serving-a-target) | a TCP connection, `TCP_NODELAY`, 30 s connect timeout | no | a served target and its token |
@@ -94,8 +94,26 @@ Parsing rules:
   matches `[A-Za-z][A-Za-z0-9]*`; `VALUE` must be non-empty and must not contain a newline,
   carriage return, NUL or `"`. Each option is passed to `ssh` as `-o KEYWORD=VALUE` (the value
   double-quoted where it contains whitespace), except `F`, passed as `-F VALUE`.
-- `docker://`: the container name ends at the first `@`; the rest is a docker
-  [endpoint](/reference/machines#endpoints). An endpoint of `local` is the same target as none.
+- `docker://`: the container name ends at the first `?` or `@`; what follows the first `@` is
+  a docker [endpoint](/reference/machines#endpoints). An endpoint of `local` is the same target
+  as none. Between a `?` and the `@`, options are `KEY=VALUE` pairs separated by `&`,
+  URL-quoted (an `@` in a value as `%40`), parsed strictly, none holding a newline, carriage
+  return or NUL, and passed to every `docker exec` on the target's road in the order written:
+
+  | Option | Passed as | Value |
+  | --- | --- | --- |
+  | `user=UID[:GID]` | `-u UID[:GID]` | numeric; at most once |
+  | `env=NAME=VALUE` | `-e NAME=VALUE` | `NAME` matches `[A-Za-z_][A-Za-z0-9_]*`; any number |
+  | `exec=WORD` | a word after the container name, ahead of the command | non-empty; any number |
+
+  The `exec` words are a wrapper: a program in the container (with its arguments) that runs
+  the command it is given after them, with the same streams, and exits with its status, as
+  `exec "$@"` does. The target is written on command lines and in logs, so an `env` value is no
+  place for a secret. A target naming a `user` keeps its archive and mirrors in
+  `/tmp/humanize-<UID>` and `/tmp/humanize-mirrors-<UID>` instead (see
+  [Bootstrapping](#bootstrapping-the-serving-half)). The options are part of the target: two
+  spellings telling one container different things are two targets, each given the archive
+  once.
 - `apple-container://`: the container name, holding no `@`, `/`, `?` or `#`.
 - `slurm://`: the job's id, all digits; after `?`, only `python=PATH`, URL-quoted, `PATH`
   absolute or under `~/` (the node's home) and holding no newline, carriage return, NUL or `"`.
@@ -109,6 +127,8 @@ Parsing rules:
 | `tcp://` without a numeric port | `malformed target 'tcp://h'; expected tcp://HOST:PORT` |
 | an ssh option that is not one | `malformed target 'ssh://h?Bad-Key=1'; Bad-Key='1' is not an ssh option` |
 | an ssh query that does not parse | `malformed target '<spec>'; expected ssh://HOST?KEYWORD=VALUE&...` |
+| a docker option that is not one | `malformed target 'docker://c?user=me'; user='me' is not a docker exec option` |
+| a docker query that does not parse | `malformed target '<spec>'; expected docker://CONTAINER?user=UID[:GID]&env=NAME=VALUE&exec=WORD&...` |
 | a bad docker endpoint | `unsupported docker endpoint 'weird'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or context:NAME` |
 | a malformed meeting | `malformed meeting '<spec>'; expected TICKET@HOST:PORT` |
 
@@ -121,7 +141,7 @@ For `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://`, humaniz
 | --- | --- |
 | Archive | A zipapp of `hmz.coganchor` and the command line reaching it, with an `hmz-<version>.dist-info/METADATA` so that `__version__` and `hmz --version` answer the same on the target, built once per source tree into `$TMPDIR/humanize-<uid>/humanize-<digest>.pyz` (directory `0700`, refused if anyone else can write it), beside a `<stamp>.digest` naming the archive each source tree (by version, path, file sizes and modification times) built. Two checkouts or versions never share an archive. A run touches the archive it uses at least hourly; a build removes anything in the directory, and the `$TMPDIR/humanize-<uid>.pyz` an earlier humanize shared, untouched for 14 days. A directory anyone else can write fails the install with `ConnectionError: could not install humanize on <target>: …`. The driving half (`agents`, `providers`, `machines`, `backends.py`, `models.py`, `fallbacks.py`, `prices.py`) is left out. Pure standard library; runs on any architecture. |
 | Name on the target | `humanize-<digest>.pyz`, `<digest>` the first 16 hex digits of the archive's SHA-256. |
-| Cache on the target | `$HOME/.cache/humanize/` over ssh and on a Slurm node, `/tmp/humanize/` in a container. |
+| Cache on the target | `$HOME/.cache/humanize/` over ssh and on a Slurm node, `/tmp/humanize/` in a container, and `/tmp/humanize-<UID>/` in a container whose target names `user=UID[:GID]`. That one, and the target's mirror directory, are made by the far side's shell before anything is put in them or run from them, refused unless each is a directory (not a link) the user owns, and made `0700`: `humanize: <dir> is not a directory this user owns`, exit 1. |
 | Install | Run with the interpreter below, `HUMANIZE_BUNDLES` set to the cache and `mkdir -p`'d by the far side's shell, the archive on stdin: refuse it (`humanize: <n> bytes arrived that are not humanize-<digest>.pyz`) unless its SHA-256 starts with `<digest>`; keep a file already there only if its own SHA-256 does too, touching it; otherwise write `<file>.<pid>` and move it into place. Then remove other `humanize-*.pyz*` in the cache untouched for 14 days. Every line that runs the archive first `touch -c`es it. Concurrent installs are safe. Each (target, digest) pair is pushed at most once per process. |
 | Interpreter | The first candidate that exists and reports a version >= 3.12, tried in order: a `slurm://` target's `python`, then `python3`, `python3.14`, `python3.13`, `python3.12`, `/opt/homebrew/bin/python3`, `/usr/local/bin/python3`, `/Library/Frameworks/Python.framework/Versions/Current/bin/python3`, `/usr/bin/python3`. |
 | No interpreter | Exit 127, stderr `humanize: no python 3.12 or newer on this machine; looked for: <candidates>`. |
@@ -296,8 +316,9 @@ A turn with the harness elsewhere is spawned as `hmz internal anchor` on the har
 (third machine). This machine runs only the process carrying the three streams.
 
 Where `shadow` is unset, the mirror on the harness machine is
-`<mirrors>/<name>`, where `<mirrors>` is `$HOME/.cache/humanize-mirrors` over ssh or
-`/tmp/humanize-mirrors` in a container, and `<name>` is the first 16 hex digits of
+`<mirrors>/<name>`, where `<mirrors>` is `$HOME/.cache/humanize-mirrors` over ssh,
+`/tmp/humanize-mirrors` in a container, or `/tmp/humanize-mirrors-<UID>` in a container whose
+target names `user=UID[:GID]`, and `<name>` is the first 16 hex digits of
 `sha256(workspace \0 remote_path \0 target)`. It is passed as `HUMANIZE_SHADOW` with `force`
 set, and kept between turns.
 

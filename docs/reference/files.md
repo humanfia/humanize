@@ -263,7 +263,9 @@ named and labelled the same way, on the swarm its runtime's manager manages, and
 `apple-container` environment's container likewise, less `humanize.gpus`, by Apple's `container`
 on this Mac. A `slurm` environment's job is named the same way and carries the same labels,
 with `humanize.name`, URL-encoded in its comment; nothing is mounted, its workdir being the
-same path on a shared filesystem.
+same path on a shared filesystem. A docker or swarm runtime that sets a
+[`name_prefix`](/reference/machines#a-docker-daemon) names its containers or services
+`<name_prefix>-<role>-<hex8>` instead.
 
 ### `M/harness/`
 
@@ -328,8 +330,8 @@ Every path in this section is safe to delete while humanize is not running.
 
 | Path | Is |
 | --- | --- |
-| `$HOME/.cache/humanize/humanize-<digest>.pyz` | the humanize bundle on an `ssh` machine or a Slurm job's node (`/tmp/humanize/…` in a container); checked against `<digest>` on arrival and when already there, written to `f.<pid>` and moved into place; every run line touches the one it runs; other `humanize-*.pyz*` untouched for 14 days are removed by the next install |
-| `$HOME/.cache/humanize-mirrors/<sha256[:16]>/` on an `ssh` machine; `/tmp/humanize-mirrors/<sha256[:16]>/` in a container | a remote harness's mirror of the workspace |
+| `$HOME/.cache/humanize/humanize-<digest>.pyz` | the humanize bundle on an `ssh` machine or a Slurm job's node (`/tmp/humanize/…` in a container, `/tmp/humanize-<UID>/…`, `0700`, for a docker target naming `user=UID`); checked against `<digest>` on arrival and when already there, written to `f.<pid>` and moved into place; every run line touches the one it runs; other `humanize-*.pyz*` untouched for 14 days are removed by the next install |
+| `$HOME/.cache/humanize-mirrors/<sha256[:16]>/` on an `ssh` machine; `/tmp/humanize-mirrors/<sha256[:16]>/` in a container; `/tmp/humanize-mirrors-<UID>/<sha256[:16]>/` for a docker target naming `user=UID` | a remote harness's mirror of the workspace |
 | `${HUMANIZE_HOME:-$HOME/.hmz}/envs/` | as [above](#state-envs) |
 | `/tmp/humanize-slurm-<job>.out` on a Slurm job's node | what a `via: tcp` job's serving half says on its way up, which its port is read from; left to the node |
 | a `mktemp -d` directory (umask `077`) | per-session files of a native turn, including projected credentials (`0600`); removed after the turn |

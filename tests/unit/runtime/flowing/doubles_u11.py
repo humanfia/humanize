@@ -450,6 +450,7 @@ class Runtime:
     gpu_resource: str = ""
     runtime: str = ""
     run_args: tuple[str, ...] = ()
+    name_prefix: str = ""
     constraints: tuple[str, ...] = ()
     nodes: Mapping[str, str] = field(default_factory=dict[str, str])
     partition: str = ""
@@ -462,6 +463,17 @@ class Runtime:
     max_jobs: int = 0
     max_wait: int = 0
     ssh_target: str = "ssh://me@box"
+    container: str = ""
+    exec_user: str = ""
+    exec_env: tuple[str, ...] = ()
+    exec_wrapper: tuple[str, ...] = ()
+
+    def exec_options(self) -> tuple[tuple[str, str], ...]:
+        return (
+            *((("user", self.exec_user),) if self.exec_user else ()),
+            *(("env", one) for one in self.exec_env),
+            *(("exec", one) for one in self.exec_wrapper),
+        )
 
     def daemon(self) -> Endpoint:
         from hmz.coganchor.transport import Endpoint

@@ -541,14 +541,16 @@ def under() -> Path: ...  # machine()/skills
 
 - A `docker` environment MUST be a container of its own per environment a run is given, on the
   daemon its provider names -- `local` being docker's default here where no provider is written
-  down under that name -- and everything derived from it MUST be in that container. It MUST be
-  started from the role's `_image`, else the provider's, else `python:3.12-slim`, with the
-  workdir -- a directory of the daemon's host -- mounted at its own path, and nothing needed in
-  the image but `/bin/sh` and a Python of at least 3.12; an sshd MUST NOT be.
+  down under that name -- unless that provider names a running container (below), and
+  everything derived from it MUST be in that container. It MUST be started from the role's
+  `_image`, else the provider's, else `python:3.12-slim`, with the workdir -- a directory of the
+  daemon's host -- mounted at its own path, and nothing needed in the image but `/bin/sh` and a
+  Python of at least 3.12; an sshd MUST NOT be.
 - It MUST be given exactly the CPUs, memory and GPUs its role declares as hard limits, no GPU
   where it declares none and no limit on what else it declares none of, and the provider's
   runtime and arguments; it MUST be labelled with its provider, role, host and process beside
-  what it holds, and its driver MUST report what it was given.
+  what it holds, and named starting with its provider's name prefix where that says one; its
+  driver MUST report what it was given.
 - Before any agent starts, what the role asks MUST be held against what its provider may hand
   out -- what it was written down with, the daemon's own where that is 0 -- less what that
   provider's running containers hold, and its container limit; GPUs MUST be the first ids
@@ -557,11 +559,18 @@ def under() -> Path: ...  # machine()/skills
   says it. What is short MUST raise `ResourceUnmet` saying how much of what is free and which
   container holds the rest -- for GPUs, how many of those listed are usable --, and no two
   runs on this machine MUST work it out for one provider at once.
-- An agent working in one MUST be anchored to its container, reaching it by `docker exec` alone,
-  its harness put where the next section says: supervised on this machine in a mirror of its
-  own, or the container's own CLI driven natively.
+- An agent working in one MUST be anchored to its container, reaching it by `docker exec` alone
+  -- as the user, with the variables and under the wrapper its provider names --, its harness
+  put where the next section says: supervised on this machine in a mirror of its own, or the
+  container's own CLI driven natively.
 - Its container MUST be taken down when the environment is closed, and one whose process on
   this host has gone MUST be taken down by the next run on its provider.
+- A provider naming a running container MUST put every environment it is given in that
+  container, on its daemon, which nothing MUST start, label, hold against what the provider may
+  hand out, take down or stop; one that is not running MUST be refused (`EnvUnavailable`), and
+  what an environment was given MUST be what that container says it has. Its mirrors MUST be
+  the environment's own, apart from every other environment's in that container, and closing
+  the environment MUST remove them and nothing else.
 
 ### Swarm environments
 
@@ -575,7 +584,8 @@ def under() -> Path: ...  # machine()/skills
 - It MUST reserve exactly the CPUs and memory its role declares and be limited to them, and as
   many of its provider's GPU generic resource as the role declares GPUs, none where it declares
   none; it MUST be placed under its provider's constraints and created with its arguments, and
-  labelled as a docker environment's container is; its driver MUST report what it reserved.
+  labelled and named as a docker environment's container is; its driver MUST report what it
+  reserved.
 - Before any agent starts, what the role asks MUST be held against what its provider may hand
   out -- its task limit, and the CPUs and memory it was written down with where it was -- less
   what that provider's services hold, and a role asking for GPUs of a provider naming no GPU

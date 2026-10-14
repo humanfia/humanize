@@ -607,7 +607,7 @@ declaration order.
 | Type | Fields |
 | --- | --- |
 | `SSHRuntime` | `name`, `host`, `user`, `port: int = 0`, `identity_file`, `proxy_jump`, `options: Mapping[str, str]`, `alias`, `config`, `workdir`, `made: str = "typed"` (`typed`/`imported`); property `at`; methods `destination()`, `login()`, `settings()`, `target()` (coganchor target), `held()`; `backend == "ssh"` |
-| `DockerRuntime` | `name`, `endpoint: str = "local"`, `tls_dir`, `image`, `runtime`, `run_args: tuple[str, ...]`, `cpus: float`, `memory: int` (bytes), `gpus: tuple[str, ...]`, `gpu_memory: int`, `max_containers: int` (0 = no limit), `workdir`, `made`; property `at`; methods `daemon()` → `Endpoint` ([Machines](/reference/machines#a-docker-daemon)), `held()`; `backend == "docker"` |
+| `DockerRuntime` | `name`, `endpoint: str = "local"`, `tls_dir`, `container`, `exec_user`, `exec_env: tuple[str, ...]`, `exec_wrapper: tuple[str, ...]`, `image`, `runtime`, `run_args: tuple[str, ...]`, `name_prefix`, `cpus: float`, `memory: int` (bytes), `gpus: tuple[str, ...]`, `gpu_memory: int`, `max_containers: int` (0 = no limit), `workdir`, `made`; property `at`; methods `daemon()` → `Endpoint` ([Machines](/reference/machines#a-docker-daemon)), `exec_options()`, `held()`; `backend == "docker"` |
 | `SSHHost` | `alias`, `host`, `user`, `port: int`, `identity_files: tuple[str, ...]`, `proxy_jump` |
 | `Checked` | `reached: bool`, `said: str`, `home: str`, `cpus: float`, `memory: int`, `gpus: tuple[str, ...]`, `gpu_memory: int`, `runtimes: tuple[str, ...]`, `version: str`, `short: tuple[str, ...]` (what it is saved to hand out and has not got) |
 

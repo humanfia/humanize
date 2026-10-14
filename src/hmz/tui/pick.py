@@ -7261,7 +7261,10 @@ def _machine_line(one: Runtime) -> str:
             daemon.endpoint,
             *((daemon.image,) if daemon.image else ()),
             *((f"OCI runtime {daemon.runtime}",) if daemon.runtime else ()),
-            _hands_out(daemon.cpus, daemon.memory, daemon.gpus),
+            f"in running container {daemon.container}"
+            if daemon.container
+            else _hands_out(daemon.cpus, daemon.memory, daemon.gpus),
+            *((f"as {daemon.exec_user}",) if daemon.exec_user else ()),
             *(
                 (f"max {daemon.max_containers} containers",)
                 if daemon.max_containers
@@ -8130,6 +8133,8 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _fallback(typed.get(_FALLEN_TO, "")),
             "affinity": _affinity(typed.get(_AFFINITY, "")),
+            # Not on the form: what it was saved with, kept.
+            "name_prefix": self._one.name_prefix if self._one is not None else "",
             **self._more(typed),
         }
 
@@ -8241,11 +8246,18 @@ class Docking(_Daemon["DockerRuntime"]):
         Raises:
           ValueError: For a count that is not one.
         """
+        kept = self._one
         return {
             "runtime": typed.get(_RUNTIME, ""),
             "gpus": [one for one in re.split(r"[,\s]+", typed.get(_GPUS, "")) if one],
             "max_containers": _how_many(typed.get(_AT_ONCE, ""), "max containers"),
-            "gpu_memory": self._one.gpu_memory if self._one is not None else 0,
+            "gpu_memory": kept.gpu_memory if kept is not None else 0,
+            # Not on this form, as the GPUs' memory is not: kept as they were, so that
+            # correcting a runtime here takes none of them away.
+            "container": kept.container if kept is not None else "",
+            "exec_user": kept.exec_user if kept is not None else "",
+            "exec_env": list(kept.exec_env) if kept is not None else [],
+            "exec_wrapper": list(kept.exec_wrapper) if kept is not None else [],
         }
 
 

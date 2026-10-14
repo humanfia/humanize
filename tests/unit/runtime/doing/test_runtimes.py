@@ -107,6 +107,7 @@ class Docker:
     gpus: tuple[str, ...] = ()
     runtime: str = ""
     image: str = ""
+    container: str = ""
 
     def daemon(self) -> Daemon:
         return Daemon()
@@ -387,6 +388,46 @@ def test_a_docker_daemon_that_does_not_answer_says_why(
     machine.said["docker"] = answer
 
     assert _check(Docker()) == Checked(reached=False, said=why)
+
+
+@pytest.mark.parametrize(
+    ("answer", "said"),
+    [
+        (
+            (0, "true\n", ""),
+            Checked(reached=True, cpus=8.0, memory=1000, version="27.0"),
+        ),
+        (
+            (0, "false\n", ""),
+            Checked(reached=False, said="the container build-box is not running"),
+        ),
+        (
+            (1, "", "Error: No such container: build-box\n"),
+            Checked(reached=False, said="Error: No such container: build-box"),
+        ),
+    ],
+    ids=["running", "stopped", "missing"],
+)
+def test_a_daemon_naming_a_running_container_is_asked_only_whether_it_runs(
+    answer: tuple[int, str, str],
+    said: Checked,
+    machine: Machine,
+    gpus: list[dict[str, Any]],
+) -> None:
+    machine.said["docker"] = (0, _info(DiscoveredDevices=[{"ID": "gpu0"}]), "")
+    machine.said["docker inspect"] = answer
+
+    assert _check(Docker(container="build-box")) == said
+    assert [one["argv"] for one in machine.asked][1] == [
+        "docker",
+        "inspect",
+        "--type",
+        "container",
+        "--format",
+        "{{.State.Running}}",
+        "build-box",
+    ]
+    assert gpus == []
 
 
 # ------------------------------------------------------------------ swarm

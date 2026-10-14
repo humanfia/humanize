@@ -434,6 +434,48 @@ a saved ssh host, `ssh://`, `tcp://` or a context.
   set it as the runtime's GPU resource. With none set, a role asking for a GPU is refused.
 - **A task no node has room for is refused**, with the scheduler's own words, and its service
   removed: at once where no node could ever hold it, after 30 seconds of waiting otherwise.
+- **On a swarm others use too**, give the runtime a `name_prefix` (`team-a`), in its entry of
+  `settings.yaml` or under **Runtimes** on the [web page](/user/web#settings): its services
+  are then named `team-a-<role>-<8 hex>` rather than `humanize-<runtime>-<role>-<8 hex>`, to
+  keep a naming rule the swarm has and to tell yours from others' by name. A docker host takes
+  one too, for its containers. Correcting the runtime on its form here keeps what it is set to.
+
+### A container that is already running {#a-running-container}
+
+Where a container is already running and stays up between runs, and you or another tool manage
+it, a run can work in it instead of starting one of its own. Save a docker runtime whose
+`container` names it, in your settings file or on the web page's runtime form:
+
+```yaml
+runtimes:
+  docker:
+    build-box:
+      endpoint: local
+      container: build-box
+      exec_user: "1000:1000"
+      exec_env: [TMPDIR=/scratch/u1000]
+      exec_wrapper: [/usr/local/bin/limit, --nproc, "256"]
+```
+
+```sh
+hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
+    -e box=docker@build-box/srv/myproject \
+    -p budget.duration=10m "fix add() in calc.py"
+```
+
+- **Nothing is started, counted or stopped.** The container has to be running when the run
+  starts, and is left running when it ends; only the run's own mirrors here are removed.
+- **The workdir is a path in the container**, as the container sees it.
+- **`exec_user`, `exec_env` and `exec_wrapper`** say who every command in it runs as, with what
+  variables, and under what program, which has to run the command it is given after its own
+  words. They work for a container of its own too.
+- **The runtime says nothing else about a container**: an image, run arguments, a name prefix,
+  or CPUs, memory and GPUs to hand out are refused beside `container`. What the environment has
+  is what the container says it has.
+- **A harness put in it** (an affinity of `docker:build-box`) needs the container to have been
+  started with `--cap-add SYS_PTRACE`; humanize cannot add it to a running container.
+
+See [Machines › A running container](/reference/machines#a-running-container).
 
 ### Another daemon when this one is full
 

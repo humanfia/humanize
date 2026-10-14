@@ -18,6 +18,13 @@ asks is checked against what is left, and the container that takes it is running
 with what it took -- before the next run is let ask. A run that died without taking its
 containers down leaves them labelled with its host and pid, and the next run on that runtime
 takes down any whose process is gone.
+
+Or a container already running, where the runtime names one: every environment put there works
+in it, as whatever user, with whatever variables and under whatever wrapper the runtime says.
+Nothing of the above is done to it -- it is not started, held against what the runtime may hand
+out, labelled, taken down or stopped -- and what an environment was given is what the
+container says it has. Each environment keeps its mirrors apart from every other one's, and
+closing it removes those alone.
 """
 
 from __future__ import annotations
@@ -32,7 +39,7 @@ import secrets
 import shutil
 import socket
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.flows import (
@@ -404,6 +411,47 @@ def _info(endpoint: Endpoint, where: str) -> dict[str, Any]:
         raise EnvConnectionError(f"could not connect to {where}: {error}") from error
 
 
+def _running(endpoint: Endpoint, container: str, where: str) -> None:
+    """Refuses a container a runtime names that its daemon is not running.
+
+    Raises:
+      EnvUnavailable: If there is no `docker` here, or the daemon has no such container or
+        has it stopped.
+      EnvConnectionError: If the daemon could not be asked, or did not answer in time.
+    """
+    _info(endpoint, where)
+    try:
+        said = subprocess.run(
+            endpoint.docker(
+                "inspect",
+                "--type",
+                "container",
+                "--format",
+                "{{.State.Running}}",
+                container,
+            ),
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=_ASKING,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise EnvConnectionError(f"could not connect to {where}: {error}") from error
+    if said.returncode != 0 or said.stdout.strip() != "true":
+        why = said.stderr.strip() or "it is not running"
+        raise EnvUnavailable(
+            f"{where}: cannot work in the container {container}: {why}"
+        )
+
+
+class _Attached:
+    """The running container a runtime names, which was not started here and is not stopped."""
+
+    def stop(self) -> None:
+        """Leaves it running, as it was found."""
+
+
 def _mirrors(name: str) -> Path:
     """Where the agents working in a container keep their mirrors of it, on this machine.
 
@@ -415,6 +463,16 @@ def _mirrors(name: str) -> Path:
     from .environing import ENVS
 
     return home() / ENVS / "mirrors" / name
+
+
+def _called(provider: str, role: str, prefix: str = "") -> str:
+    """A name of its own for the container, service or job brought up for a role.
+
+    `<prefix>-<role>-<8 hex>`, the prefix being the runtime's `name_prefix` where it says
+    one and `humanize-<provider>` otherwise; a role of no name is left out.
+    """
+    head = (prefix,) if prefix else ("humanize", provider)
+    return "-".join(one for one in (*head, role, secrets.token_hex(4)) if one)
 
 
 def _stale(one: Allocation) -> bool:
@@ -443,7 +501,7 @@ class DockerMachine(SSHMachine):
     Reached as an ssh host is, over coganchor's serving half, with `docker exec` for the road
     there: :class:`~.environing_ssh.SSHMachine` is all of that, and this adds bringing the
     container up first, what it was given, where an agent working in it is put, and taking it
-    down again.
+    down again. Or the running container its runtime names, which it only finds running.
     """
 
     backend = EnvBackendKind.DOCKER
@@ -481,17 +539,20 @@ class DockerMachine(SSHMachine):
         except ValueError as error:
             raise EnvUnavailable(f"docker@{provider}: {error}") from error
         role_name = role.name if role is not None else named
-        name = "-".join(
-            one
-            for one in ("humanize", provider, role_name, secrets.token_hex(4))
-            if one
+        attached = stored.container if stored is not None else ""
+        name = attached or _called(
+            provider, role_name, stored.name_prefix if stored is not None else ""
         )
-        super().__init__(
-            provider, Target.parse(f"docker://{name}@{endpoint}").describe()
-        )
+        reached = Target.parse(f"docker://{name}@{endpoint}")
+        if stored is not None:
+            reached = replace(reached, options=stored.exec_options())
+        super().__init__(provider, reached.describe())
         self.identity = self.target
         self.endpoint = endpoint
         self.name = name
+        #: The running container the runtime names, worked in and never started or
+        #: stopped here; "" for a container of its own.
+        self.attached = attached
         self.workdir = workdir
         self.stored = stored
         #: What a message calls it, as `-e` names it: by the runtime's name, or by no
@@ -508,19 +569,25 @@ class DockerMachine(SSHMachine):
         )
         self.image = image or IMAGE
         self.traced = traced
-        self._docker: Docker | None = None
+        self._docker: Docker | _Attached | None = None
         self._share: Share | None = None
-        self._starting: asyncio.Future[tuple[Docker, Share]] | None = None
-        self._mirrors = _mirrors(name)
+        self._starting: asyncio.Future[tuple[Docker | _Attached, Share]] | None = None
+        # One of its own in a container others work in too: every environment there lets go
+        # of its mirrors alone, whenever it closes.
+        self._mirrors = _mirrors(f"{name}-{secrets.token_hex(4)}" if attached else name)
 
     # --- bringing it up
 
-    def _brought_up(self) -> tuple[Docker, Share]:
+    def _brought_up(self) -> tuple[Docker | _Attached, Share]:
         """Works out its share and starts it, holding the runtime while it does.
+
+        A container the runtime names is only found running: it holds no share of the
+        runtime's, and nothing here is started, counted or taken down.
 
         Raises:
           ResourceUnmet: If the runtime has not got what the role asks left.
-          EnvUnavailable: If the container cannot be started there.
+          EnvUnavailable: If the container cannot be started there, or the one the runtime
+            names is not running.
           EnvConnectionError: If the daemon cannot be asked.
         """
         from hmz.coganchor.machines import DockerConfig, allocations
@@ -528,6 +595,9 @@ class DockerMachine(SSHMachine):
         where = self.spelled
         endpoint = self.endpoint
         stored = self.stored
+        if self.attached:
+            _running(endpoint, self.attached, where)
+            return _Attached(), Share(None, None, ())
         with _held(self.provider):
             info = _info(endpoint, where)
             try:
@@ -613,7 +683,7 @@ class DockerMachine(SSHMachine):
             starting = asyncio.ensure_future(asyncio.to_thread(self._brought_up))
             self._starting = starting
 
-            def landed(task: asyncio.Future[tuple[Docker, Share]]) -> None:
+            def landed(task: asyncio.Future[tuple[Docker | _Attached, Share]]) -> None:
                 if task.cancelled() or task.exception() is not None:
                     if self._starting is task:
                         self._starting = None  # asked again, it is tried again
@@ -628,7 +698,11 @@ class DockerMachine(SSHMachine):
         return await super()._connected()
 
     async def close(self) -> None:
-        """Lets go of the connection and takes the container down, leaving the workdir."""
+        """Lets go of the connection and takes the container down, leaving the workdir.
+
+        A container the runtime names is left running, and only this environment's mirrors
+        are removed.
+        """
         await super().close()
         starting = self._starting
         if starting is not None and not starting.done():
@@ -650,7 +724,12 @@ class DockerMachine(SSHMachine):
     # --- what is known without asking
 
     def resources(self, *, gpus: bool) -> Resources:
-        """What the container was given, and what it sees where it was given no limit."""
+        """What the container was given, and what it sees where it was given no limit.
+
+        For a container the runtime names, what it sees: it was given nothing here.
+        """
+        if self.attached:
+            return super().resources(gpus=gpus)
         del gpus
         share, facts = self._share, self._facts
         if share is None or facts is None:

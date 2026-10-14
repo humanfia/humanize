@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import socket
 import sys
 from pathlib import Path, PurePosixPath
@@ -298,6 +299,68 @@ async def test_a_docker_daemon_that_cannot_be_asked_is_a_connection_error(
     assert not [one for one in far.calls("docker") if one[:1] == ["run"]]
 
 
+@linux
+async def test_a_docker_environment_works_in_a_running_container_and_leaves_it_running(
+    far: Fakes, work: Path
+) -> None:
+    far.answer("inspect", "true\n")
+    user = f"{os.getuid()}:{os.getgid()}"
+    store.write(
+        store.new(
+            store.DOCKER,
+            "kept",
+            container="kept-box",
+            exec_user=user,
+            exec_env=["HZ_PROBE=a b"],
+        )
+    )
+    driver = _opened(f"work=docker@kept{work}")
+    try:
+        await probe(driver)
+        assert driver.available
+        await _uses(driver, work)
+    finally:
+        await driver.close()
+
+    calls = far.calls("docker")
+    assert [
+        "inspect",
+        "--type",
+        "container",
+        "--format",
+        "{{.State.Running}}",
+        "kept-box",
+    ] in calls
+    assert not [one for one in calls if one[:1] in (["run"], ["rm"], ["stop"], ["ps"])]
+    execs = [one for one in calls if one[:1] == ["exec"]]
+    assert execs
+    for one in execs:
+        assert one[:7] == ["exec", "-i", "-u", user, "-e", "HZ_PROBE=a b", "kept-box"]
+    assert list((far.root / "tmp" / f"humanize-{os.getuid()}").glob("humanize-*.pyz"))
+
+
+async def test_a_running_container_a_runtime_names_that_is_not_is_unavailable(
+    far: Fakes, work: Path
+) -> None:
+    far.answer("inspect", "false\n")
+    store.write(store.new(store.DOCKER, "kept", container="kept-box"))
+    driver = _opened(f"work=docker@kept{work}")
+    try:
+        with pytest.raises(
+            EnvUnavailable,
+            match="cannot work in the container kept-box: it is not running",
+        ):
+            await probe(driver)
+    finally:
+        await driver.close()
+
+    assert not [
+        one
+        for one in far.calls("docker")
+        if one[:1] in (["exec"], ["run"], ["rm"], ["stop"])
+    ]
+
+
 def _swarm(far: Fakes) -> None:
     far.answer(
         "info",
@@ -373,6 +436,47 @@ async def test_a_swarm_environment_that_is_not_linux_is_refused_and_removed(
         await driver.close()
 
     assert ["service", "rm", "svc-1"] in far.calls("docker")
+
+
+def _name_of(argv: list[str]) -> str:
+    """The name a `docker run` or a `docker service create` was told to give it."""
+    return argv[argv.index("--name") + 1]
+
+
+async def _probed(driver: MachineEnvDriver) -> None:
+    """Probes it: a fake container here, which is not linux off linux, is then refused."""
+    try:
+        if sys.platform == "linux":
+            await probe(driver)
+        else:
+            with pytest.raises(EnvUnavailable):
+                await probe(driver)
+    finally:
+        await driver.close()
+
+
+async def test_a_docker_runtime_naming_a_prefix_starts_its_containers_under_it(
+    far: Fakes, work: Path
+) -> None:
+    store.write(store.new(store.DOCKER, "team", name_prefix="team-a"))
+
+    await _probed(_opened(f"work=docker@team{work}"))
+
+    assert re.fullmatch(r"team-a-work-[0-9a-f]{8}", _name_of(_run_of(far)))
+
+
+async def test_a_swarm_runtime_naming_a_prefix_creates_its_services_under_it(
+    far: Fakes, work: Path
+) -> None:
+    _swarm(far)
+    store.write(store.new(store.SWARM, "team", name_prefix="team-a"))
+
+    await _probed(_opened(f"work=swarm@team{work}"))
+
+    (created,) = [
+        one for one in far.calls("docker") if one[:2] == ["service", "create"]
+    ]
+    assert re.fullmatch(r"team-a-work-[0-9a-f]{8}", _name_of(created))
 
 
 def _apple(far: Fakes) -> None:
