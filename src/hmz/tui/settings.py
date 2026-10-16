@@ -152,7 +152,9 @@ class _Page(NamedTuple):
 #: The pages, in the order of :data:`PAGES`.
 _PAGES = (
     _Page(
-        "General", "⚙", "this machine: what epics show, the /btw agent, error reports"
+        "General",
+        "⚙",
+        "this machine: what epics show, who answers The Epic, error reports",
     ),
     _Page("Notifications", "♪", "which epics on this machine you are told of"),
     _Page("Daemons", "⇄", "this machine's and other machines', reached over ssh"),
@@ -193,7 +195,7 @@ _KINDS = {
 #: only read -- a directory and the flow it opens on are what is remembered, not set here.
 _SWITCH, _PICK, _SAYS, _READ = "switch", "pick", "says", "read"
 
-#: What the /btw agent's list offers beside the agents it can already be: setting one up.
+#: What the list of The Epic's agent offers beside the agents it can already be: setting one up.
 _ANOTHER = f"{_APART_MARK}another"
 
 #: When a setting that cannot land at once does land, said beside its row while it is held
@@ -622,9 +624,9 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
             ),
             _Setting(
                 _BTW,
-                "/btw agent",
-                self._btw or "the flow's first agent",
-                "the agent /btw uses outside a session",
+                "/btw The Epic",
+                self._btw or "none",
+                "the agent that answers side questions asked of The Epic",
                 _PICK,
                 _NEXT_BTW if self._btw != self._btw_was else "",
                 group="Agents",
@@ -875,10 +877,10 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
 
     @work
     async def _chooses_btw(self) -> None:
-        """Asks which agent /btw talks to, from the list dropped under its row, and holds it.
+        """Asks which agent answers The Epic, from the list dropped under its row, and holds it.
 
-        The flow's first agent, the one chosen already where one is, or another -- set up on
-        the sheet every agent is set up on.
+        None, the one chosen already where one is, or another -- set up on the sheet every
+        agent is set up on. None is nobody: no agent of an epic stands in for it.
         """
         if self.opening():
             return
@@ -887,17 +889,17 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
         try:
-            values = [Value("", "the flow's first agent", "whichever it names first")]
+            values = [Value("", "none", "nobody answers The Epic")]
             if self._btw:
                 values.append(Value(self._btw, self._btw, "chosen"))
             values.append(Value(_ANOTHER, "another…", "set one up"))
             picked = await showing.push_screen_wait(
-                Dropdown("/btw agent", values, self._btw, at=self.dropped_at())
+                Dropdown("/btw The Epic", values, self._btw, at=self.dropped_at())
             )
             if picked == _ANOTHER:
                 chosen = await showing.push_screen_wait(
                     Agent(
-                        "btw agent",
+                        "The Epic's agent",
                         read_back(self._btw) or Runs(""),
                         self._offered,
                         unavailable=self._unavailable,

@@ -62,15 +62,21 @@ from hmz.coganchor import releases
 from hmz.coganchor.prices import refresh
 from hmz.daemon import Hmz
 from hmz.runtime import telemetry
-from hmz.runtime.epic import BTW, epics, note, read
 from hmz.runtime.kept import read_back, written
-from hmz.runtime.watching.btw import Btw, FlowSnapshot, Left, compact, opened_as
+from hmz.runtime.watching.btw import (
+    NOBODY,
+    THE_EPIC,
+    Btw,
+    FlowSnapshot,
+    Left,
+    compact,
+    opened_as,
+)
 from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
 
 from .complete import Command, hinted, offered
-from .dropdown import Dropdown, Value
 from .flows import INSTALLED, VERSES, Flows, Lists
 from .history import History
 from .keyboard import reads_long_reports
@@ -89,7 +95,6 @@ from .pick import (
     LOCAL_DAEMON,
     RESUMES,
     STOPS,
-    Agent,
     Chosen,
     Declared,
     Epics,
@@ -101,7 +106,6 @@ from .pick import (
     asks,
     budget_of,
     chatting,
-    complete,
     daemon_names,
     declared_of,
     let_go,
@@ -259,11 +263,6 @@ _PATIENCE = 10.0
 #: What a line left waiting when a run went is said to have been stopped by, as the host says
 #: why it let go of it.
 _FIRST = {"stopped": "the flow stopped", "ended": "the flow ended"}
-
-
-#: What the list `ctrl+g` drops in btw mode answers for another agent, to be set up: never an
-#: agent itself, which is `-a` spelled, with a `/` in it.
-_ANOTHER = "+"
 
 
 def _where() -> str:
@@ -721,8 +720,6 @@ class Humanize(App[None]):
         # nowhere here for the focus to go.
         Binding("shift+tab", "attach_next", "next view", priority=True),
         Binding("tab", "attach_previous", "previous view", priority=True),
-        # Who the btw agent is for the epic in front of us, picked while btw mode is on.
-        Binding("ctrl+g", "btw_agent", "btw agent", show=False, priority=True),
     ]
 
     def check_action(
@@ -755,11 +752,6 @@ class Humanize(App[None]):
                 and not self.chatting()
                 and not self.query_one(Editor).text
                 and not self.query_one("#offers", OptionList).has_class("offering")
-            )
-        if action == "btw_agent":
-            # Over the log or the monitor, never over a sheet, which has keys of its own.
-            return self._btw is not None and (
-                len(self.screen_stack) == 1 or isinstance(self.screen, Monitoring)
             )
         # Every other one of ours is either the editor's, which a sheet has taken the focus
         # from, or means the same thing wherever it is pressed.
@@ -1067,9 +1059,6 @@ class Humanize(App[None]):
         self._btw_lock = threading.Lock()
         #: Btw mode, while it is on: who it talks to and the side conversations it opened.
         self._btw: Btw | None = None
-        #: The agent the epic in front of us keeps for its btw agent, read as btw mode is
-        #: entered and changed by ctrl+g in it, or "" for none of its own.
-        self._btw_kept = ""
         #: Whether what a turn did on its way to an answer -- the tools it used, the thinking
         #: it did aloud, whatever it printed on its way past -- is shown, which the details
         #: switch on the first page of `/settings` turns, and which is read from what is
@@ -2367,7 +2356,7 @@ class Humanize(App[None]):
         # And btw mode, in the colour its answers are in: every line typed goes to a side
         # conversation rather than to the flow while it is on.
         if (mode := self._btw) is not None:
-            asked = mode.target or self._btw_kept or "btw agent"
+            asked = mode.target or THE_EPIC
             left = f"[cyan]btw{_DOT}{escape(asked)}[/]{_DOT}{left}"
         # For a moment after it happens, beside whatever else the line says: writing to a
         # clipboard is silent, and a person who has just dragged across half a screen is
@@ -3229,7 +3218,7 @@ class Humanize(App[None]):
             self._btw_ask(mode, question)
 
     def _btw_target(self) -> str:
-        """Who a side question here goes to: a session's view key, or "" for the btw agent.
+        """Who a side question here goes to: a session's view key, or "" for The Epic.
 
         Returns:
           `<agent>/<n>` for a session, the newest of an agent's where the view is the
@@ -3272,8 +3261,8 @@ class Humanize(App[None]):
         if target:
             if target not in self._btw_sessions():
                 return f"/btw: no conversation found for {target}"
-        elif not (self.settings.btw or self._btw_sessions() or self._models):
-            return "/btw requires a coding agent"
+        elif not self.settings.btw:
+            return f"/btw: {NOBODY}"
         return ""
 
     def _enter_btw(self) -> Btw | None:
@@ -3282,9 +3271,6 @@ class Humanize(App[None]):
             self.show(f"hmz: {why}", "red")
             return None
         target = self._btw_target()
-        epic = self._btw_epic()
-        ran = read(epic) if epic is not None else None
-        self._btw_kept = ran.btw if ran is not None else ""
         mode = Btw(
             target,
             aside=self._link.aside,
@@ -3299,8 +3285,8 @@ class Humanize(App[None]):
         with self._btw_lock:
             self._btw = mode
         self.show(
-            f"[cyan]btw · {escape(target or self._btw_kept or 'btw agent')}[/] [dim]each "
-            "line is a question; ctrl+g agent; /btw or esc to exit[/dim]"
+            f"[cyan]btw · {escape(target or THE_EPIC)}[/] [dim]each "
+            "line is a question; /btw or esc to exit[/dim]"
         )
         self._draw()
         return mode
@@ -3372,71 +3358,9 @@ class Humanize(App[None]):
         )
 
     def _btw_source(self) -> dict[str, str] | None:
-        """What the btw agent is opened as: the epic's, `/settings`'s, or the flow's first."""
+        """What The Epic is opened as: the agent `/settings` names, and no other."""
         said = read_back(self.settings.btw) if self.settings.btw else None
-        return opened_as(
-            written(said) if said is not None else "",
-            {
-                self._name_of(role): written(runs)
-                if (runs := self._runs_of(role)).spec
-                else ""
-                for role in self._named_by
-            },
-            self._btw_sessions(),
-            kept=self._btw_kept,
-        )
-
-    def _btw_epic(self) -> Path | None:
-        """The directory of the epic in front of us, which keeps its btw agent, or None."""
-        if not self._epic_now:
-            return None
-        return next((one for one in epics() if one.name == self._epic_now), None)
-
-    @work
-    async def action_btw_agent(self) -> None:
-        """Picks who the btw agent is for the epic in front of us, and keeps it with the epic.
-
-        From a list: the default -- whoever settings name, else the flow's first agent -- the
-        one picked already, or another, set up on the sheet every agent is set up on. The
-        next question to the btw agent opens it afresh as the one picked; what it was asked
-        so far, and every session's side conversation, stay as they are.
-        """
-        epic = self._btw_epic()
-        if epic is None:
-            self.show("hmz: btw: no epic to keep an agent with", "red")
-            return
-        # Read again: the epic may have been named only since btw mode was entered, and the
-        # web page may have picked one since.
-        ran = read(epic)
-        kept = self._btw_kept = ran.btw if ran is not None else ""
-        values = [Value("", "default", self.settings.btw or "the flow's first agent")]
-        if kept:
-            values.append(Value(kept, kept, "chosen"))
-        values.append(Value(_ANOTHER, "another…", "set one up"))
-        picked = await self.push_screen_wait(Dropdown("btw agent", values, kept))
-        if picked == _ANOTHER:
-            agents = Hmz().installed()
-            unavailable = Hmz().installable()
-            agents.update(unavailable)
-            # Opened on whoever is asked now: the epic's, else settings', else the flow's first.
-            now = read_back(kept or self.settings.btw) or next(
-                (runs for runs in self._in_order() if runs.spec), Runs("")
-            )
-            chosen = await self.push_screen_wait(
-                Agent("btw agent", now, agents, unavailable=frozenset(unavailable))
-            )
-            picked = (
-                written(chosen) if chosen is not None and complete(chosen) else None
-            )
-        if picked is None:
-            return
-        if picked != kept:
-            note(epic, BTW, agent=picked)
-            self._btw_kept = picked
-            if (mode := self._btw) is not None:
-                mode.anew()
-        self.show(f"[dim]btw agent: {escape(picked or 'default')}[/dim]")
-        self._draw()
+        return opened_as(written(said) if said is not None else "")
 
     def _run_btw(self, mode: Btw, question: str, snapshot: FlowSnapshot) -> None:
         """Runs one side turn and posts only its final display event."""
@@ -4002,8 +3926,10 @@ class Humanize(App[None]):
             # Not the one open now: a side conversation is one agent from its first turn on.
             self.show(
                 "[dim]/btw will ask "
-                f"{escape(said.btw or "the flow's first agent")} about the "
-                "whole flow next time you enter btw mode[/dim]"
+                f"{escape(said.btw)} about {THE_EPIC} next time you enter btw mode[/dim]"
+                if said.btw
+                else f"[dim]/btw will ask nobody about {THE_EPIC}: set its agent to ask it"
+                "[/dim]"
             )
         if said.forget and self.settings.forget():
             # What this interface opened on is already in hand, so it is the next one that

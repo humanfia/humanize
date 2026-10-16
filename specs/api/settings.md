@@ -121,11 +121,11 @@ call and all reasoning of a turn rather than its responses alone.
 **4.3.1** `btw` MUST be a string holding an agent spec, `<harness>[@<account>]/<model>[:<effort>]`,
 or the empty string.
 
-**4.3.2** `btw` MUST name the agent that answers a side question of an epic that has not chosen
-one itself (`features/btw.md`).
+**4.3.2** `btw` MUST name the agent that answers a side question asked of The Epic, for every epic
+(`features/btw.md` §7).
 
-**4.3.3** An absent, empty or non-string `btw` MUST mean that the btw agent is chosen as
-`features/btw.md` §7.1 states without its item 2.
+**4.3.3** An absent, empty or non-string `btw` MUST mean that there is no such agent, and that a
+side question asked of The Epic is refused (`features/btw.md` §5.9).
 
 ### 4.4 `every_epic`
 

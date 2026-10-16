@@ -440,64 +440,19 @@ def test_a_side_conversation_opened_after_the_mode_was_left_is_closed_again() ->
 
 
 @pytest.mark.parametrize(
-    ("chosen", "agents", "sessions", "expected"),
+    ("chosen", "expected"),
     [
-        (
-            "codex/gpt",
-            {"NeiKos496": "claude/opus"},
-            ["NeiKos496/1"],
-            {"runs": "codex/gpt"},
-        ),
-        (
-            "",
-            {"NeiKos496": "claude/opus"},
-            ["Mydei/1", "NeiKos496/1"],
-            {"key": "NeiKos496/1"},
-        ),
-        ("", {"NeiKos496": "claude/opus"}, ["Mydei/1"], {"runs": "claude/opus"}),
-        ("", {"NeiKos496": ""}, ["Mydei/1"], {"key": "Mydei/1"}),
-        ("", {}, [], None),
+        ("codex@work/gpt:high", {"runs": "codex@work/gpt:high"}),
+        # Nobody named is nobody to ask: no agent of the epic stands in.
+        ("", None),
     ],
 )
-def test_the_btw_agent_is_the_one_settings_name_or_the_flows_first(
-    chosen: str,
-    agents: dict[str, str],
-    sessions: list[str],
-    expected: dict[str, str] | None,
+def test_the_epic_is_answered_by_the_agent_the_settings_name_and_no_other(
+    chosen: str, expected: dict[str, str] | None
 ) -> None:
-    assert btw.opened_as(chosen, agents, sessions) == expected
-
-
-@pytest.mark.parametrize(
-    ("kept", "chosen", "expected"),
-    [
-        ("codex@work/gpt:high", "claude/opus", {"runs": "codex@work/gpt:high"}),
-        ("", "claude/opus", {"runs": "claude/opus"}),
-        ("", "", {"key": "NeiKos496/1"}),
-    ],
-)
-def test_the_btw_agent_the_epic_keeps_comes_before_settings_and_the_flow(
-    kept: str, chosen: str, expected: dict[str, str]
-) -> None:
-    opened = btw.opened_as(
-        chosen, {"NeiKos496": "claude/sonnet"}, ["NeiKos496/1"], kept=kept
-    )
-
-    assert opened == expected
-
-
-def test_anew_opens_the_btw_agents_side_again_at_the_next_question() -> None:
-    runs = _Runs({"claude/opus": ["one", "two"]})
-    mode = runs.btw()
-    assert mode.ask("first", _snapshot()) == "one"
-
-    mode.anew()
-    assert runs.closed == []  # closed as the next question is asked, not under one
-
-    assert mode.ask("second", _snapshot()) == "two"
-    assert runs.closed == ["s1"]
-    assert [one.get("runs") for one in runs.opened] == ["claude/opus", "claude/opus"]
-    assert not mode.closed
+    assert btw.opened_as(chosen) == expected
+    assert btw.THE_EPIC == "The Epic"
+    assert "settings" in btw.NOBODY
 
 
 #: How a session an earlier run kept is opened: its agent, its conversation, where it is.

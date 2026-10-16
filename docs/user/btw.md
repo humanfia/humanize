@@ -113,11 +113,13 @@ Who answers depends on what is on the screen when you type `/btw`:
   and knows everything the conversation knew. Otherwise, or if the fork fails, it is a fresh
   session of the same agent, given a snapshot of the run and what that role has done lately.
   This works for a conversation that has ended too, with no flow running.
-- **The monitor, or the screen before a run opens a conversation** (`btw · btw agent`): the
-  **btw agent**. It is the one you picked for this epic with <kbd>ctrl+g</kbd>, else the one
-  chosen on the [General page of `/settings`](/user/settings#general), else the flow's first
-  agent. It is given a snapshot of the run and the list of its sessions, and it may put a
-  question of its own to any session's side copy, up to 4 per question you ask. Each one shows as a dim `btw · asking <session>: …` line.
+- **The monitor, or the screen before a run opens a conversation** (`btw · The Epic`):
+  **The Epic**, the agent chosen as **/btw The Epic** on the
+  [General page of `/settings`](/user/settings#general) -- the same one for every epic. With
+  none chosen there, nobody answers The Epic: no agent of the run stands in. It is given a
+  snapshot of the run and the list of its sessions, and it may put a question of its own to
+  any session's side copy, up to 4 per question you ask. Each one shows as a dim
+  `btw · asking <session>: …` line.
 
 The snapshot holds:
 
@@ -137,7 +139,7 @@ so a side copy of its conversation answers. Step through it:
 What to look at, by number:
 
 1. **`btw · actor/1`.** Who is answering: a side copy of the conversation you are reading. On
-   the monitor this is `btw · btw agent` instead.
+   the monitor this is `btw · The Epic` instead.
 2. **`each line is a question; /btw or esc to exit`.** You are in btw mode now. A plain line
    typed from here is a question, not a steer.
 3. **The status line** starts with `btw · actor/1` until you leave, so you cannot forget you
@@ -166,14 +168,14 @@ What to look at, by number:
   ```
 
 - **Enter first, ask after.** `/btw` on its own enters btw mode with no question yet.
-- **Pick the btw agent for this epic.** In btw mode, press <kbd>ctrl+g</kbd> and pick
-  `default` or `another…`, which asks for its CLI, account, model and effort. The epic keeps
-  what you pick: the next question to the btw agent goes to the new one, and opening the epic
-  again, here or on the web page, finds it still picked. On the web page, the **Agent** chip on the Aside tab does the same:
-  `First agent` (or `Settings default`) or `Chosen`, with the agent picked under it.
-- **Choose who answers by default.** Set **/btw agent** on the General page of `/settings`:
-  the flow's first agent, one you chose, or `another…`. It applies to every epic that has no
-  btw agent of its own, the next time you enter btw mode.
+- **Choose who answers The Epic.** Set **/btw The Epic** on the General page of `/settings`
+  (on the web page, **The Epic** under **Settings › General**): `none`, the one chosen, or
+  `another…`, which asks for its CLI, account, model and effort. It applies to every epic, from
+  the next side conversation of The Epic on. A conversation's side copy is always that
+  conversation's own agent: there is nothing to pick for it.
+- **On the web page**, the **Ask** chip on the Aside tab picks whom to ask: **The Epic**, then
+  each agent with the role it fills, opening onto its conversations, newest first. Type in the
+  box at its top to narrow it to the agents, roles and conversations that match.
 
 ## What a side conversation may do
 
@@ -186,15 +188,16 @@ Starting a new flow, or closing `hmz`, also leaves btw mode.
 
 ## Troubleshooting
 
-### `hmz: /btw requires a coding agent`
+### `hmz: /btw: Nobody answers The Epic yet: set the agent that does in the settings, under General.`
 
-No btw agent is set, and no flow is set up here to borrow one from. Set one up with `/flow`,
-or choose one as **/btw agent** in `/settings`.
+No agent is chosen to answer The Epic. Choose one as **/btw The Epic** in `/settings` (or
+**The Epic** under **Settings › General** on the web page), or read a conversation and ask
+that instead.
 
 ### `hmz: /btw: no conversation found for <session>`
 
 The conversation on the screen is gone, so there is nothing to copy. Read another one, or go up
-to the monitor and ask the btw agent.
+to the monitor and ask The Epic.
 
 ### `hmz: btw is still answering the last question`
 

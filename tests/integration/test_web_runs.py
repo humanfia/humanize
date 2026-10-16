@@ -187,6 +187,11 @@ def test_a_side_question_is_asked_beside_the_run_and_never_of_it(
             until(heard, _record("asked"), "chat asking")
             key = opened["key"]
 
+            # Nobody answers The Epic until the settings name who does.
+            nobody = browser.post("/api/btw", {"question": "what is it doing"})
+            assert nobody.status == 409
+            assert "settings" in nobody.json()["error"]
+            assert browser.post("/api/settings", {"btw": AGENT}).status == 200
             aside = browser.post("/api/btw", {"question": "what is it doing"})
             assert aside.status == 200
             assert aside.json()["answer"].startswith("did: ")
@@ -303,7 +308,7 @@ def test_an_epic_written_down_is_laid_out_as_a_timeline_and_each_span_read_whole
             assert gone.status == 404
 
 
-def test_the_btw_agent_picked_for_an_epic_is_kept_with_it_and_asked_next(
+def test_the_epic_is_answered_by_the_agent_the_settings_name_and_no_epics_own(
     tmp_path: Path, project: Path
 ) -> None:
     with served() as site:
@@ -314,46 +319,29 @@ def test_the_btw_agent_picked_for_an_epic_is_kept_with_it_and_asked_next(
             until(heard, _record("asked"), "chat asking")
             (going,) = browser.get("/api/runs").json()["runs"]
             epic = going["name"]
-            assert browser.get(f"/api/btw?epic={epic}").json()["agent"] == ""
+            assert browser.get(f"/api/btw?epic={epic}").json()["default"] == ""
+            # No agent of the epic stands in for the one the settings name.
             asked = {"question": "what is it doing", "epic": epic}
-            assert browser.post("/api/btw", asked).status == 200
+            assert browser.post("/api/btw", asked).status == 409
 
-            picked = browser.post(
-                "/api/btw/agent", {"epic": epic, "agent": "claude/other-model"}
+            assert (
+                browser.post("/api/settings", {"btw": "claude/other-model"}).status
+                == 200
             )
-            assert picked.json() == {"agent": "claude/other-model:auto"}
-            again = browser.post("/api/btw", asked | {"question": "and now"})
-            assert again.status == 200, again.body
+            assert browser.post("/api/btw", asked).status == 200
             argv = started(tmp_path)[-1]["argv"]
             assert argv[argv.index("--model") + 1] == "other-model"
-            # What was said before the agent changed stays to be read back.
             said = browser.get(f"/api/btw?epic={epic}").json()
-            assert [one["question"] for one in said["said"]] == [
-                "what is it doing",
-                "and now",
-            ]
-            assert said["agent"] == "claude/other-model:auto"
-
-            bad = {"epic": epic, "agent": "no model"}
-            assert browser.post("/api/btw/agent", bad).status == 400
-            nowhere = {"epic": "nope", "agent": ""}
-            assert browser.post("/api/btw/agent", nowhere).status == 404
+            assert said["default"] == "claude/other-model"
+            assert "agent" not in said
+            # An epic keeps no agent of its own for The Epic, nor is one asked to.
+            picked = {"epic": epic, "agent": "claude/another"}
+            assert browser.post("/api/btw/agent", picked).status == 404
             browser.post("/api/held/stop")
             until(heard, _record("ended"), "the run ending")
 
         at = Path(browser.get(f"/api/runs/{epic}").json()["at"])
-        lines = (at / "epic.jsonl").read_text().splitlines()
-        assert '"event": "btw", ' in next(one for one in lines if '"btw"' in one)
-
-    with served() as site:
-        browser = Browser(site)
-        browser.signs_in()
-        assert browser.get(f"/api/btw?epic={epic}").json()["agent"] == (
-            "claude/other-model:auto"
-        )
-        cleared = browser.post("/api/btw/agent", {"epic": epic, "agent": ""})
-        assert cleared.json() == {"agent": ""}
-        assert browser.get(f"/api/btw?epic={epic}").json()["agent"] == ""
+        assert '"btw"' not in (at / "epic.jsonl").read_text()
 
 
 def test_a_session_of_an_earlier_epic_is_asked_beside_it_as_a_fork_of_its_history(

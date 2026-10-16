@@ -133,18 +133,18 @@ class Settings:
 
     @property
     def btw(self) -> str:
-        """The agent `/btw` asks about a whole flow, as `cli@provider/model:effort`.
+        """The agent that answers side questions asked of The Epic, as `cli@provider/model:effort`.
 
         This machine's rather than a workspace's, as `enable_sentry` is: which agent answers a
         side question is a matter of taste and of accounts, and neither changes between
-        projects. "" while nobody has chosen one, which is the flow's first agent.
+        projects. "" while nobody has chosen one, which is nobody to answer The Epic.
         """
         said = self._held.get("btw")
         return said if isinstance(said, str) else ""
 
     @btw.setter
     def btw(self, spec: str) -> None:
-        """Writes down which agent `/btw` asks, or "" to go back to the flow's first."""
+        """Writes down which agent answers The Epic, or "" for none."""
         self._sets("btw", spec)
 
     @property

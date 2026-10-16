@@ -4,16 +4,15 @@
 
 This document defines side questions: questions the **user** asks about an **epic** without
 the question reaching the **flow** of that epic. It states who answers a side question, what
-the answerer is told, what the answerer is permitted to do, how the **btw** agent is chosen and
-recorded per epic, and how long a side conversation lasts, in every **frontend** that offers
-side questions.
+the answerer is told, what the answerer is permitted to do, how the **btw** agent is chosen,
+how the user picks whom a side question is asked of, and how long a side conversation lasts, in
+every **frontend** that offers side questions.
 
 Out of scope:
 
 - The layout of btw mode in the terminal interface: `features/tui.md`.
 - The layout of the btw panel in the web interface: `features/web.md`.
 - The `btw` key of `settings.yaml`: `api/settings.md`.
-- The `btw` event of `epic.jsonl`: `api/files/epics.md`.
 - The requests a frontend sends to ask a side question: `api/daemon.md`, `api/http.md`.
 - What an epic records and how its figures are worked out: `features/epics.md`,
   `features/monitoring.md`.
@@ -45,8 +44,8 @@ questions (`features/web.md`).
 
 **2.9** **Aside**: one side question together with the answer to it.
 
-**2.10** **Btw agent choice**: the harness, account, model and effort that the user picked for
-the btw agent of one epic.
+**2.10** **The Epic**: the name under which a frontend offers the btw agent as the one a side
+question is asked of.
 
 ## 3. Guarantees
 
@@ -77,7 +76,7 @@ ended.
 **3.10** A frontend MUST refuse a side question to a side conversation while that side
 conversation is answering an earlier one.
 
-**3.11** A frontend MUST word the refusal of §3.10 as `features/tui.md` §12.14, `api/http.md` §9.3.5
+**3.11** A frontend MUST word the refusal of §3.10 as `features/tui.md` §12.10, `api/http.md` §9.3.5
 and `api/daemon.md` §8.8.10 state.
 
 **3.12** A failure to answer a side question MUST be reported to the user as a failure of the
@@ -152,7 +151,7 @@ kept the session.
 question, naming that session.
 
 **5.9** Where there is no btw agent (§7) and the user does not read a session, a frontend MUST
-refuse the side question, saying that a coding agent is required.
+refuse the side question, saying that the agent that answers The Epic is set in the settings.
 
 ## 6. The btw agent asking sessions
 
@@ -182,71 +181,52 @@ and the question.
 
 ## 7. Choosing the btw agent
 
-**7.1** The btw agent of an epic MUST be the first of these that yields an agent:
+**7.1** The btw agent MUST be the agent named by the `btw` setting of `settings.yaml`, for
+every epic alike.
 
-1. the btw agent choice recorded with that epic (§8);
-2. otherwise, the agent named by the `btw` setting of `settings.yaml`;
-3. otherwise, the agent of the first agent role the flow declares, as that role's first
-   session of the epic where it has one, or as what the role is set up to run where it has
-   none;
-4. otherwise, the agent of the epic's first session.
-
-**7.2** Where none of §7.1's items yields an agent, there MUST be no btw agent.
+**7.2** Where the `btw` setting names no agent, there MUST be no btw agent: no agent of the
+epic, of its flow or of its sessions MUST stand in for it.
 
 **7.3** The `btw` setting MUST be an agent spec (`api/settings.md` §4.3.1).
 
-**7.4** The `btw` setting MUST be absent where the agent §7.1 item 3 yields is meant.
-
-**7.5** A change of the `btw` setting MUST take effect from the next side conversation the btw
+**7.4** A change of the `btw` setting MUST take effect from the next side conversation the btw
 agent opens, and MUST NOT change a side conversation already open.
 
-## 8. The btw agent choice of an epic
+**7.5** A frontend MUST NOT offer a choice of the btw agent other than the `btw` setting, and
+MUST NOT offer a choice of the agent of a session side copy, which is the asked session's own
+(§5.4, §5.5).
 
-**8.1** The btw panel MUST offer, once opened, a control that shows the btw agent in force and
-lets the user pick the harness, the account, the model and the effort of the btw agent.
+## 8. Whom a side question is asked of
 
-**8.2** Btw mode MUST offer, once entered, a key that opens the agent sheet for the btw agent,
-in which the user picks the harness, the account, the model and the effort
-(`features/tui.md`).
+**8.1** The btw panel MUST offer, once opened, one control that picks whom the next side
+question is asked of: The Epic, or one session of the epic.
 
-**8.3** A frontend MUST offer as harnesses, accounts, models and efforts exactly those the
-agent sheet of a flow role offers (`features/agents.md`).
+**8.2** That control MUST name the btw agent as `The Epic`, and MUST NOT name it otherwise.
 
-**8.4** A btw agent choice MUST be recorded with the epic the side questions are about, as the
-`btw` event of that epic's `epic.jsonl`.
+**8.3** That control MUST lay the sessions out as a hierarchy: one entry per agent of the epic,
+naming the agent and the role it fills, under which are that agent's sessions, newest first.
 
-**8.5** A btw agent choice MUST outlive closing and reopening the btw panel or btw mode,
-closing and reopening the frontend, and the end of the epic.
+**8.4** That control MUST let the user narrow what it offers by typing part of an agent's name,
+a role or a session.
 
-**8.6** A btw agent choice recorded with an epic MUST be shown and used by every frontend that
-asks side questions about that epic.
+**8.5** That control MUST show which one is picked, and MUST keep the pick while the epic is
+redrawn, falling back to The Epic only where the session picked is no longer of the epic.
 
-**8.7** When the btw agent choice of an epic changes, hmz MUST open a new side conversation with
-the newly chosen agent at the next side question to the btw agent.
-
-**8.8** When the btw agent choice of an epic changes, a frontend MUST keep the asides already
-shown.
-
-**8.9** A btw agent choice MUST NOT change the agent of any session side copy.
-
-**8.10** A btw agent choice MUST NOT change the `btw` setting of `settings.yaml`.
-
-**8.11** Where no epic is in view, a frontend MUST refuse a btw agent choice
-(`features/tui.md` §12.11, `api/http.md` §9.4.4).
+**8.6** Btw mode MUST pick whom it asks by the view read, as §5 states (`features/tui.md`).
 
 ## 9. Lifetime of side conversations and asides
 
 **9.1** Every side question after the first, in one btw mode or one btw panel, MUST go on in
 the same side conversation as the first, so that a question MAY refer to an earlier one.
 
-**9.2** Leaving btw mode (`features/tui.md` §12.12) MUST close every side conversation that btw
+**9.2** Leaving btw mode (`features/tui.md` §12.8) MUST close every side conversation that btw
 mode opened.
 
 **9.3** Closing the side conversations in the btw panel MUST close every side conversation the
 panel opened.
 
 **9.4** A new epic starting on the host the frontend follows MUST close every side conversation
-opened about the epic it replaces (`features/tui.md` §12.13).
+opened about the epic it replaces (`features/tui.md` §12.9).
 
 **9.5** A frontend going away MUST close every side conversation it opened.
 

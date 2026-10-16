@@ -3,10 +3,10 @@
 // And what it asks beside the run, which never reaches the run at all.
 
 import { get, post } from './api.js'
-import { acting, confirming, fill, h, problem } from './dom.js'
+import { acting, confirming, fill, h, icon, problem } from './dom.js'
 import { ask } from './held.js'
 import { chipSelect, composer } from './composer.js'
-import { freeAgentPicker, readBackends } from './pickers.js'
+import { choice, menu, section, submenu } from './shell.js'
 import { line } from './transcript.js'
 
 /** One question the run is waiting on a person for, answerable here unless another holds it. */
@@ -153,37 +153,83 @@ export function outworlders(workspace, roles, { claims, away, me, clients }) {
   return [rows, h('p', { class: 'dim' }, 'Away, a question a person is asked is answered at once with nothing, and the epic carries on.'), all]
 }
 
+/** Who a side question about the whole epic is asked of, as every frontend names it. */
+export const THE_EPIC = 'The Epic'
+
 /**
  * Side questions about the run, asked beside it rather than of it, as `/btw` asks them in the
- * terminal interface: of the btw agent, which may ask any one conversation in turn, or of one
- * conversation's read-only side copy. Every question after the first goes on in the same side
- * conversation until they are closed. The server holds them, and what was said in them, so a
- * page opened again reads them back; made once for a page and moved from one drawing of it to
- * the next, so that what is being typed outlives a redraw. Who the btw agent is, the epic
- * keeps: one picked here, or else whoever settings name, or else the flow's first agent.
+ * terminal interface: of The Epic -- the agent the settings name, which may ask any one
+ * conversation in turn -- or of one conversation's read-only side copy, whose agent is that
+ * conversation's own. Whom is picked from a menu laid out as the epic is: The Epic, then each
+ * agent with the role it fills, opening onto its conversations, newest first; typing in it
+ * narrows it to the conversations that match. Every question after the first goes on in the
+ * same side conversation until they are closed. The server holds them, and what was said in
+ * them, so a page opened again reads them back; made once for a page and moved from one
+ * drawing of it to the next, so that what is being typed outlives a redraw.
  */
 export function asides(workspace, epic = '') {
-  const to = h('select', { 'aria-label': 'Ask it of' }, h('option', { value: '' }, 'btw agent'))
-  const whom = h('select', { 'aria-label': 'btw agent', 'data-hmz': 'btw-whom' }, h('option', { value: '' }, 'First agent'), h('option', { value: 'chosen' }, 'Chosen'))
-  const choosing = h('div', { class: 'aside-agent', 'data-hmz': 'btw-picker', hidden: true })
-  let picker = null
-  let kept = ''
-  let saving = null
+  /** Who is asked: "" for The Epic, else a conversation, `<agent>/<n>`. */
+  let target = ''
+  /** The epic's agents: `{name, role, sessions: [{key, about}]}`, as its graph has them. */
+  let agents = []
+  /** The agent the settings name to answer The Epic, "" for nobody. */
+  let answers = null
+  const shown = h('span', { class: 'chip-value' }, THE_EPIC)
+  const to = h('button', { class: 'chip-btn ask-to', type: 'button', 'aria-label': 'Ask it of', 'data-hmz': 'btw-to' }, h('span', { class: 'chip-label' }, 'Ask'), shown, icon('down'))
+  const picked = (key) => {
+    target = key
+    shown.textContent = key || THE_EPIC
+    to.dataset.value = key
+  }
   const leave = h('button', { class: 'btn quiet small', type: 'button', hidden: true }, 'Close')
   const log = h('div', { class: 'thread aside-log', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
-  const asked = (question, of) => log.append(line('you', question, { who: `btw · ${of || 'btw agent'}` }))
+  const asked = (question, of) => log.append(line('you', question, { who: `btw · ${of || THE_EPIC}` }))
   const answered = (said) => {
     for (const one of said.asked) log.append(line('begins', `asked ${one.to}: ${one.question}`))
     log.append(line('btw', said.answer))
   }
+  menu(
+    to,
+    (close) => {
+      const conversation = (agent, one) =>
+        choice({ label: one.key, about: [agent.role, one.about].filter(Boolean).join(' · '), chosen: one.key === target, act: () => picked(one.key), close })
+      const newest = (agent) => [...agent.sessions].reverse()
+      const epicWide = choice({
+        label: THE_EPIC,
+        about: answers === null ? '' : answers || 'nobody yet: set its agent in Settings',
+        glyph: 'thread',
+        chosen: !target,
+        act: () => picked(''),
+        close,
+      })
+      epicWide.dataset.hmz = 'btw-the-epic'
+      const laid = () => [
+        epicWide,
+        agents.length ? section('Conversations') : null,
+        ...agents.map((agent) =>
+          submenu({ label: agent.name, glyph: 'agent', about: [agent.role, `${agent.sessions.length}`].filter(Boolean).join(' · '), hmz: 'btw-agent', items: () => newest(agent).map((one) => conversation(agent, one)) }),
+        ),
+      ]
+      const list = h('div', { class: 'ask-list' }, laid())
+      const narrow = h('input', { class: 'menu-filter', type: 'search', placeholder: 'Find whom to ask', 'aria-label': 'Find whom to ask', 'data-hmz': 'btw-find' })
+      narrow.addEventListener('input', () => {
+        const wanted = narrow.value.trim().toLowerCase()
+        if (!wanted) return fill(list, laid())
+        const found = agents.flatMap((agent) => newest(agent).filter((one) => [agent.name, agent.role, one.key, one.about].some((said) => String(said || '').toLowerCase().includes(wanted))).map((one) => conversation(agent, one)))
+        fill(list, THE_EPIC.toLowerCase().includes(wanted) ? epicWide : null, found.length ? found : h('p', { class: 'dim ask-none' }, 'Nobody matches.'))
+      })
+      return [narrow, list]
+    },
+    { up: true, label: 'Ask it of' },
+  )
   const box = composer({
     placeholder: 'Ask about the epic',
     label: 'Side question',
-    tools: [chipSelect('Ask', to), epic ? chipSelect('Agent', whom) : null, leave].filter(Boolean),
+    tools: [to, leave],
     submit: async (question) => {
-      asked(question.trim(), to.value)
+      asked(question.trim(), target)
       try {
-        answered(await post('/api/btw', { question: question.trim(), to: to.value, workspace, epic }))
+        answered(await post('/api/btw', { question: question.trim(), to: target, workspace, epic }))
         leave.hidden = false
       } finally {
         log.scrollTop = log.scrollHeight
@@ -191,47 +237,14 @@ export function asides(workspace, epic = '') {
     },
   })
   box.node.dataset.hmz = 'btw'
-  // Kept with the epic as it is picked, a moment after the last change: the next question to
-  // the btw agent opens it afresh as the one picked.
-  const keep = (agent) => {
-    clearTimeout(saving)
-    saving = setTimeout(async () => {
-      if (agent === kept) return
-      try {
-        kept = (await post('/api/btw/agent', { workspace, epic, agent })).agent
-        log.append(line('ends', `btw agent: ${kept || whom.options[0].textContent}`))
-      } catch (error) {
-        log.append(problem(error))
-      }
-    }, 400)
-  }
-  const chosen = (agent) => {
-    if (picker) picker.leave()
-    // Nothing is kept of an agent not yet whole: a CLI whose models are still being asked.
-    picker = freeAgentPicker('btw', agent, () => picker.value() && keep(picker.value()))
-    fill(choosing, picker.node)
-  }
-  whom.addEventListener('change', () => {
-    choosing.hidden = whom.value !== 'chosen'
-    if (whom.value === 'chosen') {
-      chosen(kept)
-      if (picker.value()) keep(picker.value())
-    } else keep('')
-  })
-  get(`/api/btw?workspace=${encodeURIComponent(workspace)}&epic=${encodeURIComponent(epic)}`).then(({ open, said, agent, default: given }) => {
+  get(`/api/btw?workspace=${encodeURIComponent(workspace)}&epic=${encodeURIComponent(epic)}`).then(({ open, said, default: given }) => {
     for (const one of said) {
       asked(one.question, one.to)
       answered(one)
     }
     leave.hidden = !open.length
-    kept = agent || ''
-    whom.options[0].textContent = given ? 'Settings default' : 'First agent'
-    whom.value = kept ? 'chosen' : ''
-    choosing.hidden = !kept
-    if (kept) chosen(kept)
+    answers = given || ''
   }, () => {})
-  // Chosen before the CLIs were read, the picker fills in an agent of its own once they are.
-  if (epic) readBackends(workspace).then(() => whom.value === 'chosen' && picker && picker.value() && keep(picker.value()), () => {})
   leave.addEventListener('click', async () => {
     try {
       await post('/api/btw/leave', { workspace })
@@ -242,12 +255,11 @@ export function asides(workspace, epic = '') {
     }
   })
   return {
-    node: h('div', { class: 'aside' }, log, choosing, box.node),
-    /** Offers the conversations there are to ask, keeping the one picked. */
-    sessions(keys) {
-      const picked = to.value
-      fill(to, h('option', { value: '' }, 'btw agent'), keys.map((key) => h('option', { value: key }, key)))
-      to.value = keys.includes(picked) ? picked : ''
+    node: h('div', { class: 'aside' }, log, box.node),
+    /** Offers the epic's agents and their conversations to ask, keeping the one picked. */
+    sessions(given) {
+      agents = given
+      if (target && !agents.some((agent) => agent.sessions.some((one) => one.key === target))) picked('')
     },
   }
 }

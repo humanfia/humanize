@@ -1,5 +1,5 @@
-// What is true wherever humanize runs: whether a turn's working is shown, who a side question
-// about a run is asked of, and whether humanize reports its own failures.
+// What is true wherever humanize runs: whether a turn's working is shown, which agent answers
+// side questions asked of The Epic, and whether humanize reports its own failures.
 
 import { get, post } from '../../api.js'
 import { acting, fill, h, problem } from '../../dom.js'
@@ -8,8 +8,9 @@ import { agentPicker, readBackends } from '../../pickers.js'
 export function draw(holder, query, parts, scope) {
   const shown = (settings) => {
     const details = h('input', { type: 'checkbox', checked: settings.details })
-    // Who a side question goes to: the flow's first agent, or one picked as an agent is picked.
-    const whom = h('select', { 'aria-label': 'Who btw asks', 'data-hmz': 'btw-whom' }, h('option', { value: 'first', selected: !settings.btw }, 'First agent of the flow'), h('option', { value: 'chosen', selected: Boolean(settings.btw) }, 'Chosen agent'))
+    // Who answers The Epic: nobody, or one picked as an agent is picked. No agent of an epic
+    // stands in for it.
+    const whom = h('select', { 'aria-label': 'Who answers The Epic', 'data-hmz': 'btw-whom' }, h('option', { value: 'none', selected: !settings.btw }, 'None'), h('option', { value: 'chosen', selected: Boolean(settings.btw) }, 'Chosen agent'))
     if (picker) picker.leave()
     picker = agentPicker({ name: 'btw', get clis() { return backends ? Object.keys(backends.clis) : [] } }, settings.btw, () => {})
     picker.node.hidden = !settings.btw
@@ -37,7 +38,7 @@ export function draw(holder, query, parts, scope) {
           'div',
           { class: 'form' },
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Details'), h('label', { class: 'check' }, details, 'Tool calls and thinking')),
-          h('div', { class: 'field', 'data-hmz': 'btw-agent' }, h('span', { class: 'label' }, 'btw agent'), whom, picker.node, h('span', { class: 'hint' }, 'Who a side question about a whole epic is asked of.')),
+          h('div', { class: 'field', 'data-hmz': 'btw-agent' }, h('span', { class: 'label' }, 'The Epic'), whom, picker.node, h('span', { class: 'hint' }, 'The agent that answers a side question asked of The Epic, about a whole epic. With none, only a conversation can be asked.')),
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Error reports'), reports, h('span', { class: 'hint' }, 'Whether humanize sends a report of its own crashes. Nothing anybody typed, no file and no credential is ever sent.')),
           h('div', { class: 'row' }, save, scope.batch(() => [['/api/settings', said()]])),
         ),

@@ -184,10 +184,9 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 | `POST /api/held/claim` | `role`; `take` (bool) | The host's answer |
 | `POST /api/held/release` | `role` | The host's answer |
 | `POST /api/held/board` | `key`; `value` (`""` removes the line) | The host's answer |
-| `GET /api/btw` | `?workspace=`, `&epic=` | `open` (the conversations a side one is open on, `""` the btw agent's), `said` (each question answered since, oldest first, as `POST` answers it; the last **200**), `agent` (the epic's own btw agent, `""` for none) and `default` (the `btw` setting, `""` for the flow's first agent) |
-| `POST /api/btw` | `workspace`; `question`; `to` (`""` the btw agent, or `<agent>/<n>`); `epic` (the epic `to` is of: a session of one the runs hold no more is carried on from where that epic kept it, its conversation answered as `<epic>/<agent>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session the btw agent asked on the way |
+| `GET /api/btw` | `?workspace=`, `&epic=` | `open` (the conversations a side one is open on, `""` The Epic's), `said` (each question answered since, oldest first, as `POST` answers it; the last **200**) and `default` (the `btw` setting, read afresh: the agent that answers The Epic, `""` for nobody) |
+| `POST /api/btw` | `workspace`; `question`; `to` (`""` The Epic, or `<agent>/<n>`); `epic` (the epic `to` is of: a session of one the runs hold no more is carried on from where that epic kept it, its conversation answered as `<epic>/<agent>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session The Epic asked on the way. `409` for a question of The Epic while the `btw` setting names nobody (`Nobody answers The Epic yet: …`) |
 | `POST /api/btw/leave` | `workspace`; `to`, or nothing for every side conversation | `{"ok": true}` |
-| `POST /api/btw/agent` | `workspace`; `epic`; `agent` (`cli[@account]/model[:effort]`, or `""` for the default) | `{"agent"}`, as written: a `btw` line in the epic's `epic.jsonl`, the btw agent's side conversation closed so the next question opens it as this one. `400` for an agent that is not one; `404` for no such epic |
 
 Every request about one workspace's runs names it as `workspace` -- in the query of a `GET`, in
 the body of a `POST` -- a whole path, `~` and all; with none it is the one `hmz web` started in.

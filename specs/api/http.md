@@ -281,8 +281,8 @@ slot, starting its host; `start` on a chat slot MUST start that slot's host wher
 **9.1.1** A side question MUST be asked as `features/btw.md` defines it, through side
 conversations the workspace's own host opens (`api/daemon.md §8.8`), and MUST NOT reach the epic.
 
-**9.1.2** The **btw** agent of an epic MUST be chosen as `features/btw.md` §7.1 states, the
-epic's own choice being the one §9.4 sets.
+**9.1.2** The **btw** agent MUST be chosen as `features/btw.md` §7 states: the `btw` setting of
+`api/settings.md`, and no other.
 
 ### 9.2 `GET /api/btw`
 
@@ -291,9 +291,8 @@ epic in view on the workspace's own host).
 
 **9.2.2** It MUST answer `open` (the conversations a side conversation is open on, `""` for the btw
 agent's), `said` (each side question answered in a side conversation still open, oldest first, as
-§9.3 answers it, the latest 200), `agent` (the btw agent that epic has chosen, as an agent spec,
-`""` for none) and `default` (the `btw` setting of `api/settings.md`, `""` for the flow's first
-agent).
+§9.3 answers it, the latest 200) and `default` (the `btw` setting of `api/settings.md`, `""` for
+none, where a question to the btw agent is refused as `features/btw.md` §5.9 states).
 
 **9.2.3** It MUST NOT attach to any host; where the server follows none of the workspace, `open`
 and `said` MUST be `[]`.
@@ -319,29 +318,14 @@ session the btw agent asked on the way to its answer).
 409, `A new epic started, which closed what was asked.`; an empty answer 502,
 `The agent returned no answer.`
 
-### 9.4 `POST /api/btw/agent`
+### 9.4 `POST /api/btw/leave`
 
-**9.4.1** `POST /api/btw/agent` MUST take the workspace parameter, `epic` (an epic name) and
-`agent` (an agent spec, or `""`).
-
-**9.4.2** It MUST set that epic's btw agent to `agent`, or clear it where `agent` is `""`, MUST
-record the choice as the event `btw` of the epic's `epic.jsonl` (`api/files/epics.md`), and MUST
-answer `{"agent": <agent as written>}`.
-
-**9.4.3** A change of the btw agent MUST take effect as `features/btw.md` §8.7 states, keeping
-the asides as `features/btw.md` §8.8 states.
-
-**9.4.4** An `agent` that is not an agent spec MUST be refused 400; an epic of no such name MUST
-be refused 404.
-
-### 9.5 `POST /api/btw/leave`
-
-**9.5.1** `POST /api/btw/leave` MUST take the workspace parameter and `to` (a conversation, or
+**9.4.1** `POST /api/btw/leave` MUST take the workspace parameter and `to` (a conversation, or
 absent for every one), MUST close the side conversations named, and MUST answer `{"ok": true}`.
 
-**9.5.2** A `to` that is not text MUST be refused 400.
+**9.4.2** A `to` that is not text MUST be refused 400.
 
-**9.5.3** A side conversation MUST be closed when an epic starts on its host.
+**9.4.3** A side conversation MUST be closed when an epic starts on its host.
 
 ## 10. Epics written down
 
