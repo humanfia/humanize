@@ -1220,7 +1220,9 @@ def test_a_composer_built_before_it_is_shown_is_a_line_tall_once_shown(
         assert box is not None
         assert ask is not None
         assert box["height"] >= line
-        assert box["y"] + box["height"] <= ask["y"]
+        # Whom it asks is picked above the box, outside it, and covers none of it.
+        expect(page.locator("[data-hmz=btw] .ask-to")).to_have_count(0)
+        assert ask["y"] + ask["height"] <= box["y"]
         stop(page)
 
 
