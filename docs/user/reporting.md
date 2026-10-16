@@ -50,8 +50,8 @@ To see or change your answer later, type `/settings` and open its first page, **
   │   show every tool call and all of the thinking                           │
   │                                                                          │
   │ Agents                                                                   │
-  │ /btw agent                                      the flow's first agent ▾ │
-  │   the agent /btw uses outside a session                                  │
+  │ /btw The Epic                                                     none ▾ │
+  │   the agent that answers side questions asked of The Epic                │
   │                                                                          │
   │ Privacy                                                                  │
   │ Error reports                                                    ○ off ▾ │  ①

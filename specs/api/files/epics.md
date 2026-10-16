@@ -160,12 +160,11 @@ ends, however it ends, with the keys `flow` and `epic`, equal to those of the ma
 
 **5.8** A reader MUST match `returned` to `called` by the value of `epic`.
 
-**5.9** `hmz` MUST write the event `btw` into the epic record each time the **user** sets or clears
-the **agent** of the side questions of the **epic**, with the key `agent` (string, an agent spec,
-or `""` where the **user** cleared it).
+**5.9** `hmz` MUST NOT write the event `btw` into an epic record: the agent of side questions is
+the setting of `api/settings.md` §4.3, and no epic's own.
 
-**5.10** A reader MUST take the `agent` of the last `btw` event of an epic record as the **agent**
-of the side questions of the **epic**, and MUST take the absence of `btw` as no **agent** set.
+**5.10** A reader MUST skip a `btw` event, which an earlier release of `hmz` wrote, as an event
+that says nothing.
 
 **5.11** `hmz` MUST write the event `usage` into the epic record immediately before each `ended`
 of the epic record, with the keys `cost` (number, US dollars), `output_tokens` (integer) and

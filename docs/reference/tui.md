@@ -145,7 +145,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 
 | Part | Text | Condition |
 | --- | --- | --- |
-| btw | `btw · <target>`, `btw · <spec>` (the epic's own btw agent) or `btw · btw agent`, cyan | [btw mode](#btw) on |
+| btw | `btw · <target>` or `btw · The Epic`, cyan | [btw mode](#btw) on |
 | afk | `afk` | away for every role; |
 | | `afk <role>, <role>` | away for some roles; yellow |
 | details | `details`, muted | details on |
@@ -488,11 +488,10 @@ where it is one, else on the view being read:
 
 | Aspect | Rule |
 | --- | --- |
-| Enter | `/btw [question]`. Prints `btw · <target\|spec\|btw agent> each line is a question; ctrl+g agent; /btw or esc to exit`. The status line starts `btw · …`. |
+| Enter | `/btw [question]`. Prints `btw · <target\|The Epic> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
 | In btw mode | Every line not starting with `/` is one more turn of the same side conversation. |
 | Leave | `/btw` alone or `esc`: `btw: exited`; a run starting: `btw: exited -- a new flow started`. Side sessions are closed (`unaside`). |
-| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the epic's own (<kbd>ctrl+g</kbd>), else the one set on [General](#general-page), else the flow's first declared role with a session, else its configured agent. |
-| Agent | <kbd>ctrl+g</kbd> in btw mode, over the log or the monitor: a **btw agent** dropdown of `default` (beside it the `btw` setting, else `the flow's first agent`), the epic's own where it has one (`chosen`), and `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up btw agent`, opened on the btw agent now). A pick other than the one in force appends `{"event": "btw", "agent": "<cli[@account]/model:effort>"}` (`""` for `default`) to the epic's `epic.jsonl` and prints `btw agent: <spec\|default>`; the btw agent's side conversation is closed as the next question to it is asked, which opens it as the new one. Every session's side conversation stays. The epic is the one going here, or the last; with none: `hmz: btw: no epic to keep an agent with`. |
+| Target | A `session` view: that conversation (for a role view, its newest). Any other view: **The Epic**, the agent set as **/btw The Epic** on [General](#general-page), the same for every epic. With none set, `/btw` there is refused: `hmz: /btw: Nobody answers The Epic yet: set the agent that does in the settings, under General.` No agent of the run stands in, and an epic keeps no agent of its own (a `btw` line an earlier release wrote in `epic.jsonl` is skipped). |
 | Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that role. Ended sessions included. |
 | btw agent | Seeded with a snapshot (the last 32 of up to 80 observations, 600 characters each) and the list of sessions. It may reply with lines `@ask <agent>/<n>: <question>` (regex `^\s*@ask\s+(\S+?)\s*:\s*(\S.*)$`); each is put to that session's side copy (`btw · asking <key>: <question>`), and answers return as `<answer from="<key>">…</answer>`. At most 4 asks per question; failures return as `(session <k> not found)`, `(could not ask: <e>)`, `(no answer)`. |
 | Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. |
@@ -533,7 +532,6 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | editor | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | | Inserts a newline. |
 | editor | <kbd>↑</kbd> / <kbd>↓</kbd> | cursor on the first / last row | Older / newer [history](#history) entry. Otherwise moves the cursor. |
 | editor | <kbd>esc</kbd> | btw on, offers closed | Leaves btw mode. |
-| app | <kbd>ctrl+g</kbd> | btw on, over the log or the monitor | Picks the epic's [btw agent](#btw). |
 | editor | <kbd>space</kbd> | monitor up, editor empty | Passed to the monitor. |
 | offers | <kbd>↑</kbd> <kbd>↓</kbd> | offers open | Moves the highlight. |
 | offers | <kbd>tab</kbd> | offers open | Takes the highlight. |
@@ -1344,7 +1342,7 @@ Storage keys are in [Settings](/reference/settings).
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ ⚙  General                                      details off · reports on │
-  │    this machine: what epics show, the /btw agent, error reports          │
+  │    this machine: what epics show, who answers The Epic, error reports    │
   │──────────────────────────────────────────────────────────────────────────│
   │ ♪  Notifications                                5 of 5 kinds · system on │
   │    which epics on this machine you are told of                           │
@@ -1377,7 +1375,7 @@ Storage keys are in [Settings](/reference/settings).
 
 | Card | Summary | `● unsaved` when |
 | --- | --- | --- |
-| ⚙ General | `details on\|off · reports on\|off\|not set` | details, btw agent or reports changed |
+| ⚙ General | `details on\|off · reports on\|off\|not set` | details, The Epic's agent or reports changed |
 | ♪ Notifications | `<n> of 5 kinds · system on\|off` | a kind or the system changed |
 | ⇄ Daemons | `<n> daemon(s)` (Local included) | never |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
@@ -1435,7 +1433,7 @@ in force.
 | --- | --- | --- |
 | Error reports, Details | at once on save | — |
 | Notifications | at once on save: the next notice of a kind is told or not | — |
-| /btw agent | next time btw mode is entered | `takes effect on next /btw` |
+| /btw The Epic | next time btw mode is entered | `takes effect on next /btw` |
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Fallback rules | next failed turn | — |
@@ -1450,7 +1448,7 @@ order done, including things done at once, even after a discard), then:
 | --- | --- |
 | Error reports on / off | `error reporting enabled` / `error reporting disabled` |
 | Details on / off | `showing details: tool calls, thinking, and backend output` / `showing turn responses only, without details` |
-| /btw agent | `/btw will ask <spec\|the flow's first agent> about the whole flow next time you enter btw mode` |
+| /btw The Epic | `/btw will ask <spec> about The Epic next time you enter btw mode`, or with none `/btw will ask nobody about The Epic: set its agent to ask it` |
 | Forget | `cleared saved settings for this directory; humanize will open without them on next launch` |
 
 ### General page {#general-page}
@@ -1461,7 +1459,7 @@ in this order, under the heading in the first column.
 | Heading | Row | Values (description) | Default | Stored as |
 | --- | --- | --- | --- | --- |
 | Display | **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
-| Agents | **/btw agent** ▾ `the agent /btw uses outside a session` | `the flow's first agent` (`whichever it names first`), the current choice (`chosen`), `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up btw agent`) | the flow's first agent | `btw` (`cli[@account]/model:effort`) |
+| Agents | **/btw The Epic** ▾ `the agent that answers side questions asked of The Epic` | `none` (`nobody answers The Epic`), the current choice (`chosen`), `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up The Epic's agent`) | none | `btw` (`cli[@account]/model:effort`) |
 | Privacy | **Error reports** ▾ `send error reports to humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
 | Privacy | **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
 
@@ -2183,7 +2181,7 @@ and when the width changes. The status line says `· copied` for 2 s.
 | --- | --- | --- |
 | `enable_sentry` | machine | Error reports, the first-start question |
 | `details` | machine | Details |
-| `btw` | machine | /btw agent |
+| `btw` | machine | /btw The Epic |
 | `backup` | machine | the Backup page |
 | `workspaces.<dir>.flow` | directory | saving `/flow` |
 | `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget, profile, backup}` | directory, per flow | saving `/flow` |

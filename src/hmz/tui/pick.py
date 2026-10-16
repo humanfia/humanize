@@ -10524,8 +10524,8 @@ class Adjusted(NamedTuple):
       forget: Whether to forget what this workspace was set up to run.
       told: What the pages that write for themselves -- the accounts, the runtimes and the
         fallbacks -- did, as lines for the transcript.
-      btw: The agent `/btw` asks about a whole flow, as `cli@provider/model:effort` or "" for
-        the flow's first agent, or None where that was not touched.
+      btw: The agent that answers The Epic, as `cli@provider/model:effort` or "" for none,
+        or None where that was not touched.
       corrected: The accounts corrected, as `(cli, name)`, whose models are to be asked for
         again: what an account runs follows from where it signs in, and a gateway moved is a
         list of models from the one it left.

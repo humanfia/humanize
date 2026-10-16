@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import bisect
 import contextlib
-import functools
 import re
 import secrets
 import sys
@@ -313,17 +312,6 @@ class Held:
         """Btw mode as it stands: the conversations side ones are open on, and what was said."""
         with self._changed:
             return {"open": sorted(self._asides), "said": list(self._said)}
-
-    def anew(self) -> None:
-        """Closes the btw agent's own side conversation, for the next question to open again.
-
-        What was said in it stays, as does every side conversation it asked of: the btw agent
-        changed, and the next question opens it as the new one.
-        """
-        with self._changed:
-            mode = self._asides.get("")
-        if mode is not None:
-            mode.anew()
 
     def unbtw(self, target: str | None = None) -> None:
         """Leaves btw mode, closing the side conversations it opened.
@@ -742,6 +730,10 @@ def _btw(asked: Asked) -> dict[str, Any]:
     place = places.of(workspace)
     question = " ".join(asked.text("question").split())
     to, epic = asked.text("to", required=False), asked.text("epic", required=False)
+    if not to and not _answers():
+        from hmz.runtime.watching.btw import NOBODY
+
+        raise Refusal(NOBODY, 409)
     # Asked through the workspace's own host, of an epic's session as it was kept: a chat's,
     # held by a host of its own or folded away, included.
     held = places.held(workspace)
@@ -757,45 +749,10 @@ def _btw(asked: Asked) -> dict[str, Any]:
         question,
         target,
         workspace=str(place.workspace),
-        source=functools.partial(
-            _source, place.hmz, kept=functools.partial(_kept, asked.site.runs, epic)
-        ),
+        source=_source,
         opening=opening,
         about=about,
     )
-
-
-def _kept(runs: Any, epic: str) -> str:
-    """The agent an epic keeps for its side questions, or "" for none -- or no such epic."""
-    if not epic:
-        return ""
-    try:
-        return runs.named(epic).btw
-    except Refusal:
-        return ""
-
-
-def _btw_agent(asked: Asked) -> dict[str, Any]:
-    from hmz.runtime.epic import BTW, note
-    from hmz.runtime.kept import read_back, written
-
-    workspace = _workspace(asked)
-    ran = asked.site.runs.named(asked.text("epic"))
-    if "agent" not in asked.body:
-        raise Refusal("Say agent as -a spells one, or nothing for the default.")
-    agent = asked.text("agent", required=False)
-    runs = read_back(agent) if agent else None
-    if agent and runs is None:
-        raise Refusal("Say the agent as -a spells one, or nothing for the default.")
-    spec = written(runs) if runs is not None else ""
-    if spec != ran.btw:
-        note(ran.at, BTW, agent=spec)
-        # The btw agent's side conversation was opened as the one before: the next question
-        # opens another as this one, under what was said so far.
-        held = asked.site.places.attached(workspace)
-        if held is not None:
-            held.anew()
-    return {"agent": spec}
 
 
 def _held_still(held: Held, epic: str, to: str) -> bool:
@@ -869,40 +826,28 @@ def _moment(stamp: str) -> float:
         return 0.0
 
 
-def _source(
-    hmz: Any,
-    run: Mapping[str, Any] | None,
-    sessions: list[str],
-    *,
-    kept: Callable[[], str] = str,
-) -> dict[str, str] | None:
-    """What the btw agent is opened as, as the terminal interface opens it.
+def _answers() -> str:
+    """The agent the settings name to answer The Epic, as they say it now, or "" for nobody.
 
-    The agent the epic keeps for it; or the one `/settings` names; or the agent of the run's
-    first role, as its conversation or as what it was started with; or, with no run to read,
-    as this workspace's default flow was last set up.
+    Read afresh rather than from what this server read once: a change made on any page, or in
+    the terminal, is who the next side conversation of The Epic opens as.
     """
+    from hmz.coganchor import settings
+
+    said = settings.read().get("btw")
+    return said if isinstance(said, str) else ""
+
+
+def _source(
+    run: Mapping[str, Any] | None, sessions: list[str]
+) -> dict[str, str] | None:
+    """What The Epic is opened as, as the terminal interface opens it: what the settings name."""
     from hmz.runtime.kept import read_back, written
     from hmz.runtime.watching.btw import opened_as
 
-    settings = hmz.settings
-    said = read_back(settings.btw) if settings.btw else None
-    if run and run.get("roles"):
-        agents: Mapping[str, Any] = run.get("agents") or {}
-        names: Mapping[str, Any] = run.get("names") or {}
-        roles = {
-            str(names.get(role) or role): str(agents.get(role) or "")
-            for role in run["roles"]
-        }
-    elif settings.flow:
-        roles = {
-            role: written(runs) for role, runs in settings.agents(settings.flow).items()
-        }
-    else:
-        roles = {}
-    return opened_as(
-        written(said) if said is not None else "", roles, sessions, kept=kept()
-    )
+    del run, sessions  # no agent of the epic stands in for the one the settings name
+    said = read_back(answers) if (answers := _answers()) else None
+    return opened_as(written(said) if said is not None else "")
 
 
 def _asides(asked: Asked) -> dict[str, Any]:
@@ -912,12 +857,8 @@ def _asides(asked: Asked) -> dict[str, Any]:
     said: dict[str, Any] = (
         held.asides() if held is not None else {"open": [], "said": []}
     )
-    # Who the btw agent is for the epic: its own, else what settings name, "" for the flow's.
-    epic = asked.query.get("epic", "")
-    return said | {
-        "agent": _kept(asked.site.runs, epic),
-        "default": asked.site.places.of(workspace, made=True).hmz.settings.btw,
-    }
+    # Who answers The Epic: what the settings name, "" for nobody.
+    return said | {"default": _answers()}
 
 
 def _unbtw(asked: Asked) -> dict[str, Any]:
@@ -938,5 +879,4 @@ ROUTES = routes(
     ("GET", "/api/btw", _asides),
     ("POST", "/api/btw", _btw),
     ("POST", "/api/btw/leave", _unbtw),
-    ("POST", "/api/btw/agent", _btw_agent),
 )

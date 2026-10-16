@@ -418,9 +418,9 @@ export function mount(root, { parts, query }) {
         fill(pane, overview(detail, run, model, focus, going, figures, standing, chat)),
       )
     } else if (tab === 'aside') {
-      const opened = model.agents.flatMap((one) => one.sessions.map((session) => session.key))
-      // Every session of the epic: one the runs still hold asked as it is, an earlier epic's
-      // carried on from where that epic kept it.
+      // Every session of the epic, under the agent that opened it: one the runs still hold asked
+      // as it is, an earlier epic's carried on from where that epic kept it.
+      const opened = model.agents.filter((one) => !one.person && one.sessions.length).map((one) => ({ name: one.name, role: one.role, sessions: one.sessions.map((session) => ({ key: session.key, about: session.about || '' })) }))
       region('panel-aside', [opened], () => {
         btw.sessions(opened)
         fill(pane, h('p', { class: 'dim' }, 'Side questions never reach the epic.'), btw.node)

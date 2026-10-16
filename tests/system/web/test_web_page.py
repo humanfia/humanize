@@ -1087,6 +1087,69 @@ def test_the_panel_says_every_figure_in_words_and_within_its_edges(
         assert outside <= 1
 
 
+def _asks_of(page: Page, session: str) -> None:
+    """Picks a conversation to ask from the Ask menu: its agent, then the conversation."""
+    page.locator("[data-hmz=btw-to]").click()
+    page.locator(".ask-list .choice-sub > [role=menuitem]").first.click()
+    page.locator("[data-hmz=btw-agent] [role=menuitem]", has_text=session).first.click()
+    expect(page.locator("[data-hmz=btw-to]")).to_contain_text(session)
+
+
+def test_the_aside_asks_the_epic_or_a_conversation_from_a_menu_laid_out_as_the_epic(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "remember papaya")
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("did: remember papaya")
+        page.get_by_role("tab", name="Aside").click()
+        aside = page.locator("[data-hmz=btw]")
+        ask = page.locator("[data-hmz=btw-to]")
+
+        # Of The Epic until a conversation is picked, and no agent to pick here at all.
+        expect(ask).to_contain_text("The Epic")
+        expect(
+            page.locator("[data-hmz=btw-whom], [data-hmz=btw-picker]")
+        ).to_have_count(0)
+        ask.click()
+        epic = page.locator("[data-hmz=btw-the-epic]")
+        expect(epic).to_contain_text("set its agent in Settings")
+        # Laid out as the epic is: its agent, with the role it fills, opening its sessions.
+        agent = page.locator(
+            ".choice-sub", has=page.get_by_role("menuitem").filter(has_text="assistant")
+        )
+        expect(agent).to_have_count(1)
+        agent.get_by_role("menuitem").first.click()
+        expect(page.locator("[data-hmz=btw-agent] [role=menuitem]")).to_have_count(1)
+        # Narrowed by typing: what matches, wherever it is in the tree.
+        page.locator("[data-hmz=btw-find]").fill("/1")
+        expect(page.locator(".ask-list [role=menuitem]")).to_have_count(1)
+        page.locator("[data-hmz=btw-find]").fill("nobody like it")
+        expect(page.locator(".ask-list")).to_contain_text("Nobody matches.")
+        page.keyboard.press("Escape")
+
+        # Asked of The Epic with nobody named to answer it: the settings are where to say who.
+        aside.locator("textarea").fill("what is it doing")
+        aside.locator("textarea").press("Enter")
+        expect(page.locator("[data-hmz=btw]").locator("..")).to_contain_text("settings")
+        named = page.evaluate(
+            """async () => (await fetch('/api/settings', {method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({btw: 'claude/claude-haiku-4-5'})})).status"""
+        )
+        assert named == 200
+        aside.locator("textarea").fill("what now")
+        aside.locator("textarea").press("Enter")
+        expect(page.locator("[data-hmz=btw-log]")).to_contain_text("btw · The Epic")
+        expect(page.locator("[data-hmz=btw-log] .said.btw")).to_have_count(1)
+
+        _asks_of(page, "/1")
+        aside.locator("textarea").fill("and you")
+        aside.locator("textarea").press("Enter")
+        expect(page.locator("[data-hmz=btw-log] .said.btw")).to_have_count(2)
+        stop(page)
+
+
 def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
     project: Path, engine: str
 ) -> None:
@@ -1108,7 +1171,7 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
 
         page.get_by_role("tab", name="Aside").click()
         aside = page.locator("[data-hmz=btw]")
-        aside.get_by_label("Ask it of").select_option(index=1)
+        _asks_of(page, "/1")
         aside.locator("textarea").fill("what was the word")
         aside.locator("textarea").press("Enter")
         expect(page.locator("[data-hmz=btw-log]")).to_contain_text(

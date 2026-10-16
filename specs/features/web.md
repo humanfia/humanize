@@ -271,11 +271,11 @@ going or that it called, how it was set up, and where it is written down.
 **6.3.3** The spending MUST NOT be summed over kinds of token into one figure, and a figure that is
 only a lower bound MUST be marked as one.
 
-**6.3.4** `Aside` MUST let the user ask a side question as `features/btw.md` specifies: of the btw
-agent, or of one session of the epic, including a session of an epic its host no longer holds.
+**6.3.4** `Aside` MUST let the user ask a side question as `features/btw.md` specifies: of The
+Epic, or of one session of the epic, including a session of an epic its host no longer holds.
 
-**6.3.5** `Aside` MUST let the user pick the btw agent -- its harness, account, model and effort --
-in the panel, and MUST keep the choice with the epic, as `features/btw.md` specifies.
+**6.3.5** `Aside` MUST pick whom it asks with the control of `features/btw.md` §8 -- `The Epic`,
+then the epic's agents, each opening its sessions -- and MUST NOT offer a choice of any agent.
 
 **6.3.6** `Aside` MUST keep the side questions asked and their answers for the page opened again,
 MUST let the user close them, and MUST say that side questions never reach the epic.
@@ -514,8 +514,9 @@ another, MUST be part of the address, and picking it MUST change nothing else on
 
 ### 11.2 Daemon pages
 
-**11.2.1** `General` MUST let the user set whether a turn's working is shown, the btw agent, and
-whether errors are reported, as `features/btw.md` and `features/telemetry.md` specify.
+**11.2.1** `General` MUST let the user set whether a turn's working is shown, the agent that
+answers The Epic (none until one is picked), and whether errors are reported, as
+`features/btw.md` and `features/telemetry.md` specify.
 
 **11.2.2** `Accounts` MUST list every account by its harness, way in and the names of the variables
 it sets, and MUST let the user ask again what it runs, correct it, copy it to another harness,

@@ -508,7 +508,7 @@ chat is between turns.
 
 ## 12. Btw mode
 
-**12.1** Entering btw mode MUST say who answers, `btw · <agent>/<n>` or `btw · btw agent`, and
+**12.1** Entering btw mode MUST say who answers, `btw · <agent>/<n>` or `btw · The Epic`, and
 that each line is a question and `/btw` or `esc` leaves.
 
 **12.2** While btw mode is on, the status line MUST begin with `btw · ` and who answers, in
@@ -518,7 +518,7 @@ cyan.
 question of the same side conversation.
 
 **12.4** Who answers MUST be as `features/btw.md` §5 states, the view read deciding: a session
-view or an agent view its session side copy, any other view the btw agent.
+view or an agent view its session side copy, any other view The Epic, which is the btw agent.
 
 **12.5** Each answer MUST be shown in the view read: a cyan bullet, `btw · ` and the question,
 dim, then the answer in cyan.
@@ -526,30 +526,18 @@ dim, then the answer in cyan.
 **12.6** Each ask line the btw agent sends MUST be shown, dim, as `btw · asking <agent>/<n>:`
 and its question.
 
-**12.7** In btw mode, the btw agent key, `ctrl+g`, MUST drop a list titled `btw agent`
-offering `default` (no choice of the epic's own), the epic's current choice where it has one,
-and `another…`.
+**12.7** Btw mode MUST offer no key or list that picks the btw agent, which is the `btw` setting
+alone (`features/btw.md` §7.5).
 
-**12.8** Taking `another…` MUST open the agent sheet (§16.5).
-
-**12.9** Picking from the `btw agent` list MUST make the result the epic's btw agent choice
-(`features/btw.md` §8).
-
-**12.10** Picking from the `btw agent` list MUST show `btw agent: <spec>`, or `btw agent: default`
-where the choice was cleared.
-
-**12.11** Where no epic is in view, the btw agent key MUST refuse the pick, showing
-`hmz: btw: no epic to keep an agent with`.
-
-**12.12** `/btw` alone or `esc` MUST leave btw mode, say `btw: exited`, and close every side
+**12.8** `/btw` alone or `esc` MUST leave btw mode, say `btw: exited`, and close every side
 conversation btw mode opened.
 
-**12.13** An epic starting MUST leave btw mode, saying that a new flow started.
+**12.9** An epic starting MUST leave btw mode, saying that a new flow started.
 
-**12.14** A side question asked while the side conversation is answering an earlier one MUST be
+**12.10** A side question asked while the side conversation is answering an earlier one MUST be
 refused, showing `hmz: btw is still answering the last question` in red.
 
-**12.15** A failure of a side question MUST be shown in red, prefixed `hmz: /btw:`.
+**12.11** A failure of a side question MUST be shown in red, prefixed `hmz: /btw:`.
 
 ## 13. Status line
 
@@ -941,8 +929,9 @@ side conversation of the btw agent.
 ### 19.2 General
 
 **19.2.1** The General page MUST hold, for this machine: **Details**, whether turns show tool
-calls, thinking and harness output; **/btw agent**, the flow's first agent, the current choice,
-or another set up on the agent sheet titled `Set up btw agent`; **Error reports**, on or off;
+calls, thinking and harness output; **/btw The Epic**, the agent that answers side questions
+asked of The Epic: `none`, the current one, or another set up on the agent sheet titled
+`Set up The Epic's agent`; **Error reports**, on or off;
 and **What is sent**, which says what error reports include and exclude.
 
 **19.2.2** Once answered, **Error reports** MUST NOT return to unanswered.
@@ -1214,66 +1203,65 @@ states where its row's context holds.
 | 24.1.8 | editor | `shift+enter`, `ctrl+j` | break the line |
 | 24.1.9 | editor, first or last row | `↑`, `↓` | older or newer history entry |
 | 24.1.10 | editor, btw mode, offers closed | `esc` | leave btw mode |
-| 24.1.11 | editor, btw mode | `ctrl+g` | btw agent list |
-| 24.1.12 | offers open | `↑`, `↓` | move the highlight |
-| 24.1.13 | offers open | `tab` | take the highlight |
-| 24.1.14 | offers open | `esc` | hide offers until the text changes |
-| 24.1.15 | menu list | `↑`, `↓` | previous or next row, wrapping |
-| 24.1.16 | menu list | `enter`, click | open, take, drop values, or begin and keep a written row |
-| 24.1.17 | menu list | `→` | into what the row opens |
-| 24.1.18 | menu list | `←`, `backspace` | up to the menu this one was opened from |
-| 24.1.19 | menu list, row with a menu | `m` | the row's menu |
-| 24.1.20 | menu list, searchable | `/` | open the search box |
-| 24.1.21 | menu | `esc` | put back the row written, else clear the search, else leave |
-| 24.1.22 | menu | `tab`, `shift+tab` | next or previous of search box, list, buttons |
-| 24.1.23 | menu search box | `enter`, `↓` | to the list, keeping the filter |
-| 24.1.24 | menu button | `←`, `→` | previous or next button, wrapping |
-| 24.1.25 | menu button | `↑` | to the list |
-| 24.1.26 | menu button | `enter`, click | press it |
-| 24.1.27 | form, written row | typing, paste | begin writing; first character replaces |
-| 24.1.28 | form, writing | `enter` | keep and move to the next unanswered row |
-| 24.1.29 | form, writing | `esc` | put the row back |
-| 24.1.30 | form, writing a multi-line row | `shift+enter`, `ctrl+j` | break the line |
-| 24.1.31 | form, writing a path | `tab` | complete the path |
-| 24.1.32 | dropdown | `↑`, `↓` | move |
-| 24.1.33 | dropdown | `enter`, click | pick the value |
-| 24.1.34 | dropdown | `esc`, click outside | pick nothing |
-| 24.1.35 | box | arrows, `tab`, `shift+tab` | next or previous button, wrapping |
-| 24.1.36 | box | `enter`, click | press the button |
-| 24.1.37 | box | `esc`, click outside | answer nothing |
-| 24.1.38 | `/settings`, `/flow` page | `←`, `backspace`, `esc` | out to the page above |
-| 24.1.39 | `/epics` | `ctrl+t` | this directory or this machine |
-| 24.1.40 | `/epics` | `i` | import an epic |
-| 24.1.41 | `/epics` of another daemon | `n` | new epic there |
-| 24.1.42 | following an epic there | `esc` | back to the list |
-| 24.1.43 | monitor, empty editor, offers closed | `↑`, `↓` | previous or next node |
-| 24.1.44 | monitor, empty editor | `enter`, click | read or open the node |
-| 24.1.45 | monitor, empty editor | `space` | open or shut an agent |
-| 24.1.46 | monitor, empty editor, offers closed | `→` | back to the view last read |
-| 24.1.47 | monitor | `ctrl+t` | graph or list |
-| 24.1.48 | monitor, empty editor, not a chat | `ctrl+e` | the epic going in Exomyth |
-| 24.1.49 | environment or epic page | `esc`, `←`, `backspace` | back to the monitor |
-| 24.1.50 | board entry | typing, `backspace` | write, delete |
-| 24.1.51 | board entry | `enter` | on to the value, then save |
-| 24.1.52 | Exomyth | `w`, `+`, `=` / `s`, `-` | zoom in / out |
-| 24.1.53 | Exomyth | `a`, `shift+←` / `d`, `shift+→` | pan back / on |
-| 24.1.54 | Exomyth | `↑`, `↓`, `pageup`, `pagedown` | row above or below |
-| 24.1.55 | Exomyth | `←`, `→` | span before or after |
-| 24.1.56 | Exomyth | `enter` | pane of the span, or shut it |
-| 24.1.57 | Exomyth | `p` | pane of the process, or shut it |
-| 24.1.58 | Exomyth | `v` | begin, hold or drop a range |
-| 24.1.59 | Exomyth | `f` | fit the range or the span |
-| 24.1.60 | Exomyth | `0` | the whole epic |
-| 24.1.61 | Exomyth | `space` | fold or open the process |
-| 24.1.62 | Exomyth | `/` | search spans by name |
-| 24.1.63 | Exomyth | `n`, `N` | next or previous found |
-| 24.1.64 | Exomyth | `tab`, `shift+tab` | next or previous of timeline, flame, slices |
-| 24.1.65 | Exomyth flame | `t` | next weight |
-| 24.1.66 | Exomyth flame | `m` | sessions merged or apart |
-| 24.1.67 | Exomyth slices | `o`, `O` | next sort column, reverse order |
-| 24.1.68 | Exomyth | `r` | read again |
-| 24.1.69 | Exomyth | `esc` | out of search, range, pane, then back |
-| 24.1.70 | anywhere | drag, double click, triple click | copy (§23) |
+| 24.1.11 | offers open | `↑`, `↓` | move the highlight |
+| 24.1.12 | offers open | `tab` | take the highlight |
+| 24.1.13 | offers open | `esc` | hide offers until the text changes |
+| 24.1.14 | menu list | `↑`, `↓` | previous or next row, wrapping |
+| 24.1.15 | menu list | `enter`, click | open, take, drop values, or begin and keep a written row |
+| 24.1.16 | menu list | `→` | into what the row opens |
+| 24.1.17 | menu list | `←`, `backspace` | up to the menu this one was opened from |
+| 24.1.18 | menu list, row with a menu | `m` | the row's menu |
+| 24.1.19 | menu list, searchable | `/` | open the search box |
+| 24.1.20 | menu | `esc` | put back the row written, else clear the search, else leave |
+| 24.1.21 | menu | `tab`, `shift+tab` | next or previous of search box, list, buttons |
+| 24.1.22 | menu search box | `enter`, `↓` | to the list, keeping the filter |
+| 24.1.23 | menu button | `←`, `→` | previous or next button, wrapping |
+| 24.1.24 | menu button | `↑` | to the list |
+| 24.1.25 | menu button | `enter`, click | press it |
+| 24.1.26 | form, written row | typing, paste | begin writing; first character replaces |
+| 24.1.27 | form, writing | `enter` | keep and move to the next unanswered row |
+| 24.1.28 | form, writing | `esc` | put the row back |
+| 24.1.29 | form, writing a multi-line row | `shift+enter`, `ctrl+j` | break the line |
+| 24.1.30 | form, writing a path | `tab` | complete the path |
+| 24.1.31 | dropdown | `↑`, `↓` | move |
+| 24.1.32 | dropdown | `enter`, click | pick the value |
+| 24.1.33 | dropdown | `esc`, click outside | pick nothing |
+| 24.1.34 | box | arrows, `tab`, `shift+tab` | next or previous button, wrapping |
+| 24.1.35 | box | `enter`, click | press the button |
+| 24.1.36 | box | `esc`, click outside | answer nothing |
+| 24.1.37 | `/settings`, `/flow` page | `←`, `backspace`, `esc` | out to the page above |
+| 24.1.38 | `/epics` | `ctrl+t` | this directory or this machine |
+| 24.1.39 | `/epics` | `i` | import an epic |
+| 24.1.40 | `/epics` of another daemon | `n` | new epic there |
+| 24.1.41 | following an epic there | `esc` | back to the list |
+| 24.1.42 | monitor, empty editor, offers closed | `↑`, `↓` | previous or next node |
+| 24.1.43 | monitor, empty editor | `enter`, click | read or open the node |
+| 24.1.44 | monitor, empty editor | `space` | open or shut an agent |
+| 24.1.45 | monitor, empty editor, offers closed | `→` | back to the view last read |
+| 24.1.46 | monitor | `ctrl+t` | graph or list |
+| 24.1.47 | monitor, empty editor, not a chat | `ctrl+e` | the epic going in Exomyth |
+| 24.1.48 | environment or epic page | `esc`, `←`, `backspace` | back to the monitor |
+| 24.1.49 | board entry | typing, `backspace` | write, delete |
+| 24.1.50 | board entry | `enter` | on to the value, then save |
+| 24.1.51 | Exomyth | `w`, `+`, `=` / `s`, `-` | zoom in / out |
+| 24.1.52 | Exomyth | `a`, `shift+←` / `d`, `shift+→` | pan back / on |
+| 24.1.53 | Exomyth | `↑`, `↓`, `pageup`, `pagedown` | row above or below |
+| 24.1.54 | Exomyth | `←`, `→` | span before or after |
+| 24.1.55 | Exomyth | `enter` | pane of the span, or shut it |
+| 24.1.56 | Exomyth | `p` | pane of the process, or shut it |
+| 24.1.57 | Exomyth | `v` | begin, hold or drop a range |
+| 24.1.58 | Exomyth | `f` | fit the range or the span |
+| 24.1.59 | Exomyth | `0` | the whole epic |
+| 24.1.60 | Exomyth | `space` | fold or open the process |
+| 24.1.61 | Exomyth | `/` | search spans by name |
+| 24.1.62 | Exomyth | `n`, `N` | next or previous found |
+| 24.1.63 | Exomyth | `tab`, `shift+tab` | next or previous of timeline, flame, slices |
+| 24.1.64 | Exomyth flame | `t` | next weight |
+| 24.1.65 | Exomyth flame | `m` | sessions merged or apart |
+| 24.1.66 | Exomyth slices | `o`, `O` | next sort column, reverse order |
+| 24.1.67 | Exomyth | `r` | read again |
+| 24.1.68 | Exomyth | `esc` | out of search, range, pane, then back |
+| 24.1.69 | anywhere | drag, double click, triple click | copy (§23) |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 

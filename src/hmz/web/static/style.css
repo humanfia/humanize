@@ -2207,6 +2207,14 @@ pre.block {
   color: var(--ink-3);
 }
 
+.chip-btn .chip-value {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 12.5px var(--mono);
+}
+
 .chip-select select {
   min-height: 0;
   border: 0;
@@ -2947,6 +2955,22 @@ details.said-more summary {
 
 .aside-log:empty {
   display: none;
+}
+
+.popover .menu-filter {
+  width: 100%;
+  margin: 2px 0 6px;
+  font: 12.5px var(--mono);
+}
+
+.popover .ask-list {
+  display: grid;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.popover .ask-none {
+  margin: 6px 10px;
 }
 
 .aside .composer {
