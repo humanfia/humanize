@@ -783,6 +783,10 @@ exit with status 1.
 **10.2.7** Fake command lines MUST be refused to a harness running on a machine other than this
 machine.
 
+**10.2.8** On `codex` at the read-only rung with no fence, a turn of an agent with fake command
+lines MUST run with its sandbox's network allowed, which the read-only sandbox otherwise cuts
+together with the way a fake command line reaches hmz.
+
 ## 11. Failures, retries and fallbacks
 
 ### 11.1 Fault classes

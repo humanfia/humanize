@@ -164,6 +164,8 @@ class Shelf:
         """
         names = {one.name for one in self.shelved()}
         holder = where / "bin"
+        if not holder.is_dir():
+            return  # taken away under it -- at exit, a temporary directory cleaned first
         for old in holder.iterdir():
             if old.name not in names:
                 with contextlib.suppress(OSError):

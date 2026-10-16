@@ -1989,7 +1989,8 @@ class CodexSession(SessionBase):
         fence it is held to grants the network. Codex's
         `read-only` sandbox cuts a command's network as well as its writes, which is narrower
         than a permission that reads its workdir and reaches the web: so such a turn is sent
-        :data:`_REACHING`, the same sandbox with the network left to its commands. Held by the
+        :data:`_REACHING`, the same sandbox with the network left to its commands -- as is a
+        `read-only` turn held by no fence whose agent shelves command lines. Held by the
         Landlock sandbox a fenced thread runs (:data:`_LANDLOCK`) as it holds the bare rung --
         on codex-cli 0.153.4 a `curl` under it answers 200 and a `touch` is refused.
 
@@ -2009,7 +2010,12 @@ class CodexSession(SessionBase):
             said["sandboxPolicy"] = _EXTERNAL | {
                 "networkAccess": "enabled" if fence.online else "restricted"
             }
-        elif rung.get("sandbox") == "read-only" and fence is not None and fence.online:
+        elif rung.get("sandbox") == "read-only" and (
+            fence.online if fence is not None else not self._agent.shelf.empty()
+        ):
+            # And with no fence, where the agent shelves command lines: Codex's `read-only`
+            # sandbox refuses the socket each of those reaches this process on along with the
+            # network, so a command line of the flow's would fail on every run.
             said["sandboxPolicy"] = dict(_REACHING)
         return said
 

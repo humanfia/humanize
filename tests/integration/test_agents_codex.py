@@ -9,6 +9,7 @@ usage, `turn/completed` and the thread falling idle. What a turn does is chosen 
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 import threading
 from typing import TYPE_CHECKING, Any
@@ -27,6 +28,7 @@ from hmz.coganchor.agents import (
     Question,
     Verdict,
 )
+from hmz.coganchor.faking import FakeCli, FakeCommand
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
 from tests.integration.doubles_agents import (
@@ -102,6 +104,11 @@ def turn(thread, said, asked):
         done(thread, status="failed", error={
             "message": "stream disconnected before completion: error decoding response body",
             "codexErrorInfo": lost})
+        return
+    if said == "policy":
+        item("completed", thread, id="m-0", type="agentMessage",
+             text=json.dumps(asked.get("sandboxPolicy")))
+        done(thread)
         return
     if said == "approve":
         send({"id": "ok-1", "method": "item/commandExecution/requestApproval",
@@ -481,3 +488,23 @@ def test_codex_under_an_account_a_gateway_holds_asks_it_in_the_responses_api(
     assert launch.env["CODEX_PROVIDER_KEY"] == through.key
     assert launch.env["LITELLM_GATEWAY_KEY"] is None
     assert not through.running
+
+
+@pytest.mark.parametrize(
+    ("shelved", "policy"),
+    [(False, None), (True, {"type": "readOnly", "networkAccess": True})],
+)
+def test_a_read_only_thread_shelving_command_lines_reaches_them(
+    codex: Standins, shelved: bool, policy: dict[str, Any] | None
+) -> None:
+    session = CodexAgent(dataclasses.replace(CONFIG, permission="read-only")).new()
+    if shelved:
+        session.shelves(
+            [FakeCli("tix", "Files tickets.", (FakeCommand("ls", "Lists", str),))]
+        )
+
+    said = list(session.stream("policy"))
+
+    # Codex's read-only sandbox refuses the socket a command line reaches this process on
+    # along with the network, so a thread with one is given the network back.
+    assert json.loads(said[-1].text) == policy
