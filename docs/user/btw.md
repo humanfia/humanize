@@ -173,9 +173,12 @@ What to look at, by number:
   `another…`, which asks for its CLI, account, model and effort. It applies to every epic, from
   the next side conversation of The Epic on. A conversation's side copy is always that
   conversation's own agent: there is nothing to pick for it.
-- **On the web page**, the **Ask** chip on the Aside tab picks whom to ask: **The Epic**, then
-  each agent with the role it fills, opening onto its conversations, newest first. Type in the
-  box at its top to narrow it to the agents, roles and conversations that match.
+- **On the web page**, the Aside tab keeps several side conversations at once, one tab each,
+  and **New aside** opens another. A new one's **Ask** chip, above its box, picks whom it asks:
+  **The Epic**, then each agent with the role it fills, opening onto its conversations, newest
+  first. Type in the box at its top to narrow it to the agents, roles and conversations that
+  match. Its first question fixes whom it asks. While it answers it says so, with each
+  conversation The Epic asks on the way.
 
 ## What a side conversation may do
 

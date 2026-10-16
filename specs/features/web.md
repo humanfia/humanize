@@ -272,13 +272,17 @@ going or that it called, how it was set up, and where it is written down.
 only a lower bound MUST be marked as one.
 
 **6.3.4** `Aside` MUST let the user ask a side question as `features/btw.md` specifies: of The
-Epic, or of one session of the epic, including a session of an epic its host no longer holds.
+Epic, or of one session of the epic, including an epic its host no longer holds and its sessions,
+of which The Epic MUST be told that epic.
 
-**6.3.5** `Aside` MUST pick whom it asks with the control of `features/btw.md` §8 -- `The Epic`,
-then the epic's agents, each opening its sessions -- and MUST NOT offer a choice of any agent.
+**6.3.5** `Aside` MUST hold several side conversations, as `features/btw.md` §8 states, each
+picking whom it asks at its start with the control of `features/btw.md` §8 -- `The Epic`, then the
+epic's agents, each opening its sessions -- above the box its question is typed in, and MUST NOT
+offer a choice of any agent.
 
-**6.3.6** `Aside` MUST keep the side questions asked and their answers for the page opened again,
-MUST let the user close them, and MUST say that side questions never reach the epic.
+**6.3.6** `Aside` MUST keep each side conversation, the side questions asked in it and their
+answers for the page opened again, MUST show while each is answering and whom The Epic asks on
+the way, MUST let the user close each, and MUST say that side questions never reach the epic.
 
 **6.3.7** `Board` MUST let the user edit, remove and add lines of the epic's board, and MUST NOT
 offer to change a line the flow owns.
