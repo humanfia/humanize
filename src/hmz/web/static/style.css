@@ -2100,6 +2100,7 @@ pre.block {
   resize: none;
   outline: none;
   font-size: 15px;
+  min-height: calc(1lh + 8px);
   max-height: 320px;
 }
 
