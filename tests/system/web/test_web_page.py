@@ -1202,6 +1202,28 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         stop(page)
 
 
+def test_a_composer_built_before_it_is_shown_is_a_line_tall_once_shown(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "remember papaya")
+        expect(page.locator("[data-hmz=thread]")).to_contain_text(
+            "did: remember papaya"
+        )
+        page.get_by_role("tab", name="Aside").click()
+        # Nothing typed yet: typing fires `input`, which would size it either way.
+        text = page.locator("[data-hmz=btw] textarea")
+        expect(text).to_be_visible()
+        line = text.evaluate("t => parseFloat(getComputedStyle(t).lineHeight)")
+        box = text.bounding_box()
+        ask = page.locator(".ask-to").bounding_box()
+        assert box is not None
+        assert ask is not None
+        assert box["height"] >= line
+        assert box["y"] + box["height"] <= ask["y"]
+        stop(page)
+
+
 def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
     project: Path, engine: str
 ) -> None:
