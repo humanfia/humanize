@@ -332,7 +332,8 @@ conversation, or absent for every one), MUST close the side conversations named,
 
 **9.4.2** An `aside` that is not text MUST be refused 400.
 
-**9.4.3** A side conversation MUST be closed when an epic starts on its host.
+**9.4.3** A side conversation about the epic going on a host MUST be closed when another epic
+starts on it, and one about an epic the host no longer holds MUST NOT.
 
 ## 10. Epics written down
 

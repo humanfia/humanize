@@ -181,6 +181,9 @@ export function asides(workspace, epic = '') {
   const all = []
   let shown = null
   let watching = null
+  /** How many times an aside here has changed, by which a reading begun before is stale. */
+  let changed = 0
+  let reading = null
   const strip = h('div', { class: 'aside-strip', 'data-hmz': 'btw-asides' })
   const body = h('div', { class: 'aside-body' })
   const fresh = h('button', { class: 'chip-btn', type: 'button', 'data-hmz': 'btw-new' }, icon('plus'), 'New aside')
@@ -209,14 +212,18 @@ export function asides(workspace, epic = '') {
       submit: async (question) => {
         if (one.to === null) one.to = target
         Object.assign(one, { question: question.trim(), asked: [], posting: true })
+        changed += 1
         tabs()
         watch()
         try {
-          const said = await post('/api/btw', { question: question.trim(), aside: id, to: one.to, workspace, epic })
-          one.said = [...one.said, said]
+          one.said = [...one.said, await post('/api/btw', { question: question.trim(), aside: id, to: one.to, workspace, epic })]
         } finally {
           Object.assign(one, { question: '', asked: [], posting: false })
-          draw()
+          changed += 1
+          tabs()
+          // Read again: one refused before it opened has whom it asks still to pick, and one
+          // answering on another page is drawn answering here.
+          reread()
         }
       },
     })
@@ -304,7 +311,9 @@ export function asides(workspace, epic = '') {
 
   /** The strip: each aside's tab, and a new one's where every one has been asked. */
   function tabs() {
-    fill(strip, all.map((each) => each.tab), all.some((each) => each.to === null) ? null : fresh)
+    const wanted = [...all.map((each) => each.tab), ...(all.some((each) => each.to === null) ? [] : [fresh])]
+    // Drawn again only where they changed: what is focused is left where it is.
+    if (wanted.length !== strip.children.length || wanted.some((tab, at) => strip.children[at] !== tab)) fill(strip, wanted)
     for (const each of all) each.draw()
   }
 
@@ -312,7 +321,7 @@ export function asides(workspace, epic = '') {
   function show(one) {
     shown = one
     tabs()
-    fill(body, one.node)
+    if (body.firstChild !== one.node) fill(body, one.node)
   }
 
   /** The aside not yet asked, opened if there is none. */
@@ -330,8 +339,11 @@ export function asides(workspace, epic = '') {
 
   /** Reads the asides as the server holds them: what was said, and what is answering now. */
   async function read() {
+    const at = changed
     const { asides: held, default: given } = await get(query)
     answers = given || ''
+    // Read before an aside here changed: what it says of it is older than what is shown.
+    if (at !== changed) return read()
     for (const kept of held) {
       let one = all.find((each) => each.id === kept.aside)
       if (!one) {
@@ -341,9 +353,23 @@ export function asides(workspace, epic = '') {
       if (one.posting) one.asked = kept.asked
       else Object.assign(one, { to: kept.to, said: kept.said, question: kept.question, asked: kept.asked })
     }
-    // One asked here that the server holds no more was closed: by another page, or an epic starting.
-    for (const one of all.filter((each) => each.to !== null && !each.posting && !held.some((kept) => kept.aside === each.id))) forget(one)
+    for (const one of all.filter((each) => each.to !== null && !each.posting && !held.some((kept) => kept.aside === each.id))) {
+      // One answered here that the server holds no more was closed: by another page, or an epic
+      // starting. One never answered was never opened: whom it asks is still to pick.
+      if (one.said.length) forget(one)
+      else one.to = null
+    }
     show(all.includes(shown) ? shown : all.at(-1))
+  }
+
+  /** Reads them again, once at a time. */
+  function reread() {
+    reading ||= read()
+      .catch(() => {})
+      .finally(() => {
+        reading = null
+        watch()
+      })
   }
 
   /** Reads them again every second while any one answers, and stops once none does. */
@@ -355,7 +381,7 @@ export function asides(workspace, epic = '') {
         watching = null
         return
       }
-      read().catch(() => {})
+      reread()
     }, WATCHED)
   }
 

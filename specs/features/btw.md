@@ -206,9 +206,9 @@ offering the others to switch to.
 first question, and MUST NOT be asked of anyone else after; to ask another, the user opens
 another side conversation.
 
-**8.3** The btw panel MUST offer, while a side conversation has asked nothing, one control that
-picks whom it asks, outside the box its question is typed in, and MUST NOT offer it after its
-first question.
+**8.3** The btw panel MUST offer, until a side conversation is opened by its first question, one
+control that picks whom it asks, outside the box its question is typed in, and MUST NOT offer it
+once it is open.
 
 **8.4** That control MUST name the btw agent as `The Epic`, and MUST NOT name it otherwise.
 

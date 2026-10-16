@@ -335,6 +335,11 @@ class Held:
                 if one.epic == epic
             ]
 
+    def holds(self, aside: str) -> bool:
+        """Whether an aside is open, by the name the page gave it."""
+        with self._changed:
+            return aside in self._asides
+
     def unbtw(self, aside: str | None = None) -> None:
         """Closes asides, and the side conversations they opened.
 
@@ -349,15 +354,22 @@ class Held:
         if one is not None:
             one.mode.close()
 
-    def _leaves(self, *, unasking: bool = True) -> None:
+    def _leaves(self, *, unasking: bool = True, going: bool = False) -> None:
         """Leaves btw mode altogether, closing every side conversation and what was said in it.
 
         Args:
           unasking: Whether to ask the runs to close them, which nothing need do of the side
             conversations of a link that has gone: they went with it.
+          going: Whether to close only those about the run going, and none about an epic the
+            runs hold no more.
         """
         with self._changed:
-            left, self._asides = list(self._asides.values()), {}
+            left = [
+                one for one in self._asides.values() if not going or one.about is None
+            ]
+            self._asides = {
+                name: one for name, one in self._asides.items() if one not in left
+            }
         for one in left:
             one.mode.close(unasking=unasking)
 
@@ -484,7 +496,12 @@ class Held:
             following.started(message)
             # A side conversation is about the run it was opened on, and that run has gone:
             # closed on a thread of its own, since closing one asks the runs.
-            threading.Thread(target=self._leaves, daemon=True, name="hmz-web").start()
+            threading.Thread(
+                target=self._leaves,
+                kwargs={"going": True},
+                daemon=True,
+                name="hmz-web",
+            ).start()
         elif kind == "printed":
             following.printed(str(message.get("text") or ""))
         elif kind == "opened":
@@ -775,15 +792,17 @@ def _btw(asked: Asked) -> dict[str, Any]:
         raise Refusal("Say question, as text.")
     aside = asked.text("aside")
     to, epic = asked.text("to", required=False), asked.text("epic", required=False)
-    if not to and not _answers():
-        from hmz.runtime.watching.btw import NOBODY
-
-        raise Refusal(NOBODY, 409)
     # Asked through the workspace's own host, of an epic's session as it was kept: a chat's,
     # held by a host of its own or folded away, included.
     held = places.held(workspace)
     about = opening = None
-    if epic and not _held_still(held, epic, to):
+    # Whom an aside open already asks, and about which epic, is what it opened on.
+    opens = not held.holds(aside)
+    if opens and not to and not _answers():
+        from hmz.runtime.watching.btw import NOBODY
+
+        raise Refusal(NOBODY, 409)
+    if opens and epic and not _held_still(held, epic, to):
         # An epic the runs hold no more, or a session of one: told that epic rather than the
         # run going, and each of its sessions carried on from where that epic kept it.
         about, opening = _recalled(asked.site.runs.named(epic))

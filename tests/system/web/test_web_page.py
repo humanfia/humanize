@@ -1153,8 +1153,8 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         aside.locator("textarea").fill("what is it doing")
         aside.locator("textarea").press("Enter")
         expect(aside).to_contain_text("settings")
-        # Whom it asks was fixed by its first question: nothing to pick for it any more.
-        expect(ask).to_be_hidden()
+        # Refused before it opened: whom it asks is still to pick.
+        expect(ask).to_be_visible()
         named = page.evaluate(
             """async () => (await fetch('/api/settings', {method: 'POST',
               headers: {'Content-Type': 'application/json'},
@@ -1166,6 +1166,8 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         log = page.locator("[data-hmz=btw-log]")
         expect(log).to_contain_text("btw · The Epic")
         expect(log.locator(".said.btw")).to_have_count(1)
+        # Whom it asks was fixed by its first answer: nothing to pick for it any more.
+        expect(ask).to_be_hidden()
 
         # A second aside, of a conversation, picked at its start.
         page.locator("[data-hmz=btw-new]").click()
