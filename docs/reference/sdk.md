@@ -88,12 +88,13 @@ cached on the instance.
 | [`runner(flow, *, …)`](#hmz-runner) | `Runner` | `Refused` |
 | [`read(argv)`](#hmz-read) | [`Line`](#line) | `SystemExit` |
 | [`exec(argv)`](#hmz-exec) | `Any` | `SystemExit`, `Refused`, what the flow raises |
-| `host()` | [`Host`](#host) | — |
+| `host(slot="")` | [`Host`](#host) | `ValueError` |
 | `backends()` | `tuple[Profile, ...]` | — |
 | `reports()` | `bool` | — |
 
-- `host()`: this workspace's [`Host`](#host), created on first call and cached on the
-  instance. Frontends attached to it share one run.
+- `host(slot="")`: a [`Host`](#host) of this workspace, created on first call with that slot
+  and cached on the instance. Frontends attached to it share one run. `slot` is `""` for the
+  workspace's own, or `chat:<hex>` for one chat's; anything else raises `ValueError`.
 - `backends()`: every coding-agent CLI humanize drives, installed or not, as internal
   `hmz.coganchor.backends.Profile` objects (`.name`, `.aliases`, `.efforts`, `.installs`, …).
   `[p.name for p in Hmz().backends()]` is `['claude', 'agy', 'codex', 'dsh', 'grok', 'kimi',

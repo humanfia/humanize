@@ -17,6 +17,7 @@ there is to do it, and `hmz internal anchor` must not load any of this at all.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -41,6 +42,9 @@ if TYPE_CHECKING:
     from hmz.runtime.settings import Settings
 
 __all__ = ["Hmz"]
+
+#: What names a host: "" for a workspace's own, `chat:` and a few hex digits for a chat's.
+_SLOT = re.compile(r"(?:chat:[0-9a-f]{1,32})?")
 
 
 class Hmz:
@@ -416,7 +420,12 @@ class Hmz:
         Args:
           slot: Which: "" for the workspace's own, which runs its flows one at a time, or
             `chat:<hex>` for one chat's, beside it.
+
+        Raises:
+          ValueError: If the slot is neither.
         """
+        if not _SLOT.fullmatch(slot):
+            raise ValueError(f"no such host as {slot!r}: a slot is '' or chat:<hex>")
         held = self._hosts.get(slot)
         if held is None:
             from hmz.runtime.doing.hosting import Host

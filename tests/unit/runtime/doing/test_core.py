@@ -295,6 +295,24 @@ def test_the_host_is_one_however_often_asked(hmz: Hmz) -> None:
     assert hmz.host() is host
 
 
+def test_a_chat_has_a_host_of_its_own(hmz: Hmz) -> None:
+    host = hmz.host("chat:3fa9")
+
+    try:
+        assert host is not hmz.host()
+        assert hmz.host("chat:3fa9") is host
+    finally:
+        host.close()
+
+
+@pytest.mark.parametrize(
+    "slot", ["foo", "chat:", "chat:XYZ", "chat:3FA9", " chat:3fa9"]
+)
+def test_any_other_slot_is_refused(hmz: Hmz, slot: str) -> None:
+    with pytest.raises(ValueError, match="a slot is '' or chat:<hex>"):
+        hmz.host(slot)
+
+
 def test_the_line_adding_an_extra_is_the_one_installed_says(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
