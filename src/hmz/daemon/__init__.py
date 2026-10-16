@@ -486,9 +486,11 @@ def _forks(serving: Callable[[int], object], seconds: float) -> None:
     for stream in (sys.stdout, sys.stderr):
         with contextlib.suppress(Exception):
             stream.flush()
+    proxied = _proxied()
     middle = os.fork()
     if middle == 0:  # pragma: no cover -- the child never comes back to be covered
         os.close(reading)
+        proxied()
         _detaches(serving, telling)
     os.close(telling)
     try:
@@ -500,6 +502,33 @@ def _forks(serving: Callable[[int], object], seconds: float) -> None:
         # exited, so that the run's own parent is whatever adopts it rather than this.
         with contextlib.suppress(ChildProcessError):
             os.waitpid(middle, 0)
+
+
+def _proxied() -> Callable[[], None]:
+    """This machine's proxies as asked here, told to a child forked after this.
+
+    macOS answers through CoreFoundation, which crashes a child forked from a process that has
+    used it -- and anything sending a request asks, a report among them, first thing in a host.
+    So it is asked before the fork, and the child is handed the answer instead of asking.
+
+    Returns:
+      What the child calls to take the answer, which elsewhere does nothing.
+    """
+    if sys.platform != "darwin":
+        return lambda: None
+    import urllib.request
+
+    # What `getproxies` and `proxy_bypass` ask on macOS, by these names, which no public
+    # function of urllib's lets a caller answer instead.
+    asked = cast("Any", urllib.request)
+    proxies = asked._get_proxies()  # noqa: SLF001
+    settings = asked._get_proxy_settings()  # noqa: SLF001
+
+    def told() -> None:  # pragma: no cover -- runs only in the forked child
+        asked._get_proxies = lambda: proxies  # noqa: SLF001
+        asked._get_proxy_settings = lambda: settings  # noqa: SLF001
+
+    return told
 
 
 def _detaches(
@@ -522,7 +551,12 @@ def _detaches(
 
         with contextlib.suppress(OSError, ValueError):
             signal.signal(signal.SIGHUP, signal.SIG_IGN)
+            # A terminate is this process's own to take, whatever the one that forked it made
+            # of one -- ignored, or its own way out: unwound, so that what it holds is let go.
+            signal.signal(signal.SIGTERM, _terminated)
         serving(telling)
+    except _Terminated:
+        pass
     except BaseException as why:  # noqa: BLE001 -- the last frame of a process nobody reads
         status = 1
         # Said back down the pipe as well as written down: whoever asked for a daemon is
@@ -542,6 +576,17 @@ def _detaches(
             sys.stdout.flush()
             sys.stderr.flush()
         os._exit(status)  # nothing of this process is anybody's to unwind
+
+
+class _Terminated(BaseException):
+    """A detached process told to end, on its way out."""
+
+
+def _terminated(
+    _signal: int, _frame: object
+) -> None:  # pragma: no cover -- in the child
+    """Ends a detached process by unwinding it."""
+    raise _Terminated
 
 
 def _quiet() -> None:  # pragma: no cover -- runs only in the forked child

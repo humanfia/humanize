@@ -9,7 +9,10 @@ workspace the CLI is given is the target's own copy.
 from __future__ import annotations
 
 import os
+import shutil
+import sqlite3
 import subprocess
+import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -314,6 +317,44 @@ def test_a_virtual_home_is_built_on_the_target_and_gone_after_the_turn(
     assert (real / "sessions" / "kept").exists()
     assert not Path(landed).exists()
     assert not (driven.target / ".agents").exists()
+
+
+@pytest.mark.skipif(shutil.which("sqlite3") is None, reason="the target has no sqlite3")
+def test_a_path_of_a_native_home_its_cli_wrote_down_is_followed_as_it_goes(
+    driven: Driven, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = tmp_path / "codex-home"
+    (real / "sessions").mkdir(parents=True)
+    with sqlite3.connect(real / "state_5.sqlite") as connection:
+        connection.execute("create table threads (id text, rollout_path text)")
+    connection.close()
+    monkeypatch.setenv("CODEX_HOME", str(real))
+    home = Virtual(
+        variable="CODEX_HOME",
+        default=".codex",
+        rewrites=("config.toml",),
+        made=("sessions",),
+        records=(("state_*.sqlite", "threads", "rollout_path"),),
+    )
+
+    said = driven.run(
+        sys.executable,
+        "-c",
+        "import os, sqlite3\n"
+        "at = os.environ['CODEX_HOME']\n"
+        "open(f'{at}/sessions/a.jsonl', 'w').close()\n"
+        "with sqlite3.connect(f'{at}/state_5.sqlite') as c:\n"
+        "    c.execute('insert into threads values (?, ?)', ('t', f'{at}/sessions/a.jsonl'))\n"
+        "print(at)\n",
+        home=home,
+    )
+
+    assert said.returncode == 0, said.stderr
+    with sqlite3.connect(real / "state_5.sqlite") as connection:
+        (path,) = connection.execute("select rollout_path from threads").fetchone()
+    connection.close()
+    assert path == f"{real}/sessions/a.jsonl"
+    assert Path(path).exists()
 
 
 def test_a_native_home_keeps_a_skills_exec_bit_and_writes_back_a_replaced_sign_in(

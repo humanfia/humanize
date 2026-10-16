@@ -172,3 +172,28 @@ def test_one_daemon_holds_every_workspace_and_each_run_writes_its_own_epic(
         "first said straight to a descriptor\n",
         "second said straight to a descriptor\n",
     ]
+
+
+def test_the_daemon_ends_on_a_terminate_whatever_forked_it_made_of_one(
+    workspace: Path,
+) -> None:
+    import os
+    import signal
+
+    # A frontend that ignores a terminate, which a process forked from it inherits.
+    was = signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    try:
+        daemon.host()
+    finally:
+        signal.signal(signal.SIGTERM, was)
+    at = where.at()
+    pid = int(where.held(at).get("pid") or 0)
+    assert where.alive(pid)
+
+    os.kill(pid, signal.SIGTERM)
+
+    assert until(lambda: not where.alive(pid))
+    # Let go of as a daemon going does, which is not a failure to hold anything.
+    assert not where.held(at)
+    log = at / where.LOG
+    assert "could not be held" not in (log.read_text() if log.exists() else "")

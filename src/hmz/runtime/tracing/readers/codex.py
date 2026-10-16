@@ -29,6 +29,10 @@ _META_FIELDS = (
     "git",
 )
 _TURN_FIELDS = ("model", "effort", "approval_policy", "sandbox_policy")
+#: Where a conversation is copied to be carried on (`hmz.coganchor.agents.base.KEPT`).
+_KEPT = ".kept"
+#: The completed items that are messages, by the event an earlier Codex said each as.
+_SAID = {"UserMessage": "user_message", "AgentMessage": "agent_message"}
 
 
 def collect(
@@ -52,6 +56,8 @@ def collect(
     """
     metas: dict[str, tuple[pathlib.Path, dict[str, Any]]] = {}
     for path in sorted(home.glob("**/rollout-*.jsonl")):
+        if _KEPT in path.relative_to(home).parts:
+            continue  # a copy of a conversation, kept for carrying it on, and no other one
         with path.open(encoding="utf-8", errors="replace") as stream:
             head = stream.readline()
         try:
@@ -121,6 +127,9 @@ def _parse(
     turn: Action | None = None
     think: Action | None = None
     prev = 0.0
+    # Codex 0.160 says a turn's messages as completed items alone, where earlier releases said
+    # them as events: a rollout holding the items is read by them, so none is said twice.
+    itemized = any(_said(record) for record in records(path))
     for record in records(path):
         stamp = record.get("timestamp")
         if not isinstance(stamp, str):
@@ -131,6 +140,15 @@ def _parse(
         prev = prev or at
         payload = mapping(record.get("payload"))
         kind, item = record.get("type"), payload.get("type")
+        said = _said(record)
+        if said:
+            kind, item = "event_msg", said
+            payload = {"message": text_of(mapping(payload.get("item")).get("content"))}
+            if said == "user_message":
+                # What answers it is said after it, never before the turn it is in.
+                prev = max(prev, at)
+        elif itemized and item in _SAID.values() and kind == "event_msg":
+            continue
 
         if kind == "turn_context":
             info.update({field: payload.get(field) for field in _TURN_FIELDS})
@@ -190,6 +208,14 @@ def _parse(
         turn.end = max(turn.end, prev)
         actions.append(turn)
     return actions, info
+
+
+def _said(record: dict[str, Any]) -> str:
+    """The event a completed message item stands for, or "" for any other record."""
+    payload = mapping(record.get("payload"))
+    if record.get("type") != "event_msg" or payload.get("type") != "item_completed":
+        return ""
+    return _SAID.get(str(mapping(payload.get("item")).get("type")), "")
 
 
 def _add_event(

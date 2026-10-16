@@ -292,6 +292,10 @@ def start() -> bool:
             # in `_before_send`, since a switch this load-bearing is worth being wrong about
             # twice.
             disabled_integrations=[ArgvIntegration()],
+            # Off: each one imports its library wherever that is installed -- openai, mcp,
+            # fastapi and more come with the extras -- which took a host's start, reporting
+            # before it serves, past the seconds a frontend waits for it.
+            auto_enabling_integrations=False,
             release=_version(),
             before_send=_before_send,
             before_send_transaction=_before_send_transaction,

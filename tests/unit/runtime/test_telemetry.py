@@ -227,6 +227,7 @@ def test_reporting_starts_once_with_nothing_about_the_person(on: Sentry) -> None
     assert [type(one).__name__ for one in said["disabled_integrations"]] == [
         "ArgvIntegration"
     ]
+    assert said["auto_enabling_integrations"] is False
 
 
 def test_an_sdk_that_will_not_start_reports_nothing(on: Sentry) -> None:

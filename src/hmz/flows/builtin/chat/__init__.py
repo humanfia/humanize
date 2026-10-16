@@ -32,7 +32,7 @@ state -- so that one picked up again (`--resume`) is the same conversation carri
 same epic, written on from where it stopped, and an agent that remembers everything said in it.
 This is what an interface does with a chat nobody has looked at for a while between turns:
 folds it away, and carries it on the next time somebody says something in it. One that cannot
-be carried on says so in the conversation, and the next line starts a new one.
+be carried on says so in the conversation, and what carried it on is answered in a new one.
 """
 
 from __future__ import annotations
@@ -129,10 +129,10 @@ async def chat(
                 if carried is None or not isinstance(failed, SessionError):
                     answered = f"That turn could not be taken: {failed}"
                 else:
-                    answered = _restarted(
-                        str(failed), "what you say next starts a new one"
-                    )
-                    conversation = await assistant.spawn()
+                    # Said ahead of the answer the new one gives to what carried it on.
+                    unkept = _restarted(str(failed), "this is a new one")
+                    conversation, carried = await assistant.spawn(), None
+                    continue
             if unkept:
                 answered, unkept = f"{unkept}\n\n{answered}", ""
             opening, carried = False, None

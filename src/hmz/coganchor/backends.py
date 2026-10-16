@@ -659,6 +659,10 @@ class Profile:
       secures: A variable that keeps where it finds its sign-in where the user's own home
         would put it, for a CLI that names a keychain item or a credentials file after its
         home: set, in a virtual home, to the user's own value of `home_var`.
+      records: Where it writes down a path of its own home that it reads back later, as
+        `(database under its home, as a glob; table; column)`. One written in a virtual home
+        names that home, which is gone once the process is: as the home is dropped, each is
+        said again with its links followed (:meth:`hmz.coganchor.homes.Home.drop`).
       home_flag: The command-line flag that moves its home, for a CLI no variable moves --
         given the home relative to the directory `home_dir` is in, which is the only way agy's
         `--app_data_dir` takes one. What its virtual home is named to it by, in place of a
@@ -794,6 +798,7 @@ class Profile:
     outside: tuple[tuple[str, str], ...] = ()
     lodges: str = ""
     secures: str = ""
+    records: tuple[tuple[str, str, str], ...] = ()
     home_flag: str = ""
     beyond: tuple[str, ...] = ()
     swarms: bool = False
@@ -1811,6 +1816,10 @@ PROFILES = (
         rewrites=("config.toml",),
         # And a flow's own skills go beside the user's, in that same home.
         lodges="skills",
+        # codex 0.160.0 finds a thread's rollout by the path its state database has for it,
+        # written under the home it was started in: `thread/resume` and `thread/fork` read
+        # nothing else, and a thread of a virtual home is one neither finds once it is gone.
+        records=(("state_*.sqlite", "threads", "rollout_path"),),
         # One file, whichever way it was signed into: the subscription's tokens and an API
         # key land in the same place, under the mode that says which of them is in force.
         creds=("auth.json",),

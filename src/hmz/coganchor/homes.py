@@ -106,6 +106,8 @@ class Virtual:
         to the directory `default` is in; "" for a CLI a variable moves.
       merges: What a driver merges into the home once it is built, in order, as
         `(the merger's name, its argument as JSON)` (:func:`merged`).
+      records: Where the CLI writes down a path of its home that it reads back, as
+        `(database, as a glob; table; column)`: said again as the home is dropped.
     """
 
     variable: str
@@ -120,6 +122,7 @@ class Virtual:
     skills: tuple[tuple[str, str], ...] = ()
     flag: str = ""
     merges: tuple[tuple[str, str], ...] = ()
+    records: tuple[tuple[str, str, str], ...] = ()
 
     def __post_init__(self) -> None:
         """Refuses a virtual home that would name something outside itself.
@@ -161,6 +164,7 @@ class Virtual:
                 "skills": [list(one) for one in self.skills],
                 "flag": self.flag,
                 "merges": [list(one) for one in self.merges],
+                "records": [list(one) for one in self.records],
             },
             separators=(",", ":"),
         )
@@ -187,6 +191,10 @@ class Virtual:
                 skills=tuple((one, other) for one, other in held["skills"]),
                 flag=held.get("flag", ""),
                 merges=tuple((one, other) for one, other in held.get("merges", ())),
+                records=tuple(
+                    (one, table, column)
+                    for one, table, column in held.get("records", ())
+                ),
             )
         except (KeyError, TypeError) as wrong:
             raise ValueError(f"not a virtual home: {said!r}") from wrong
@@ -246,6 +254,8 @@ def virtual(
         kept=() if private else tuple(one for one in names if _globbed(one)),
         skills=tuple(skills) if profile.lodges else (),
         flag="" if profile.home_var else profile.home_flag,
+        # A private home's databases are its own, brought back with what they name.
+        records=() if private else profile.records,
     )
 
 
@@ -326,6 +336,7 @@ class Home:
         what is written back as it is dropped, where the CLI replaced one.
       answered: What a supervisor answers a path of the user's home with, as :func:`build`
         took it: where what is written back goes instead, for an account's own file.
+      records: Where the CLI writes down paths of this home, as :attr:`Virtual.records`.
     """
 
     at: Path
@@ -338,6 +349,7 @@ class Home:
     answered: Callable[[str], str | None] = field(
         default=lambda _path: None, compare=False, repr=False
     )
+    records: tuple[tuple[str, str, str], ...] = ()
 
     def environ(self, environ: Mapping[str, str] | None) -> dict[str, str]:
         """The whole environment a process of the CLI is started in, given the one it had.
@@ -390,8 +402,11 @@ class Home:
         another process of the same account having saved since: the last to save wins.
 
         What the CLI made here that is the user's to keep (:attr:`kept`) and that the user's
-        home has none of yet is moved there next, rather than going with the rest.
+        home has none of yet is moved there next, rather than going with the rest. And a path
+        of this home it wrote down to read back (:attr:`records`) is said again with its links
+        followed, while they are still here to follow: what it names is where they lead.
         """
+        _respelled(self.at, self.records)
         for name in self.linked:
             entry = self.at / name
             if entry.is_symlink() or not entry.exists():
@@ -483,7 +498,47 @@ def build(
         argv=argv,
         linked=linked,
         answered=answered,
+        records=spec.records,
     )
+
+
+def _respelled(at: Path, records: Iterable[tuple[str, str, str]]) -> None:
+    """Says each path of a virtual home a CLI's databases hold with that home's links followed.
+
+    Only through a database that is a link, which is the user's: one of the home's own goes
+    with it. A path whose file is not there to follow to is left as it was.
+    """
+    import sqlite3
+
+    root = f"{at}/"
+    for pattern, table, column in records:
+        for database in sorted(at.glob(pattern)):
+            if not database.is_symlink():
+                continue
+            try:
+                connection = sqlite3.connect(database, timeout=10)
+            except sqlite3.Error as why:
+                log.warning("could not read %s: %s", database, why)
+                continue
+            try:
+                with connection:
+                    said = connection.execute(
+                        f'select rowid, "{column}" from "{table}"'  # noqa: S608 -- names of ours
+                        f' where substr("{column}", 1, ?) = ?',
+                        (len(root), root),
+                    ).fetchall()
+                    for row, path in said:
+                        followed = os.path.realpath(path)
+                        if followed != path and Path(followed).exists():
+                            connection.execute(
+                                f'update "{table}" set "{column}" = ?'  # noqa: S608
+                                " where rowid = ?",
+                                (followed, row),
+                            )
+            except sqlite3.Error as why:
+                log.warning("could not respell %s in %s: %s", column, database, why)
+            finally:
+                connection.close()
 
 
 def _built(
@@ -674,6 +729,7 @@ printf '%s\n' "$moved"
 #: one that is as new or newer.
 BACK = r"""
 at=$1
+shift
 [ -f "$at.links" ] || exit 0
 put='
 src=$1 dst=$2
@@ -709,16 +765,38 @@ while IFS= read -r f; do
   elif [ -f "$p" ]; then sh -c "$put" sh "$p" "$f" "$p"
   fi
 done < "$at.links"
+command -v sqlite3 >/dev/null 2>&1 || exit 0
+q() { printf '%s' "$1" | sed "s/'/''/g"; }
+for word in "$@"; do
+  case $word in record=*) ;; *) continue ;; esac
+  spec=${word#record=}; glob=${spec%%=*}; rest=${spec#*=}
+  table=${rest%%=*}; column=${rest#*=}
+  for db in "$at"/$glob; do
+    [ -h "$db" ] || continue
+    while IFS= read -r f; do
+      from=$(q "$at/${f##*/}/"); to=$(q "$f/")
+      sqlite3 -cmd '.timeout 10000' "$db" "UPDATE \"$table\" SET \"$column\" = '$to' ||
+        substr(\"$column\", length('$from') + 1)
+        WHERE substr(\"$column\", 1, length('$from')) = '$from';" 2>/dev/null || :
+    done < "$at.links"
+  done
+done
 exit 0
 """
 
 
 def words(spec: Virtual) -> list[str]:
-    """What :data:`SCRIPT` is told after its first four arguments, for one virtual home."""
+    """What :data:`SCRIPT` is told after its first four arguments, for one virtual home.
+
+    And :data:`BACK` after its first: the paths its databases hold of the home
+    (:attr:`Virtual.records`), said again with the home's links followed where the target has
+    `sqlite3` to say them with, which `SCRIPT` passes over.
+    """
     outside = dict(spec.outside)
     return [
         *(f"copy={one}={outside.get(one, '')}" for one in spec.rewrites),
         *(f"keep={one}" for one in spec.private),
         *(f"make={one}" for one in spec.made),
         *(f"skill={name}" for name, _ in spec.skills),
+        *(f"record={one}={table}={column}" for one, table, column in spec.records),
     ]

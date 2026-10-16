@@ -153,7 +153,11 @@ or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**,
 its own, beside every other chat and flow of its directory: a new chat, or a new epic, leaves
 the last one going, as a chat app's new chat does. A chat nobody has looked at for a minute
 between turns folds away; say something in it and it carries on, in the same epic, with what
-was said before still above and an agent that remembers it.
+was said before still above and an agent that remembers it. A turn that could not be taken
+says so in the conversation, with why, and the chat waits for your next line. Where the
+conversation itself cannot be carried on, the chat says why and answers what you said in a
+new one. A chat that kept nothing to carry on from -- one an earlier humanize wrote down --
+says it cannot be continued here, and offers no box.
 
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
 opens what they were asked and answered. A line typed under one goes to whose it is. There is

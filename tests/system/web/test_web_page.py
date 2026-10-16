@@ -341,6 +341,50 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("✔")
 
 
+def test_a_chat_says_in_its_conversation_that_a_turn_could_not_be_taken(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "hello there")
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("did: hello there")
+        say = page.locator("[data-hmz=say] textarea")
+        say.fill("fail: the model is down")
+        say.press("Enter")
+
+        # Said where the answer would have been, and the conversation goes on.
+        failed = thread.locator(".said.notice", has_text="That turn could not be taken")
+        expect(failed).to_have_count(1)
+        expect(failed).to_contain_text("the model is down")
+        # An answer said back to ask what next is the answer drawn already, never twice.
+        expect(thread.locator(".said", has_text="did: hello there")).to_have_count(1)
+        say.fill("and again")
+        say.press("Enter")
+        expect(thread).to_contain_text("did: and again")
+        stop(page)
+
+
+def test_a_chat_that_kept_nothing_to_carry_on_says_it_cannot_be_continued(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "hello there")
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: hello there")
+        stop(page)
+        # As a chat of an earlier humanize was written down: with no journal to pick up.
+        journals = list(project.parent.glob("humanize-home/epics/*/*/resume.jsonl"))
+        assert journals
+        for journal in journals:
+            journal.unlink()
+        page.reload()
+
+        expect(page.locator("[data-hmz=not-carried]")).to_have_text(
+            "This chat cannot be continued here."
+        )
+        expect(page.locator("[data-hmz=composer], [data-hmz=say]")).to_have_count(0)
+        expect(page.get_by_role("link", name="Resume")).to_have_count(0)
+
+
 def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "find me later")
@@ -1064,7 +1108,7 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
 
         page.get_by_role("tab", name="Aside").click()
         aside = page.locator("[data-hmz=btw]")
-        aside.get_by_role("combobox").select_option(index=1)
+        aside.get_by_label("Ask it of").select_option(index=1)
         aside.locator("textarea").fill("what was the word")
         aside.locator("textarea").press("Enter")
         expect(page.locator("[data-hmz=btw-log]")).to_contain_text(
