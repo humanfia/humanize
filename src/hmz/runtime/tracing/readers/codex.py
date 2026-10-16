@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import json
 import pathlib
+import re
 from typing import Any
 
 from hmz.runtime.tracing.session import (
@@ -29,8 +30,11 @@ _META_FIELDS = (
     "git",
 )
 _TURN_FIELDS = ("model", "effort", "approval_policy", "sandbox_policy")
-#: Where a conversation is copied to be carried on (`hmz.coganchor.agents.base.KEPT`).
-_KEPT = ".kept"
+#: Where under its home Codex keeps its rollouts: a copy kept to carry one on is elsewhere.
+_ROLLOUTS = ("sessions", "archived_sessions")
+
+#: A rollout's name: the moment its thread was started, sortable as written, and its id.
+_NAMED = re.compile(r"rollout-(\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d)-(.+)\.jsonl")
 #: The completed items that are messages, by the event an earlier Codex said each as.
 _SAID = {"UserMessage": "user_message", "AgentMessage": "agent_message"}
 
@@ -55,9 +59,7 @@ def collect(
         One session per rollout, with sub-agent threads linked to their spawner.
     """
     metas: dict[str, tuple[pathlib.Path, dict[str, Any]]] = {}
-    for path in sorted(home.glob("**/rollout-*.jsonl")):
-        if _KEPT in path.relative_to(home).parts:
-            continue  # a copy of a conversation, kept for carrying it on, and no other one
+    for path in _candidates(home, sessions):
         with path.open(encoding="utf-8", errors="replace") as stream:
             head = stream.readline()
         try:
@@ -112,6 +114,38 @@ def collect(
             )
         )
     return collected
+
+
+def _candidates(
+    home: pathlib.Path, sessions: tuple[str, ...] | None
+) -> list[pathlib.Path]:
+    """The rollouts whose first line says whether they are asked for, oldest first.
+
+    Every one, where every thread is. Where some are, only those named for one of them and
+    those started no earlier than the first of those, where the threads they started are --
+    a home holds thousands, and what a run opened is a few, of Codex or of none. One named
+    some other way is read whatever it is named for: nothing is passed over unread that
+    could be a thread asked for.
+    """
+    paths = sorted(
+        path
+        for under in _ROLLOUTS
+        for path in (home / under).glob("**/rollout-*.jsonl")
+    )
+    if sessions is None:
+        return paths
+    named = {path: _NAMED.fullmatch(path.name) for path in paths}
+    asked = [
+        held[1]
+        for held in named.values()
+        if held is not None and wanted(sessions, f"codex:{held[2]}")
+    ]
+    since = min(asked, default=None)
+    return [
+        path
+        for path, held in named.items()
+        if held is None or (since is not None and held[1] >= since)
+    ]
 
 
 def _parse(

@@ -3,10 +3,13 @@ from __future__ import annotations
 import datetime
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hmz.runtime.tracing.readers import codex
 from tests.unit.runtime.tracing.logs import ALL, jsonl
+
+if TYPE_CHECKING:
+    import pytest
 
 T0 = 1_767_225_600
 WORKSPACE = "/work/repo"
@@ -219,3 +222,37 @@ def test_a_copy_kept_to_carry_a_conversation_on_is_not_read_again(
     assert session.args["log"] == str(
         tmp_path / "sessions" / "2026" / "rollout-a.jsonl"
     )
+
+
+def test_only_rollouts_that_could_be_asked_for_are_opened(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def named(at: str, ident: str, **extra: Any) -> str:
+        jsonl(
+            tmp_path / "sessions" / "2026" / f"rollout-2026-01-01T{at}-{ident}.jsonl",
+            [meta(ident, **extra)],
+        )
+        return ident
+
+    named("09-00-00", "older-1")
+    asked = named("10-00-00", "asked-1")
+    child = named("11-00-00", "child-1", parent_thread_id=asked)
+    named("12-00-00", "later-1")
+    opened: list[str] = []
+    reads: Any = Path.open
+
+    def counted(self: Path, *args: Any, **kwargs: Any) -> Any:
+        opened.append(self.name)
+        return reads(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", counted)
+
+    found = codex.collect(tmp_path, None, ("asked",), ALL)
+    assert {s.key for s in found} == {f"codex:{asked}", f"codex:{child}"}
+    # Nothing started before the thread asked for is opened to ask whose it is.
+    assert not [name for name in opened if "older-1" in name]
+
+    opened.clear()
+    # And none at all for a run that opened no thread of Codex's.
+    assert codex.collect(tmp_path, None, ("7b4c918b",), ALL) == []
+    assert opened == []
