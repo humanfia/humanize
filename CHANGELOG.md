@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.0-beta.4](https://github.com/humanfia/humanize/compare/v0.2.0-beta.3...v0.2.0-beta.4) (2026-10-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* **btw:** The Epic is answered by the `btw` setting alone. With it unset, a side question of The Epic is refused rather than answered by the flow's first agent: set it in Settings › General (web) or /settings › General › /btw The Epic (terminal). An epic's own btw agent, `POST /api/btw/agent` and btw mode's ctrl+g are gone, and `GET /api/btw` answers no `agent`.
+
+### Features
+
+* **btw:** ask The Epic or a conversation, from a menu laid out as the epic ([#455](https://github.com/humanfia/humanize/issues/455)) ([43441e8](https://github.com/humanfia/humanize/commit/43441e8aaa114d0d5555ac93b07181d9e91cdd9a))
+
+
+### Fixes
+
+* carry chats on and draw them whole, and keep hosts up on macOS ([#452](https://github.com/humanfia/humanize/issues/452)) ([a4c18ed](https://github.com/humanfia/humanize/commit/a4c18eddc0e5038d9f4c1511693b07a5d417e77b))
+* **desktop:** find the update in the newest release that carries one ([#450](https://github.com/humanfia/humanize/issues/450)) ([a4c18ed](https://github.com/humanfia/humanize/commit/a4c18eddc0e5038d9f4c1511693b07a5d417e77b))
+* **runtime:** refuse a host slot that is neither the workspace's nor a chat's ([#451](https://github.com/humanfia/humanize/issues/451)) ([a4c18ed](https://github.com/humanfia/humanize/commit/a4c18eddc0e5038d9f4c1511693b07a5d417e77b))
+
+
+### Performance
+
+* **tracing:** open only the Codex rollouts a run could have written ([#454](https://github.com/humanfia/humanize/issues/454)) ([43441e8](https://github.com/humanfia/humanize/commit/43441e8aaa114d0d5555ac93b07181d9e91cdd9a))
+
 ## [0.2.0-beta.3](https://github.com/humanfia/humanize/compare/v0.2.0-beta.2...v0.2.0-beta.3) (2026-10-14)
 
 
