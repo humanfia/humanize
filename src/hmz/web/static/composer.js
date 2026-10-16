@@ -46,7 +46,8 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
       form.classList.remove('busy')
     }
   })
-  requestAnimationFrame(grow)
+  // Measured again whenever its box changes, so one built before it is shown fits once shown.
+  new ResizeObserver(() => requestAnimationFrame(grow)).observe(text)
   return { node: form, text, tray, said, send }
 }
 
