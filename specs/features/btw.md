@@ -198,43 +198,60 @@ MUST NOT offer a choice of the agent of a session side copy, which is the asked 
 
 ## 8. Whom a side question is asked of
 
-**8.1** The btw panel MUST offer, once opened, one control that picks whom the next side
-question is asked of: The Epic, or one session of the epic.
+**8.1** The btw panel MUST hold any number of side conversations at once, each asking one of The
+Epic or one session of the epic, MUST let the user open a new one, and MUST show one at a time,
+offering the others to switch to.
 
-**8.2** That control MUST name the btw agent as `The Epic`, and MUST NOT name it otherwise.
+**8.2** A side conversation of the btw panel MUST be asked of whom the user picked before its
+first question, and MUST NOT be asked of anyone else after; to ask another, the user opens
+another side conversation.
 
-**8.3** That control MUST lay the sessions out as a hierarchy: one entry per agent of the epic,
+**8.3** The btw panel MUST offer, until a side conversation is opened by its first question, one
+control that picks whom it asks, outside the box its question is typed in, and MUST NOT offer it
+once it is open.
+
+**8.4** That control MUST name the btw agent as `The Epic`, and MUST NOT name it otherwise.
+
+**8.5** That control MUST lay the sessions out as a hierarchy: one entry per agent of the epic,
 naming the agent and the role it fills, under which are that agent's sessions, newest first.
 
-**8.4** That control MUST let the user narrow what it offers by typing part of an agent's name,
+**8.6** That control MUST let the user narrow what it offers by typing part of an agent's name,
 a role or a session.
 
-**8.5** That control MUST show which one is picked, and MUST keep the pick while the epic is
+**8.7** That control MUST show which one is picked, and MUST keep the pick while the epic is
 redrawn, falling back to The Epic only where the session picked is no longer of the epic.
 
-**8.6** Btw mode MUST pick whom it asks by the view read, as §5 states (`features/tui.md`).
+**8.8** The btw panel MUST name each side conversation by whom it asks, as `btw · The Epic` or
+`btw · <agent>/<n>`.
+
+**8.9** While a side conversation of the btw panel is answering, the panel MUST show that it is,
+on that side conversation and where it is offered to switch to, MUST show each ask line (§6.8)
+as it is carried out, and MUST NOT let the user send it another question.
+
+**8.10** Btw mode MUST pick whom it asks by the view read, as §5 states (`features/tui.md`).
 
 ## 9. Lifetime of side conversations and asides
 
-**9.1** Every side question after the first, in one btw mode or one btw panel, MUST go on in
-the same side conversation as the first, so that a question MAY refer to an earlier one.
+**9.1** Every side question after the first, in one btw mode or one side conversation of the btw
+panel, MUST go on in the same side conversation as the first, so that a question MAY refer to an
+earlier one.
 
 **9.2** Leaving btw mode (`features/tui.md` §12.8) MUST close every side conversation that btw
 mode opened.
 
-**9.3** Closing the side conversations in the btw panel MUST close every side conversation the
-panel opened.
+**9.3** Closing a side conversation in the btw panel MUST close it, and no other.
 
 **9.4** A new epic starting on the host the frontend follows MUST close every side conversation
 opened about the epic it replaces (`features/tui.md` §12.9).
 
 **9.5** A frontend going away MUST close every side conversation it opened.
 
-**9.6** A side conversation that opens after its btw mode or btw panel was closed MUST be
-closed at once, and its answer MUST NOT be shown.
+**9.6** A side conversation that opens after its btw mode, or it in the btw panel, was closed
+MUST be closed at once, and its answer MUST NOT be shown.
 
-**9.7** The web interface MUST keep, per workspace, which side conversations are open and the
-last 200 asides, so that a page opened again shows them.
+**9.7** The web interface MUST keep, per workspace, which side conversations are open, about
+which epic, whom each asks, the question each is answering and its ask lines so far, and the last
+200 asides of each, so that a page opened again shows them.
 
 **9.8** The terminal interface MUST show each aside in the transcript the user reads, and MUST
 NOT keep asides after the transcript is cleared or the interface closes.

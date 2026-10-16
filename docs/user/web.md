@@ -118,9 +118,15 @@ The panel beside it (the button at the top right shows and hides it) holds:
 - **Aside.** A side question, as [`/btw`](/user/btw) asks it: of **The Epic** -- the agent
   chosen under **Settings › General**, the same for every epic -- or of one session's side copy
   -- any epic's session, an earlier one forked from where that epic kept it, so it answers with
-  that session's own history. The **Ask** chip picks whom: The Epic, then each agent with the
-  role it fills, opening onto its conversations, newest first; type in its box to narrow it. The epic never sees it. Every question after the first goes on in the
-  same side conversation until you press **Close them**, or a new epic starts.
+  that session's own history. Keep as many asides as you like: each is a side conversation of
+  its own, on a tab named by whom it asks (`btw · The Epic`, `btw · <agent>/<n>`), and **New
+  aside** opens another. A new aside's **Ask** chip, above its box, picks whom: The Epic, then
+  each agent with the role it fills, opening onto its conversations, newest first; type in its
+  box to narrow it. Its first question fixes whom it asks -- to ask someone else, open another.
+  While one answers it says `… is thinking…`, and a pulsing dot marks its tab; each
+  conversation The Epic asks on the way shows as it asks it. The epic never sees any of it.
+  Every question after the first goes on in the same side conversation until you press its
+  **Close**, or a new epic starts.
 - **Board.** For an epic that holds one: edit, remove and add its lines. See
   [The mission board](/user/board).
 - **People.** Each person the flow has: **Answer it here** holds the role for this browser,

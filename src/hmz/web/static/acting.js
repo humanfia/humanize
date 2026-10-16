@@ -156,110 +156,248 @@ export function outworlders(workspace, roles, { claims, away, me, clients }) {
 /** Who a side question about the whole epic is asked of, as every frontend names it. */
 export const THE_EPIC = 'The Epic'
 
+/** How often an aside answering is read again, for whom it asks on the way, in milliseconds. */
+const WATCHED = 1000
+
 /**
  * Side questions about the run, asked beside it rather than of it, as `/btw` asks them in the
- * terminal interface: of The Epic -- the agent the settings name, which may ask any one
- * conversation in turn -- or of one conversation's read-only side copy, whose agent is that
- * conversation's own. Whom is picked from a menu laid out as the epic is: The Epic, then each
- * agent with the role it fills, opening onto its conversations, newest first; typing in it
- * narrows it to the conversations that match. Every question after the first goes on in the
- * same side conversation until they are closed. The server holds them, and what was said in
- * them, so a page opened again reads them back; made once for a page and moved from one
- * drawing of it to the next, so that what is being typed outlives a redraw.
+ * terminal interface: several asides, each a side conversation of its own, picked between on a
+ * strip, and a new one opened from it. An aside asks one of whom it opened on, for good: The
+ * Epic -- the agent the settings name, which may ask any one conversation in turn -- or one
+ * conversation's read-only side copy, whose agent is that conversation's own. Whom is picked
+ * before its first question, from a menu laid out as the epic is: The Epic, then each agent with
+ * the role it fills, opening onto its conversations, newest first; typing in it narrows it to
+ * the conversations that match. While one answers it says so, and whom The Epic asks on the way,
+ * as it asks. The server holds them, and what was said in them, so a page opened again reads them
+ * back; made once for a page and moved from one drawing of it to the next, so that what is being
+ * typed outlives a redraw.
  */
 export function asides(workspace, epic = '') {
-  /** Who is asked: "" for The Epic, else a conversation, `<agent>/<n>`. */
-  let target = ''
   /** The epic's agents: `{name, role, sessions: [{key, about}]}`, as its graph has them. */
   let agents = []
   /** The agent the settings name to answer The Epic, "" for nobody. */
   let answers = null
-  const shown = h('span', { class: 'chip-value' }, THE_EPIC)
-  const to = h('button', { class: 'chip-btn ask-to', type: 'button', 'aria-label': 'Ask it of', 'data-hmz': 'btw-to' }, h('span', { class: 'chip-label' }, 'Ask'), shown, icon('down'))
-  const picked = (key) => {
-    target = key
-    shown.textContent = key || THE_EPIC
-    to.dataset.value = key
-  }
-  const leave = h('button', { class: 'btn quiet small', type: 'button', hidden: true }, 'Close')
-  const log = h('div', { class: 'thread aside-log', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
-  const asked = (question, of) => log.append(line('you', question, { who: `btw · ${of || THE_EPIC}` }))
-  const answered = (said) => {
-    for (const one of said.asked) log.append(line('begins', `asked ${one.to}: ${one.question}`))
-    log.append(line('btw', said.answer))
-  }
-  menu(
-    to,
-    (close) => {
-      const conversation = (agent, one) =>
-        choice({ label: one.key, about: [agent.role, one.about].filter(Boolean).join(' · '), chosen: one.key === target, act: () => picked(one.key), close })
-      const newest = (agent) => [...agent.sessions].reverse()
-      const epicWide = choice({
-        label: THE_EPIC,
-        about: answers === null ? '' : answers || 'nobody yet: set its agent in Settings',
-        glyph: 'thread',
-        chosen: !target,
-        act: () => picked(''),
-        close,
-      })
-      epicWide.dataset.hmz = 'btw-the-epic'
-      const laid = () => [
-        epicWide,
-        agents.length ? section('Conversations') : null,
-        ...agents.map((agent) =>
-          submenu({ label: agent.name, glyph: 'agent', about: [agent.role, `${agent.sessions.length}`].filter(Boolean).join(' · '), hmz: 'btw-agent', items: () => newest(agent).map((one) => conversation(agent, one)) }),
-        ),
-      ]
-      const list = h('div', { class: 'ask-list' }, laid())
-      const narrow = h('input', { class: 'menu-filter', type: 'search', placeholder: 'Find whom to ask', 'aria-label': 'Find whom to ask', 'data-hmz': 'btw-find' })
-      narrow.addEventListener('input', () => {
-        const wanted = narrow.value.trim().toLowerCase()
-        if (!wanted) return fill(list, laid())
-        const found = agents.flatMap((agent) => newest(agent).filter((one) => [agent.name, agent.role, one.key, one.about].some((said) => String(said || '').toLowerCase().includes(wanted))).map((one) => conversation(agent, one)))
-        fill(list, THE_EPIC.toLowerCase().includes(wanted) ? epicWide : null, found.length ? found : h('p', { class: 'dim ask-none' }, 'Nobody matches.'))
-      })
-      return [narrow, list]
-    },
-    { up: true, label: 'Ask it of' },
-  )
-  const box = composer({
-    placeholder: 'Ask about the epic',
-    label: 'Side question',
-    tools: [to, leave],
-    submit: async (question) => {
-      asked(question.trim(), target)
+  /** Every aside, in the order opened: the one not yet asked, if any, last. */
+  const all = []
+  let shown = null
+  let watching = null
+  /** How many times an aside here has changed, by which a reading begun before is stale. */
+  let changed = 0
+  let reading = null
+  const strip = h('div', { class: 'aside-strip', 'data-hmz': 'btw-asides' })
+  const body = h('div', { class: 'aside-body' })
+  const fresh = h('button', { class: 'chip-btn', type: 'button', 'data-hmz': 'btw-new' }, icon('plus'), 'New aside')
+  const query = `/api/btw?workspace=${encodeURIComponent(workspace)}&epic=${encodeURIComponent(epic)}`
+
+  /** One aside: `to` is null until its first question fixes whom it asks. */
+  function aside(id, to = null) {
+    const one = { id, to, said: [], question: '', asked: [], posting: false }
+    let target = ''
+    const title = h('span', { class: 'aside-title' })
+    const named = h('span', { class: 'chip-value' })
+    const tab = h('button', { class: 'chip-btn aside-tab', type: 'button', 'data-hmz': 'btw-tab', onclick: () => show(one) }, h('span', { class: 'aside-dot', 'aria-hidden': 'true' }), named)
+    const leave = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'btw-close' }, 'Close')
+    const log = h('div', { class: 'thread aside-log', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
+    const picked = h('span', { class: 'chip-value' }, THE_EPIC)
+    const picker = h('button', { class: 'chip-btn ask-to', type: 'button', 'aria-label': 'Ask it of', 'data-hmz': 'btw-to' }, h('span', { class: 'chip-label' }, 'Ask'), picked, icon('down'))
+    const pick = (key) => {
+      target = key
+      picked.textContent = key || THE_EPIC
+      picker.dataset.value = key
+    }
+    menu(picker, (close) => whom(target, close, pick), { label: 'Ask it of' })
+    const box = composer({
+      placeholder: 'Ask about the epic',
+      label: 'Side question',
+      submit: async (question) => {
+        if (one.to === null) one.to = target
+        Object.assign(one, { question: question.trim(), asked: [], posting: true })
+        changed += 1
+        tabs()
+        watch()
+        try {
+          one.said = [...one.said, await post('/api/btw', { question: question.trim(), aside: id, to: one.to, workspace, epic })]
+        } finally {
+          Object.assign(one, { question: '', asked: [], posting: false })
+          changed += 1
+          tabs()
+          // Read again: one refused before it opened has whom it asks still to pick, and one
+          // answering on another page is drawn answering here.
+          reread()
+        }
+      },
+    })
+    box.node.dataset.hmz = 'btw'
+    const node = h('div', { class: 'aside-one', 'data-hmz': 'btw-aside' }, h('div', { class: 'aside-head' }, title, leave), log, h('div', { class: 'aside-to' }, picker), box.node)
+    leave.addEventListener('click', async () => {
       try {
-        answered(await post('/api/btw', { question: question.trim(), to: target, workspace, epic }))
-        leave.hidden = false
-      } finally {
-        log.scrollTop = log.scrollHeight
+        await post('/api/btw/leave', { workspace, aside: id })
+        forget(one)
+      } catch (error) {
+        box.said.replaceChildren(problem(error))
       }
-    },
-  })
-  box.node.dataset.hmz = 'btw'
-  get(`/api/btw?workspace=${encodeURIComponent(workspace)}&epic=${encodeURIComponent(epic)}`).then(({ open, said, default: given }) => {
-    for (const one of said) {
-      asked(one.question, one.to)
-      answered(one)
+    })
+    let was = ''
+    const draw = () => {
+      const who = one.to === null ? 'New aside' : `btw · ${one.to || THE_EPIC}`
+      title.textContent = named.textContent = who
+      tab.classList.toggle('busy', Boolean(one.question))
+      tab.setAttribute('aria-pressed', String(shown === one))
+      leave.hidden = one.to === null
+      picker.parentElement.hidden = one.to !== null
+      if (!one.posting) box.send.disabled = Boolean(one.question)
+      const now = JSON.stringify([one.to, one.said, one.question, one.asked])
+      if (now === was) return
+      was = now
+      fill(
+        log,
+        one.said.map((said) => [
+          line('you', said.question, { who }),
+          said.asked.map((asked) => line('begins', `asked ${asked.to}: ${asked.question}`)),
+          line('btw', said.answer),
+        ]),
+        one.question
+          ? [
+              line('you', one.question, { who }),
+              one.asked.map((asked) => line('begins', `asking ${asked.to}: ${asked.question}`)),
+              h('div', { class: 'aside-working', 'data-hmz': 'btw-working', role: 'status' }, h('span', { class: 'aside-dot', 'aria-hidden': 'true' }), `${one.to || THE_EPIC} is thinking…`),
+            ]
+          : null,
+      )
+      log.scrollTop = log.scrollHeight
     }
-    leave.hidden = !open.length
+    Object.assign(one, {
+      tab,
+      node,
+      draw,
+      /** Whether nothing was picked for it, nor typed in it. */
+      untouched: () => one.to === null && !target && !box.text.value,
+      /** Falls back to The Epic where the conversation picked is no longer of the epic. */
+      offered: () => target && !agents.some((agent) => agent.sessions.some((session) => session.key === target)) && pick(''),
+    })
+    return one
+  }
+
+  /** The menu of whom an aside asks: The Epic, then each agent, opening its conversations. */
+  function whom(target, close, pick) {
+    const conversation = (agent, one) => choice({ label: one.key, about: [agent.role, one.about].filter(Boolean).join(' · '), chosen: one.key === target, act: () => pick(one.key), close })
+    const newest = (agent) => [...agent.sessions].reverse()
+    const epicWide = choice({
+      label: THE_EPIC,
+      about: answers === null ? '' : answers || 'nobody yet: set its agent in Settings',
+      glyph: 'thread',
+      chosen: !target,
+      act: () => pick(''),
+      close,
+    })
+    epicWide.dataset.hmz = 'btw-the-epic'
+    const laid = () => [
+      epicWide,
+      agents.length ? section('Conversations') : null,
+      ...agents.map((agent) =>
+        submenu({ label: agent.name, glyph: 'agent', about: [agent.role, `${agent.sessions.length}`].filter(Boolean).join(' · '), hmz: 'btw-agent', items: () => newest(agent).map((one) => conversation(agent, one)) }),
+      ),
+    ]
+    const list = h('div', { class: 'ask-list' }, laid())
+    const narrow = h('input', { class: 'menu-filter', type: 'search', placeholder: 'Find whom to ask', 'aria-label': 'Find whom to ask', 'data-hmz': 'btw-find' })
+    narrow.addEventListener('input', () => {
+      const wanted = narrow.value.trim().toLowerCase()
+      if (!wanted) return fill(list, laid())
+      const found = agents.flatMap((agent) => newest(agent).filter((one) => [agent.name, agent.role, one.key, one.about].some((said) => String(said || '').toLowerCase().includes(wanted))).map((one) => conversation(agent, one)))
+      fill(list, THE_EPIC.toLowerCase().includes(wanted) ? epicWide : null, found.length ? found : h('p', { class: 'dim ask-none' }, 'Nobody matches.'))
+    })
+    return [narrow, list]
+  }
+
+  /** The strip: each aside's tab, and a new one's where every one has been asked. */
+  function tabs() {
+    const wanted = [...all.map((each) => each.tab), ...(all.some((each) => each.to === null) ? [] : [fresh])]
+    // Drawn again only where they changed: what is focused is left where it is.
+    if (wanted.length !== strip.children.length || wanted.some((tab, at) => strip.children[at] !== tab)) fill(strip, wanted)
+    for (const each of all) each.draw()
+  }
+
+  /** Shows one aside. */
+  function show(one) {
+    shown = one
+    tabs()
+    if (body.firstChild !== one.node) fill(body, one.node)
+  }
+
+  /** The aside not yet asked, opened if there is none. */
+  function opened() {
+    let one = all.find((each) => each.to === null)
+    if (!one) all.push((one = aside(`${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`)))
+    return one
+  }
+
+  /** Lets go of an aside closed, showing the last one left. */
+  function forget(one) {
+    all.splice(all.indexOf(one), 1)
+    show(shown === one || !all.includes(shown) ? all.at(-1) || opened() : shown)
+  }
+
+  /** Reads the asides as the server holds them: what was said, and what is answering now. */
+  async function read() {
+    const at = changed
+    const { asides: held, default: given } = await get(query)
     answers = given || ''
-  }, () => {})
-  leave.addEventListener('click', async () => {
-    try {
-      await post('/api/btw/leave', { workspace })
-      log.append(line('ends', 'btw: closed'))
-      leave.hidden = true
-    } catch (error) {
-      log.append(problem(error))
+    // Read before an aside here changed: what it says of it is older than what is shown.
+    if (at !== changed) return read()
+    for (const kept of held) {
+      let one = all.find((each) => each.id === kept.aside)
+      if (!one) {
+        const unasked = all.findIndex((each) => each.to === null)
+        all.splice(unasked < 0 ? all.length : unasked, 0, (one = aside(kept.aside, kept.to)))
+      }
+      if (one.posting) one.asked = kept.asked
+      else Object.assign(one, { to: kept.to, said: kept.said, question: kept.question, asked: kept.asked })
     }
-  })
+    for (const one of all.filter((each) => each.to !== null && !each.posting && !held.some((kept) => kept.aside === each.id))) {
+      // One answered here that the server holds no more was closed: by another page, or an epic
+      // starting. One never answered was never opened: whom it asks is still to pick.
+      if (one.said.length) forget(one)
+      else one.to = null
+    }
+    show(all.includes(shown) ? shown : all.at(-1))
+  }
+
+  /** Reads them again, once at a time. */
+  function reread() {
+    reading ||= read()
+      .catch(() => {})
+      .finally(() => {
+        reading = null
+        watch()
+      })
+  }
+
+  /** Reads them again every second while any one answers, and stops once none does. */
+  function watch() {
+    if (watching) return
+    watching = setInterval(() => {
+      if (!all.some((one) => one.question)) {
+        clearInterval(watching)
+        watching = null
+        return
+      }
+      reread()
+    }, WATCHED)
+  }
+
+  fresh.addEventListener('click', () => show(opened()))
+  show(opened())
+  // Opened again on what was asked before, rather than on a new one.
+  read().then(() => {
+    if (all.length > 1 && shown.untouched()) forget(shown)
+    watch()
+  }, () => {})
   return {
-    node: h('div', { class: 'aside' }, log, box.node),
+    node: h('div', { class: 'aside' }, strip, body),
     /** Offers the epic's agents and their conversations to ask, keeping the one picked. */
     sessions(given) {
       agents = given
-      if (target && !agents.some((agent) => agent.sessions.some((one) => one.key === target))) picked('')
+      for (const one of all) if (one.to === null) one.offered()
     },
   }
 }
