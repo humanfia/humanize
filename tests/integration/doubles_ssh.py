@@ -203,12 +203,24 @@ def faked(
         ),
         (host.home / ".local" / "bin" / "hmz", _HMZ.format(python=sys.executable)),
         (host.home / ".local" / "bin" / "uv", _UV),
+        # Where macOS says a user's temporary directory is, which is this machine's own: its
+        # daemon, running or not, is none of the machine's there.
+        (
+            host.home / ".local" / "bin" / "getconf",
+            _GETCONF.format(tmp=str(host.tmp)),
+        ),
     ):
         at.write_text(script)
         at.chmod(0o755)
     monkeypatch.setenv("PATH", f"{made}{os.pathsep}{os.environ['PATH']}")
     host.installs(version or installed("hmz"))
     return host
+
+
+#: `getconf`, answering where the machine's temporary directory is with its own.
+_GETCONF = """#!/bin/sh
+if [ "$1" = DARWIN_USER_TEMP_DIR ]; then echo "{tmp}/"; else exec /usr/bin/getconf "$@"; fi
+"""
 
 
 def written(*daemons: dict[str, object]) -> None:

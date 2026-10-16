@@ -63,7 +63,9 @@ function threadOf(one) {
  *
  * A chat's is read as a conversation: its session's thread opens on the task and goes on with
  * every answer the person gave as a line of theirs, and what to say next is never drawn as
- * asked, since it is only the reply said back.
+ * asked, since it is only the reply said back. Anything else said in asking it -- that a turn
+ * could not be taken, or that the conversation could not be carried on -- is the flow's own
+ * word in the conversation, and is drawn there, as the terminal interface draws it.
  *
  * @returns {(record: object) => Node[]} What one more record adds to the transcript.
  */
@@ -72,6 +74,8 @@ export function sayer(key, { chat = false } = {}) {
   const [kind, whom] = key.startsWith('agent:') ? ['agent', key.slice(6)] : key.startsWith('person:') ? ['person', key.slice(7)] : ['session', '']
   const of = (record) => String(record.session || record.key || record.agent || '')
   const whose = (record) => (kind === 'agent' ? of(record).split('/')[0] === whom : kind === 'person' ? false : of(record) === key)
+  // The answer the last turn ended on, which a chat says back to ask what next.
+  let answer = ''
   return (record) => {
     const mine = whose(record)
     switch (record.type) {
@@ -80,7 +84,10 @@ export function sayer(key, { chat = false } = {}) {
         return mine || toPerson ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
       }
       case 'asked':
-        if (chat && record.mode === 'listen' && kind !== 'person') return []
+        if (chat && record.mode === 'listen' && kind !== 'person') {
+          const text = String(record.text || '').trim()
+          return text && text !== answer.trim() && kind === 'session' ? [line('notice', text)] : []
+        }
         // A question asked while a turn is open is that session's, where it says whose it is.
         return (
           kind === 'person'
@@ -98,6 +105,7 @@ export function sayer(key, { chat = false } = {}) {
       case 'started':
         return chat && kind !== 'person' && record.task ? [line('you', record.task)] : []
       case 'event':
+        if (mine && record.kind === 'result') answer = String(record.text || '')
         return mine ? said(record, kind === 'agent' ? record.session || record.agent : '', began) : []
       default:
         return []

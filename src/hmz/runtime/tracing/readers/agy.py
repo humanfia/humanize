@@ -71,6 +71,13 @@ _MODEL, _RESPONSE = 7, 11
 #: Where a step keeps when it began and when it was last written to.
 _BEGAN, _ENDED = 1, 6
 
+#: Where a step's payload keeps what the person said (a step of the person's turn), and what
+#: the model said back (a step of the model's), as message and field.
+_SAID, _ANSWERED = (19, 2), (20, 1)
+
+#: The columns of a step read by every build of agy.
+_STEP = ("idx", "step_type", "status", "metadata")
+
 
 def collect(
     home: pathlib.Path,
@@ -192,19 +199,19 @@ def _actions(path: pathlib.Path, window: tuple[float, float]) -> list[Action]:
         connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     except sqlite3.Error:
         return []
+    # By name: a build of agy that keeps no payload has steps that say no words.
+    connection.row_factory = sqlite3.Row
     try:
-        rows = list(
-            connection.execute(
-                "select idx, step_type, status, metadata from steps order by idx"
-            )
-        )
+        rows = list(connection.execute("select * from steps order by idx"))
     except sqlite3.Error:
         return []
     finally:
         connection.close()
 
     actions: list[Action] = []
-    for idx, kind, status, held in rows:
+    for row in rows:
+        idx, kind, status, held = (row[name] for name in _STEP)
+        payload = row["step_payload"] if "step_payload" in row.keys() else None  # noqa: SIM118 -- a Row is no mapping
         if not isinstance(held, (bytes, bytearray)):
             continue
         metadata = bytes(held)
@@ -213,6 +220,23 @@ def _actions(path: pathlib.Path, window: tuple[float, float]) -> list[Action]:
             continue
         ended = _wire.moment(metadata, _ENDED) or began
         usage = _wire.message(metadata, 9)
+        said, answered = (
+            _wire.text(_wire.message(bytes(payload), message) or b"", field)
+            if isinstance(payload, (bytes, bytearray))
+            else ""
+            for message, field in (_SAID, _ANSWERED)
+        )
+        if said:
+            actions.append(
+                Action(
+                    f"turn: {summarize(said)}",
+                    "turn",
+                    began,
+                    max(began, ended),
+                    {"prompt": truncate(said)},
+                )
+            )
+            continue
         if usage is None:
             # A step that ran no model -- the person's own turn, a tool coming
             # back -- is an event rather than a call, and is not billed.
@@ -247,4 +271,14 @@ def _actions(path: pathlib.Path, window: tuple[float, float]) -> list[Action]:
                 ),
             )
         )
+        if answered:
+            actions.append(
+                Action(
+                    f"say: {summarize(answered)}",
+                    "message",
+                    max(began, ended),
+                    max(began, ended),
+                    {"text": truncate(answered)},
+                )
+            )
     return actions

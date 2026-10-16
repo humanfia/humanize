@@ -105,6 +105,39 @@ def test_reads_a_rollout(tmp_path: Path) -> None:
     assert last.start == T0 + 10
 
 
+def item(at: float, kind: str, text: str) -> dict[str, Any]:
+    content = [{"type": "text" if kind == "UserMessage" else "Text", "text": text}]
+    return ev(at, "item_completed", item={"type": kind, "content": content})
+
+
+def test_reads_the_messages_of_a_rollout_said_as_completed_items(
+    tmp_path: Path,
+) -> None:
+    rollout(
+        tmp_path,
+        "a",
+        [
+            meta("thread-aaaaaaaa"),
+            ev(1, "task_started", turn_id="t1"),
+            item(1.5, "UserMessage", "how do you do"),
+            # Said both ways by a release in between: once, by its item.
+            ev(1.5, "user_message", message="how do you do"),
+            item(2, "AgentMessage", "well, thanks"),
+            ev(2, "agent_message", message="well, thanks"),
+            ev(3, "task_complete", last_agent_message="well, thanks"),
+        ],
+    )
+    [session] = codex.collect(tmp_path, None, None, ALL)
+
+    said = sorted(session.actions, key=lambda a: a.start)
+    assert [(a.category, a.name) for a in said] == [
+        ("turn", "turn: how do you do"),
+        ("message", "say: well, thanks"),
+    ]
+    assert said[0].args["prompt"] == "how do you do"
+    assert said[1].args["text"] == "well, thanks"
+
+
 def test_subagent_threads_follow_their_parent(tmp_path: Path) -> None:
     rollout(
         tmp_path,
@@ -170,3 +203,19 @@ def test_aborted_turn_records_why_and_window_cuts(tmp_path: Path) -> None:
     assert turn.args["result"] == "interrupted"
     [cut] = codex.collect(tmp_path, None, None, (T0, T0 + 10))
     assert [a.name for a in cut.actions] == ["turn: go"]
+
+
+def test_a_copy_kept_to_carry_a_conversation_on_is_not_read_again(
+    tmp_path: Path,
+) -> None:
+    rows: list[dict[str, Any] | str] = [
+        meta("thread-aaaaaaaa"),
+        ev(1, "user_message", message="hi"),
+    ]
+    rollout(tmp_path, "a", rows)
+    jsonl(tmp_path / ".kept" / "0f" / "sessions" / "rollout-a.jsonl", rows)
+
+    [session] = codex.collect(tmp_path, None, None, ALL)
+    assert session.args["log"] == str(
+        tmp_path / "sessions" / "2026" / "rollout-a.jsonl"
+    )

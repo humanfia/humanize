@@ -213,3 +213,40 @@ def test_a_model_name_that_is_not_text_reads_as_none(tmp_path: Path) -> None:
     assert think.args["model"] == ""
     assert think.args["usage"] == {"promptTokens": 5}
     assert "model" not in session.args
+
+
+def test_a_conversation_says_what_was_said_and_answered(tmp_path: Path) -> None:
+    path = conversation(
+        tmp_path,
+        "c",
+        [
+            ("USER", "DONE", stamp(1, T0 + 1)),
+            ("PLAN", "DONE", stamp(1, T0 + 2) + stamp(6, T0 + 3) + usage()),
+            ("TOOL", "DONE", stamp(1, T0 + 4)),
+        ],
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute("alter table steps add column step_payload")
+        for idx, payload in (
+            (0, field(19, field(2, "say BRAVO") + field(3, field(1, "say BRAVO")))),
+            (1, field(20, field(1, "BRAVO") + field(8, "BRAVO"))),
+            # A step that only reaches for a tool says no words.
+            (2, field(20, field(7, field(2, "run_command")))),
+        ):
+            connection.execute(
+                "update steps set step_payload = ? where idx = ?", (payload, idx)
+            )
+    connection.close()
+
+    [session] = agy.collect(tmp_path, None, None, ALL)
+    said = [
+        (a.category, a.name, a.args.get("prompt") or a.args.get("text"))
+        for a in session.actions
+    ]
+    assert said == [
+        ("turn", "turn: say BRAVO", "say BRAVO"),
+        ("llm", "think", None),
+        ("message", "say: BRAVO", "BRAVO"),
+        ("event", "step 2", None),
+    ]
+    assert session.title == "c · say BRAVO"

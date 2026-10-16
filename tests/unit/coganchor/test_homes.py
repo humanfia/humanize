@@ -220,6 +220,7 @@ def test_a_virtual_home_reads_back_as_itself() -> None:
         made=("sessions",),
         skills=(("review", "/flow/review"),),
         merges=(merged(_settled, {"effort": "high"}),),
+        records=(("state_*.sqlite", "threads", "rollout_path"),),
     )
 
     assert Virtual.loads(spec.dumps()) == spec
@@ -228,6 +229,7 @@ def test_a_virtual_home_reads_back_as_itself() -> None:
         "keep=state_*.sqlite*",
         "make=sessions",
         "skill=review",
+        "record=state_*.sqlite=threads=rollout_path",
     ]
 
 
@@ -285,11 +287,16 @@ def test_claude_and_codex_are_started_in_one_and_others_are_not(
     assert made.secures == "CLAUDE_SECURESTORAGE_CONFIG_DIR"
     assert made.skills == (("review", str(tmp_path)),)
     assert "projects" in made.made
+    linked = virtual(codex, skills)
+    assert linked is not None
+    assert linked.records == (("state_*.sqlite", "threads", "rollout_path"),)
     held = virtual(codex, skills, private=True)
     assert held is not None
     assert held.rewrites == ("config.toml",)
     assert "state_*.sqlite*" in held.private
     assert held.made == ()
+    # Its databases are the home's own, brought back with what they name.
+    assert held.records == ()
     assert virtual(litellm, skills) is None
 
 
@@ -558,3 +565,45 @@ def test_a_merge_humanize_has_no_merger_for_leaves_no_home(tmp_path: Path) -> No
 def test_only_a_merger_is_merged() -> None:
     with pytest.raises(ValueError, match="is not a merger"):
         merged(print)
+
+
+def test_a_path_of_the_home_the_cli_wrote_down_is_followed_as_it_goes(
+    tmp_path: Path,
+) -> None:
+    import sqlite3
+
+    real = tmp_path / "user" / ".codex"
+    (real / "sessions").mkdir(parents=True)
+    state = real / "state_5.sqlite"
+    with sqlite3.connect(state) as connection:
+        connection.execute("create table threads (id text, rollout_path text)")
+    connection.close()
+    spec = Virtual(
+        variable="CODEX_HOME",
+        default=".codex",
+        rewrites=("config.toml",),
+        made=("sessions",),
+        records=(("state_*.sqlite", "threads", "rollout_path"),),
+    )
+    home = build(spec, {"HOME": str(tmp_path / "user")}, under=tmp_path)
+    (home.at / "sessions" / "a.jsonl").write_text("{}\n")
+    rows = [
+        ("kept", f"{home.at}/sessions/a.jsonl"),
+        # Nothing there to follow to: left as it was.
+        ("gone", f"{home.at}/sessions/b.jsonl"),
+        ("other", f"{real}/sessions/c.jsonl"),
+    ]
+    with sqlite3.connect(home.at / "state_5.sqlite") as connection:
+        connection.executemany("insert into threads values (?, ?)", rows)
+    connection.close()
+
+    home.drop()
+
+    with sqlite3.connect(state) as connection:
+        said = dict(connection.execute("select id, rollout_path from threads"))
+    connection.close()
+    assert said == {
+        "kept": os.path.realpath(real / "sessions" / "a.jsonl"),
+        "gone": rows[1][1],
+        "other": rows[2][1],
+    }

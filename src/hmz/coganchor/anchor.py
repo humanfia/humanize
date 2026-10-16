@@ -1505,12 +1505,12 @@ def _written_back(
     """
     import posixpath
 
-    from hmz.coganchor.homes import BACK
+    from hmz.coganchor.homes import BACK, words
 
     landed = posixpath.join(session, home.variable.lower())
     try:
         status, said = _ran(
-            client, ["/bin/sh", "-c", BACK, "humanize", landed], workspace
+            client, ["/bin/sh", "-c", BACK, "humanize", landed, *words(home)], workspace
         )
     except (OSError, ValueError) as why:
         log.warning("could not write back what %s replaced: %s", landed, why)

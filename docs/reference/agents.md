@@ -1177,6 +1177,13 @@ right after the program's name).
   Never over a file as new or newer, which another process of the same account saved since:
   the last to save wins. So a refreshed token (`.credentials.json`, `auth.json`, `credentials`)
   and a session file a CLI replaces are kept; the copies of `Profile.rewrites` still go.
+- A path of its home a CLI writes down to read back later (`Profile.records`) names the
+  virtual home, which is gone once the process is. As the home is removed (`Home.drop`), each
+  such path whose file is there is rewritten with the home's links followed, to where the file
+  really is. Codex finds a thread's rollout by `threads.rollout_path` in its `state_*.sqlite`,
+  so this is what lets a Codex conversation be resumed, forked or carried on after its app
+  server has gone. On a native anchor's target, where no humanize runs, `homes.BACK` does the
+  same with the target's `sqlite3`, and leaves them as they are where it has none.
 - A brought skill sent to a native anchor's target is written a file at a time, each beside
   itself and renamed into place with its own mode (a script stays executable); one that
   cannot be written whole is removed rather than left half there.

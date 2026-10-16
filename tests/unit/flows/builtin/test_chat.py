@@ -215,11 +215,11 @@ async def test_one_that_was_not_kept_says_so_and_starts_a_new_one(chat: Any) -> 
     assert said.endswith("so this is a new one.\n\nhello")
 
 
-async def test_one_that_will_not_carry_on_says_so_and_the_next_line_starts_anew(
+async def test_one_that_will_not_carry_on_says_so_and_answers_in_a_new_one(
     chat: Any,
 ) -> None:
-    assistant = doubles.agent(SessionError("gone"), "fresh")
-    human = doubles.agent("again", "")
+    assistant = doubles.agent(SessionError("gone"), "fresh", "and again")
+    human = doubles.agent("more", "")
     kept = {"conversation": mock.sentinel.conversation}
 
     await doubles.call(
@@ -230,12 +230,33 @@ async def test_one_that_will_not_carry_on_says_so_and_the_next_line_starts_anew(
         human=human,
     )
 
+    # What carried it on is not said twice by the person: the new one answers it.
+    assert doubles.prompts(assistant) == ["hi", "hi", "more"]
     assert doubles.prompts(human) == [
-        (
-            "This conversation could not be carried on (gone), so what you say next "
-            "starts a new one."
-        ),
-        "fresh",
+        "This conversation could not be carried on (gone), so this is a new one.\n\nfresh",
+        "and again",
     ]
     assistant.spawn.assert_awaited_once()
-    assert doubles.sessions(assistant)[1] is not mock.sentinel.conversation
+    new = doubles.sessions(assistant)[1]
+    assert new is not mock.sentinel.conversation
+    assert doubles.sessions(assistant)[2] is new
+
+
+async def test_a_new_one_that_fails_too_says_its_turn_could_not_be_taken(
+    chat: Any,
+) -> None:
+    assistant = doubles.agent(SessionError("gone"), HarnessThrottled("busy"))
+    human = doubles.agent("")
+    kept = {"conversation": mock.sentinel.conversation}
+
+    await doubles.call(
+        chat.chat,
+        "hi",
+        ctx=doubles.context(kept, resumed=True),
+        assistant=assistant,
+        human=human,
+    )
+
+    (said,) = doubles.prompts(human)
+    assert said.startswith("This conversation could not be carried on (gone)")
+    assert "That turn could not be taken: " in said

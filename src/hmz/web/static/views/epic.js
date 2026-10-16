@@ -377,10 +377,13 @@ export function mount(root, { parts, query }) {
     region('dock-composer', [going, carried, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
       dock.querySelector('.composer, .dock-note')?.remove()
       if (composer) dock.append(composer)
-      else if (detail.picks_up)
+      // A chat is carried on by saying something in it, never by resuming it.
+      else if (detail.picks_up && !chat)
         dock.append(h('p', { class: 'dock-note' }, 'Ended · ', h('a', { href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, 'Resume')))
       // Imported from a workspace this machine has not got as it was: why it is not picked up here.
       else if (detail.foreign) dock.append(h('p', { class: 'dock-note', 'data-hmz': 'foreign' }, `Imported · not resumable here: ${detail.foreign}`))
+      // A chat that kept nothing to carry on from, as the terminal interface says it.
+      else if (chat && !going && !detail.picks_up) dock.append(h('p', { class: 'dock-note', 'data-hmz': 'not-carried' }, 'This chat cannot be continued here.'))
     })
   }
 
