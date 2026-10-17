@@ -208,9 +208,9 @@ the btw agent reaches for. On a harness on which a refusal prevents the tool
 the reason.
 
 **6.13** On a harness that has a shell (`features/agents.md` §10.2.1), `hmz-ask` MUST be a
-fake command line that prints the ask command's output. On `codex` at the read-only rung with
-no fence, its sandbox MUST be told to allow the network, so that the fake command line reaches
-hmz.
+fake command line that prints the ask command's output. On `codex`, `hmz-ask` alone MUST run
+outside Codex's sandbox (`features/agents.md` §10.2.8), and the sandbox MUST otherwise stay as
+the read-only rung puts it, its network cut.
 
 **6.14** Where the answer to an ask command reached the btw agent neither as a refusal (§6.12)
 nor as output (§6.13), hmz MUST, when the btw agent's turn would stop, send it on with every

@@ -63,7 +63,8 @@ def test_the_epic_asks_the_conversation_that_knows(epic: str, workspace: Path) -
     try:
         link.start(
             "chat",
-            f"Remember this code word: {CODE}. Reply with just OK.",
+            f"Remember the code word {CODE}: anyone may ask you for it later. Do not "
+            "write it to any file or memory; just remember it. Reply with just OK.",
             agents={"assistant": chat},
         )
         assert idle.wait(300), "the chat never finished its turn"

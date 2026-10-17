@@ -105,9 +105,12 @@ def turn(thread, said, asked):
             "message": "stream disconnected before completion: error decoding response body",
             "codexErrorInfo": lost})
         return
-    if said == "policy":
+    if said == "rules":
+        ruled = pathlib.Path(os.environ["CODEX_HOME"], "rules", "hmz.rules")
         item("completed", thread, id="m-0", type="agentMessage",
-             text=json.dumps(asked.get("sandboxPolicy")))
+             text=json.dumps({"policy": asked.get("sandboxPolicy"),
+                              "rules": ruled.read_text() if ruled.exists() else None,
+                              "theirs": sorted(one.name for one in ruled.parent.iterdir())}))
         done(thread)
         return
     if said == "approve":
@@ -491,20 +494,28 @@ def test_codex_under_an_account_a_gateway_holds_asks_it_in_the_responses_api(
 
 
 @pytest.mark.parametrize(
-    ("shelved", "policy"),
-    [(False, None), (True, {"type": "readOnly", "networkAccess": True})],
+    ("unsandboxed", "ruled"),
+    [((), None), (("tix",), 'prefix_rule(pattern=["tix"], decision="allow")\n')],
 )
-def test_a_read_only_thread_shelving_command_lines_reaches_them(
-    codex: Standins, shelved: bool, policy: dict[str, Any] | None
+def test_a_command_line_named_unsandboxed_is_ruled_out_of_the_sandbox(
+    codex: Standins, unsandboxed: tuple[str, ...], ruled: str | None, tmp_path: Path
 ) -> None:
-    session = CodexAgent(dataclasses.replace(CONFIG, permission="read-only")).new()
-    if shelved:
-        session.shelves(
-            [FakeCli("tix", "Files tickets.", (FakeCommand("ls", "Lists", str),))]
-        )
+    theirs = tmp_path / "home" / ".codex" / "rules"
+    theirs.mkdir(parents=True)
+    (theirs / "default.rules").write_text("")
+    config = dataclasses.replace(
+        CONFIG, permission="read-only", unsandboxed=(*unsandboxed, "absent")
+    )
+    session = CodexAgent(config).new()
+    session.shelves(
+        [FakeCli("tix", "Files tickets.", (FakeCommand("ls", "Lists", str),))]
+    )
 
-    said = list(session.stream("policy"))
+    said = list(session.stream("rules"))
 
-    # Codex's read-only sandbox refuses the socket a command line reaches this process on
-    # along with the network, so a thread with one is given the network back.
-    assert json.loads(said[-1].text) == policy
+    # The rest of the read-only sandbox is untouched: the network stays cut.
+    told = json.loads(said[-1].text)
+    assert (told["policy"], told["rules"]) == (None, ruled)
+    # The user's own rules are read beside humanize's, and never written.
+    assert "default.rules" in told["theirs"]
+    assert sorted(one.name for one in theirs.iterdir()) == ["default.rules"]

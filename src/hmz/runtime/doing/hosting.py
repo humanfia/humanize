@@ -2323,6 +2323,10 @@ def _read_only(source: AgentBase, name: str, asks: _Asks | None = None) -> Agent
         settings["allowed_tools"] = ()
     if hasattr(source.config, "approve_mcps"):
         settings["approve_mcps"] = False
+    # Codex's read-only sandbox refuses the socket `hmz-ask` reaches this process on: that
+    # one command is let out of it, and every other stays in, network and all.
+    if hasattr(source.config, "unsandboxed"):
+        settings["unsandboxed"] = () if asks is None else (_ASK,)
     clone = source.clone(
         config=dataclasses.replace(source.config, **settings),
         name=name,

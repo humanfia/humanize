@@ -1556,6 +1556,7 @@ fall `idle` first, which ends nothing.
 | `features` | `()` | `--enable`/`--disable` pairs by `codex features list` names; `goals` and names beginning `browser_use`, `computer_use`, `standalone_web_search`, `web_search` are refused |
 | `strict_config` | `False` | `--strict-config` |
 | `approvals` | `""` | approval policy replacing the rung's: `untrusted`, `on-request`, `on-failure`, `never` |
+| `unsandboxed` | `()` | names of fake command lines the agent shelves that run outside Codex's sandbox, by `prefix_rule(pattern=["<name>"], decision="allow")` in `rules/hmz.rules` of the virtual home, beside links to your own rule files; every other command stays in the sandbox |
 
 | Refusal | `ValueError` message |
 | --- | --- |
