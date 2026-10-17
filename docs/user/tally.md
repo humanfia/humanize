@@ -187,7 +187,7 @@ run that has stopped working reads as slowing down.
 | `claude`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mcode`, `omp`, `pi`, `qwen` | `input`, `output`, `cache_read`, `cache_write` |
 | `mimo`, `opencode` | those four, and `reasoning` |
 | `agy` | `input`, `output`, `cache_read`, `reasoning` |
-| `codex` | `input`, `output`, and `cache_read` when it runs on this machine |
+| `codex` | `input`, `output`, `cache_read` |
 
 `reasoning` is listed only where a CLI counts it apart from the output. Everywhere else it is
 inside `output`, and priced as output.

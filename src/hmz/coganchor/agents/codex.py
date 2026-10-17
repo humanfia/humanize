@@ -430,9 +430,38 @@ def _offered(feature: str) -> bool:
 
 
 #: What each kind of token is called in the totals the server states. Cached input is counted
-#: inside the input rather than beside it, so it is not a kind of its own here: adding it would
-#: be counting the same tokens twice.
-_KINDS = {"input": "inputTokens", "output": "outputTokens"}
+#: inside the input rather than beside it, so it is taken back out of the input by `_kinds`:
+#: priced as a plain input it would put an agent's bill, which is mostly cached reads, several
+#: times over the truth.
+_KINDS = {
+    "input": "inputTokens",
+    "output": "outputTokens",
+    "cache_read": "cachedInputTokens",
+}
+
+
+def _kinds(stated: Mapping[str, Any]) -> dict[str, int]:
+    """One usage the server states, under the names every kind is counted by here.
+
+    Args:
+      stated: A `total` or a `last` of a `thread/tokenUsage/updated`.
+
+    Returns:
+      Tokens by kind, the cached reads beside the input rather than inside it, so that the
+      kinds still add up to what crossed the wire. A kind the server did not state is left
+      out, and a prompt that was wholly cached leaves no plain input at all.
+    """
+    broken = {
+        kind: int(stated.get(named) or 0)
+        for kind, named in _KINDS.items()
+        if stated.get(named)
+    }
+    if "cache_read" in broken:
+        cached = min(broken["cache_read"], broken.get("input", 0))
+        broken["cache_read"] = cached
+        broken["input"] = broken.get("input", 0) - cached
+        broken = {kind: tokens for kind, tokens in broken.items() if tokens > 0}
+    return broken
 
 
 #: The keywords of a JSON Schema whose value maps names to schemas, rather than being one.
@@ -1229,8 +1258,8 @@ class _AppServer:
 
         Sent as a turn spends it. `total` is the thread, every turn of it; `last` is the one
         request that just came back. Cached input is counted inside the input rather than
-        beside it, so the input the server states is the whole of what went in -- and the two
-        kinds together are the whole of what crossed the wire.
+        beside it, so it is taken back out (`_kinds`) and the kinds together are still the
+        whole of what crossed the wire.
 
         Args:
           thread: The thread it is about.
@@ -1241,13 +1270,7 @@ class _AppServer:
         """
         counted: dict[str, Any] = told.get("tokenUsage") or {}
         usage: dict[str, Any] = counted.get("total") or {}
-        held = Counter(
-            {
-                kind: int(usage.get(named) or 0)
-                for kind, named in _KINDS.items()
-                if usage.get(named)
-            }
-        )
+        held = Counter(_kinds(usage))
         if not sum(held.values()):
             return None
         before = self._counted.get(thread)
@@ -1259,13 +1282,7 @@ class _AppServer:
             # what the server says it cost -- `last` -- and the total is where the next rise
             # is read from.
             last: dict[str, Any] = counted.get("last") or {}
-            return Usage(
-                {
-                    kind: float(tokens)
-                    for kind, named in _KINDS.items()
-                    if (tokens := int(last.get(named) or 0)) > 0
-                }
-            )
+            return Usage({kind: float(tokens) for kind, tokens in _kinds(last).items()})
         return Usage(
             {
                 kind: tokens
@@ -2192,9 +2209,8 @@ class CodexAgent(AgentBase):
     #: codex keeps itself going toward an objective, which is what `pursue` reaches for.
     pursues: ClassVar[bool] = True
 
-    #: What it counts, read off the same table its driver reads a usage with. Two kinds
-    #: and no more: Codex counts its cached reads inside the input rather than beside it,
-    #: so there is no cache kind here to report.
+    #: What it counts, read off the same table its driver reads a usage with: the cached
+    #: reads the server counts inside the input are reported beside it, as `cache_read`.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
 
     def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
