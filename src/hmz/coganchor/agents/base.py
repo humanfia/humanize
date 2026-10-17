@@ -6378,6 +6378,27 @@ class AgentBase(ABC):
         """
 
 
+def conversation(kept: str | os.PathLike[str], session_id: str) -> list[Path]:
+    """Every file of one conversation where a CLI's sessions are kept, lineage and all.
+
+    What :meth:`SessionBase.keep` copies of a conversation and :meth:`AgentBase.recall`
+    brings in, for whoever copies one out of where an earlier run kept it: every file under
+    `kept` with its id in its path, and those of every conversation up the `forked_from_id`
+    line its first line names -- and nothing under :data:`KEPT`, which holds copies of
+    conversations rather than conversations.
+
+    Args:
+      kept: Where a CLI's sessions are kept, laid out as it lays out its home.
+      session_id: What the CLI calls the conversation.
+
+    Returns:
+      Its files, in the order their paths sort in; none for a conversation not kept there.
+    """
+    from pathlib import Path
+
+    return _naming(Path(kept), session_id)
+
+
 def _naming(at: Path, session_id: str) -> list[Path]:
     """Every file under a CLI's kept sessions that is one conversation's, lineage and all.
 

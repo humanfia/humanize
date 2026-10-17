@@ -301,7 +301,8 @@ directory; which paths are kept is specified in `api/files/harness-homes.md` §5
 its **harness** both.
 
 **9.7** `<epic>/sessions/<cli>/.kept/<id>/`, where `<id>` is 32 lowercase hexadecimal digits,
-MUST hold a copy of a **session** that a **flow** stored in its state, laid out as clause 9.5
+MUST hold a copy of a **session** that a **flow** stored in its state, or that `hmz exec
+--carry-on` carried on from another **epic** (`features/epics.md` §3.8), laid out as clause 9.5
 states.
 
 **9.8** An epic directory written by an earlier release of **hmz** MAY hold

@@ -290,6 +290,7 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | `host.log` | runs held by a [host process](/reference/daemon#files) only; appended (`0600`), never rotated | that process's descriptors 1 and 2 while the run is the one it holds: output of the CLIs the run started, and the carrier's failures |
 | `.held` | empty, `0600`; `flock`ed exclusively by the process running the run until `ended` is written | a run whose `.held` is locked is still going, and is not [picked up](/reference/cli#picking-a-run-up) |
 | `sessions/<cli>/…` | by the CLI itself, redirected | the CLI's own layout |
+| `sessions/<cli>/.kept/<hex>/…` | copied whole as a flow's state keeps a session, or as [`--carry-on`](/reference/cli#carrying-a-conversation-on) starts the run | one conversation, lineage and all, in the CLI's own layout: what a [session in state](/reference/flows#sessions-in-state) is carried on from |
 | `traces/*.trace.json` | on demand; plain write | [Chrome trace](/reference/tracing#document) |
 
 Epics are never deleted by humanize.

@@ -63,6 +63,7 @@ _LINE = SimpleNamespace(
     profile_environment=False,
     resume=False,
     backup=None,
+    carry_on={},
 )
 
 
@@ -101,6 +102,7 @@ def test_exec_runs_the_flow_the_line_names(
         profile_environment=False,
         resume=False,
         backup=None,
+        carry_on={},
     )
     running: _Running = runtime.run.return_value
     assert len(running.watched) == 1

@@ -30,6 +30,7 @@ from hmz.coganchor.agents.base import (
     Meter,
     SessionBase,
     StreamSessionBase,
+    conversation,
     identifying,
 )
 from hmz.coganchor.agents.config import AgentConfig, Budget, Unserved
@@ -823,6 +824,40 @@ def _claude_kept(at: Path) -> Path:
     (project / "told" / "subagents" / "agent-1.jsonl").write_text("{}\n")
     (project / "somebody-else.jsonl").write_text("{}\n")
     return project
+
+
+def test_a_conversation_is_every_file_of_it_where_it_was_kept_and_nothing_else(
+    tmp_path: Path,
+) -> None:
+    project = _claude_kept(tmp_path / "snapshot")
+    copy = tmp_path / "snapshot" / KEPT / ("0" * 32) / "projects" / "-where-it-was-had"
+    copy.mkdir(parents=True)
+    (copy / "told.jsonl").write_text(TOLD)
+
+    found = conversation(tmp_path / "snapshot", "told")
+
+    assert found == [
+        project / "told" / "subagents" / "agent-1.jsonl",
+        project / "told.jsonl",
+    ]
+    assert conversation(str(tmp_path / "snapshot"), "nobody") == []
+
+
+def test_a_conversation_is_its_whole_line_of_forks(tmp_path: Path) -> None:
+    day = tmp_path / "sessions" / "2026" / "10" / "03"
+    day.mkdir(parents=True)
+    for ident, parent in (("first", ""), ("second", "first"), ("other", "")):
+        meta = {"id": ident, **({"forked_from_id": parent} if parent else {})}
+        (day / f"rollout-{ident}.jsonl").write_text(
+            json.dumps({"type": "session_meta", "payload": meta})
+        )
+
+    found = conversation(tmp_path, "second")
+
+    assert sorted(path.name for path in found) == [
+        "rollout-first.jsonl",
+        "rollout-second.jsonl",
+    ]
 
 
 @pytest.mark.usefixtures("supervised")

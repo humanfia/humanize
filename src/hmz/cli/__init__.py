@@ -162,6 +162,7 @@ def _executes(argv: list[str]) -> int:
                 profile_environment=line.profile_environment,
                 resume=line.resume,
                 backup=line.backup,
+                carry_on=line.carry_on,
             )
         except Refused as error:
             # A flow that is not there, or one given other roles than it declares, is a

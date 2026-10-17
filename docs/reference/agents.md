@@ -722,6 +722,11 @@ history; its first turn performs the fork.
   conversation kept: `RuntimeError`; a backend with no fork: `NotImplementedError`. Under a
   flow, both are what a [session written into a flow's state](/reference/flows#sessions-in-state)
   comes to.
+- `conversation(kept, session_id)` (`hmz.coganchor.agents`) lists, sorted, the files `keep`
+  copies and `recall` brings in for one conversation under `kept`: every file with its id in
+  its path, and those of every conversation it was cut from, and nothing under `.kept/`. It
+  follows links as any read of the files does; `hmz exec --carry-on` refuses a conversation
+  with one among its files.
 
 ### Working directory {#the-directory-a-session-works-in}
 

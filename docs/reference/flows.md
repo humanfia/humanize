@@ -323,6 +323,14 @@ each run keeps its sessions in its own epic and this does not arise.
 A session read back and written again before its first turn is written down as what it
 carries on, copying nothing.
 
+A run can also be **handed** a kept session it never wrote:
+[`hmz exec --carry-on KEY=EPIC/AGENT/N`](/reference/cli#carrying-a-conversation-on) copies the
+conversation an earlier epic's session had into this epic's `.kept/` and puts it into the top
+call's state under `KEY` before the flow is called. The flow reads it back like one of its own,
+so a resumable flow written as above carries on a conversation of any earlier epic -- one that
+was stopped, failed or killed midway, of another flow, or in another workspace -- with nothing
+changed but `KEY`.
+
 ## Agent roles {#how-many-agents-and-what-they-are-for}
 
 ### `AgentCollection` {#agentcollection}
@@ -1410,10 +1418,12 @@ Grammar rules:
 
 **`git+` fetching.** `<rev>` absent means the default branch. A 40-hex `<rev>` is used as a
 commit; anything else is resolved with `git ls-remote`. The checkout is kept at
-`$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>` and cloned once per commit; each run
-fetches a given URL and revision at most once, on a worker thread, when the flow is first
-called (`hmz exec -f git+…` fetches before the run starts). Each git command has 120 s. The
-flow is `<subdir>/__init__.py` of the checkout (the root's without `#`). Where there is none:
+`$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>` and reused by every later fetch of that
+commit; each run fetches a given URL and revision at most once, on a worker thread, when the
+flow is first called (`hmz exec -f git+…` fetches before the run starts). Two processes
+fetching one commit at once may each clone it; whichever renames its clone into place second
+uses the checkout already there. Each git command has 120 s. The flow is `<subdir>/__init__.py`
+of the checkout (the root's without `#`). Where there is none:
 `<ref>: <url> has no flow in <subdir>, which holds no __init__.py`, ending
 `; there is one at #flows/<subdir>` where a ref written for a repository that kept its flows
 under `flows/` would find one there. The same checkouts are what [installing](#flowverses)

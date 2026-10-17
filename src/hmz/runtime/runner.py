@@ -29,6 +29,7 @@ import asyncio
 import contextlib
 import json
 import math
+import re
 import threading
 import time
 import weakref
@@ -42,7 +43,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
 
     from hmz.coganchor.agents import AgentBase, SessionBase
-    from hmz.flows import Budget, EnvError, FlowParams, Usage
+    from hmz.flows import Budget, EnvError, FlowParams, HarnessKind, Usage
     from hmz.runtime.flowing import (
         AgentDriver,
         Declaration,
@@ -60,7 +61,7 @@ if TYPE_CHECKING:
 
     from .epic import Drove, Epic
 
-__all__ = ["Line", "Refused", "Runner", "read_line"]
+__all__ = ["Carried", "Line", "Refused", "Runner", "read_line"]
 
 #: What is told of each session a run opens, as it is opened: the role it was opened for, the
 #: coganchor agent and conversation behind it, and where it works -- or None for a driver that
@@ -68,11 +69,95 @@ __all__ = ["Line", "Refused", "Runner", "read_line"]
 type Opened = Callable[[str, AgentBase, SessionBase, Placement | None], None]
 
 
+#: A `--carry-on` key, and the conversation after it, as `api/cli.md` §7.9 spells them: printable
+#: ASCII, the key without `=`, the agent without `/`, and N a number from 1 in ASCII digits.
+_KEY = re.compile(r"[\x21-\x3c\x3e-\x7e]+")
+_CONVERSATION = re.compile(
+    r"(?P<epic>.+)/(?P<agent>[\x21-\x2e\x30-\x7e]+)/(?P<n>[1-9][0-9]*)"
+)
+
+#: What a CLI calls a conversation, as an epic's record may say it: a word, never a path.
+_IDENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]*")
+
+
 class Refused(ValueError):  # noqa: N818 -- named for what happened, as the flow API names its own
     """A run refused before anything of it ran: a line, or a setup, to correct.
 
     The message says what, in words; the exception it was refused for is its cause.
     """
+
+
+class Carried(NamedTuple):
+    """A conversation an earlier epic had, which a run carries on as a session kept in its state.
+
+    Attributes:
+      role: The agent role of the flow that carries it on: the one its agent filled.
+      harness: The CLI that had it.
+      cli: That CLI's directory where sessions are kept beside each other's.
+      ident: What that CLI calls it.
+      at: Where the earlier epic kept it, laid out as the CLI lays out its home.
+      epic: The earlier epic's directory.
+    """
+
+    role: str
+    harness: HarnessKind
+    cli: str
+    ident: str
+    at: Path
+    epic: Path
+
+    def kept(self, epic: Path) -> dict[str, Any]:
+        """Copies it into an epic, and answers with what that epic's flow state keeps it as.
+
+        Copied as a session a flow's state keeps is -- its own files, lineage and all, and
+        nothing else of where they were -- into a directory of its own beside the epic's
+        sessions of that CLI, where every epic picking this one up carries it on from too.
+
+        Args:
+          epic: The directory of the epic carrying it on.
+
+        Returns:
+          The value a flow reads back as a new session carrying it on.
+
+        Raises:
+          OSError: If it cannot be copied.
+          RuntimeError: If the earlier epic is running again, or what is left of it where
+            that epic kept it is nothing, or is not only its own files there
+            (:func:`_carried_files`).
+        """
+        import shutil
+        import uuid
+
+        from hmz.coganchor.agents.base import KEPT
+        from hmz.coganchor.backends import named
+        from hmz.runtime.flowing.journaling import SESSION, SESSIONS
+
+        from .epic import going
+
+        # Read again as it is copied, rather than as it was when the run was set up: the
+        # earlier epic may have been picked up meanwhile, and its files changed.
+        if going(self.epic):
+            raise RuntimeError(f"{self.epic.name} is running again")
+        profile = named(self.cli)
+        if profile is None:
+            raise RuntimeError(f"no CLI here is {self.cli}")
+        try:
+            files = _carried_files(self.at, self.epic, self.ident, profile)
+        except ValueError as why:
+            raise RuntimeError(str(why)) from None
+        into = epic / SESSIONS / self.cli / KEPT / uuid.uuid4().hex
+        for path in files:
+            target = into / path.relative_to(self.at)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target, follow_symlinks=False)
+        return {
+            SESSION: {
+                "harness": str(self.harness),
+                "id": self.ident,
+                "at": str(into),
+                "role": self.role,
+            }
+        }
 
 
 class Line(NamedTuple):
@@ -92,6 +177,8 @@ class Line(NamedTuple):
       resume: Whether to pick up the newest run of the flow here that can be.
       as_json: Whether a program is reading the run rather than a person.
       backup: The backup targets the epic goes to, by name, or None for the defaults.
+      carry_on: Each conversation an earlier epic had that this one carries on, as
+        `EPIC/AGENT/N`, by the key of the flow's state it is put under.
     """
 
     flow: str
@@ -105,6 +192,86 @@ class Line(NamedTuple):
     resume: bool = False
     as_json: bool = False
     backup: tuple[str, ...] | None = None
+    carry_on: dict[str, str] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
+
+
+def _kept_by(kept: Path, epic: Path, profile: Any) -> bool:
+    """Whether an epic's record keeps a conversation where one is kept: in it, or a CLI's home.
+
+    Args:
+      kept: Where the record says it is.
+      epic: The epic's directory.
+      profile: The CLI's profile (:func:`hmz.coganchor.backends.named`).
+    """
+    import os
+
+    # As the files are read: through every link on the way, the epic's own included.
+    settled = Path(os.path.realpath(kept))
+    if settled.is_relative_to(os.path.realpath(epic)):
+        return True
+    home: Path = profile.directory()
+    # Its home where this process has it, or one of its name: an account's, or another
+    # user's sessions copied whole -- never any directory a record happens to name.
+    named = Path(profile.home_in or profile.home_dir).name
+    return settled == Path(os.path.realpath(home)) or (
+        bool(named) and settled.name == named
+    )
+
+
+def _carried_files(kept: Path, epic: Path, ident: str, profile: Any) -> list[Path]:
+    """The files carrying a conversation on copies, each one checked.
+
+    Each is a file of its own under where the conversation is kept, never a link nor reached
+    through one; and where that is a CLI's home rather than the epic, under what of the home
+    the CLI keeps its sessions in (`Profile.sessions`). So an epic's record names one
+    conversation of that CLI's, and nothing else of where it is kept: not a link out of the
+    epic, nor what the CLI signs in with.
+
+    Args:
+      kept: Where the conversation is kept, laid out as the CLI lays out its home.
+      epic: The directory of the epic whose record says so.
+      ident: What the CLI calls the conversation.
+      profile: The CLI's profile (:func:`hmz.coganchor.backends.named`).
+
+    Returns:
+      Its files, as :func:`hmz.coganchor.agents.conversation` finds them.
+
+    Raises:
+      ValueError: Naming the first file that is not one to copy, or saying nothing of it is
+        left there.
+    """
+    import fnmatch
+    import os
+    from pathlib import PurePosixPath
+
+    from hmz.coganchor.agents import conversation
+
+    files = conversation(kept, ident)
+    if not files:
+        raise ValueError(f"nothing of conversation {ident} is left under {kept}")
+    root = Path(os.path.realpath(kept))
+    home = not root.is_relative_to(os.path.realpath(epic))
+    places = [PurePosixPath(one).parts for one in profile.sessions] if home else []
+    for path in files:
+        if path.is_symlink() or not Path(os.path.realpath(path)).is_relative_to(root):
+            raise ValueError(
+                f"{path} is a link, or reached through one, which carrying a conversation "
+                "on never copies through"
+            )
+        parts = path.relative_to(kept).parts
+        if home and not any(
+            len(parts) >= len(place)
+            and all(
+                fnmatch.fnmatchcase(part, glob)
+                for part, glob in zip(parts[: len(place)], place, strict=True)
+            )
+            for place in places
+        ):
+            raise ValueError(
+                f"{path} is not where {profile.name} keeps sessions in its home, which is "
+                "all of the home a conversation is carried on from"
+            )
+    return files
 
 
 def read_line(argv: list[str]) -> Line:
@@ -121,7 +288,8 @@ def read_line(argv: list[str]) -> Line:
 
     Raises:
       SystemExit: For a line that is not one, as argparse rejects it -- an unknown flag, no
-        flow or task, or an `-a`, `-e` or `-p` that cannot be read.
+        flow or task, an `-a`, `-e` or `-p` that cannot be read, or a `--carry-on` that is
+        not `KEY=EPIC/AGENT/N` or names a key twice.
     """
     import argparse
 
@@ -198,10 +366,28 @@ def read_line(argv: list[str]) -> Line:
         "for no backup; the default targets when not given",
     )
     parser.add_argument(
+        "--carry-on",
+        action="append",
+        default=[],
+        metavar="KEY=EPIC/AGENT/N",
+        help="a conversation an earlier epic had, for this one to carry on: the flow reads "
+        "it from its state under KEY, as a session of the role that agent filled; EPIC is "
+        "an epic here by name, or the directory of one, and AGENT/N that agent's Nth session "
+        "in it; repeatable",
+    )
+    parser.add_argument(
         "task",
         help="what the flow is to do, after -- if it starts with a dash",
     )
     args = parser.parse_args(argv)
+    carry_on: dict[str, str] = {}
+    for said in args.carry_on:
+        key, _, conversation = said.partition("=")
+        if not _KEY.fullmatch(key) or not conversation:
+            parser.error(f"--carry-on {said!r}: expected KEY=EPIC/AGENT/N")
+        if key in carry_on:
+            parser.error(f"--carry-on {key}: given twice")
+        carry_on[key] = conversation
     backup: list[str] | None = args.backup
     if backup is not None and "none" in backup:
         if set(backup) != {"none"}:
@@ -229,6 +415,7 @@ def read_line(argv: list[str]) -> Line:
             resume=args.resume,
             as_json=args.as_json,
             backup=None if backup is None else tuple(backup),
+            carry_on=carry_on,
         )
     except SpecError as bad:
         parser.error(str(bad))
@@ -255,6 +442,7 @@ class Runner:
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
         backup: Iterable[str] | None = None,
+        carry_on: Mapping[str, str] | None = None,
     ) -> None:
         """Loads the flow and checks what it is given against what it declares.
 
@@ -279,14 +467,19 @@ class Runner:
           workspace: Where the run happens, defaulting to this directory.
           backup: The backup targets in settings the epic goes to, by name, or None for
             the defaults settings names.
+          carry_on: Each conversation an earlier epic had that this one carries on, as
+            `EPIC/AGENT/N` -- an epic of the workspace by name or the directory of one, and
+            the Nth session the agent of that name opened in it -- by the key of the flow's
+            state it is put under, as a session kept there.
 
         Raises:
           Refused: For a flow that cannot be loaded; a role given that it does not declare,
             that the runtime fills, or that is given twice; a required role left out; an
             agent that is not the harness its role names or cannot do what its role asks; a
             spec a driver cannot be made for; params the flow does not take; no budget; a
-            run to pick up that is not there or of a flow that cannot be picked up; and a
-            backup target settings has none of.
+            run to pick up that is not there or of a flow that cannot be picked up; a
+            conversation to carry on that cannot be (:meth:`_carries_on`); and a backup
+            target settings has none of.
         """
         from hmz.flows import Budget, FlowException
         from hmz.runtime.flowing import privileged, resolved
@@ -319,6 +512,7 @@ class Runner:
         self._profile_flow = profile_flow
         self._profile_environment = profile_environment
         self._picked_up = self._picks_up(resume)
+        self._carried = self._carries_on(carry_on or {}, agents_given)
         from .backing import chosen
 
         try:
@@ -518,6 +712,96 @@ class Runner:
         if not picks_up(found):
             raise Refused(f"{found.name} has no saved progress to resume from")
         return found
+
+    def _carries_on(
+        self,
+        given: Mapping[str, str],
+        agents: Mapping[str, AgentSpec | AgentDriver],
+    ) -> dict[str, Carried]:
+        """Each conversation an earlier epic had that this run carries on, by its state key.
+
+        Raises:
+          Refused: For a flow that keeps no state to put one in; and for a conversation not
+            `EPIC/AGENT/N`, of no epic here or at that path, of an epic still going, that
+            epic never opened, kept on another machine by a harness there, or of nothing left
+            of it where the epic kept it; or of a role this flow has no agent of the same
+            harness for.
+        """
+        if not given:
+            return {}
+        if not self._impl.resumable:
+            raise Refused(
+                f"{self._named} keeps no state, so it has nowhere to carry a "
+                "conversation on from"
+            )
+        return {key: self._carried_on(key, said, agents) for key, said in given.items()}
+
+    def _carried_on(
+        self,
+        key: str,
+        said: str,
+        agents: Mapping[str, AgentSpec | AgentDriver],
+    ) -> Carried:
+        """The conversation one `--carry-on` names, checked; see :meth:`_carries_on`."""
+        from hmz.coganchor.backends import named
+        from hmz.flows import HarnessKind
+
+        from .epic import epics, going, read, where
+
+        asked = f"--carry-on {key}={said}"
+        spelled = _CONVERSATION.fullmatch(said)
+        if spelled is None:
+            raise Refused(f"{asked}: expected EPIC/AGENT/N, N counting from 1")
+        epic, agent, number = spelled.group("epic", "agent", "n")
+        at = next((one for one in epics(self._workspace) if one.name == epic), None)
+        # A path is the workspace's, as an epic's name is: not whatever directory this
+        # process happens to be in.
+        ran = read(at or self._workspace / Path(epic).expanduser())
+        if ran is None:
+            raise Refused(f"{asked}: no epic {epic} here")
+        if going(ran.at):
+            raise Refused(f"{asked}: {ran.name} is still running")
+        mine = [one for one in ran.sessions if one.agent == agent]
+        if int(number) > len(mine):
+            raise Refused(f"{asked}: {ran.name} opened no session {agent}/{number}")
+        session = mine[int(number) - 1]
+        if session.harness and session.harness != "local":
+            raise Refused(
+                f"{asked}: {agent}/{number} was kept on another machine, by its harness there"
+            )
+        # One written before an agent had a name of its own went by its role.
+        role = next(
+            (one.agent for one in ran.agents if (one.name or one.agent) == agent), ""
+        )
+        profile = named(session.backend)
+        try:
+            harness = HarnessKind(session.backend)
+        except ValueError:
+            harness = None
+        if not role or profile is None or harness is None:
+            raise Refused(f"{asked}: {ran.name} says nothing of what {agent} ran as")
+        given = agents.get(role)
+        if given is None:
+            raise Refused(
+                f"{asked}: {self._named} is given no agent {role!r} to carry it on"
+            )
+        if given.harness != harness:
+            raise Refused(
+                f"{asked}: {agent}/{number} is a conversation of {harness}, and "
+                f"{role!r} is given {given.harness}"
+            )
+        kept = where(ran.at, session)
+        if not _IDENT.fullmatch(session.ident) or not _kept_by(kept, ran.at, profile):
+            raise Refused(
+                f"{asked}: {ran.name} says {agent}/{number} is kept as "
+                f"{session.ident!r} at {kept}, which is neither a conversation's name nor "
+                f"in it or {profile.name}'s home"
+            )
+        try:
+            _carried_files(kept, ran.at, session.ident, profile)
+        except ValueError as why:
+            raise Refused(f"{asked}: {why}") from None
+        return Carried(role, harness, profile.name, session.ident, kept, ran.at)
 
     # ----------------------------------------------------------------------- what it is
 
@@ -769,6 +1053,16 @@ class Runner:
                 if started is not None:
                     started(epic)
                 try:
+                    # Copied into the epic now, as the epic it comes from has it: the copy is
+                    # this one's own, which every epic picking this one up carries on from.
+                    carried = {
+                        key: one.kept(epic.path) for key, one in self._carried.items()
+                    }
+                except (OSError, RuntimeError) as why:
+                    raise Refused(
+                        f"a conversation to carry on cannot be: {why}"
+                    ) from why
+                try:
                     return await run_flow(
                         impl,
                         task,
@@ -781,6 +1075,7 @@ class Runner:
                         resume=self._picked_up is not None,
                         local=local,
                         recorder=recorder,
+                        state=carried,
                     )
                 except (RequirementError, ParamsError, FlowDefinitionError) as why:
                     # Refused by the engine before the flow was called: the drivers do not

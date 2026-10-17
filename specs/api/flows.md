@@ -404,6 +404,10 @@ of that conversation that carrying this one on would replace.
 **5.3.7** A session read back under clause 5.3.3 and written into the state again before it takes
 a turn MUST be written as the kept conversation it carries on, without copying anything.
 
+**5.3.8** A value that `hmz exec --carry-on` puts into the state of an epic's top flow call
+(`features/epics.md` §3.8) MUST be a kept session, read back, carried on and refused under clauses
+5.3.3 to 5.3.7 as one the call wrote, in that epic and in every epic that resumes it.
+
 ### 5.4 Resumption
 
 **5.4.1** An epic MUST be resumable exactly where its top call is of a resumable flow. How a user

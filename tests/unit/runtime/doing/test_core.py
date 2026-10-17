@@ -171,6 +171,7 @@ def test_a_runner_is_made_in_this_workspace(making: Making, tmp_path: Path) -> N
         profile_flow=True,
         profile_environment=True,
         resume=True,
+        carry_on={"earlier": "e/a/1"},
     )
 
     assert made is making.made[0]
@@ -185,6 +186,7 @@ def test_a_runner_is_made_in_this_workspace(making: Making, tmp_path: Path) -> N
         "resume": True,
         "workspace": tmp_path,
         "backup": None,
+        "carry_on": {"earlier": "e/a/1"},
     }
 
 
@@ -203,6 +205,7 @@ def test_a_runner_of_no_workspace_named_runs_wherever_humanize_is(
         "resume": False,
         "workspace": None,
         "backup": None,
+        "carry_on": None,
     }
 
 

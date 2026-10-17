@@ -286,6 +286,7 @@ class Hmz:
         profile_environment: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         backup: Iterable[str] | None = None,
+        carry_on: Mapping[str, str] | None = None,
     ) -> Runner:
         """Loads a flow and opens a driver for every role it is given, checking all of it.
 
@@ -301,6 +302,8 @@ class Hmz:
             trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           backup: The backup targets the epic goes to, by name, or None for the defaults.
+          carry_on: Each conversation an earlier epic had, as `--carry-on` names one after
+            its key, by the key of the flow's state the epic carries it on from.
 
         Returns:
           The flow, loaded, with its drivers in hand and nothing started.
@@ -322,6 +325,7 @@ class Hmz:
             resume=resume,
             workspace=self._workspace,
             backup=backup,
+            carry_on=carry_on,
         )
 
     def run(
@@ -338,6 +342,7 @@ class Hmz:
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
         backup: Iterable[str] | None = None,
+        carry_on: Mapping[str, str] | None = None,
     ) -> Run:
         """A run of one flow, loaded and ready to be started.
 
@@ -354,6 +359,7 @@ class Hmz:
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           outworlder: Whoever is outside the run, or None for nobody.
           backup: The backup targets the epic goes to, by name, or None for the defaults.
+          carry_on: Each conversation an earlier epic had, carried on; see :meth:`runner`.
 
         Returns:
           The run. Nothing has started: `run()` runs it here, `start()` on a thread.
@@ -375,6 +381,7 @@ class Hmz:
                 profile_environment=profile_environment,
                 resume=resume,
                 backup=backup,
+                carry_on=carry_on,
             ),
             task,
             outworlder=outworlder,
@@ -408,6 +415,7 @@ class Hmz:
             profile_environment=line.profile_environment,
             resume=line.resume,
             backup=line.backup,
+            carry_on=line.carry_on,
         ).run()
 
     def host(self, slot: str = "") -> Host:

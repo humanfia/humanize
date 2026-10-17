@@ -26,6 +26,7 @@ from .base import (
     Meter,
     SessionBase,
     StreamSessionBase,
+    conversation,
 )
 from .board import ANYONE, FLOW, USER, WHOSE, Board, Item, Refused
 from .claude import ClaudeCodeAgent, ClaudeCodeAgentConfig, ClaudeCodeSession
@@ -229,4 +230,5 @@ __all__ = [
     "Verdict",
     "anchored",
     "blinded",
+    "conversation",
 ]
