@@ -1410,10 +1410,12 @@ Grammar rules:
 
 **`git+` fetching.** `<rev>` absent means the default branch. A 40-hex `<rev>` is used as a
 commit; anything else is resolved with `git ls-remote`. The checkout is kept at
-`$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>` and cloned once per commit; each run
-fetches a given URL and revision at most once, on a worker thread, when the flow is first
-called (`hmz exec -f git+…` fetches before the run starts). Each git command has 120 s. The
-flow is `<subdir>/__init__.py` of the checkout (the root's without `#`). Where there is none:
+`$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>` and reused by every later fetch of that
+commit; each run fetches a given URL and revision at most once, on a worker thread, when the
+flow is first called (`hmz exec -f git+…` fetches before the run starts). Two processes
+fetching one commit at once may each clone it; whichever renames its clone into place second
+uses the checkout already there. Each git command has 120 s. The flow is `<subdir>/__init__.py`
+of the checkout (the root's without `#`). Where there is none:
 `<ref>: <url> has no flow in <subdir>, which holds no __init__.py`, ending
 `; there is one at #flows/<subdir>` where a ref written for a repository that kept its flows
 under `flows/` would find one there. The same checkouts are what [installing](#flowverses)
