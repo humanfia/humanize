@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 #: Each harness at the model it is cheapest to ask and the least effort it takes.
 CHEAPEST: dict[HarnessKind, str] = {
     HarnessKind.CLAUDE: "claude-haiku-4-5-20251001:low",
-    HarnessKind.CODEX: "gpt-5.5:low",
+    HarnessKind.CODEX: "gpt-5.6-sol:low",
     HarnessKind.CURSOR_AGENT: "auto",
     HarnessKind.OPENCODE: "opencode/nemotron-3.5-lightning-free",
     HarnessKind.MIMO: "xiaomi/mimo-v2.5:low",
