@@ -11,7 +11,6 @@ import functools
 import json
 import os
 import queue
-import re
 import subprocess
 import sys
 import threading
@@ -251,8 +250,16 @@ Schema exactly:
 {schema}
 """
 
-#: What a model wraps an answer in when it is talking as well as answering.
-_FENCED = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
+
+def fenced_blocks(text: str) -> list[str]:
+    """Read fenced code blocks in document order, with any Markdown info string."""
+    from markdown_it import MarkdownIt
+
+    return [
+        token.content
+        for token in MarkdownIt("commonmark").parse(text)
+        if token.type == "fence"
+    ]
 
 
 def _readings(said: str) -> Iterator[str]:
@@ -270,7 +277,7 @@ def _readings(said: str) -> Iterator[str]:
     """
     held = said.strip()
     yield held
-    for block in _FENCED.findall(held):
+    for block in fenced_blocks(held):
         yield str(block).strip()
     first, last = held.find("{"), held.rfind("}")
     if 0 <= first < last:

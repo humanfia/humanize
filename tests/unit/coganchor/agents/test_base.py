@@ -422,6 +422,33 @@ def test_an_answer_out_of_shape_fails_the_turn() -> None:
     assert agent("done?", schema=_Verdict, suppress=True) is None
 
 
+@pytest.mark.parametrize(
+    ("opening", "closing"),
+    [
+        ("```JSON", "```"),
+        ("```jsonc", "```"),
+        ("``` json", "```"),
+        ("~~~json", "~~~"),
+        ("````json", "````"),
+    ],
+)
+def test_a_shaped_turn_reads_the_first_valid_fenced_block(
+    opening: str, closing: str
+) -> None:
+    answer = (
+        f'Result:\n{opening}\n{{"done": true}}\n{closing}\n'
+        'Previous result:\n```json\n{"done": false}\n```'
+    )
+    agent = Scripted(script=answering(answer))
+    assert agent("done?", schema=_Verdict) == _Verdict(done=True)
+
+
+def test_a_shaped_turn_keeps_backticks_inside_a_json_string() -> None:
+    answer = 'The {result}:\n````json\n{"done": true, "why": "```"}\n````'
+    agent = Scripted(script=answering(answer))
+    assert agent("done?", schema=_Verdict) == _Verdict(done=True, why="```")
+
+
 # -- effort and budget -----------------------------------------------------------------
 
 
