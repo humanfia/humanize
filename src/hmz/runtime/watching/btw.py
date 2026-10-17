@@ -7,9 +7,11 @@ a read-only copy of the same agent seeded from a small, immutable snapshot where
 and it explains where the flow has got to without becoming part of the run.
 
 A question about the whole flow goes to the btw agent, which may in turn ask any one session's
-side conversation. It does so by writing a line, `@ask <view-key>: <question>`, which the
-interface reads off its answer and carries out: a line works on every CLI there is at the
-read-only rung, where a tool of the flow's own would need one that takes tools.
+side conversation. It does so by running :data:`ASK`, the command its `ask-conversation`
+skill names, which is caught where the agent runs -- by a hook, or by the command itself --
+and handed back here to carry out in the middle of its turn. On a CLI that runs no command at
+the read-only rung it writes a line instead, `@ask <view-key>: <question>`, which the
+interface reads off its answer and carries out.
 
 What opens those conversations and carries a question through them is :class:`Btw`, asking the
 runs through whatever link the frontend holds: the terminal interface and the web interface
@@ -18,10 +20,11 @@ ask a side question the same way, and open the btw agent as the same agent.
 
 from __future__ import annotations
 
+import contextlib
 import re
 import threading
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from hmz.coganchor.prices import money
 
@@ -29,6 +32,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
 __all__ = [
+    "ASK",
     "HOPS",
     "NOBODY",
     "THE_EPIC",
@@ -40,6 +44,7 @@ __all__ = [
     "asked",
     "compact",
     "format_answers",
+    "format_asking",
     "format_forked",
     "format_snapshot",
     "format_turn",
@@ -57,8 +62,19 @@ _MAX_SESSIONS = 64
 #: not keep a side question going without limit.
 HOPS = 4
 
-#: One question from the btw agent to one session's side conversation, on a line of its own.
-_ASKS = re.compile(r"^\s*@ask\s+(\S+?)\s*:\s*(\S.*)$", re.MULTILINE)
+#: The command the btw agent asks a session by, as its `ask-conversation` skill names it.
+ASK = "hmz-ask"
+
+#: What the btw agent is told where it asks past :data:`HOPS`.
+_NO_MORE = "No more asks this question: answer the user with what you have."
+
+#: One question from the btw agent to one session's side conversation, on a line of its own --
+#: bare, as an item of a list or a quote, or in backticks.
+_ASKS = re.compile(
+    r"^[ \t]*(?:(?:[-*+>]|\d+[.)])[ \t]*)*(`?)@ask[ \t]+`?([^\s`]+?)`?[ \t]*:[ \t]*"
+    r"(\S.*?)\1[ \t]*$",
+    re.MULTILINE,
+)
 
 _UNTOUCHED = (
     "Never steer, stop, resume, or send a message to the flow, and do not modify any "
@@ -132,7 +148,7 @@ def asked(answer: str) -> tuple[list[tuple[str, str]], str]:
     Returns:
       Each `(view-key, question)` it asked, in order, and the answer less those lines.
     """
-    asks = [(key, question.strip()) for key, question in _ASKS.findall(answer)]
+    asks = [(key, question.strip()) for _, key, question in _ASKS.findall(answer)]
     return asks, _ASKS.sub("", answer).strip()
 
 
@@ -147,10 +163,37 @@ def format_answers(answers: list[tuple[str, str]], *, more: bool) -> str:
         f'<answer from="{compact(key, 120)}">\n{compact(answer, 4000)}\n</answer>'
         for key, answer in answers
     ]
-    lines.append(
-        "Ask again with @ask lines, or answer the user."
-        if more
-        else "No more @ask this turn: answer the user with what you have."
+    lines.append("Ask again, or answer the user." if more else _NO_MORE)
+    return "\n".join(lines)
+
+
+def format_asking(sessions: Sequence[tuple[str, str]]) -> str:
+    """What the btw agent is told, with every question, of the sessions and how to ask one.
+
+    Args:
+      sessions: Each conversation of the flow as `(view-key, what it is)`, which may be none
+        yet: the agent may still list them as they are by the time it asks.
+    """
+    shown = sessions[:_MAX_SESSIONS]
+    lines = ["<sessions>"]
+    lines.extend(f"- {compact(key, 120)}: {compact(what, 240)}" for key, what in shown)
+    if len(sessions) > len(shown):
+        lines.append(f"- (sessions omitted: {len(sessions) - len(shown)})")
+    if not sessions:
+        lines.append("- none opened yet")
+    lines.extend(
+        (
+            "</sessions>",
+            (
+                "Ask a session rather than guess at what it did or knows: run "
+                f'`{ASK} ask --to <session> --question "<question>"` (your ask-conversation '
+                f"skill), and `{ASK} list` for the sessions as they are now. Where you cannot "
+                "run a command, reply instead with nothing but lines of the form "
+                "`@ask <session>: <question>`, one per question. Each question goes to a "
+                "read-only side copy of that session, and its answer comes back to you. You may "
+                f"ask up to {HOPS} per user question. Otherwise answer the user."
+            ),
+        )
     )
     return "\n".join(lines)
 
@@ -189,7 +232,8 @@ def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -
       snapshot: The flow, frozen.
       question: What was asked.
       about: The session the question is about, as the interface names it, or "" for one
-        about the whole flow -- which is the btw agent's, and is told how to ask a session.
+        about the whole flow -- which is the btw agent's, and is told how to ask a session
+        (:func:`format_asking`).
     """
     lines = [
         f"You are answering a side question about the session `{compact(about, 120)}` of a "
@@ -287,28 +331,9 @@ def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -
         )
     else:
         lines.append("- none observed")
-    if snapshot.sessions:
-        lines.append("sessions:")
-        shown = snapshot.sessions[:_MAX_SESSIONS]
-        lines.extend(
-            f"- {compact(key, 120)}: {compact(what, 240)}" for key, what in shown
-        )
-        if len(snapshot.sessions) > len(shown):
-            lines.append(f"- (sessions omitted: {len(snapshot.sessions) - len(shown)})")
     lines.extend(("</flow_snapshot>", ""))
-    if not about and snapshot.sessions:
-        lines.extend(
-            (
-                (
-                    "To ask one session a question of your own, reply with nothing but lines "
-                    "of the form `@ask <session>: <question>`, one per question, using a key "
-                    "from `sessions`. Each is put to a read-only side copy of that session, "
-                    'and its answer comes back as `<answer from="<session>">`. You may ask up '
-                    f"to {HOPS} per user question. Otherwise answer the user."
-                ),
-                "",
-            )
-        )
+    if not about:
+        lines.extend((format_asking(snapshot.sessions), ""))
     lines.append(format_turn(question))
     return "\n".join(lines)
 
@@ -346,7 +371,10 @@ class Btw:
     Args:
       target: The session asked, as `<agent>/<n>`, or "" for the btw agent.
       aside: Asks the runs about a side conversation -- opens one, or takes one turn of
-        one -- as a link's `aside` does, answering what the runs answered.
+        one -- as a link's `aside` does, answering what the runs answered. The btw agent's
+        is opened with `asks`, and a turn of it answered with `ask` -- a question it ran
+        :data:`ASK` with, or one naming no session for `hmz-ask list`, answered with
+        `sessions` -- goes on once that is given back as `answered`.
       unaside: Closes one side conversation, by the number the runs gave it.
       sessions: The run's conversations a side one may be opened on, `<agent>/<n>` apiece.
       source: What the btw agent is opened as (:func:`opened_as`), or None for nothing.
@@ -487,31 +515,77 @@ class Btw:
         return self._said(side, format_snapshot(about, question, about=key))
 
     def _agent_turn(self, question: str, snapshot: FlowSnapshot) -> str:
-        """One turn of the btw agent, carrying out whatever it asks of the sessions."""
+        """One turn of the btw agent, carrying out whatever it asks of the sessions.
+
+        What it asks by :data:`ASK` arrives in the middle of its turn, as the runs' `ask`,
+        and is answered back into that turn; what it asks by ask lines arrives with the end
+        of it, and is answered with the next. Either way at most :data:`HOPS` in all.
+        """
         side = self._sides.get("")
         if side is None:
             source = self._source()
             if source is None:
                 return ""
-            side = self._kept("", str(self._aside(**source)["side"]))
+            side = self._kept("", str(self._aside(**source, asks=True)["side"]))
             prompt = format_snapshot(snapshot, question)
         else:
-            prompt = format_turn(question)
+            prompt = "\n\n".join(
+                (format_asking(snapshot.sessions), format_turn(question))
+            )
         hops = 0
+        said = self._aside(side=side, prompt=prompt)
         while True:
-            asks, answer = asked(self._said(side, prompt))
+            ask: object = said.get("ask")
+            if isinstance(ask, dict):
+                held = cast("dict[str, object]", ask)
+                key, asking = str(held.get("to") or ""), str(held.get("question") or "")
+                answer = _NO_MORE
+                try:
+                    if not key:
+                        # `hmz-ask list`: the sessions of the epic asked about, not a hop.
+                        answer = "\n".join(self._sessions()) or "(no session yet)"
+                    elif hops < HOPS:
+                        hops += 1
+                        answer = self._hop(key, asking, snapshot)
+                    said = self._aside(side=side, answered=answer)
+                except BaseException:
+                    # Its turn waits on an answer nobody will give now: closed, so that the
+                    # next question opens it afresh rather than finding it still answering.
+                    with self._lock:
+                        gone = self._sides.pop("", None)
+                    if gone is not None:
+                        with contextlib.suppress(Exception):
+                            self._unaside(gone)
+                    raise
+                continue
+            asks, answer = asked(str(said.get("answer") or ""))
             if not asks or hops >= HOPS:
                 return answer
             answers: list[tuple[str, str]] = []
             for key, asking in asks[: HOPS - hops]:
                 hops += 1
-                if self._asking is not None:
-                    self._asking(key, asking)
-                try:
-                    said = self._turn(key, asking, snapshot)
-                except Left:
-                    raise
-                except Exception as why:  # noqa: BLE001 -- told back rather than raised
-                    said = f"(could not ask: {why})"
-                answers.append((key, said or "(no answer)"))
-            prompt = format_answers(answers, more=hops < HOPS)
+                answers.append((key, self._hop(key, asking, snapshot)))
+            said = self._aside(
+                side=side, prompt=format_answers(answers, more=hops < HOPS)
+            )
+
+    def _hop(self, key: str, asking: str, snapshot: FlowSnapshot) -> str:
+        """Carries out one question of the btw agent to one session, as it is told back.
+
+        Raises:
+          Left: If the mode was left while that session's side conversation was opening.
+        """
+        if self._asking is not None:
+            self._asking(key, asking)
+        if key not in self._sides and key not in (known := self._sessions()):
+            return (
+                f"(session {key} not found; the sessions are: "
+                f"{', '.join(known) or 'none yet'})"
+            )
+        try:
+            said = self._turn(key, asking, snapshot)
+        except Left:
+            raise
+        except Exception as why:  # noqa: BLE001 -- told back rather than raised
+            said = f"(could not ask: {why})"
+        return said or "(no answer)"

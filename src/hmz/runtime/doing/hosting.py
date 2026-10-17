@@ -45,18 +45,33 @@ import functools
 import itertools
 import json
 import os
+import queue
+import re
+import shlex
 import shutil
 import tempfile
 import threading
 import time
 import weakref
+from concurrent import futures
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
+
+import pydantic
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from hmz.coganchor.agents import AgentBase, Board, Event, Question, SessionBase
+    from hmz.coganchor.agents import (
+        AgentBase,
+        Board,
+        Event,
+        Occasion,
+        Question,
+        SessionBase,
+        Verdict,
+    )
+    from hmz.coganchor.faking import FakeCli
     from hmz.runtime.doing.core import Hmz
     from hmz.runtime.doing.running import Run
     from hmz.runtime.flowing.spi import Placement
@@ -228,8 +243,30 @@ def _placed(where: Placement | None) -> dict[str, Any] | None:
 _SCRATCH: dict[int, Path] = {}
 
 
+#: What The Epic's side conversation asks by `hmz-ask`, by the conversation: closed with it.
+_ASKING: dict[int, _Asks] = {}
+
+#: The skill The Epic's side conversation carries, which tells it how to ask a conversation.
+_SKILL = Path(__file__).parent / "skills" / "ask-conversation"
+
+#: The command The Epic asks a conversation by, as `hmz.runtime.watching.btw.ASK` tells it.
+_ASK = "hmz-ask"
+
+#: How many times The Epic's turn is sent on with answers it has not heard, at most: as many
+#: as it may ask (`hmz.runtime.watching.btw.HOPS`).
+_HOPS = 4
+
+#: What ends one command of a shell line and starts another.
+_SEPARATORS = frozenset({"&&", "||", ";", "|", "&"})
+
+#: A redirection, which is the shell's and not a word of the command.
+_REDIRECTS = re.compile(r"^\d*[<>]")
+
+
 def _closed(one: SessionBase) -> None:
     """Closes one side conversation, and takes away what it was carried on with, if anything."""
+    if (asks := _ASKING.pop(id(one), None)) is not None:
+        asks.close()
     with contextlib.suppress(Exception):
         one.close()
     if (scratch := _SCRATCH.pop(id(one), None)) is not None:
@@ -309,6 +346,240 @@ class _Aside:
     client: str
     session: SessionBase
     busy: bool = False
+    #: What it asks of the epic's conversations, for The Epic's own; None for any other.
+    asks: _Asks | None = None
+
+
+class _Asked(pydantic.BaseModel):
+    """One question The Epic asks a conversation of the epic by `hmz-ask ask`."""
+
+    to: str = pydantic.Field(description="The conversation to ask, as `<agent>/<n>`.")
+    question: str = pydantic.Field(description="What to ask it, as one argument.")
+
+
+class _Asks:
+    """What The Epic asks of the epic's conversations by `hmz-ask`, while a turn of it runs.
+
+    Caught where the agent runs: by a pre-tool-use hook reading the command off the tool call
+    it reached for, and by the command itself, a command line on its PATH. Either hands the
+    question to the frontend that opened the side conversation, which carries it out as it
+    carries out an ask line and gives the answer back (:meth:`answer`). The answer reaches the
+    agent as the refusal of the tool where the CLI waits on its hook (`claude`, `qwen`), as
+    what the command printed where it ran, and otherwise as what the agent is sent on with
+    when its turn would stop. One question caught twice in a turn -- by the hook and by the
+    command alike -- is asked once. `hmz-ask list` is a question too, naming no conversation,
+    which the frontend answers with the conversations of the epic it is asking about: an
+    earlier epic's, where that is what The Epic was opened on, rather than the run here.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        #: What the frontend is told next: `ask` and the question, or how the turn ended.
+        self._next: queue.SimpleQueue[tuple[str, Any]] = queue.SimpleQueue()
+        #: This turn's questions, by `(to, question)`, and those the agent was told.
+        self._asked: dict[tuple[str, str], futures.Future[str]] = {}
+        self._heard: set[tuple[str, str]] = set()
+        #: The question the frontend is answering now.
+        self._waiting: futures.Future[str] | None = None
+        self._closed = False
+        #: Whether the agent's CLI waits on its pre-tool-use hook, which is then how the
+        #: agent hears an answer.
+        self.gated: Callable[[], bool] = lambda: False
+
+    def cli(self, *, heard: bool) -> FakeCli:
+        """`hmz-ask` as the agent runs it.
+
+        Args:
+          heard: Whether what it prints reaches the agent, which it does where it ran.
+        """
+        from hmz.coganchor.faking import FakeCli, FakeCommand
+
+        def asks(asked: _Asked) -> str:
+            return self.ask(asked.to, asked.question, heard=heard)
+
+        return FakeCli(
+            _ASK,
+            "Ask a conversation of the epic, by a read-only side copy of it.",
+            (
+                FakeCommand(
+                    "ask",
+                    "Ask one conversation a question, and print its answer",
+                    asks,
+                    _Asked,
+                ),
+                FakeCommand(
+                    "list",
+                    "List the conversations there are to ask",
+                    lambda: self.ask("", "", heard=heard),
+                ),
+            ),
+        )
+
+    def ask(self, to: str, question: str, *, heard: bool) -> str:
+        """Has the frontend ask one conversation one question, and waits for the answer.
+
+        Args:
+          to: The conversation, as `<agent>/<n>`.
+          question: What to ask it.
+          heard: Whether the answer reaches the agent from here.
+        """
+        from hmz.coganchor.agents.hooks import WAITING
+
+        one = (to, question)
+        with self._lock:
+            if self._closed:
+                return "(the side question was closed)"
+            asked = self._asked.get(one)
+            if asked is None:
+                asked = self._asked[one] = futures.Future()
+                self._next.put(("ask", (to, question, asked)))
+        try:
+            answer = asked.result(WAITING)
+        except TimeoutError:
+            return "(no answer in time)"
+        if heard:
+            with self._lock:
+                self._heard.add(one)
+        return answer
+
+    def tool(self, occasion: Occasion) -> Verdict | None:
+        """The pre-tool-use hook: a call of `hmz-ask` carried out, and refused with its answer.
+
+        The refusal is how the answer reaches an agent whose CLI waits on the hook; anywhere
+        else the command goes on to run, and prints the same answer.
+        """
+        from hmz.coganchor.agents import Verdict
+
+        words = _ask_words(occasion)
+        if words is None:
+            return None
+        code, out, err = self.cli(heard=self.gated()).run(words)
+        said = (out + err).strip() or "(no answer)"
+        return Verdict(
+            refused=True,
+            because=f"hmz carried `{shlex.join(['hmz-ask', *words])}` out (exit {code}):"
+            f"\n{said}",
+        )
+
+    def stop(self, occasion: Occasion) -> Verdict | None:
+        """The stop hook: the turn sent on with every answer the agent has not heard yet."""
+        from hmz.coganchor.agents import Verdict
+        from hmz.coganchor.agents.hooks import WAITING
+
+        if occasion.again >= _HOPS:
+            return None
+        with self._lock:
+            unheard = [
+                (one, asked)
+                for one, asked in self._asked.items()
+                if one not in self._heard
+            ]
+            self._heard.update(one for one, _ in unheard)
+        if not unheard:
+            return None
+        answers: list[tuple[str, str]] = []
+        for (to, _), asked in unheard:
+            try:
+                answers.append((to or "sessions", asked.result(WAITING)))
+            except TimeoutError:
+                answers.append((to or "sessions", "(no answer in time)"))
+        return Verdict(
+            refused=True,
+            because="\n".join(
+                [
+                    *(
+                        f'<answer from="{to}">\n{said}\n</answer>'
+                        for to, said in answers
+                    ),
+                    "Ask again, or answer the user.",
+                ]
+            ),
+        )
+
+    def turn(self, session: SessionBase, prompt: str) -> None:
+        """Takes one turn of the agent, on a thread of its own, told of as it ends."""
+        with self._lock:
+            self._asked, self._heard = {}, set()
+
+        def turns() -> None:
+            try:
+                said: Any = session(prompt)
+            except Exception as why:  # noqa: BLE001 -- told the frontend, as a refusal
+                self._next.put(("failed", why))
+            else:
+                self._next.put(("answer", said))
+
+        threading.Thread(target=turns, daemon=True, name="humanize-epic").start()
+
+    def told(self) -> tuple[str, Any]:
+        """What the frontend is told next: a question, `answer` or `failed`, waited for."""
+        kind, said = self._next.get()
+        if kind == "ask":
+            to, question, asked = said
+            with self._lock:
+                self._waiting = asked
+            return kind, (to, question)
+        return kind, said
+
+    def answer(self, text: str) -> bool:
+        """Gives the question the frontend was told its answer. Whether there was one."""
+        with self._lock:
+            asked, self._waiting = self._waiting, None
+        if asked is None:
+            return False
+        with contextlib.suppress(futures.InvalidStateError):
+            asked.set_result(text)
+        return True
+
+    def close(self) -> None:
+        """Answers every question waiting as closed, and the frontend as failed."""
+        with self._lock:
+            self._closed = True
+            waiting = list(self._asked.values())
+        for asked in waiting:
+            with contextlib.suppress(futures.InvalidStateError):
+                asked.set_result("(the side question was closed)")
+        self._next.put(("failed", "the aside was closed"))
+
+
+def _ask_words(occasion: Occasion) -> list[str] | None:
+    """The words `hmz-ask` was called with, read off a tool call, or None for another tool."""
+    for value in (*occasion.input.values(), occasion.about):
+        said = (
+            shlex.join(str(one) for one in cast("list[Any]", value))
+            if isinstance(value, list)
+            else value
+        )
+        if (
+            isinstance(said, str)
+            and _ASK in said
+            and (words := _words(said)) is not None
+        ):
+            return words
+    return None
+
+
+def _words(command: str) -> list[str] | None:
+    """The words after `hmz-ask` in a shell line, looking inside a `sh -c` it is quoted in."""
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        return None
+    starts = True
+    for at, word in enumerate(words):
+        if starts and Path(word).name == _ASK:
+            rest: list[str] = []
+            for one in words[at + 1 :]:
+                if one in _SEPARATORS or _REDIRECTS.match(one):
+                    break
+                rest.append(one.removesuffix(";"))
+                if one.endswith(";"):
+                    break
+            return rest or None
+        if _ASK in word and word != command and (inner := _words(word)) is not None:
+            return inner
+        starts = word in _SEPARATORS or word.endswith(";")
+    return None
 
 
 @dataclasses.dataclass(slots=True, eq=False)
@@ -1873,10 +2144,13 @@ class Host:
 
     def _aside(self, frontend: _Frontend, said: dict[str, Any]) -> dict[str, Any]:
         side = said.get("side")
+        if side and "answered" in said:
+            return self._answers_back(frontend, str(side), str(said["answered"] or ""))
         if side:
             return self._turns(frontend, str(side), str(said.get("prompt") or ""))
         key = str(said.get("key") or "")
         runs = str(said.get("runs") or "")
+        asks: _Asks | None = None
         with self._lock:
             shown = self._last
             found = shown.known.get(key) if shown is not None and key else None
@@ -1901,10 +2175,23 @@ class Host:
             made = _made(runs)
             if made is None:
                 return _no(f"{runs} is not an agent that can be made here")
+            if said.get("asks"):
+                asks = _Asks()
             opened, forked = (
-                _read_only(made, "btw").new(str(self._hmz.workspace)),
+                _read_only(made, "btw", asks).new(str(self._hmz.workspace)),
                 False,
             )
+            if asks is not None:
+                _ASKING[id(opened)] = asks
+                # Run where the CLI has a shell to run it in, and caught by the hook alone
+                # where it has none.
+                try:
+                    opened.shelves((asks.cli(heard=True),))
+                except NotImplementedError:
+                    pass
+                except Exception:
+                    _closed(opened)
+                    raise
         else:
             return _no("an aside is about a conversation, or asks an agent")
         with self._lock:
@@ -1912,8 +2199,32 @@ class Host:
                 _closed_all([opened])
                 return _no("this frontend has gone")
             side = f"s{next(self._sides)}"
-            self._asides[side] = _Aside(side, frontend.client, opened)
+            self._asides[side] = _Aside(side, frontend.client, opened, asks=asks)
         return _ok(side=side, forked=forked)
+
+    def _epic_said(self, aside: _Aside, asks: _Asks) -> dict[str, Any]:
+        """What The Epic's turn comes to next: a question it asks, or how the turn ended."""
+        kind, said = asks.told()
+        if kind == "ask":
+            to, question = said
+            return _ok(ask={"to": to, "question": question})
+        with self._lock:
+            aside.busy = False
+        if kind == "failed":
+            return _no(str(said) or type(said).__name__)
+        return _ok(answer=str(said or "").strip())
+
+    def _answers_back(
+        self, frontend: _Frontend, side: str, text: str
+    ) -> dict[str, Any]:
+        with self._lock:
+            aside = self._asides.get(side)
+            if aside is None or aside.client != frontend.client:
+                return _no(f"no aside {side} is open")
+        asks = aside.asks
+        if asks is None or not asks.answer(text):
+            return _no(f"aside {side} asked nothing")
+        return self._epic_said(aside, asks)
 
     def _turns(self, frontend: _Frontend, side: str, prompt: str) -> dict[str, Any]:
         with self._lock:
@@ -1923,6 +2234,9 @@ class Host:
             if aside.busy:
                 return _no("the aside is still answering the last question")
             aside.busy = True
+        if aside.asks is not None:
+            aside.asks.turn(aside.session, prompt)
+            return self._epic_said(aside, aside.asks)
         try:
             answer = str(aside.session(prompt) or "").strip()
         finally:
@@ -1972,10 +2286,28 @@ def _made(runs: str) -> AgentBase | None:
         return None
 
 
-def _read_only(source: AgentBase, name: str) -> AgentBase:
-    """A read-only, skill-free agent like another, invisible to the run it was taken from."""
-    # The read-only rung is what a flow's NONE maps to; a backend that cannot express it
-    # raises here rather than running a side question with write permissions.
+def _read_only(source: AgentBase, name: str, asks: _Asks | None = None) -> AgentBase:
+    """A read-only agent like another, invisible to the run it was taken from.
+
+    Args:
+      source: The agent.
+      name: What the copy is called.
+      asks: What The Epic asks of the epic's conversations, for The Epic's: its copy carries
+        the `ask-conversation` skill and the hooks that catch `hmz-ask`. None for a copy that
+        carries no skill and no hook.
+
+    Raises:
+      ValueError: If the agent's harness has no read-only rung, saying so.
+    """
+    from hmz.coganchor.agents import Moment, Unhooked
+    from hmz.coganchor.agents.skills import Loaded
+
+    # The read-only rung is what a flow's NONE maps to; a backend that cannot express it is
+    # refused here rather than running a side question with write permissions.
+    if "read-only" not in type(source).rungs:
+        raise ValueError(
+            f"{source.backend} cannot answer a side question: it has no read-only rung"
+        )
     settings: dict[str, object] = {"permission": "read-only", "goals": False}
     # Claude's allow-list can approve a write in a normal permission mode, and Cursor's MCP
     # approval would reach every server this workspace names on the flow's say-so.
@@ -1983,14 +2315,27 @@ def _read_only(source: AgentBase, name: str) -> AgentBase:
         settings["allowed_tools"] = ()
     if hasattr(source.config, "approve_mcps"):
         settings["approve_mcps"] = False
+    # Codex's read-only sandbox refuses the socket `hmz-ask` reaches this process on: that
+    # one command is let out of it, and every other stays in, network and all.
+    if hasattr(source.config, "unsandboxed"):
+        settings["unsandboxed"] = () if asks is None else (_ASK,)
     clone = source.clone(
         config=dataclasses.replace(source.config, **settings),
         name=name,
-        skills=(),
+        skills=() if asks is None else (Loaded(_SKILL.name, _SKILL, "humanize"),),
     )
     # Watched by nothing that shows it, so a command-backed backend does not echo the side
     # answer onto the stdout of whatever is holding the run.
     clone.watch(lambda _agent, _session, _event: None)
+    if asks is not None:
+        hooks = weakref.ref(clone.hooks)
+        asks.gated = lambda: (
+            (held := hooks()) is not None and held.gated(Moment.PRE_TOOL_USE)
+        )
+        # Not on a harness that serves no hook, which is left the ask line.
+        with contextlib.suppress(Unhooked):
+            clone.hooks.on(Moment.PRE_TOOL_USE, asks.tool)
+            clone.hooks.on(Moment.STOP, asks.stop)
     return clone
 
 

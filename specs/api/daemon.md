@@ -364,7 +364,9 @@ forks, otherwise a new session of a copy of its agent.
 **8.8.3** `aside` with `runs` (an agent spec) MUST open a new session of that agent in the
 workspace; with `runs` and `recall` (the harness's id of a session an earlier epic kept), `kept`
 (where that epic kept it) and `cwd`, it MUST open a fork of that session where `fork` is `true`
-and its harness forks it, otherwise a new session of that agent.
+and its harness forks it, otherwise a new session of that agent. With `runs` and `asks`
+(`true`), the side conversation MUST be The Epic's, asking as `features/btw.md` §6.10 to §6.14
+state.
 
 **8.8.4** `aside` with a `key` that names no session MUST be refused with
 `<key> has no conversation to ask`.
@@ -378,7 +380,9 @@ and its harness forks it, otherwise a new session of that agent.
 **8.8.7** `aside` from a frontend that has gone MUST be refused with `this frontend has gone`.
 
 **8.8.8** `aside` with `side` and `prompt` MUST take one turn of that side conversation and be
-answered with `answer`, its text stripped.
+answered with `answer`, its text stripped; for The Epic's, a turn that runs an ask command
+MUST instead be answered with `ask` (`to` and `question`) while the turn waits, and one
+that runs `hmz-ask list` with `ask` whose `to` is empty.
 
 **8.8.9** `aside` with a `side` this frontend has not open MUST be refused with
 `no aside <side> is open`.
@@ -389,12 +393,17 @@ answered with `answer`, its text stripped.
 **8.8.11** `unaside` MUST take `side`, MUST close that side conversation, and MUST be refused with
 `no aside <side> is open`.
 
-**8.8.12** Every side conversation MUST be read-only, MUST carry no skills, MUST NOT be seen by the
+**8.8.12** Every side conversation MUST be read-only, MUST carry no skills but The Epic's
+`ask-conversation` (`features/btw.md` §6.10), MUST NOT be seen by the
 epic, MUST be answered only to the frontend that opened it, and MUST NOT write where any epic
 keeps its sessions nor into the harness's own home.
 
 **8.8.13** A side conversation MUST be closed by `unaside`, when its frontend leaves, when an epic
 starts on the host, and when the host closes; no message announces side conversations.
+
+**8.8.14** `aside` with `side` and `answered` MUST give The Epic's waiting ask command that
+answer, and MUST be answered as `aside` with `prompt` is; where nothing waits, it MUST be
+refused with `aside <side> asked nothing`.
 
 ### 8.9 `status`, `detach` and `quit`
 

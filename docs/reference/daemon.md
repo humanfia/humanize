@@ -309,7 +309,8 @@ An exception inside a request is refused with `str(exception)` or its type name.
 | `release` | `role` | — | `<role> is not yours to release` |
 | `board` | `key`, `value` (`""` removes the line); acts on the last run's board as `user` | — | `this run has no board`, `<key> is not on the board`, `<key> is flow's to change, not user's` (and other `<key> is <whose>'s to change, not <by>'s` refusals) |
 | `aside` (open) | `key` (`<agent>/<n>` of the last run) with `fork` (bool), **or** `runs` (an `-a` spec after `<role>=`) -- with `recall` (what its CLI called a session an earlier run kept), `kept` (where that run kept it) and `cwd`, and `fork`, for a side conversation about that session | `side` (`s<n>`), `forked` (bool) | `<key> has no conversation to ask`, `<runs> is not an agent that can be made here`, `an aside is about a conversation, or asks an agent`, `this frontend has gone` |
-| `aside` (ask) | `side`, `prompt` | `answer` (str, stripped) | `no aside <side> is open`, `the aside is still answering the last question` |
+| `aside` (ask) | `side`, `prompt` | `answer` (str, stripped); for The Epic's, `ask` (`to`, `question`) while a run of `hmz-ask` waits (`to` empty for `hmz-ask list`, answered with the sessions one per line) | `no aside <side> is open`, `the aside is still answering the last question` |
+| `aside` (answer an ask) | `side`, `answered` (str) | as `aside` (ask) | `no aside <side> is open`, `aside <side> asked nothing` |
 | `unaside` | `side` | — | `no aside <side> is open` |
 | `status` | — | [status keys](#status) without the † host keys | — |
 | `detach` | — | — (then `gone`: `let go`) | — |
@@ -339,7 +340,19 @@ where that run kept it -- into a directory of the aside's own in this machine's 
 removed as the aside is closed, never where that run keeps its sessions nor the CLI's own home --
 and a fresh copy of its agent where its CLI does not fork or the session was not kept. An aside
 is closed on `unaside`, when its frontend detaches, when a run starts, and when the host closes.
-No message announces asides.
+No message announces asides. A harness with no read-only rung (`mcode`, `dsh`, ACP) is refused:
+`<harness> cannot answer a side question: it has no read-only rung`.
+
+The Epic's aside (`runs` with `asks: true`) carries the `ask-conversation` skill, a pre-tool-use
+and a stop hook, and the fake command line `hmz-ask` (`ask --to <agent>/<n> --question <q>`,
+`list`). A run of it, caught by the hook or by the command, answers the turn's `aside` with
+`ask`; the frontend carries it out and sends `answered`, and the turn goes on. The answer
+reaches the agent as the hook's refusal on `claude` and `qwen`, as the command's output where it
+ran, and otherwise as what the stop hook sends the agent on with. One question asked twice in a
+turn is asked once. On `codex`, whose `read-only` sandbox refuses the socket `hmz-ask` reaches
+the host on, `hmz-ask` alone runs outside the sandbox, by `prefix_rule(pattern=["hmz-ask"],
+decision="allow")` in `rules/hmz.rules` of its virtual home; every other command stays in the
+sandbox, network cut.
 
 ## Messages {#messages}
 

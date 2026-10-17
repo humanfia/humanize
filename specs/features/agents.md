@@ -49,7 +49,8 @@ it starts, so that the agent touches no more than its grant allows.
 
 **2.9** **Managed item**: an item hmz supplies to a harness at launch that the user did not
 configure: a flow skill, a flow-declared subagent, a flow-declared command, the hmz tool server,
-a hook hmz hangs, or a model declaration hmz adds for a flow or for an account.
+a hook hmz hangs, a model declaration hmz adds for a flow or for an account, or an execpolicy
+rule hmz adds for a fake command line on `codex`.
 
 **2.10** **System level**: the harness machine's system-wide configuration of a harness.
 
@@ -472,6 +473,10 @@ at `auto` with every request granted, and MUST say so once per agent.
 
 **6.2.8** hmz MUST NOT write a rung into any configuration file of the user.
 
+**6.2.9** A fake command line ruled out of Codex's sandbox (§10.2.8) MUST NOT widen the
+sandbox of any other command, its network included: at `read-only` the network stays cut
+unless the fence grants it.
+
 ### 6.3 Web search
 
 **6.3.1** A grant whose `online` is `ALL` MUST switch the harness's own web search on, and one
@@ -782,6 +787,12 @@ exit with status 1.
 
 **10.2.7** Fake command lines MUST be refused to a harness running on a machine other than this
 machine.
+
+**10.2.8** On `codex`, a fake command line the agent's config names as unsandboxed MUST run
+outside Codex's sandbox, by an execpolicy rule `prefix_rule(pattern=["<name>"],
+decision="allow")` in `rules/hmz.rules` of its virtual config home, beside links to the user's
+own rule files; the rule MUST be written only for a name the agent shelves, and no other command
+MUST leave the sandbox the rung puts it in.
 
 ## 11. Failures, retries and fallbacks
 

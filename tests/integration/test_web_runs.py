@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -435,6 +436,44 @@ def test_a_session_of_an_earlier_epic_is_asked_beside_it_as_a_fork_of_its_histor
         assert "remember papaya" in told
         assert "and then this" not in told
         assert f"{agent['name']}/1" in told
+
+
+def test_the_epic_lists_and_asks_the_sessions_of_the_earlier_epic_it_is_asked_about(
+    project: Path,
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        _chatted(browser, "remember papaya")
+        _chatted(browser, "and then this")
+        earlier, latest = reversed(browser.get("/api/runs").json()["runs"])
+        (agent,) = browser.get(f"/api/runs/{earlier['name']}").json()["agents"]
+        (other,) = browser.get(f"/api/runs/{latest['name']}").json()["agents"]
+        key, theirs = f"{agent['name']}/1", f"{other['name']}/1"
+        assert key != theirs
+        assert browser.post("/api/settings", {"btw": AGENT}).status == 200
+        asking = [
+            ["hmz-ask", "list"],
+            ["hmz-ask", "ask", "--to", key, "--question", "what was the word"],
+        ]
+
+        said = browser.post(
+            "/api/btw",
+            {
+                "question": f"run: {json.dumps(asking)}",
+                "epic": earlier["name"],
+                "aside": "a",
+            },
+        )
+
+        assert said.status == 200, said.body
+        (listed, asked) = json.loads(said.json()["answer"])
+        # The sessions of the epic asked about, not of the run the host holds now.
+        assert listed[:2] == [0, f"{key}\n"]
+        assert asked[0] == 0, asked
+        # Carried on from where that epic kept it: a fork, told what it is a copy of.
+        assert f"read-only side copy of the flow session `{key}`" in asked[1]
+        assert said.json()["asked"] == [{"to": key, "question": "what was the word"}]
 
 
 def test_an_exported_epic_is_imported_back_by_its_bytes_or_its_path(

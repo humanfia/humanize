@@ -83,6 +83,8 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+from hmz.coganchor.homes import merged, merger
+
 from .base import AgentBase, SessionBase
 from .config import PERMISSIONS, UNSAID, AgentConfig
 from .event import Event, Failed, Question, Usage, say
@@ -90,12 +92,22 @@ from .hooks import EVERYWHERE, SUBAGENTS, Moment, Occasion
 from .watchdog import Watchdog
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
+    from collections.abc import (
+        Callable,
+        Generator,
+        Iterable,
+        Iterator,
+        Mapping,
+        Sequence,
+    )
+    from pathlib import Path
 
     from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
-    from hmz.coganchor.homes import Home
+    from hmz.coganchor.homes import Home, Virtual
+
+    from .skills import Loaded
 
 #: `-c` keys this driver may take. They are process configuration of the app server, and
 #: none of them is already a field of AgentConfig -- model, effort and permission are asked
@@ -1756,6 +1768,12 @@ class CodexAgentConfig(AgentConfig):
         with nothing but a known-safe read run unasked, and every request answered by this
         client, which grants it unless a hook hung on `PERMISSION_REQUEST` refuses. A policy
         said here is not stepped down from on an installation that refuses the rung's sandbox.
+      unsandboxed: The fake command lines (:meth:`~hmz.coganchor.agents.SessionBase.shelves`)
+        Codex runs outside its own sandbox, each by an execpolicy rule in the virtual home
+        (:func:`_ruled`). Codex's `read-only` sandbox refuses the socket a fake command line
+        reaches this process on, so one that must run there is named here; every other
+        command stays in the sandbox, network and all. A name is ruled only while the agent
+        shelves a command line of that name, so it never lets out a program of the machine's.
       strict_config: Whether the app server refuses a setting it does not recognise rather
         than passing over it -- `--strict-config`. False, as Codex's own default is. A flow
         that turns it on finds out at the first turn that a key it names has been renamed by
@@ -1787,6 +1805,7 @@ class CodexAgentConfig(AgentConfig):
     features: tuple[tuple[str, bool], ...] = ()
     strict_config: bool = False
     approvals: str = ""
+    unsandboxed: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -2118,6 +2137,43 @@ class CodexSession(SessionBase):
             return answer
 
 
+#: The execpolicy file of humanize's in a virtual home's `rules/` (:func:`_ruled`).
+_RULES = "hmz.rules"
+
+
+@merger
+def _ruled(home: Path, names: list[str]) -> None:
+    """Lets Codex run the fake command lines named outside its sandbox, and nothing else.
+
+    An execpolicy rule allowing a command is one Codex runs without its sandbox -- checked
+    against codex-cli 0.160.0 on 2026-10-17, where under `--sandbox read-only` a script ruled
+    `allow` reached a Unix socket and the same script under another name was refused it. The
+    virtual home's `rules/` links to the user's own; it is made a directory of that home's own
+    instead, holding a link to each of the user's rule files and humanize's beside them, so
+    the user's own directory is never written.
+
+    Args:
+      home: The virtual home, built moments ago and not yet started in.
+      names: The fake command lines to rule, each as the one word that runs it.
+    """
+    into = home / "rules"
+    theirs = into.resolve() if into.is_symlink() else None
+    if theirs is not None:
+        into.unlink()
+    into.mkdir(exist_ok=True)
+    if theirs is not None and theirs.is_dir():
+        for entry in theirs.iterdir():
+            if entry.name != _RULES:
+                (into / entry.name).symlink_to(entry)
+    (into / _RULES).write_text(
+        "".join(
+            f'prefix_rule(pattern=[{json.dumps(name)}], decision="allow")\n'
+            for name in names
+        ),
+        encoding="utf-8",
+    )
+
+
 class CodexAgent(AgentBase):
     """Codex, driven over the app server so that a turn can be steered while it runs.
 
@@ -2230,6 +2286,28 @@ class CodexAgent(AgentBase):
         for one in going:
             one.stop()
         return taken if taken is not None else self._start(knows, taking=True)
+
+    def virtual(
+        self,
+        skills: Iterable[Loaded] | None = None,
+        merges: Iterable[tuple[str, str]] = (),
+    ) -> Virtual | None:
+        """The virtual home a process of Codex starts in, with :func:`_ruled` merged in.
+
+        As every CLI's (:meth:`AgentBase.virtual`), and ruling which of the fake command lines
+        this agent shelves run outside Codex's sandbox: the ones
+        :attr:`CodexAgentConfig.unsandboxed` names, and no other.
+
+        Args:
+          skills: The flow's skills the process is to carry, or None for every one.
+          merges: What its session merges into it besides.
+        """
+        shelved = {one.name for one in self.shelf.shelved()}
+        unsandboxed = getattr(self.config, "unsandboxed", ())
+        names = [name for name in unsandboxed if name in shelved]
+        if names:
+            merges = (*merges, merged(_ruled, names))
+        return super().virtual(skills, merges)
 
     def _knowing(self) -> tuple[_Knows, list[_AppServer]]:
         """What a server started now would know, dropping this agent's that know otherwise.
