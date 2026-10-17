@@ -1071,7 +1071,7 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
 | Backend | `counts` | The meter moves |
 | --- | --- | --- |
 | `claude` | input, output, cache_read, cache_write | on each message |
-| `codex` | input, output (cached reads inside input) | on `thread/tokenUsage/updated` |
+| `codex` | input, output, cache_read (cached reads taken out of input) | on `thread/tokenUsage/updated` |
 | `dsh` | input, output, cache_read, cache_write | on each finalised assistant message |
 | `litellm` | input, output, cache_read, cache_write (cached reads taken out of input) | on the usage of the turn's one request |
 | `pi`, `omp` | input, output, cache_read, cache_write | on each finalised assistant message |
