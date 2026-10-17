@@ -206,6 +206,15 @@ that guards that **runtime**; `hmz` MUST NOT remove it.
 **7.7** At most one process of **hmz** MUST size, create or submit containers, services or jobs on
 one **runtime** at a time.
 
+**7.8** `<mdir>/rendezvous-<pid>-<random>/` MUST hold `key.pem` and `cert.pem`, the key and the
+certificate of the broker the process `<pid>` holds for booked meetings
+(`features/placements.md` §10.21), in a directory of mode `0700` with the key of mode `0600`.
+
+**7.9** `hmz` MUST remove that directory when its process exits normally.
+
+**7.10** A process making such a directory MUST first remove every other one whose `<pid>` names
+no process running on this machine.
+
 ## 8. Other process-private temporary directories
 
 **8.1** `hmz` MUST create a process-private temporary directory with the prefix `hmz-sessions-`

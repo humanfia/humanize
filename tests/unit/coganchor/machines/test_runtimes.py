@@ -280,6 +280,8 @@ def test_a_daemon_says_what_every_exec_into_its_containers_is_told() -> None:
         ({"name_prefix": "_team"}, "invalid name prefix"),
         ({"name_prefix": "team/a"}, "invalid name prefix"),
         ({"name_prefix": "t" * 55}, "longer than 54 characters"),
+        ({"dial_back": "10.0.0.1:9"}, "invalid dial-back address"),
+        ({"dial_back": "hôte.example"}, "invalid dial-back address"),
         ({"made": IMPORTED}, "made must be typed"),
     ],
 )
@@ -308,6 +310,13 @@ def test_a_swarm_takes_constraints_and_nodes_it_can_reach() -> None:
     )
 
     assert runtime.held()["nodes"] == {"n1": "gpu", "n2": "me@10.0.0.2:22"}
+
+
+def test_a_swarm_whose_tasks_dial_back_says_where_they_reach_this_machine() -> None:
+    assert SwarmRuntime(name="sw").dial_back == ""
+    assert SwarmRuntime(name="sw", dial_back="192.0.2.213").held()["dial_back"] == (
+        "192.0.2.213"
+    )
 
 
 @pytest.mark.parametrize(

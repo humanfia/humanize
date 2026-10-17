@@ -623,6 +623,9 @@ class SwarmRuntime:
       made: How it was made, which is :data:`TYPED`.
       harness: Where the harness of an agent working on it runs, and nowhere else: see
         :func:`affine`.
+      dial_back: The address its nodes reach this machine at, for tasks that dial back to it
+        rather than being reached through their node's daemon -- which `nodes` is then not
+        asked for; "" for reaching them through it.
     """
 
     backend: ClassVar[str] = SWARM
@@ -643,6 +646,7 @@ class SwarmRuntime:
     fallback: tuple[str, ...] = ()
     made: str = TYPED
     harness: str = ENV
+    dial_back: str = ""
 
     def __post_init__(self) -> None:
         _named(self.name)
@@ -653,6 +657,11 @@ class SwarmRuntime:
         _text(self.tls_dir, "the TLS directory")
         if self.image and not re.fullmatch(r"[^\s]+", self.image):
             raise ValueError(f"{self.name}: invalid image {self.image!r}")
+        if self.dial_back and not re.fullmatch(r"[\w.-]+", self.dial_back, re.ASCII):
+            raise ValueError(
+                f"{self.name}: invalid dial-back address {self.dial_back!r}: expected a "
+                "host name or an IPv4 address"
+            )
         for said in self.run_args:
             if set(said) & set("\n\r\0"):
                 raise ValueError(

@@ -9,16 +9,18 @@ declares, which it reserves and is limited to; the workdir is the path it has on
 Once it is running it is a container like any other, and reached the way
 :mod:`.environing_docker` reaches one: coganchor's serving half put in it and started with
 `docker exec` -- against the daemon of the node it landed on, which is the manager's own where
-it landed on the manager, and the node's over ssh where it did not. Everything downstream of
-that, the mirror an agent works in, the native harness, the files, is the container's and
-cannot tell.
+it landed on the manager, and the node's over ssh where it did not. Or, on a runtime saying
+`dial_back`, the task is created running that serving half, which dials back to this process
+and is met at a `peer://` target. Everything downstream of that, the mirror an agent works in,
+the native harness, the files, is the container's and cannot tell.
 
 What the runtime may hand out -- how many tasks, how many CPUs and bytes all told -- is shared
 between every run on this machine by a lock on the runtime, as a docker runtime's is, and read
 off the labels of the services it already runs. The lock is held while that is worked out and
-the service created, and not while its task waits for a node and comes up: the service counts
-against the runtime from the moment it is created, and a run waiting on the swarm's scheduler
-must not keep every other run here -- or every other environment of its own -- out of it.
+the service created, and not while its task waits for a node and comes up -- nor, on a runtime
+saying `dial_back`, while its serving half dials back and is met: the service counts against
+the runtime from the moment it is created, and a run waiting on the swarm's scheduler must not
+keep every other run here -- or every other environment of its own -- out of it.
 Whether a node has room is the scheduler's to say: a task it leaves pending for want of one is
 given up on, its service removed, and the run told what the scheduler said. A run that died
 without taking its services down leaves them labelled with its host and pid, and the next run
@@ -246,7 +248,7 @@ class SwarmMachine(SSHMachine):
           EnvConnectionError: If the manager, or the node the task landed on, cannot be asked.
         """
         from hmz.coganchor.machines import SwarmConfig, store
-        from hmz.coganchor.machines.swarm import services, swarm_of
+        from hmz.coganchor.machines.swarm import DIALLING, services, swarm_of
 
         where = self.spelled
         endpoint = self.endpoint
@@ -268,7 +270,9 @@ class SwarmMachine(SSHMachine):
             for one in held:
                 if _stale(one):
                     with contextlib.suppress(OSError):
-                        _removed(endpoint, one.name)
+                        _removed(
+                            endpoint, one.name, dialled=one.labels.get(DIALLING) == "1"
+                        )
                     shutil.rmtree(_mirrors(one.name), ignore_errors=True)
                 else:
                     live.append(one)
@@ -302,20 +306,14 @@ class SwarmMachine(SSHMachine):
                         HOST: socket.gethostname(),
                         PID: str(os.getpid()),
                     },
+                    dial_back=stored.dial_back if stored is not None else "",
                 ).create()
             except ValueError as error:
                 raise EnvUnavailable(f"{where}: {error}") from error
             with _told(where), _unanswered(endpoint, self.name, service=True):
                 swarm.submit()
         with _told(where):
-            swarm.start()
-        placed = swarm.placed
-        if placed is not None:
-            from hmz.coganchor.transport import Target
-
-            self.target = Target.parse(
-                f"docker://{placed.container}@{placed.daemon}"
-            ).describe()
+            self.target = swarm.start().target
         return swarm, share
 
     async def _up(self) -> None:
@@ -433,24 +431,40 @@ def _told(where: str) -> Generator[None]:
         raise EnvConnectionError(f"{where}: {error}") from error
 
 
-def _removed(endpoint: Endpoint, service: str) -> None:
-    """Removes a service a run left behind, asking for so long at most.
+def _removed(endpoint: Endpoint, service: str, *, dialled: bool) -> None:
+    """Removes a service a run left behind, and what a dial-back one was created with.
+
+    Asking for so long at most, each, and asking for each whatever came of the one before.
+
+    Args:
+      endpoint: The manager.
+      service: The service.
+      dialled: Whether it dialled back, and so was created with a secret and configs of its
+        own.
 
     Raises:
-      OSError: If it could not be asked.
+      OSError: If it could not be asked, for the first that could not.
     """
     import subprocess
 
-    try:
-        subprocess.run(
-            endpoint.docker("service", "rm", service),
-            capture_output=True,
-            stdin=subprocess.DEVNULL,
-            timeout=_ASKING,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as error:
-        raise OSError(f"{service} was not removed within {_ASKING:g}s") from error
+    from hmz.coganchor.machines.swarm import kept
+
+    unanswered: OSError | None = None
+    for kind, name in (("service", service), *(kept(service) if dialled else ())):
+        try:
+            subprocess.run(
+                endpoint.docker(kind, "rm", name),
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                timeout=_ASKING,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as error:
+            if unanswered is None:
+                unanswered = OSError(f"{name} was not removed within {_ASKING:g}s")
+                unanswered.__cause__ = error
+    if unanswered is not None:
+        raise unanswered
 
 
 def _nodes(stored: SwarmRuntime | None) -> dict[str, str]:

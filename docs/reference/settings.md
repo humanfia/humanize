@@ -207,6 +207,7 @@ entry that does not validate is skipped. A runtime an earlier humanize wrote wit
 | `cpus` | `float` |
 | `memory`, `max_tasks` | `int` |
 | `nodes` | `{str: str}`: a node's host name to a saved ssh runtime's name or `[user@]host[:port]` |
+| `dial_back` | `str`: empty, or the host name or IPv4 address the nodes reach this machine at, for tasks that [dial back](/reference/machines#swarm-environments) instead of being reached by `docker exec` |
 | `made` | `"typed"` |
 
 `apple-container`: `image`, `workdir`, `harness` (`str`), `run_args`, `fallback` (`[str]`),

@@ -94,3 +94,26 @@ def test_an_identity_export_rewrites_nothing() -> None:
     assert (
         ExportTable.parse(["/w"], insensitive=False).rewrite("cat /w/f") == "cat /w/f"
     )
+
+
+def test_a_session_is_served_what_it_asked_for_as_this_table_reaches_it() -> None:
+    table = ExportTable.parse(["/"])
+    assert table.within([]) is table
+    assert table.within(["/w", "/v:/srv/real"]).exports == [
+        Export("/w", "/w"),
+        Export("/v", "/srv/real"),
+    ]
+    # Asked of a table that exports a directory under another name, by that name.
+    assert ExportTable.parse(["/srv:/data"]).within(["/w:/srv/x"]).exports == [
+        Export("/w", "/data/x")
+    ]
+
+
+def test_a_session_asking_for_what_is_not_exported_is_refused() -> None:
+    table = ExportTable.parse(["/srv"])
+    with pytest.raises(PermissionError, match="outside every export"):
+        table.within(["/etc"])
+    with pytest.raises(PermissionError, match="outside every export"):
+        table.within(["/w:/srv/../etc"])
+    with pytest.raises(ValueError, match="must be absolute"):
+        table.within(["relative"])

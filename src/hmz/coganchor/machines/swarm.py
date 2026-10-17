@@ -8,6 +8,17 @@ which container on it, and from then on the container is reached the way any oth
 `docker exec` against the daemon holding it, which is the manager's own where the task landed
 on the manager, and the node's daemon over ssh where it did not.
 
+Or, for a swarm whose nodes' daemons this machine cannot reach at all, the other way round:
+the task is created running coganchor's serving half, which dials back to a rendezvous of this
+process's own (:func:`hmz.coganchor.rendezvous.standing`) and is met there by every session
+the anchor opens, at a `peer://` target. The meeting is booked, so the ticket the task holds
+lets in its serving half alone and the anchor's ticket never leaves this machine; that ticket
+is a docker secret and the serving half a docker config, both the service's own, so neither
+is in its spec nor needs a path on its node. And it is sealed: every byte between the task and
+this machine is TLS pinned to a certificate the broker made for this run, which is the third
+thing the service is created with -- a config, since it is no secret -- while its key never
+leaves this machine.
+
 The workspace is a bind mount of the path it already has, as it is for one daemon -- of the
 node's host now, which nobody can say in advance. So a swarm whose tasks may land on several
 nodes has to have the directory at the same path on every one of them: a shared filesystem, or
@@ -39,7 +50,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from hmz.coganchor import AnchorConfig
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE
-from hmz.coganchor.transport import Endpoint, Road, Target, python_command
+from hmz.coganchor.transport import Endpoint, Road, Target, bundled, python_command
 
 from .base import MachineBase, MachineConfig
 from .docker import CPUS, GPUS, MEMORY, Allocation, bound, info, whose
@@ -47,12 +58,16 @@ from .docker import CPUS, GPUS, MEMORY, Allocation, bound, info, whose
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from hmz.coganchor.rendezvous import Broker, Meeting
+
 __all__ = [
+    "DIALLING",
     "Node",
     "Placed",
     "Swarm",
     "SwarmConfig",
     "Unplaced",
+    "kept",
     "nodes",
     "services",
     "swarm_of",
@@ -60,6 +75,16 @@ __all__ = [
 
 #: What the task does while the turns come and go, as a container of :mod:`.docker` does.
 _IDLE = tuple(python_command(["-c", "import time; time.sleep(2**31)"]))
+
+#: What the secret holding a dialling task's meeting is called inside it, under /run/secrets.
+_PEER = "humanize-peer"
+
+#: What a dialling service's secret and its two configs -- the serving half, and the
+#: certificate its meeting is sealed with -- are called, after the service.
+_SECRET, _CONFIG, _SEALED = "-peer", "-hmz", "-tls"
+
+#: Where a dialling task finds that certificate, as a meeting names the directory holding it.
+_TLS = "/humanize-tls"
 
 #: Marks a service as one of ours, and whose: the label :mod:`.docker` marks a container with.
 _LABEL = "humanize"
@@ -76,6 +101,12 @@ _POLL = 0.5
 #: How long a manager is given to create a service: it asks a registry which image that is
 #: first, so as long as the task is then given to come up.
 _MAKING = 600.0
+
+#: The most a docker config holds, as swarmkit bounds it (`MaxConfigSize`).
+_CONFIG_MOST = 1000 * 1024
+
+#: Marks a service that dials back, and so was created with what :func:`kept` names.
+DIALLING = "humanize.dial-back"
 
 
 class Unplaced(RuntimeError):  # noqa: N818 -- named for what happened, as the rest are
@@ -115,6 +146,9 @@ class SwarmConfig(MachineConfig):
         given up on.
       starting: How long, in seconds, it may take to be running once it has a node --
         pulling its image among it.
+      dial_back: Where the swarm's nodes reach this machine, for a task that dials back to
+        this process's rendezvous rather than being reached by `docker exec` on its node; ""
+        for `docker exec`, as `nodes` says.
     """
 
     image: str = "python:3.12"
@@ -133,6 +167,7 @@ class SwarmConfig(MachineConfig):
     labels: Mapping[str, str] = field(default_factory=dict[str, str], hash=False)
     placing: float = 30.0
     starting: float = 600.0
+    dial_back: str = ""
 
     def __post_init__(self) -> None:
         """Refuses what the swarm would refuse, where it is written rather than as it starts.
@@ -211,6 +246,77 @@ class Placed:
     node: Node
     container: str
     daemon: Endpoint
+
+
+def _deflated(archive: Path) -> Path:
+    """The archive with its members deflated, beside it, for a docker config to hold.
+
+    The archive is stored rather than compressed, which no target caching it is the worse
+    for; a config holds at most :data:`_CONFIG_MOST` bytes, and the archive stored is most of
+    that, deflated under a third. zipimport reads the one as it reads the other.
+
+    Args:
+      archive: The archive :func:`~hmz.coganchor.transport.bundled` built.
+
+    Returns:
+      The deflated copy, made once per archive.
+
+    Raises:
+      OSError: If it cannot be made, or is more than a config holds even deflated.
+    """
+    import zipfile
+
+    made = archive.with_name(f"{archive.stem}.deflated.pyz")
+    try:
+        os.utime(made)
+    except FileNotFoundError:
+        whole = archive.read_bytes()
+        handle, staged = tempfile.mkstemp(
+            dir=archive.parent, prefix=f"{archive.stem}.", suffix=".new"
+        )
+        try:
+            with os.fdopen(handle, "wb") as writing:
+                # Its `#!` line first, as the archive has one, and then the members.
+                writing.write(whole[: max(whole.find(b"PK\x03\x04"), 0)])
+                with (
+                    zipfile.ZipFile(archive) as stored,
+                    zipfile.ZipFile(writing, "w") as deflated,
+                ):
+                    for member in stored.infolist():
+                        held = stored.read(member)
+                        deflated.writestr(
+                            member, held, zipfile.ZIP_DEFLATED, compresslevel=9
+                        )
+            Path(staged).replace(made)
+        except BaseException:
+            Path(staged).unlink(missing_ok=True)
+            raise
+    size = made.stat().st_size
+    if size > _CONFIG_MOST:
+        raise OSError(
+            errno.EFBIG,
+            f"humanize's archive is {size} bytes deflated, more than the {_CONFIG_MOST} a "
+            "docker config holds",
+            str(made),
+        )
+    return made
+
+
+def kept(service: str) -> tuple[tuple[str, str], ...]:
+    """What a service dialling back is created with beside itself, to be removed with it.
+
+    Args:
+      service: The service's name.
+
+    Returns:
+      Its secret and its two configs, each as `(kind, name)`, which `docker <kind> rm
+      <name>` removes.
+    """
+    return (
+        ("secret", f"{service}{_SECRET}"),
+        ("config", f"{service}{_CONFIG}"),
+        ("config", f"{service}{_SEALED}"),
+    )
 
 
 def swarm_of(told: Mapping[str, Any], where: str) -> str:
@@ -415,6 +521,9 @@ class Swarm(MachineBase):
         self._mirror: tempfile.TemporaryDirectory[str] | None = None
         self._service = ""
         self._manager = ""
+        self._kept: list[tuple[str, str]] = []
+        self._booked: tuple[Broker, str] | None = None
+        self._meeting: Meeting | None = None
         self._told: dict[str, Any] | None = None
         self.placed: Placed | None = None
 
@@ -425,14 +534,17 @@ class Swarm(MachineBase):
           The service's id.
 
         Raises:
-          FileNotFoundError: If there is no `docker` here, or the manager's host, asked
-            whose the workspace is, has no such directory.
-          RuntimeError: If the service could not be created.
+          FileNotFoundError: If there is no `docker` here -- or, dialling back, no `openssl`
+            -- or the manager's host, asked whose the workspace is, has no such directory.
+          RuntimeError: If the service -- or, dialling back, its secret or configs -- could
+            not be created.
           TimeoutError: If the manager did not answer in time: 60 seconds for what it is, and
-            600 for creating the service. A service it creates after all, once it was given
-            up on, has no id here to be removed by: whoever named it can look for it by
-            that name.
-          OSError: If the manager could not be asked, or manages no active swarm.
+            for each secret and config of a service dialling back, and 600 for creating the
+            service. A service it creates after all, once it was given up on, has no id here
+            to be removed by: whoever named it can look for it by that name.
+          OSError: If the manager could not be asked, or manages no active swarm -- or,
+            dialling back, this process cannot listen for the task, or the certificate or
+            the archive cannot be had.
         """
         if self._service:
             return self._service
@@ -448,6 +560,9 @@ class Swarm(MachineBase):
         try:
             user = config.user or whose(
                 self._endpoint, config.image, config.workspace, self._info
+            )
+            meeting, dialling, command = (
+                self._dialling(name) if config.dial_back else (None, [], list(_IDLE))
             )
             made = _asked(
                 self._endpoint.docker(
@@ -472,8 +587,9 @@ class Swarm(MachineBase):
                     *(("--cap-add", "SYS_PTRACE") if config.traced else ()),
                     *config.run_args,
                     *self._resources(),
+                    *dialling,
                     config.image,
-                    *_IDLE,
+                    *command,
                 ),
                 _MAKING,
             )
@@ -489,21 +605,27 @@ class Swarm(MachineBase):
             self.stop()
             raise
         self._manager = manager
+        self._meeting = meeting
         return self._service
 
     def start(self) -> AnchorConfig:
         """Creates the service where it is not yet, waits for its task to run, and asks it.
 
+        Dialling back, it is asked once its serving half has dialled back to its meeting.
+
         Returns:
           The anchor that reaches it: the workspace by its path on the node, and the
-          container by a target carrying the daemon of that node.
+          container by a target carrying the daemon of that node -- or, dialling back, by
+          the `peer://` meeting its serving half comes to.
 
         Raises:
-          FileNotFoundError: If there is no `docker` here, or the node the task landed on --
-            or the manager's host, asked whose the workspace is -- has no such directory.
+          FileNotFoundError: If there is no `docker` here -- or, dialling back, no `openssl`
+            -- or the node the task landed on -- or the manager's host, asked whose the
+            workspace is -- has no such directory.
           Unplaced: If no node took the task in time.
-          RuntimeError: If the service could not be created, or its task failed, or what
-            came up is not the machine these settings promised.
+          RuntimeError: If the service -- or, dialling back, its secret or configs -- could
+            not be created, or its task failed, or what came up is not the machine these
+            settings promised.
           OSError: If the manager or the node could not be asked, or the container cannot
             serve the workspace it was mounted.
         """
@@ -513,8 +635,11 @@ class Swarm(MachineBase):
         try:
             placed = self._landed(self._manager)
             self.placed = placed
-            target = Target.parse(f"docker://{placed.container}@{placed.daemon}")
-            Road.to(target).forget()
+            if self._meeting is not None:
+                target = Target.parse(f"peer://{self._meeting}")
+            else:
+                target = Target.parse(f"docker://{placed.container}@{placed.daemon}")
+                Road.to(target).forget()
             anchor = AnchorConfig(
                 target=target.describe(),
                 workspace=config.workspace,
@@ -527,15 +652,116 @@ class Swarm(MachineBase):
         return anchor
 
     def stop(self) -> None:
-        """Removes the service, and with it its task, leaving the workspace as it was left."""
+        """Removes the service, its task, its secret and its configs, and cancels its meeting.
+
+        The workspace is left as it was left.
+        """
         if self._mirror is None:
             return
         if self._service:
             with contextlib.suppress(OSError):
                 _asked(self._endpoint.docker("service", "rm", self._service), 60.0)
             self._service = ""
+        for kind, name in self._kept:
+            with contextlib.suppress(OSError):
+                _asked(self._endpoint.docker(kind, "rm", name), 60.0)
+        self._kept = []
+        if self._booked is not None:
+            broker, serving = self._booked
+            broker.withdraw(serving)
+            self._booked = None
+        self._meeting = None
         self._mirror.cleanup()
         self._mirror = None
+
+    def _dialling(self, name: str) -> tuple[Meeting, list[str], list[str]]:
+        """What a task that dials back is created with, and the meeting it is met at.
+
+        The meeting is booked with a broker of this process's own, as the nodes reach this
+        machine, and sealed with its certificate. The serving half's ticket goes in a secret
+        of the service's own, so that it is in no spec anybody can inspect; the serving half
+        itself in a config of its own, and the certificate -- which is all the task is told
+        of the broker's TLS, the key staying here -- in another. All three carry the
+        service's labels, its owner's among them, and go with it.
+
+        Args:
+          name: The service's name, which its secret and configs are named for.
+
+        Returns:
+          The meeting as the anchor comes to it, what `docker service create` is told for
+          it, and the command the task runs.
+
+        Raises:
+          FileNotFoundError: If there is no `openssl` here to make the certificate with.
+          OSError: If this process cannot listen for the task, or the certificate or the
+            archive cannot be had.
+          RuntimeError: If the manager would not take the secret or a config.
+        """
+        from hmz.coganchor import rendezvous
+
+        host = self._config.dial_back
+        broker, port = rendezvous.standing(host)
+        serving, anchoring = broker.stand()
+        self._booked = (broker, serving)
+        (_, secret), (_, config), (_, sealed) = kept(name)
+        self._create(
+            "secret", secret, "-", str(rendezvous.Meeting(serving, host, port, _TLS))
+        )
+        self._create("config", sealed, str(Path(broker.tls) / rendezvous.CERTIFICATE))
+        self._create("config", config, str(_deflated(bundled()[0])))
+        bundle = f"/{config}.pyz"
+        return (
+            rendezvous.Meeting(anchoring, host, port, broker.tls),
+            [
+                *("--secret", f"source={secret},target={_PEER}"),
+                *("--config", f"source={config},target={bundle}"),
+                *(
+                    "--config",
+                    f"source={sealed},target={_TLS}/{rendezvous.CERTIFICATE}",
+                ),
+            ],
+            python_command(
+                [
+                    *("internal", "anchor", "serve"),
+                    *("--peer-file", f"/run/secrets/{_PEER}", "--export", "/"),
+                ],
+                bundle=bundle,
+            ),
+        )
+
+    def _create(self, kind: str, name: str, source: str, given: str = "") -> None:
+        """Creates a secret or a config on the manager, to be removed with the service.
+
+        Args:
+          kind: `secret` or `config`.
+          name: What it is called.
+          source: The file it is read from, `-` for `given`.
+          given: What it holds, read from `-`.
+
+        Raises:
+          RuntimeError: If the manager would not take it.
+          OSError: If the manager did not answer within 60 s.
+        """
+        try:
+            made = subprocess.run(
+                self._endpoint.docker(kind, "create", *self._owned(), name, source),
+                input=given,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=60.0,
+            )
+        except subprocess.TimeoutExpired as error:
+            # Made or not, it goes with the service: a manager slow to answer may make it yet.
+            self._kept.append((kind, name))
+            raise OSError(
+                errno.ETIMEDOUT, f"docker did not answer within {error.timeout:g}s"
+            ) from error
+        if made.returncode != 0:
+            raise RuntimeError(
+                f"could not create a {kind} on {self._endpoint}: {made.stderr.strip()}"
+            )
+        self._kept.append((kind, name))
 
     def _landed(self, manager: str) -> Placed:
         """Waits for the task to be running, and says where.
@@ -650,7 +876,9 @@ class Swarm(MachineBase):
 
         The one the setting names for its host where it names one; else the manager's own,
         reached as the manager is, where the task landed on the manager; else the node's over
-        `ssh://<its address>`.
+        `ssh://<its address>`. A task that dials back is reached at its meeting and through
+        no daemon, so none is looked for, the setting's `nodes` included, and the manager's
+        is said.
         """
         config = self._config
         found = [
@@ -665,7 +893,9 @@ class Swarm(MachineBase):
         )
         if not container:
             raise RuntimeError(f"the task of {self._service} names no container")
-        if node.hostname in config.nodes:
+        if self._meeting is not None:
+            daemon = self._endpoint
+        elif node.hostname in config.nodes:
             daemon = Endpoint.parse(config.nodes[node.hostname])
         elif node_id == manager:
             daemon = self._endpoint
@@ -694,7 +924,7 @@ class Swarm(MachineBase):
         said = {
             key: value
             for key, value in config.labels.items()
-            if key not in (_LABEL, CPUS, MEMORY, GPUS)
+            if key not in (_LABEL, CPUS, MEMORY, GPUS, DIALLING)
         }
         said[_LABEL] = str(os.getuid())
         if config.cpus is not None:
@@ -703,11 +933,32 @@ class Swarm(MachineBase):
             said[MEMORY] = str(config.memory)
         if config.generic:
             said[GPUS] = ",".join(f"{kind}={many}" for kind, many in config.generic)
+        if config.dial_back:
+            said[DIALLING] = "1"
         return [
             word
             for key, value in said.items()
             for word in ("--label", f"{key}={value}")
         ]
+
+    def _owned(self) -> list[str]:
+        """The labels of what the service is created with: its own, and `run_args`' too.
+
+        Those `run_args` give the service as well: an owner a shared swarm asks everything
+        to be marked with, say.
+        """
+        said = self._labelled()
+        words = iter(self._config.run_args)
+        for word in words:
+            if word in ("--label", "-l"):
+                # A last `--label` with nothing after it is no label, which docker refuses
+                # the service for anyway.
+                label = next(words, "")
+                if label:
+                    said += ["--label", label]
+            elif word.startswith("--label="):
+                said += ["--label", word.removeprefix("--label=")]
+        return said
 
     def _environment(self) -> list[str]:
         """Its variables: a home, the caller's, and no GPU but those it reserved."""

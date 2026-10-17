@@ -11,11 +11,15 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
-from typing import TYPE_CHECKING, Any
+import zipfile
+from pathlib import Path
+from typing import Any
 
 import pytest
 
+from hmz.coganchor import rendezvous
 from hmz.coganchor.machines import (
     AppleContainerConfig,
     DockerConfig,
@@ -24,13 +28,11 @@ from hmz.coganchor.machines import (
     info,
 )
 from hmz.coganchor.machines import apple_container as apple
+from hmz.coganchor.machines import swarm as swarm_module
 from hmz.coganchor.machines.docker import CPUS, GPUS, MEMORY, whose
 from hmz.coganchor.machines.swarm import Unplaced, nodes, services
 from hmz.coganchor.transport import Endpoint
 from tests.integration.doubles_anchor import Fakes, fakes, swarm
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 #: A fake container is this machine, so it says this machine's platform when it is asked.
 linux = pytest.mark.skipif(
@@ -431,6 +433,57 @@ def test_a_swarm_service_is_created_once_however_often_it_is_submitted(
     ]
     assert len(created) == 1
     assert manager.services() == []
+
+
+class _Booking:
+    """This process's broker for booked meetings, stood in for: it books, and meets nobody."""
+
+    def __init__(self, at: Path) -> None:
+        self.tls = str(at)
+
+    def stand(self) -> tuple[str, str]:
+        return "s" * 32, "a" * 32
+
+    def withdraw(self, serving: str) -> None:
+        del serving
+
+
+def test_a_dialling_tasks_serving_half_is_handed_over_deflated_and_runs_as_built(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workspace: Path
+) -> None:
+    built = tmp_path / "humanize-abc.pyz"
+    with built.open("wb") as writing:
+        writing.write(b"#!/usr/bin/env python3\n")
+        with zipfile.ZipFile(writing, "w") as archive:
+            archive.writestr("__main__.py", "print('served')\n" * 2000)
+    monkeypatch.setattr(swarm_module, "bundled", lambda: (built, "abc"))
+
+    # This process's broker is one per address and kept for the process: a stand-in here
+    # leaves it to the tests of the broker itself.
+    def standing(address: str) -> tuple[_Booking, int]:
+        del address
+        return _Booking(tmp_path), 4242
+
+    monkeypatch.setattr(rendezvous, "standing", standing)
+    manager = swarm(tmp_path, monkeypatch)
+    machine = SwarmConfig(
+        image="img:1", workspace=str(workspace), name="svc", dial_back="192.0.2.1"
+    ).create()
+    try:
+        machine.submit()
+    finally:
+        machine.stop()
+
+    (handed,) = [
+        Path(one[-1])
+        for one in manager.calls("docker")
+        if one[:2] == ["config", "create"] and one[-2] == "svc-hmz"
+    ]
+    assert handed.stat().st_size < built.stat().st_size // 10
+    ran = subprocess.run(
+        [sys.executable, "-I", str(handed)], capture_output=True, check=True
+    )
+    assert ran.stdout == b"served\n" * 2000
 
 
 def test_a_daemon_in_no_swarm_cannot_place_a_task(far: Fakes, workspace: Path) -> None:

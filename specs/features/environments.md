@@ -367,6 +367,31 @@ the node's address.
 one word; a node MUST be named by a saved ssh runtime or by `[user@]host[:port]`. Any other MUST
 be refused when saved.
 
+**8.12** Where a swarm runtime names a dial-back address (`api/settings.md` §8.5), its task MUST
+run a standing serving half (`features/placements.md` §2.16) in place of §8.10, met at a booked,
+sealed meeting of the broker this process holds at that address, and hmz MUST reach the task's
+container only through that meeting, by a `peer://` target.
+
+**8.13** Where a swarm runtime names a dial-back address, hmz MUST NOT reach any node's daemon,
+over ssh or otherwise, and MUST NOT ask the runtime's `nodes` for one.
+
+**8.14** A task dialling back MUST be handed its meeting as the docker secret `<service>-peer`,
+the serving half as the docker config `<service>-hmz` and the broker's certificate as the docker
+config `<service>-tls`, each created on the manager with the service's labels and those its run
+arguments give it.
+
+**8.15** hmz MUST remove that secret and those configs whenever it removes the service, the
+service of an earlier epic it finds left (§12.1) and labelled as §8.18 states included, and
+MUST cancel the meeting.
+
+**8.16** A swarm runtime naming a dial-back address MUST raise `EnvUnavailable` where `openssl`
+is not on this machine.
+
+**8.17** The archive in `<service>-hmz` MUST have its members deflated, and a service whose
+archive is more than 1,024,000 bytes so MUST NOT be created.
+
+**8.18** A service dialling back MUST carry the label `humanize.dial-back=1`.
+
 ## 9. `apple-container`
 
 **9.1** An `apple-container` env MUST be one container of Apple's `container` of its own on this

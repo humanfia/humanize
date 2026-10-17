@@ -40,6 +40,8 @@ class Runs:
     """Stands in for `subprocess.run`: records every argv, answers by rules."""
 
     calls: list[list[str]] = field(default_factory=list[list[str]])
+    #: What each of them was given on its input, by the same index.
+    given: list[Any] = field(default_factory=list[Any])
     rules: list[Rule] = field(default_factory=list[Rule])
     #: Commands that are not on `PATH`.
     absent: set[str] = field(default_factory=set[str])
@@ -62,6 +64,7 @@ class Runs:
     ) -> subprocess.CompletedProcess[Any]:
         said = [str(one) for one in argv]
         self.calls.append(said)
+        self.given.append(kwargs.get("input"))
         for rule in reversed(self.rules):
             if not holds(said, rule.words):
                 continue

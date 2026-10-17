@@ -34,8 +34,8 @@ Values are read with `os.environ`; `hmz` changes its own environment in one case
 | <code id="humanize-shadows">HUMANIZE_SHADOWS</code> | a path (`~` expanded); empty is unset | `~/.cache/humanize/shadows` | Directory of mirror records (`<sha16>.json`) and journals (`<sha16>.journal`, `<sha16>.live`) for this process and its children. |
 | <code id="humanize-ssh-reuse">HUMANIZE_SSH_REUSE</code> | `off`, `0`, `no`, `false` (trimmed, case-insensitive) or set and empty turn it off; anything else on | on | On: every `ssh` humanize runs adds `-o ControlMaster=auto -o ControlPersist=120 -o ControlPath=<dir>/%C[-<digest>]`, `<dir>` being `$XDG_RUNTIME_DIR/humanize-ssh-<uid>` (or the temporary directory). Read once per process. |
 | <code id="humanize-rendezvous">HUMANIZE_RENDEZVOUS</code> | a host or address; empty is unset | the address this machine uses to reach the outside (UDP route to `192.0.2.1`), else `127.0.0.1` | Default of `hmz internal anchor --broker`, and the address an in-process rendezvous broker advertises. |
-| <code id="humanize-rendezvous-port">HUMANIZE_RENDEZVOUS_PORT</code> | an integer | `0` (any free port) | Port of the process's shared rendezvous broker (listening on `0.0.0.0`). A non-integer raises `ValueError`. |
-| <code id="humanize-target">HUMANIZE_TARGET</code> | `ssh://HOST`, `docker://CONTAINER[?OPTIONS][@ENDPOINT]`, `apple-container://CONTAINER`, `slurm://JOBID[?python=PATH]`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, `local[:DIR]` | `local` | Default of `hmz internal anchor --target`. Also set by humanize inside an anchored agent (below). |
+| <code id="humanize-rendezvous-port">HUMANIZE_RENDEZVOUS_PORT</code> | an integer | `0` (any free port) | Port of the process's shared rendezvous broker (listening on `0.0.0.0`), and of the broker it holds for a swarm's `dial_back` meetings. A fixed port is held by whichever starts first, and the next fails with `EADDRINUSE`: leave it unset where a process holds more than one. A non-integer raises `ValueError`. |
+| <code id="humanize-target">HUMANIZE_TARGET</code> | `ssh://HOST`, `docker://CONTAINER[?OPTIONS][@ENDPOINT]`, `apple-container://CONTAINER`, `slurm://JOBID[?python=PATH]`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT[?tls=DIR]`, `local[:DIR]` | `local` | Default of `hmz internal anchor --target`. Also set by humanize inside an anchored agent (below). |
 | <code id="humanize-harness">HUMANIZE_HARNESS</code> | `local`, `same`, or a target spelling | `local` | Default of `hmz internal anchor --harness`. |
 | <code id="humanize-shadow">HUMANIZE_SHADOW</code> | a path | `--workspace` | Default of `hmz internal anchor --shadow`: the mirror directory on the machine the harness runs on. Set by humanize for a remote harness (below). |
 | <code id="humanize-token">HUMANIZE_TOKEN</code> | a string | none | Default of `--token` for `hmz internal anchor` (the secret a `tcp://` target expects) and `hmz internal anchor serve` (the secret clients must present; a mismatch is refused with `invalid token`). `serve --listen` on a non-loopback address without a token fails: `hmz: cannot listen on a non-loopback address without --token`. |
@@ -167,7 +167,7 @@ watch, and never set.
 | Variable | Set in | Value |
 | --- | --- | --- |
 | `HUMANIZE` | an anchored agent (supervised: its environment; native: an `env` prefix on the target command) | humanize's version |
-| `HUMANIZE_TARGET` | the same | the target, as `--target` spells it |
+| `HUMANIZE_TARGET` | the same | the target, as `--target` spells it, except that a `peer://` target is `peer://HOST:PORT`, without its ticket or `tls=` directory |
 | `HUMANIZE_WORKSPACE` | the same | the workspace as the target names it |
 | `PWD` | an anchored agent; every command run on a target | the working directory |
 | `TERM` | a command run on a target with a terminal | `xterm-256color` unless set |

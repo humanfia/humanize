@@ -17,7 +17,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor import AnchorConfig, anchor
+from hmz.coganchor import AnchorConfig, anchor, transport
+from hmz.coganchor.remote import RemoteClient
 from hmz.coganchor.rendezvous import Broker, Meeting, ticket
 from hmz.coganchor.transport import Road, Target, build_bundle
 from tests.integration.doubles_anchor import Fakes, announced, fakes, stopped
@@ -354,6 +355,90 @@ def test_two_halves_met_through_a_broker_serve_a_session(
 
     assert found["entries"] == 2
     assert found["target"] == f"peer://{meeting}"
+
+
+def test_a_standing_serving_half_serves_session_after_session(
+    broker: Broker, workspace: Path, tmp_path: Path
+) -> None:
+    meeting = Meeting(ticket(), *broker.address)
+    peer = tmp_path / "peer"
+    peer.write_text(f"{meeting}\n")
+    serving = subprocess.Popen(
+        [*SERVE, "--peer-file", str(peer), "--export", "/"],
+        stdin=subprocess.DEVNULL,
+    )
+    config = AnchorConfig(target=f"peer://{meeting}", workspace=str(workspace))
+    said: list[int] = []
+
+    def one() -> None:
+        said.append(anchor.check(config)["entries"])
+
+    try:
+        one()
+        many = [threading.Thread(target=one) for _ in range(4)]
+        for each in many:
+            each.start()
+        for each in many:
+            each.join(timeout=120)
+    finally:
+        stopped(serving)
+
+    assert said == [2, 2, 2, 2, 2]
+
+
+def test_a_standing_serving_half_at_a_booked_meeting_serves_what_each_session_asks(
+    workspace: Path, tmp_path: Path
+) -> None:
+    booking = Broker("127.0.0.1", 0, punching=0.2, booked=True)
+    host, port = booking.start()
+    serving_ticket, anchoring = booking.stand()
+    peer = tmp_path / "peer"
+    peer.write_text(f"{Meeting(serving_ticket, host, port)}\n")
+    serving = subprocess.Popen(
+        [*SERVE, "--peer-file", str(peer), "--export", "/"],
+        stdin=subprocess.DEVNULL,
+    )
+    target = Target.parse(f"peer://{Meeting(anchoring, host, port)}")
+    try:
+        found = anchor.check(
+            AnchorConfig(target=target.describe(), workspace=str(workspace))
+        )
+        # An agent's session is served its workspace -- the bound of its files, and the
+        # workdir its fenced commands are held to -- and not the `/` the task was left with.
+        assert found["entries"] == 2
+        [export] = found["exports"]
+        assert export["virtual"] == str(workspace)
+        # The real path is built onto the export's own spelling, so on a Mac it may come
+        # back as /var/... for /private/var/...: the same directory either way.
+        assert workspace.samefile(export["real"])
+        link = transport.connect(target, [str(workspace)])
+        client = RemoteClient(link.channel)
+        try:
+            client.start()
+            with pytest.raises(OSError, match="outside every export"):
+                client.listdir(str(tmp_path))
+        finally:
+            client.close()
+            link.close()
+        # The flow's own link asks for `/`, as it does of a serving half it starts.
+        link = transport.connect(target, ["/"])
+        client = RemoteClient(link.channel)
+        try:
+            assert client.start()["exports"] == [{"virtual": "/", "real": "/"}]
+        finally:
+            client.close()
+            link.close()
+        # And the ticket the task was handed reaches nothing.
+        with pytest.raises(OSError, match="no meeting here lets that half in"):
+            anchor.check(
+                AnchorConfig(
+                    target=f"peer://{Meeting(serving_ticket, host, port)}",
+                    workspace=str(workspace),
+                )
+            )
+    finally:
+        stopped(serving)
+        booking.close()
 
 
 def test_a_broker_run_as_a_command_line_introduces_two_halves(workspace: Path) -> None:

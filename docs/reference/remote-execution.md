@@ -121,7 +121,7 @@ machine in `AnchorConfig.harness`.
 | `apple-container://CONTAINER` | a running Apple container on this Mac | the serving half is bootstrapped with `container exec -i`, running as the container's user | yes | Apple's `container` here; `/bin/sh` and Python >= 3.12 in the container |
 | `slurm://JOBID[?python=PATH]` | the node a running Slurm job of this user's was given | the serving half is bootstrapped with `srun --jobid=JOBID --overlap`, a step of that job sharing its allocation, running as this user | yes | `srun` here; `/bin/sh` and Python >= 3.12 on the node (`PATH`, absolute or under `~/`, is tried first) |
 | `tcp://HOST:PORT` | a serving half [left listening](#serving-a-target) | a TCP connection, `TCP_NODELAY`, 30 s connect timeout | no | a served target and its token |
-| `peer://TICKET@HOST:PORT` | a serving half waiting at a broker | the broker at `HOST:PORT`, presenting `TICKET` | no | written by humanize only |
+| `peer://TICKET@HOST:PORT[?tls=DIR]` | a serving half waiting at a broker | the broker at `HOST:PORT`, presenting `TICKET`; with `DIR`, over TLS [pinned](#sealed-meetings) to `DIR/cert.pem` | no | written by humanize only |
 
 Parsing rules:
 
@@ -155,7 +155,8 @@ Parsing rules:
 - `slurm://`: the job's id, all digits; after `?`, only `python=PATH`, URL-quoted, `PATH`
   absolute or under `~/` (the node's home) and holding no newline, carriage return, NUL or `"`.
 - `tcp://`: `HOST:PORT` split at the last `:`; the port must be digits.
-- `peer://`: `TICKET@HOST:PORT`; brackets around an IPv6 host are stripped.
+- `peer://`: `TICKET@HOST:PORT`, optionally followed by `?tls=DIR` (URL-quoted, non-empty,
+  the only option, once); brackets around an IPv6 host are stripped.
 
 | Input | `ValueError` message |
 | --- | --- |
@@ -167,7 +168,7 @@ Parsing rules:
 | a docker option that is not one | `malformed target 'docker://c?user=me'; user='me' is not a docker exec option` |
 | a docker query that does not parse | `malformed target '<spec>'; expected docker://CONTAINER?user=UID[:GID]&env=NAME=VALUE&exec=WORD&...` |
 | a bad docker endpoint | `unsupported docker endpoint 'weird'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or context:NAME` |
-| a malformed meeting | `malformed meeting '<spec>'; expected TICKET@HOST:PORT` |
+| a malformed meeting | `malformed meeting '<spec>'; expected TICKET@HOST:PORT[?tls=DIR]` |
 
 ### Bootstrapping the serving half
 
@@ -272,7 +273,7 @@ srun --jobid=JOBID --overlap --nodes=1 --ntasks=1 --unbuffered --quiet --export=
 | Variable | Value | Arrangements |
 | --- | --- | --- |
 | `HUMANIZE` | the `hmz.coganchor` version | supervised, native |
-| `HUMANIZE_TARGET` | the target, as `Target.describe()` spells it | supervised, native |
+| `HUMANIZE_TARGET` | the target, as `Target.told()` spells it: `Target.describe()`, except that a `peer://` target is `peer://HOST:PORT`, without its ticket or `tls=` directory | supervised, native |
 | `HUMANIZE_WORKSPACE` | the workspace, as `workspace` names it (absolute) | supervised, native |
 | `PWD` | the mirror directory the agent starts in | supervised |
 
@@ -742,7 +743,7 @@ machine, humanize books a meeting:
 | --- | --- | --- |
 | Pairing | a half waits at the broker for the other | 120 s |
 | Discovery | each half is told the address its connection arrived from, and the other half's addresses | 30 s per broker answer |
-| Punching | both halves connect to each other's candidates from the port they dialled the broker from, and listen on it; each punched socket must present `HMZ1` and a digest of the ticket; the anchor half says `GO` on the socket it keeps and the serving half answers `OK` | 4 s (`--punching` on a standalone broker) |
+| Punching | both halves connect to each other's candidates from the port they dialled the broker from, and listen on it; each half says on each punched socket `HMZ1`, the hex HMAC-SHA256 keyed with the ticket over its own role, and its role, and drops a socket whose other end does not say the same for the other role; the anchor half says `GO` on the socket it keeps and the serving half answers `OK` | 4 s (`--punching` on a standalone broker) |
 | Greeting | a punched socket that does not prove itself is dropped | 3 s |
 | Relay | if punching fails, the two connections already held to the broker are spliced, 64 KiB at a time | none |
 
@@ -753,9 +754,72 @@ machine, humanize books a meeting:
   `this rendezvous is already holding 65536 meetings`.
 - Addresses are IPv4 only; a machine reachable only over IPv6 is relayed.
 - Neither half is told whether it was relayed.
+- A ticket may be met at again: a meeting takes no more halves once it has both, and a half
+  arriving where one of its own role is already waiting under the ticket waits behind it,
+  first come first met, up to 64 waiting (`this ticket already has 64 meetings waiting`).
+  This is what lets one serving half left standing serve every session.
+- A meeting may be booked with the broker instead, for a serving half left standing where
+  anything that runs may read its ticket (a [swarm task dialling back](/reference/machines#swarm-environments)).
+  It has two tickets: the serving half's lets in only a serving half, and of those only the
+  one that first came with it, which proves itself at every meeting after by a key it chose
+  (`hmz internal anchor serve --peer-file`); the anchoring halves come with the other. Each
+  anchoring half says the directories it asks to be served, which the broker passes to its
+  serving half, and the two prove to each other on a punched socket a value the broker hands
+  both rather than the ticket. A half let into no meeting is told
+  `no meeting here lets that half in`; cancelling the booking turns both tickets away. A
+  broker holding booked meetings turns away every other ticket, and an address with 64
+  halves connected that have not yet said a ticket it lets in, other than its own address.
+- Unless it is [sealed](#sealed-meetings), the protocol is not encrypted: tickets, and every
+  relayed session, cross the network in the clear, and its broker belongs on a network whose
+  other machines are trusted with that. The broker humanize holds for booked meetings is
+  always sealed; the one for a harness on a third machine, and a standalone one, never are.
 - `hmz internal anchor rendezvous [--listen [HOST:]PORT] [--punching SECONDS]` runs a broker on
   its own (default `0.0.0.0:0`) and prints `hmz internal anchor rendezvous listening HOST PORT`
   on stderr.
+
+### Sealed meetings {#sealed-meetings}
+
+A meeting spelled with `?tls=DIR` is sealed: every connection it has -- each half's to the
+broker, and every punched one -- is TLS 1.3 from its first byte, and nothing of the protocol
+above is said on one until its handshake is done. `DIR/cert.pem` is the certificate it is
+pinned to; `DIR/key.pem`, where it is there, is that certificate's key.
+
+| Connection | TLS server | TLS client | Handshake limit |
+| --- | --- | --- | --- |
+| a half to the broker | the broker, which must hold `key.pem` | the half | 30 s |
+| a punched socket, whichever end dialled it | the anchoring half, which holds `key.pem` | the serving half | 3 s |
+| a relayed session | the two connections above, each to the broker, which splices what they carry | | |
+
+- Pinned, not verified: no certificate authority, trust store, host name or validity period is
+  consulted. A client accepts the other end only if the certificate it presents is
+  `DIR/cert.pem`, byte for byte, which needs that certificate's key to present.
+- A connection that is not TLS, does not finish its handshake in time, presents another
+  certificate or carries a record that does not decrypt is closed. A half that dialled is told
+  `the other end presented a certificate other than this meeting's` for the third; a broker
+  says nothing at all to a connection that has not finished a handshake, so a line of this
+  protocol sent to it in the clear is never answered.
+- Tickets, keys, the directories asked for and the session are all said inside it, so every
+  check above still applies: the certificate, which a serving half is handed, gets nobody
+  further than its ticket did.
+- An anchoring half whose `DIR` holds no `key.pem` does not punch; its session is relayed.
+- A half that closes the session sends TLS's `close_notify` after the last of what it wrote,
+  and the other half then reads end-of-file once it has read all of it. Whatever arrives at
+  the half that closed after it did is discarded.
+- The broker humanize holds for booked meetings makes its key and certificate the first time
+  it is needed, with `openssl req -x509 -nodes -days 365 -newkey ec -pkeyopt
+  ec_paramgen_curve:prime256v1 -subj "/CN=humanize rendezvous"`, in a directory made `0700`
+  under `$TMPDIR/humanize-<uid>` (`/tmp` where `TMPDIR` is unset; the directory humanize keeps
+  for what is this machine's alone), the key `0600` from the moment it is written. One pair per
+  broker, which is one per run, in `rendezvous-<pid>-<random>`. The directory is removed as
+  the process exits; one left by a process that was killed is removed by the next process
+  that makes one. Without `openssl` on `PATH`: `FileNotFoundError: no openssl command here:
+  openssl`.
+- That broker listens on the `dial_back` address alone where it is one of this machine's, and
+  on every interface (`0.0.0.0`) where it is not, as for the address of a NAT in front of this
+  machine or a name only the nodes resolve. Either way it is port
+  `$HUMANIZE_RENDEZVOUS_PORT`, default any free port. Fixed, that port is held by whichever of
+  this process's brokers starts first: the one for a third-machine harness, or the one for
+  each `dial_back` address. Leave it unset where a process has more than one.
 
 <small>Defined in [`src/hmz/coganchor/elsewhere.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/elsewhere.py) (`afar`, `_carried`), [`src/hmz/coganchor/rendezvous.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/rendezvous.py).</small>
 
@@ -807,7 +871,8 @@ that allows them, or `--security-opt seccomp=unconfined`.
 
 ```text
 hmz internal anchor serve --export VIRTUAL[:REAL] [--export ...]
-                          (--stdio | --listen [HOST:]PORT | --peer TICKET@HOST:PORT)
+                          (--stdio | --listen [HOST:]PORT |
+                           --peer TICKET@HOST:PORT[?tls=DIR] | --peer-file FILE)
                           [--token TOKEN] [--log-level LEVEL]
 ```
 
@@ -815,7 +880,8 @@ hmz internal anchor serve --export VIRTUAL[:REAL] [--export ...]
 | --- | --- | --- |
 | `--stdio` | one session on stdin/stdout; fds 0 and 1 are pointed at `/dev/null` for the rest of the process | humanize, for `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://` targets |
 | `--listen [HOST:]PORT` | every TCP connection, one thread each, until interrupted; prints `hmz internal anchor serve listening HOST PORT` on stderr | a person, for `tcp://` targets; or the batch step of a Slurm job whose runtime says `via: tcp`, on `0.0.0.0:0` with a random secret set in its script |
-| `--peer TICKET@HOST:PORT` | one session met at a broker | humanize, for a harness on a third machine |
+| `--peer TICKET@HOST:PORT[?tls=DIR]` | one session met at a broker; [sealed](#sealed-meetings) with `DIR` | humanize, for a harness on a third machine |
+| `--peer-file FILE` | one session after another met at a broker, each in a thread of its own, with the meeting (`TICKET@HOST:PORT[?tls=DIR]`) in `FILE`, proving itself by a key it makes up as it starts; each session is served only the directories its anchoring half asked for, resolved through the `--export`s (all of them where it asked for none; none, and the session closed, where one is outside them); a meeting it could not have is gone back to after 1 s | a swarm task [dialling back](/reference/machines#swarm-environments), as its own command |
 
 - `--export VIRTUAL[:REAL]` is required and repeatable. `VIRTUAL` must be absolute; `REAL`
   defaults to `VIRTUAL`, with `~` expanded. A path outside every export is refused with
@@ -926,6 +992,8 @@ from hmz.coganchor.anchor import NotInstalled
 | A listening serving half without a token | loopback only |
 | A Slurm job's listening serving half (`via: tcp`) | token-authenticated, the token set in its batch script, never on a command line on the node; the traffic is not encrypted, so it stays within the cluster's network |
 | A broker port | open on every interface for the life of the process that booked a third-machine harness; pairing requires a 128-bit ticket known to exactly two machines |
+| A broker port for a swarm's `dial_back` meetings | on the `dial_back` address alone where it is this machine's, else on every interface, for the life of the process; TLS from the first byte, pinned to a certificate made for the run, and a meeting admits only the halves booked with it |
+| A meeting's ticket reaches the agent | never: `HUMANIZE_TARGET` names a `peer://` target as `peer://HOST:PORT` |
 | A mirror overwrites a directory it did not create | never without `force` |
 | A flow session's CLI starts a program its project names on a machine other than the work's | never: refused when the session opens ([a project's own programs](#a-projects-own-programs)) |
 

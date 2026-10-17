@@ -834,8 +834,8 @@ harnesses.
 ```text
 hmz internal anchor [<options>] <program> [<args>...]
 hmz internal anchor serve --export <virtual>[:<real>]... (--stdio | --listen [<host>:]<port>
-                          | --peer <ticket>@<host>:<port>) [--token <secret>]
-                          [--log-level <level>]
+                          | --peer <ticket>@<host>:<port>[?tls=<dir>] | --peer-file <file>)
+                          [--token <secret>] [--log-level <level>]
 hmz internal anchor rendezvous [--listen [<host>:]<port>] [--punching <seconds>]
                                [--log-level <level>]
 ```
@@ -863,7 +863,7 @@ hmz internal anchor rendezvous [--listen [<host>:]<port>] [--punching <seconds>]
 error, on a connection, protocol, operating-system or value error.
 
 **11.2.7** `hmz internal anchor serve` MUST require at least one `--export` and exactly one of
-`--stdio`, `--listen` and `--peer`.
+`--stdio`, `--listen`, `--peer` and `--peer-file`.
 
 **11.2.8** `hmz internal anchor serve --listen` on an address other than `127.0.0.1`, `::1` and
 `localhost` without a token MUST write `hmz: cannot listen on a non-loopback address without
@@ -881,6 +881,11 @@ it cannot listen.
 in any case and with surrounding white space removed, these three commands MUST write `hmz:
 ignoring HUMANIZE_LOG='<value>', which is not one of debug, info, warning, error` to standard
 error and log at their default level.
+
+**11.2.12** `hmz internal anchor serve --peer-file <file>` MUST read a meeting spelled
+`<ticket>@<host>:<port>[?tls=<dir>]` from `<file>`, MUST serve every session met there until it
+is stopped, as `features/placements.md` §10 states for a standing serving half, and MUST exit
+with status 1 where `<file>` holds no meeting.
 
 ### 11.3 `hmz internal cred`
 

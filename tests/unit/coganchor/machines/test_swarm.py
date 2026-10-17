@@ -3,13 +3,25 @@ from __future__ import annotations
 import json
 import os
 import time
+import zipfile
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz.coganchor import rendezvous
 from hmz.coganchor.machines import Allocation, Swarm, SwarmConfig
+from hmz.coganchor.machines import swarm as swarm_module
 from hmz.coganchor.machines.docker import CPUS, GPUS, MEMORY, bound
-from hmz.coganchor.machines.swarm import Node, Unplaced, nodes, services, swarm_of
+from hmz.coganchor.machines.swarm import (
+    Node,
+    Unplaced,
+    kept,
+    nodes,
+    services,
+    swarm_of,
+)
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE, SUPERVISED
 from hmz.coganchor.transport import Endpoint
 
@@ -531,3 +543,235 @@ def test_stopping_removes_the_service_once(runs: Runs, handshake: Handshake) -> 
     machine.stop()
 
     assert len(runs.called("service", "rm", "svc")) == 1
+
+
+# -------------------------------------------------------------------------- dialling back
+
+#: The tickets every meeting is booked under, here: the serving half's, and the anchor's.
+SERVING, ANCHORING = "5e5e5e5e5e5e5e5e", "a0a0a0a0a0a0a0a0"
+
+#: Where this process's broker keeps its key and certificate, here.
+SEALED = "/run/user/me/rendezvous-x"
+
+
+@dataclass
+class Booking:
+    """This process's broker, faked: where it was asked for, and what it booked and withdrew."""
+
+    asked: list[str] = field(default_factory=list[str])
+    withdrawn: list[str] = field(default_factory=list[str])
+    tls: str = SEALED
+
+    def stand(self) -> tuple[str, str]:
+        return SERVING, ANCHORING
+
+    def withdraw(self, serving: str) -> None:
+        self.withdrawn.append(serving)
+
+
+@pytest.fixture
+def broker(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Booking:
+    """This process's broker for booked meetings, and an archive, faked."""
+    booking = Booking()
+    archive = tmp_path / "humanize-abc.pyz"
+    with archive.open("wb") as writing:
+        writing.write(b"#!/usr/bin/env python3\n")
+        with zipfile.ZipFile(writing, "w") as stored:
+            stored.writestr("__main__.py", "print('served')\n" * 2000)
+
+    def standing(address: str) -> tuple[Booking, int]:
+        booking.asked.append(address)
+        return booking, 4242
+
+    monkeypatch.setattr(rendezvous, "standing", standing)
+    monkeypatch.setattr(swarm_module, "bundled", lambda: (archive, "abc"))
+    return booking
+
+
+def test_a_task_that_dials_back_is_met_at_a_booked_meeting_its_ticket_kept_secret(
+    runs: Runs, handshake: Handshake, broker: Booking
+) -> None:
+    a_swarm(runs, task("running", on="n1"), landed_on=node("n1", "box"))
+    machine = SwarmConfig(
+        image="img:1",
+        workspace="/w",
+        name="svc",
+        dial_back="192.0.2.213",
+        run_args=("--label", "owner=me", "--label=team=t", "--env", "A=1", "--label"),
+    ).create()
+
+    anchor = machine.start()
+
+    assert broker.asked == ["192.0.2.213"]
+    # The anchor comes with a ticket of its own, and the key beside the broker's certificate;
+    # the task is handed only the serving half's ticket, and the certificate alone.
+    assert anchor.target == f"peer://{ANCHORING}@192.0.2.213:4242?tls={SEALED}"
+    assert handshake.asked == [anchor]
+    (secret,) = runs.called("secret", "create")
+    assert secret[-2:] == ["svc-peer", "-"]
+    assert (
+        runs.given[runs.calls.index(secret)]
+        == f"{SERVING}@192.0.2.213:4242?tls=/humanize-tls"
+    )
+    certified, config = runs.called("config", "create")
+    assert certified[-2:] == ["svc-tls", f"{SEALED}/cert.pem"]
+    # Deflated, for a config holds at most 1000 KiB.
+    assert config[-2] == "svc-hmz"
+    assert Path(config[-1]).name == "humanize-abc.deflated.pyz"
+    for one in (secret, certified, config):
+        labels = after(one, "--label")
+        assert {f"humanize={os.getuid()}", "owner=me", "team=t"} <= set(labels)
+    assert not [one for one in runs.calls if any("key.pem" in word for word in one)]
+    (made,) = runs.called("service", "create")
+    assert f"{swarm_module.DIALLING}=1" in after(made, "--label")
+    # A last `--label` with nothing after it gives the secret and configs no empty label.
+    for one in (secret, certified, config):
+        assert "" not in after(one, "--label")
+    assert after(made, "--secret") == ["source=svc-peer,target=humanize-peer"]
+    assert after(made, "--config") == [
+        "source=svc-hmz,target=/svc-hmz.pyz",
+        "source=svc-tls,target=/humanize-tls/cert.pem",
+    ]
+    command = made[made.index("img:1") + 1 :]
+    assert command[:2] == ["/bin/sh", "-c"]
+    assert '"/svc-hmz.pyz"' in command[2]
+    assert command[4:] == [
+        *("internal", "anchor", "serve"),
+        *("--peer-file", "/run/secrets/humanize-peer", "--export", "/"),
+    ]
+    for ticket in (SERVING, ANCHORING):
+        assert not [one for one in runs.calls if any(ticket in word for word in one)]
+
+    machine.stop()
+
+    assert runs.called("service", "rm", "svc")
+    assert runs.called("secret", "rm", "svc-peer")
+    assert runs.called("config", "rm", "svc-hmz")
+    assert runs.called("config", "rm", "svc-tls")
+    assert broker.withdrawn == [SERVING]
+
+
+def test_a_task_that_dials_back_is_met_only_once_it_is_started(
+    runs: Runs, handshake: Handshake, broker: Booking
+) -> None:
+    a_swarm(runs, task("running"))
+    machine = SwarmConfig(workspace="/w", name="svc", dial_back="h").create()
+
+    machine.submit()
+
+    assert broker.asked == ["h"]
+    assert len(runs.called("secret", "create")) == 1
+    assert runs.called("service", "ps") == []
+    assert handshake.asked == []
+
+    anchor = machine.start()
+
+    assert anchor.target == f"peer://{ANCHORING}@h:4242?tls={SEALED}"
+    assert handshake.asked == [anchor]
+    assert len(runs.called("service", "create")) == 1
+    machine.stop()
+
+
+@pytest.mark.parametrize("nodes_said", [{}, {"box": "tcp://box:2376"}])
+def test_a_task_that_dials_back_is_reached_through_no_nodes_daemon(
+    runs: Runs, handshake: Handshake, broker: Booking, nodes_said: dict[str, str]
+) -> None:
+    # A node with no address to reach it at, and one the runtime names a daemon for.
+    a_swarm(runs, task("running", on="n1"), landed_on=node("n1", "box", ""))
+    machine = SwarmConfig(
+        workspace="/w", name="svc", dial_back="h", nodes=nodes_said
+    ).create()
+
+    anchor = machine.start()
+
+    assert anchor.target == f"peer://{ANCHORING}@h:4242?tls={SEALED}"
+    assert machine.placed is not None
+    assert machine.placed.node.hostname == "box"
+    assert machine.placed.daemon == Endpoint()
+    assert not [one for one in runs.calls if "tcp://box:2376" in one]
+    machine.stop()
+
+
+def test_a_dialling_tasks_serving_half_is_handed_over_deflated_and_made_once(
+    runs: Runs, handshake: Handshake, broker: Booking, tmp_path: Path
+) -> None:
+    a_swarm(runs, task("running"))
+    for name in ("one", "two"):
+        machine = SwarmConfig(workspace="/w", name=name, dial_back="h").create()
+        machine.submit()
+        machine.stop()
+
+    handed = {
+        Path(one[-1])
+        for one in runs.called("config", "create")
+        if one[-2].endswith("-hmz")
+    }
+
+    # Made once, beside the archive, and handed to every task after.
+    (deflated,) = handed
+    stored = tmp_path / "humanize-abc.pyz"
+    assert deflated.parent == stored.parent
+    # Its `#!` line first, as the archive has one, and its members deflated.
+    assert deflated.read_bytes().startswith(b"#!/usr/bin/env python3\nPK")
+    assert deflated.stat().st_size < stored.stat().st_size // 10
+    with zipfile.ZipFile(deflated) as archive:
+        assert {one.compress_type for one in archive.infolist()} == {
+            zipfile.ZIP_DEFLATED
+        }
+
+
+def test_a_task_is_not_created_where_the_archive_is_more_than_a_config_holds(
+    runs: Runs, broker: Booking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a_swarm(runs, task("running", on="n1"), landed_on=node("n1", "box"))
+    monkeypatch.setattr(swarm_module, "_CONFIG_MOST", 10)
+    machine = SwarmConfig(
+        image="img:1", workspace="/w", name="svc", dial_back="192.0.2.213"
+    ).create()
+
+    with pytest.raises(OSError, match="more than the 10 a docker config holds"):
+        machine.start()
+
+    assert not runs.called("service", "create")
+
+
+def test_what_a_service_dialling_back_is_created_with_is_named_after_it() -> None:
+    assert kept("svc") == (
+        ("secret", "svc-peer"),
+        ("config", "svc-hmz"),
+        ("config", "svc-tls"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "made"), [("secret", "svc-peer"), ("config", "svc-tls")]
+)
+def test_a_task_whose_meeting_the_manager_does_not_take_in_time_is_not_created(
+    runs: Runs, handshake: Handshake, broker: Booking, kind: str, made: str
+) -> None:
+    a_swarm(runs, task("running"))
+    runs.on(kind, "create", timeout=True)
+    machine = SwarmConfig(workspace="/w", name="svc", dial_back="h").create()
+
+    with pytest.raises(OSError, match="did not answer within 60s"):
+        machine.start()
+    assert runs.called("service", "create") == []
+    # What the manager may yet make, given up on, goes as what it did make goes.
+    assert runs.called(kind, "rm", made)
+    assert broker.withdrawn == [SERVING]
+
+
+@pytest.mark.parametrize("kind", ["secret", "config"])
+def test_a_task_whose_meeting_or_serving_half_is_refused_is_not_created(
+    runs: Runs, handshake: Handshake, broker: Booking, kind: str
+) -> None:
+    a_swarm(runs, task("running"))
+    runs.on(kind, "create", status=1, err="permission denied")
+    machine = SwarmConfig(workspace="/w", name="svc", dial_back="h").create()
+
+    with pytest.raises(RuntimeError, match=f"could not create a {kind}.*denied"):
+        machine.start()
+    assert runs.called("service", "create") == []
+    assert len(runs.called("secret", "rm", "svc-peer")) == (kind == "config")
+    assert runs.called("config", "rm") == []
+    assert broker.withdrawn == [SERVING]

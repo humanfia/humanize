@@ -8368,6 +8368,9 @@ class Swarming(_Daemon["SwarmRuntime"]):
             "max_tasks": _how_many(typed.get(_TASKS, ""), "max tasks"),
             "gpu_resource": typed.get(_RESOURCE, ""),
             "nodes": _pairs(typed.get(_NODES, "")),
+            # Not on the form, and so kept as it was written rather than cleared by it: a
+            # swarm dialled back from would otherwise be corrected into one that is not.
+            "dial_back": self._one.dial_back if self._one is not None else "",
         }
 
 

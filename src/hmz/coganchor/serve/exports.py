@@ -79,6 +79,36 @@ class ExportTable:
     def exports(self) -> list[Export]:
         return list(self._exports)
 
+    def within(self, specs: list[str]) -> ExportTable:
+        """What a session asking for only these may name, each reached through this table.
+
+        What a serving half left standing serves each session it is met for: the directories
+        that session's anchor asked for -- what a serving half it started would have been
+        started with -- rather than all this one exports. Each is the bound of the session's
+        files and the workdir its fenced commands are held to (:mod:`.fencing`), so a session
+        served everything would be a fence around everything.
+
+        Args:
+          specs: What it asked for, as ``VIRTUAL[:REAL]``, REAL being a path this table
+            exports; none for all of it.
+
+        Returns:
+          The table, or this one where nothing was asked.
+
+        Raises:
+          PermissionError: If one is outside every export.
+          ValueError: If one is malformed.
+        """
+        if not specs:
+            return self
+        return ExportTable(
+            [
+                Export(one.virtual, self.resolve(one.real))
+                for one in map(Export.parse, specs)
+            ],
+            insensitive=self._insensitive,
+        )
+
     def resolve(self, virtual: str) -> str:
         """Map a virtual path to a real one.
 

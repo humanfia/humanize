@@ -88,6 +88,10 @@ from hmz.coganchor.transport import (
         ("tcp://h:9", Target("tcp", host="h", port=9)),
         ("tcp://::1:9", Target("tcp", host="::1", port=9)),
         ("peer://t@b:7", Target("peer", host="b", port=7, path="t")),
+        (
+            "peer://t@b:7?tls=/d",
+            Target("peer", host="b", port=7, path="t", options=(("tls", "/d"),)),
+        ),
     ],
 )
 def test_a_target_reads_as_what_it_names(spec: str, target: Target) -> None:
@@ -115,6 +119,7 @@ def test_a_target_reads_as_what_it_names(spec: str, target: Target) -> None:
         f"{SLURM}://42?python=~/py",
         "tcp://h:9",
         "peer://t@b:7",
+        "peer://t@b:7?tls=/srv/tls",
     ],
 )
 def test_a_target_describes_itself_as_it_was_spelled(spec: str) -> None:
@@ -157,6 +162,8 @@ def test_a_target_describes_itself_as_it_was_spelled(spec: str) -> None:
         f"{SLURM}://42?python=/a&python=/b",
         "peer://b:7",
         "peer://t@b",
+        "peer://t@b:7?tls=",
+        "peer://t@b:7?IdentityFile=/k",
         "ssh://box?novalue",
         "ssh://box?Key=",
         "ssh://box?1bad=x",
@@ -171,6 +178,7 @@ def test_a_misspelled_target_is_refused(spec: str) -> None:
 
 def test_a_peer_target_names_its_meeting() -> None:
     assert Target.parse("peer://t@b:7").meeting == Meeting("t", "b", 7)
+    assert Target.parse("peer://t@b:7?tls=/d").meeting == Meeting("t", "b", 7, "/d")
 
 
 def test_a_docker_target_names_its_daemon() -> None:
@@ -644,21 +652,22 @@ def test_the_serving_line_names_its_exports(
 
 
 def test_a_peer_target_is_met_at_its_broker(monkeypatch: pytest.MonkeyPatch) -> None:
-    met: list[tuple[Meeting, str]] = []
+    met: list[tuple[Meeting, str, Any]] = []
 
     class Sock:
         def makefile(self, mode: str) -> Any:
             return None
 
-    def dial(meeting: Meeting, role: str) -> Sock:
-        met.append((meeting, role))
+    def dial(meeting: Meeting, role: str, *, asks: Any = ()) -> Sock:
+        met.append((meeting, role, asks))
         return Sock()
 
     monkeypatch.setattr(rendezvous, "dial", dial)
-    link = transport.connect(Target.parse("peer://t@b:7"), [])
+    link = transport.connect(Target.parse("peer://t@b:7"), ["/w:/real"])
     assert isinstance(link.channel, Channel)
     assert link.process is None
-    assert met == [(Meeting("t", "b", 7), rendezvous.ANCHOR)]
+    # What a serving half started here would have been told to export, it is asked for there.
+    assert met == [(Meeting("t", "b", 7), rendezvous.ANCHOR, ["/w:/real"])]
 
 
 class Child:

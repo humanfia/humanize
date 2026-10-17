@@ -195,6 +195,11 @@ def _free(provider: str) -> bool:
         return True
 
 
+@dataclass(frozen=True)
+class _Anchor:
+    target: str
+
+
 class _Config:
     made: list[dict[str, Any]]
     stopped: int
@@ -217,11 +222,15 @@ class _Config:
             raise self.refuses
         return "svc"
 
-    def start(self) -> None:
+    def start(self) -> _Anchor:
         type(self).done.append(("start", _free(self.provider)))
         if self.fails is not None:
             raise self.fails
         self.placed = _Placed("task.1.abc", "ssh://node-2")
+        dialled = type(self).made[-1].get("dial_back")
+        return _Anchor(
+            f"peer://t@{dialled}:9" if dialled else "docker://task.1.abc@ssh://node-2"
+        )
 
     def stop(self) -> None:
         type(self).stopped += 1
@@ -371,6 +380,140 @@ async def test_a_manager_that_does_not_create_in_time_is_given_up_on_and_its_mak
         [["service", "rm", "svc-1"]] if removed else []
     )
     assert manager.done == [("submit", False)]
+
+
+async def test_a_service_dialling_back_created_after_all_goes_with_what_it_was_made_with(
+    manager: type[_Config], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager.refuses = TimeoutError(errno.ETIMEDOUT, "docker did not answer within 600s")
+    machine = SwarmMachine(LOCAL, PurePosixPath("/x"))
+    labels = {
+        "humanize": str(os.getuid()),
+        HOST: socket.gethostname(),
+        PID: str(os.getpid()),
+        coganchor_swarm.DIALLING: "1",
+    }
+    found = [{"ID": "svc-1", "Spec": {"Name": machine.name, "Labels": labels}}]
+    calls: list[list[str]] = []
+
+    def run(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        calls.append([str(one) for one in argv])
+        out = json.dumps(found) if "inspect" in argv else ""
+        return subprocess.CompletedProcess(argv, 0, out, "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    with pytest.raises(EnvConnectionError, match="could not connect to swarm"):
+        await machine.probe()
+
+    assert [one[-3:] for one in calls[1:]] == [
+        ["service", "rm", "svc-1"],
+        *([kind, "rm", name] for kind, name in coganchor_swarm.kept(machine.name)),
+    ]
+
+
+async def test_a_task_on_a_runtime_dialling_back_is_reached_at_its_meeting(
+    manager: type[_Config],
+) -> None:
+    stored = runtime(Runtime(name="c", dial_back="192.0.2.213"))
+    machine = SwarmMachine("c", PurePosixPath("/srv/x"), stored=stored)
+    driver = MachineEnvDriver(machine, PurePosixPath("/work"))
+
+    await driver.probe()
+
+    (made,) = manager.made
+    assert made["dial_back"] == "192.0.2.213"
+    assert manager.done == [("submit", False), ("start", True)]
+    assert machine.target == "peer://t@192.0.2.213:9"
+    placed = machine.placement(PurePosixPath("/srv/x")).machine
+    assert isinstance(placed, AnchoredConfig)
+    assert placed.anchor.target == machine.target
+    await driver.close()
+
+
+async def test_a_task_a_run_now_gone_left_goes_with_what_it_was_created_with(
+    manager: type[_Config], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    left = Held(
+        "humanize-c-gone",
+        cpus=2,
+        labels={
+            "humanize": str(os.getuid()),
+            HOST: socket.gethostname(),
+            PID: "0",
+            coganchor_swarm.DIALLING: "1",
+        },
+    )
+    older = Held(
+        "humanize-c-older",
+        cpus=2,
+        labels={"humanize": str(os.getuid()), HOST: socket.gethostname(), PID: "0"},
+    )
+    monkeypatch.setattr(coganchor_swarm, "services", returning([left, older]))
+    monkeypatch.setattr(os, "kill", _gone)
+    ran: list[list[str]] = []
+
+    def run(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        ran.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    machine = SwarmMachine("c", PurePosixPath("/srv/x"), stored=runtime(Runtime("c")))
+    driver = MachineEnvDriver(machine, PurePosixPath("/work"))
+
+    await driver.probe()
+
+    assert [argv[-3:] for argv in ran] == [
+        ["service", "rm", "humanize-c-gone"],
+        ["secret", "rm", "humanize-c-gone-peer"],
+        ["config", "rm", "humanize-c-gone-hmz"],
+        ["config", "rm", "humanize-c-gone-tls"],
+        # One that did not dial back was created with nothing else.
+        ["service", "rm", "humanize-c-older"],
+    ]
+    await driver.close()
+
+
+async def test_what_a_task_left_was_created_with_is_removed_whatever_the_others_did(
+    manager: type[_Config], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    left = Held(
+        "humanize-c-gone",
+        cpus=2,
+        labels={
+            "humanize": str(os.getuid()),
+            HOST: socket.gethostname(),
+            PID: "0",
+            coganchor_swarm.DIALLING: "1",
+        },
+    )
+    monkeypatch.setattr(coganchor_swarm, "services", returning([left]))
+    monkeypatch.setattr(os, "kill", _gone)
+    ran: list[list[str]] = []
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        ran.append(argv)
+        if argv[-3:-1] == ["secret", "rm"]:
+            raise subprocess.TimeoutExpired(argv, kwargs.get("timeout") or 0)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    machine = SwarmMachine("c", PurePosixPath("/srv/x"), stored=runtime(Runtime("c")))
+    driver = MachineEnvDriver(machine, PurePosixPath("/work"))
+
+    await driver.probe()
+
+    assert [argv[-3:] for argv in ran] == [
+        ["service", "rm", "humanize-c-gone"],
+        ["secret", "rm", "humanize-c-gone-peer"],
+        ["config", "rm", "humanize-c-gone-hmz"],
+        ["config", "rm", "humanize-c-gone-tls"],
+    ]
+    await driver.close()
+
+
+def _gone(pid: int, signal: int) -> None:
+    raise ProcessLookupError(pid, signal)
 
 
 async def test_a_task_no_node_took_is_a_resource_unmet(manager: type[_Config]) -> None:

@@ -389,7 +389,7 @@ shares that machine and its connection.
 | `local` | `LocalMachine` | processes here | CPUs (`sched_getaffinity`), memory, GPUs by `nvidia-smi`, `git` on `PATH` |
 | `ssh` | `SSHMachine` | the [serving half](/reference/remote-execution#bootstrapping-the-serving-half), bootstrapped over `ssh`, exporting `/` as `/` | one command (60 s) printing `home`, `state` (`${HUMANIZE_HOME:-$HOME/.hmz}`, a `$HOME/.humanize` [moved there](/reference/files#moved-from-humanize) first), CPUs, memory, `CUDA_VISIBLE_DEVICES`, `nvidia-smi` GPUs and whether `git` is on `PATH` |
 | `docker` | `DockerMachine` | the serving half over `docker exec -i` | the ssh probe, run in the container, after the container is started |
-| `swarm` | `SwarmMachine` | the serving half over `docker exec -i`, against the daemon of the node the task landed on | the ssh probe, run in the container, after the task is running |
+| `swarm` | `SwarmMachine` | the serving half over `docker exec -i`, against the daemon of the node the task landed on; or, with the runtime's `dial_back`, the serving half the task runs, met at a `peer://` target | the ssh probe, run in the container, after the task is running |
 | `apple-container` | `AppleContainerMachine` | the serving half over `container exec -i` | the ssh probe, run in the container, after the container is started |
 | `slurm` | `SlurmMachine` | the serving half over `srun --jobid=<job> --overlap`, a step of the job; or over TCP to the serving half the job runs (`via: tcp`) | the ssh probe, run on the job's node, after the job is running |
 
@@ -571,6 +571,7 @@ harness, files, derived environments -- is as for a [docker environment](#docker
 | Arguments | the runtime's `run_args`; for the task of a harness a harness setting puts on the swarm, `--cap-add SYS_PTRACE` (Engine 20.10 or newer). Services take no OCI `--runtime` |
 | Labels | on the service: those of a docker environment's container |
 | Reached | `docker exec` against: the daemon the runtime's `nodes` names for the node's host, else the manager's own where the task landed on the manager, else `ssh://<the node's address>` (docker's ssh transport, as this machine's `ssh` resolves it) |
+| Reached, dialling back | with the runtime's `dial_back` set: no `docker exec`. The task's command is the serving half, `hmz internal anchor serve --peer-file /run/secrets/humanize-peer --export /`, run from the archive mounted at `/<service>-hmz.pyz` from the docker config `<service>-hmz`, its members deflated (about 300 KB; a docker config holds at most 1,000 KiB, and an archive over that is refused with `OSError` before anything is created). The service is labelled `humanize.dial-back=1`. Its meeting is [booked](/reference/remote-execution#being-introduced) and [sealed](/reference/remote-execution#sealed-meetings): the docker secret `<service>-peer` holds the serving half's `TICKET@<dial_back>:<port>?tls=/humanize-tls`, the docker config `<service>-tls` the broker's certificate, at `/humanize-tls/cert.pem` (its key never leaves this machine), and every session is met at `peer://<anchoring ticket>@<dial_back>:<port>?tls=<the broker's key and certificate here>`, the harness here; every byte between the task and this machine, to the broker or punched, is TLS 1.3 pinned to that certificate; each is served only the directories it asks for (its workspace; `/` for the environment's own commands). This process's broker for booked meetings listens on `dial_back` where that is one of this machine's addresses, else on `0.0.0.0`, port `$HUMANIZE_RENDEZVOUS_PORT` (default any). The secret and the two configs, each created within 60 s (else `OSError` `ETIMEDOUT`, and the service is not created), carry the service's labels, those `run_args` give it among them, and are removed with it, each whatever came of the others, by this run or by the next one finding it [left](#swarm-environments) with that label; the meeting is cancelled with it |
 
 Allocation holds an exclusive `flock` on `$TMPDIR/humanize-<uid>/.swarm.<name>.lock` while
 what is free is worked out and the service is created, and not while its task is placed and
@@ -595,7 +596,9 @@ swarm@cluster hands out no GPUs, and 'box' asks for 1: say which generic resourc
 4. `docker service create` (600 s, since it asks a registry which image that is), then the lock
    is let go of and the task followed (`docker service ps`, `docker inspect --type task`, 60 s
    each) until it runs, so the environments of one run, and other runs, on the runtime come up
-   side by side; a run sizing the runtime meanwhile counts the service all the same. Left
+   side by side; a run sizing the runtime meanwhile counts the service all the same. Dialling
+   back, what the service is created with beside itself is made before it, under the lock, and
+   its serving half is met at its meeting after the task runs, with the lock let go of. Left
    pending with `no suitable node`, it raises `ResourceUnmet` at once where no ready, active
    node has as many CPUs, as much memory and as many of the generic resource as it reserves,
    and after 30 s otherwise; either way the service is removed first:
@@ -613,6 +616,9 @@ swarm@cluster: no node took it within 30s: no suitable node (insufficient resour
 | the node has no such workdir | `EnvUnavailable: swarm@<p>: no directory to give the task on the node it landed on: …` |
 | task failed, or not running within 600 s | `EnvUnavailable: swarm@<p>: the task of <service> is failed: …` |
 | the node's daemon not reachable | `EnvConnectionError: could not reach <p> over docker exec: …` |
+| dialling back, the manager refused the secret or a config | `EnvUnavailable: swarm@<p>: could not create a secret on <endpoint>: …` (or `a config`) |
+| dialling back, no `openssl` here to make the broker's certificate with | `EnvUnavailable: swarm@<p>: no openssl command here: openssl` |
+| dialling back, the task never came to its meeting (120 s) | `EnvConnectionError: could not reach <p> over docker exec: the other half never arrived` |
 
 These and the shortages above name a saved runtime `swarm@<p>`, and the swarm this machine
 manages `swarm` alone.
@@ -858,6 +864,7 @@ that order; every environment on the runtime is reached through a target carryin
 | `constraints` | `tuple[str, ...]` | `()` | Placement constraints, each `<attribute>==<value>` or `<attribute>!=<value>`. |
 | `max_tasks` | `int` | `0` | Tasks at once; `0` for no limit. |
 | `nodes` | `Mapping[str, str]` | `{}` | How a node is reached, by its host name: a saved ssh runtime's name, or `[user@]host[:port]`. A node not named is reached through the manager where it is the manager, else over `ssh://<its address>`. |
+| `dial_back` | `str` | `""` | The address its nodes reach this machine at (a host name or IPv4 address), for tasks that [dial back](#swarm-environments) to this process's rendezvous, always over pinned TLS (which needs `openssl` here), instead of being reached through their node's daemon; `nodes` is then not asked for. Empty: reached through their node's daemon. |
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=swarm@NAME`; a directory every node it may land on has. |
 | `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | Always `typed`. |
@@ -1226,12 +1233,13 @@ service labelled `humanize`; `nodes(endpoint="local", seconds=None)` returns eac
 it advertises by kind; and `swarm_of(info, where)` the manager's node id, or `OSError` where the
 daemon manages no active swarm. `SwarmConfig(image, workspace, endpoint, name, user, cpus,
 memory, generic, constraints, nodes, traced, run_args, env, labels, placing=30.0,
-starting=600.0).create()` is the `Swarm` machine a swarm environment starts: its `submit()`
-creates the service without waiting for its task, once however often it is called, and returns
-its id, raising `TimeoutError` where the manager does not say what it is within 60 s or create
-the service within 600 s; its `start()` submits where `submit()` has not, raises `Unplaced` (a
-`RuntimeError`) for a task no node took, and sets `placed` to the `Placed(node, container,
-daemon)` it landed on.
+starting=600.0, dial_back="").create()` is the `Swarm` machine a swarm environment starts: its
+`submit()` creates the service without waiting for its task, once however often it is called,
+and returns its id, raising `TimeoutError` where the manager does not say what it is within
+60 s or create the service within 600 s; its `start()` submits where `submit()` has not, raises
+`Unplaced` (a `RuntimeError`) for a task no node took, and sets `placed` to the `Placed(node,
+container, daemon)` it landed on, `daemon` the manager's for a task that dials back, which no
+node's daemon is looked for.
 
 `hmz.coganchor.machines.apple_container` has the same for this Mac's Apple containers:
 `allocations(labels=None, *, seconds=None)` reads an `Allocation` (with no GPUs) off every

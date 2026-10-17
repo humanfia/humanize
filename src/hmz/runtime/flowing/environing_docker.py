@@ -531,6 +531,8 @@ def _unanswered(
 
 def _unmade(endpoint: Endpoint, name: str, *, service: bool) -> None:
     """Removes the container or service of exactly this name, where this process made it."""
+    from hmz.coganchor.machines.swarm import DIALLING, kept
+
     kind = ("service",) if service else ()
     try:
         said = subprocess.run(
@@ -562,14 +564,20 @@ def _unmade(endpoint: Endpoint, name: str, *, service: bool) -> None:
             continue
         if not _here(labels) or labels.get(PID) != str(os.getpid()):
             continue  # somebody else's of the same name, which is not this run's to remove
-        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
-            subprocess.run(
-                endpoint.docker(*kind, "rm", *(() if service else ("--force",)), made),
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
-                timeout=_ASKING,
-                check=False,
-            )
+        removed = [(*kind, "rm", *(() if service else ("--force",)), made)]
+        if service and labels.get(DIALLING) == "1":
+            # And what a service dialling back was created with beside itself, which nothing
+            # finds again once the service is gone (environments §8.15).
+            removed += [(what, "rm", called) for what, called in kept(name)]
+        for asked in removed:
+            with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+                subprocess.run(
+                    endpoint.docker(*asked),
+                    capture_output=True,
+                    stdin=subprocess.DEVNULL,
+                    timeout=_ASKING,
+                    check=False,
+                )
 
 
 class DockerMachine(SSHMachine):

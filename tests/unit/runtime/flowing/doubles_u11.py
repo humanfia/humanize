@@ -462,6 +462,7 @@ class Runtime:
     via: str = "srun"
     max_jobs: int = 0
     max_wait: int = 0
+    dial_back: str = ""
     ssh_target: str = "ssh://me@box"
     container: str = ""
     exec_user: str = ""

@@ -708,7 +708,7 @@ def _supervised(command: Sequence[str], config: AnchorConfig, home: Home | None)
         env=(home.environ(None) if home is not None else dict(os.environ))
         | {
             "HUMANIZE": __version__,
-            "HUMANIZE_TARGET": target.describe(),
+            "HUMANIZE_TARGET": target.told(),
             "PWD": started_in,
             # Agents surface this to the model; being explicit beats it guessing.
             "HUMANIZE_WORKSPACE": workspace,
@@ -728,7 +728,7 @@ def _supervised(command: Sequence[str], config: AnchorConfig, home: Home | None)
         private=config.private,
         fence=walls.told if walls is not None else None,
     )
-    log.info("running %s against %s", agent.profile.name, target.describe())
+    log.info("running %s against %s", agent.profile.name, target.told())
     try:
         # A sign-in that refreshes itself, answered here in place, is held for the turn's
         # length beside every other turn here using it -- and so never while a copy of it is
@@ -930,12 +930,10 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     ):
         try:
             client.start(config.token)
-            program = _installed(
-                client, command[0], workspace, config, target.describe()
-            )
+            program = _installed(client, command[0], workspace, config, target.told())
             said = {
                 "HUMANIZE": __version__,
-                "HUMANIZE_TARGET": target.describe(),
+                "HUMANIZE_TARGET": target.told(),
                 # Agents surface this to the model; being explicit beats it guessing.
                 "HUMANIZE_WORKSPACE": workspace,
             }
@@ -961,7 +959,7 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
                 said |= _homed(client, config.home, session, workspace, projected)
             if session and fence is not None:
                 fence["write"] = [*fence["write"], session]
-            log.info("driving %s on %s", program, target.describe())
+            log.info("driving %s on %s", program, target.told())
             argv = [*_wrapping(config.hushes, said), program, *command[1:]]
             return _drives(client, argv, started_in, dict(os.environ), fence)
         finally:

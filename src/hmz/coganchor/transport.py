@@ -537,6 +537,7 @@ class Target:
         docker one, what each `docker exec` is told besides the container, as
         :data:`_DOCKER_OPTIONS` says, in the same pairs and spelled the same way, after a `?`
         ahead of the `@` of its endpoint.
+        For a `peer://` target, `("tls", DIR)` for a sealed meeting (:attr:`Meeting.tls`).
     """
 
     scheme: str
@@ -598,7 +599,13 @@ class Target:
             from hmz.coganchor.rendezvous import Meeting
 
             met = Meeting.parse(spec[len("peer://") :])
-            return cls("peer", host=met.host, port=met.port, path=met.ticket)
+            return cls(
+                "peer",
+                host=met.host,
+                port=met.port,
+                path=met.ticket,
+                options=(("tls", met.tls),) if met.tls else (),
+            )
         raise ValueError(
             f"unsupported target {spec!r}; expected ssh://HOST, "
             f"docker://CONTAINER[@ENDPOINT], {APPLE}://CONTAINER, "
@@ -633,8 +640,22 @@ class Target:
         if self.scheme == "tcp":
             return f"tcp://{self.host}:{self.port}"
         if self.scheme == "peer":
-            return f"peer://{self.path}@{self.host}:{self.port}"
+            return f"peer://{self.meeting}"
         return f"local{':' + self.path if self.path else ''}"
+
+    def told(self) -> str:
+        """Its spelling as an agent is told it: :meth:`describe`, less what admits to a meeting.
+
+        A `peer://` meeting's ticket is the whole of what gets a half into it, and a serving
+        half left standing at a booked one is met there again by whoever brings the ticket
+        next. A command an agent runs is not the anchoring half, and is told where the meeting
+        is and nothing that would make it one: neither the ticket nor the certificate's
+        directory.
+        """
+        if self.scheme == "peer":
+            host = f"[{self.host}]" if ":" in self.host else self.host
+            return f"peer://{host}:{self.port}"
+        return self.describe()
 
     @property
     def meeting(self) -> Meeting:
@@ -647,7 +668,9 @@ class Target:
             raise ValueError(f"{self.describe()} is not a meeting")
         from hmz.coganchor.rendezvous import Meeting
 
-        return Meeting(self.path, self.host, self.port)
+        return Meeting(
+            self.path, self.host, self.port, dict(self.options).get("tls", "")
+        )
 
     @property
     def endpoint(self) -> Endpoint:
@@ -1353,7 +1376,8 @@ def connect(target: Target, exports: list[str], token: str | None = None) -> Tra
 
     Args:
       target: Where it is, or how to be introduced to it.
-      exports: The directories a session may name, for a serving half this starts.
+      exports: The directories a session may name, for a serving half this starts -- or,
+        at a `peer://` meeting, asks of the one met there.
       token: The secret a listening target asks for.
 
     Returns:
@@ -1374,7 +1398,9 @@ def connect(target: Target, exports: list[str], token: str | None = None) -> Tra
     if target.scheme == "peer":
         from hmz.coganchor import rendezvous
 
-        met = rendezvous.dial(target.meeting, rendezvous.ANCHOR)
+        # Asked at the meeting, as a serving half started here is asked on its command line:
+        # one left standing there serves this session these alone.
+        met = rendezvous.dial(target.meeting, rendezvous.ANCHOR, asks=exports)
         return Transport(Channel.from_socket(met))
     return _spawn(serve_line(target, exports), token)
 
