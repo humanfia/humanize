@@ -189,13 +189,16 @@ def test_an_ask_run_as_a_command_prints_the_answer(host: Host) -> None:
     assert answer == f"printed: {FACT}"
 
 
-def test_the_command_lists_the_sessions_of_the_epic(host: Host) -> None:
-    answer = _epic(host, "claude/claude-stand-in", []).ask(
+def test_the_command_lists_the_sessions_the_frontend_asks_about(host: Host) -> None:
+    told: list[tuple[str, str]] = []
+
+    answer = _epic(host, "claude/claude-stand-in", told).ask(
         "list the sessions", _snapshot()
     )
 
-    # This host holds no run, so there is nothing yet to ask.
-    assert answer == "listed: (no conversation yet)"
+    # The frontend's sessions, though this host holds no run; and listing is no ask.
+    assert answer == "listed: builder/1"
+    assert told == []
 
 
 def test_an_ask_nothing_ran_is_said_as_the_turn_would_stop(

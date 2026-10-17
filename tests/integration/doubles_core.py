@@ -11,7 +11,8 @@ it drives the real CLI. It answers a prompt as a model would be asked to:
 - `tool: <name> <json>` starts the MCP server its `--mcp-config` names, lists its tools and
   calls `<name>` with the JSON, answering `tools: <names>; said: <what the tool said>`;
 - `run: <json>` runs each argv of the JSON list from its own shell's PATH, answering a JSON list
-  of `[status, stdout, stderr]`, one per argv;
+  of `[status, stdout, stderr]`, one per argv -- asked bare, or as a side question's
+  `<user_question>`;
 - a turn asked for a JSON schema answers `{"done": true, "notes": "reviewed"}`;
 - asked what it runs, before any session, it runs `claude-haiku-4-5` and `claude-opus-4-1`;
 - every prompt and every answer is logged to its transcript as Claude Code logs them, with when;
@@ -144,6 +145,10 @@ def run(said):
 
 
 def answer(said):
+    # A side question asks it as one would: inside the prompt that tells it what it is.
+    asked = re.search(r"<user_question>\n(run: .*)\n</user_question>", said)
+    if asked:
+        said = asked.group(1)
     if said.startswith("fail: "):
         return None
     if said.startswith("tool: "):

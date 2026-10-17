@@ -367,14 +367,12 @@ class _Asks:
     agent as the refusal of the tool where the CLI waits on its hook (`claude`, `qwen`), as
     what the command printed where it ran, and otherwise as what the agent is sent on with
     when its turn would stop. One question caught twice in a turn -- by the hook and by the
-    command alike -- is asked once.
-
-    Args:
-      keys: The conversations of the epic there are to ask, `<agent>/<n>` apiece.
+    command alike -- is asked once. `hmz-ask list` is a question too, naming no conversation,
+    which the frontend answers with the conversations of the epic it is asking about: an
+    earlier epic's, where that is what The Epic was opened on, rather than the run here.
     """
 
-    def __init__(self, keys: Callable[[], list[str]]) -> None:
-        self._keys = keys
+    def __init__(self) -> None:
         self._lock = threading.Lock()
         #: What the frontend is told next: `ask` and the question, or how the turn ended.
         self._next: queue.SimpleQueue[tuple[str, Any]] = queue.SimpleQueue()
@@ -412,7 +410,7 @@ class _Asks:
                 FakeCommand(
                     "list",
                     "List the conversations there are to ask",
-                    lambda: "\n".join(self._keys()) or "(no conversation yet)",
+                    lambda: self.ask("", "", heard=heard),
                 ),
             ),
         )
@@ -482,9 +480,9 @@ class _Asks:
         answers: list[tuple[str, str]] = []
         for (to, _), asked in unheard:
             try:
-                answers.append((to, asked.result(WAITING)))
+                answers.append((to or "sessions", asked.result(WAITING)))
             except TimeoutError:
-                answers.append((to, "(no answer in time)"))
+                answers.append((to or "sessions", "(no answer in time)"))
         return Verdict(
             refused=True,
             because="\n".join(
@@ -2178,7 +2176,7 @@ class Host:
             if made is None:
                 return _no(f"{runs} is not an agent that can be made here")
             if said.get("asks"):
-                asks = _Asks(self._keys)
+                asks = _Asks()
             opened, forked = (
                 _read_only(made, "btw", asks).new(str(self._hmz.workspace)),
                 False,
@@ -2203,12 +2201,6 @@ class Host:
             side = f"s{next(self._sides)}"
             self._asides[side] = _Aside(side, frontend.client, opened, asks=asks)
         return _ok(side=side, forked=forked)
-
-    def _keys(self) -> list[str]:
-        """The conversations of the last epic there are to ask, `<agent>/<n>` apiece."""
-        with self._lock:
-            shown = self._last
-            return list(shown.known) if shown is not None else []
 
     def _epic_said(self, aside: _Aside, asks: _Asks) -> dict[str, Any]:
         """What The Epic's turn comes to next: a question it asks, or how the turn ended."""

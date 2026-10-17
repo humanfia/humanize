@@ -381,7 +381,8 @@ state.
 
 **8.8.8** `aside` with `side` and `prompt` MUST take one turn of that side conversation and be
 answered with `answer`, its text stripped; for The Epic's, a turn that runs an ask command
-MUST instead be answered with `ask` (`to` and `question`) while the turn waits.
+MUST instead be answered with `ask` (`to` and `question`) while the turn waits, and one
+that runs `hmz-ask list` with `ask` whose `to` is empty.
 
 **8.8.9** `aside` with a `side` this frontend has not open MUST be refused with
 `no aside <side> is open`.

@@ -309,7 +309,7 @@ An exception inside a request is refused with `str(exception)` or its type name.
 | `release` | `role` | — | `<role> is not yours to release` |
 | `board` | `key`, `value` (`""` removes the line); acts on the last run's board as `user` | — | `this run has no board`, `<key> is not on the board`, `<key> is flow's to change, not user's` (and other `<key> is <whose>'s to change, not <by>'s` refusals) |
 | `aside` (open) | `key` (`<agent>/<n>` of the last run) with `fork` (bool), **or** `runs` (an `-a` spec after `<role>=`) -- with `recall` (what its CLI called a session an earlier run kept), `kept` (where that run kept it) and `cwd`, and `fork`, for a side conversation about that session | `side` (`s<n>`), `forked` (bool) | `<key> has no conversation to ask`, `<runs> is not an agent that can be made here`, `an aside is about a conversation, or asks an agent`, `this frontend has gone` |
-| `aside` (ask) | `side`, `prompt` | `answer` (str, stripped); for The Epic's, `ask` (`to`, `question`) while a run of `hmz-ask` waits | `no aside <side> is open`, `the aside is still answering the last question` |
+| `aside` (ask) | `side`, `prompt` | `answer` (str, stripped); for The Epic's, `ask` (`to`, `question`) while a run of `hmz-ask` waits (`to` empty for `hmz-ask list`, answered with the sessions one per line) | `no aside <side> is open`, `the aside is still answering the last question` |
 | `aside` (answer an ask) | `side`, `answered` (str) | as `aside` (ask) | `no aside <side> is open`, `aside <side> asked nothing` |
 | `unaside` | `side` | — | `no aside <side> is open` |
 | `status` | — | [status keys](#status) without the † host keys | — |

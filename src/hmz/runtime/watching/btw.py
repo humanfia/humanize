@@ -373,7 +373,8 @@ class Btw:
       aside: Asks the runs about a side conversation -- opens one, or takes one turn of
         one -- as a link's `aside` does, answering what the runs answered. The btw agent's
         is opened with `asks`, and a turn of it answered with `ask` -- a question it ran
-        :data:`ASK` with -- goes on once that is given back as `answered`.
+        :data:`ASK` with, or one naming no session for `hmz-ask list`, answered with
+        `sessions` -- goes on once that is given back as `answered`.
       unaside: Closes one side conversation, by the number the runs gave it.
       sessions: The run's conversations a side one may be opened on, `<agent>/<n>` apiece.
       source: What the btw agent is opened as (:func:`opened_as`), or None for nothing.
@@ -540,7 +541,10 @@ class Btw:
                 key, asking = str(held.get("to") or ""), str(held.get("question") or "")
                 answer = _NO_MORE
                 try:
-                    if hops < HOPS:
+                    if not key:
+                        # `hmz-ask list`: the sessions of the epic asked about, not a hop.
+                        answer = "\n".join(self._sessions()) or "(no session yet)"
+                    elif hops < HOPS:
                         hops += 1
                         answer = self._hop(key, asking, snapshot)
                     said = self._aside(side=side, answered=answer)

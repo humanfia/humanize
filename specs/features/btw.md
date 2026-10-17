@@ -51,7 +51,8 @@ question is asked of.
 
 **2.11** **Ask command**: a run of `hmz-ask ask --to <agent>/<n> --question <question>` by the
 btw agent, in which `<agent>/<n>` names a session of the epic; `hmz-ask list` lists the
-sessions of the epic, one `<agent>/<n>` per line.
+sessions of the epic the side question is about, one `<agent>/<n>` per line, as the frontend
+lists them (§4.10), and is not an ask.
 
 **2.12** **Ask**: an ask line or an ask command.
 
