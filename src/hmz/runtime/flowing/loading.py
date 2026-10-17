@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import errno
 import hashlib
 import importlib
 import importlib.util
@@ -834,7 +835,8 @@ class Remote:
         return await flow(task, agents=agents, envs=envs, params=params, budget=budget)
 
 
-#: One lock per repository, so that two runs fetching one never clone it twice at once.
+#: One lock per repository, so that two runs of this process fetching one never clone it twice
+#: at once. Two processes may each clone it, as `pinned` says.
 _FETCHING: dict[str, threading.Lock] = {}
 _FETCHING_LOCK = threading.Lock()
 
@@ -844,7 +846,9 @@ def pinned(url: str, rev: str | None) -> Path:
 
     Kept in this machine's own directory by the URL and the commit, so a commit is cloned once
     and a branch costs one `git ls-remote` a run -- and a checkout, which can be fetched again
-    whenever it is missing, is nothing a home directory has to keep.
+    whenever it is missing, is nothing a home directory has to keep. Two processes fetching one
+    commit at once may each clone it, and whichever comes second to rename its clone into place
+    uses the checkout already there.
 
     Raises:
       FlowNotFound: If it cannot be fetched, or has no such ref.
@@ -879,7 +883,14 @@ def pinned(url: str, rev: str | None) -> Path:
             sha = _asked("-C", str(beside), "rev-parse", "HEAD")
             at = kept / sha
             if not (at / ".git").exists():
-                beside.rename(at)
+                try:
+                    beside.rename(at)
+                except OSError as late:
+                    # Another process renamed its clone of the commit into place since the
+                    # look above, and that checkout is this one's to use.
+                    landed = late.errno in (errno.ENOTEMPTY, errno.EEXIST)
+                    if not landed or not (at / ".git").exists():
+                        raise
         except OSError as error:
             raise FlowNotFound(
                 f"{url}{'@' + rev if rev else ''} could not be fetched: {error}"
