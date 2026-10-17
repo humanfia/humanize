@@ -184,9 +184,9 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 | `POST /api/held/claim` | `role`; `take` (bool) | The host's answer |
 | `POST /api/held/release` | `role` | The host's answer |
 | `POST /api/held/board` | `key`; `value` (`""` removes the line) | The host's answer |
-| `GET /api/btw` | `?workspace=`, `&epic=` | `open` (the conversations a side one is open on, `""` The Epic's), `said` (each question answered since, oldest first, as `POST` answers it; the last **200**) and `default` (the `btw` setting, read afresh: the agent that answers The Epic, `""` for nobody) |
-| `POST /api/btw` | `workspace`; `question`; `to` (`""` The Epic, or `<agent>/<n>`); `epic` (the epic `to` is of: a session of one the runs hold no more is carried on from where that epic kept it, its conversation answered as `<epic>/<agent>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session The Epic asked on the way. `409` for a question of The Epic while the `btw` setting names nobody (`Nobody answers The Epic yet: …`) |
-| `POST /api/btw/leave` | `workspace`; `to`, or nothing for every side conversation | `{"ok": true}` |
+| `GET /api/btw` | `?workspace=`, `&epic=` | `asides`: each side conversation open about that epic, in the order opened -- `aside`, `to`, `question` (the one it is answering, `""` for none), `asked` (each session The Epic has asked on the way to it so far) and `said` (each question answered in it, oldest first, as `POST` answers it; the last **200**); and `default` (the `btw` setting, read afresh: the agent that answers The Epic, `""` for nobody) |
+| `POST /api/btw` | `workspace`; `question`; `aside` (the side conversation, named by the page: the first question to one opens it); `to` (`""` The Epic, or `<agent>/<n>`) and `epic` (the epic it is about: one the runs hold no more is told as that epic was written down, and its sessions carried on from where it kept them), both read only as an aside opens | `aside`, `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session The Epic asked on the way. `409` for a question of The Epic while the `btw` setting names nobody (`Nobody answers The Epic yet: …`) |
+| `POST /api/btw/leave` | `workspace`; `aside`, or nothing for every side conversation | `{"ok": true}` |
 
 Every request about one workspace's runs names it as `workspace` -- in the query of a `GET`, in
 the body of a `POST` -- a whole path, `~` and all; with none it is the one `hmz web` started in.

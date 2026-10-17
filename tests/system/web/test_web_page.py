@@ -14,7 +14,7 @@ import shutil
 import time
 import urllib.parse
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Error as PlaywrightError
@@ -1095,9 +1095,28 @@ def _asks_of(page: Page, session: str) -> None:
     expect(page.locator("[data-hmz=btw-to]")).to_contain_text(session)
 
 
-def test_the_aside_asks_the_epic_or_a_conversation_from_a_menu_laid_out_as_the_epic(
-    project: Path, engine: str
+def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
+    project: Path, engine: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from hmz.runtime.watching.btw import Btw, FlowSnapshot
+
+    opens, asks = Btw.__init__, Btw.ask
+    #: What each side conversation tells whoever opened it of whom it asks, as it asks.
+    told: dict[int, Any] = {}
+
+    def opening(self: Btw, target: str, **given: Any) -> None:
+        told[id(self)] = given.get("asking")
+        opens(self, target, **given)
+
+    def slowly(self: Btw, question: str, snapshot: FlowSnapshot) -> str:
+        # Long enough to be seen answering, saying whom it asks on the way.
+        if "slowly" in question:
+            told[id(self)]("someone/1", "are you there")
+            time.sleep(3)
+        return asks(self, question, snapshot)
+
+    monkeypatch.setattr(Btw, "__init__", opening)
+    monkeypatch.setattr(Btw, "ask", slowly)
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "remember papaya")
         thread = page.locator("[data-hmz=thread]")
@@ -1106,8 +1125,10 @@ def test_the_aside_asks_the_epic_or_a_conversation_from_a_menu_laid_out_as_the_e
         aside = page.locator("[data-hmz=btw]")
         ask = page.locator("[data-hmz=btw-to]")
 
-        # Of The Epic until a conversation is picked, and no agent to pick here at all.
+        # Of The Epic until a conversation is picked, picked above the box rather than in it,
+        # and no agent to pick here at all.
         expect(ask).to_contain_text("The Epic")
+        expect(aside.locator("[data-hmz=btw-to]")).to_have_count(0)
         expect(
             page.locator("[data-hmz=btw-whom], [data-hmz=btw-picker]")
         ).to_have_count(0)
@@ -1131,7 +1152,9 @@ def test_the_aside_asks_the_epic_or_a_conversation_from_a_menu_laid_out_as_the_e
         # Asked of The Epic with nobody named to answer it: the settings are where to say who.
         aside.locator("textarea").fill("what is it doing")
         aside.locator("textarea").press("Enter")
-        expect(page.locator("[data-hmz=btw]").locator("..")).to_contain_text("settings")
+        expect(aside).to_contain_text("settings")
+        # Refused before it opened: whom it asks is still to pick.
+        expect(ask).to_be_visible()
         named = page.evaluate(
             """async () => (await fetch('/api/settings', {method: 'POST',
               headers: {'Content-Type': 'application/json'},
@@ -1140,13 +1163,42 @@ def test_the_aside_asks_the_epic_or_a_conversation_from_a_menu_laid_out_as_the_e
         assert named == 200
         aside.locator("textarea").fill("what now")
         aside.locator("textarea").press("Enter")
-        expect(page.locator("[data-hmz=btw-log]")).to_contain_text("btw · The Epic")
-        expect(page.locator("[data-hmz=btw-log] .said.btw")).to_have_count(1)
+        log = page.locator("[data-hmz=btw-log]")
+        expect(log).to_contain_text("btw · The Epic")
+        expect(log.locator(".said.btw")).to_have_count(1)
+        # Whom it asks was fixed by its first answer: nothing to pick for it any more.
+        expect(ask).to_be_hidden()
 
+        # A second aside, of a conversation, picked at its start.
+        page.locator("[data-hmz=btw-new]").click()
+        expect(ask).to_be_visible()
         _asks_of(page, "/1")
-        aside.locator("textarea").fill("and you")
+        aside.locator("textarea").fill("and you, slowly")
         aside.locator("textarea").press("Enter")
-        expect(page.locator("[data-hmz=btw-log] .said.btw")).to_have_count(2)
+        # Answering, it says so, and whom it asks on the way, as it asks.
+        working = page.locator("[data-hmz=btw-working]")
+        expect(working).to_contain_text("is thinking")
+        expect(log).to_contain_text("asking someone/1: are you there")
+        expect(aside.locator("button.send")).to_be_disabled()
+        expect(page.locator("[data-hmz=btw-tab].busy")).to_have_count(1)
+        expect(log.locator(".said.btw")).to_have_count(1)
+        expect(working).to_have_count(0)
+        expect(ask).to_be_hidden()
+        tabs = page.locator("[data-hmz=btw-tab]")
+        expect(tabs).to_have_count(2)
+        expect(tabs.nth(1)).to_contain_text("/1")
+
+        # Opened again, both are read back, each with what was said in it.
+        page.reload()
+        page.get_by_role("tab", name="Aside").click()
+        expect(tabs).to_have_count(2)
+        expect(log).to_contain_text("and you, slowly")
+        tabs.first.click()
+        expect(log).to_contain_text("what now")
+        # Closed, one goes, and the other stays.
+        page.locator("[data-hmz=btw-close]").click()
+        expect(tabs).to_have_count(1)
+        expect(log).to_contain_text("and you, slowly")
         stop(page)
 
 
@@ -1168,7 +1220,9 @@ def test_a_composer_built_before_it_is_shown_is_a_line_tall_once_shown(
         assert box is not None
         assert ask is not None
         assert box["height"] >= line
-        assert box["y"] + box["height"] <= ask["y"]
+        # Whom it asks is picked above the box, outside it, and covers none of it.
+        expect(page.locator("[data-hmz=btw] .ask-to")).to_have_count(0)
+        assert ask["y"] + ask["height"] <= box["y"]
         stop(page)
 
 

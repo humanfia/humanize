@@ -136,16 +136,8 @@ class Held:
         self._following = Following()
         self._me = ""
         self._gone = ""
-        #: Btw mode, by the conversation it asks -- "" for the btw agent -- what the btw agent
-        #: asked on the way to its last answer, and every question answered while it is on.
-        self._asides: dict[str, Btw] = {}
-        self._hops: dict[str, list[dict[str, str]]] = {}
-        #: What each side conversation's agent is opened as, as the last question to it said:
-        #: the btw agent's is the epic's that question was asked on.
-        self._sources: dict[
-            str, Callable[[Mapping[str, Any] | None, list[str]], dict[str, str] | None]
-        ] = {}
-        self._said: list[dict[str, Any]] = []
+        #: The asides pages opened, by the name the page gave each.
+        self._asides: dict[str, _Aside] = {}
         self._link = self._attached(linking())
         threading.Thread(target=self._figuring, daemon=True, name="hmz-web").start()
 
@@ -220,30 +212,37 @@ class Held:
     def btw(
         self,
         question: str,
-        target: str,
+        aside: str,
+        to: str = "",
         *,
+        epic: str = "",
         workspace: str,
         source: Callable[[Mapping[str, Any] | None, list[str]], dict[str, str] | None],
-        opening: Mapping[str, Any] | None = None,
         about: FlowSnapshot | None = None,
+        opening: Callable[[str], dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Asks one side question about the run, beside it rather than of it.
 
-        The first question to a conversation opens a side one on it, which every question
-        after goes on in, as the terminal interface's `/btw` does, until :meth:`unbtw`.
+        The first question to an aside opens a side conversation on whom it asks, which every
+        question to it after goes on in, as the terminal interface's `/btw` does, until
+        :meth:`unbtw`. Whom an aside asks is never changed: another is another aside.
 
         Args:
           question: What was asked.
-          target: The conversation asked, `<agent>/<n>`, or "" for the btw agent.
+          aside: The aside it is asked in, by the name the page gave it.
+          to: Whom an aside this question opens asks: `<agent>/<n>`, or "" for the btw agent.
+          epic: The epic that aside is about, by name, or "" for the run going.
           workspace: Where the runs are, as the question is told it.
           source: What the btw agent is opened as, given the run as the runs last said it
             and its conversations.
-          opening: What opens the side conversation of a session that is none of the run's
-            -- one an earlier run kept -- as :class:`Btw` takes it, or None.
-          about: The run that session was of, frozen, told in place of the run going.
+          about: An epic the runs hold no more, frozen, told in place of the run going: its
+            sessions are those the btw agent may ask.
+          opening: What opens a side conversation of one of that epic's sessions, by
+            `<agent>/<n>`, as a link's `aside` takes it: carried on from where it was kept.
 
         Returns:
-          The answer, and each conversation the btw agent asked on the way to it.
+          The aside, whom it asks, the question, the answer, and each conversation the btw
+          agent asked on the way to it.
 
         Raises:
           Refusal: If the last question asked of it is still being answered, nothing
@@ -253,35 +252,37 @@ class Held:
         from hmz.runtime.watching.btw import Btw, Left
 
         with self._changed:
-            self._sources[target] = source
-            mode = self._asides.get(target)
-            if mode is None:
-                told: list[dict[str, str]] = []
-                mode = Btw(
-                    target,
-                    aside=self._aside,
+            one = self._asides.get(aside)
+            if one is None:
+                one = _Aside(to, epic, about)
+                one.mode = Btw(
+                    to,
+                    aside=self._aside
+                    if opening is None
+                    else _recalling(opening, self._aside),
                     unaside=self._unaside,
-                    sessions=lambda: list(self._following.seen),
-                    source=lambda: self._sources[target](
+                    sessions=lambda: (
+                        list(self._following.seen)
+                        if about is None
+                        else [key for key, _ in about.sessions]
+                    ),
+                    source=lambda: source(
                         self.standing("run"), list(self._following.seen)
                     ),
-                    asking=lambda key, asking: told.append(
+                    asking=lambda key, asking: one.asked.append(
                         {"to": key, "question": asking}
                     ),
-                    opening=opening,
                 )
-                self._asides[target], self._hops[target] = mode, told
-            if mode.busy:
+                self._asides[aside] = one
+            if one.question:
                 raise Refusal(
                     "btw is still answering the last question asked of it.", 409
                 )
-            snapshot = about if about is not None else self._snapshot(workspace)
+            snapshot = one.about or self._snapshot(workspace)
             # Taken before the lock is let go, so that a second question finds it busy.
-            mode.busy = True
-            hops = self._hops[target]
-            hops.clear()
+            one.question, one.asked = question, []
         try:
-            answer = mode.ask(question, snapshot)
+            answer = one.mode.ask(question, snapshot)
         except Left as why:
             raise Refusal(
                 "A new epic started, which closed what was asked.", 409
@@ -290,17 +291,20 @@ class Held:
             raise Refusal(str(why), 409) from why
         except (OSError, TimeoutError) as why:
             raise Refusal(f"The epics could not be asked: {why}", 503) from why
+        finally:
+            with self._changed:
+                one.question = ""
         if not answer:
             raise Refusal("The agent returned no answer.", 502)
         said = {
-            "to": target,
+            "aside": aside,
+            "to": one.to,
             "question": question,
             "answer": answer,
-            "asked": list(hops),
+            "asked": list(one.asked),
         }
         with self._changed:
-            if self._asides.get(target) is mode:
-                self._said = [*self._said, said][-_SAID:]
+            one.said = [*one.said, said][-_SAID:]
         return said
 
     def sessions(self) -> list[str]:
@@ -308,37 +312,66 @@ class Held:
         with self._changed:
             return list(self._following.seen)
 
-    def asides(self) -> dict[str, Any]:
-        """Btw mode as it stands: the conversations side ones are open on, and what was said."""
-        with self._changed:
-            return {"open": sorted(self._asides), "said": list(self._said)}
-
-    def unbtw(self, target: str | None = None) -> None:
-        """Leaves btw mode, closing the side conversations it opened.
+    def asides(self, epic: str = "") -> list[dict[str, Any]]:
+        """The asides open about one epic, in the order they were opened, as they stand.
 
         Args:
-          target: The one conversation asked, or None for every one.
+          epic: The epic, by the name they were opened with, "" for the run going.
+
+        Returns:
+          Each one's name, whom it asks, the question it is answering ("" for none) and whom
+          the btw agent has asked on the way to it so far, and what was said in it.
         """
-        if target is None:
+        with self._changed:
+            return [
+                {
+                    "aside": name,
+                    "to": one.to,
+                    "question": one.question,
+                    "asked": list(one.asked),
+                    "said": list(one.said),
+                }
+                for name, one in self._asides.items()
+                if one.epic == epic
+            ]
+
+    def holds(self, aside: str) -> bool:
+        """Whether an aside is open, by the name the page gave it."""
+        with self._changed:
+            return aside in self._asides
+
+    def unbtw(self, aside: str | None = None) -> None:
+        """Closes asides, and the side conversations they opened.
+
+        Args:
+          aside: The one aside, by its name, or None for every one.
+        """
+        if aside is None:
             self._leaves()
             return
         with self._changed:
-            one = self._asides.pop(target, None)
-            self._said = [said for said in self._said if said["to"] != target]
+            one = self._asides.pop(aside, None)
         if one is not None:
-            one.close()
+            one.mode.close()
 
-    def _leaves(self, *, unasking: bool = True) -> None:
+    def _leaves(self, *, unasking: bool = True, going: bool = False) -> None:
         """Leaves btw mode altogether, closing every side conversation and what was said in it.
 
         Args:
           unasking: Whether to ask the runs to close them, which nothing need do of the side
             conversations of a link that has gone: they went with it.
+          going: Whether to close only those about the run going, and none about an epic the
+            runs hold no more.
         """
         with self._changed:
-            left, self._asides, self._said = list(self._asides.values()), {}, []
+            left = [
+                one for one in self._asides.values() if not going or one.about is None
+            ]
+            self._asides = {
+                name: one for name, one in self._asides.items() if one not in left
+            }
         for one in left:
-            one.close(unasking=unasking)
+            one.mode.close(unasking=unasking)
 
     def figures(self) -> dict[str, Any] | None:
         """What the run in front of this interface has done and cost, as last worked out."""
@@ -463,7 +496,12 @@ class Held:
             following.started(message)
             # A side conversation is about the run it was opened on, and that run has gone:
             # closed on a thread of its own, since closing one asks the runs.
-            threading.Thread(target=self._leaves, daemon=True, name="hmz-web").start()
+            threading.Thread(
+                target=self._leaves,
+                kwargs={"going": True},
+                daemon=True,
+                name="hmz-web",
+            ).start()
         elif kind == "printed":
             following.printed(str(message.get("text") or ""))
         elif kind == "opened":
@@ -578,6 +616,27 @@ class Held:
                 standing.append(self._standing[kind])
         figures = self._figures if self._figured != figured else None
         return fresh, standing, figures, self._gone
+
+
+class _Aside:
+    """One aside a page opened: whom it asks, about which epic, and what was said in it.
+
+    Attributes:
+      to: Whom it asks: `<agent>/<n>`, or "" for the btw agent.
+      epic: The epic it is about, by name, or "" for the run going.
+      about: That epic, frozen, where the runs hold it no more; None for the run going.
+      mode: The side conversations it opened.
+      question: The question it is answering, or "" for none.
+      asked: Each conversation the btw agent has asked on the way to that answer so far.
+      said: Each question answered in it, the latest `_SAID`.
+    """
+
+    def __init__(self, to: str, epic: str, about: FlowSnapshot | None) -> None:
+        self.to, self.epic, self.about = to, epic, about
+        self.mode: Btw
+        self.question = ""
+        self.asked: list[dict[str, str]] = []
+        self.said: list[dict[str, Any]] = []
 
 
 def _named(kinds: tuple[type, ...]) -> str:
@@ -729,66 +788,84 @@ def _btw(asked: Asked) -> dict[str, Any]:
     workspace = _workspace(asked)
     place = places.of(workspace)
     question = " ".join(asked.text("question").split())
+    if not question:
+        raise Refusal("Say question, as text.")
+    aside = asked.text("aside")
     to, epic = asked.text("to", required=False), asked.text("epic", required=False)
-    if not to and not _answers():
-        from hmz.runtime.watching.btw import NOBODY
-
-        raise Refusal(NOBODY, 409)
     # Asked through the workspace's own host, of an epic's session as it was kept: a chat's,
     # held by a host of its own or folded away, included.
     held = places.held(workspace)
-    opening: dict[str, Any] | None = None
-    about = None
-    target = to
-    if epic and to and not _held_still(held, epic, to):
-        # A session of an earlier epic, which the runs hold no more: carried on from where
-        # that epic kept it, and told that epic rather than the run going.
-        opening, about = _recalled(asked.site.runs.named(epic), to)
-        target = f"{epic}/{to}"
+    about = opening = None
+    # Whom an aside open already asks, and about which epic, is what it opened on.
+    opens = not held.holds(aside)
+    if opens and not to and not _answers():
+        from hmz.runtime.watching.btw import NOBODY
+
+        raise Refusal(NOBODY, 409)
+    if opens and epic and not _held_still(held, epic, to):
+        # An epic the runs hold no more, or a session of one: told that epic rather than the
+        # run going, and each of its sessions carried on from where that epic kept it.
+        about, opening = _recalled(asked.site.runs.named(epic))
+        if to:
+            opening(to)
     return held.btw(
         question,
-        target,
+        aside,
+        to,
+        epic=epic,
         workspace=str(place.workspace),
         source=_source,
-        opening=opening,
         about=about,
+        opening=opening,
     )
 
 
 def _held_still(held: Held, epic: str, to: str) -> bool:
-    """Whether a session of an epic is one the runs still hold: of their epic, and known."""
+    """Whether an epic, or a session of it, is one the runs still hold: theirs, and known."""
     run = held.standing("run") or {}
-    return run.get("epic") == epic and to in held.sessions()
+    return run.get("epic") == epic and (not to or to in held.sessions())
 
 
-def _recalled(ran: Any, key: str) -> tuple[dict[str, Any], FlowSnapshot]:
-    """How a side conversation about a session of an epic written down is opened, and the epic.
+def _recalled(ran: Any) -> tuple[FlowSnapshot, Callable[[str], dict[str, Any]]]:
+    """An epic written down, as side questions about it and its sessions are asked.
 
     Args:
       ran: The epic.
-      key: The session, `<agent>/<n>`: the n-th its agent opened.
 
     Returns:
-      Its agent, conversation and where it was kept, as a link's `aside` takes them; and the
-      epic, frozen, as a side question is told it.
-
-    Raises:
-      Refusal: If the epic opened no such session, or its agent is not written down.
+      The epic, frozen, as a side question is told it, its sessions by `<agent>/<n>`; and
+      what opens a side conversation of one of them, by `<agent>/<n>` -- the n-th its agent
+      opened -- as a link's `aside` takes it: its agent, its conversation and where it was
+      kept. That raises a Refusal for a session the epic did not open, or whose agent it did
+      not write down.
     """
     from hmz.runtime.epic import where
     from hmz.runtime.watching.btw import AgentProgress, FlowSnapshot
 
-    agent, _, number = key.rpartition("/")
-    mine = [one for one in ran.sessions if one.agent == agent]
-    if not number.isdigit() or not 0 < int(number) <= len(mine):
-        raise Refusal(f"{ran.name} opened no session {key}.", 404)
-    session = mine[int(number) - 1]
     # One written before an agent had a name of its own went by its role.
-    runs = next(
-        (one.spec for one in ran.agents if (one.name or one.agent) == agent), ""
-    )
-    if not runs:
-        raise Refusal(f"{ran.name} says nothing of what {agent} ran as.", 404)
+    drove = {one.name or one.agent: one for one in ran.agents}
+    sessions: dict[str, Any] = {}
+    opened: dict[str, int] = {}
+    for session in ran.sessions:
+        opened[session.agent] = opened.get(session.agent, 0) + 1
+        sessions[f"{session.agent}/{opened[session.agent]}"] = session
+
+    def opening(key: str) -> dict[str, Any]:
+        session = sessions.get(key)
+        if session is None:
+            raise Refusal(f"{ran.name} opened no session {key}.", 404)
+        runs = drove[session.agent].spec if session.agent in drove else ""
+        if not runs:
+            raise Refusal(
+                f"{ran.name} says nothing of what {session.agent} ran as.", 404
+            )
+        return {
+            "runs": runs,
+            "recall": session.ident,
+            "kept": str(where(ran.at, session)),
+            "cwd": ran.workspace,
+        }
+
     began, ended = _moment(ran.began), _moment(ran.ended)
     about = FlowSnapshot(
         flow=ran.flow,
@@ -806,14 +883,41 @@ def _recalled(ran: Any, key: str) -> tuple[dict[str, Any], FlowSnapshot]:
             )
             for one in ran.agents
         ),
+        sessions=tuple(
+            (
+                key,
+                f"ended, model={drove[one.agent].model if one.agent in drove else ''}",
+            )
+            for key, one in sessions.items()
+        ),
     )
-    opening = {
-        "runs": runs,
-        "recall": session.ident,
-        "kept": str(where(ran.at, session)),
-        "cwd": ran.workspace,
-    }
-    return opening, about
+    return about, opening
+
+
+def _recalling(
+    opening: Callable[[str], dict[str, Any]], aside: Callable[..., Mapping[str, Any]]
+) -> Callable[..., Mapping[str, Any]]:
+    """What asks the runs about a side conversation of an epic written down.
+
+    Args:
+      opening: What opens a side conversation of one of its sessions, by `<agent>/<n>`.
+      aside: What asks the runs about a side conversation of the run going.
+
+    Returns:
+      `aside`, but for a session asked by its key, which is carried on from where that epic
+      kept it: forked, or a copy of its agent opened afresh.
+    """
+
+    def asks(**said: Any) -> Mapping[str, Any]:
+        key = said.pop("key", None)
+        if key is not None:
+            how = opening(key)
+            said = (
+                {**how, **said} if said.get("fork") else {"runs": how["runs"], **said}
+            )
+        return aside(**said)
+
+    return asks
 
 
 def _moment(stamp: str) -> float:
@@ -854,20 +958,21 @@ def _asides(asked: Asked) -> dict[str, Any]:
     workspace = _workspace(asked)
     # Read of the runs this follows, never reaching runs it does not: nothing was asked there.
     held = asked.site.places.attached(workspace)
-    said: dict[str, Any] = (
-        held.asides() if held is not None else {"open": [], "said": []}
-    )
+    epic = asked.query.get("epic", "")
     # Who answers The Epic: what the settings name, "" for nobody.
-    return said | {"default": _answers()}
+    return {
+        "asides": held.asides(epic) if held is not None else [],
+        "default": _answers(),
+    }
 
 
 def _unbtw(asked: Asked) -> dict[str, Any]:
-    target = asked.body.get("to")
-    if target is not None and not isinstance(target, str):
-        raise Refusal("Say to as the conversation asked, or nothing for every one.")
+    aside = asked.body.get("aside")
+    if aside is not None and not isinstance(aside, str):
+        raise Refusal("Say aside as the aside to close, or nothing for every one.")
     held = asked.site.places.attached(_workspace(asked))
     if held is not None:
-        held.unbtw(target)
+        held.unbtw(aside)
     return {"ok": True}
 
 

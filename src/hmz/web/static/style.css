@@ -2978,6 +2978,59 @@ details.said-more summary {
   box-shadow: 3px 3px 0 var(--ink);
 }
 
+.aside-strip,
+.aside-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.aside-head {
+  justify-content: space-between;
+}
+
+.aside-one {
+  display: grid;
+  gap: 10px;
+}
+
+.aside-tab[aria-pressed='true'] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.aside-title {
+  font: 12px var(--mono);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.aside-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live);
+}
+
+.aside-tab:not(.busy) .aside-dot {
+  display: none;
+}
+
+.aside-working {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.aside-tab.busy .aside-dot,
+.aside-working .aside-dot {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 .board {
   display: grid;
   gap: 8px;

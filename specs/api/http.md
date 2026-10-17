@@ -289,29 +289,35 @@ conversations the workspace's own host opens (`api/daemon.md §8.8`), and MUST N
 **9.2.1** `GET /api/btw` MUST take the workspace parameter and `epic` (an epic name, `""` for the
 epic in view on the workspace's own host).
 
-**9.2.2** It MUST answer `open` (the conversations a side conversation is open on, `""` for the btw
-agent's), `said` (each side question answered in a side conversation still open, oldest first, as
-§9.3 answers it, the latest 200) and `default` (the `btw` setting of `api/settings.md`, `""` for
-none, where a question to the btw agent is refused as `features/btw.md` §5.9 states).
+**9.2.2** It MUST answer `asides` (each side conversation open about `epic`, in the order opened)
+and `default` (the `btw` setting of `api/settings.md`, `""` for none, where a question to the btw
+agent is refused as `features/btw.md` §5.9 states).
 
-**9.2.3** It MUST NOT attach to any host; where the server follows none of the workspace, `open`
-and `said` MUST be `[]`.
+**9.2.3** Each of `asides` MUST say `aside` (its name, §9.3.1), `to` (whom it asks, as §9.3.1),
+`question` (the question it is answering, `""` for none), `asked` (`[{to, question}]`, each
+session the btw agent has asked on the way to that answer so far) and `said` (each side question
+answered in it, oldest first, as §9.3 answers it, the latest 200).
+
+**9.2.4** It MUST NOT attach to any host; where the server follows none of the workspace,
+`asides` MUST be `[]`.
 
 ### 9.3 `POST /api/btw`
 
-**9.3.1** `POST /api/btw` MUST take the workspace parameter, `question` (text, required), `to`
-(`""` for the btw agent, or `<agent>/<n>`) and `epic` (the epic `to` is of, `""` for none).
+**9.3.1** `POST /api/btw` MUST take the workspace parameter, `question` (text, required), `aside`
+(text, required: the side conversation, named by the page), `to` (`""` for the btw agent, or
+`<agent>/<n>`) and `epic` (the epic it is about, `""` for none).
 
-**9.3.2** The first question to a conversation MUST open a side conversation on it, and every
-later question to it MUST go on in that side conversation until it is left.
+**9.3.2** The first question to an `aside` MUST open a side conversation on `to`, about `epic`,
+and every later question to it MUST go on in that side conversation, of that `to` and `epic`
+whatever the question sends, until it is left.
 
-**9.3.3** Where `epic` and `to` name a session the host (`features/daemons.md` §2.1) no longer
-holds, the server MUST carry it on from where that epic kept it, tell the btw agent that epic rather
-than the epic going, and name the conversation `<epic>/<agent>/<n>`; a session that epic did not
-open, or whose agent it did not write, MUST be refused 404.
+**9.3.3** Where `epic` names an epic the host (`features/daemons.md` §2.1) no longer holds, or
+`epic` and `to` a session it no longer holds, the server MUST tell the side conversation that epic
+rather than the epic going, and MUST carry each of its sessions asked on from where that epic kept
+it; a session that epic did not open, or whose agent it did not write, MUST be refused 404.
 
-**9.3.4** It MUST answer `to`, `question`, `answer`, and `asked` (`[{to, question}]`, each
-session the btw agent asked on the way to its answer).
+**9.3.4** It MUST answer `aside`, `to`, `question`, `answer`, and `asked` (`[{to, question}]`,
+each session the btw agent asked on the way to its answer).
 
 **9.3.5** A question to a side conversation still answering MUST be refused 409,
 `btw is still answering the last question asked of it.`; a question closed by a new epic starting
@@ -320,12 +326,14 @@ session the btw agent asked on the way to its answer).
 
 ### 9.4 `POST /api/btw/leave`
 
-**9.4.1** `POST /api/btw/leave` MUST take the workspace parameter and `to` (a conversation, or
-absent for every one), MUST close the side conversations named, and MUST answer `{"ok": true}`.
+**9.4.1** `POST /api/btw/leave` MUST take the workspace parameter and `aside` (a side
+conversation, or absent for every one), MUST close the side conversations named, and MUST answer
+`{"ok": true}`.
 
-**9.4.2** A `to` that is not text MUST be refused 400.
+**9.4.2** An `aside` that is not text MUST be refused 400.
 
-**9.4.3** A side conversation MUST be closed when an epic starts on its host.
+**9.4.3** A side conversation about the epic going on a host MUST be closed when another epic
+starts on it, and one about an epic the host no longer holds MUST NOT.
 
 ## 10. Epics written down
 
