@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import errno
+import json
+import os
 import re
 import shutil
+import socket
 import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -456,6 +460,68 @@ async def test_a_container_that_would_not_start_says_why(
 
     with pytest.raises(kind):
         await DockerMachine(LOCAL, PurePosixPath("/x")).probe()
+
+
+def _inspected(found: list[dict[str, Any]], calls: list[list[str]]) -> Any:
+    """Stands in for `subprocess.run`: `inspect` says `found`, and the rest say nothing."""
+
+    def run(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        said = [str(one) for one in argv]
+        calls.append(said)
+        out = json.dumps(found) if "inspect" in said else ""
+        return subprocess.CompletedProcess(said, 0, out, "")
+
+    return run
+
+
+def _ours(**said: str) -> dict[str, str]:
+    """The labels a container of this run's carries, with `said` over them."""
+    labels = {
+        "humanize": str(os.getuid()),
+        PROVIDER: LOCAL,
+        HOST: socket.gethostname(),
+        PID: str(os.getpid()),
+    }
+    return labels | said
+
+
+@pytest.mark.parametrize(
+    ("labels", "named", "removed"),
+    [
+        (_ours(), "", True),
+        (_ours(**{PID: str(os.getpid() + 1)}), "", False),
+        (_ours(**{HOST: "elsewhere"}), "", False),
+        (_ours(humanize=str(os.getuid() + 1)), "", False),
+        (_ours(), "humanize-local-other-0badc0de", False),
+    ],
+    ids=["ours", "another-process", "another-host", "another-user", "another-name"],
+)
+async def test_a_daemon_that_does_not_answer_in_time_is_given_up_on_and_its_make_undone(
+    daemon: type[_Config],
+    monkeypatch: pytest.MonkeyPatch,
+    labels: dict[str, str],
+    named: str,
+    removed: bool,
+) -> None:
+    daemon.fails = TimeoutError(errno.ETIMEDOUT, "docker did not answer within 600s")
+    machine = DockerMachine(LOCAL, PurePosixPath("/x"))
+    found = {
+        "Id": "cid-1",
+        "Name": f"/{named or machine.name}",
+        "Config": {"Labels": labels},
+    }
+    calls: list[list[str]] = []
+    monkeypatch.setattr(subprocess, "run", _inspected([found], calls))
+
+    with pytest.raises(
+        EnvConnectionError, match=r"could not connect to docker: .*within 600s"
+    ):
+        await machine.probe()
+
+    assert calls[0][-4:] == ["inspect", "--type", "container", machine.name]
+    assert [one[-3:] for one in calls[1:]] == (
+        [["rm", "--force", "cid-1"]] if removed else []
+    )
 
 
 async def test_a_daemon_that_cannot_be_asked_is_a_connection_error(

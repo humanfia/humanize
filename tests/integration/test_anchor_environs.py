@@ -15,6 +15,7 @@ import os
 import re
 import socket
 import sys
+import time
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
@@ -34,7 +35,7 @@ from hmz.runtime.flowing.environing import MachineEnvDriver
 from hmz.runtime.flowing.environing_docker import HOST, PID, PROVIDER
 from hmz.runtime.flowing.environments import local_env, open_env, probe
 from hmz.runtime.flowing.specs import parse_envs
-from tests.integration.doubles_anchor import Fakes, fakes, slurm
+from tests.integration.doubles_anchor import Fakes, fakes, slurm, swarm
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -477,6 +478,214 @@ async def test_a_swarm_runtime_naming_a_prefix_creates_its_services_under_it(
         one for one in far.calls("docker") if one[:2] == ["service", "create"]
     ]
     assert re.fullmatch(r"team-a-work-[0-9a-f]{8}", _name_of(created))
+
+
+#: How long each task of a swarm below takes to come up once its service is created.
+STARTING = 4.0
+
+
+def _created(manager: Fakes) -> list[float]:
+    """When each service the swarm has now was created, in order."""
+    assert manager.swarm is not None
+    return sorted(
+        json.loads((manager.swarm / f"{one}.json").read_text())["made"]
+        for one in manager.services()
+    )
+
+
+def _mirrored() -> list[Path]:
+    """The private directories a swarm machine holds its mirror in, left in `$TMPDIR`."""
+    return [
+        one
+        for one in Path(os.environ["TMPDIR"]).glob("humanize-*")
+        if one.name != f"humanize-{os.getuid()}"
+    ]
+
+
+async def _closed(*drivers: EnvDriver) -> None:
+    for one in drivers:
+        await one.close()
+
+
+@linux
+async def test_two_swarm_environments_of_one_run_come_up_together(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, work: Path
+) -> None:
+    manager = swarm(tmp_path, monkeypatch, starting=STARTING)
+    first, second = (_opened(f"{role}=swarm{work}") for role in ("one", "two"))
+    began = time.monotonic()
+    try:
+        await asyncio.gather(probe(first), probe(second))
+        took = time.monotonic() - began
+        made = _created(manager)
+    finally:
+        await _closed(first, second)
+
+    assert len(made) == 2
+    assert made[1] - made[0] < STARTING  # the second, before the first one's task ran
+    assert took < 2 * STARTING
+    assert manager.services() == []
+
+
+@linux
+async def test_swarm_environments_past_their_runtimes_task_limit_are_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, work: Path
+) -> None:
+    manager = swarm(tmp_path, monkeypatch, starting=1.0)
+    store.write(store.new(store.SWARM, "team", max_tasks=1))
+    first, second = (_opened(f"{role}=swarm@team{work}") for role in ("one", "two"))
+    try:
+        said = await asyncio.gather(probe(first), probe(second), return_exceptions=True)
+    finally:
+        await _closed(first, second)
+
+    refused = [one for one in said if one is not None]
+    assert len(refused) == 1
+    assert isinstance(refused[0], ResourceUnmet)
+    assert "runs 1 of the 1 tasks it may" in str(refused[0])
+    created = [
+        one for one in manager.calls("docker") if one[:2] == ["service", "create"]
+    ]
+    assert len(created) == 1
+
+
+@linux
+async def test_a_swarm_task_that_fails_once_created_leaves_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, work: Path
+) -> None:
+    manager = swarm(tmp_path, monkeypatch, starting=1.0, failing="-bad-")
+    bad, good = _opened(f"bad=swarm{work}"), _opened(f"good=swarm{work}")
+    try:
+        said = await asyncio.gather(probe(bad), probe(good), return_exceptions=True)
+        left = manager.services()
+    finally:
+        await _closed(bad, good)
+
+    assert isinstance(said[0], EnvUnavailable)
+    assert "is failed: task: non-zero exit (1)" in str(said[0])
+    assert said[1] is None
+    assert [re.sub(r"[0-9a-f]{8}$", "", one) for one in left] == [
+        "humanize-local-good-"
+    ]
+    assert manager.services() == []
+    assert _mirrored() == []
+
+
+#: How long a daemon is waited for below, in place of the minute -- or the ten minutes, for
+#: making a container or a service -- it is given.
+BOUND = 1.5
+
+#: How long a test of a daemon that stops answering may take at most: the bound, and room
+#: for the stand-in `docker`s started on the way.
+WITHIN = BOUND + 10
+
+
+@pytest.fixture
+def bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Has every question for a daemon, and every container or service made, wait `BOUND`."""
+    from hmz.coganchor.machines import docker as docker_machine
+    from hmz.coganchor.machines import swarm as swarm_machine
+    from hmz.runtime.flowing import environing_docker, environing_swarm
+
+    for module in (docker_machine, environing_docker, environing_swarm):
+        monkeypatch.setattr(module, "_ASKING", BOUND)
+    for module in (docker_machine, swarm_machine):
+        monkeypatch.setattr(module, "_MAKING", BOUND)
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.usefixtures("bounded")
+@pytest.mark.parametrize("theirs", [False, True], ids=["ours", "another-process"])
+async def test_a_container_a_stalled_daemon_makes_after_all_is_removed_only_if_it_is_ours(
+    far: Fakes,
+    work: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    theirs: bool,
+) -> None:
+    far.stall(
+        monkeypatch, "run", labels={PID: str(os.getpid() + 1_000_000)} if theirs else {}
+    )
+    driver = _opened(f"work=docker{work}")
+    began = time.monotonic()
+    try:
+        with pytest.raises(
+            EnvConnectionError,
+            match=r"could not connect to docker: .*did not answer within 1\.5s",
+        ):
+            await probe(driver)
+        took = time.monotonic() - began
+    finally:
+        await driver.close()
+
+    assert took < WITHIN
+    name = _name_of(_run_of(far))
+    calls = far.calls("docker")
+    assert ["inspect", "--type", "container", name] in calls
+    removed = [one for one in calls if one[:1] == ["rm"]]
+    if theirs:
+        assert removed == []
+        assert far.containers() == [name]
+    else:
+        assert removed == [["rm", "--force", f"cid-{name}"]]
+        assert far.containers() == []
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.usefixtures("bounded")
+@pytest.mark.parametrize("theirs", [False, True], ids=["ours", "another-host"])
+async def test_a_service_a_stalled_manager_creates_after_all_is_removed_only_if_it_is_ours(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    work: Path,
+    theirs: bool,
+) -> None:
+    manager = swarm(tmp_path, monkeypatch)
+    manager.stall(
+        monkeypatch, "service create", labels={HOST: "elsewhere"} if theirs else {}
+    )
+    driver = _opened(f"work=swarm{work}")
+    began = time.monotonic()
+    try:
+        with pytest.raises(
+            EnvConnectionError,
+            match=r"could not connect to swarm: .*did not answer within 1\.5s",
+        ):
+            await probe(driver)
+        took = time.monotonic() - began
+    finally:
+        await driver.close()
+
+    assert took < WITHIN
+    calls = manager.calls("docker")
+    (created,) = [one for one in calls if one[:2] == ["service", "create"]]
+    name = _name_of(created)
+    assert ["service", "inspect", name] in calls
+    if theirs:
+        assert not [one for one in calls if one[:2] == ["service", "rm"]]
+        assert manager.services() == [name]
+    else:
+        assert ["service", "rm", name] in calls
+        assert manager.services() == []
+    assert _mirrored() == []
+
+
+@linux
+@pytest.mark.timeout(60)
+@pytest.mark.usefixtures("bounded")
+async def test_a_daemon_that_does_not_take_a_container_down_does_not_hold_up_closing(
+    far: Fakes, work: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    driver = _opened(f"work=docker{work}")
+    try:
+        await probe(driver)
+    finally:
+        far.stall(monkeypatch, "rm")
+        began = time.monotonic()
+        await driver.close()
+        took = time.monotonic() - began
+
+    assert took < WITHIN
+    assert [one for one in far.calls("docker") if one[:2] == ["rm", "--force"]]
 
 
 def _apple(far: Fakes) -> None:

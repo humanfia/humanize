@@ -27,7 +27,7 @@ from hmz.coganchor.machines import apple_container as apple
 from hmz.coganchor.machines.docker import CPUS, GPUS, MEMORY, whose
 from hmz.coganchor.machines.swarm import Unplaced, nodes, services
 from hmz.coganchor.transport import Endpoint
-from tests.integration.doubles_anchor import Fakes, fakes
+from tests.integration.doubles_anchor import Fakes, fakes, swarm
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -405,6 +405,32 @@ def test_a_swarm_task_no_node_could_ever_take_is_unplaced_at_once(
 
     with pytest.raises(Unplaced, match="no node of the swarm has 64 CPUs"):
         _swarm_config(workspace, cpus=64.0).create().start()
+
+
+def test_a_swarm_service_is_created_once_however_often_it_is_submitted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workspace: Path
+) -> None:
+    manager = swarm(tmp_path, monkeypatch)
+    machine = _swarm_config(workspace).create()
+    try:
+        assert machine.submit() == machine.submit() == "svc"
+        assert manager.services() == ["svc"]
+        assert not [
+            one for one in manager.calls("docker") if one[:2] == ["service", "ps"]
+        ]
+        if sys.platform == "linux":
+            assert machine.start().target == "docker://c-svc"
+        else:
+            with pytest.raises(RuntimeError, match="cannot serve linux"):
+                machine.start()
+    finally:
+        machine.stop()
+
+    created = [
+        one for one in manager.calls("docker") if one[:2] == ["service", "create"]
+    ]
+    assert len(created) == 1
+    assert manager.services() == []
 
 
 def test_a_daemon_in_no_swarm_cannot_place_a_task(far: Fakes, workspace: Path) -> None:

@@ -15,11 +15,15 @@ cannot tell.
 
 What the runtime may hand out -- how many tasks, how many CPUs and bytes all told -- is shared
 between every run on this machine by a lock on the runtime, as a docker runtime's is, and read
-off the labels of the services it already runs. Whether a node has room is the scheduler's to
-say: a task it leaves pending for want of one is given up on, its service removed, and the run
-told what the scheduler said. A run that died without taking its services down leaves them
-labelled with its host and pid, and the next run on that runtime removes any whose process is
-gone.
+off the labels of the services it already runs. The lock is held while that is worked out and
+the service created, and not while its task waits for a node and comes up: the service counts
+against the runtime from the moment it is created, and a run waiting on the swarm's scheduler
+must not keep every other run here -- or every other environment of its own -- out of it.
+Whether a node has room is the scheduler's to say: a task it leaves pending for want of one is
+given up on, its service removed, and the run told what the scheduler said. A run that died
+without taking its services down leaves them labelled with its host and pid, and the next run
+on that runtime removes any whose process is gone. A manager that stops answering is given up
+on as a docker daemon is, and a service it goes on to create after all is removed the same way.
 """
 
 from __future__ import annotations
@@ -56,12 +60,13 @@ from .environing_docker import (
     _info,  # pyright: ignore[reportPrivateUsage]
     _mirrors,  # pyright: ignore[reportPrivateUsage]
     _stale,  # pyright: ignore[reportPrivateUsage]
+    _unanswered,  # pyright: ignore[reportPrivateUsage]
 )
 from .environing_ssh import SSHMachine
 from .spi import Placement
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Generator, Sequence
     from pathlib import PurePosixPath
 
     from hmz.coganchor.machines import Allocation, Swarm
@@ -232,7 +237,7 @@ class SwarmMachine(SSHMachine):
     # --- bringing it up
 
     def _brought_up(self) -> tuple[Swarm, Share]:
-        """Works out its share and creates it, holding the runtime while it does.
+        """Works out its share and creates its service holding the runtime, then waits for it.
 
         Raises:
           ResourceUnmet: If the runtime has not got what the role asks left, or no node of
@@ -241,7 +246,7 @@ class SwarmMachine(SSHMachine):
           EnvConnectionError: If the manager, or the node the task landed on, cannot be asked.
         """
         from hmz.coganchor.machines import SwarmConfig, store
-        from hmz.coganchor.machines.swarm import Unplaced, services, swarm_of
+        from hmz.coganchor.machines.swarm import services, swarm_of
 
         where = self.spelled
         endpoint = self.endpoint
@@ -300,19 +305,10 @@ class SwarmMachine(SSHMachine):
                 ).create()
             except ValueError as error:
                 raise EnvUnavailable(f"{where}: {error}") from error
-            try:
-                swarm.start()
-            except Unplaced as error:
-                raise ResourceUnmet(f"{where}: {error}") from error
-            except FileNotFoundError as error:
-                raise EnvUnavailable(
-                    f"{where}: {error.strerror or error}"
-                    + (f": {error.filename}" if error.filename else "")
-                ) from error
-            except (RuntimeError, ValueError) as error:
-                raise EnvUnavailable(f"{where}: {error}") from error
-            except OSError as error:
-                raise EnvConnectionError(f"{where}: {error}") from error
+            with _told(where), _unanswered(endpoint, self.name, service=True):
+                swarm.submit()
+        with _told(where):
+            swarm.start()
         placed = swarm.placed
         if placed is not None:
             from hmz.coganchor.transport import Target
@@ -405,6 +401,36 @@ class SwarmMachine(SSHMachine):
         return Placement(
             EnvBackendKind.SWARM, self.provider, workdir, AnchoredConfig(anchor=anchor)
         )
+
+
+@contextlib.contextmanager
+def _told(where: str) -> Generator[None]:
+    """Says what went wrong creating a task's service, or waiting for it, as the run is told it.
+
+    Raises:
+      ResourceUnmet: If no node of the swarm took the task.
+      EnvUnavailable: If there is no `docker` here, the service could not be created, its task
+        did not run, or the node it landed on has no workdir.
+      EnvConnectionError: If the manager, or the node the task landed on, could not be asked
+        or did not answer in time.
+    """
+    from hmz.coganchor.machines.swarm import Unplaced
+
+    try:
+        yield
+    except Unplaced as error:
+        raise ResourceUnmet(f"{where}: {error}") from error
+    except TimeoutError as error:
+        raise EnvConnectionError(f"could not connect to {where}: {error}") from error
+    except FileNotFoundError as error:
+        raise EnvUnavailable(
+            f"{where}: {error.strerror or error}"
+            + (f": {error.filename}" if error.filename else "")
+        ) from error
+    except (RuntimeError, ValueError) as error:
+        raise EnvUnavailable(f"{where}: {error}") from error
+    except OSError as error:
+        raise EnvConnectionError(f"{where}: {error}") from error
 
 
 def _removed(endpoint: Endpoint, service: str) -> None:

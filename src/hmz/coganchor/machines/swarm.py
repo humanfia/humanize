@@ -17,7 +17,10 @@ node, and said so.
 What the service reserves of a node is what it is limited to as well, so that what the
 scheduler counts as taken is what the container can take; and the same labels a container of
 :mod:`.docker` carries are on the service, so that what a swarm's services hold is read back the
-same way.
+same way -- from the moment it is created, before its task has landed anywhere. So creating the
+service and waiting for its task are apart, as submitting a job and waiting for it are for
+:mod:`.slurm`: whoever shares out a swarm need hold it only while the service is created, and
+not while the scheduler places its task and the node pulls its image.
 """
 
 from __future__ import annotations
@@ -69,6 +72,10 @@ _NO_NODE = "no suitable node"
 
 #: How often a task that has not yet landed is asked after.
 _POLL = 0.5
+
+#: How long a manager is given to create a service: it asks a registry which image that is
+#: first, so as long as the task is then given to come up.
+_MAKING = 600.0
 
 
 class Unplaced(RuntimeError):  # noqa: N818 -- named for what happened, as the rest are
@@ -374,7 +381,8 @@ def _asked(argv: list[str], seconds: float | None) -> subprocess.CompletedProces
     """Runs one question for a manager, with nothing on its stdin, for so long at most.
 
     Raises:
-      OSError: If it could not be run, or did not answer in time.
+      TimeoutError: If it did not answer in time: an `OSError` of `ETIMEDOUT`.
+      OSError: If it could not be run.
     """
     try:
         return subprocess.run(
@@ -386,7 +394,7 @@ def _asked(argv: list[str], seconds: float | None) -> subprocess.CompletedProces
             check=False,
         )
     except subprocess.TimeoutExpired as error:
-        raise OSError(
+        raise TimeoutError(
             errno.ETIMEDOUT, f"{argv[0]} did not answer within {seconds:g}s"
         ) from error
 
@@ -406,38 +414,42 @@ class Swarm(MachineBase):
         self._endpoint = Endpoint.parse(config.endpoint)
         self._mirror: tempfile.TemporaryDirectory[str] | None = None
         self._service = ""
+        self._manager = ""
         self._told: dict[str, Any] | None = None
         self.placed: Placed | None = None
 
-    def start(self) -> AnchorConfig:
-        """Creates the service, waits for its task to run, and asks it what it is holding.
+    def submit(self) -> str:
+        """Creates the service, where it is not created yet, without waiting for its task.
 
         Returns:
-          The anchor that reaches it: the workspace by its path on the node, and the
-          container by a target carrying the daemon of that node.
+          The service's id.
 
         Raises:
-          FileNotFoundError: If there is no `docker` here, or the node the task landed on --
-            or the manager's host, asked whose the workspace is -- has no such directory.
-          Unplaced: If no node took the task in time.
-          RuntimeError: If the service could not be created, or its task failed, or what
-            came up is not the machine these settings promised.
-          OSError: If the manager or the node could not be asked, or the container cannot
-            serve the workspace it was mounted.
+          FileNotFoundError: If there is no `docker` here, or the manager's host, asked
+            whose the workspace is, has no such directory.
+          RuntimeError: If the service could not be created.
+          TimeoutError: If the manager did not answer in time: 60 seconds for what it is, and
+            600 for creating the service. A service it creates after all, once it was given
+            up on, has no id here to be removed by: whoever named it can look for it by
+            that name.
+          OSError: If the manager could not be asked, or manages no active swarm.
         """
+        if self._service:
+            return self._service
         config = self._config
         if shutil.which("docker") is None:
             raise FileNotFoundError(errno.ENOENT, "no docker command here", "docker")
         manager = swarm_of(self._info(), str(self._endpoint))
-        self._mirror = tempfile.TemporaryDirectory(
-            prefix="humanize-", ignore_cleanup_errors=True
-        )
+        if self._mirror is None:
+            self._mirror = tempfile.TemporaryDirectory(
+                prefix="humanize-", ignore_cleanup_errors=True
+            )
         name = config.name or Path(self._mirror.name).name
         try:
             user = config.user or whose(
                 self._endpoint, config.image, config.workspace, self._info
             )
-            made = subprocess.run(
+            made = _asked(
                 self._endpoint.docker(
                     "service",
                     "create",
@@ -463,9 +475,7 @@ class Swarm(MachineBase):
                     config.image,
                     *_IDLE,
                 ),
-                capture_output=True,
-                text=True,
-                check=False,
+                _MAKING,
             )
             if made.returncode != 0:
                 raise RuntimeError(  # noqa: TRY301 -- the handler takes down what was made
@@ -475,7 +485,33 @@ class Swarm(MachineBase):
             self._service = (
                 made.stdout.strip().splitlines()[-1] if made.stdout else name
             )
-            placed = self._landed(manager)
+        except BaseException:
+            self.stop()
+            raise
+        self._manager = manager
+        return self._service
+
+    def start(self) -> AnchorConfig:
+        """Creates the service where it is not yet, waits for its task to run, and asks it.
+
+        Returns:
+          The anchor that reaches it: the workspace by its path on the node, and the
+          container by a target carrying the daemon of that node.
+
+        Raises:
+          FileNotFoundError: If there is no `docker` here, or the node the task landed on --
+            or the manager's host, asked whose the workspace is -- has no such directory.
+          Unplaced: If no node took the task in time.
+          RuntimeError: If the service could not be created, or its task failed, or what
+            came up is not the machine these settings promised.
+          OSError: If the manager or the node could not be asked, or the container cannot
+            serve the workspace it was mounted.
+        """
+        config = self._config
+        self.submit()
+        assert self._mirror is not None  # noqa: S101 -- made as the service was created
+        try:
+            placed = self._landed(self._manager)
             self.placed = placed
             target = Target.parse(f"docker://{placed.container}@{placed.daemon}")
             Road.to(target).forget()
@@ -499,6 +535,7 @@ class Swarm(MachineBase):
                 _asked(self._endpoint.docker("service", "rm", self._service), 60.0)
             self._service = ""
         self._mirror.cleanup()
+        self._mirror = None
 
     def _landed(self, manager: str) -> Placed:
         """Waits for the task to be running, and says where.
@@ -645,10 +682,10 @@ class Swarm(MachineBase):
         """What the manager says of itself, asked once.
 
         Raises:
-          OSError: If it could not be asked.
+          OSError: If it could not be asked, or did not answer within 60 seconds.
         """
         if self._told is None:
-            self._told = info(str(self._endpoint))
+            self._told = info(str(self._endpoint), 60.0)
         return self._told
 
     def _labelled(self) -> list[str]:

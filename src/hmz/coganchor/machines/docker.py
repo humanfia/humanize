@@ -342,6 +342,15 @@ _NO_DEVICES = 6
 #: already waited as long as it was allowed to.
 _REMOVING = 10.0
 
+#: How long a daemon is given to answer what takes it no time -- what it is, removing a
+#: container: one that has stopped answering is a daemon not answering, not one still busy.
+_ASKING = 60.0
+
+#: How long a daemon is given to make a container and start it, which takes pulling its image
+#: first where the daemon has not got it, and a registry saying which image that is: as long
+#: as a swarm's task is given to come up.
+_MAKING = 600.0
+
 
 def gpus_usable(
     endpoint: str,
@@ -485,7 +494,8 @@ def _asked(argv: list[str], seconds: float | None) -> subprocess.CompletedProces
     """Runs one question for a daemon, with nothing on its stdin, for so long at most.
 
     Raises:
-      OSError: If it could not be run, or did not answer in time.
+      TimeoutError: If it did not answer in time: an `OSError` of `ETIMEDOUT`.
+      OSError: If it could not be run.
     """
     try:
         return subprocess.run(
@@ -497,7 +507,7 @@ def _asked(argv: list[str], seconds: float | None) -> subprocess.CompletedProces
             check=False,
         )
     except subprocess.TimeoutExpired as error:
-        raise OSError(
+        raise TimeoutError(
             errno.ETIMEDOUT, f"{argv[0]} did not answer within {seconds:g}s"
         ) from error
 
@@ -563,6 +573,10 @@ class Docker(MachineBase):
             or none holding a Python new enough, is refused here. What docker said is
             attached. Or if what came up is not the machine these settings promised, which
             names the capability it could not serve.
+          TimeoutError: If the daemon did not answer in time: 60 seconds for what it is, and
+            600 for making and starting the container, which may pull its image first. A
+            container the daemon makes after all, once it was given up on, has no id here
+            to be removed by: whoever named it can look for it by that name.
           OSError: If the container cannot serve the workspace it was mounted, which is a turn
             that would fail on its first file, reported before the first turn instead. An
             image holding no Python the target half can use is refused here too: the idle
@@ -604,7 +618,7 @@ class Docker(MachineBase):
         target = Target.parse(f"docker://{name}@{endpoint}")
         try:
             gpus, by_name = self._gpus()
-            started = subprocess.run(
+            started = _asked(
                 endpoint.docker(
                     "run",
                     "--detach",
@@ -631,9 +645,7 @@ class Docker(MachineBase):
                     config.image,
                     *_IDLE,
                 ),
-                capture_output=True,
-                text=True,
-                check=False,
+                _MAKING,
             )
             if started.returncode != 0:
                 # Raised here rather than below: everything in this block may have a
@@ -660,7 +672,12 @@ class Docker(MachineBase):
         return anchor
 
     def stop(self) -> None:
-        """Removes the container and the mirror, leaving the workspace as the turns left it."""
+        """Removes the container and the mirror, leaving the workspace as the turns left it.
+
+        A container its daemon does not take down within a minute is left: it still carries
+        the labels it was started with, which is what whoever sweeps up after a flow that was
+        killed goes by.
+        """
         if self._mirror is None:
             return
         try:
@@ -668,11 +685,8 @@ class Docker(MachineBase):
         except OSError:
             made = ""  # docker never got as far as making one
         if made:
-            subprocess.run(
-                self._endpoint.docker("rm", "--force", made),
-                capture_output=True,
-                check=False,
-            )
+            with contextlib.suppress(OSError):
+                _asked(self._endpoint.docker("rm", "--force", made), _ASKING)
         self._mirror.cleanup()
 
     def _made(self) -> str:
@@ -775,10 +789,17 @@ class Docker(MachineBase):
         }
 
     def _info(self) -> dict[str, Any]:
-        """What the daemon says of itself, asked once, or nothing where it would not say."""
+        """What the daemon says of itself, asked once, or nothing where it would not say.
+
+        Raises:
+          TimeoutError: If it did not answer within :data:`_ASKING`: a daemon that is not
+            answering is not one that would not say, and is asked again next time.
+        """
         if self._told is None:
             try:
-                self._told = info(str(self._endpoint))
+                self._told = info(str(self._endpoint), _ASKING)
+            except TimeoutError:
+                raise
             except OSError:
                 self._told = {}
         return self._told
@@ -819,29 +840,40 @@ def whose(
     Raises:
       FileNotFoundError: If the daemon's host has no such directory.
       RuntimeError: If no container of the image could be asked.
+      TimeoutError: If the daemon did not answer within 600 seconds, its image to pull
+        among it -- when the container, named for this asking alone, is taken down rather
+        than left behind made and never run.
     """
     if endpoint.here:
         security = cast("list[str]", told().get("SecurityOptions") or [])
         if any("name=rootless" in one for one in security):
             return "0:0"
         return f"{os.getuid()}:{os.getgid()}"
-    asked = subprocess.run(
-        endpoint.docker(
-            "run",
-            "--rm",
-            "--label",
-            f"{_LABEL}={os.getuid()}",
-            "--network",
-            "none",
-            "--mount",
-            bound(workspace),
-            image,
-            *python_command(["-c", _OWNER, workspace]),
-        ),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    import secrets
+
+    name = f"{_LABEL}-whose-{secrets.token_hex(4)}"
+    try:
+        asked = _asked(
+            endpoint.docker(
+                "run",
+                "--rm",
+                "--name",
+                name,
+                "--label",
+                f"{_LABEL}={os.getuid()}",
+                "--network",
+                "none",
+                "--mount",
+                bound(workspace),
+                image,
+                *python_command(["-c", _OWNER, workspace]),
+            ),
+            _MAKING,
+        )
+    except TimeoutError:
+        with contextlib.suppress(OSError):
+            _asked(endpoint.docker("rm", "--force", name), _REMOVING)
+        raise
     # The last line, since an image's entrypoint may have said something first.
     owner = _OWNED.search(asked.stdout)
     if asked.returncode == 0 and owner is not None:

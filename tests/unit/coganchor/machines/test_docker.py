@@ -408,6 +408,18 @@ def test_a_workspace_that_cannot_be_asked_after_elsewhere_is_an_error(
         whose(Endpoint.parse("ssh://box"), "img", "/w", dict)
 
 
+def test_a_daemon_elsewhere_that_does_not_answer_in_time_is_given_up_on(
+    runs: Runs,
+) -> None:
+    runs.on("run", timeout=True)
+
+    with pytest.raises(TimeoutError, match="did not answer within 600s"):
+        whose(Endpoint.parse("ssh://box"), "img", "/w", dict)
+    (named,) = after(runs.called("run")[0], "--name")
+    assert named.startswith("humanize-whose-")
+    assert runs.called("rm", "--force", named)
+
+
 # ------------------------------------------------------------------------------- start
 
 
@@ -562,6 +574,30 @@ def test_a_container_that_would_not_start_says_why(
     assert handshake.asked == []
 
 
+def test_a_container_the_daemon_does_not_make_in_time_is_given_up_on(
+    runs: Runs, handshake: Handshake, tmp_path: Path
+) -> None:
+    runs.on("run", timeout=True)
+    machine = DockerConfig(workspace=str(tmp_path)).create()
+
+    with pytest.raises(TimeoutError, match="did not answer within 600s"):
+        machine.start()
+    (run,) = runs.called("run")
+    assert runs.called("rm") == []  # no id came back to remove it by
+    assert handshake.asked == []
+    assert not Path(after(run, "--cidfile")[0]).parent.exists()
+
+
+def test_a_daemon_that_does_not_say_what_it_is_in_time_starts_nothing(
+    runs: Runs, tmp_path: Path
+) -> None:
+    runs.on("info", timeout=True)
+
+    with pytest.raises(TimeoutError, match="did not answer within 60s"):
+        DockerConfig(workspace=str(tmp_path)).create().start()
+    assert runs.called("run") == []
+
+
 def test_a_container_that_is_not_what_was_promised_is_taken_down(
     runs: Runs, handshake: Handshake, tmp_path: Path
 ) -> None:
@@ -586,6 +622,20 @@ def test_stopping_takes_down_only_the_container_it_made(
 
     assert runs.called("rm", "--force", "cid-3")
     assert runs.called("rm", "--force", "shared") == []
+    assert not Path(anchor.shadow or "").parent.exists()
+
+
+def test_a_container_its_daemon_does_not_take_down_in_time_is_left_to_it(
+    runs: Runs, handshake: Handshake, tmp_path: Path
+) -> None:
+    runs.on("run", then=cidfile("cid-4"))
+    machine = DockerConfig(workspace=str(tmp_path)).create()
+    anchor = machine.start()
+    runs.on("rm", timeout=True)
+
+    machine.stop()
+
+    assert runs.called("rm", "--force", "cid-4")
     assert not Path(anchor.shadow or "").parent.exists()
 
 

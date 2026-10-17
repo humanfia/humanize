@@ -17,7 +17,9 @@ runtime: what its running containers already hold is read off their labels, what
 asks is checked against what is left, and the container that takes it is running -- labelled
 with what it took -- before the next run is let ask. A run that died without taking its
 containers down leaves them labelled with its host and pid, and the next run on that runtime
-takes down any whose process is gone.
+takes down any whose process is gone. A daemon that stops answering is given up on rather than
+waited for, as a daemon that cannot be reached; a container it goes on to make after all is
+looked for by its name, and taken down where it is this run's.
 
 Or a container already running, where the runtime names one: every environment put there works
 in it, as whatever user, with whatever variables and under whatever wrapper the runtime says.
@@ -33,6 +35,7 @@ import asyncio
 import contextlib
 import fcntl
 import hashlib
+import json
 import math
 import os
 import secrets
@@ -478,10 +481,7 @@ def _called(provider: str, role: str, prefix: str = "") -> str:
 def _stale(one: Allocation) -> bool:
     """Whether a container was left by a process of this user's on this host that is gone."""
     said = one.labels
-    if (
-        said.get("humanize") != str(os.getuid())
-        or said.get(HOST) != socket.gethostname()
-    ):
+    if not _here(said):
         return False
     pid = said.get(PID, "")
     if not pid.isdigit():
@@ -493,6 +493,83 @@ def _stale(one: Allocation) -> bool:
     except OSError:
         return False
     return False
+
+
+def _here(labels: Mapping[str, str]) -> bool:
+    """Whether what carries these labels is this user's, brought up from this host."""
+    return (
+        labels.get("humanize") == str(os.getuid())
+        and labels.get(HOST) == socket.gethostname()
+    )
+
+
+@contextlib.contextmanager
+def _unanswered(
+    endpoint: Endpoint, name: str, *, service: bool = False
+) -> Generator[None]:
+    """Takes back what a daemon made after all, once asking it to was given up on.
+
+    A daemon that is slow rather than gone -- one busy taking down a large container, say --
+    may still make the container or the service it was asked for after the `docker` asking
+    was given up on. Nothing that takes an environment down then knows of it: no id came
+    back for it, and a container left made and never started is not among the running ones
+    the next run sweeps for leftovers. So it is looked for by its exact name, and removed by
+    the id it has where its labels say it is this user's, from this host and this process;
+    anything else of that name is left alone, as is one the daemon gets round to later still.
+
+    Args:
+      endpoint: The daemon, or the swarm's manager.
+      name: What the container or the service was to be called.
+      service: Whether it is a swarm's service rather than a container.
+    """
+    try:
+        yield
+    except TimeoutError:
+        _unmade(endpoint, name, service=service)
+        raise
+
+
+def _unmade(endpoint: Endpoint, name: str, *, service: bool) -> None:
+    """Removes the container or service of exactly this name, where this process made it."""
+    kind = ("service",) if service else ()
+    try:
+        said = subprocess.run(
+            endpoint.docker(
+                *kind, "inspect", *(() if service else ("--type", "container")), name
+            ),
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=_ASKING,
+            check=False,
+        )
+        found = cast(
+            "list[dict[str, Any]]",
+            json.loads(said.stdout or "[]") if said.returncode == 0 else [],
+        )
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return  # still not answering: what it makes later is past finding from here
+    for one in found:
+        if service:
+            spec = cast("dict[str, Any]", one.get("Spec") or {})
+            named, made = str(spec.get("Name") or ""), str(one.get("ID") or "")
+        else:
+            spec = cast("dict[str, Any]", one.get("Config") or {})
+            named = str(one.get("Name") or "").removeprefix("/")
+            made = str(one.get("Id") or "")
+        labels = cast("dict[str, str]", spec.get("Labels") or {})
+        if named != name or not made:
+            continue
+        if not _here(labels) or labels.get(PID) != str(os.getpid()):
+            continue  # somebody else's of the same name, which is not this run's to remove
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+            subprocess.run(
+                endpoint.docker(*kind, "rm", *(() if service else ("--force",)), made),
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                timeout=_ASKING,
+                check=False,
+            )
 
 
 class DockerMachine(SSHMachine):
@@ -588,7 +665,7 @@ class DockerMachine(SSHMachine):
           ResourceUnmet: If the runtime has not got what the role asks left.
           EnvUnavailable: If the container cannot be started there, or the one the runtime
             names is not running.
-          EnvConnectionError: If the daemon cannot be asked.
+          EnvConnectionError: If the daemon cannot be asked, or does not answer in time.
         """
         from hmz.coganchor.machines import DockerConfig, allocations
 
@@ -649,7 +726,12 @@ class DockerMachine(SSHMachine):
                 },
             ).create()
             try:
-                docker.start()
+                with _unanswered(endpoint, self.name):
+                    docker.start()
+            except TimeoutError as error:
+                raise EnvConnectionError(
+                    f"could not connect to {where}: {error}"
+                ) from error
             except FileNotFoundError as error:
                 raise EnvUnavailable(
                     f"{where} has no {error.filename or 'docker'} to run a "

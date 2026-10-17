@@ -124,7 +124,7 @@ Validation, in `__post_init__` (`ValueError`):
 
 | Flag | Rule |
 | --- | --- |
-| `--user` | This user's `uid:gid` on a daemon here; `0:0` when that daemon reports `name=rootless` in its security options. On any other daemon, the owner of the workspace there, read by `docker run --rm --label humanize=<uid> --network none --mount <workspace> <image> python -c <stat>`; a missing directory raises `FileNotFoundError: no directory to give the container on <endpoint>`. |
+| `--user` | This user's `uid:gid` on a daemon here; `0:0` when that daemon reports `name=rootless` in its security options (`docker info`, 60 s). On any other daemon, the owner of the workspace there, read by `docker run --rm --name humanize-whose-<8 hex> --label humanize=<uid> --network none --mount <workspace> <image> python -c <stat>` (600 s, its image pull among it; past that the container is removed by that name, 10 s); a missing directory raises `FileNotFoundError: no directory to give the container on <endpoint>`. |
 | `HOME=/tmp` | Always, before the caller's `env`. |
 | `NVIDIA_VISIBLE_DEVICES=void` | Set unless GPUs are handed out with `--gpus`. With no GPUs, the container sees none even under an NVIDIA default runtime. |
 | `--mount` | Written as a CSV row; a missing source is refused by docker rather than created. |
@@ -134,11 +134,15 @@ Validation, in `__post_init__` (`ValueError`):
 | `start()` error | Message |
 | --- | --- |
 | `docker run` failed | `RuntimeError: could not start a container of <image> on <endpoint>: <stderr>` |
+| the daemon did not answer in time: 60 s for `docker info`, 600 s for `docker run`, which may pull its image first | `TimeoutError: docker did not answer within <n>s` (`OSError` `ETIMEDOUT`) |
 | the container is not Linux | `RuntimeError: the machine at docker://<name> cannot serve linux: it says it is <platform>` |
 | the container cannot serve the workspace | `OSError` from the workspace check |
 
-`stop()` runs `docker rm --force <id from the cidfile>` (never a container it did not create)
-and removes the temporary directory.
+A `docker run` given up on may still make its container once the daemon gets to it; no id came
+back for it, so `stop()` cannot remove it, and whoever named it can look for it by that name.
+
+`stop()` runs `docker rm --force <id from the cidfile>` (never a container it did not create;
+60 s, past which the container is left) and removes the temporary directory.
 
 <small>Defined in [`src/hmz/coganchor/machines/docker.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/docker.py), [`src/hmz/coganchor/machines/anchored.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/anchored.py).</small>
 
@@ -480,12 +484,20 @@ docker@gpubox's GPUs have 24 GiB each, and 'box' asks for 40 GiB
 | Start failure | Error |
 | --- | --- |
 | no `docker` here | `EnvUnavailable: docker@<p>: docker was not found on this machine` |
-| daemon not answering | `EnvConnectionError: could not connect to docker@<p>: …` |
+| daemon not answering: 60 s for each question, 600 s for `docker run`, which may pull the image first | `EnvConnectionError: could not connect to docker@<p>: …` |
 | container would not start | `EnvUnavailable: docker@<p>: could not start a container of <image> on <endpoint>: …` |
 | workdir missing on the daemon's host | `EnvUnavailable: docker@<p> has no <path> to run a container: …` |
 
 These and the shortages above name a saved runtime `docker@<p>`, and docker's default here
 `docker` alone.
+
+A daemon that is slow rather than gone can still make the container after `docker run` was
+given up on. So before the error is raised, `docker inspect --type container <name>` (60 s)
+looks for it by its exact name, and `docker rm --force <id>` removes it only where its labels
+say this user, this host and this process. Anything else of that name is left alone, and so is
+a container the daemon makes later still. Closing removes the container with `docker rm
+--force` (60 s); one the daemon does not remove in time is left, labelled with this process,
+for the next run to sweep once the process has gone.
 
 A run killed outright leaves its container; the next run on that runtime from the same user
 and host removes it. To remove humanize containers by hand:
@@ -560,8 +572,9 @@ harness, files, derived environments -- is as for a [docker environment](#docker
 | Labels | on the service: those of a docker environment's container |
 | Reached | `docker exec` against: the daemon the runtime's `nodes` names for the node's host, else the manager's own where the task landed on the manager, else `ssh://<the node's address>` (docker's ssh transport, as this machine's `ssh` resolves it) |
 
-Allocation, done while holding an exclusive `flock` on
-`$TMPDIR/humanize-<uid>/.swarm.<name>.lock` until the task runs:
+Allocation holds an exclusive `flock` on `$TMPDIR/humanize-<uid>/.swarm.<name>.lock` while
+what is free is worked out and the service is created, and not while its task is placed and
+comes up: the service counts against the runtime from the moment it is created.
 
 1. `docker info` of the manager: `Swarm.LocalNodeState` must be `active` and
    `Swarm.ControlAvailable` true, else `EnvUnavailable`.
@@ -579,11 +592,13 @@ swarm@cluster has 8 GiB of 64 GiB of memory free, and 'box' asks for 16 GiB (…
 swarm@cluster hands out no GPUs, and 'box' asks for 1: say which generic resource its nodes advertise them as in the runtime's gpu_resource
 ```
 
-4. `docker service create`, then the task is followed (`docker service ps`, `docker inspect
-   --type task`) until it runs. Left pending with `no suitable node`, it raises `ResourceUnmet`
-   at once where no ready, active node has as many CPUs, as much memory and as many of the
-   generic resource as it reserves, and after 30 s otherwise; either way the service is
-   removed first:
+4. `docker service create` (600 s, since it asks a registry which image that is), then the lock
+   is let go of and the task followed (`docker service ps`, `docker inspect --type task`, 60 s
+   each) until it runs, so the environments of one run, and other runs, on the runtime come up
+   side by side; a run sizing the runtime meanwhile counts the service all the same. Left
+   pending with `no suitable node`, it raises `ResourceUnmet` at once where no ready, active
+   node has as many CPUs, as much memory and as many of the generic resource as it reserves,
+   and after 30 s otherwise; either way the service is removed first:
 
 ```text
 swarm@cluster: no node of the swarm has 1000 CPUs: the most any of its 3 nodes that may take a task has is 64 CPUs and 270582939648 bytes (no suitable node (insufficient resources on 3 nodes))
@@ -593,7 +608,7 @@ swarm@cluster: no node took it within 30s: no suitable node (insufficient resour
 | Start failure | Error |
 | --- | --- |
 | the manager manages no active swarm | `EnvUnavailable: swarm@<p> is in no active swarm: its swarm is inactive`, or `swarm@<p> is a worker of its swarm, and only a manager can be asked` |
-| manager not answering | `EnvConnectionError: could not connect to swarm@<p>: …` |
+| manager not answering: 60 s for each question, 600 s for `docker service create` | `EnvConnectionError: could not connect to swarm@<p>: …` |
 | service would not be created | `EnvUnavailable: swarm@<p>: could not create a service of <image> on <endpoint>: …` |
 | the node has no such workdir | `EnvUnavailable: swarm@<p>: no directory to give the task on the node it landed on: …` |
 | task failed, or not running within 600 s | `EnvUnavailable: swarm@<p>: the task of <service> is failed: …` |
@@ -601,6 +616,11 @@ swarm@cluster: no node took it within 30s: no suitable node (insufficient resour
 
 These and the shortages above name a saved runtime `swarm@<p>`, and the swarm this machine
 manages `swarm` alone.
+
+A `docker service create` given up on is followed, before the error is raised and still
+holding the runtime, by `docker service inspect <name>` (60 s), and the service is removed by
+its id (`docker service rm`) only where its labels say this user, this host and this process,
+as for a [docker environment](#docker-environments).
 
 To remove humanize services by hand:
 
@@ -1206,9 +1226,12 @@ service labelled `humanize`; `nodes(endpoint="local", seconds=None)` returns eac
 it advertises by kind; and `swarm_of(info, where)` the manager's node id, or `OSError` where the
 daemon manages no active swarm. `SwarmConfig(image, workspace, endpoint, name, user, cpus,
 memory, generic, constraints, nodes, traced, run_args, env, labels, placing=30.0,
-starting=600.0).create()` is the `Swarm` machine a swarm environment starts: its `start()`
-raises `Unplaced` (a `RuntimeError`) for a task no node took, and sets `placed` to the
-`Placed(node, container, daemon)` it landed on.
+starting=600.0).create()` is the `Swarm` machine a swarm environment starts: its `submit()`
+creates the service without waiting for its task, once however often it is called, and returns
+its id, raising `TimeoutError` where the manager does not say what it is within 60 s or create
+the service within 600 s; its `start()` submits where `submit()` has not, raises `Unplaced` (a
+`RuntimeError`) for a task no node took, and sets `placed` to the `Placed(node, container,
+daemon)` it landed on.
 
 `hmz.coganchor.machines.apple_container` has the same for this Mac's Apple containers:
 `allocations(labels=None, *, seconds=None)` reads an `Allocation` (with no GPUs) off every
