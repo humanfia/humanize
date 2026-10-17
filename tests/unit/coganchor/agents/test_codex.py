@@ -50,8 +50,13 @@ def _item(method: str, thread: str, turn: str, **item: Any) -> dict[str, Any]:
     }
 
 
-def _says(*items: dict[str, Any], total: tuple[int, int] = (0, 0)) -> _Turn:
-    """A turn that says these items, spends `total` on the thread, and falls idle."""
+def _says(
+    *items: dict[str, Any], total: tuple[int, int] = (0, 0), cached: int = 0
+) -> _Turn:
+    """A turn that says these items, spends `total` on the thread, and falls idle.
+
+    `cached` is how much of that input the server says was read from the cache.
+    """
 
     def turn(proc: Process, thread: str, turn: str) -> None:
         proc.say(
@@ -72,9 +77,14 @@ def _says(*items: dict[str, Any], total: tuple[int, int] = (0, 0)) -> _Turn:
                         "tokenUsage": {
                             "total": {
                                 "inputTokens": total[0],
+                                "cachedInputTokens": cached,
                                 "outputTokens": total[1],
                             },
-                            "last": {"inputTokens": total[0], "outputTokens": total[1]},
+                            "last": {
+                                "inputTokens": total[0],
+                                "cachedInputTokens": cached,
+                                "outputTokens": total[1],
+                            },
                         },
                     },
                 }
@@ -408,6 +418,20 @@ def test_a_turn_says_what_the_agent_did_and_what_it_cost(
     assert result.tokens == {"gpt-x": 150}
     assert dict(result.spent) == {"input": 120, "output": 30}
     assert session.spent().total == 150
+
+
+def test_cached_input_is_counted_beside_the_input_not_inside_it(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    # The server counts cached reads inside `inputTokens`; priced as plain input they put an
+    # agent's bill several times over the truth, so they are reported as `cache_read`.
+    server.turns = [_says(_message("done"), total=(1000, 30), cached=900)]
+    session = _agent().new(tmp_path)
+    result = list(session.stream("hi"))[-1]
+    assert result.tokens == {"gpt-x": 1030}
+    assert dict(result.spent) == {"input": 100, "cache_read": 900, "output": 30}
+    assert session.spent().total == 1030
+    assert "cache_read" in CodexAgent.counts
 
 
 @pytest.mark.parametrize(
