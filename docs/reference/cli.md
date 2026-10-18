@@ -766,6 +766,10 @@ where humanize keeps them.
 | --- | --- |
 | the program's | it ran |
 | `1` | it could not be supervised (`hmz internal cred: <why>`); it is never run unsupervised |
+
+It exits as soon as `COMMAND` does. What `COMMAND` left running after its parent exited is not
+killed, and stays supervised until it exits
+([Providers › How a credential path is answered](/reference/providers#how-a-credential-path-is-answered)).
 | `2` | no program (`no program given; try `hmz internal cred --map FROM=TO -- claude``); no `--map`/`--keep` (`nothing to answer with anything: give at least one --map or --keep`); a malformed mapping |
 
 ### `hmz internal fence` {#hmz-internal-fence}

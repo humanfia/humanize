@@ -218,7 +218,9 @@ env machine.
 **5.1.6** The common signals, `SIGINT` and `SIGTERM` among them, MUST travel both ways between
 the agent and the commands it runs on the env machine.
 
-**5.1.7** A program that hmz started for a session MUST NOT outlive the session.
+**5.1.7** A program that hmz started for a session MUST NOT outlive the session, unless it left
+the session while the session ran: a program whose parent, or one of its parent's parents below
+the harness program, exited before the harness program did MAY outlive the session.
 
 **5.1.8** Under harness location env the harness program, every program it starts and every file
 it touches MUST be the env machine's.

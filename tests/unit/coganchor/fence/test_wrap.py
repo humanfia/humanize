@@ -12,7 +12,6 @@ from hmz.coganchor import fence as fencing
 from hmz.coganchor.darwin.seatbelt import SANDBOX_EXEC
 from hmz.coganchor.fence import Fence, wrap
 from hmz.coganchor.fence.wrap import CACHES, PROXIES, environ, run
-from hmz.coganchor.providers import redirect
 
 TMP = "/tmp/hmz-fence-scratch"
 
@@ -118,15 +117,11 @@ def test_a_mac_run_keeps_only_its_security_cache_writable_when_available(
         assert (pid, options) == (-1, 0)
         return 123, 7 << 8
 
-    def swept(pid: int) -> None:
-        assert pid == 123
-
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(fencing, "enforceable", enforceable)
     monkeypatch.setattr(os, "confstr", confstr, raising=False)
     monkeypatch.setattr(os, "posix_spawn", spawn, raising=False)
     monkeypatch.setattr(os, "waitpid", waited, raising=False)
-    monkeypatch.setattr(redirect, "swept", swept)
 
     assert run(Fence(read=("/r",), write=("/w",), tmp=scratch), ["prog", "arg"]) == 7
     assert asked == [65538]

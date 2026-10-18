@@ -34,7 +34,7 @@ from hmz.coganchor.pathcalls import LOOKS, MAKES, PATHS
 from hmz.coganchor.policy import parents
 
 from ._staging import Staging
-from .redirect import UNSWAPPABLE, failed, head
+from .redirect import UNSWAPPABLE, head
 
 if TYPE_CHECKING:
     from hmz.coganchor.linux.ptrace import Registers
@@ -155,7 +155,16 @@ class Tracing:
         self._registers = ptrace.blank()
         self._peek = procfs.Peek()
         self._root = 0
-        self._status = 1
+        #: Which process started each process being watched, and which process each thread
+        #: is one of: a process started by a thread is its process's, and goes on when the
+        #: thread does.
+        self._parents: dict[int, int] = {}
+        self._threads: dict[int, int] = {}
+        #: The processes that went while the program ran, which what they started left it by.
+        self._gone: set[int] = set()
+        #: Whether the program is over, and the processes that went with it.
+        self._over = False
+        self._doomed: set[int] = set()
 
     def trapped(self) -> list[int]:
         """The syscalls the filter has to stop, which is every one that names a path."""
@@ -165,70 +174,54 @@ class Tracing:
         """Takes away the copies this run was answering reads with."""
         self._staging.close()
 
-    def watch(self, pid: int) -> int:
-        """Services one process and everything it starts, until the first of them exits.
+    def attach(self, pid: int) -> None:
+        """Takes on the program, which nothing is served to until :meth:`serve`.
 
         Args:
-          pid: The process, stopped at the `SIGSTOP` it raised before it became the program.
-
-        Returns:
-          Its exit status, or 128 plus the signal that killed it.
+          pid: The program, which has said this process may trace it, before it installs the
+            filter and becomes itself.
         """
+        ptrace.seize(pid)
         self._root = pid
-        os.waitpid(pid, 0)  # the stop it raised for us, before it exec'd anything
-        ptrace.setoptions(pid)
         self._watching[pid] = True
 
-        # A signal aimed at this process is aimed at the program under it: whatever asked for
-        # it -- a flow taking a session down, a service manager -- asked for the agent to
-        # stop, and this is only the thing holding its paths. So it is passed on rather than
-        # acted on: dying here would leave the agent running with nobody answering its
-        # credential paths. `SIGINT` is the exception, and is ignored: a ctrl-c at a terminal
-        # already reaches the whole group, so passing it on would deliver it twice.
-        def passed(said: int, _frame: object) -> None:
-            with contextlib.suppress(OSError):
-                os.kill(pid, said)
+    def serve(self) -> None:
+        """Services the program and everything it starts, until the last of them is over.
 
-        # Put back once the program is over, for a caller that goes on in this process --
-        # which `hmz internal cred` called from the CLI's own `main` is.
-        was: dict[int, Any] = {}
-        for said, then in (
-            (signal.SIGINT, signal.SIG_IGN),
-            (signal.SIGTERM, passed),
-            (signal.SIGQUIT, passed),
-            (signal.SIGHUP, passed),
-        ):
-            with contextlib.suppress(OSError, ValueError):
-                was[said] = signal.signal(said, then)
-        try:
-            _try(ptrace.cont, pid)
-            while self._watching:
-                try:
-                    got, status = os.waitpid(-1, ptrace.WALL)
-                except ChildProcessError:
-                    break
-                except InterruptedError:  # pragma: no cover -- retried by the loop
-                    continue
-                self._stopped(got, status)
-        finally:
-            for said, before in was.items():
-                with contextlib.suppress(OSError, ValueError):
-                    signal.signal(said, signal.SIG_DFL if before is None else before)
-        return self._status
+        The program being over is the turn being over, and what it started goes with it --
+        all but what left it while it ran: a process whose parent, or one of whose parent's
+        parents, went before the program did. That is a job a session detached from itself,
+        `setsid nohup ... &`, and it is served here until it is over too, since a tracee
+        with nobody answering its paths cannot open a file.
+        """
+        while self._watching:
+            try:
+                got, status = os.waitpid(-1, ptrace.WALL)
+            except ChildProcessError:
+                break
+            except InterruptedError:  # pragma: no cover -- retried by the loop
+                continue
+            self._stopped(got, status)
 
     def _stopped(self, pid: int, status: int) -> None:
         """Acts on one thing that happened to one of the processes being watched."""
         if os.WIFEXITED(status) or os.WIFSIGNALED(status):
             self._watching.pop(pid, None)
             self._owed.pop(pid, None)
-            if pid == self._root:
-                self._status = failed(status)
-                # The run is over the moment the program it was for is, rather than when the
-                # last thing it started is: waiting for those would be waiting on a daemon.
-                # What is still being traced goes with this process, which is what ptrace's
-                # own `EXITKILL` is for -- a process left running with nobody answering its
-                # credential paths would be one reading the wrong account's.
-                self._watching.clear()
+            if self._threads.pop(pid, None) is None and not self._over:
+                self._gone.add(pid)
+            if pid != self._root:
+                return
+            # What the program still has running goes with it rather than being waited for,
+            # which would be waiting on a daemon -- all but what left it.
+            self._over = True
+            for each in list(self._watching):
+                process = self._threads.get(each, each)
+                if not self._left(process):
+                    self._doomed.add(process)
+            for process in self._doomed:
+                with contextlib.suppress(OSError):
+                    os.kill(process, signal.SIGKILL)
             return
         if not self._watching.get(pid, False):
             # Its first stop, whether or not the fork event has arrived: attach here.
@@ -242,7 +235,7 @@ class Tracing:
             self._syscall(pid)
         elif event in (ptrace.EVENT_FORK, ptrace.EVENT_VFORK, ptrace.EVENT_CLONE):
             with contextlib.suppress(OSError):
-                self._watching.setdefault(int(ptrace.get_event_message(pid)), False)
+                self._born(pid, int(ptrace.get_event_message(pid)), event)
             _try(ptrace.cont, pid)
         elif event:
             _try(ptrace.cont, pid)
@@ -252,6 +245,33 @@ class Tracing:
             _try(ptrace.cont, pid)
         else:
             _try(ptrace.cont, pid, said)
+
+    def _born(self, pid: int, child: int, event: int) -> None:
+        """Writes down who started a new process or thread, from its parent's fork event."""
+        process = self._threads.get(pid, pid)
+        self._watching.setdefault(child, False)
+        # A clone is a thread more often than not, and a thread's parent is its process's.
+        if event == ptrace.EVENT_CLONE and procfs.parent_of(child) != process:
+            self._threads[child] = process
+            return
+        self._gone.discard(child)  # a pid that was somebody's once
+        self._parents[child] = process
+        if process in self._doomed:  # started as the turn was ending, and goes with it
+            self._doomed.add(child)
+            with contextlib.suppress(OSError):
+                os.kill(child, signal.SIGKILL)
+
+    def _left(self, process: int) -> bool:
+        """Whether a process left the program while it ran: one it came from went first.
+
+        One whose start was never seen is taken to be the program's own, which is what
+        everything but a process that left it is.
+        """
+        while process != self._root:
+            if process in self._gone:
+                return True
+            process = self._parents.get(process, self._root)
+        return False
 
     def _syscall(self, pid: int) -> None:
         """Rewrites the paths one stopped syscall names, and lets it run."""
