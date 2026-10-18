@@ -28,12 +28,15 @@ export function nameOf(path) {
 }
 
 /**
- * A button naming the workspace chosen, whose menu offers every other and opening one by path.
+ * A button naming the workspace chosen, whose menu offers every other and opening one by path --
+ * and, where asked, no workspace: a directory of its own, made for the epic when it starts.
  *
- * @param {string} chosen The workspace chosen to begin with, or "" for where `hmz web` started.
- * @param {(path: string) => void} changed Told the workspace picked.
+ * @param {string | null} chosen The workspace chosen to begin with, "" for where `hmz web`
+ *   started, or null for no workspace.
+ * @param {(path: string | null) => void} changed Told the workspace picked, null for none.
+ * @param {{ none?: boolean }} [offers] Whether no workspace is on offer.
  */
-export function workspacePicker(chosen, changed) {
+export function workspacePicker(chosen, changed, { none = false } = {}) {
   const said = h('b', {}, '…')
   const button = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', 'data-tip': chosen }, icon('folder'), said, icon('down'))
   const folder = pathPicker({ label: 'Folder', placeholder: '~/project' })
@@ -47,8 +50,8 @@ export function workspacePicker(chosen, changed) {
 
   function set(to) {
     path = to
-    said.textContent = nameOf(to)
-    button.dataset.tip = to
+    said.textContent = to === null ? 'No workspace' : nameOf(to)
+    button.dataset.tip = to === null ? 'A new directory of its own, in the temporary directory' : to
   }
 
   menu(
@@ -57,6 +60,7 @@ export function workspacePicker(chosen, changed) {
       section('Workdirs'),
       list.map((one) => choice({ label: one.name, about: one.path, chosen: one.path === path, glyph: 'folder', act: () => pick(one.path), close })),
       h('hr'),
+      none ? choice({ label: 'No workspace', about: 'A new directory of its own, in the temporary directory', chosen: path === null, glyph: 'file', act: () => pick(null), close }) : null,
       choice({ label: 'Open folder…', glyph: 'plus', act: () => open(), close }),
     ],
     { label: 'Workdirs' },
@@ -102,7 +106,7 @@ export function workspacePicker(chosen, changed) {
   workspaces().then(
     (answer) => {
       list = answer.workspaces
-      if (!path) path = answer.here
+      if (path === '') path = answer.here
       set(path)
     },
     // A daemon that cannot be reached: the view it is on says why.

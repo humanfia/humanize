@@ -16,6 +16,7 @@ import contextlib
 import re
 import secrets
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -767,6 +768,12 @@ def _acts(asked: Asked) -> dict[str, Any]:
     slot = _slot(asked)
     if asked.matched["do"] != "start":
         return asked.site.places.held(workspace, slot).asks(asked.matched["do"], said)
+    scratch = said.pop("scratch", False)
+    if not isinstance(scratch, bool):
+        raise Refusal("start takes scratch as bool.")
+    if scratch:
+        # Started in no workspace: in a directory of its own, made for it alone.
+        workspace = tempfile.mkdtemp(prefix="hmz-")
     from hmz.daemon import where
 
     from .flows import remembered
@@ -780,7 +787,7 @@ def _acts(asked: Asked) -> dict[str, Any]:
         # no flow's turn, and starting one ends no other.
         slot = where.chat()
     held = asked.site.places.held(workspace, slot, starts=True)
-    return held.asks("start", said) | {"slot": slot}
+    return held.asks("start", said) | {"slot": slot, "workspace": str(place.workspace)}
 
 
 def _btw(asked: Asked) -> dict[str, Any]:

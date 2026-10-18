@@ -8,6 +8,7 @@ workspace is opened by its path and forgotten again.
 from __future__ import annotations
 
 import re
+import tempfile
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -154,6 +155,37 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
         page.wait_for_url(re.compile(r".*#/epics/[^/]+$"))
         folder = page.locator(f"[data-hmz=workspace][data-path='{other}']")
         expect(folder.locator("[data-hmz=epic]")).to_contain_text("over there")
+        stop(page)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
+    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: str
+) -> None:
+    scratch = tmp_path / "temporary"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new?flow=chat")
+        page.locator("[data-hmz=workspace-picker]").click()
+        page.get_by_role("menuitem", name="No workspace").click()
+        expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text(
+            "No workspace"
+        )
+        page.wait_for_url(re.compile(r".*scratch=1.*"))
+
+        page.get_by_role("button", name="Options").click()
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_value("claude-haiku-4-5")
+        page.locator("[data-hmz=composer-text]").fill("nowhere in particular")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+$"))
+        # Under a folder of its own, made in the temporary directory.
+        made = f"[data-hmz=workspace][data-path^='{scratch.resolve()}/hmz-']"
+        expect(page.locator(made).locator("[data-hmz=epic]")).to_contain_text(
+            "nowhere in particular"
+        )
         stop(page)
 
 
