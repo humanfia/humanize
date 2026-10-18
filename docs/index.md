@@ -99,6 +99,9 @@ uv tool install 'hmz[all]'
 
 :::
 
+To try it without installing, type `uvx hmz` wherever this page says `hmz`
+([more](/user/installation#uvx)).
+
 ### Make a scratch repository
 
 `calc.py` subtracts where it should add. That bug is the work.

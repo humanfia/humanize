@@ -74,6 +74,21 @@ nothing to run here. It keeps `hmz` at its own version, so with the app, update 
 than `hmz`.
 :::
 
+### Or run it without installing {#uvx}
+
+`uvx` runs `hmz` from an environment uv makes and caches, with nothing put on your `PATH`.
+Every argument after `hmz` goes to it:
+
+```sh
+uvx hmz                          # the terminal interface, in this repository
+uvx hmz web                      # every epic on this machine, in a browser
+uvx hmz@latest                   # the newest release, rather than the one uv cached
+uvx --from 'hmz[all]' hmz        # with the extras below
+```
+
+Each line is a whole `hmz` command, so type `uvx hmz` wherever these pages say `hmz`. `hmz
+update` does not apply here: `uvx hmz@latest` is how this way moves to a new release.
+
 ### Three backends need an extra {#the-two-backends-that-are-extras}
 
 Skip this unless you want DeepSeek Harness, Kimi Code or litellm. Each needs a Python package in
