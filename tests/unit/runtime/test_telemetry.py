@@ -519,15 +519,19 @@ def test_a_run_that_stands_still_is_reported_once(on: Sentry, quick: float) -> N
     assert int(on.scopes[0].tags["still"]) >= 0
 
 
-def test_a_run_that_keeps_moving_is_not_reported(on: Sentry, quick: float) -> None:
+def test_a_run_that_keeps_moving_is_not_reported(
+    on: Sentry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A whole second to stand still in, against stirs a few hundredths apart: a runner that
+    # oversleeps by tenfold still stirs in time.
+    monkeypatch.setattr(telemetry, "HALT", 1.0)
     telemetry.start()
 
     with telemetry.Still("a flow") as still:
-        for _ in range(8):
-            time.sleep(quick / 4)
+        for _ in range(12):
+            time.sleep(0.05)
             still.stirred()
 
-    time.sleep(quick * 2)
     assert on.messages == []
 
 
