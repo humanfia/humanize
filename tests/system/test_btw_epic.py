@@ -32,7 +32,7 @@ CODE = "PURPLE-HIPPO-47"
 #: Each harness The Epic is tried on, at its cheapest model.
 CHEAPEST = {
     "claude": "claude-haiku-4-5-20251001:low",
-    "codex": "gpt-5.5:low",
+    "codex": "gpt-5.6-sol:low",
 }
 
 
