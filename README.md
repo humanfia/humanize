@@ -23,6 +23,13 @@ uv tool install 'hmz[all]'
 
 `hmz update` moves it to the newest release, keeping the extras it was installed with.
 
+Or run it without installing, from a copy uv caches -- `@latest` asks for the newest release:
+
+```sh
+uvx hmz@latest
+uvx --from 'hmz[all]' hmz web
+```
+
 ### Desktop app
 
 On macOS, `humanize-<version>-macos-universal.dmg` from the
