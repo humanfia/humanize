@@ -169,13 +169,10 @@ def _ended(proc: subprocess.Popen[str]) -> None:
     """
     import psutil
 
-    from hmz.coganchor.providers.redirect import swept
-
     if proc.poll() is not None:
         # Already gone and already reaped. Asking the operating system what is below that pid
         # now is asking about whoever holds it next, and signalling that is signalling a
         # stranger's work.
-        swept(proc.pid)
         return
     kin: list[psutil.Process] = []
     with contextlib.suppress(psutil.Error):
@@ -202,9 +199,6 @@ def _ended(proc: subprocess.Popen[str]) -> None:
     for one in alive:
         with contextlib.suppress(psutil.Error):
             one.kill()
-    # And what the turn was answering its credential paths out of: a supervisor takes its own
-    # copies away when it is done, and a supervisor that was killed here never got to.
-    swept(proc.pid)
 
 
 @contextlib.contextmanager
@@ -217,7 +211,7 @@ def _dropped(home: Home | None) -> Generator[None]:
             home.drop()
 
 
-def _reaped(proc: subprocess.Popen[str], swept: Callable[[int], None]) -> None:
+def _reaped(proc: subprocess.Popen[str]) -> None:
     """Ends a process and takes its exit status, so that neither is left behind.
 
     Killed and then waited on, rather than killed: a process nobody waits on stays in the
@@ -227,17 +221,11 @@ def _reaped(proc: subprocess.Popen[str], swept: Callable[[int], None]) -> None:
 
     Args:
       proc: The process to end, which may already have ended.
-      swept: What takes away the credential copies it was answering reads from. Handed in
-        rather than imported here, since this runs as a finalizer: a collection can run it
-        in the middle of an import, which would find the module it wants half made.
     """
     with contextlib.suppress(OSError):
         proc.kill()
     with contextlib.suppress(OSError):
         proc.wait()
-    # A turn under an account is run inside a supervisor, and the copies it was answering
-    # credential paths out of are what it takes away when it exits. `SIGKILL` exits nothing.
-    swept(proc.pid)
 
 
 #: What a turn is told when its backend has no way of being held to a shape. The schema is the
@@ -3408,9 +3396,7 @@ class StreamSessionBase(SessionBase):
         # The one before it is let go, or a long flow keeps every process it ever started.
         if self._reaper is not None:
             self._reaper.detach()
-        from hmz.coganchor.providers.redirect import swept
-
-        self._reaper = weakref.finalize(self, _reaped, started, swept)
+        self._reaper = weakref.finalize(self, _reaped, started)
         return started
 
     def _relodged(self) -> bool:

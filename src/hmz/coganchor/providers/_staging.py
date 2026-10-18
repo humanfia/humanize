@@ -21,10 +21,9 @@ that has been rotated away.
 
 It is a cache of a secret, so the directory is this user's alone -- `0700`, holding files at
 `0600`, under a name nobody can guess -- and it is unlinked when the run ends. Which is not
-every way a run ends: a turn is ended by killing the supervisor, and `SIGKILL` runs no
-teardown. So it is swept from both ends as well -- by whoever killed one, the moment it has
-been waited on, and by the next run before it makes a directory of its own -- and what is
-left over in the meantime is bounded at the directories of runs that are already over.
+every way a run ends: a supervisor killed by name runs no teardown. So it is also swept by the
+next run before it makes a directory of its own, and what is left over in the meantime is
+bounded at the directories of runs that are already over.
 """
 
 from __future__ import annotations
@@ -244,29 +243,22 @@ class Staging:
         return self._at
 
 
-def swept(only: int = 0) -> None:
+def swept() -> None:
     """Takes away what a run that was killed outright left behind.
 
     Teardown belongs to the run that made the directory, and a run can end in a way that runs
-    none: a turn is ended by killing the supervisor, and `SIGKILL` runs nothing. So this is
-    the other half of it, and is called from both ends -- by whoever killed a supervisor, the
-    moment it has been waited on, and by the next run before it makes a directory of its own,
-    which is what covers a driver that was killed too.
+    none: a supervisor killed by name runs nothing. So this is the other half of it, called by
+    the next run before it makes a directory of its own.
 
     The name carries the process id of the run that made it, and one of ours whose run is
     gone is a directory nobody is reading. A pid that has come round to somebody else is left
     alone, which leaks that one directory rather than risk taking the credentials away from a
     run that is reading them this moment.
-
-    Args:
-      only: The run to sweep up after, by the process id of its supervisor, or 0 for every
-        one of ours whose run is over.
     """
-    wanted = f"{_CALLED}{only}-" if only else ""
     with contextlib.suppress(OSError), os.scandir(_ROOT) as entries:
         for entry in entries:
             said = _MINE.match(entry.name)
-            if said is None or (wanted and not entry.name.startswith(wanted)):
+            if said is None:
                 continue
             try:
                 if not entry.is_dir(follow_symlinks=False):

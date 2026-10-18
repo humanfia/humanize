@@ -173,22 +173,18 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
         pid = os.fork()
         if not pid:
             _become(fence, argv, env, tmp, (port, theirs), (parent, libc))
-        try:
-            if ours is not None and theirs is not None:
-                theirs.close()
-                with ours:
-                    # Nothing where the child failed before it could hand the listener up,
-                    # and then it exits unfenced rather than runs: it is waited for as it is.
-                    _, handed, _, _ = socket.recv_fds(ours, 1, 1)
-                if handed:
-                    from hmz.coganchor.fence.loopback import Supervisor
+        if ours is not None and theirs is not None:
+            theirs.close()
+            with ours:
+                # Nothing where the child failed before it could hand the listener up, and
+                # then it exits unfenced rather than runs: it is waited for as it is.
+                _, handed, _, _ = socket.recv_fds(ours, 1, 1)
+            if handed:
+                from hmz.coganchor.fence.loopback import Supervisor
 
-                    supervisor = Supervisor(handed[0])
-                    supervisor.start()
-            status = _waited(pid)
-        finally:
-            _swept(pid)
-        return _status(status)
+                supervisor = Supervisor(handed[0])
+                supervisor.start()
+        return _status(_waited(pid))
     finally:
         if supervisor is not None:
             supervisor.stop()
@@ -229,11 +225,7 @@ def _seatbelted(fence: Fence, argv: Sequence[str]) -> int:
             profile.command(argv),
             environ(fence, os.environ, tmp=tmp, port=port),
         )
-        try:
-            status = _waited(pid)
-        finally:
-            _swept(pid)
-        return _status(status)
+        return _status(_waited(pid))
     finally:
         if proxy is not None:
             proxy.stop()
@@ -246,21 +238,6 @@ def _status(status: int) -> int:
     if os.WIFEXITED(status):
         return os.WEXITSTATUS(status)
     return 128 + os.WTERMSIG(status) if os.WIFSIGNALED(status) else 1
-
-
-def _swept(pid: int) -> None:
-    """Takes away what a supervisor inside left of a credential in memory.
-
-    Where the program was `hmz internal cred` and was killed before it could take it away
-    itself. Nothing where there are no providers to have supervised one: a target humanize was
-    bootstrapped onto fences the commands it runs with this same wrapper, and carries no
-    accounts -- the bundle it runs from leaves them out.
-    """
-    try:
-        from hmz.coganchor.providers.redirect import swept
-    except ImportError:
-        return
-    swept(pid)
 
 
 def _become(
