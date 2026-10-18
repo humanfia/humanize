@@ -18,12 +18,15 @@ export function mount(root, { query }) {
   const resume = query.get('resume') || ''
   const picker = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'flow-picker' }, h('span', {}, 'flow'), h('b', {}, '…'), icon('down'))
   const pickerHolder = h('div', { class: 'menu-holder' }, picker)
-  // Where the epic runs: the workspace the address names, or the one an epic picked up ran in.
-  let workspace = query.get('workspace') || ''
-  const place = workspacePicker(workspace, (path) => {
-    workspace = path
+  // Where the epic runs: the workspace the address names, or the one an epic picked up ran in --
+  // or none, a directory of its own made as it starts, set up as where `hmz web` started is.
+  let scratch = query.get('scratch') === '1'
+  let workspace = scratch ? '' : query.get('workspace') || ''
+  const place = workspacePicker(scratch ? null : workspace, (path) => {
+    scratch = path === null
+    workspace = path || ''
     load(query.get('flow') || '')
-  })
+  }, { none: true })
   const greeting = h('h2', { class: 'greeting' }, resume ? 'Resume epic' : 'What should the agents do?')
   const about = h('p', { class: 'greeting-about' })
   const options = h('div', { class: 'options', id: 'options', hidden: true, 'data-hmz': 'options' })
@@ -84,12 +87,13 @@ export function mount(root, { query }) {
 
   /** Reads what a workspace offers -- its flows, and the one it last set up -- and opens one. */
   async function load(flow) {
-    const mine = (loading = workspace || 'here')
+    const mine = (loading = scratch ? 'none' : workspace || 'here')
     fill(box.said)
     try {
       const ran = resume ? await get(`/api/runs/${encodeURIComponent(resume)}`) : null
       if (mine !== loading) return
       if (ran && !workspace) {
+        scratch = false
         workspace = ran.workspace
         place.set(workspace)
       }
@@ -117,7 +121,7 @@ export function mount(root, { query }) {
     const at = workspace
     run = ran
     // The address of a dialog opened over it is the dialog's own.
-    if (!covered()) stays({ workspace, flow: name, resume: ran ? ran.name : '' })
+    if (!covered()) stays({ workspace: scratch ? '' : workspace, scratch: scratch ? '1' : '', flow: name, resume: ran ? ran.name : '' })
     fill(picker.querySelector('b'), name)
     let read
     try {
@@ -234,8 +238,8 @@ export function mount(root, { query }) {
     }
     // A chat is a new chat's, on a host of its own beside every other epic here, as a chat app's
     // new chat leaves the last one going; the answer says which host, which the page follows.
-    const started = await ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false })
-    go(address('/live', { workspace, slot: started.slot }))
+    const started = await ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false, ...(scratch ? { scratch } : {}) })
+    go(address('/live', { workspace: started.workspace, slot: started.slot }))
   }
 
   // Back from making an account or a runtime, the pickers offer it.

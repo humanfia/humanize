@@ -425,7 +425,11 @@ thousand spans.
 `+` the user pressed, and on the flow that workspace last ran.
 
 **8.2** The user MUST be able to pick any workspace the daemon shown serves, or to open one by its
-path with completion as it is typed.
+path with completion as it is typed, or to pick `No workspace`.
+
+**8.2.1** With `No workspace` picked, the form MUST offer the flows and the set-up of the
+workspace `hmz web` was started in, and starting MUST start the epic in a new directory made for it
+alone in the system's temporary directory.
 
 **8.3** The user MUST be able to pick any flow on offer in that workspace.
 

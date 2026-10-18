@@ -44,7 +44,8 @@ The app is a window, not a second humanize. It runs `hmz` as
 
 - **It starts in your home directory**, with the environment your login shell gives you, so
   `hmz` and the coding agent CLIs are found as a terminal finds them, and your home is the
-  directory a new epic is offered first.
+  directory a new epic is offered first. Pick **No workspace** for an epic that should work in
+  a new directory of its own, in the temporary directory, rather than in one of yours.
 - **It keeps its port.** `hmz web` listens on the port it had last time, so the page opens as
   you left it, in the [theme](/user/web#themes) you chose. A theme made in a browser is brought
   into the app by exporting it there and importing it here.
