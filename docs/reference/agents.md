@@ -806,8 +806,8 @@ spent=Usage())`.
 `agent.watch(listener)` registers `listener(agent, session | None, event)` for every session,
 which also sees `begins`, `ends` (bracketing a turn), `asks` (a [question](#questions)) and
 `notice` (humanize itself: a rate limit waited out, an account moved, a turn cut off, a wedged
-backend ended). With no watcher, a `notice` is written to stderr. A watcher that raises is
-reported as a snag and does not fail the flow.
+backend ended). With no watcher, a `notice` is written to stderr. A watcher that raises does
+not fail the flow.
 
 `claude` alone announces a tool while its arguments are still being written
 (`session.narrates`, `--include-partial-messages`, `ClaudeCodeAgentConfig.partial_messages`).

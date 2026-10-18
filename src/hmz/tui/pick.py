@@ -76,7 +76,6 @@ from hmz.coganchor.agents import SWARM, driver
 from hmz.coganchor.prices import money
 from hmz.coganchor.spelling import parted
 from hmz.flows import Budget
-from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
 from hmz.runtime.watching.monitor import lasting, thousands
@@ -1976,9 +1975,6 @@ class Drafts[T](Sheet[T]):
         if said == _KEEP:
             self.applied()
         elif said == _DROP:
-            # Answered a menu and then threw the answers away, which is somebody finding out
-            # that what they had done was not what they meant to do.
-            telemetry.snag("changes-dropped", sheet=type(self).__name__)
             self.dismiss(None)
         # And anything else is staying here, which is what a third answer is for.
 
@@ -6628,7 +6624,6 @@ class Providers(Pages):
           credentials for it -- it is the CLI as whoever is at this machine runs it -- so
           there is nothing here to do to it.
         """
-        telemetry.snag("key-does-nothing", sheet="Providers", doing=doing)
         return (
             f"cannot {doing} {escape(cli)} as local: humanize keeps no credentials "
             "for it"

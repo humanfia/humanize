@@ -35,7 +35,6 @@ from textual.message import Message
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
-from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs, read_back
 
 from .pick import (
@@ -1253,12 +1252,10 @@ class Flows(Drafts[Chosen]):
                 if one.required and not self._envs.get(one.name)
             )
         if missing:
-            telemetry.snag("save-refused", missing=len(missing))
             self._said = iffy(f"{escape(', '.join(missing))} is not configured yet")
             self._to_roles()
             return
         if self._budget is None and declared is not None and not declared.unbounded:
-            telemetry.snag("save-refused", missing=0)
             self._said = iffy("this flow requires a budget: set the budget first")
             self._to_roles()
             return

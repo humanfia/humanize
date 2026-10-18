@@ -3944,10 +3944,6 @@ class AgentBase(ABC):
         self._watchers: list[
             Callable[[AgentBase, SessionBase | None, Event], None]
         ] = []
-        #: The kinds of event a watcher has already failed on, so that one broken listener is
-        #: one report rather than one per thing the agent says. A watcher that raises on a
-        #: tool row raises on every tool row.
-        self._deafened: set[str] = set()
         #: What is hung on this agent's moments, which a flow adds to and takes from while
         #: the agent is running: the hooks are the flow's own callables rather than a table
         #: the backend read out of a settings file before anything started.
@@ -5741,7 +5737,6 @@ class AgentBase(ABC):
             signed in as -- the one failure this must not have.
         """
         from hmz.coganchor.backends import named
-        from hmz.runtime import telemetry
 
         if provider is None or not provider.name:
             return ()
@@ -5775,11 +5770,8 @@ class AgentBase(ABC):
                 "on another machine at without replacing its home -- so a turn driven there "
                 "would be taken as whatever account that machine is signed into"
             )
-        if stranded:
-            # It happened and the turn still runs as this account, which is what the variables
-            # and the projected roots are carrying. Said and not raised for that reason, and
-            # said without the path: which accounts somebody keeps do not leave the machine.
-            telemetry.snag("native-credential-stays-here")
+        # Where some of it is stranded and the rest is held, the turn still runs as this
+        # account, which is what the variables and the projected roots are carrying.
         return tuple(held)
 
     @property
@@ -5927,23 +5919,8 @@ class AgentBase(ABC):
         for listener in watching:
             try:
                 listener(self, session, event)
-            except Exception as why:  # noqa: BLE001 -- a watcher fails on its own account
-                with self._holding:
-                    if event.kind in self._deafened:
-                        continue
-                    self._deafened.add(event.kind)
-                # And the report is not a second thing that may take the turn down: this
-                # whole branch exists so that something looking at a flow cannot fail it, and
-                # a reporter that raised here would be the very failure it was reporting.
-                with contextlib.suppress(Exception):
-                    from hmz.runtime import telemetry
-
-                    telemetry.snag(
-                        "watcher-raised",
-                        backend=self.backend,
-                        kind=event.kind,
-                        why=type(why).__name__,
-                    )
+            except Exception:  # noqa: BLE001, S112 -- a watcher fails on its own account
+                continue
 
     def asked(self, question: Question) -> str | None:
         """Puts something a turn stopped to ask to whoever is driving this agent.

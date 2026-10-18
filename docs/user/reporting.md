@@ -1,7 +1,7 @@
 # Reporting
 
-humanize can send its developers a report when it crashes, and a count when something it did
-was undone or refused. This page says exactly what such a report holds, what it never holds,
+humanize can send its developers a report when it crashes, and when a run goes five minutes
+without any sign of progress. Nothing else is sent. This page says exactly what such a report holds, what it never holds,
 and how to turn it on or off. Read it before you answer the question `hmz` asks the first time
 it opens, or when you need to tell somebody what leaves your machine.
 
@@ -17,8 +17,8 @@ The first time you open `hmz`, it asks. Nothing is sent until you say yes:
 │  where in humanize it occurred; which flow was running, and    │
 │  what each agent was configured to run; which coding agents    │
 │  are installed, and account names; which skills and            │
-│  flowverses are active, by name; what humanize did that you    │
-│  undid, refused, or canceled; the version of humanize, of      │
+│  flowverses are active, by name; that a run went five minutes  │
+│  without any sign of progress; the version of humanize, of     │
 │  Python, and the operating system and architecture. Never      │
 │  sent: nothing you typed: no task, prompt, or command; no      │
 │  agent output, and nothing from any transcript or session      │
@@ -92,8 +92,8 @@ effort, the account <em>by name</em>, what it may do, and its skills by name.</l
 <li><strong>Which coding agents are installed, and account names</strong>, and how each
 account was signed in.</li>
 <li><strong>Which skills and flowverses are active</strong>, by name.</li>
-<li><strong>What humanize did that you undid, refused, or canceled</strong>, as
-<a href="#the-friction-it-counts">named events with counts</a>.</li>
+<li><strong>That a run went five minutes without any sign of progress</strong>, as
+<a href="#when-a-report-is-sent">a halt report</a>.</li>
 <li><strong>The versions of humanize and Python, and the operating system and
 architecture.</strong></li>
 </ul>
@@ -205,28 +205,19 @@ A machine nobody has asked sends nothing. Leaving the question unanswered is not
 - **On a machine set up by a script, or in CI:** set `HUMANIZE_SENTRY=off` where the runs
   start. Nothing in the settings file can then turn reporting on for them.
 
-## The friction it counts
+## When a report is sent
 
-Some things worth knowing are not errors: each of these is somebody finding that humanize does
-not work the way they expected. Each is sent as its name and the few counts or names in the
-last column, with the same description of the run as a crash. None records a word of what was
-typed.
+A report is sent for two things only, so that every one of them is a problem somebody has to
+fix:
 
-| Name | When | Carries |
+| Report | When | Carries |
 | --- | --- | --- |
-| `unknown-command` | a `/` line that is not a command | how long the name was |
-| `unknown-flow` | a `$` line that names no flow | how long the name was |
-| `nothing-started` | a task typed with no coding agent to run it | why |
-| `changes-dropped` | a menu answered, then its changes thrown away | which menu |
-| `save-refused` | a menu that would not save, a role or a budget still unset | how many roles were unset |
-| `key-does-nothing` | a key pressed on the Accounts page of `/settings` on this machine's own account, where it does nothing | which menu, and what was asked |
-| `line-refused` | a typed line the agent refused | how long its refusal was |
-| `lines-never-sent` | typed lines still waiting when the flow ended | how many |
-| `native-credential-stays-here` | an account whose files could not all go with a turn to another machine | nothing more |
-| `watcher-raised` | something watching an agent failed on one of its events | the CLI, the kind of event, the type of error |
+| crash | a run, or `hmz exec`, ends on an error inside humanize, or an error nothing in humanize catches | the error, and the description of the run above |
+| halt | a run you are watching goes five minutes without a word from any of its agents; time spent waiting for your answer does not count | how many seconds it stood still, and the description of the run above |
 
-Typing `/sttings` by mistake, say, sends `unknown-command` and the number 7, and nothing else
-of what you typed.
+Each kind of crash, raised at the same place, is sent once per process, and a run is reported
+as halted at most once. Nothing else is sent: no timings, no profiles, no log lines, and nothing
+about a key you pressed or a menu you closed.
 
 ## How the promise is kept
 
@@ -248,9 +239,7 @@ that the list above stays true:
   in a URL, a token in its query, a key in the shape a vendor mints it (`sk-`, `ghp_`, `ghs_`,
   `glpat-`, `hf_`, `AIza`), a JWT, a `Bearer` token, and a value named as a token, secret, key
   or password. Reports and exports use one list.
-- Timings and profiles are kept as plain as errors: each frame and each span that times code
-  is named as a frame of a report is, a span that ran a command is called `A command` and
-  loses its working directory, and every other string in them is put through the line above.
+- Nothing is timed or profiled, and `LoggingIntegration` is off: no log line becomes a report.
 - Only a process that started reporting reports: `hmz`, `hmz exec`, a run the daemon holds,
   and a script that called `Hmz().reports()`. A script that crashes without calling it sends
   nothing, whatever you answered.

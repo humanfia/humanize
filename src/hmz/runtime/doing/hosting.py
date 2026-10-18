@@ -1778,10 +1778,6 @@ class Host:
 
     def _unreached(self, current: _Run, given: _Given, because: str) -> None:
         """Puts a word back at the head of the queue, the agent never having taken it."""
-        from hmz.runtime import telemetry
-
-        # How long the refusal was and nothing of what it said: it is a backend's stderr.
-        telemetry.snag("line-refused", said=len(because))
         with self._lock:
             if given in self._given:
                 self._given.remove(given)
@@ -1842,10 +1838,6 @@ class Host:
         """Says what was still waiting when a run stopped or ended, and lets go of it."""
         if not (self._queue or self._given):
             return
-        from hmz.runtime import telemetry
-
-        # Counted rather than read: what they said is theirs.
-        telemetry.snag("lines-never-sent", how_many=len(self._queue) + len(self._given))
         self._record(
             {
                 "type": "dropped",

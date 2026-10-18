@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
+import contextlib
 import datetime
 import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
 import pydantic
 import pytest
@@ -33,7 +35,7 @@ from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES
 from hmz.runtime.runner import Line, Refused, Runner, read_line
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable, Generator, Iterable
 
 
 # ------------------------------------------------------------------ the line
@@ -714,10 +716,100 @@ def test_every_session_is_watched_through_each_driver_that_can_be(
     builder, reviewer = Agent(), Agent()
     runner = _runner(agents={"builder": builder, "reviewer": reviewer})
 
-    runner.watch(print)
+    heard: list[object] = []
 
-    assert builder.watched == [print]
-    assert reviewer.watched == [print]
+    def hears(*said: object) -> None:
+        heard.append(said)
+
+    runner.watch(hears)
+
+    (one,) = builder.watched
+    assert reviewer.watched == [one]
+    cast("Any", one)("agent", None, "event")
+    assert heard == [("agent", None, "event")]
+
+
+class Clock:
+    """`telemetry.Still`, as far as a run reaches into it."""
+
+    made: ClassVar[list[Clock]] = []
+
+    def __init__(self, doing: str) -> None:
+        self.doing = doing
+        self.stirs = 0
+        self.waits = 0
+        self.held = False
+        Clock.made.append(self)
+
+    def __enter__(self) -> Self:
+        self.held = True
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.held = False
+
+    def stirred(self) -> None:
+        self.stirs += 1
+
+    @contextlib.contextmanager
+    def away(self) -> Generator[None]:
+        self.waits += 1
+        yield
+
+
+class Asked:
+    def away_for(self, role: str) -> bool:
+        return False
+
+    async def run(self, prompt: str, output_schema: object, role: str) -> str:
+        return f"{role}: {prompt}"
+
+
+def test_a_watched_run_is_timed_by_what_its_agents_say_and_not_by_its_waits(
+    engine_: Flowing, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.runtime import telemetry
+
+    Clock.made.clear()
+    monkeypatch.setattr(telemetry, "Still", Clock)
+    builder = Agent()
+    runner = _runner(agents={"builder": builder})
+    runner.watch(print)
+    answered: list[object] = []
+
+    def flow(said: dict[str, Any]) -> str:
+        cast("Any", builder.watched[0])("agent", None, "event")
+        # On a loop of its own: the flow is called on the run's.
+        with concurrent.futures.ThreadPoolExecutor(1) as aside:
+            asking = said["outworlder"].run("ok?", None, "human")
+            answered.append(aside.submit(asyncio.run, asking).result())
+        assert said["outworlder"].away_for("human") is False
+        return "returned"
+
+    engine_.flow = flow
+    runner.run("task", outworlder=cast("Any", Asked()))
+
+    (clock,) = Clock.made
+    assert (clock.doing, clock.stirs, clock.waits, clock.held) == (
+        "a flow",
+        1,
+        1,
+        False,
+    )
+    assert answered == ["human: ok?"]
+
+
+def test_an_unwatched_run_is_not_timed(
+    engine_: Flowing, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.runtime import telemetry
+
+    Clock.made.clear()
+    monkeypatch.setattr(telemetry, "Still", Clock)
+
+    _runner().run("task")
+
+    assert Clock.made == []
 
 
 # ------------------------------------------------------------------ running
