@@ -1939,7 +1939,7 @@ Where neither `HUMANIZE_SENTRY` nor `settings.yaml` answers reporting, a [box](#
 
 Sent: the error and where in humanize it occurred; which flow was running, and what each agent
 was configured to run; which coding agents are installed, and account names; which skills and
-flowverses are active, by name; what humanize did that you undid, refused, or canceled; the
+flowverses are active, by name; that a run went five minutes without any sign of progress; the
 version of humanize, of Python, and the operating system and architecture. Never sent: nothing
 you typed (no task, prompt, or command); no agent output, and nothing from any transcript or
 session log; no files, directory names, or paths outside humanize itself; no keys, tokens, or

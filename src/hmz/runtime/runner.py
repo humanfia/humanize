@@ -41,6 +41,8 @@ if TYPE_CHECKING:
     import os
     from collections.abc import Callable, Iterable, Mapping
 
+    import pydantic
+
     from hmz.coganchor.agents import AgentBase, SessionBase
     from hmz.flows import Budget, EnvError, FlowParams, Usage
     from hmz.runtime.flowing import (
@@ -342,6 +344,10 @@ class Runner:
         #: it is probed, and then the runtime that held it.
         self._used = dict(self._places)
         self._recorder: Recorder | None = None
+        #: Whether anything hears the run's agents, and the clock what it hears stirs while the
+        #: run goes: a run nobody hears is one with no way to tell it from one standing still.
+        self._watched = False
+        self._still: telemetry.Still | None = None
         #: Held while the price list is brought up to date for this run, which is done once.
         self._pricing = threading.Lock()
         self._priced = False
@@ -666,10 +672,17 @@ class Runner:
         Args:
           listener: What to tell, from whichever thread a CLI is read on.
         """
+
+        def heard(agent: AgentBase, session: SessionBase | None, event: Any) -> None:
+            if (still := self._still) is not None:
+                still.stirred()
+            listener(agent, session, event)
+
+        self._watched = True
         for driver in self._agents.values():
             watch = getattr(driver, "watch", None)
             if callable(watch):
-                watch(listener)
+                watch(heard)
 
     # ------------------------------------------------------------------------- running
 
@@ -764,10 +777,19 @@ class Runner:
         recorder = Recorder(epic, opened, keeping.closed)
         self._recorder = recorder
         _GOING.add(self)
+        outworlder = outworlder or open_outworlder()
         try:
-            with epic:
+            with (
+                epic,
+                telemetry.Still("a flow")
+                if self._watched
+                else contextlib.nullcontext() as still,
+            ):
                 if started is not None:
                     started(epic)
+                if still is not None:
+                    self._still = still
+                    outworlder = _Waited(outworlder, still)
                 try:
                     return await run_flow(
                         impl,
@@ -776,7 +798,7 @@ class Runner:
                         envs=self._envs,
                         params=self._params,
                         budget=self._budget,
-                        outworlder=outworlder or open_outworlder(),
+                        outworlder=outworlder,
                         journal=epic.resume if impl.resumable else None,
                         resume=self._picked_up is not None,
                         local=local,
@@ -800,6 +822,7 @@ class Runner:
                         seconds=usage.duration.total_seconds(),
                     )
         finally:
+            self._still = None
             _GOING.discard(self)
             try:
                 await asyncio.shield(self._closed(local))
@@ -904,6 +927,30 @@ class Runner:
           What the flow returned.
         """
         return asyncio.run(self.arun(task, outworlder=outworlder))
+
+
+class _Waited:
+    """Whoever is outside a run, whose every wait holds the run's clock.
+
+    A person reading a question for ten minutes is a run waiting on them, not one standing
+    still.
+    """
+
+    def __init__(self, held: OutworlderDriver, still: telemetry.Still) -> None:
+        """Holds the outworlder asked, and the clock its waits hold."""
+        self._held = held
+        self._still = still
+
+    def away_for(self, role: str) -> bool:
+        """Whether nobody is there to answer as `role`, as the outworlder says."""
+        return self._held.away_for(role)
+
+    async def run(
+        self, prompt: str, output_schema: type[pydantic.BaseModel] | None, role: str
+    ) -> str | pydantic.BaseModel:
+        """Asks the outworlder, with the clock held until it answers."""
+        with self._still.away():
+            return await self._held.run(prompt, output_schema, role)
 
 
 class Recorder:

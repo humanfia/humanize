@@ -1,11 +1,12 @@
 """What humanize reports about itself when something goes wrong, and what it never reports.
 
-humanize is early. A crash on somebody else's machine is a crash nobody here sees, and an
-interaction that reads as obvious to whoever wrote it and as nonsense to whoever met it is not
-a crash at all -- so both are reported, and both are answered for once, by hand, on the first
-start.
+humanize is early. A crash on somebody else's machine is a crash nobody here sees, and nor is
+a run that stopped moving without stopping -- so both are reported, and both are answered for
+once, by hand, on the first start. Nothing else is: no timings, no profiles, no logged lines,
+no report of a key that did nothing. Every report is a failure somebody here has to fix, and a
+quota spent on anything else is a crash that arrives after it is spent and is never read.
 
-Two rules shape everything here.
+Three rules shape everything here.
 
 **Nothing is sent that a person would be surprised by.** What a flow was told, what an agent
 said back, what is in a file, what is in an account: none of it leaves this machine, and none
@@ -20,10 +21,14 @@ answers rather than two: on, off, and the absence that means nobody has been ask
 the interface asks, because only the interface has somebody to ask; a headless run reports if
 the answer is already yes and is silent otherwise. And only a process that started reporting
 reports: the interface, `hmz exec`, a host, or a program that called `Hmz().reports()`. One that
-only crashes, or only snags, says nothing -- a script that never asked to report is not one
+only crashes says nothing -- a script that never asked to report is not one
 that reports because somebody once answered yes in a terminal. `HUMANIZE_SENTRY=on|off`
 answers for one process without writing anything down, which is what a scripted install and
 this suite use.
+
+**Nothing is sent twice.** A crash is reported once per process for each kind of error at each
+place it is raised, and a halt once per run: a loop failing the same way a thousand times is
+one failure, and a thousand reports of it are what would leave no room for the next one.
 
 A leaf: it names nothing of humanize but the settings it reads and the home they are in, so
 every layer may report and none of them has to be reached into to do it. What goes with a
@@ -38,14 +43,18 @@ import os
 import re
 import sysconfig
 import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
+    from typing import Self
 
 __all__ = [
+    "HALT",
     "SENT",
+    "Still",
     "about",
     "again",
     "asked",
@@ -53,7 +62,6 @@ __all__ = [
     "enabled",
     "held",
     "scrubbed",
-    "snag",
     "start",
     "stop",
 ]
@@ -61,6 +69,11 @@ __all__ = [
 #: Where the reports go. humanize's own project, and the one thing here that is not a
 #: setting: a report that went somewhere else would be a report nobody who could fix it reads.
 DSN = "https://cd097c311af7e8db070f593f62697d62@o4511914126344192.ingest.us.sentry.io/4511914131324928"
+
+#: How many seconds a run may go without a word from any of its agents before it is reported
+#: as halted. Long enough that a turn thinking hard is not one, and short enough that a run
+#: wedged on a lock nobody will let go of is.
+HALT = 300.0
 
 #: What answers the question for one process without writing anything down: `on` or `off`.
 #: For a scripted install, for CI, and for this suite -- a run under it neither reports nor
@@ -75,7 +88,7 @@ SENT = (
     "which flow was running, and what each agent was configured to run",
     "which coding agents are installed, and account names",
     "which skills and flowverses are active, by name",
-    "what humanize did that you undid, refused, or canceled",
+    "that a run went five minutes without any sign of progress",
     "the version of humanize, of Python, and the operating system and architecture",
 )
 
@@ -182,6 +195,10 @@ _TELLING = threading.Lock()
 #: since what it holds is a thing that happens rather than a constant.
 _started: list[bool] = []
 
+#: Each crash already reported here, by its kind and where it was raised: the second of one is
+#: the first again.
+_crashed: set[tuple[str, ...]] = set()
+
 #: What was written down about reporting, read once. The same shape and the same reason: this
 #: is asked wherever a report might be made, which includes every key that did nothing.
 _answered: list[bool | None] = []
@@ -190,9 +207,8 @@ _answered: list[bool | None] = []
 def enabled() -> bool | None:
     """Whether humanize reports its own failures, and None while nobody has been asked.
 
-    Read once and kept, since this is asked on paths that are hot: every key that does
-    nothing is a `snag`, and a settings file parsed per keystroke is a settings file parsed
-    per keystroke. What is written down is settled for the life of the process, which is
+    Read once and kept: a settings file parsed per question is a settings file parsed per
+    question. What is written down is settled for the life of the process, which is
     what :func:`asked` and the settings menu say when they change it.
 
     Returns:
@@ -252,16 +268,9 @@ def start() -> bool:
     try:
         import sentry_sdk
         from sentry_sdk.integrations.argv import ArgvIntegration
-        from sentry_sdk.transport import HttpTransport
+        from sentry_sdk.integrations.logging import LoggingIntegration
     except ImportError:  # pragma: no cover -- an install missing its own dependency
         return False
-
-    class Scrubbing(HttpTransport):
-        """The SDK's own transport, which a profile reaches with no `before_send` on the way."""
-
-        def capture_envelope(self, envelope: Any) -> None:
-            _profiled(envelope)
-            super().capture_envelope(envelope)
 
     try:
         sentry_sdk.init(
@@ -281,25 +290,21 @@ def start() -> bool:
             # The machine is not named, and nor is the directory: a hostname is a person at a
             # company, and a working directory is the name of what they are building.
             server_name="",
-            traces_sample_rate=1.0,
-            profile_session_sample_rate=1.0,
-            # Profiled while something is running rather than for the life of the process:
-            # an interface sitting at a prompt is not work anybody needs a profile of.
-            profile_lifecycle="trace",
-            # The one default integration that would break the promise above: it attaches
-            # `sys.argv`, and `hmz exec -f ralph_loop -a agent=claude/... -p budget.cost=5
-            # "$(cat TASK.md)"` puts the whole task on it. Taken out here, and taken off again
-            # in `_before_send`, since a switch this load-bearing is worth being wrong about
-            # twice.
-            disabled_integrations=[ArgvIntegration()],
+            # Nothing is timed and nothing is profiled: each would be a report per run, and a
+            # quota spent on how long things took is one with no room left for what broke.
+            traces_sample_rate=0.0,
+            # Two default integrations taken out. One attaches `sys.argv`, and `hmz exec -f
+            # ralph_loop -a agent=claude/... -p budget.cost=5 "$(cat TASK.md)"` puts the whole
+            # task on it -- taken off again in `_before_send`, since a switch this load-bearing
+            # is worth being wrong about twice. The other makes a report of every line logged
+            # as an error, which is a line humanize already handled.
+            disabled_integrations=[ArgvIntegration(), LoggingIntegration()],
             # Off: each one imports its library wherever that is installed -- openai, mcp,
             # fastapi and more come with the extras -- which took a host's start, reporting
             # before it serves, past the seconds a frontend waits for it.
             auto_enabling_integrations=False,
             release=_version(),
             before_send=_before_send,
-            before_send_transaction=_before_send_transaction,
-            transport=Scrubbing,
         )
     except Exception:  # noqa: BLE001 -- a reporter that cannot start reports nothing
         return False
@@ -387,31 +392,81 @@ def crash(why: BaseException, **said: object) -> None:
         sentry_sdk.capture_exception(why)
 
 
-def snag(name: str, **said: object) -> None:
-    """Reports something that is not a failure and is not what anybody meant either.
+class Still:
+    """How long a run has gone without a word from any of its agents, watched while held.
 
-    A key that did nothing, a menu answered and then thrown away, a line refused, a run
-    stopped seconds after it started: none of it is an error, and all of it is somebody
-    finding out that humanize does not work the way they expected. That is the half of the
-    feedback a stack trace never carries, and on an early tool it is the more useful half.
+    Held for as long as the run goes, and watched on a thread only where :func:`start` has:
+    elsewhere the clock runs and nothing reads it. Whatever hears the run's agents says so with
+    :meth:`stirred`; a wait on somebody outside the run is held in :meth:`away`, since a person
+    reading a question is not a run that stopped. Reported once at most: a run that stood
+    still once is the one report of it worth having.
+    """
 
-    Only where :func:`start` has, as with :func:`crash`.
+    def __init__(self, doing: str) -> None:
+        """Starts the clock.
+
+        Args:
+          doing: What the run is, for the report: `a flow`.
+        """
+        self._doing = doing
+        self._heard = time.monotonic()
+        self._away = 0
+        self._done = threading.Event()
+
+    def __enter__(self) -> Self:
+        """Starts watching, where reporting has started."""
+        if _started:
+            threading.Thread(
+                target=self._watches, daemon=True, name="humanize-halt"
+            ).start()
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        """Stops watching: the run ended."""
+        self._done.set()
+
+    def stirred(self) -> None:
+        """Something in the run moved, which starts the clock again."""
+        self._heard = time.monotonic()
+
+    @contextlib.contextmanager
+    def away(self) -> Generator[None]:
+        """Holds the clock while the run waits on somebody outside it."""
+        self._away += 1
+        try:
+            yield
+        finally:
+            self._away -= 1
+            self.stirred()
+
+    def _watches(self) -> None:
+        """Waits for the run to end, and reports it once if it stands still for too long."""
+        while True:
+            left = HALT if self._away else self._heard + HALT - time.monotonic()
+            if self._done.wait(max(left, 0.0)):
+                return
+            still = time.monotonic() - self._heard
+            if not self._away and still >= HALT:
+                _halted(self._doing, still)
+                return
+
+
+def _halted(doing: str, still: float) -> None:
+    """Reports one run that stood still.
 
     Args:
-      name: What happened, as one hyphenated word -- `dead-key`, `changes-dropped`.
-      said: What is worth knowing about it: counts, which sheet, which key. Never what was
-        typed, and never what anything was called by anybody but humanize.
+      doing: What the run is.
+      still: For how many seconds nothing moved.
     """
     if not _started:
         return
     import sentry_sdk
 
     with sentry_sdk.isolation_scope() as scope:
-        scope.set_tag("snag", name)
-        for held_, value in said.items():
-            scope.set_tag(held_, _plainer(str(value)))
+        scope.set_tag("doing", doing)
+        scope.set_tag("still", str(round(still)))
         _attaches(scope)
-        sentry_sdk.capture_message(f"snag: {name}", level="warning")
+        sentry_sdk.capture_message("halt: no progress", level="error")
 
 
 def _attaches(scope: Any) -> None:
@@ -470,7 +525,8 @@ def _before_send(event: Any, hint: Any) -> Any:
       hint: What it was built from, which is not read.
 
     Returns:
-      The report to send, with what must not leave taken out of it.
+      The report to send, with what must not leave taken out of it -- or None for a crash of
+      a kind, raised at a place, already reported here.
     """
     del hint
     # `extra` is where the SDK's own integrations leave what they collected -- `sys.argv`
@@ -489,83 +545,36 @@ def _before_send(event: Any, hint: Any) -> Any:
     # Breadcrumbs are whatever anything logged on the way here, which is not a thing anybody
     # answered a question about.
     event.pop("breadcrumbs", None)
-    return event
+    return None if _again(event) else event
 
 
-def _before_send_transaction(event: Any, hint: Any) -> Any:
-    """The last thing every timing goes through: what a report goes through, and its spans.
+def _again(event: Any) -> bool:
+    """Whether a crash of this kind, raised here, has been reported already, noting it if not.
 
-    A transaction is a report without an exception and with spans, and a span says what was
-    timed in whatever words the integration that timed it chose. A subprocess span is named by
-    its command line, which for a turn is the task; one timed by its code names the file the
-    code is in. Both are put the way a report puts them.
+    Here rather than in :func:`crash`, since the SDK reports what nothing caught by itself.
 
     Args:
-      event: The transaction, as the SDK built it.
-      hint: What it was built from, which is not read.
+      event: The report, its frames already named.
 
     Returns:
-      The transaction to send, with what must not leave taken out of it.
+      True for the second of one: the same type, raised at the same line of the same file.
+      False for anything that is not a crash.
     """
-    event = _before_send(event, hint)
-    if event.get("transaction"):
-        event["transaction"] = _plainer(str(event["transaction"]))
-    trace: Any = event.get("contexts", {}).get("trace")
-    spans: list[Any] = [*event.get("spans", [])]
-    if isinstance(trace, dict):
-        spans.append(trace)
-    for span in spans:
-        _spanned(span)
-    for held_ in ("contexts", "tags"):
-        if held_ in event:
-            event[held_] = _plainly(event[held_])
-    return event
-
-
-def _spanned(span: dict[str, Any]) -> None:
-    """One span of a transaction, named the way a report may name it.
-
-    Args:
-      span: The span, changed in place.
-    """
-    if span.get("op") == "subprocess":
-        span["description"] = "A command"
-    elif span.get("description"):
-        span["description"] = _plainer(str(span["description"]))
-    if not isinstance(span.get("data"), dict):
-        return
-    data: dict[str, Any] = span["data"]
-    # Where the command ran, which is the project it ran in.
-    data.pop("subprocess.cwd", None)
-    if "code.filepath" in data:
-        where = _under(str(data["code.filepath"]))
-        data["code.filepath"] = _THEIRS if where is None else where
-        if where is None:
-            data.pop("code.function", None)
-            data.pop("code.namespace", None)
-    span["data"] = _plainly(data)
-
-
-def _profiled(envelope: Any) -> None:
-    """Each profile in what is about to be sent, its frames named as a report's are.
-
-    A profile is every frame that was running, sampled, which is a traceback many times over
-    -- and it reaches the transport with no `before_send` on its way, so it is put plain here.
-
-    Args:
-      envelope: What the SDK is sending, changed in place.
-    """
-    for item in envelope.items:
-        if item.type not in ("profile", "profile_chunk"):
-            continue
-        said: Any = item.payload.json
-        if not isinstance(said, dict):
-            continue
-        said = cast("dict[str, Any]", said)
-        for frame in said.get("profile", {}).get("frames", []):
-            _framed(frame)
-        item.payload.json = _plainly(said)
-        item.payload.bytes = None
+    values: list[Any] = event.get("exception", {}).get("values", [])
+    if not values:
+        return False
+    frames: list[Any] = values[-1].get("stacktrace", {}).get("frames", [])
+    last: Any = frames[-1] if frames else {}
+    seen = (
+        str(values[-1].get("type")),
+        str(last.get("filename")),
+        str(last.get("lineno")),
+    )
+    with _TELLING:
+        if seen in _crashed:
+            return True
+        _crashed.add(seen)
+        return False
 
 
 def _framed(frame: dict[str, Any]) -> None:

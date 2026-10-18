@@ -3103,7 +3103,6 @@ class Humanize(App[None]):
             return
         command = _BY_NAME.get(name)
         if command is None:
-            telemetry.snag("unknown-command", length=len(name))
             self.show(f"hmz: no such command: /{name}", "red")
             return
         if (kind := self._view_kind()) not in command.where:
@@ -3651,7 +3650,6 @@ class Humanize(App[None]):
             # Said the way `/nosuchcommand` is: the sigil was meant, and the name after it is
             # the half to correct. A path is not one of the answers -- it would swallow the
             # prose after it -- so `/flow` is where a flow of your own by path is reached.
-            telemetry.snag("unknown-flow", length=len(named))
             from hmz.runtime.flowing.verses import renamed
 
             # And a name said the way it was before the `@` is told what it is now, as `-f`
@@ -5077,9 +5075,6 @@ class Humanize(App[None]):
           task: What to start it on, which is already in the transcript.
         """
         if not self._set_up:
-            # Typed a task and nothing at all happened, which is the worst of these: it is
-            # somebody meeting humanize for the first time and getting a red line for it.
-            telemetry.snag("nothing-started", because="no coding agent installed")
             self.show("hmz: no coding agent is installed", "red")
             return
         self._flow(task)

@@ -16,8 +16,6 @@ import queue
 import subprocess
 from typing import TYPE_CHECKING, Any, Self
 
-from hmz.runtime import telemetry
-
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
@@ -251,14 +249,7 @@ class Spawner:
         self.started: list[Process] = []
         self.script: Callable[[Process], None] = lambda proc: proc.exit(127)
         self.heard: Callable[[Process, str], None] | None = None
-        #: What `hmz.runtime.telemetry` was asked to report, by name.
-        self.snags: list[str] = []
         monkeypatch.setattr(subprocess, "Popen", self._popen)
-        monkeypatch.setattr(telemetry, "snag", self._snag)
-
-    def _snag(self, name: str, **said: object) -> None:
-        del said
-        self.snags.append(name)
 
     def _popen(self, argv: list[str], **kwargs: Any) -> Process:
         proc = Process(argv, kwargs, self.heard)

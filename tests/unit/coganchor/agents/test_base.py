@@ -47,7 +47,6 @@ from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.faking import FakeCli, FakeCommand, FakeTool
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers.store import Provider
-from hmz.runtime import telemetry
 from tests.unit.coganchor.agents.doubles_core import (
     Scripted,
     Steered,
@@ -178,26 +177,18 @@ def test_a_watcher_is_told_which_session_said_it() -> None:
     assert {who for who, _ in told} == {agent}
 
 
-def test_a_watcher_that_raises_is_reported_once_per_kind(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    snags: list[tuple[str, dict[str, Any]]] = []
-
-    def snag(what: str, **why: Any) -> None:
-        snags.append((what, why))
-
-    monkeypatch.setattr(telemetry, "snag", snag)
+def test_a_watcher_that_raises_fails_nothing_and_the_next_watcher_still_hears() -> None:
     agent = Scripted()
+    heard: list[str] = []
 
     def broken(*_: object) -> NoReturn:
         raise KeyError("x")
 
     agent.watch(broken)
+    agent.watch(lambda _agent, _session, event: heard.append(event.kind))
     assert agent("one") == "done"
     assert agent("two") == "done"
-    assert [why["kind"] for _, why in snags] == ["begins", "result", "ends"]
-    assert {what for what, _ in snags} == {"watcher-raised"}
-    assert snags[0][1]["why"] == "KeyError"
+    assert heard.count("result") == 2
 
 
 def test_a_stream_yields_what_the_agent_said_ending_on_the_result() -> None:
