@@ -287,6 +287,12 @@ async def arms(task, *, agents, envs, params, ctx):
    To pick a given run up, name its epic: `Hmz().run(…, resume=<epic>)`, or *resume epic* on
    `/epics`.
 
+A run that is not a pick-up can be handed such a session too:
+`hmz exec --carry-on boundary=EPIC/AGENT/N` puts the conversation an earlier epic's session had
+into the state under `boundary`, as that epic left it, so the `ctx.state["boundary"]` above
+carries it on in a new epic -- after that epic was stopped or killed partway, or from a session
+it never wrote into its state ([Carrying a conversation on](/reference/cli#carrying-a-conversation-on)).
+
 Only a CLI that forks can be carried on this way, on this machine, and on the harness that kept
 it; [Sessions in state](/reference/flows#sessions-in-state) lists what is refused. Where a run
 keeps no sessions of its own (macOS, `HUMANIZE_SESSIONS=off`), a conversation the CLI's home has

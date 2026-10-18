@@ -3,9 +3,10 @@
 ## 1. Scope
 
 This specification defines how **hmz** starts, identifies, limits, stops, ends, records and picks
-up an **epic**: the loading of the **flow** the epic executes, the parameters and budget the epic
-is given, the setup a **workspace** remembers between epics, the states in which an epic ends,
-and how many epics execute at once in one workspace.
+up an **epic**, and how an epic carries on a conversation an earlier one had: the loading of the
+**flow** the epic executes, the parameters and budget the epic is given, the setup a **workspace**
+remembers between epics, the states in which an epic ends, and how many epics execute at once in
+one workspace.
 
 Out of scope:
 
@@ -57,6 +58,10 @@ of a workspace on **this machine**: the workspace host's, or one chat host's.
 
 **2.12** **Price list**: the list of per-token model prices kept on this machine
 (`features/monitoring.md` §3.3).
+
+**2.13** **Carrying a conversation on**: starting a new epic of a resumable flow whose top-level
+flow state holds, under a key the user names, a kept session (`api/flows.md` §2.18) of a session
+an earlier epic opened; the earlier epic is the **source** of that conversation.
 
 ## 3. Lifecycle
 
@@ -307,6 +312,54 @@ until it ends again, and MUST read back as having spent the sum of what each ope
 on this machine at the same absolute path and, where that workspace is a git repository and the
 epic recorded a commit, the repository holds that commit; the refusal MUST state which
 condition failed.
+
+### 3.8 Carrying a conversation on
+
+**3.8.1** Carrying a conversation on MUST be available only for an epic of a resumable flow.
+
+**3.8.2** The source MUST be named by an epic and a session of it: an epic name of the current
+workspace or the path of an epic directory, absolute or relative to the workspace, and the
+`<n>`th session, counting from 1 in the order they were opened, that the agent of a name opened
+in it.
+
+**3.8.3** hmz MUST copy the files of the conversation of the named session, as they are when the
+epic begins, from where the source's record of that session says it is kept, into the epic
+directory of the new epic (`api/files/epics.md` §9.7), and MUST NOT modify the source.
+
+> Informative: the record says the source's epic directory for a session a turn kept there, and
+> the harness's home for one the source kept no copy of, as on macOS or with
+> `HUMANIZE_SESSIONS=off`.
+
+**3.8.4** The copy MUST hold the files of that conversation and of every conversation it was
+forked from that the source keeps, and no other file of the source or of any harness home.
+
+**3.8.5** Before its flow is called, the top-level flow state of the new epic MUST hold, under
+the key named, a kept session of that copy, of the agent role that the source's agent filled, as
+though the flow had written it.
+
+**3.8.6** A conversation MUST be carried on whether the source ended done, failed or stopped, or
+its process was killed.
+
+**3.8.7** hmz MUST refuse to carry a conversation on, stating the reason and starting no epic,
+where the flow is not resumable, where the source is not found, where the source is running,
+where the source opened no such session, where the session's harness kept it on a machine other
+than this machine, where the source's record keeps it outside the source's epic directory and
+other than in a home of that harness, or calls it by other than a name of letters, digits, `_`,
+`.`, `:` and `-` beginning with a letter or digit, where the source no longer holds the
+conversation, where a file of the conversation is a symbolic link or is reached through one,
+where the conversation is kept in a home of that harness and a file of it is outside the
+directories that harness keeps its sessions in, or where the new epic has no agent of the same
+role and harness to carry it on.
+
+**3.8.8** An epic that picks up an epic that carried a conversation on MUST carry it on again
+from the copy of §3.8.3, as from any session written into flow state (§3.7.8).
+
+**3.8.9** Several epics MUST be able to carry on one conversation of one source, each from a copy
+of its own.
+
+**3.8.10** An epic that picks up an earlier epic and carries a conversation on under a key MUST
+hold, under that key, the kept session of §3.8.5 in place of what the picked-up flow state held
+under it.
 
 ## 4. Workspaces
 

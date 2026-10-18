@@ -114,7 +114,8 @@ class Hmz:
                budget: Budget | Mapping[str, Any] | None = None,
                profile_flow: bool = False, profile_environment: bool = False,
                resume: bool | str | os.PathLike[str] = False,
-               backup: Iterable[str] | None = None) -> Runner: ...
+               backup: Iterable[str] | None = None,
+               carry_on: Mapping[str, str] | None = None) -> Runner: ...
     def run(self, flow: str | os.PathLike[str], task: str, *,
             agents: Mapping[str, str | AgentDriver] | Iterable[AgentSpec] = (),
             envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
@@ -123,7 +124,8 @@ class Hmz:
             profile_flow: bool = False, profile_environment: bool = False,
             resume: bool | str | os.PathLike[str] = False,
             outworlder: OutworlderDriver | None = None,
-            backup: Iterable[str] | None = None) -> Run: ...
+            backup: Iterable[str] | None = None,
+            carry_on: Mapping[str, str] | None = None) -> Run: ...
     def exec(self, argv: list[str]) -> Any: ...
     def host(self, slot: str = "") -> Host: ...
 ```
@@ -262,6 +264,9 @@ identical in effect to the one `Hmz.exec` makes of the same `argv`.
 
 **4.5.19** Where each agent's harness runs MUST NOT be a parameter of `Hmz.run`: it MUST follow
 from the runtime the work is placed on, as `features/placements.md` states.
+
+**4.5.20** `carry_on` MUST map a state key to a conversation spelled as `--carry-on` spells one
+after `<key>=` (`api/cli.md` §7.9), and MUST mean what `--carry-on` means; `None` MUST mean none.
 
 ### 4.6 Executing a command line
 
@@ -1197,9 +1202,9 @@ Each type in this section is a returned type. Fields are listed in declaration o
 **20.1.1** `Line` MUST be a named tuple with the fields `flow: str`, `task: str`,
 `agents: tuple[AgentSpec, ...] = ()`, `envs: tuple[EnvSpec, ...] = ()`,
 `params: dict[str, str] = {}`, `budget: Budget | None = None`, `profile_flow: bool = False`,
-`profile_environment: bool = False`, `resume: bool = False`, `as_json: bool = False` and
-`backup: tuple[str, ...] | None = None`, each read from the `hmz exec` option of `api/cli.md`
-that sets it.
+`profile_environment: bool = False`, `resume: bool = False`, `as_json: bool = False`,
+`backup: tuple[str, ...] | None = None` and `carry_on: dict[str, str] = {}`, each read from the
+`hmz exec` option of `api/cli.md` that sets it.
 
 **20.1.2** `AgentSpec` MUST be a frozen dataclass with the fields `role`, `harness`, `provider`
 (`""` for this machine's own sign-in), `model`, `effort` (`""` for automatic) and `cli`, and

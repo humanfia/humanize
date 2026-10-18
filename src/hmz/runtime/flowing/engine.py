@@ -407,6 +407,11 @@ class FlowImpl:
             self._journaled(node, parent, task, views, env_views, params)
         elif self.resumable:
             node.state = FlowStateImpl({}, None, 0, Conversations(node, views))
+        if parent.impl is None and node.state is not None:
+            # Written as the flow would write them, so that a run picking this one up
+            # reads them back from its journal as it reads back the flow's own.
+            for key, value in run.seeded.items():
+                node.state[key] = value
         if run.recorder is not None:
             run.recorder.entered(node.record())
         live = run.live
@@ -1375,6 +1380,7 @@ class Run:
         "pinned",
         "reapers",
         "recorder",
+        "seeded",
         "skills",
         "specs",
         "thread",
@@ -1405,6 +1411,8 @@ class Run:
         self.recorder = recorder
         self.journal: Journal | None = None
         self.past: Past | None = None
+        #: What the top call's state is given as it starts, over whatever it picks up.
+        self.seeded: dict[str, Any] = {}
         self.ids = 0
         self.loads: dict[tuple[int, str], Any] = {}
         self.pinned: set[FlowModule] = set()
@@ -1732,6 +1740,7 @@ async def run_flow(
     resume: bool = False,
     local: EnvDriver | None = None,
     recorder: Recorder | None = None,
+    state: Mapping[str, Any] | None = None,
 ) -> Any:
     """Runs a flow at the top of a run, over drivers: what every way in calls.
 
@@ -1757,6 +1766,8 @@ async def run_flow(
       local: What fills `LocalEnv` roles, or None for the directory the process is in,
         opened when a role first needs it and closed with the run.
       recorder: What hears of every call and session as the run goes, or None.
+      state: What a resumable flow's state holds as it is called, key by key as JSON --
+        over what it picks up, where it picks a run up -- or None for nothing more.
 
     Returns:
       What the flow returned.
@@ -1797,6 +1808,7 @@ async def run_flow(
         local=local,
         recorder=recorder,
     )
+    run.seeded = dict(state or {})
     top = Call(run, None, None, 0, budget, task)
     if recorder is not None:
         recorder.began(lambda: top.usage)

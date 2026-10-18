@@ -113,7 +113,7 @@ with no interface. The run's [outworlder](#nobody-is-at-the-prompt) is always aw
 usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
                 [-p KEY=VALUE[,...]] [--profile-flow] [--profile-environment]
                 [--resume] [--json]
-                [--backup NAME]
+                [--backup NAME] [--carry-on KEY=EPIC/AGENT/N]
                 task
 ```
 
@@ -130,6 +130,7 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
 | <span id="exec-json"></span>`--json` | flag | 0‥1 | off | Write the run as [NDJSON](#ndjson) on stdout. |
 | <span id="exec-backup"></span>`--backup` | a [backup target](/reference/settings#backup) name, or `none` | 0‥n, merged | `backup.defaults` | Where the epic is [backed up](/user/backups); `none` anywhere: nowhere. A name settings has none of exits `2`. Once the run has said how it went, `hmz exec` waits up to 60 s for the epic's backups, saying `hmz exec: backing the epic up` on stderr, and says where it left one. |
+| <span id="exec-carry-on"></span>`--carry-on` | `KEY=EPIC/AGENT/N` | 0‥n, one per key | none | [Carry on](#carrying-a-conversation-on) a conversation an earlier epic had: the flow reads it from its state under `KEY`. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | <span id="exec-task"></span>`task` | positional string | exactly 1 (**required**) | — | What the flow is to do. Put `--` before a task that starts with `-`. |
 
@@ -359,13 +360,62 @@ the epic it `picked_up`. Without `--resume` every run starts from the top.
 | the flow is not resumable | `<flow> does not support resuming, so there is no run to resume` |
 | no epic of it here has a journal entry | `<flow> has no run to resume here: none saved any progress` |
 
+### Carrying a conversation on (`--carry-on`) {#carrying-a-conversation-on}
+
+`--carry-on KEY=EPIC/AGENT/N` starts the run with a [session kept in
+state](/reference/flows#sessions-in-state) under `KEY`: the conversation of the `N`th session
+(counting from 1) that the agent named `AGENT` opened in `EPIC`. `EPIC` is an epic of this
+workspace by name, or the directory of any epic (a relative one is the workspace's, not the
+current directory's); `AGENT/N` is the key the TUI, the web page and
+[btw](/user/btw) name that session by. The flow reads `ctx.state[KEY]` as a new session of the
+role that agent filled, whose first `run` forks the conversation, exactly as it reads back a
+session it kept itself.
+
+The conversation is copied into this epic's `sessions/<cli>/.kept/<hex>/` as it is when this one
+begins, from where the earlier epic's record says it is kept: that epic's own
+`sessions/<cli>/`, or the CLI's home for an epic that kept no sessions of its own (macOS,
+`HUMANIZE_SESSIONS=off`). However that epic ended (done, failed, stopped, or killed, even in the
+middle of a turn), it is left as it was. The copy is this epic's own, so a run [picking this one
+up](#picking-a-run-up) carries it on again, and several epics can carry one conversation on
+side by side. With `--resume`, the key it names replaces what the picked-up state held under it.
+
+```sh
+hmz exec -f prove -a prover=claude/opus -p budget.duration=2h \
+  --carry-on session=20261016T120000.000Z-a1b2c3/Ada/1 -- "go on where you left off"
+```
+
+Refused before the epic starts (exit `2`), with `hmz exec: error: --carry-on KEY=…: <why>`:
+
+| Refused | Message |
+| --- | --- |
+| no `=`, a key empty or not printable ASCII without `=`, or a key given twice | usage: `--carry-on '<given>': expected KEY=EPIC/AGENT/N` / `--carry-on KEY: given twice` |
+| the flow keeps no state | `<flow> keeps no state, so it has nowhere to carry a conversation on from` |
+| not `EPIC/AGENT/N`: `AGENT` printable ASCII without `/`, `N` ASCII digits from `1`, no leading `0` | `expected EPIC/AGENT/N, N counting from 1` |
+| no such epic here, nor at that path | `no epic <epic> here` |
+| the epic is still running | `<epic> is still running` |
+| it opened no such session | `<epic> opened no session <agent>/<n>` |
+| the session's CLI ran on another machine, which keeps the conversation | `<agent>/<n> was kept on another machine, by its harness there` |
+| the epic does not say which role and CLI the agent was | `<epic> says nothing of what <agent> ran as` |
+| this flow has no agent of that role, or one of another CLI | `<flow> is given no agent '<role>' to carry it on` / `<agent>/<n> is a conversation of <cli>, and '<role>' is given <cli>` |
+| the epic's record keeps it outside that epic and other than in a home of that CLI (a directory named as its home is: `.claude`, `.codex`, …), or calls it by other than a name of letters, digits, `_`, `.`, `:` and `-` | `<epic> says <agent>/<n> is kept as '<id>' at <dir>, which is neither a conversation's name nor in it or <cli>'s home` |
+| nothing of the conversation is left where the epic kept it | `nothing of conversation <id> is left under <dir>` |
+| a file of the conversation is a link, or reached through one | `<file> is a link, or reached through one, which carrying a conversation on never copies through` |
+| kept in the CLI's home, a file of it is outside where that CLI keeps its sessions (for Claude Code `projects/`, `todos/`, `file-history/`, …; never what it signs in with) | `<file> is not where <cli> keeps sessions in its home, which is all of the home a conversation is carried on from` |
+
+The conversation is read again as it is copied, once the epic has begun: an earlier epic running
+again by then, or a file of it that has become one of the above, ends the run with `a
+conversation to carry on cannot be: <why>`.
+
+What the first turn of the carried-on session may still refuse is listed under [Sessions in
+state](/reference/flows#sessions-in-state).
+
 ### Processing order {#processing-order}
 
 | Stage | Checks | On failure |
 | --- | --- | --- |
 | 1. argparse | Options, `-f` and `task` present. | Usage on stderr, `hmz exec: error: <why>`, exit `2`. |
 | 2. Spec parsing (`Hmz.read`) | Every `-a`, `-e`, `-p` against its grammar, and every `-e` provider against the runtimes saved; duplicate roles and keys. | Same as 1. |
-| 3. Loading (`Hmz.run` → `Runner`) | Flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`. | `hmz exec: error: <why>` (no usage), exit `2`. |
+| 3. Loading (`Hmz.run` → `Runner`) | Flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`, `--carry-on`. | `hmz exec: error: <why>` (no usage), exit `2`. |
 | 4. Opening (`Run.run`, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's harness setting puts it, and the runtimes it goes to reached; skills fetched. | `hmz exec: error: <why>`, exit `2`. |
 | 5. The flow | — | See [Exit statuses](#exit-statuses). |
 
@@ -416,6 +466,7 @@ Stage 1–2 messages are preceded by the usage block.
 | params the flow rejects | `<canonical ref>: <pydantic validation error>` |
 | no `budget.*`, any flow but `chat` | `<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` |
 | `--resume` | see [Picking a run up](#picking-a-run-up) |
+| `--carry-on` | see [Carrying a conversation on](#carrying-a-conversation-on) |
 | an environment unreachable or smaller than declared | the reason, naming the role |
 | a harness that cannot run where its runtime's harness setting says | see [Where the harness runs](#choosing-where-the-harness-runs) |
 | a skill a role names that cannot be found or fetched | the reason, naming the skill |

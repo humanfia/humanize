@@ -118,6 +118,7 @@ def run(
     profile_environment: bool = False,
     resume: bool | str | os.PathLike[str] = False,
     outworlder: OutworlderDriver | None = None,
+    carry_on: Mapping[str, str] | None = None,
 ) -> Run
 ```
 
@@ -136,6 +137,7 @@ it is the `harness` setting of the [runtime](#runtimes) its work is on.
 | `profile_flow` | Whether to [profile](/reference/tracing#profiling-a-run) the flow's own Python, as well as tracing the run; as `--profile-flow`. | `False` |
 | `profile_environment` | Whether to [profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them; as `--profile-environment`. | `False` |
 | `resume` | `False`: from the top. `True`: the newest resumable epic of this flow here. A path: that epic. | `False` |
+| `carry_on` | `{key: "EPIC/AGENT/N"}`: each conversation an earlier epic had, [carried on](/reference/cli#carrying-a-conversation-on) under that key of the flow's state, as `--carry-on` does. `Line.carry_on` is one. | `None` |
 | `outworlder` | The driver filling `Outworlder` roles (e.g. `fakes.FakeOutworlder`). `None`: always away, as under `hmz exec`. | `None` |
 
 Raises [`Refused`](#refused) for everything [`hmz exec` refuses at stage
@@ -160,7 +162,7 @@ except Refused as why:
 
 ```python
 def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, profile_flow=False,
-           profile_environment=False, resume=False) -> Runner
+           profile_environment=False, resume=False, carry_on=None) -> Runner
 ```
 
 Parameters and refusals as [`run`](#hmz-run), without `task` and `outworlder`. Returns the
@@ -184,7 +186,8 @@ line = hmz.read(["-f", "ralph_loop", "-a", "agent=claude/claude-opus-5:high",
                  "-p", "budget.duration=6h,budget.cost=50", "fix the build"])
 run = hmz.run(line.flow, line.task, agents=line.agents, envs=line.envs,
               params=line.params, budget=line.budget, profile_flow=line.profile_flow,
-              profile_environment=line.profile_environment, resume=line.resume)
+              profile_environment=line.profile_environment, resume=line.resume,
+              carry_on=line.carry_on)
 ```
 
 ### `Hmz.exec` {#hmz-exec}
@@ -560,6 +563,7 @@ declaration order.
 | `profile_environment` | `bool` | `False` | `--profile-environment` |
 | `resume` | `bool` | `False` | `--resume` |
 | `as_json` | `bool` | `False` | `--json` |
+| `carry_on` | `dict[str, str]` | `{}` | every `--carry-on KEY=EPIC/AGENT/N`, by key |
 
 ### `AgentSpec`, `EnvSpec` {#specs}
 

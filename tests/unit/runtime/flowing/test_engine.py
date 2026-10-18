@@ -266,6 +266,26 @@ async def keeps(
     return was, state["n"]
 
 
+@flow(agents=AgentCollection, envs=NoEnvs, params=Nothing, resumable=True)
+async def counts_on(
+    task: str,
+    *,
+    agents: AgentCollection,
+    envs: NoEnvs,
+    params: Nothing,
+    ctx: FlowContext,
+) -> int:
+    del task, agents, envs, params
+    state = ctx.state
+    assert state is not None
+    try:
+        was = state["n"]
+    except KeyError:
+        was = 0
+    state["n"] = was + 1
+    return state["n"]
+
+
 @flow(agents=AgentCollection, envs=NoEnvs, params=Nothing)
 async def stateless(
     task: str,
@@ -495,6 +515,44 @@ async def test_a_resumed_run_picks_up_the_state_it_left(tmp_path: Path) -> None:
         await run_fake(keeps, "fail", journal=journal)
     assert await run_fake(keeps, "go", journal=journal, resume=True) == (True, 2)
     assert await run_fake(keeps, "go", journal=journal) == (False, 1)
+
+
+@pytest.mark.usefixtures("plain_writes")
+async def test_a_run_given_state_starts_its_flow_with_it_over_what_it_picks_up(
+    tmp_path: Path,
+) -> None:
+    journal = tmp_path / "run.jsonl"
+    assert isinstance(counts_on, FlowImpl)
+
+    async def ran(*, resume: bool = False, state: dict[str, int] | None = None) -> int:
+        return await run_flow(
+            counts_on,
+            "",
+            agents={},
+            envs={},
+            params={},
+            budget=UNLIMITED,
+            journal=journal,
+            resume=resume,
+            state=state,
+        )
+
+    assert await ran(state={"n": 41}) == 42
+    assert await ran(resume=True) == 43, "written down as the flow's own"
+    assert await ran(resume=True, state={"n": 0}) == 1
+    assert await ran() == 1
+    assert (
+        await run_flow(
+            counts_on,
+            "",
+            agents={},
+            envs={},
+            params={},
+            budget=UNLIMITED,
+            state={"n": 6},
+        )
+        == 7
+    )
 
 
 async def test_a_resumable_flow_without_a_journal_keeps_state_in_memory() -> None:

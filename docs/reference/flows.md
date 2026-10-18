@@ -323,6 +323,14 @@ each run keeps its sessions in its own epic and this does not arise.
 A session read back and written again before its first turn is written down as what it
 carries on, copying nothing.
 
+A run can also be **handed** a kept session it never wrote:
+[`hmz exec --carry-on KEY=EPIC/AGENT/N`](/reference/cli#carrying-a-conversation-on) copies the
+conversation an earlier epic's session had into this epic's `.kept/` and puts it into the top
+call's state under `KEY` before the flow is called. The flow reads it back like one of its own,
+so a resumable flow written as above carries on a conversation of any earlier epic -- one that
+was stopped, failed or killed midway, of another flow, or in another workspace -- with nothing
+changed but `KEY`.
+
 ## Agent roles {#how-many-agents-and-what-they-are-for}
 
 ### `AgentCollection` {#agentcollection}
