@@ -314,11 +314,12 @@ Refused by the read-back session's first `run`, before the CLI starts or anythin
 | the run already holds a different copy of the conversation | `SessionError`: `the session cannot be forked: <harness>: another copy of conversation <id> is kept at <path> already, which carrying this one on would replace` |
 | a harness that forks only in place, given another workdir than the conversation was had in | refused by the CLI |
 
-The last-but-one is what a run that keeps no sessions of its own meets: on macOS, or with
-[`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions), the conversation lives in
+The last-but-one is what a run that keeps no sessions of its own meets: with
+[`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions), or for a CLI on macOS that
+[cannot be linked](/reference/providers#where-sessions-are-kept), the conversation lives in
 the CLI's own home, and once the original session has gone on past the kept point, the home
-holds a later copy of it that is never put back. Where humanize supervises a turn (Linux),
-each run keeps its sessions in its own epic and this does not arise.
+holds a later copy of it that is never put back. Everywhere else each run keeps its sessions
+in its own epic and this does not arise.
 
 A session read back and written again before its first turn is written down as what it
 carries on, copying nothing.

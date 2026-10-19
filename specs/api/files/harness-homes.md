@@ -168,9 +168,24 @@ lock file of MiniMax Code in `<mdir>/mcode/`.
 the earlier **epic**.
 
 **5.6** `hmz` MUST NOT keep a **session** in an **epic**, other than one of `dsh` or `litellm`,
-where the **harness machine** cannot supervise the **harness** process, where the **harness
-machine** is not **this machine**, where `HUMANIZE_SESSIONS` is `off`, `0` or `no`, or where the
-**agent** is driven outside any **epic**.
+where the **harness machine** can neither supervise the **harness** process nor link its kept
+paths as clause 5.7 states, where the **harness machine** is not **this machine**, where
+`HUMANIZE_SESSIONS` is `off`, `0` or `no`, or where the **agent** is driven outside any
+**epic**.
+
+**5.7** Where **this machine** cannot supervise a **harness** process that runs in a virtual config
+home (§6) and whose kept paths are each a name directly under its harness home, `hmz` MUST keep
+its **session** in the **epic** through that virtual config home instead:
+
+- each kept path that is not a glob MUST be a symbolic link to `<epic>/sessions/<cli>/<kept
+  path>`, that directory being created where the kept path is one, and no file being created
+  where it is one;
+- each entry of the real harness home or of `<epic>/sessions/<cli>/` whose name matches a kept
+  path that is a glob MUST be a symbolic link to `<epic>/sessions/<cli>/<name>`, whether or not
+  that file exists there;
+- where the process creates a file in the virtual config home whose name matches a kept path
+  that is a glob, `hmz` MUST move it into `<epic>/sessions/<cli>/` when it removes the virtual
+  config home, unless a file of that name is there already.
 
 ## 6. Virtual config homes
 
@@ -184,8 +199,9 @@ machine**, of mode `0700`, owned by the **user** the **harness** process runs as
 
 **6.3** A virtual config home MUST hold a copy of each configuration file of the real harness home
 that the **harness** rewrites while running, merged with the managed items of the process, a
-user-level skills directory holding the **user**'s skills and the flow's, and a symbolic link to
-each other entry of the real harness home.
+user-level skills directory holding the **user**'s skills and the flow's, the symbolic links of
+clause 5.7 where that clause applies, and a symbolic link to each other entry of the real harness
+home.
 
 **6.4** `hmz` MUST NOT copy a credential file into a virtual config home; the virtual config home
 MUST reach each credential file of the **account** through a symbolic link or through the
@@ -201,7 +217,7 @@ reuse it for another process.
 the virtual config home and MUST NOT reach the real harness home.
 
 **6.8** A write a **harness** process makes through a symbolic link of clause 6.3 MUST reach the
-real harness home.
+real harness home, or the **epic** where the link is one of clause 5.7.
 
 **6.9** Where a **harness** process replaces a symbolic link of clause 6.3 with a file or a
 directory, `hmz` MUST, when the process exits, write that file, or each new or changed file of

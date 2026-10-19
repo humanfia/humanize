@@ -5,18 +5,16 @@ conversation only from where Claude keeps one for the directory it is started in
 the whole of it into a fork. So the later run's session answers from the conversation as it
 stood when the state kept it only where humanize copied it out then, brought the copy in
 where the later run keeps its sessions, and carried it to the directory that turn works in.
-Where a run keeps no sessions of its own, that is the CLI's home, whose conversation is never
-put back to a copy of it.
+Where a run keeps no sessions of its own (`HUMANIZE_SESSIONS=off`), that is the CLI's home, whose
+conversation is never put back to a copy of it.
 """
 
 from __future__ import annotations
 
-import sys
 from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.providers import redirect
 from hmz.sdk import Hmz
 from tests.integration.doubles_core import AGENT, hmz_exec, install, started, write_flow
 
@@ -56,9 +54,6 @@ async def remembers(task, *, agents, envs, params, ctx):
     again = ctx.state["boundary"]
     return await worker.run(f"{params.step}: what was the word?", session=again, env=envs["there"])
 """
-
-#: Whether a run here keeps its sessions itself, rather than in the CLI's home.
-SUPERVISED = sys.platform == "linux" and redirect.supervises()
 
 
 @pytest.fixture(autouse=True)
@@ -125,7 +120,6 @@ def test_a_session_kept_in_state_is_carried_on_by_every_later_run_picking_it_up(
     _carried_on(tmp_path, project, then="")
 
 
-@pytest.mark.skipif(not SUPERVISED, reason="a run keeps no sessions of its own here")
 def test_a_session_is_carried_on_from_where_it_stood_when_its_state_kept_it(
     tmp_path: Path, project: Path
 ) -> None:

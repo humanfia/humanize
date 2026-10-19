@@ -1169,6 +1169,47 @@ def test_stopping_closes_every_session() -> None:
     assert [one.moment for one in ended] == [Moment.SESSION_END]
 
 
+@pytest.mark.parametrize("backend", ["claude", "codex"])
+def test_a_machine_that_cannot_supervise_keeps_sessions_through_the_virtual_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    """Linked into the run from the home each process starts in, and supervised by nothing."""
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: False)
+    monkeypatch.delenv(KEEPING, raising=False)
+    user = tmp_path / "home"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(user))
+    monkeypatch.setenv("CODEX_HOME", str(user))
+    (user / "sessions").mkdir(parents=True)
+    agent = Scripted(backend=backend)
+    agent.epic = _Run(tmp_path / "epic")
+    into = tmp_path / "epic" / backend
+
+    home = agent.homed()
+    assert home is not None
+    try:
+        assert home.keeps == into
+        assert (home.at / "sessions").resolve() == (into / "sessions").resolve()
+        assert not any(
+            one.startswith("--keep") for one in agent.spawned(["x"], home=home)
+        )
+    finally:
+        home.drop()
+    assert agent.kept() == into
+    assert list((user / "sessions").iterdir()) == []
+
+
+def test_a_cli_keeping_sessions_below_its_home_keeps_them_there_unsupervised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Kimi's `server/events` is no name a link of its home can stand for."""
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: False)
+    monkeypatch.delenv(KEEPING, raising=False)
+    agent = Scripted(backend="kimi")
+    agent.epic = _Run(tmp_path / "epic")
+
+    assert agent.kept() != tmp_path / "epic" / "kimi"
+
+
 def test_where_an_agent_keeps_its_sessions(tmp_path: Path) -> None:
     agent = Scripted()
     assert agent.keeps is None
