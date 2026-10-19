@@ -1163,6 +1163,7 @@ right after the program's name).
 | each of `Profile.rewrites` | a copy of the user's file, taken from where the CLI would have read it: under `Profile.outside`'s path while the home variable is unset, and a provider's copy where its account answers that path; a directory starts empty |
 | `Profile.lodges` | a directory of links to each of the user's own skills, and to each brought skill |
 | the session paths (`Profile.sessions`) the user's home lacks yet | made in the user's home, then linked; one named by a glob, which cannot be, is moved into the user's home as the virtual one is removed |
+| the session paths of a turn a run keeps on a machine that cannot supervise it | linked into `<epic>/sessions/<cli>/` instead, made there where a directory; a glob links each matching name of the user's home or of that directory, and what the CLI creates under a new matching name is moved there as the virtual home is removed ([Where sessions are kept](/reference/providers#where-sessions-are-kept)) |
 | everything else in the user's home | a link to it |
 
 - What the CLI writes into a copy goes with the home; the user's own files are never written.

@@ -5006,9 +5006,11 @@ class AgentBase(ABC):
         Returns:
           True for a backend whose sessions are written down, which its driver tells where
           they go or a supervisor answers -- the anchor's, or one of this machine's own where
-          this machine can run one -- unless this agent has no :attr:`keeps`, which is one no
+          this machine can run one -- or which its virtual home links there where this machine
+          cannot (:meth:`_linking`), unless this agent has no :attr:`keeps`, which is one no
           run drives, or this process was told to keep none.
         """
+        from hmz.coganchor import homes
         from hmz.coganchor.backends import named
         from hmz.coganchor.providers.redirect import supervises
 
@@ -5020,7 +5022,12 @@ class AgentBase(ABC):
         if profile.told:
             return True
         if self._config.machine is None:
-            return supervises()
+            # Or linked from the virtual home every process of it is started in, for a CLI
+            # whose sessions are each a name directly in its home: what a link can stand for.
+            return supervises() or (
+                homes.virtual(profile) is not None
+                and not any("/" in one for one in profile.sessions)
+            )
         # One whose machine is not up yet has taken no turn: whatever it is about to be, it
         # has nothing kept anywhere to be read back.
         if self._anchor is None:
@@ -5030,6 +5037,26 @@ class AgentBase(ABC):
         # A CLI that runs on the target, or under a harness on another machine, keeps its
         # sessions on that machine: nothing of this one's is there to keep them in.
         return not self._anchor.native and not elsewhere(self._anchor)
+
+    def _linking(self) -> bool:
+        """Whether this agent's turns keep their sessions in :attr:`keeps` through links.
+
+        Returns:
+          True where they are kept there (:meth:`_keeping`) by a CLI on this machine that this
+          machine cannot supervise: its virtual home links each of its session paths to the
+          kept one, rather than a supervisor answering them from there.
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.providers.redirect import supervises
+
+        profile = named(self.backend)
+        return (
+            profile is not None
+            and not profile.told
+            and self._config.machine is None
+            and self._keeping()
+            and not supervises()
+        )
 
     def _tailing(self) -> bool:
         """Whether this agent's sessions are logged on another machine and copied here.
@@ -5183,6 +5210,16 @@ class AgentBase(ABC):
         spec = self.virtual(skills, merges)
         if spec is None:
             return None
+        if (at := self.keeps) is not None and self._linking():
+            from dataclasses import replace
+
+            from hmz.coganchor.backends import named
+
+            profile = named(self.backend)
+            assert profile is not None  # noqa: S101 -- `_linking` has checked
+            # Settled from here on, as a supervised turn settles it: see `_keeping_swaps`.
+            self._keeps, self._said, self._settled = at, True, True
+            spec = replace(spec, keeps=os.path.abspath(at / profile.name))  # noqa: PTH100
         provider = self.provider
         swaps = Swaps.of(provider.swaps() if provider is not None else ())
         return homes.build(
@@ -5226,6 +5263,8 @@ class AgentBase(ABC):
             return ()
         # Settled from here on: this process keeps them there, and so does the conversation.
         self._keeps, self._said, self._settled = at, True, True
+        if self._linking():
+            return ()  # its virtual home links them there (:meth:`homed`)
         return profile.kept(at, self._environ())
 
     def environment(self) -> Mapping[str, str]:

@@ -113,6 +113,10 @@ def turn(thread, said, asked):
                               "theirs": sorted(one.name for one in ruled.parent.iterdir())}))
         done(thread)
         return
+    if said == "log":
+        # Logged where the real one logs a thread: its rollout, under its home's `sessions`.
+        rollout = pathlib.Path(os.environ["CODEX_HOME"], "sessions", "rollout-" + thread + ".jsonl")
+        rollout.write_text(json.dumps({"thread": thread}) + "\n")
     if said == "approve":
         send({"id": "ok-1", "method": "item/commandExecution/requestApproval",
               "params": {"itemId": "i-0", "threadId": thread, "turnId": "turn-1",
@@ -208,6 +212,24 @@ def test_a_turn_says_what_it_did_and_what_it_spent(codex: Standins) -> None:
     assert launch.env["HMZ_TEST_INHERITED"] == "from-the-flow"
     (opened,) = _told(codex, "thread/start")
     assert opened["model"] == "gpt-stand-in"
+
+
+def test_a_run_keeps_its_threads_where_no_supervisor_answers_their_paths(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Linked from the server's virtual home into the run, and none of them in the user's."""
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: False)
+    monkeypatch.delenv("HUMANIZE_SESSIONS", raising=False)
+    agent = CodexAgent(CONFIG)
+    agent.keeps = tmp_path / "epic"
+    session = agent.new()
+
+    assert session("log") == "log"
+
+    kept = tmp_path / "epic" / "codex" / "sessions" / "rollout-t-1.jsonl"
+    assert json.loads(kept.read_text()) == {"thread": "t-1"}
+    assert agent.kept() == tmp_path / "epic" / "codex"
+    assert not list((tmp_path / "home").glob(".codex/sessions/*"))
 
 
 def test_one_server_holds_the_thread_across_turns(codex: Standins) -> None:

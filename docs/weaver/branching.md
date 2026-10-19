@@ -289,7 +289,8 @@ async def arms(task, *, agents, envs, params, ctx):
 
 Only a CLI that forks can be carried on this way, on this machine, and on the harness that kept
 it; [Sessions in state](/reference/flows#sessions-in-state) lists what is refused. Where a run
-keeps no sessions of its own (macOS, `HUMANIZE_SESSIONS=off`), a conversation the CLI's home has
+keeps no sessions of its own (`HUMANIZE_SESSIONS=off`, or a CLI that
+[cannot be linked](/reference/providers#where-sessions-are-kept) on macOS), a conversation the CLI's home has
 gone on with past the kept point is refused rather than put back.
 
 **Fork or derive?** They sound alike and do opposite things:

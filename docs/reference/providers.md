@@ -463,12 +463,22 @@ as the CLI writes into them, and an entry may be a glob of one path component.
 | `pi` | `sessions` |
 | `qwen` | `projects`, `tmp`, `file-history` |
 
+Where this machine cannot supervise a turn (not Linux on x86-64/aarch64, or starting a traced
+no-op program fails; the answer is cached, and a failure is asked again after a minute), a CLI
+started in a [virtual home](/reference/agents#virtual-homes) whose kept paths are each a name directly under its
+home (`claude`, `codex`, `qwen`, `grok`, `pi`, `omp`) still keeps them in the run. In that home,
+each kept name is a symbolic link to `<epic>/sessions/<cli>/<name>` in place of the user's own
+entry. A glob such as Codex's `state_*.sqlite*` links every matching name in either directory,
+whether or not the run has that file yet. A database the CLI creates there under a new name is
+moved into `<epic>/sessions/<cli>/` when the home is removed.
+
 Sessions stay where the CLI keeps them, and nothing is supervised for them, when any of these
 holds:
 
 - `HUMANIZE_SESSIONS` is `off`, `0` or `no` (credentials are still supervised);
-- this machine cannot supervise a turn: not Linux on x86-64/aarch64, or starting a traced
-  no-op program fails (the answer is cached; a failure is asked again after a minute);
+- this machine cannot supervise a turn, and the CLI is not one linked as above (`agy`, `kimi`,
+  `cursor-agent`, `mcode`, whose kept paths lie below a directory of their home, and `opencode`,
+  `mimo`, which start in no virtual home);
 - the turn is native on a target, or its harness runs on another machine.
 
 ### Sessions on another machine
