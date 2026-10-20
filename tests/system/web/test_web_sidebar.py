@@ -44,11 +44,13 @@ _ANSWERING = f"""
       const path = at.pathname.replace(/^\\/d\\/[^/]+/, '')
       if (path === '/api/runs') {{
         const listed = {{ runs: [{json.dumps(_RUN)}], total: 2 }}
-        return at.searchParams.get('limit') === '60' ? Promise.resolve(json(listed)) : held('more', listed)
+        if (at.searchParams.get('limit') === '60') return Promise.resolve(json(listed))
+        return held('more', listed)
       }}
       if (path === '/api/runs/e1') return held('e1', {{ name: 'e1', sessions: [] }})
       if (path === '/api/runs/e1/backup') return held('backup', {{ queued: ['s3'] }})
-      if (path === '/api/workspaces') return Promise.resolve(json({{ workspaces: [{{ path: '/w' }}, {{ path: '/empty' }}] }}))
+      const places = {{ workspaces: [{{ path: '/w' }}, {{ path: '/empty' }}] }}
+      if (path === '/api/workspaces') return Promise.resolve(json(places))
       if (path === '/api/workspaces/forget') return held('forget', {{}})
       return fetched(url, how)
     }}
