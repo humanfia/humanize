@@ -54,6 +54,8 @@ export function mount(root, { query }) {
   let stop = () => {}
   const watch = () => {
     stop()
+    // What is listed stays, marked old, until what was asked for now is read.
+    body.setAttribute('aria-busy', 'true')
     stays({ status: chosen.status, flow: chosen.flow, workspace: chosen.workspace, q: chosen.q, offset: chosen.offset || '' })
     stop = poll(address('/api/runs', { status: chosen.status, flow: chosen.flow, workspace: chosen.workspace, q: chosen.q, offset: chosen.offset, limit: PAGE }), 5000, draw)
   }
@@ -63,6 +65,7 @@ export function mount(root, { query }) {
   }, 250)
   search.addEventListener('input', () => {
     chosen.q = search.value.trim()
+    body.setAttribute('aria-busy', 'true')
     again()
   })
   flows.addEventListener('change', () => {
@@ -72,6 +75,7 @@ export function mount(root, { query }) {
   })
 
   function draw(data, error) {
+    body.removeAttribute('aria-busy')
     if (!data) {
       fill(body, error ? h('p', { class: 'error', role: 'alert' }, error.message) : h('p', { class: 'loading' }, 'Reading the epics…'))
       return
@@ -82,6 +86,7 @@ export function mount(root, { query }) {
       [['', 'All', all], ...ENDINGS.map((how) => [how, how, data.counts[how] || 0])].map(([how, said, count]) => {
         const button = h('button', { type: 'button', 'aria-pressed': String(chosen.status === how) }, said, h('span', { class: 'count' }, count))
         button.addEventListener('click', () => {
+          for (const one of statuses.children) one.setAttribute('aria-pressed', String(one === button))
           chosen.status = how
           chosen.offset = 0
           watch()

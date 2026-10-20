@@ -28,7 +28,7 @@ from tests.integration.doubles_web import backed_up_elsewhere, elsewhere, served
 from tests.system.web.doubles_browser import ENGINES, go, opened, stop
 
 if TYPE_CHECKING:
-    from playwright.sync_api import FloatRect, Locator, Page
+    from playwright.sync_api import FloatRect, Locator, Page, Route
 
 #: Every settings page, by the word its address ends in.
 _PAGES = (
@@ -393,6 +393,25 @@ def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
         page.keyboard.press("Control+k")
         search = page.get_by_role("searchbox", name="Find")
         expect(page.locator("[data-hmz=found] .result")).to_have_count(1)
+        # What is listed stays, marked old, until the search typed is answered.
+        held: list[Route] = []
+
+        def hold(route: Route) -> None:
+            # Playwright takes a function of Python's, not a bound builtin.
+            held.append(route)
+
+        page.route("**/api/runs?*", hold)
+        search.fill("find")
+        found = page.locator("[data-hmz=found]")
+        page.wait_for_timeout(500)
+        assert held
+        expect(found).to_have_attribute("aria-busy", "true")
+        expect(found.locator(".result")).to_have_count(1)
+        expect(search).to_have_value("find")
+        for one in held:
+            one.continue_()
+        page.unroute("**/api/runs?*")
+        expect(found).not_to_have_attribute("aria-busy", "true")
         search.fill("nothing like it")
         expect(page.locator("[data-hmz=found]")).to_contain_text(
             "No epic is like that."

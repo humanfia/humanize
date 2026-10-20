@@ -22,6 +22,8 @@ from tests.system.web.doubles_browser import ENGINES, opened
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from playwright.sync_api import Route
+
 #: The flow the index lists: one agent, one turn.
 _FLOW = '''
 from hmz.flows import (
@@ -167,7 +169,26 @@ def test_the_flows_page_installs_out_of_a_flowverse_and_says_what_is_newer(
         )
         expect(page.locator("[data-hmz=sidebar] [data-hmz=updates]")).to_have_text("1")
 
+        # Fetched out of a card's menu, it says so until the server answers.
+        held: list[Route] = []
+
+        def hold(route: Route) -> None:
+            # Playwright takes a function of Python's, not a bound builtin.
+            held.append(route)
+
+        page.route("**/api/flowverses/fetch", hold)
+        page.locator(".card[data-verse=theirs]").click(button="right")
+        page.get_by_role("menuitem", name="Fetch").click()
+        expect(page.locator("[data-hmz=busy]")).to_have_text("Fetching theirs…")
+        held.pop().continue_()
+        expect(page.locator("[data-hmz=busy]")).to_have_count(0)
+        expect(page.locator(".flows-said .note")).to_be_visible()
+
         page.get_by_role("tab", name="Installed").click()
-        page.locator(".card[data-flow='@theirs/solo']").click()
-        page.get_by_role("button", name="Update to 1.1.0").click()
+        page.route("**/api/flowverses/install", hold)
+        page.locator(".card[data-flow='@theirs/solo']").click(button="right")
+        page.get_by_role("menuitem", name="Update to 1.1.0").click()
+        expect(page.locator("[data-hmz=busy]")).to_have_text("Updating @theirs/solo…")
+        held.pop().continue_()
+        expect(page.locator("[data-hmz=busy]")).to_have_count(0)
         expect(page.locator("[data-hmz=update-banner]")).to_have_count(0)
