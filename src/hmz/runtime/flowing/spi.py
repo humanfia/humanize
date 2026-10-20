@@ -223,22 +223,27 @@ class Skill:
 class Limits:
     """What remains for one turn to spend, all budgets it runs under taken together.
 
-    A driver maps these onto its CLI's own per-turn limits. When `graceful` is False and one
-    is reached mid-turn, the driver stops the turn at once -- the CLI stops spending -- and
-    raises the :class:`~hmz.flows.errors.BudgetExceeded` leaf for it. When `graceful` is
-    True it lets the turn run to its end and answers as usual; the engine refuses the next.
+    A driver maps these onto its CLI's own per-turn limits. When a limit that is not
+    graceful is reached mid-turn, the driver stops the turn at once -- the CLI stops
+    spending -- and raises the :class:`~hmz.flows.errors.BudgetExceeded` leaf for it. When a
+    graceful one is, it lets the turn run to its end and answers as usual; the engine refuses
+    the next. Each limit is graceful or not on its own.
 
     Attributes:
       cost: USD, or None for no limit.
       output_tokens: Tokens the agent may write, or None for no limit.
       deadline: When the turn must be over, on `time.monotonic()`'s clock, or None.
-      graceful: Whether a limit reached mid-turn lets the turn finish.
+      cost_graceful: Whether reaching `cost` mid-turn lets the turn finish.
+      output_tokens_graceful: Whether reaching `output_tokens` mid-turn lets the turn finish.
+      deadline_graceful: Whether reaching `deadline` mid-turn lets the turn finish.
     """
 
     cost: float | None = None
     output_tokens: int | None = None
     deadline: float | None = None
-    graceful: bool = True
+    cost_graceful: bool = True
+    output_tokens_graceful: bool = True
+    deadline_graceful: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -581,7 +586,7 @@ class SessionHandle(Protocol):
 
         Raises:
           OutputSchemaError: If the answer could not be read as the schema.
-          BudgetExceeded: The leaf for a limit reached when `limits.graceful` is False.
+          BudgetExceeded: The leaf for a limit reached that `limits` says is not graceful.
           SessionError: If the session is closed, or was interrupted mid-turn.
           HarnessError: The leaf for why the CLI could not take the turn.
           asyncio.CancelledError: If the awaiting task was cancelled. The CLI has stopped.

@@ -28,6 +28,7 @@ from hmz.flows import (
     FlowParams,
     FlowRuntimeError,
     GoalCommandAgentMixin,
+    Graceful,
     HarnessKind,
     HarnessMismatch,
     MissingRole,
@@ -125,6 +126,21 @@ async def echo(
     """Asks its coder the task, once."""
     del envs, params, ctx
     return await ask(agents["coder"], task)
+
+
+@flow(agents=Solo, envs=NoEnvs, params=Nothing)
+async def held(
+    task: str, *, agents: Solo, envs: NoEnvs, params: Nothing, ctx: FlowContext
+) -> tuple[str, Budget]:
+    """Takes one turn under a budget of its own: hard on the limit the task names."""
+    del envs, params
+    own = {
+        "tokens": Budget(output_tokens=1000, graceful=False),
+        "duration": Budget(duration=datetime.timedelta(hours=1), graceful=False),
+    }[task]
+    coder = agents["coder"]
+    said = await coder.run(task, session=await coder.spawn(), budget=own)
+    return said, ctx.budget
 
 
 @flow(agents=Solo, envs=NoEnvs, params=Nothing)
@@ -462,6 +478,56 @@ async def test_spending_past_a_hard_budget_stops_the_turn() -> None:
             twice, agents={"coder": coder}, budget=Budget(cost=1.5, graceful=False)
         )
     assert len(coder.prompts) == 2
+
+
+@pytest.mark.parametrize("hard", ["tokens", "duration"])
+async def test_a_hard_limit_leaves_another_limit_graceful(hard: str) -> None:
+    coder = FakeAgentDriver(reply="ok", cost=1.5, output_tokens=1)
+
+    said, _ = await run_fake(
+        held, hard, agents={"coder": coder}, budget=Budget(cost=1.0)
+    )
+
+    assert said == "ok"
+
+
+@pytest.mark.parametrize(
+    ("graceful", "kind"),
+    [(Graceful(cost=False), CostExceeded), (Graceful(output_tokens=False), None)],
+    ids=["hard-cost", "graceful-cost"],
+)
+async def test_each_limit_cuts_a_turn_off_by_its_own_flag(
+    graceful: Graceful, kind: type[Exception] | None
+) -> None:
+    coder = FakeAgentDriver(reply="ok", cost=1.5, output_tokens=1)
+    budget = Budget(cost=1.0, output_tokens=5, graceful=graceful)
+
+    if kind is None:
+        assert await run_fake(echo, agents={"coder": coder}, budget=budget) == "ok"
+    else:
+        with pytest.raises(kind):
+            await run_fake(echo, agents={"coder": coder}, budget=budget)
+
+
+async def test_a_flow_is_told_which_limits_over_it_are_graceful() -> None:
+    coder = FakeAgentDriver(reply="ok", cost=0.5, output_tokens=1)
+
+    _, told = await run_fake(
+        held,
+        "tokens",
+        agents={"coder": coder},
+        budget=Budget(cost=1.0, graceful=Graceful(cost=False)),
+    )
+    # A limit no budget over it sets cuts nothing off, whatever that budget says of it.
+    _, unset = await run_fake(
+        held,
+        "tokens",
+        agents={"coder": coder},
+        budget=Budget(cost=1.0, graceful=Graceful(output_tokens=False)),
+    )
+
+    assert told.graceful == Graceful(cost=False)
+    assert unset.graceful is True
 
 
 async def test_a_budget_with_room_lets_every_turn_spend() -> None:

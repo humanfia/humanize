@@ -991,7 +991,12 @@ async def test_a_turn_with_time_to_spare_is_taken(
 ) -> None:
     session = await _session(open_agent(_spec()), tmp_path)
     limits = Limits(
-        cost=1.0, output_tokens=10, deadline=time.monotonic() + 60, graceful=False
+        cost=1.0,
+        output_tokens=10,
+        deadline=time.monotonic() + 60,
+        cost_graceful=False,
+        output_tokens_graceful=False,
+        deadline_graceful=False,
     )
 
     assert await session.turn(TurnRequest("x", limits=limits), Sink()) == "re: x"

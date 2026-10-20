@@ -1285,9 +1285,26 @@ def details(
             )
         )
     if meters:
-        graceful = dict(epic.get("budget") or {}).get("graceful", True)
+        from hmz.flows import Budget
+
+        # Of the limits it sets, which cut a turn off at once, by the name its meter has.
+        graces = Budget.model_validate(epic.get("budget")).graces
+        flags = {
+            "cost": graces.cost,
+            "output": graces.output_tokens,
+            "time": graces.duration,
+        }
+        hard = [named for named, *_ in meters if not flags[named]]
         budget.append(
-            ("when spent", "the last turn finishes" if graceful else "cut off at once")
+            (
+                "when spent",
+                "the last turn finishes"
+                if not hard
+                else "cut off at once"
+                if len(hard) == len(meters)
+                else f"cut off at once by {' or '.join(hard)}, "
+                "else the last turn finishes",
+            )
         )
     # Which of the two parts it profiles, as it started.
     profiled = (

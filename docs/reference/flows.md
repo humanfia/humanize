@@ -61,7 +61,7 @@ Everything below is importable from `hmz.flows` and listed in `hmz.flows.__all__
 | Fake tools and command lines | [`FakeTool`](#fake-tools), [`FakeCli`, `FakeCommand`](#fake-clis): `hmz.coganchor.faking`'s own, re-exported |
 | Agent mixins | `FakeToolAgentMixin`, `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
-| Budgets | [`Budget`](#budget), [`Usage`](#usage) |
+| Budgets | [`Budget`](#budget), [`Graceful`](#budget), [`Usage`](#usage) |
 | Environments | [`EnvCollection`](#envcollection), [`Env`](#env), [`LocalEnv`](#localenv), [`EnvBackendKind`](#envbackendkind), [`SequenceNotStr`](#sequencenotstr) |
 | Environment mixins | `ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin` ([table](#what-an-environment-can-do)); `GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin` ([table](#worktrees-copies-and-scratch-directories)); `RewindableEnvMixin`, `GitEnvMixin` ([table](#snapshots-and-rewinding)); `CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin` ([table](#what-a-machine-must-have)) |
 | Hooks | [`HookKind`](#hookkind), [`HookFn`](#hookfn), [`HookParams`, `HookResult`](#hookparams-and-hookresult), [`HOOK_TYPES`](#hook-types), and eleven `<Moment>HookParams`/`<Moment>HookResult` pairs ([table](#hook-fields)) |
@@ -804,7 +804,7 @@ does: `OutputSchemaError: the answer is not a <Model>: <first 200 chars, JSON-qu
 | a fork's first turn, its parent having taken a turn since the fork | `SessionError`: `<role>: the session it was forked from has taken a turn since; …` |
 | the turn was interrupted | `SessionError`: `the turn was interrupted` |
 | a budget over the turn is spent | the `BudgetExceeded` leaf |
-| a hard (non-graceful) limit reached mid-turn | the `BudgetExceeded` leaf; the CLI stops |
+| a hard (not graceful) limit reached mid-turn | the `BudgetExceeded` leaf; the CLI stops |
 | the CLI failed the turn | the [`HarnessError`](#harnesserror) leaf |
 | the task running `run` is cancelled | `asyncio.CancelledError`; the CLI is interrupted and waited on for up to 30 s |
 
@@ -1208,11 +1208,19 @@ hmz exec: error: tries: 'repo' needs GitEnvMixin, which docker@gpubox/srv/repo d
 ### `Budget` {#budget}
 
 ```python
+class Graceful(pydantic.BaseModel): # frozen=True, extra="forbid"
+    duration: bool = True
+    cost: bool = True
+    output_tokens: bool = True
+
 class Budget(pydantic.BaseModel):   # frozen=True, extra="forbid", ser_json_inf_nan="strings"
     duration: timedelta | None = None     # >= 0
     cost: float | None = None             # >= 0, USD
     output_tokens: int | None = None      # >= 0
-    graceful: bool = True
+    graceful: bool | Graceful = True
+
+    @property
+    def graces(self) -> Graceful: ...     # `graceful`, one flag per limit
 ```
 
 | Field | Limits |
@@ -1220,7 +1228,7 @@ class Budget(pydantic.BaseModel):   # frozen=True, extra="forbid", ser_json_inf_
 | `duration` | Wall-clock time from the start of the call (or turn) the budget belongs to: a deadline. |
 | `cost` | USD spent by turns under it. |
 | `output_tokens` | Tokens written by agents under it. |
-| `graceful` | `True`: a turn under way when a limit is reached may finish. `False`: it is cut off at once. |
+| `graceful` | `True`: a turn under way when a limit is reached may finish. `False`: it is cut off at once. A `Graceful` says it for each limit on its own: `Budget(cost=5, output_tokens=200_000, graceful=Graceful(output_tokens=False))` cuts a turn off at its 200 000th token, but lets one that reaches $5 finish. A `Graceful` whose three flags agree is read as that one `bool`. |
 
 At least one of `duration`, `cost`, `output_tokens` must be set
 (`a budget sets at least one of duration, cost, output_tokens`), and none may be negative;
@@ -1243,13 +1251,15 @@ and [`Agent.run`](#run)). They nest:
   hour of their caller's.
 - **`ctx.budget`** reports, for each limit, the least over the chain of
   `limit − spent under that call + spent under this call` (the total this call may reach),
-  `duration` as the time from this call's start to its deadline, and `graceful=False` if any
-  budget in the chain is not graceful. `cost` is `None` where no budget limits it but another
-  limit exists.
+  `duration` as the time from this call's start to its deadline, and each limit as not
+  graceful if any budget in the chain that sets it is not graceful for it; `graceful` is a
+  `bool` where the three agree and a `Graceful` where they do not. `cost` is `None` where no budget limits it
+  but another limit exists.
 - **A turn** is held to the least remaining of each limit over every budget above it plus its
-  own. Where two budgets leave the same amount, a hard (`graceful=False`) one wins. A turn's
-  own budget lasts one turn: a graceful one only counts; use `graceful=False` to cut a turn
-  short.
+  own, each limit graceful or hard as the budget leaving it says -- a hard token limit leaves
+  a graceful cost limit graceful. Where two budgets leave the same amount, the one hard for
+  that limit wins. A turn's own budget lasts one turn: a graceful one only counts; use
+  `graceful=False` to cut a turn short.
 
 **Enforcement.**
 
@@ -1258,7 +1268,7 @@ and [`Agent.run`](#run)). They nest:
 | Turn requested with a spent limit | The `BudgetExceeded` leaf, before anything is sent: `<ref>: its budget's duration is spent` / `cost is spent` / `output tokens are spent`. |
 | Limit reached mid-turn, graceful | The turn completes and returns; the next turn raises. |
 | Limit reached mid-turn, hard | The CLI is stopped; `run` raises the leaf. |
-| A call's deadline passes | The call's task is cancelled after in-flight turns under it finish (graceful) or at once (hard); the cancellation surfaces from the call as `DurationExceeded`. A cancellation from anywhere else remains a `CancelledError`. |
+| A call's deadline passes | The call's task is cancelled after in-flight turns under it finish (graceful duration) or at once (hard); the cancellation surfaces from the call as `DurationExceeded`. A cancellation from anywhere else remains a `CancelledError`. |
 | After any of the above | The budget stays spent: every later turn under it raises again. |
 
 Spending is read as the CLI reports it (polled every 1 s while the CLI is silent) and priced
@@ -1893,25 +1903,27 @@ Machines and providers: [Machines](/reference/machines).
 
 #### `budget.*`: the run's budget {#p-budget}
 
-Limits `budget.duration`, `budget.cost`, `budget.output_tokens`, `budget.graceful`, each at
-most once across all `-p`, among the flow's params or apart from them:
-`-p rounds=3,budget.cost=5 -p budget.duration=1h`. No flow may declare a param `budget`.
+Limits `budget.duration`, `budget.cost`, `budget.output_tokens`, `budget.graceful` and
+`budget.graceful.<limit>`, each at most once across all `-p`, among the flow's params or apart
+from them: `-p rounds=3,budget.cost=5 -p budget.duration=1h`. No flow may declare a param
+`budget`.
 
 | Limit | Accepted | Examples |
 | --- | --- | --- |
 | `budget.duration` | seconds (`90`, `1.5`); units `w d h m s`, each at most once, decimals allowed (`1h30m`, `2d`, `1.5h`); ISO 8601 (`PT1H30M`); `HH:MM:SS`. Finite, ≥ 0. | `budget.duration=6h` |
 | `budget.cost` | USD, optional leading `$`; `inf` for none; ≥ 0, not NaN | `budget.cost=$20` |
 | `budget.output_tokens` | whole number, `_` ignored, suffix `k` (×1000) or `m` (×1 000 000), decimals allowed if the result is whole | `budget.output_tokens=1.5m` |
-| `budget.graceful` | `1 true yes on` / `0 false no off` (case-insensitive) | `budget.graceful=false` |
+| `budget.graceful` | `1 true yes on` / `0 false no off` (case-insensitive), for every limit | `budget.graceful=false` |
+| `budget.graceful.duration`, `budget.graceful.cost`, `budget.graceful.output_tokens` | as `budget.graceful`, for that limit alone, over `budget.graceful` | `budget.graceful.output_tokens=false` |
 
 | Input | Message |
 | --- | --- |
-| unknown limit | `-p budget.<limit>: not a limit; one of budget.duration, budget.cost, budget.output_tokens, budget.graceful` |
+| unknown limit | `-p budget.<limit>: not a limit; one of budget.duration, budget.cost, budget.output_tokens, budget.graceful, budget.graceful.duration, budget.graceful.cost, budget.graceful.output_tokens` |
 | limit twice | `-p: 'budget.<limit>' is given twice` |
 | bad duration | `-p budget.duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`; `'<v>' names a unit twice`; `'<v>' is negative`; `'<v>' is not a valid duration: must be finite and not negative`; `duration '<v>' is too long` |
 | bad cost | `-p budget.cost: '<v>' is not a valid USD cost` |
 | bad tokens | `-p budget.output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`; `'<v>' must be a whole number of tokens` |
-| bad graceful | `-p budget.graceful: '<v>' must be true or false` |
+| bad graceful | `-p budget.graceful: '<v>' must be true or false` (or `budget.graceful.<limit>`) |
 | no limit set | `-p budget.*: Value error, a budget sets at least one of duration, cost, output_tokens` |
 | no `budget.*` for a flow that needs one | `<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` |
 

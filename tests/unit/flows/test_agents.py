@@ -23,6 +23,7 @@ from hmz.flows import (
     CursorAgent,
     DeepSeekHarnessAgent,
     GoalCommandAgentMixin,
+    Graceful,
     GrokBuildAgent,
     HarnessKind,
     KimiCodeAgent,
@@ -208,6 +209,30 @@ def test_a_budget_sets_at_least_one_limit(limits: dict[str, Any]) -> None:
 
 def test_a_budget_finishes_its_turn_unless_told_otherwise() -> None:
     assert Budget(cost=1).graceful is True
+    assert Budget(cost=1).graces == Graceful()
+
+
+def test_a_budget_is_graceful_limit_by_limit() -> None:
+    budget = Budget(cost=1, graceful=Graceful(cost=False))
+
+    assert budget.graces == Graceful(duration=True, cost=False, output_tokens=True)
+    assert Budget(cost=1, graceful=False).graces == Graceful(
+        duration=False, cost=False, output_tokens=False
+    )
+    assert Budget.model_validate_json(budget.model_dump_json()) == budget
+    assert Budget.model_validate({"cost": 1, "graceful": {"cost": False}}) == budget
+
+
+@pytest.mark.parametrize("flag", [True, False])
+def test_a_budget_reads_three_graces_that_agree_as_one(flag: bool) -> None:
+    graces = Graceful(duration=flag, cost=flag, output_tokens=flag)
+
+    assert Budget(cost=1, graceful=graces).graceful is flag
+
+
+def test_graceful_refuses_a_limit_it_does_not_know() -> None:
+    with pytest.raises(pydantic.ValidationError):
+        Graceful.model_validate({"turns": False})
 
 
 @pytest.mark.parametrize(

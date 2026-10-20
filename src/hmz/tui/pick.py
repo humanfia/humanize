@@ -75,7 +75,7 @@ from hmz.coganchor import backends
 from hmz.coganchor.agents import SWARM, driver
 from hmz.coganchor.prices import money
 from hmz.coganchor.spelling import parted
-from hmz.flows import Budget
+from hmz.flows import Budget, Graceful
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
 from hmz.runtime.watching.monitor import lasting, thousands
@@ -2265,20 +2265,26 @@ def spent(budget: Budget) -> str:
     Returns:
       Each limit it sets -- the time as the sheet it is set on writes it, the output tokens,
       the money -- and `no limit` for the one a conversation runs under, whose one cap is an
-      infinite cost.
+      infinite cost. Where every limit it sets cuts a turn off at once, that is said once,
+      after them all; where only some do, after each of those.
     """
     import math
 
-    caps: list[str] = []
+    graces = budget.graces
+    caps: list[tuple[str, bool]] = []
     if budget.duration is not None:
-        caps.append(_units(budget.duration))
+        caps.append((_units(budget.duration), graces.duration))
     if budget.output_tokens is not None:
-        caps.append(f"{thousands(budget.output_tokens)} out")
+        caps.append((f"{thousands(budget.output_tokens)} out", graces.output_tokens))
     if budget.cost is not None and not math.isinf(budget.cost):
-        caps.append(money(budget.cost))
+        caps.append((money(budget.cost), graces.cost))
     if not caps:
         return "no limit"
-    return ", ".join(caps) + ("" if budget.graceful else ", even mid-turn")
+    if not any(graceful for _, graceful in caps):
+        return ", ".join(cap for cap, _ in caps) + ", even mid-turn"
+    return ", ".join(
+        cap if graceful else f"{cap} even mid-turn" for cap, graceful in caps
+    )
 
 
 def budget_of(flow: str) -> Budget | None:
@@ -3153,9 +3159,17 @@ class Budgeted(BaseModel):
     output_tokens: int = Field(
         default=0, ge=0, description="maximum output tokens, 0 for no limit"
     )
-    graceful: bool = Field(
+    graceful_duration: bool = Field(
         default=True,
-        description="finish the current turn when a limit is reached",
+        description="finish the current turn when the duration is reached",
+    )
+    graceful_cost: bool = Field(
+        default=True,
+        description="finish the current turn when the cost is reached",
+    )
+    graceful_output_tokens: bool = Field(
+        default=True,
+        description="finish the current turn when the output tokens are reached",
     )
 
     @field_validator("duration")
@@ -3186,13 +3200,16 @@ class Budgeted(BaseModel):
         """
         import math
 
+        graces = budget.graces
         return cls.model_construct(
             duration=_units(budget.duration) if budget.duration is not None else "",
             cost=budget.cost
             if budget.cost is not None and not math.isinf(budget.cost)
             else 0.0,
             output_tokens=budget.output_tokens or 0,
-            graceful=budget.graceful,
+            graceful_duration=graces.duration,
+            graceful_cost=graces.cost,
+            graceful_output_tokens=graces.output_tokens,
         )
 
     def budget(self) -> Budget:
@@ -3203,7 +3220,11 @@ class Budgeted(BaseModel):
             duration=parse_duration(self.duration) if self.duration else None,
             cost=self.cost or None,
             output_tokens=self.output_tokens or None,
-            graceful=self.graceful,
+            graceful=Graceful(
+                duration=self.graceful_duration,
+                cost=self.graceful_cost,
+                output_tokens=self.graceful_output_tokens,
+            ),
         )
 
 

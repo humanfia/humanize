@@ -273,12 +273,21 @@ export function mount(root, { query }) {
   }
 }
 
-/** The fields of a budget: what it may cost, how long it may take, and how much it may write. */
+/**
+ * The fields of a budget: what it may cost, how long it may take, and how much it may write,
+ * and for each whether the turn under way when it is reached may finish.
+ */
 function budgetFields(kept, changed) {
   const cost = h('input', { type: 'number', min: '0', step: '0.01', value: kept.cost === 'Infinity' ? '' : kept.cost ?? '', placeholder: 'dollars', 'aria-label': 'Most it may cost, in dollars' })
   const minutes = h('input', { type: 'number', min: '0', step: '1', value: minutesOf(kept.duration), placeholder: 'minutes', 'aria-label': 'Longest it may take, in minutes' })
   const tokens = h('input', { type: 'number', min: '0', step: '1000', value: kept.output_tokens ?? '', placeholder: 'output tokens', 'aria-label': 'Most output tokens it may write' })
-  const graceful = h('input', { type: 'checkbox', checked: kept.graceful !== false })
+  // Graceful is one flag for every limit, or one apiece; a box apiece either way.
+  const graces = Object.fromEntries(
+    ['cost', 'duration', 'output_tokens'].map((limit) => [
+      limit,
+      h('input', { type: 'checkbox', checked: (kept.graceful && typeof kept.graceful === 'object' ? kept.graceful[limit] : kept.graceful) !== false }),
+    ]),
+  )
   for (const one of [cost, minutes, tokens]) one.addEventListener('input', changed)
   return {
     fields: h(
@@ -287,7 +296,9 @@ function budgetFields(kept, changed) {
       h('label', { class: 'field' }, h('span', { class: 'label' }, 'Cost, $'), cost),
       h('label', { class: 'field' }, h('span', { class: 'label' }, 'Time, min'), minutes),
       h('label', { class: 'field' }, h('span', { class: 'label' }, 'Output tokens'), tokens),
-      h('label', { class: 'check' }, graceful, 'Graceful'),
+      h('label', { class: 'check' }, graces.cost, 'Cost graceful'),
+      h('label', { class: 'check' }, graces.duration, 'Time graceful'),
+      h('label', { class: 'check' }, graces.output_tokens, 'Tokens graceful'),
     ),
     said() {
       return [cost.value !== '' && `$${cost.value}`, minutes.value !== '' && `${minutes.value} min`, tokens.value !== '' && `${tokens.value} out`].filter(Boolean).join(' · ')
@@ -298,7 +309,9 @@ function budgetFields(kept, changed) {
       if (minutes.value !== '') said.duration = Number(minutes.value) * 60
       if (tokens.value !== '') said.output_tokens = Number(tokens.value)
       if (!Object.keys(said).length) return null
-      said.graceful = graceful.checked
+      const flags = Object.fromEntries(Object.entries(graces).map(([limit, box]) => [limit, box.checked]))
+      const every = Object.values(flags)
+      said.graceful = every.every((one) => one === every[0]) ? every[0] : flags
       return said
     },
   }

@@ -37,9 +37,10 @@ A prompt that is `/goal <objective>` is the harness's own goal, on a harness tha
 other prompt, `/loop` included, goes to the CLI as it is. A turn's
 :class:`~hmz.runtime.flowing.spi.Limits` are held by the driver: what it spends is read as the
 CLI reports it, priced with :func:`hmz.coganchor.prices.cost` -- a model nobody prices costs
-nothing there. A graceful turn runs to its end and answers as usual, whatever it spends, the
-engine refusing the next; one that is not graceful is cut off the moment a limit is reached --
-the CLI stops spending -- and raises the :class:`~hmz.flows.errors.BudgetExceeded` leaf.
+nothing there. A turn reaching a graceful limit runs to its end and answers as usual, whatever
+it spends, the engine refusing the next; one reaching a limit that is not graceful is cut off
+at once -- the CLI stops spending -- and raises the :class:`~hmz.flows.errors.BudgetExceeded`
+leaf. Each limit is graceful or not on its own.
 
 A fork is the CLI's own: Claude Code, Codex and Kimi Code fork into another workdir,
 every other harness that forks does so only into the workdir it is in, and cursor-agent,
@@ -1528,7 +1529,7 @@ class HarnessSession:
                 break
         finally:
             self._end()
-        if self._over is not None and not limits.graceful:
+        if self._over is not None:
             raise self._exceeded(self._over, limits)
         if self._interrupted:
             # Interrupted between two of the CLI's turns -- while a STOP hook was deciding --
@@ -1552,7 +1553,7 @@ class HarnessSession:
             self._steers = []
             self._steer_cut = False
         loop = self._loop
-        if limits.deadline is not None and not limits.graceful:
+        if limits.deadline is not None and not limits.deadline_graceful:
             self._timers.append(
                 loop.call_at(
                     loop.time() + (limits.deadline - time.monotonic()), self._deadline
@@ -1783,13 +1784,17 @@ class HarnessSession:
             self._duration += duration
             self._turn_cost += cost
             self._turn_tokens += tokens
+            # A graceful limit lets the turn run to its end, and the engine refuses the next.
             over: type[BudgetExceeded] | None = None
-            if limits.graceful:
-                pass  # the turn runs to its end, and the engine refuses the next one
-            elif limits.cost is not None and self._turn_cost >= limits.cost:
+            if (
+                not limits.cost_graceful
+                and limits.cost is not None
+                and self._turn_cost >= limits.cost
+            ):
                 over = CostExceeded
             elif (
-                limits.output_tokens is not None
+                not limits.output_tokens_graceful
+                and limits.output_tokens is not None
                 and self._turn_tokens >= limits.output_tokens
             ):
                 over = OutputTokensExceeded
@@ -1798,7 +1803,7 @@ class HarnessSession:
             self._overrun(over)
 
     def _deadline(self) -> None:
-        """The deadline of a turn that is not graceful, on the loop: ends it now."""
+        """The deadline of a turn, where it is not graceful, on the loop: ends it now."""
         if self._flying:
             self._overrun(DurationExceeded)
 

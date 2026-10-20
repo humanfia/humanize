@@ -409,7 +409,8 @@ param    = key "=" value / limit
 key      = ( ALPHA / "_" ) *( wordchar / "-" )
 wordchar = <a character Python's regular expressions match as \w>
 value    = *<character>
-limit    = "budget." ( "duration" / "cost" / "output_tokens" / "graceful" ) "=" value
+limit    = "budget." ( name / "graceful" [ "." name ] ) "=" value
+name     = "duration" / "cost" / "output_tokens"
 ```
 
 **7.6.1** A `-p` item that is not `<key>=<value>` or `budget.<name>=<value>` MUST be a usage error.
@@ -423,8 +424,9 @@ model (`api/flows.md`); a param the model refuses MUST be refused under §7.7.
 
 **7.6.5** `budget` with no limit MUST be a usage error.
 
-**7.6.6** `budget.<name>` with a `<name>` other than `duration`, `cost`, `output_tokens` and
-`graceful` MUST be a usage error.
+**7.6.6** `budget.<name>` with a `<name>` other than `duration`, `cost`, `output_tokens`,
+`graceful`, `graceful.duration`, `graceful.cost` and `graceful.output_tokens` MUST be a usage
+error.
 
 **7.6.7** `budget.duration` MUST accept a non-negative finite number of seconds; a concatenation
 of numbers each followed by one of the units `w`, `d`, `h`, `m` and `s`, each unit at most once;
@@ -436,8 +438,10 @@ an ISO 8601 duration; or `HH:MM:SS`.
 **7.6.9** `budget.output_tokens` MUST accept a whole number, optionally written with `_`, or a
 decimal number followed by `k` (thousands) or `m` (millions) that comes to a whole number.
 
-**7.6.10** `budget.graceful` MUST accept `1`, `true`, `yes` and `on` as true and `0`, `false`,
-`no` and `off` as false, in any case.
+**7.6.10** `budget.graceful` and `budget.graceful.<name>` MUST accept `1`, `true`, `yes` and `on`
+as true and `0`, `false`, `no` and `off` as false, in any case. `budget.graceful` MUST set whether
+every limit is graceful, and `budget.graceful.<name>` whether the limit `<name>` is, overriding
+`budget.graceful` for that limit.
 
 **7.6.11** A limit value that §7.6.7 to §7.6.10 do not accept MUST be a usage error.
 

@@ -98,6 +98,7 @@ A loop runs until something stops it, so every flow but `chat` needs a budget, g
 | `budget.cost` | US dollars: `50` or `$50` |
 | `budget.output_tokens` | tokens the agents may write: `200k`, `10m` |
 | `budget.graceful` | `false` cuts off the turn under way when a limit is reached. By default it finishes. |
+| `budget.graceful.duration`, `.cost`, `.output_tokens` | the same, for that limit alone: `budget.graceful.output_tokens=false` cuts a turn off at the token cap and still lets one that reaches the cost finish. |
 
 Give at least one limit. When one is reached, the run stops, `hmz exec: stopped -- …` names the
 limit on stderr, and the exit status is still 0: for a loop, that is the ordinary way to end.
