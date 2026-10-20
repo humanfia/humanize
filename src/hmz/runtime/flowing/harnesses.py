@@ -65,6 +65,7 @@ import asyncio
 import contextlib
 import dataclasses
 import datetime
+import math
 import os
 import threading
 import time
@@ -1770,7 +1771,13 @@ class HarnessSession:
                 self._rose = {}
             if not rose:
                 return
-            cost = prices.cost(Tokens(rose), self._agent.config.model) or 0.0
+            try:
+                cost = prices.cost(Tokens(rose), self._agent.config.model) or 0.0
+            except prices.PriceError:
+                # A list that went bad under a run already going, which the run was refused
+                # for had it been so at the start: what these tokens cost is then a figure
+                # no cap can afford, so the turn and every one after it stop on it.
+                cost = math.inf
             written = (
                 self._written + rose.get("output", 0.0) + rose.get("reasoning", 0.0)
             )

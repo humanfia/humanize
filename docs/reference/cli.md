@@ -327,6 +327,10 @@ be enforced. The run starts, and stderr first carries:
 hmz exec: nobody lists a price for <model>[, <model>…], so cost=<n> cannot stop what it spends
 ```
 
+A price list that gives any model a price that is not a finite number (`NaN`, an infinity)
+refuses the run instead, whatever its budget: `hmz exec: error: the price list …` and exit
+status 2, before the first turn.
+
 ### Where the harness runs {#choosing-where-the-harness-runs}
 
 The *harness* is an agent's CLI and its supervisor. Nothing on the line says where it runs:

@@ -127,6 +127,8 @@ def test_where_is_this_machines_own() -> None:
         (99.99, "$99.99"),
         (100, "$100"),
         (12345.6, "$12,346"),
+        (float("nan"), "$?"),
+        (float("inf"), "$?"),
     ],
 )
 def test_money(dollars: float, shown: str) -> None:
@@ -310,6 +312,65 @@ def test_a_refresh_landing_is_read_without_a_restart(
 def test_a_kept_list_that_is_not_json_prices_nothing(listed: Path) -> None:
     listed.write_text("garbage", encoding="utf-8")
     assert prices.price("claude-sonnet-5") is None
+
+
+def _bad(rate: str) -> str:
+    """A listing whose one odd model is priced at `rate`, as JSON spells it."""
+    listing = _listing()
+    listing["versions"][1]["models"].append(
+        _model("bad-model", "Bad Model", output=12345)
+    )
+    return json.dumps(listing).replace("12345", rate)
+
+
+@pytest.mark.parametrize(
+    "rate", ["NaN", "Infinity", "-Infinity", "1e400", "1" + "0" * 400]
+)
+def test_a_fetched_price_that_is_not_a_number_refuses_every_price(
+    listed: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rate: str
+) -> None:
+    before = listed.read_bytes()
+    source = _source(tmp_path, monkeypatch, None)
+    source.write_text(_bad(rate), encoding="utf-8")
+    _later(monkeypatch)
+    assert not prices.refresh(wait=True)
+    assert listed.read_bytes() == before  # not kept over a list of numbers
+    for model in ("bad-model", "claude-sonnet-5", "never-heard-of-it"):
+        with pytest.raises(prices.PriceError, match=r"bad-model's output.*HUMANIZE_"):
+            prices.cost({"output": 1000}, model)
+    with pytest.raises(prices.PriceError):
+        prices.ready()
+
+
+def test_a_fetch_of_a_good_list_lifts_the_refusal_within_the_hour(
+    listed: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _source(tmp_path, monkeypatch, None)
+    source.write_text(_bad("NaN"), encoding="utf-8")
+    _later(monkeypatch)
+    prices.refresh(wait=True)
+    _source(tmp_path, monkeypatch, _listing())
+    assert prices.refresh(wait=True)
+    assert prices.cost({"output": 1_000_000}, "claude-sonnet-5") == 15
+
+
+def test_a_refusal_is_of_its_source_alone(
+    listed: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _source(tmp_path, monkeypatch, None)
+    source.write_text(_bad("NaN"), encoding="utf-8")
+    _later(monkeypatch)
+    prices.refresh(wait=True)
+    monkeypatch.setenv(prices.WHENCE, "off")
+    assert prices.price("claude-sonnet-5") is not None
+
+
+def test_a_kept_price_that_is_not_a_number_refuses_every_price(listed: Path) -> None:
+    kept = json.loads(listed.read_text(encoding="utf-8"))
+    kept["models"]["claude-opus-5"]["per_million"]["output"] = float("nan")
+    listed.write_text(json.dumps(kept), encoding="utf-8")
+    with pytest.raises(prices.PriceError, match=r"kept at .*claude-opus-5.*delete it"):
+        prices.price("claude-sonnet-5")
 
 
 def test_ready_fetches_a_missing_list(

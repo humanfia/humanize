@@ -114,7 +114,9 @@ process, 20 s timeout: by the TUI as it opens, in the background; and by every r
 (`hmz exec`, the SDK, the TUI's), in the background unless the run has a finite `cost` limit,
 which waits for it before its first turn. Written to `.prices.json.<random>.new`, fsynced and
 renamed. Each fetch first deletes any `.prices.json.*.new` or `prices.json.*` (the older
-naming) more than 10 min old, left by a process that exited mid-write.
+naming) more than 10 min old, left by a process that exited mid-write. A list that gives any
+price that is not a finite number is never written, and while it is what the source says, or
+what is kept, every run is refused before its first turn (`hmz exec` exits 2).
 
 ### `M/releases.json` {#h-releases-json}
 

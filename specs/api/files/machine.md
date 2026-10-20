@@ -64,7 +64,8 @@ path fetched), `etag` (string), `fetched` (number, seconds since the Unix epoch)
 `cache_read` and `cache_write`).
 
 **4.2** `hmz` MUST write `<mdir>/prices.json` by atomic replacement when it is older than 24
-hours and a process of **hmz** asks for prices, from the source `HUMANIZE_PRICES` names.
+hours and a process of **hmz** asks for prices, from the source `HUMANIZE_PRICES` names, and
+MUST NOT write it from a source that gives any price that is not a finite number.
 
 **4.3** `hmz` MUST remove, before each fetch of prices, every file `<mdir>/.prices.json.*.new` and
 `<mdir>/prices.json.*` older than 10 minutes.

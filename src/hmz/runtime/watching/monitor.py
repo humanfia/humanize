@@ -7,6 +7,7 @@ flow itself is a Python file that could branch any way it likes.
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 from collections import Counter, deque
@@ -651,9 +652,15 @@ class Monitor:
           Dollars, or None where nobody lists this model or no source said which kind each
           token was -- which a reader shows as tokens alone rather than as nothing spent.
           What comes back is a floor: tokens no source said the kind of are left out of it.
+          Infinite where the price list gives a price that is not a number.
         """
         broken = self.parts.get(model)
-        return prices.cost(broken, model) if broken else None
+        if not broken:
+            return None
+        try:
+            return prices.cost(broken, model)
+        except prices.PriceError:
+            return math.inf  # a bill nobody can read, which `money` says as `$?`
 
     def _fullest(self, model: str) -> dict[str, float] | None:
         """The reckoning of one model to read every figure off. Held under the caller's lock.

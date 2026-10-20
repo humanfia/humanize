@@ -480,6 +480,18 @@ async def test_spending_past_a_hard_budget_stops_the_turn() -> None:
     assert len(coder.prompts) == 2
 
 
+@pytest.mark.parametrize(
+    "budget", [Budget(cost=1.5, graceful=False), None, Budget(output_tokens=100)]
+)
+async def test_a_spend_that_is_not_a_number_stops_the_next_turn(
+    budget: Budget | None,
+) -> None:
+    coder = FakeAgentDriver(reply="ok", cost=math.nan)
+    with pytest.raises(CostExceeded, match="cannot be counted"):
+        await run_fake(twice, agents={"coder": coder}, budget=budget)
+    assert len(coder.prompts) == 1
+
+
 @pytest.mark.parametrize("hard", ["tokens", "duration"])
 async def test_a_hard_limit_leaves_another_limit_graceful(hard: str) -> None:
     coder = FakeAgentDriver(reply="ok", cost=1.5, output_tokens=1)

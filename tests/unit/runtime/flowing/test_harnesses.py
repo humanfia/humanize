@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 import pydantic
 import pytest
 
-from hmz.coganchor import AnchorConfig, backends, crossing
+from hmz.coganchor import AnchorConfig, backends, crossing, prices
 from hmz.coganchor import agents as coganchor_agents
 from hmz.coganchor.agents import Question
 from hmz.coganchor.agents import base as coganchor_base
@@ -984,6 +984,27 @@ async def test_a_turn_with_nothing_left_to_spend_is_refused(
 
     with pytest.raises(kind):
         await session.turn(TurnRequest("x", limits=limits), Sink())
+
+
+async def test_a_price_that_is_not_a_number_is_a_cost_no_cap_affords(
+    coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def cost(usage: object, model: str) -> float:
+        raise prices.PriceError("prices it at nan dollars")
+
+    def spent(self: Conversation) -> dict[str, float]:
+        return {"output": 10.0}
+
+    monkeypatch.setattr(prices, "cost", cost)
+    monkeypatch.setattr(Conversation, "spent", spent)
+    session = await _session(open_agent(_spec()), tmp_path)
+    sink = Sink()
+
+    with pytest.raises(CostExceeded):
+        await session.turn(
+            TurnRequest("x", limits=Limits(cost=1.0, cost_graceful=False)), sink
+        )
+    assert sink.added[0][0] == float("inf")
 
 
 async def test_a_turn_with_time_to_spare_is_taken(

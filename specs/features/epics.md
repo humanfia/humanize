@@ -206,6 +206,14 @@ was stopped by its budget, and MUST exit with status 0 in that case.
 **3.4.17** hmz MUST read back no spent figures for an epic that is executing or that ended
 without recording them.
 
+**3.4.18** Where pricing fails (`features/agents.md` §8.2.7) once the price list has been asked
+for under §3.4.9 or §3.4.10, hmz MUST refuse the epic before its first turn, whatever its
+budget, as a line refused (`hmz exec` exits with status 2).
+
+**3.4.19** A turn whose pricing fails MUST count as an infinite cost; and where what an epic or
+flow call has spent is not a finite number, hmz MUST refuse every later turn under it with
+`CostExceeded`, whatever its budget.
+
 ### 3.5 Stopping and forcing
 
 **3.5.1** Any frontend attached to the host slot of an executing epic MAY stop it.

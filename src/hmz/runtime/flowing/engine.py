@@ -960,7 +960,10 @@ class Call:
                 own = node.own
                 if own is not None:
                     if own.cost is not None:
-                        cost = min(cost, own.cost - node.cost + self.cost)
+                        left = own.cost - node.cost + self.cost
+                        # Nothing left where what was spent cannot be counted, rather than a
+                        # NaN `min` would pass over as no limit at all.
+                        cost = 0.0 if math.isnan(left) else min(cost, left)
                     if own.output_tokens is not None:
                         tokens = min(
                             tokens, own.output_tokens - node.tokens + self.tokens
@@ -1036,6 +1039,12 @@ class Call:
         while node is not None:
             if node.ended:
                 self.check()
+            if not math.isfinite(node.cost):
+                # A spend no number counts -- a price that was none -- is one no cost limit
+                # holds, and compared against one it would drop it: every turn after it would
+                # run on uncounted. So none does, whatever the budget over it.
+                msg = f"{self.ref}: what has been spent cannot be counted"
+                raise CostExceeded(msg)
             own = node.own
             if own is not None:
                 grace = own.graces
