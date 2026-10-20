@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1](https://github.com/humanfia/humanize/compare/v0.2.0...v0.2.1) (2026-10-20)
+
+
+### Features
+
+* **web:** start an epic in no workspace, in a new directory of its own ([#478](https://github.com/humanfia/humanize/issues/478)) ([eec7226](https://github.com/humanfia/humanize/commit/eec722640cf4e92cf6142c0eaefed7adc9dc8698))
+
+
+### Fixes
+
+* **cred:** a job a session detached from itself outlives the session ([#477](https://github.com/humanfia/humanize/issues/477)) ([eec7226](https://github.com/humanfia/humanize/commit/eec722640cf4e92cf6142c0eaefed7adc9dc8698))
+* **homes:** keep a run's sessions in its epic where no supervisor answers them ([#479](https://github.com/humanfia/humanize/issues/479)) ([eec7226](https://github.com/humanfia/humanize/commit/eec722640cf4e92cf6142c0eaefed7adc9dc8698))
+* **telemetry:** report only crashes and runs halted five minutes ([#476](https://github.com/humanfia/humanize/issues/476)) ([eec7226](https://github.com/humanfia/humanize/commit/eec722640cf4e92cf6142c0eaefed7adc9dc8698))
+
 ## 0.2.0 (2026-10-17)
 
 
