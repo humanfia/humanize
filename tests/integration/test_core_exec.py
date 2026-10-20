@@ -250,6 +250,37 @@ def test_a_price_that_is_not_a_number_refuses_the_run_before_its_first_turn(
     assert started(tmp_path) == []
 
 
+def test_a_graceful_output_token_limit_lets_its_turn_finish_under_a_hard_budget(
+    tmp_path: Path, project: Path
+) -> None:
+    ran = hmz_exec(
+        "-f",
+        "stateful_ralph",
+        "-a",
+        f"agent={AGENT}",
+        "-p",
+        f"budget.output_tokens={TOKENS - 1},budget.graceful=false",
+        "-p",
+        "budget.graceful.output_tokens=true",
+        "work",
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    assert "output tokens" in ran.stderr
+    assert "wrote" not in ran.stderr
+    assert len(started(tmp_path)) == 1
+    epics = Hmz(project).epics
+    (epic,) = epics.all()
+    ran_as = epics.read(epic)
+    assert ran_as is not None
+    assert ran_as.budget is not None
+    assert ran_as.budget["graceful"] == {
+        "duration": False,
+        "cost": False,
+        "output_tokens": True,
+    }
+
+
 def test_json_writes_the_run_as_one_object_per_line() -> None:
     ran = hmz_exec(
         "--json", "-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win"

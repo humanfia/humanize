@@ -17,7 +17,7 @@ const STATES = {
 }
 
 export function draw(holder) {
-  const listing = h('section', { class: 'panel', 'data-hmz': 'daemons' })
+  const listing = h('section', { class: 'panel', 'data-hmz': 'daemons' }, h('p', { class: 'loading', role: 'status' }, 'Reading the daemons…'))
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-daemon' })
   const importing = h('section', { class: 'panel', 'data-hmz': 'import-daemons' })
   fill(holder, listing, writing, importing)

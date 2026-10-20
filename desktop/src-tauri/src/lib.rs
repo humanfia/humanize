@@ -453,9 +453,11 @@ pub fn run() {
                 .build(),
         )
         .plugin(
-            // Not whether it is visible: closing it only hides it.
+            // Not whether it is visible: closing it only hides it. Nor the update's window,
+            // centred anew each time.
             tauri_plugin_window_state::Builder::new()
                 .with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED)
+                .with_denylist(&[update::WINDOW])
                 .build(),
         )
         .manage(Shell {
@@ -482,6 +484,8 @@ pub fn run() {
         })
         .on_window_event(|window, event| match event {
             // Closing the window only hides it: the app stays in the Dock, `hmz web` with it.
+            // The update's window is the updater's own.
+            _ if window.label() != MAIN => {}
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
@@ -507,10 +511,8 @@ pub fn run() {
         }
     };
     app.run(|app, event| match event {
-        RunEvent::Reopen {
-            has_visible_windows: false,
-            ..
-        } => reveal(app),
+        // Whether or not the update's window shows.
+        RunEvent::Reopen { .. } => reveal(app),
         // Double-clicked in the Finder, or Open With: at launch too, before `hmz web` listens.
         RunEvent::Opened { urls } => {
             if let Some(path) = epic(urls.iter().filter_map(|url| url.to_file_path().ok())) {

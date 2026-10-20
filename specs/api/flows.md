@@ -128,7 +128,7 @@ specification constrains a message's wording unless the clause quotes it.
 | Agent mixins | `FakeToolAgentMixin`, `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` | §6.5 |
 | Fake tools and command lines | `FakeTool`, `FakeCli`, `FakeCommand` | §6.6 |
 | Permissions | `Permission`, `PermissionKind` | §7 |
-| Budgets | `Budget`, `Usage` | §12 |
+| Budgets | `Budget`, `Graceful`, `Usage` | §12 |
 | Environments | `EnvCollection`, `Env`, `LocalEnv`, `EnvBackendKind`, `SequenceNotStr` | §11 |
 | Environment mixins | `ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin`, `GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin`, `RewindableEnvMixin`, `GitEnvMixin`, `CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin` | §11.5–§11.8 |
 | Hooks | `HookKind`, `HookFn`, `HookParams`, `HookResult`, `HOOK_TYPES`, and `<Moment>HookParams`, `<Moment>HookResult` for each of the eleven moments | §9 |
@@ -1404,15 +1404,24 @@ with `CapabilityMissing` before any agent of the epic starts.
 
 ## 12. Budgets and usage
 
-### 12.1 `Budget` and `Usage`
+### 12.1 `Budget`, `Graceful` and `Usage`
 
 ```python
+class Graceful(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(frozen=True, extra="forbid")
+    duration: bool = True
+    cost: bool = True
+    output_tokens: bool = True
+
 class Budget(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=True, extra="forbid", ser_json_inf_nan="strings")
     duration: datetime.timedelta | None = None
     cost: float | None = None
     output_tokens: int | None = None
-    graceful: bool = True
+    graceful: bool | Graceful = True
+
+    @property
+    def graces(self) -> Graceful: ...
 
 class Usage(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=True, extra="forbid", ser_json_inf_nan="strings")
@@ -1425,8 +1434,11 @@ class Usage(pydantic.BaseModel):
 the budget belongs to. `Budget.cost` MUST limit spending in US dollars. `Budget.output_tokens`
 MUST limit the tokens agents write.
 
-**12.1.2** `Budget.graceful=True` MUST let a turn under way when a limit is reached finish.
-`Budget.graceful=False` MUST cut such a turn off at once.
+**12.1.2** A limit is graceful where `Budget.graceful` is `True`, or is a `Graceful` whose field
+of the same name is `True`. A graceful limit reached MUST let a turn under way finish. A limit
+that is not graceful MUST cut such a turn off at once. Each limit MUST be graceful or not
+independently of the others. A `Graceful` whose three fields agree MUST be read as the `bool`
+they agree on. `Budget.graces` MUST be whether each limit is graceful, as a `Graceful`.
 
 **12.1.3** Constructing a `Budget` MUST raise `pydantic.ValidationError` where none of `duration`,
 `cost` and `output_tokens` is set, or where any is negative.
@@ -1452,26 +1464,28 @@ its own start plus its own `duration` and the deadline of every call above it.
 
 **12.2.3** `ctx.budget` MUST report, for each limit, the least over the chain of calls of what
 the call in the chain allows minus what was spent under that call plus what was spent under
-this call; `duration` as the time from this call's start to its deadline; and
-`graceful=False` where any budget in the chain is not graceful.
+this call; `duration` as the time from this call's start to its deadline; and each limit as
+not graceful where any budget in the chain that sets that limit is not graceful for it,
+`graceful` being a `bool` where the three limits agree and a `Graceful` otherwise.
 
 **12.2.4** A turn MUST be held to the least remaining amount of each limit over every budget above
-it and its own. Where two budgets leave the same amount, a non-graceful one MUST prevail. A
-turn's own budget MUST apply to that turn alone.
+it and its own, each limit graceful as the budget that leaves that amount says. Where two budgets
+leave the same amount of a limit, one for which the limit is not graceful MUST prevail. A turn's
+own budget MUST apply to that turn alone.
 
 ### 12.3 Enforcement
 
 **12.3.1** A turn requested while a limit over it is spent MUST raise, before anything is sent,
 `DurationExceeded`, `CostExceeded` or `OutputTokensExceeded` for the spent limit.
 
-**12.3.2** A limit reached during a turn under a graceful budget MUST let the turn complete and
-return. The next turn under that budget MUST raise.
+**12.3.2** A graceful limit reached during a turn MUST let the turn complete and return. The next
+turn under that budget MUST raise.
 
-**12.3.3** A limit reached during a turn under a non-graceful budget MUST stop the harness, and
-`run` MUST raise the subclass for the limit.
+**12.3.3** A limit that is not graceful reached during a turn MUST stop the harness, and `run`
+MUST raise the subclass for the limit.
 
 **12.3.4** When a flow call's deadline passes, hmz MUST cancel the call, after its turns under way
-finish where its budget is graceful and at once otherwise, and the call MUST raise
+finish where its budget's duration is graceful and at once otherwise, and the call MUST raise
 `DurationExceeded`. A cancellation from anywhere else MUST remain `asyncio.CancelledError`.
 
 **12.3.5** A budget once spent MUST remain spent: every later turn under it MUST raise again.

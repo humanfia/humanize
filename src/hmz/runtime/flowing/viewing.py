@@ -1634,12 +1634,22 @@ class Made:
             await self.driver.destroy_scratch(self.id)
 
 
-def limits_of(cost: float, tokens: float, deadline: float, *, graceful: bool) -> Limits:
+def limits_of(
+    cost: float,
+    tokens: float,
+    deadline: float,
+    *,
+    cost_graceful: bool,
+    output_tokens_graceful: bool,
+    deadline_graceful: bool,
+) -> Limits:
     """What a turn may spend, with infinity written as no limit."""
     inf = float("inf")
     return Limits(
         cost=None if cost == inf else max(cost, 0.0),
         output_tokens=None if tokens == inf else max(int(tokens), 0),
         deadline=None if deadline == inf else deadline,
-        graceful=graceful,
+        cost_graceful=cost_graceful,
+        output_tokens_graceful=output_tokens_graceful,
+        deadline_graceful=deadline_graceful,
     )

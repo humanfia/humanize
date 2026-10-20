@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
 
+import hmz.cli.output
 import hmz.runtime
 from hmz.cli import main
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 EPIC = Path("/epics/w/20261012T000000.000Z-abcdef")
 
@@ -211,3 +216,41 @@ def test_a_pull_past_a_target_that_did_not_answer_says_both(
     assert capsys.readouterr().err == (
         "lab: failed: unreachable\nhmz backup: no target that answered holds e9\n"
     )
+
+
+class _Spinner:
+    """`Out.spins`, as what it would say now, rather than drawn."""
+
+    def __init__(self) -> None:
+        self.says = ""
+        self.seen: list[str] = []
+
+    def spins(self, says: Callable[[], str] | None) -> None:
+        self.says = says() if says else ""
+
+    def saw(self, *_: object) -> list[SimpleNamespace]:
+        self.seen.append(self.says)
+        return [_stored("a", "e1")]
+
+
+def test_a_spinner_says_what_git_is_doing_until_it_answers(
+    runtime: mock.Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shown = _Spinner()
+    # Set on the class, a bound method is not bound again: `out.spins(f)` is `shown.spins(f)`.
+    monkeypatch.setattr(hmz.cli.output.Out, "spins", shown.spins)
+    runtime.backups.wait.side_effect = shown.saw
+    runtime.backups.listed.side_effect = shown.saw
+    runtime.backups.pulled.side_effect = shown.saw
+
+    main(["backup", EPIC.name])
+    main(["backup", "--list", "--to", "lab"])
+    main(["backup", "--pull", "e1", "--to", "home"])
+
+    assert shown.seen == [
+        "backing up to lab, home",
+        "asking lab what it holds",
+        "asking home what it holds",
+        "downloading a/-w/e1 from home",
+    ]
+    assert shown.says == ""

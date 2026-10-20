@@ -7,7 +7,7 @@ import os
 import sys
 import types
 from importlib.metadata import version
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import pytest
@@ -15,7 +15,10 @@ import pytest
 import hmz.coganchor.fence.wrap
 import hmz.coganchor.providers.redirect
 import hmz.daemon
-from hmz.cli import APART, COMMANDS, INTERNAL, main, many, opens
+from hmz.cli import APART, COMMANDS, INTERNAL, main, many, opens, output
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @pytest.mark.parametrize(
@@ -278,3 +281,18 @@ def test_runs_that_cannot_be_held_apart_are_held_here(
         capsys.readouterr().err
     )
     assert app.made == [{}]
+
+
+def test_a_clock_is_up_while_the_runs_are_reached_and_down_before_the_interface(
+    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    said: list[str | None] = []
+
+    def spins(_: output.Out, says: Callable[[], str] | None) -> None:
+        said.append(says and says())
+
+    monkeypatch.setattr(output.Out, "spins", spins)
+    terminal.side_effect = lambda _: said.append("attached")  # pyright: ignore[reportUnknownLambdaType]
+    assert _opened(monkeypatch) == 0
+    assert said == ["connecting to the runs held here", "attached", None]
+    assert len(app.made) == 1

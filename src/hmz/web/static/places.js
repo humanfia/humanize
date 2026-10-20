@@ -90,8 +90,13 @@ export function workspacePicker(chosen, changed, { none = false } = {}) {
   typed.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') shut()
   })
+  const openButton = opening.querySelector('[type=submit]')
   opening.addEventListener('submit', async (event) => {
     event.preventDefault()
+    if (openButton.disabled) return
+    openButton.disabled = true
+    openButton.textContent = 'Opening…'
+    problem_.textContent = ''
     try {
       const answer = await post('/api/workspaces', { workspace: typed.value.trim() })
       known = Promise.resolve(answer)
@@ -100,6 +105,9 @@ export function workspacePicker(chosen, changed, { none = false } = {}) {
       pick(answer.kept)
     } catch (error) {
       problem_.textContent = error.message
+    } finally {
+      openButton.disabled = false
+      openButton.textContent = 'Open'
     }
   })
 

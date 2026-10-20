@@ -734,18 +734,30 @@ def test_no_flow_call_is_running_outside_one() -> None:
     [
         (
             (float("inf"), float("inf"), float("inf")),
-            Limits(None, None, None, graceful=True),
+            Limits(None, None, None),
         ),
-        ((1.5, 10.0, 99.0), Limits(1.5, 10, 99.0, graceful=True)),
-        ((-1.0, -3.0, 5.0), Limits(0.0, 0, 5.0, graceful=True)),
+        ((1.5, 10.0, 99.0), Limits(1.5, 10, 99.0)),
+        ((-1.0, -3.0, 5.0), Limits(0.0, 0, 5.0)),
     ],
     ids=["unlimited", "limits", "overspent"],
 )
 def test_a_turn_is_told_its_limits_with_infinity_as_none(
     args: tuple[float, float, float], limits: Limits
 ) -> None:
-    assert limits_of(*args, graceful=True) == limits
-    assert not limits_of(*args, graceful=False).graceful
+    graces = dict.fromkeys(
+        ("cost_graceful", "output_tokens_graceful", "deadline_graceful"), True
+    )
+    assert limits_of(*args, **graces) == limits
+    told = limits_of(*args, **graces | {"cost_graceful": False})
+    assert (
+        told.cost_graceful,
+        told.output_tokens_graceful,
+        told.deadline_graceful,
+    ) == (
+        False,
+        True,
+        True,
+    )
 
 
 def test_an_away_answer_is_empty_text_or_the_schemas_defaults() -> None:

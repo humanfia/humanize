@@ -425,6 +425,24 @@ def test_the_epic_says_its_figures_and_its_budget_against_what_has_gone() -> Non
     ]
 
 
+def test_the_epic_says_which_limits_cut_a_turn_off_at_once() -> None:
+    said = _details(
+        state="running",
+        budget={
+            "cost": 2.0,
+            "output_tokens": 100,
+            "graceful": {"cost": False, "duration": False},
+        },
+        usage={"cost": 0.6},
+    )
+
+    # The duration it does not set cuts nothing off.
+    assert said["Budget"][-1] == (
+        "when spent",
+        "cut off at once by cost, else the last turn finishes",
+    )
+
+
 def test_an_epic_with_no_limit_says_so_and_is_over_once_it_has_no_state() -> None:
     said = _details(budget={"cost": "Infinity"})
 

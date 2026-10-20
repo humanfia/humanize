@@ -30,6 +30,7 @@ from hmz.coganchor.agents.base import (
     Meter,
     SessionBase,
     StreamSessionBase,
+    fenced_blocks,
     identifying,
 )
 from hmz.coganchor.agents.config import AgentConfig, Budget, Unserved
@@ -411,6 +412,58 @@ def test_an_answer_out_of_shape_fails_the_turn() -> None:
     with pytest.raises(ValueError, match="did not answer as a _Verdict"):
         agent("done?", schema=_Verdict)
     assert agent("done?", schema=_Verdict, suppress=True) is None
+
+
+@pytest.mark.parametrize(
+    ("opening", "closing"),
+    [
+        ("```JSON", "```"),
+        ("```jsonc", "```"),
+        ("``` json", "```"),
+        ("~~~json", "~~~"),
+        ("````json", "````"),
+    ],
+)
+def test_a_shaped_turn_reads_the_first_valid_fenced_block(
+    opening: str, closing: str
+) -> None:
+    answer = (
+        f'Result:\n{opening}\n{{"done": true}}\n{closing}\n'
+        'Previous result:\n```json\n{"done": false}\n```'
+    )
+    agent = Scripted(script=answering(answer))
+    assert agent("done?", schema=_Verdict) == _Verdict(done=True)
+
+
+def test_a_shaped_turn_keeps_backticks_inside_a_json_string() -> None:
+    answer = 'The {result}:\n````json\n{"done": true, "why": "```"}\n````'
+    agent = Scripted(script=answering(answer))
+    assert agent("done?", schema=_Verdict) == _Verdict(done=True, why="```")
+
+
+def test_backticks_on_one_line_are_a_code_span_not_a_block() -> None:
+    answer = 'Here: ```json {"done": true}``` as asked.'
+    assert fenced_blocks(answer) == []
+    agent = Scripted(script=answering(answer))
+    assert agent("done?", schema=_Verdict) == _Verdict(done=True)
+
+
+def test_a_fence_left_open_runs_to_the_end() -> None:
+    answer = 'I set {done}:\n```json\n{"done": true}\n'
+    assert fenced_blocks(answer) == ['{"done": true}\n']
+    agent = Scripted(script=answering(answer))
+    assert agent("done?", schema=_Verdict) == _Verdict(done=True)
+
+
+def test_a_fence_right_under_an_html_tag_is_still_a_block() -> None:
+    answer = 'I set {done}:\n<details>\n```json\n{"done": true}\n```\n</details>'
+    assert fenced_blocks(answer) == ['{"done": true}\n']
+
+
+def test_prose_braces_do_not_hide_a_fenced_answer() -> None:
+    answer = 'I set {done}:\n```JSON\n{"done": true}\n```'
+    agent = Scripted(script=answering(answer))
+    assert agent("done?", schema=_Verdict) == _Verdict(done=True)
 
 
 # -- effort and budget -----------------------------------------------------------------

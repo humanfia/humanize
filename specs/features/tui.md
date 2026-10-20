@@ -811,9 +811,9 @@ whole, and MUST refuse what `-e` refuses in `-e`'s words (`features/environments
 sections the flow declares, a boolean or a choice of literals picked from a dropdown and any
 other value typed, and **Set** MUST refuse what the flow's model refuses with its first error.
 
-**16.7.2** The budget sheet MUST take a duration, a cost in US dollars, output tokens, and
-whether the last turn finishes when a limit is reached, and **Set** MUST refuse a budget with no
-limit set.
+**16.7.2** The budget sheet MUST take a duration, a cost in US dollars, output tokens, and, for
+each of the three, whether the last turn finishes when it is reached, and **Set** MUST refuse a
+budget with no limit set.
 
 **16.7.3** On a typed row of the params or budget sheets, `enter` MUST begin writing with the
 whole value selected, so that the first character typed replaces it.

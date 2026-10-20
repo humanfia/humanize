@@ -98,10 +98,12 @@ once, naming the version:
 - **Restart** installs it, and opens humanize again on it, `hmz web` stopped and started with it.
 - **Later** leaves it until you quit humanize, which installs it then.
 
-To look now, choose **humanize → Check for Updates…**: it offers the new release, or says
-humanize is up to date, or why it could not look. Only releases are offered, never a
-pre-release, unless the app you run is a pre-release itself: then the newest release or
-pre-release is.
+To look now, choose **humanize → Check for Updates…**: a small window shows it looking, then
+how far the download is, and the menu item reads **Checking for Updates…** until it is done. Then
+it offers the new release, or says humanize is up to date, or why it could not look; choose
+**Restart** and the window shows the install until humanize opens again. Only releases are
+offered, never a pre-release, unless the app you run is a pre-release itself: then the newest
+release or pre-release is.
 
 Once the new app opens, it updates `hmz` to its own version too, as it would at any launch: at
 once where no epics are running, and otherwise once they have ended.

@@ -27,7 +27,8 @@ Out of scope:
 
 **2.2** **Budget**: the set of limits under which an epic or a flow call executes, consisting of
 one or more of a **cost limit** (US dollars), an **output-token limit** (tokens written by
-agents) and a **duration limit** (wall-clock time), together with a **graceful** flag.
+agents) and a **duration limit** (wall-clock time), together with a **graceful** flag for each
+limit.
 
 **2.3** **Spent**: the cost, output tokens and seconds that the budget of an epic counted when
 the epic ended.
@@ -158,7 +159,8 @@ be negative.
 **3.4.2** An epic of the `chat` flow that is given no budget MUST execute under a budget whose
 cost limit is unbounded.
 
-**3.4.3** The graceful flag of a budget MUST be true unless it is given as false.
+**3.4.3** The graceful flag of each limit of a budget MUST be true unless it is given as false,
+for that limit or for every limit.
 
 **3.4.4** The cost and output tokens of every turn taken anywhere in an epic MUST count against
 the budget of the epic and against the budget of every flow call above that turn.
@@ -187,11 +189,11 @@ MUST refresh it without delaying the epic.
 **3.4.11** Once a limit of a budget is reached, hmz MUST refuse every later turn under that
 budget and MUST end the flow call that owns that budget.
 
-**3.4.12** Where the graceful flag is true, hmz MUST let a turn under way when its budget is spent
-finish before the owning flow call is ended.
+**3.4.12** Where the graceful flag of a limit is true, hmz MUST let a turn under way when that limit
+is reached finish before the owning flow call is ended.
 
-**3.4.13** Where the graceful flag is false, hmz MUST interrupt a turn under way at the moment its
-budget is spent.
+**3.4.13** Where the graceful flag of a limit is false, hmz MUST interrupt a turn under way at the
+moment that limit is reached.
 
 **3.4.14** hmz MUST record an epic ended because a limit of its own budget was reached as
 `stopped`, and MUST NOT record it as `failed`.

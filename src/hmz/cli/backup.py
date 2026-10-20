@@ -13,12 +13,14 @@ import would.
 
 from __future__ import annotations
 
+import contextlib
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Generator
 
     from hmz.runtime import Hmz
 
@@ -87,7 +89,8 @@ def backup(argv: list[str]) -> int:
         parser.error(str(why))
     if not names:
         parser.error("no backup target: add one under backup in settings, or name one")
-    hmz.backups.wait()
+    with _spinning(f"backing up to {', '.join(names)}"):
+        hmz.backups.wait()
     urls = {one.name: one.url for one in hmz.backups.targets()}
     state = hmz.backups.state(ran)
     failed = False
@@ -125,7 +128,8 @@ def _held(parser: argparse.ArgumentParser, hmz: Hmz, args: argparse.Namespace) -
     failed = False
     for name in names:
         try:
-            held = hmz.backups.listed(name)
+            with _spinning(f"asking {name} what it holds"):
+                held = hmz.backups.listed(name)
         except OSError as why:
             failed = True
             print(f"{name}: failed: {why}", file=sys.stderr)
@@ -148,7 +152,9 @@ def _held(parser: argparse.ArgumentParser, hmz: Hmz, args: argparse.Namespace) -
             )
         if found:
             try:
-                print(hmz.backups.pulled(name, found[0].key))
+                with _spinning(f"downloading {found[0].key} from {name}"):
+                    where = hmz.backups.pulled(name, found[0].key)
+                print(where)
             except (ValueError, OSError) as why:
                 print(f"hmz backup: {why}", file=sys.stderr)
                 return 1
@@ -159,3 +165,20 @@ def _held(parser: argparse.ArgumentParser, hmz: Hmz, args: argparse.Namespace) -
         parser.error(f"no target holds an epic {args.pull}")
     print(f"hmz backup: no target that answered holds {args.pull}", file=sys.stderr)
     return 1
+
+
+@contextlib.contextmanager
+def _spinning(says: str) -> Generator[None]:
+    """A spinner on a terminal while git is asked something, gone once it has answered.
+
+    A push, a fetch or a clone can take a while and prints nothing until it is done. Nothing
+    is drawn but on a terminal, so what a script reads does not change.
+
+    Args:
+      says: What is being done.
+    """
+    from .output import Out
+
+    with Out() as out:
+        out.spins(lambda: says)
+        yield

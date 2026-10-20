@@ -21,12 +21,14 @@ export function draw(holder, query, parts, scope) {
     watch()
   })
   const range = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How far back' })
-  const body = h('div', { 'data-hmz': 'usage' }, h('p', { class: 'loading', role: 'status' }, 'Reading what the epics spent…'))
+  const body = h('div', { class: 'reading', 'data-hmz': 'usage' }, h('p', { class: 'loading', role: 'status' }, 'Reading what the epics spent…'))
   fill(holder, h('div', { class: 'row' }, h('span', { class: 'dim' }, 'Range'), range, places), body)
 
   let stop = () => {}
   const watch = () => {
     stop()
+    // What the last range or workdir spent stays, plainly on its way out, until this is read.
+    if (!body.querySelector('.loading')) body.setAttribute('aria-busy', 'true')
     stays({ ...scope.query, days, workspace })
     fill(
       range,
@@ -43,6 +45,7 @@ export function draw(holder, query, parts, scope) {
   }
 
   function draw(data, error) {
+    body.removeAttribute('aria-busy')
     if (!data) {
       fill(body, error ? problem(error) : h('p', { class: 'loading' }, 'Reading…'))
       return

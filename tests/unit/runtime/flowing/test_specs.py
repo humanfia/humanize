@@ -12,7 +12,7 @@ import pytest
 
 from hmz.coganchor import backends
 from hmz.coganchor.machines import store
-from hmz.flows import Budget, EnvBackendKind, HarnessKind
+from hmz.flows import Budget, EnvBackendKind, Graceful, HarnessKind
 from hmz.runtime.flowing.specs import (
     AgentSpec,
     AgentSpecError,
@@ -177,6 +177,15 @@ def test_parse_budget_is_none_without_a_limit() -> None:
         (["budget.cost=1,budget.graceful=no"], Budget(cost=1, graceful=False)),
         (["budget.cost=1", "budget.graceful=ON"], Budget(cost=1, graceful=True)),
         (["rounds=3,budget.cost=1"], Budget(cost=1)),
+        (
+            ["budget.cost=1,budget.graceful.cost=false"],
+            Budget(cost=1, graceful=Graceful(cost=False)),
+        ),
+        (["budget.cost=1,budget.graceful.cost=yes"], Budget(cost=1)),
+        (
+            ["budget.cost=1,budget.graceful=no", "budget.graceful.duration=yes"],
+            Budget(cost=1, graceful=Graceful(cost=False, output_tokens=False)),
+        ),
     ],
 )
 def test_parse_budget_reads(values: list[str], expected: Budget) -> None:
@@ -195,6 +204,8 @@ def test_parse_budget_reads(values: list[str], expected: Budget) -> None:
         (["budget.graceful=maybe"], "true or false"),
         (["budget.duration=soon"], "budget.duration"),
         (["budget.graceful=yes"], "at least one of"),
+        (["budget.graceful.speed=no"], "not a limit"),
+        (["budget.graceful.cost=maybe"], "true or false"),
     ],
 )
 def test_parse_budget_refuses(values: list[str], says: str) -> None:

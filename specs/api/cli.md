@@ -177,7 +177,9 @@ hold the epics in its own process.
 its own process.
 
 **6.1.4** Otherwise `hmz` MUST open the terminal interface as a frontend of the daemon, starting
-the daemon where none runs (`features/daemons.md`).
+the daemon where none runs (`features/daemons.md`). Where standard error is a terminal and escapes
+are allowed (§4.2), `hmz` MUST draw a spinner on standard error while it reaches or starts the
+daemon, and MUST take it down before the interface starts.
 
 **6.1.5** Where the daemon cannot be reached or started for a reason other than §6.1.6, `hmz` MUST
 write `hmz: runs cannot be detached from the terminal (<reason>), so they will run in this process
@@ -407,7 +409,8 @@ param    = key "=" value / limit
 key      = ( ALPHA / "_" ) *( wordchar / "-" )
 wordchar = <a character Python's regular expressions match as \w>
 value    = *<character>
-limit    = "budget." ( "duration" / "cost" / "output_tokens" / "graceful" ) "=" value
+limit    = "budget." ( name / "graceful" [ "." name ] ) "=" value
+name     = "duration" / "cost" / "output_tokens"
 ```
 
 **7.6.1** A `-p` item that is not `<key>=<value>` or `budget.<name>=<value>` MUST be a usage error.
@@ -421,8 +424,9 @@ model (`api/flows.md`); a param the model refuses MUST be refused under §7.7.
 
 **7.6.5** `budget` with no limit MUST be a usage error.
 
-**7.6.6** `budget.<name>` with a `<name>` other than `duration`, `cost`, `output_tokens` and
-`graceful` MUST be a usage error.
+**7.6.6** `budget.<name>` with a `<name>` other than `duration`, `cost`, `output_tokens`,
+`graceful`, `graceful.duration`, `graceful.cost` and `graceful.output_tokens` MUST be a usage
+error.
 
 **7.6.7** `budget.duration` MUST accept a non-negative finite number of seconds; a concatenation
 of numbers each followed by one of the units `w`, `d`, `h`, `m` and `s`, each unit at most once;
@@ -434,8 +438,10 @@ an ISO 8601 duration; or `HH:MM:SS`.
 **7.6.9** `budget.output_tokens` MUST accept a whole number, optionally written with `_`, or a
 decimal number followed by `k` (thousands) or `m` (millions) that comes to a whole number.
 
-**7.6.10** `budget.graceful` MUST accept `1`, `true`, `yes` and `on` as true and `0`, `false`,
-`no` and `off` as false, in any case.
+**7.6.10** `budget.graceful` and `budget.graceful.<name>` MUST accept `1`, `true`, `yes` and `on`
+as true and `0`, `false`, `no` and `off` as false, in any case. `budget.graceful` MUST set whether
+every limit is graceful, and `budget.graceful.<name>` whether the limit `<name>` is, overriding
+`budget.graceful` for that limit.
 
 **7.6.11** A limit value that §7.6.7 to §7.6.10 do not accept MUST be a usage error.
 
@@ -549,7 +555,8 @@ standard output and standard error are terminals.
 
 **7.12.6** Where standard error is a terminal and escapes are allowed (§4.2), `hmz exec` MUST
 draw a clock at the foot of the output that says which agent is working, or how many turns are
-working, and for how many seconds.
+working, and for how many seconds, and that says the epic is starting, and for how many seconds,
+before its first turn opens.
 
 **7.12.7** Where a cost limit applies to a model with no known price, `hmz exec` MUST write
 `hmz exec: nobody lists a price for <model>[, <model>...], so cost=<limit> cannot stop what it

@@ -84,7 +84,9 @@ daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same mach
 flows, search it, copy its path, settings), an epic (open, its Exomyth, resume, copy its link or task,
 export, stop), an agent or a session, a node on the graph, a flow or flowverse card, a search
 result, a line of a thread (copy it, or the whole thread). Where there is text to read or write,
-selected text keeps the browser's own menu. **Hover** over anything cut short -- a folder's name,
+selected text keeps the browser's own menu. What a menu sends off -- stopping or uploading an
+epic, forgetting a folder, connecting a daemon -- says `Stopping…`, `Uploading…` and the like at
+the foot of the page until the daemon answers. **Hover** over anything cut short -- a folder's name,
 a task, a path -- to read it in full.
 
 **Paths** are browsed for rather than typed: the folder button beside a path opens a list of
@@ -307,6 +309,10 @@ is refused there, since the URL is never shown whole. **Fallback** and
 Nothing a daemon already has is taken away. **Accounts** cannot be copied, since their secrets
 are never shown (**Secrets stay put**). **Workspace** and **Usage** are of one daemon's
 directories, and have no **Batch apply**.
+
+While a page is read, it says **Reading…**. What a page already shows -- a range or a workdir
+picked on **Usage** or **Workspace**, a directory gone into in a path's browser -- stays, faded,
+until what replaces it is read.
 
 An account is never shown by its values: a page lists the names of the variables it sets, and
 nothing else. A way in that runs a CLI's own sign-in, such as `login`, needs a terminal: it is

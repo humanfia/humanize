@@ -936,6 +936,16 @@ code {
   padding: 4px;
 }
 
+.path-panel > .loading {
+  margin: 12px;
+}
+
+.path-panel[aria-busy='true'] .path-list,
+.reading[aria-busy='true'] {
+  opacity: 0.6;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 .path-list > .dim {
   padding: 8px;
   margin: 0;
@@ -1082,6 +1092,11 @@ code {
 
 .notice .icon-btn {
   color: inherit;
+}
+
+/* What a menu asked of the server, going until it answers. */
+.notice.working .dot {
+  animation: pulse 1.6s ease-in-out infinite;
 }
 
 /* A file dragged over the window, which takes a .hmzepic dropped anywhere on it. */
@@ -1608,6 +1623,11 @@ p + .panel {
   margin: 24px 0;
 }
 
+/* A panel with nothing in it yet -- its part of a page still being read -- is not drawn. */
+.panel:empty {
+  display: none;
+}
+
 .empty strong {
   display: block;
   color: var(--ink);
@@ -2116,8 +2136,14 @@ pre.block {
   display: none;
 }
 
-.composer-said .error {
+.composer-said .error,
+.composer-said .loading {
   margin: 0 0 4px;
+}
+
+.composer-said .loading {
+  font: 12px var(--mono);
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .composer-bar {
@@ -2152,8 +2178,13 @@ pre.block {
   text-overflow: ellipsis;
 }
 
+.options.stale {
+  opacity: 0.5;
+}
+
 .composer.busy .send {
   opacity: 0.6;
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .send {
@@ -3417,6 +3448,11 @@ pre.exo-args {
   display: none;
 }
 
+.flows-said .loading {
+  margin: 0 0 12px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 .flows-said .chip {
   white-space: normal;
   overflow-wrap: anywhere;
@@ -3578,6 +3614,12 @@ pre.exo-args {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/* What is listed while another page of it, or another search, is read. */
+.dialog-body[aria-busy='true'] > * {
+  opacity: 0.6;
+  animation: pulse 1.6s ease-in-out infinite;
 }
 
 .result {

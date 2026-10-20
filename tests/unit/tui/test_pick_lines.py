@@ -8,7 +8,7 @@ import math
 import pytest
 from pydantic import BaseModel, Field
 
-from hmz.flows import Budget
+from hmz.flows import Budget, Graceful
 from hmz.runtime.kept import Runs
 from hmz.tui import pick
 from hmz.tui.dropdown import Value
@@ -196,6 +196,10 @@ def priced(monkeypatch: pytest.MonkeyPatch) -> None:
             "1m30s, 10 out, $1.0",
         ),
         (Budget(cost=3, graceful=False), "$3.0, even mid-turn"),
+        (
+            Budget(output_tokens=10, cost=3, graceful=Graceful(cost=False)),
+            "10 out, $3.0 even mid-turn",
+        ),
     ],
 )
 def test_spent_says_each_cap_shortest_first(budget: Budget, said: str) -> None:

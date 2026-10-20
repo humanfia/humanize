@@ -1002,7 +1002,7 @@ async def test_a_price_that_is_not_a_number_is_a_cost_no_cap_affords(
 
     with pytest.raises(CostExceeded):
         await session.turn(
-            TurnRequest("x", limits=Limits(cost=1.0, graceful=False)), sink
+            TurnRequest("x", limits=Limits(cost=1.0, cost_graceful=False)), sink
         )
     assert sink.added[0][0] == float("inf")
 
@@ -1012,7 +1012,12 @@ async def test_a_turn_with_time_to_spare_is_taken(
 ) -> None:
     session = await _session(open_agent(_spec()), tmp_path)
     limits = Limits(
-        cost=1.0, output_tokens=10, deadline=time.monotonic() + 60, graceful=False
+        cost=1.0,
+        output_tokens=10,
+        deadline=time.monotonic() + 60,
+        cost_graceful=False,
+        output_tokens_graceful=False,
+        deadline_graceful=False,
     )
 
     assert await session.turn(TurnRequest("x", limits=limits), Sink()) == "re: x"

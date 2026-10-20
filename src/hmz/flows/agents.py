@@ -18,7 +18,8 @@ agent declared without :class:`SteeringAgentMixin`, or a `/goal` prompt without
 whatever the harness underneath could do. A role typed as one harness's own protocol --
 :class:`ClaudeCodeAgent` and the rest -- asks for that harness and everything it can do.
 
-Everything here but the enums, :class:`Permission`, :class:`Budget` and :class:`Usage` is a
+Everything here but the enums, :class:`Permission`, :class:`Budget`, :class:`Graceful` and
+:class:`Usage` is a
 protocol for a type checker. What a flow is handed at run time is the
 runtime's own object, shaped however is fastest, and answers to these structurally.
 """
@@ -79,6 +80,7 @@ __all__ = [
     "DeepSeekHarnessAgent",
     "FakeToolAgentMixin",
     "GoalCommandAgentMixin",
+    "Graceful",
     "GrokBuildAgent",
     "HarnessKind",
     "KimiCodeAgent",
@@ -224,6 +226,25 @@ class Permission:
         )
 
 
+class Graceful(pydantic.BaseModel):
+    """Which of a budget's limits let the turn under way when it is reached finish.
+
+    Each limit is graceful on its own: a limit that is graceful lets the turn under way finish
+    when it is reached, and one that is not cuts the turn off at once, whatever the others do.
+
+    Attributes:
+      duration: Whether reaching the duration lets the turn finish.
+      cost: Whether reaching the cost lets the turn finish.
+      output_tokens: Whether reaching the output tokens lets the turn finish.
+    """
+
+    model_config = pydantic.ConfigDict(frozen=True, extra="forbid")
+
+    duration: bool = True
+    cost: bool = True
+    output_tokens: bool = True
+
+
 class Budget(pydantic.BaseModel):
     """How much a run, a flow call or one turn may spend before it is stopped.
 
@@ -239,8 +260,10 @@ class Budget(pydantic.BaseModel):
       duration: How long it may take, counted from when it started.
       cost: How much it may spend, in USD.
       output_tokens: How many tokens its agents may write.
-      graceful: Whether the turn under way when the budget is spent is let finish before the
-        flow is stopped, or is interrupted at once.
+      graceful: Whether the turn under way when a limit is reached is let finish before the
+        flow is stopped, or is interrupted at once: one flag for every limit, or a
+        :class:`Graceful` with one apiece -- which, its three flags agreeing, is read as the
+        one flag they agree on.
 
     Raises:
       pydantic.ValidationError: If no limit is set, or one is negative.
@@ -255,7 +278,18 @@ class Budget(pydantic.BaseModel):
     )
     cost: float | None = pydantic.Field(default=None, ge=0)
     output_tokens: int | None = pydantic.Field(default=None, ge=0)
-    graceful: bool = True
+    graceful: bool | Graceful = True
+
+    @pydantic.field_validator("graceful")
+    @classmethod
+    def _agreeing(
+        cls,
+        graceful: bool | Graceful,  # noqa: FBT001 -- the field, as pydantic hands it on
+    ) -> bool | Graceful:
+        if not isinstance(graceful, Graceful):
+            return graceful
+        flags = {graceful.duration, graceful.cost, graceful.output_tokens}
+        return flags.pop() if len(flags) == 1 else graceful
 
     @pydantic.model_validator(mode="after")
     def _limits_something(self) -> Self:
@@ -264,6 +298,19 @@ class Budget(pydantic.BaseModel):
                 "a budget sets at least one of duration, cost, output_tokens"
             )
         return self
+
+    @property
+    def graces(self) -> Graceful:
+        """`graceful` with one flag apiece for each limit, whichever way it was given."""
+        graceful = self.graceful
+        if isinstance(graceful, Graceful):
+            return graceful
+        return _GRACEFUL if graceful else _HARD
+
+
+#: What `Budget.graces` is for a budget whose one flag says it for every limit.
+_GRACEFUL = Graceful()
+_HARD = Graceful(duration=False, cost=False, output_tokens=False)
 
 
 class Usage(pydantic.BaseModel):
