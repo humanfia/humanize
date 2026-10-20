@@ -1281,6 +1281,14 @@ textarea {
   color: var(--ink);
 }
 
+.icon-btn[aria-busy='true'] {
+  cursor: progress;
+}
+
+.icon-btn[aria-busy='true'] svg {
+  animation: pulse 1s ease-in-out infinite;
+}
+
 .icon-btn[aria-pressed='true'] {
   border-color: var(--ink);
   color: var(--ink);
