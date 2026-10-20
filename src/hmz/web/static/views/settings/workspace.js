@@ -7,7 +7,7 @@ import { confirming, fill, h, pathText, problem } from '../../dom.js'
 export function draw(holder, query, parts, scope) {
   let workspace = query.get('workspace') || ''
   const choosing = h('select', { 'aria-label': 'Workdir', 'data-hmz': 'settings-workdir' })
-  const body = h('div')
+  const body = h('div', { class: 'reading' }, h('p', { class: 'loading', role: 'status' }, 'Reading the settings…'))
   fill(holder, h('label', { class: 'field' }, h('span', { class: 'label' }, 'Workdir'), choosing), body)
   choosing.addEventListener('change', () => {
     workspace = choosing.value
@@ -49,10 +49,15 @@ export function draw(holder, query, parts, scope) {
     )
   }
 
+  // What the last workdir had stays, plainly on its way out, until the next one's is read.
+  let reading = 0
   function read() {
+    const mine = ++reading
+    if (!body.querySelector('.loading')) body.setAttribute('aria-busy', 'true')
     get(address(scope.at('/api/settings'), { workspace }))
-      .then((settings) => shown(settings))
-      .catch((error) => fill(body, problem(error)))
+      .then((settings) => mine === reading && shown(settings))
+      .catch((error) => mine === reading && fill(body, problem(error)))
+      .finally(() => mine === reading && body.removeAttribute('aria-busy'))
   }
 
   get(scope.at('/api/workspaces')).then((answer) => {

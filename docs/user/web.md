@@ -308,6 +308,10 @@ Nothing a daemon already has is taken away. **Accounts** cannot be copied, since
 are never shown (**Secrets stay put**). **Workspace** and **Usage** are of one daemon's
 directories, and have no **Batch apply**.
 
+While a page is read, it says **Reading…**. What a page already shows -- a range or a workdir
+picked on **Usage** or **Workspace**, a directory gone into in a path's browser -- stays, faded,
+until what replaces it is read.
+
 An account is never shown by its values: a page lists the names of the variables it sets, and
 nothing else. A way in that runs a CLI's own sign-in, such as `login`, needs a terminal: it is
 offered as `(at a terminal)` and made from `/settings` in `hmz`.

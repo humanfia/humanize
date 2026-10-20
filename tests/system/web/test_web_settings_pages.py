@@ -259,3 +259,67 @@ def test_notifications_are_allowed_from_a_click(project: Path, engine: str) -> N
         expect(state).to_have_text("Allowed")
         expect(page.locator("[data-hmz=allow-notifications]")).to_have_count(0)
         assert page.evaluate("window.__asked") == 1
+
+
+class _Held:
+    """Requests kept from their answer until let go, so what the page shows meanwhile is seen."""
+
+    def __init__(self, page: Page) -> None:
+        self.page = page
+        self.routes: list[Route] = []
+
+    def __call__(self, route: Route) -> None:
+        self.routes.append(route)
+
+    def go(self) -> None:
+        for _ in range(200):
+            if self.routes:
+                break
+            self.page.wait_for_timeout(50)
+        assert self.routes, "the page asked for nothing"
+        self.routes.pop(0).fallback()
+
+
+def test_what_is_being_read_says_so_until_it_is_answered(
+    project: Path, engine: str
+) -> None:
+    (project.parent / "home" / "keys").mkdir(parents=True)
+    with served() as site, opened(site, engine=engine) as page:
+        _daemons(page)
+        held = _Held(page)
+        page.route("**/api/daemons", held)
+        go(page, "/settings/daemons")
+        listing = page.locator("[data-hmz=daemons]")
+        expect(listing.locator(".loading")).to_have_text("Reading the daemons…")
+        held.go()
+        expect(page.locator("[data-hmz=daemon]")).to_have_count(2)
+        page.unroute("**/api/daemons", held)
+
+        page.route("**/api/files?**", held)
+        page.locator("[data-hmz=write-daemon] [data-hmz=path-browse]").click()
+        panel = page.get_by_role("dialog", name="Choose Identity file")
+        expect(panel.locator(".loading")).to_have_text("Reading…")
+        held.go()
+        expect(panel.locator(".path-list")).to_be_visible()
+        panel.locator(".path-entry", has_text="keys").click()
+        expect(panel).to_have_attribute("aria-busy", "true")
+        expect(panel.locator(".crumb").last).to_have_text("~")
+        held.go()
+        expect(panel).not_to_have_attribute("aria-busy", "true")
+        expect(panel.locator(".crumb").last).to_have_text("keys")
+
+
+def test_a_range_shown_stays_busy_until_the_next_is_read(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/settings/usage")
+        usage = page.locator("[data-hmz=usage]")
+        expect(usage.locator(".panel").first).to_be_visible()
+        held = _Held(page)
+        page.route(re.compile(r".*/api/usage\?days=7\b.*"), held)
+        page.get_by_role("button", name="7d").click()
+        expect(usage).to_have_attribute("aria-busy", "true")
+        expect(usage.locator(".panel").first).to_be_visible()
+        held.go()
+        expect(usage).not_to_have_attribute("aria-busy", "true")
