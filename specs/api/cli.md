@@ -177,7 +177,9 @@ hold the epics in its own process.
 its own process.
 
 **6.1.4** Otherwise `hmz` MUST open the terminal interface as a frontend of the daemon, starting
-the daemon where none runs (`features/daemons.md`).
+the daemon where none runs (`features/daemons.md`). Where standard error is a terminal and escapes
+are allowed (§4.2), `hmz` MUST draw a spinner on standard error while it reaches or starts the
+daemon, and MUST take it down before the interface starts.
 
 **6.1.5** Where the daemon cannot be reached or started for a reason other than §6.1.6, `hmz` MUST
 write `hmz: runs cannot be detached from the terminal (<reason>), so they will run in this process
@@ -549,7 +551,8 @@ standard output and standard error are terminals.
 
 **7.12.6** Where standard error is a terminal and escapes are allowed (§4.2), `hmz exec` MUST
 draw a clock at the foot of the output that says which agent is working, or how many turns are
-working, and for how many seconds.
+working, and for how many seconds, and that says the epic is starting, and for how many seconds,
+before its first turn opens.
 
 **7.12.7** Where a cost limit applies to a model with no known price, `hmz exec` MUST write
 `hmz exec: nobody lists a price for <model>[, <model>...], so cost=<limit> cannot stop what it
