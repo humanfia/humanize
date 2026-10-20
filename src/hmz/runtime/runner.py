@@ -622,16 +622,14 @@ class Runner:
         Args:
           stopped: Asked while the list is waited for, so that a run stopped meanwhile is not
             held up by it.
-        """
-        from hmz.coganchor.prices import price
 
-        self._prices(stopped)
+        Raises:
+          Refused: If the price list gives a price that is not a finite number.
+        """
+        unpriced = self._prices(stopped)
         if not self._capped:
             return ""
         cost = self._budget.cost or 0.0
-        unpriced = sorted(
-            {one.model for one in self._agents.values() if price(one.model) is None}
-        )
         if not unpriced:
             return ""
         return (
@@ -639,7 +637,7 @@ class Runner:
             "stop what it spends"
         )
 
-    def _prices(self, stopped: Callable[[], bool] | None = None) -> None:
+    def _prices(self, stopped: Callable[[], bool] | None = None) -> list[str]:
         """Brings the price list up to date for this run, once, whichever way it was started.
 
         A run is priced wherever it is started -- a command line, a tool, the interface -- so
@@ -649,19 +647,38 @@ class Runner:
         bites; any other run has it fetched on a thread of its own, and what is kept serves it
         meanwhile. Refused, like every fetch, by `HUMANIZE_PRICES=off`.
 
+        Asked once, and read every time it is asked: a list that gives a price that is not a
+        finite number refuses the run whatever its budget, since one such figure makes its
+        spend one no cost cap over it -- a flow's own among them -- can hold.
+
         Args:
           stopped: Asked while the list is waited for.
+
+        Returns:
+          The models of the run's agents that nobody lists a price for, in order.
+
+        Raises:
+          Refused: If the price list gives a price that is not a finite number.
         """
         from hmz.coganchor import prices
 
-        with self._pricing:
-            if self._priced:
-                return
-            self._priced = True
-            if self._capped:
-                prices.ready(stopped=stopped)
-            else:
-                prices.refresh()
+        try:
+            with self._pricing:
+                if not self._priced:
+                    self._priced = True
+                    if self._capped:
+                        prices.ready(stopped=stopped)
+                    else:
+                        prices.refresh()
+            return sorted(
+                {
+                    one.model
+                    for one in self._agents.values()
+                    if prices.price(one.model) is None
+                }
+            )
+        except prices.PriceError as error:
+            raise Refused(str(error)) from error
 
     def watch(self, listener: Listener) -> None:
         """Has everything every session of the run says reach `listener`.
@@ -817,7 +834,9 @@ class Runner:
                     usage = recorder.finished()
                     epic.write(
                         "usage",
-                        cost=usage.cost,
+                        # Left out where it is not a number, which a price list gone bad
+                        # under the run leaves: nothing reading it back could add it up.
+                        **({"cost": usage.cost} if math.isfinite(usage.cost) else {}),
                         output_tokens=usage.output_tokens,
                         seconds=usage.duration.total_seconds(),
                     )

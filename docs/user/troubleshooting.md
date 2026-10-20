@@ -313,6 +313,23 @@ model the price list does not have, and for every model on a machine that has ne
 **Verify.** The warning is still printed, but the run now stops at the other limit, with
 `hmz exec: stopped -- … its budget's output tokens are spent`.
 
+### `hmz exec: error: the price list … at nan dollars, which is not a number`
+
+**Symptom.** `hmz exec` exits with status 2 before the first turn, and the interface refuses
+the run with the same words.
+
+**Cause.** The price list gives some model a price that is not a number (`NaN`, an infinity,
+or one too large to be a number). One such figure would make every cost limit of the run
+unenforceable, so no run starts on it. Either the list being fetched is malformed (the words
+say `the price list at <source>`), or the copy kept on this machine is (`the price list kept
+at <path>`).
+
+**Fix.** Point [`HUMANIZE_PRICES`](/reference/environment#humanize-prices) at a list whose
+prices are numbers, or set it to `off`. For the kept copy, delete the file the error names.
+
+**Verify.** The run starts. With `HUMANIZE_PRICES=off` and no copy kept, every model is
+unpriced, and a `cost` limit warns as above.
+
 ### `the following arguments are required: task`
 
 **Symptom.** `hmz exec` prints its usage, then this, although the line has a task.

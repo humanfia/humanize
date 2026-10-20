@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import math
 import os
 import sys
 import threading
@@ -490,7 +491,7 @@ class Shown:
         and a wrong one.
         """
         from hmz.coganchor.agents import KINDS
-        from hmz.coganchor.prices import cost, money
+        from hmz.coganchor.prices import PriceError, cost, money
 
         spent: dict[str, float] = said["spent"]
         model, whose = str(said["model"]), str(said["agent"])
@@ -514,7 +515,10 @@ class Shown:
                 ),
             )
         )
-        bill = cost(spent, model)
+        try:
+            bill = cost(spent, model)
+        except PriceError:
+            bill = math.inf  # a bill nobody can read, which `money` says as `$?`
         priced = f"{money(bill)}{_DOT}" if bill is not None else ""
         self._out.line(
             (f"{_WORKED} ", "dim"),

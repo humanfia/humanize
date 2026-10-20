@@ -200,6 +200,9 @@ inside `output`, and priced as output.
   `hmz` once and leave it a few seconds, or point `HUMANIZE_PRICES` at a copy.
 - **`nobody lists a price for <model>, so cost=… cannot stop what it spends`.** A `cost` cap
   cannot stop a model that has no price. Add `duration` or `output_tokens` to the budget.
+- **`the price list … which is not a number`, and no run starts.** The list gives a price
+  that is not a number. See [Troubleshooting](/user/troubleshooting). A figure that cannot be
+  counted shows as `$?`.
 - **The count sits still, then jumps.** That CLI reports when the turn ends. See the table
   above, and [Troubleshooting](/user/troubleshooting).
 - **The rate falls to nothing.** The flow is waiting, on you or between turns. It is a rate
