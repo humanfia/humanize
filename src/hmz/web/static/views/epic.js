@@ -143,13 +143,13 @@ export function mount(root, { parts, query }) {
     region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed], () => {
       const actions = []
       // A chat is never stopped from its page: it is a conversation, as a chat app's.
-      if (!chat && going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask(here, 'stop') }))
-      else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask(here, 'force') }))
+      if (!chat && going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', busy: 'Stopping…', held: true, act: () => ask(here, 'stop') }))
+      else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', busy: 'Stopping…', act: () => ask(here, 'force') }))
       if (!going && detail.picks_up && !chat) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
       if (!chat) actions.push(h('a', { class: 'icon-btn', href: hash(`/epics/${encodeURIComponent(detail.name)}/exomyth`), 'aria-label': 'Exomyth', title: 'Exomyth', 'data-hmz': 'exomyth-open' }, icon('chart')))
       if (!going) actions.push(h('a', { class: 'icon-btn', href: scoped(`/api/runs/${encodeURIComponent(detail.name)}/bundle`), download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
       // How each target last took it, said on hover; read again as the epic is.
-      actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Upload', title: backedSaid(detail.backed) || 'Upload', 'data-hmz': 'upload', onclick: () => upload(detail.name) }, icon('up')))
+      actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Upload', title: backedSaid(detail.backed) || 'Upload', 'data-hmz': 'upload', onclick: uploading }, icon('up')))
       actions.push(copier('Copy link', () => location.href))
       actions.push(panel.toggle)
       const base = hash(`/epics/${encodeURIComponent(detail.name)}`)
@@ -171,6 +171,19 @@ export function mount(root, { parts, query }) {
     // What moves on its own is said again in place, never drawing over a question being asked.
     const clock = head.querySelector('[data-hmz=clock]')
     if (clock) clock.textContent = [took(detail, run) && `took ${took(detail, run)}`, spent].filter(Boolean).join(' · ')
+  }
+
+  /** Uploads the epic, the button busy until the daemon takes it. */
+  async function uploading(event) {
+    const button = event.currentTarget
+    button.disabled = true
+    button.setAttribute('aria-busy', 'true')
+    try {
+      await upload(name)
+    } finally {
+      button.disabled = false
+      button.removeAttribute('aria-busy')
+    }
   }
 
   // ------------------------------------------------------------------ the graph
