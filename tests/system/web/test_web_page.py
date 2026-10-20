@@ -883,9 +883,13 @@ def test_a_start_says_it_is_starting_until_the_epic_opens(
     project: Path, engine: str
 ) -> None:
     held: list[Route] = []
+
+    def hold(route: Route) -> None:
+        held.append(route)
+
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/new?flow=chat")
-        page.route("**/api/held/start", lambda route: held.append(route))
+        page.route("**/api/held/start", hold)
         page.get_by_role("button", name="Options").click()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
@@ -904,13 +908,17 @@ def test_a_workspace_read_marks_the_flow_drawn_until_it_is_read(
     project: Path, engine: str
 ) -> None:
     held: list[Route] = []
+
+    def hold(route: Route) -> None:
+        held.append(route)
+
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/new?flow=chat")
         expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
         expect(page.locator("[data-hmz=options]")).not_to_have_class(
             re.compile("stale")
         )
-        page.route(re.compile(r".*/api/flow\?name="), lambda route: held.append(route))
+        page.route(re.compile(r".*/api/flow\?name="), hold)
         page.locator("[data-hmz=flow-picker]").click()
         page.get_by_role("menuitem", name=re.compile("chat")).first.click()
         expect(page.locator(".greeting-about [role=status]")).to_have_text("Reading…")
