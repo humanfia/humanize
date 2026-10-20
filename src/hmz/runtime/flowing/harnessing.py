@@ -465,9 +465,9 @@ def read_shape[T: pydantic.BaseModel](said: str, schema: type[T]) -> T:
     Raises:
       OutputSchemaError: If no part of it is one.
     """
-    held = said.strip()
     from hmz.coganchor.agents.base import fenced_blocks
 
+    held = said.strip()
     readings = [held, *(one.strip() for one in fenced_blocks(held))]
     first, last = held.find("{"), held.rfind("}")
     if 0 <= first < last:
