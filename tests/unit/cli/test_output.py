@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import json
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import pytest
@@ -13,6 +13,9 @@ import pytest
 import hmz.coganchor.prices
 import hmz.runtime.doing.hosting
 from hmz.cli.output import Out, Shown, colours, terminal
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _SAID = "⏺" if sys.platform == "darwin" else "●"
 
@@ -339,3 +342,26 @@ def test_json_puts_each_event_out_as_one_object(
         "spent": {},
     }
     assert captured.err == ""
+
+
+def test_the_clock_says_the_run_is_starting_until_its_first_turn_opens(
+    plain: None, recorded: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock: list[Callable[[], str] | None] = []
+
+    def spins(_: Out, says: Callable[[], str] | None) -> None:
+        clock.append(says)
+
+    monkeypatch.setattr(Out, "spins", spins)
+    agent = _Agent()
+    with Out() as out, Shown(out) as shown:
+        says = clock[0]
+        assert says is not None
+        assert says() == "starting · 0s"
+        recorded.append({"kind": "begins"})
+        shown.heard(agent, None, mock.Mock())  # pyright: ignore[reportArgumentType]
+        assert says() == "alice is working · 0s"
+        recorded.append({"kind": "ends"})
+        shown.heard(agent, None, mock.Mock())  # pyright: ignore[reportArgumentType]
+        assert says() == ""
+    assert clock[-1] is None
