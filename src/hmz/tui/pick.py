@@ -12099,6 +12099,8 @@ class RemoteEpics(Sheet[Doing]):
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
+        self._said = f"reaching {escape(self._daemon)}…"
+        self._fill()
         try:
             here = await asyncio.to_thread(remotes().asked, self._daemon, "/api/held")
         except (LookupError, OSError, RuntimeError) as why:
@@ -12106,6 +12108,8 @@ class RemoteEpics(Sheet[Doing]):
             self._said = bad(escape(str(why)))
             self._fill()
             return
+        self._said = ""
+        self._fill()
         try:
             chosen = await showing.push_screen_wait(
                 Starting(self._daemon, str(_field(here, "here") or ""))
@@ -12134,12 +12138,16 @@ class RemoteEpics(Sheet[Doing]):
 
         from hmz.daemon.link import remote
 
+        self._said = f"following {escape(workspace)} on {escape(self._daemon)}…"
+        self._fill()
         try:
             link = await asyncio.to_thread(remote, remotes(), self._daemon, workspace)
         except OSError as why:
             self._said = bad(escape(str(why)))
             self._fill()
             return
+        self._said = ""
+        self._fill()
         await self._follows(workspace, link)
 
     async def _follows(self, workspace: str, link: Link) -> None:
@@ -12296,6 +12304,8 @@ class RemoteEpics(Sheet[Doing]):
         import asyncio
         import urllib.parse
 
+        self._said = "fetching the task…"
+        self._fill()
         try:
             said = await asyncio.to_thread(
                 remotes().asked,
@@ -12361,6 +12371,8 @@ class RemoteEpics(Sheet[Doing]):
         import asyncio
         import urllib.parse
 
+        self._said = f"backing {escape(name)} up…"
+        self._fill()
         try:
             said = await asyncio.to_thread(
                 remotes().asked,
