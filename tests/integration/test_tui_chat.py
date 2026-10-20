@@ -64,6 +64,26 @@ async def test_a_chat_is_running_while_the_assistant_answers_and_done_after(
     assert heard(workspace) == ["wait for it", "now"]
 
 
+async def test_tool_rows_shown_in_detail_are_drawn_as_written_and_again_on_a_resize(
+    workspace: Path, tmp_path: Path
+) -> None:
+    home = tmp_path / "humanize-home"
+    home.mkdir(exist_ok=True)
+    (home / "settings.yaml").write_text("details: true\n")
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "tools")
+        rows = ("Agent(look around) started", "Bash(foo\\ bar)", "heard tools")
+        await shows(pilot, *rows)
+
+        # Drawn again from what was kept, at the new width: what a row was written with is
+        # read a second time, and a row that was not markup would fail every redraw after.
+        await pilot.resize_terminal(SIZE[0] - 10, SIZE[1])
+
+        await shows(pilot, *rows)
+
+
 def holds_the_start(
     monkeypatch: pytest.MonkeyPatch, *, refusing: bool = False
 ) -> threading.Event:

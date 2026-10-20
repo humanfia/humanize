@@ -265,6 +265,22 @@ _PATIENCE = 10.0
 _FIRST = {"stopped": "the flow stopped", "ended": "the flow ended"}
 
 
+def _escaped(text: str) -> list[str]:
+    """The lines of something said, each escaped as markup that a tag can be put after.
+
+    Line by line rather than the whole and then split: Rich's escape doubles a backslash only
+    where it ends what it was given, so every other line ending in one would keep it -- and a
+    tag put after that line is escaped by it, leaving a `[/]` that closes nothing.
+
+    Args:
+      text: What was said.
+
+    Returns:
+      Its lines, escaped, and none for nothing at all.
+    """
+    return [escape(line) for line in text.splitlines()]
+
+
 def _where() -> str:
     """The directory this is working in, as somebody reading a status line wants it.
 
@@ -1720,7 +1736,7 @@ class Humanize(App[None]):
         # when details keep it out of the visible transcript.
         self._following.printed(text)
         if text.strip() and self._details:
-            for line in escape(text.rstrip("\n")).splitlines():
+            for line in _escaped(text.rstrip("\n")):
                 self.show(f"[dim]  {_CAME_BACK}  {line}[/]")
 
     def on_text_selected(self) -> None:
@@ -1774,9 +1790,11 @@ class Humanize(App[None]):
         # What is read next starts its own part.
         self._keeping(whose or None).packed = False
         said = escape(text).splitlines() or [""]
+        # The first line on its own where who said it is put after it; see `_escaped`.
+        first = f"{(_escaped(text) or [''])[0]}[dim]{escape(by)}[/]" if by else said[0]
         for line in (
             "",
-            f"[dim]{_YOURS}[/] {said[0]}" + (f"[dim]{escape(by)}[/]" if by else ""),
+            f"[dim]{_YOURS}[/] {first}",
             *(f"  {one}" for one in said[1:]),
         ):
             self._into(whose or None, line, shared=shared)
@@ -3308,7 +3326,9 @@ class Humanize(App[None]):
           because: Why, where it was not asked for, or "" for `/btw` or esc.
         """
         self._close_btw()
-        self.show(f"[dim]btw: exited{f' -- {because}' if because else ''}[/dim]")
+        self.show(
+            f"[dim]btw: exited{f' -- {escape(because)}' if because else ''}[/dim]"
+        )
         self._draw()
 
     def _close_btw(self) -> None:
@@ -3385,7 +3405,7 @@ class Humanize(App[None]):
 
     def _btw_answer(self, question: str, answer: str) -> None:
         """Shows a completed side answer, in cyan, in the current transcript."""
-        lines = escape(answer).splitlines() or [""]
+        lines = _escaped(answer) or [""]
         self._part(
             None,
             "\n".join(
@@ -4919,7 +4939,7 @@ class Humanize(App[None]):
                 self._on_screen(
                     self._part,
                     whose,
-                    f"[$secondary]{_SAID}[/] {escape(named)}"
+                    f"[cyan]{_SAID}[/] {escape(named)}"
                     f"[dim]({escape(about)}) "
                     f"{'started' if kind == 'subagent' else 'done'}[/]",
                     packs=True,
@@ -4938,20 +4958,18 @@ class Humanize(App[None]):
             )
         elif kind == "tool" and self._details:
             # The tool on the bullet, what it came back with under it -- Claude Code's shape.
-            named, _, about = escape(text).partition(" ")
+            named, _, about = text.partition(" ")
             self._on_screen(
                 self._part,
                 whose,
-                f"[green]{_SAID}[/] {named}[dim]({about})[/]",
+                f"[green]{_SAID}[/] {escape(named)}[dim]({escape(about)})[/]",
                 packs=True,
             )
         elif kind == "reasoning" and self._details:
             self._on_screen(
                 self._part,
                 whose,
-                "\n".join(
-                    f"[dim italic]{line}[/]" for line in escape(text).splitlines()
-                ),
+                "\n".join(f"[dim italic]{line}[/]" for line in _escaped(text)),
                 packs=False,
             )
         elif kind == "asks":
@@ -5273,11 +5291,13 @@ class Humanize(App[None]):
         if given:
             # Put to an agent, which never said it had it: it may well have reached the
             # model, and saying it never went would be as wrong as saying it landed.
-            self.show(f"[dim]   sent to the agent, not acknowledged: {because}[/dim]")
+            self.show(
+                f"[dim]   sent to the agent, not acknowledged: {escape(because)}[/dim]"
+            )
         for one in queued:
             self._said_by_you(str(one.get("text")), by=self._by(one))
         if queued:
-            self.show(f"[dim]   never sent: {because}[/dim]")
+            self.show(f"[dim]   never sent: {escape(because)}[/dim]")
 
 
 def _machine() -> dict[str, object]:
