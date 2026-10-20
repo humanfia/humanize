@@ -53,6 +53,10 @@ def _answering(status: int, body: object) -> str:
           const connect = /^\\/api\\/daemons\\/([^/]+)\\/connect$/.exec(path)
           if (connect) {{
             window.hmzConnected.push(connect[1])
+            // Held, where the test says so, until it lets the daemon answer.
+            if (window.hmzHold) return new Promise((answer) => {{
+              window.hmzAnswer = () => answer(json(200, {{}}))
+            }})
             return Promise.resolve(json(200, {{}}))
           }}
           return fetched(url, how)
@@ -104,6 +108,30 @@ def test_the_bar_names_the_daemon_and_its_picker_switches(
         picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).press("ArrowRight")
         daemons.get_by_role("menuitem", name="Manage").click()
         page.wait_for_url(re.compile(r".*#/@lab/settings/daemons$"))
+
+
+def test_connecting_says_so_until_the_daemon_answers(
+    project: Path, engine: str
+) -> None:
+    with (
+        served() as site,
+        opened(site, engine=engine, init=_answering(200, _DAEMONS)) as page,
+    ):
+        page.evaluate("window.hmzHold = true")
+        bar = page.locator("[data-hmz=daemon-bar]")
+        bar.click()
+        picker = page.locator("[data-hmz=daemon-picker]")
+        picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).click()
+        page.locator("[data-hmz=daemons]").get_by_role(
+            "menuitem", name="Connect"
+        ).click()
+        working = page.locator("[data-hmz=working]")
+        expect(working).to_have_text("Connecting farm…")
+        expect(working).to_have_attribute("role", "status")
+
+        page.evaluate("window.hmzAnswer()")
+        expect(working).to_have_count(0)
+        expect(page.locator(".toast")).to_have_text("Connecting farm")
 
 
 def test_without_daemons_the_bar_is_local(project: Path, engine: str) -> None:
