@@ -1224,8 +1224,6 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
 def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
     project: Path, engine: str, talking: None
 ) -> None:
-    from playwright.sync_api import Route
-
     #: Each request held back until let through, so what is pressed is seen waiting on it.
     waiting: list[Route] = []
 
