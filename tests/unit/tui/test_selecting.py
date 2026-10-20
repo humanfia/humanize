@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.app import App, ComposeResult
 from textual.geometry import Offset
 from textual.selection import Selection
 from textual.widgets.option_list import Option
@@ -52,3 +53,33 @@ def test_a_transcript_starts_empty_and_is_emptied_by_clear() -> None:
 
 def test_a_transcript_never_takes_the_focus() -> None:
     assert not Transcript().can_focus
+
+
+class _Shows(App[None]):
+    """An app holding nothing but a transcript, so that what is written to it is drawn."""
+
+    def compose(self) -> ComposeResult:
+        yield Transcript(id="transcript")
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        # Textual's own colour names, which Rich reads as words: `[/]` closes nothing.
+        "[$secondary]●[/] Task[dim](wait) started[/]",
+        # A backslash that escapes the tag after it, leaving its close with nothing to close.
+        "[green]●[/] foo\\[dim](bar)[/]",
+    ],
+)
+async def test_a_line_that_is_not_markup_is_drawn_as_written(written: str) -> None:
+    app = _Shows()
+    async with app.run_test(size=(60, 10)) as pilot:
+        transcript = app.query_one(Transcript)
+        transcript.write("before")
+        await pilot.pause()
+
+        transcript.write(written)
+        await pilot.resize_terminal(40, 10)
+        await pilot.pause()
+
+        assert transcript.text.splitlines() == ["before", written]

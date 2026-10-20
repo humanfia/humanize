@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
 from rich.cells import get_character_cell_size
+from rich.errors import MarkupError
 from rich.segment import Segment
 from rich.style import Style as RichStyle
 from textual import events
@@ -362,8 +363,14 @@ class Transcript(ScrollView, can_focus=False):
             return
         # Markup, taken as Rich's -- which is what it was written as, and what says which of
         # the sixteen colours it is in. Line by line, so that each row knows which line it
-        # belongs to however many rows that line turns out to need.
-        for line in Content.from_rich_text(written.content).split(allow_blank=True):
+        # belongs to however many rows that line turns out to need. A line that is not markup
+        # after all is drawn as the words it is: it is on every transcript it was kept on, so
+        # failing it would fail every resize and every replay of them after it, for good.
+        try:
+            content = Content.from_rich_text(written.content)
+        except MarkupError:
+            content = Content(written.content)
+        for line in content.split(allow_blank=True):
             at = len(self._lines)
             self._lines.append(line.plain)
             for strip in Visual.to_strips(
