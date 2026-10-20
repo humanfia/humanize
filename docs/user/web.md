@@ -84,7 +84,9 @@ daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same mach
 flows, search it, copy its path, settings), an epic (open, its Exomyth, resume, copy its link or task,
 export, stop), an agent or a session, a node on the graph, a flow or flowverse card, a search
 result, a line of a thread (copy it, or the whole thread). Where there is text to read or write,
-selected text keeps the browser's own menu. **Hover** over anything cut short -- a folder's name,
+selected text keeps the browser's own menu. What a menu sends off -- stopping or uploading an
+epic, forgetting a folder, connecting a daemon -- says `Stopping…`, `Uploading…` and the like at
+the foot of the page until the daemon answers. **Hover** over anything cut short -- a folder's name,
 a task, a path -- to read it in full.
 
 **Paths** are browsed for rather than typed: the folder button beside a path opens a list of

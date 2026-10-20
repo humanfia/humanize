@@ -82,6 +82,8 @@ export function mountSidebar(root, context, where) {
 
   more.addEventListener('click', () => {
     limit += PAGE
+    more.disabled = true
+    more.textContent = 'Loading…'
     watch()
   })
 
@@ -90,6 +92,8 @@ export function mountSidebar(root, context, where) {
     stop()
     stop = poll(address('/api/runs', { limit }), 4000, (answer, error) => {
       if (answer) data = answer
+      more.disabled = false
+      more.textContent = 'Show more'
       if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : 'Reading the epics…'))
       else draw()
     })
@@ -208,7 +212,7 @@ export function mountSidebar(root, context, where) {
       ),
     )
     menuOn(row, () => epicMenu(run))
-    return h('li', { class: 'side-item', 'data-epic': run.name }, row, shown ? tree(run, here, parts) : null)
+    return h('li', { class: 'side-item', 'data-epic': run.name }, row, shown ? [tree(run, here, parts), reading(run)] : null)
   }
 
   /** What an epic opened out holds: its agents, each with the sessions it opened. */
@@ -225,7 +229,11 @@ export function mountSidebar(root, context, where) {
           details.set(run.name, { how: run.how, at: Date.now(), detail })
           if (data) draw()
         },
-        () => of === daemon() && details.set(run.name, { how: run.how, at: Date.now(), detail: null }),
+        (error) => {
+          if (of !== daemon()) return
+          details.set(run.name, { how: run.how, at: Date.now(), detail: null, error })
+          if (data) draw()
+        },
       )
     }
     const detail = read && read.detail
@@ -289,6 +297,14 @@ export function mountSidebar(root, context, where) {
     )
   }
 
+  /** Under an epic opened out: that its sessions are read, until they first are, or why they could not be. */
+  function reading(run) {
+    const read = details.get(run.name)
+    if (!run.agents.length) return null
+    if (read && read.error && !read.detail) return h('p', { class: 'side-quiet nested', role: 'alert' }, read.error.message)
+    return read && 'detail' in read ? null : h('p', { class: 'side-quiet nested', role: 'status', 'data-hmz': 'reading' }, 'Reading…')
+  }
+
   watch()
   window.addEventListener('hashchange', () => {
     // The links that stay go on to the daemon the address names, as it names it.
@@ -333,13 +349,26 @@ export function epicMenu(run) {
     going ? null : { label: 'Export', glyph: 'download', act: () => (location.href = scoped(`/api/runs/${encodeURIComponent(run.name)}/bundle`)) },
     { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run.name) },
     run.held && !chat ? '-' : null,
-    run.held && !chat ? { label: 'Stop', glyph: 'stop', danger: true, act: () => ask({ workspace: run.workspace, slot: run.slot }, 'stop').then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
+    run.held && !chat ? { label: 'Stop', glyph: 'stop', danger: true, act: () => working('Stopping', ask({ workspace: run.workspace, slot: run.slot }, 'stop')).then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
   ]
+}
+
+let notice = null
+
+/**
+ * Says what was asked of the server is going, in a toast that stays until it answers -- the menu
+ * it was asked from is closed by then -- and gives back the answer.
+ */
+function working(said, asked) {
+  notice?.remove()
+  const mine = (notice = h('div', { class: 'toast notice working', role: 'status', 'data-hmz': 'working' }, h('span', { class: 'dot live', 'aria-hidden': 'true' }), `${said}…`))
+  document.body.append(mine)
+  return asked.finally(() => mine.remove())
 }
 
 /** Backs an epic up to its targets now, behind the page: how it went is read as the epic is. */
 export function upload(name) {
-  return post(`/api/runs/${encodeURIComponent(name)}/backup`, {}).then((answer) => toast(`Uploading to ${answer.queued.join(', ')}`), (error) => toast(error.message))
+  return working('Uploading', post(`/api/runs/${encodeURIComponent(name)}/backup`, {})).then((answer) => toast(`Uploading to ${answer.queued.join(', ')}`), (error) => toast(error.message))
 }
 
 /** How an epic's last backup to each target went, each in turn, or '' where it has none. */
@@ -421,7 +450,7 @@ function daemonBar(context) {
     draw()
   })
   const connect = (name) => {
-    post(`/api/daemons/${encodeURIComponent(name)}/connect`, {}).then(() => {
+    working(`Connecting ${named(name)}`, post(`/api/daemons/${encodeURIComponent(name)}/connect`, {})).then(() => {
       toast(`Connecting ${named(name)}`)
       refresh('/api/daemons')
     }, (error) => toast(error.message))
@@ -471,7 +500,7 @@ function daemonBar(context) {
 
 /** Forgets a workspace nothing ran in, which takes it out of the list. */
 function forget(path) {
-  post('/api/workspaces/forget', { workspace: path }).then(() => {
+  working('Forgetting', post('/api/workspaces/forget', { workspace: path })).then(() => {
     refresh('/api/workspaces')
     toast('Forgotten')
   }, (error) => toast(error.message))

@@ -1094,6 +1094,11 @@ code {
   color: inherit;
 }
 
+/* What a menu asked of the server, going until it answers. */
+.notice.working .dot {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 /* A file dragged over the window, which takes a .hmzepic dropped anywhere on it. */
 body.dropping .app {
   outline: 3px dashed var(--pink);
