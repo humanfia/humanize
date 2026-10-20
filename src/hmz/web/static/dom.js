@@ -81,17 +81,20 @@ export function empty(title, text, ...actions) {
  * A button that asks before it does something that cannot be undone, in place rather than in
  * a dialog: pressed, it becomes the question and two answers.
  */
-export function confirming({ label, ask, yes, no = 'Cancel', act, danger = true, small = false }) {
+export function confirming({ label, ask, yes, no = 'Cancel', act, danger = true, small = false, busy = `${yes}…`, held = false }) {
   const holder = h('span', { class: 'confirm' })
   const start = () => {
     const doing = h('button', { class: ['btn', danger && 'danger', small && 'small'], type: 'button' }, yes)
     const keep = h('button', { class: ['btn quiet', small && 'small'], type: 'button', onclick: idle }, no)
     doing.addEventListener('click', async () => {
       doing.disabled = keep.disabled = true
-      doing.textContent = `${yes}…`
+      doing.textContent = busy
       try {
         await act()
-        idle()
+        // Held, it stays busy until what it did is drawn, which draws it anew -- or, where
+        // that never comes, a while.
+        if (held) setTimeout(idle, 10000)
+        else idle()
       } catch (error) {
         fill(holder, problem(error))
         setTimeout(idle, 4000)
