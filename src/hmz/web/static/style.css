@@ -3443,6 +3443,11 @@ pre.exo-args {
   display: none;
 }
 
+.flows-said .loading {
+  margin: 0 0 12px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 .flows-said .chip {
   white-space: normal;
   overflow-wrap: anywhere;
@@ -3604,6 +3609,12 @@ pre.exo-args {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/* What is listed while another page of it, or another search, is read. */
+.dialog-body[aria-busy='true'] > * {
+  opacity: 0.6;
+  animation: pulse 1.6s ease-in-out infinite;
 }
 
 .result {

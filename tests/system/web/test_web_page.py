@@ -393,6 +393,25 @@ def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
         page.keyboard.press("Control+k")
         search = page.get_by_role("searchbox", name="Find")
         expect(page.locator("[data-hmz=found] .result")).to_have_count(1)
+        # What is listed stays, marked old, until the search typed is answered.
+        held: list[Route] = []
+
+        def hold(route: Route) -> None:
+            # Playwright takes a function of Python's, not a bound builtin.
+            held.append(route)
+
+        page.route("**/api/runs?*", hold)
+        search.fill("find")
+        found = page.locator("[data-hmz=found]")
+        page.wait_for_timeout(500)
+        assert held
+        expect(found).to_have_attribute("aria-busy", "true")
+        expect(found.locator(".result")).to_have_count(1)
+        expect(search).to_have_value("find")
+        for one in held:
+            one.continue_()
+        page.unroute("**/api/runs?*")
+        expect(found).not_to_have_attribute("aria-busy", "true")
         search.fill("nothing like it")
         expect(page.locator("[data-hmz=found]")).to_contain_text(
             "No epic is like that."
@@ -1256,8 +1275,6 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
 def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
     project: Path, engine: str, talking: None
 ) -> None:
-    from playwright.sync_api import Route
-
     #: Each request held back until let through, so what is pressed is seen waiting on it.
     waiting: list[Route] = []
 
