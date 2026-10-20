@@ -2116,8 +2116,14 @@ pre.block {
   display: none;
 }
 
-.composer-said .error {
+.composer-said .error,
+.composer-said .loading {
   margin: 0 0 4px;
+}
+
+.composer-said .loading {
+  font: 12px var(--mono);
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .composer-bar {
@@ -2152,8 +2158,13 @@ pre.block {
   text-overflow: ellipsis;
 }
 
+.options.stale {
+  opacity: 0.5;
+}
+
 .composer.busy .send {
   opacity: 0.6;
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .send {

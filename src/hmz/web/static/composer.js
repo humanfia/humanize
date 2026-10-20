@@ -11,8 +11,9 @@ import { fill, h, icon, problem } from './dom.js'
  * @param {Node[]} [made.tools] What stands on its bar beside the send button.
  * @param {string} [made.value] What it holds to begin with.
  * @param {boolean} [made.empty] Whether it may be sent empty.
+ * @param {string} [made.busy] What it says over itself while what was sent is being taken.
  */
-export function composer({ placeholder, label, submit, tools = [], value = '', empty = false }) {
+export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = 'Sending…' }) {
   const text = h('textarea', { rows: '1', placeholder, 'aria-label': label, 'data-hmz': 'composer-text' }, value)
   const send = h('button', { class: 'send', type: 'submit', 'aria-label': 'Send', title: 'Send' }, icon('send'))
   const said = h('div', { class: 'composer-said', 'aria-live': 'polite' })
@@ -34,9 +35,12 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
     if ((!empty && !text.value.trim()) || send.disabled) return
     send.disabled = true
     form.classList.add('busy')
-    fill(said)
+    form.setAttribute('aria-busy', 'true')
+    send.setAttribute('aria-label', busy)
+    fill(said, h('p', { class: 'loading', role: 'status' }, busy))
     try {
       await submit(text.value)
+      fill(said)
       text.value = ''
       grow()
     } catch (error) {
@@ -44,6 +48,8 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
     } finally {
       send.disabled = false
       form.classList.remove('busy')
+      form.removeAttribute('aria-busy')
+      send.setAttribute('aria-label', 'Send')
     }
   })
   // Measured again whenever its box changes, so one built before it is shown fits once shown.

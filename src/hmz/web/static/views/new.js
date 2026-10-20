@@ -38,6 +38,7 @@ export function mount(root, { query }) {
     label: 'Task',
     tools: [optionsChip, summary],
     empty: true,
+    busy: 'Starting…',
     submit: (task) => start(task),
   })
   box.node.dataset.hmz = 'start'
@@ -85,10 +86,18 @@ export function mount(root, { query }) {
   /** Which workspace was read last: one read after another was picked draws nothing. */
   let loading = ''
 
+  /** Says the flow drawn is being read again, rather than leave the last one standing as if current. */
+  function reading(on) {
+    fill(about, on ? h('span', { class: 'loading', role: 'status' }, 'Reading…') : picked ? picked.description || '' : '')
+    options.classList.toggle('stale', on)
+    options.toggleAttribute('aria-busy', on)
+  }
+
   /** Reads what a workspace offers -- its flows, and the one it last set up -- and opens one. */
   async function load(flow) {
     const mine = (loading = scratch ? 'none' : workspace || 'here')
     fill(box.said)
+    reading(true)
     try {
       const ran = resume ? await get(`/api/runs/${encodeURIComponent(resume)}`) : null
       if (mine !== loading) return
@@ -108,10 +117,14 @@ export function mount(root, { query }) {
       // A flow the address names that is not on offer there opens the one it last set up.
       const asked = flows.some((one) => one.name === flow) ? flow : ''
       const wanted = (ran && ran.flow) || asked || found.flow || (flows[0] && flows[0].name) || ''
-      if (!wanted) fill(options, problem('No flow is on offer here.'))
-      else choose(wanted, ran)
+      if (!wanted) {
+        reading(false)
+        fill(options, problem('No flow is on offer here.'))
+      } else choose(wanted, ran)
     } catch (error) {
-      if (mine === loading) fill(box.said, problem(error))
+      if (mine !== loading) return
+      reading(false)
+      fill(box.said, problem(error))
     }
   }
   load(query.get('flow') || '')
@@ -123,17 +136,20 @@ export function mount(root, { query }) {
     // The address of a dialog opened over it is the dialog's own.
     if (!covered()) stays({ workspace: scratch ? '' : workspace, scratch: scratch ? '1' : '', flow: name, resume: ran ? ran.name : '' })
     fill(picker.querySelector('b'), name)
+    reading(true)
     let read
     try {
       read = await get(`/api/flow?name=${encodeURIComponent(name)}&workspace=${encodeURIComponent(workspace)}`)
     } catch (error) {
-      if (choosing === name) fill(box.said, problem(error))
+      if (choosing !== name) return
+      reading(false)
+      fill(box.said, problem(error))
       return
     }
     // Another flow, or another workspace's, was chosen while this one was read.
     if (choosing !== name || at !== workspace) return
     picked = read
-    fill(about, picked.description || '')
+    reading(false)
     fill(resumed, ran ? h('p', { class: 'note' }, `Picks up ${ran.name}, carrying on from where it stopped.`) : null)
     greeting.textContent = ran ? 'Resume epic' : `What should ${name} do?`
     setup = drawOptions(picked, ran)

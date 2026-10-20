@@ -28,7 +28,7 @@ from tests.integration.doubles_web import backed_up_elsewhere, elsewhere, served
 from tests.system.web.doubles_browser import ENGINES, go, opened, stop
 
 if TYPE_CHECKING:
-    from playwright.sync_api import FloatRect, Locator, Page
+    from playwright.sync_api import FloatRect, Locator, Page, Route
 
 #: Every settings page, by the word its address ends in.
 _PAGES = (
@@ -877,6 +877,57 @@ def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -
         go(page, "/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
+
+
+def test_a_start_says_it_is_starting_until_the_epic_opens(
+    project: Path, engine: str
+) -> None:
+    held: list[Route] = []
+
+    def hold(route: Route) -> None:
+        held.append(route)
+
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new?flow=chat")
+        page.route("**/api/held/start", hold)
+        page.get_by_role("button", name="Options").click()
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_value("claude-haiku-4-5")
+        page.locator("[data-hmz=composer-text]").fill("hold on")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        box = page.locator("[data-hmz=start]")
+        expect(box).to_have_attribute("aria-busy", "true")
+        expect(box.get_by_role("status")).to_have_text("Starting…")
+        expect(box.get_by_role("button", name="Starting…")).to_be_disabled()
+        held[0].continue_()
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+
+
+def test_a_workspace_read_marks_the_flow_drawn_until_it_is_read(
+    project: Path, engine: str
+) -> None:
+    held: list[Route] = []
+
+    def hold(route: Route) -> None:
+        held.append(route)
+
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new?flow=chat")
+        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
+        expect(page.locator("[data-hmz=options]")).not_to_have_class(
+            re.compile("stale")
+        )
+        page.route(re.compile(r".*/api/flow\?name="), hold)
+        page.locator("[data-hmz=flow-picker]").click()
+        page.get_by_role("menuitem", name=re.compile("chat")).first.click()
+        expect(page.locator(".greeting-about [role=status]")).to_have_text("Reading…")
+        expect(page.locator("[data-hmz=options]")).to_have_class(re.compile("stale"))
+        held[0].continue_()
+        expect(page.locator(".greeting-about [role=status]")).to_have_count(0)
+        expect(page.locator("[data-hmz=options]")).not_to_have_class(
+            re.compile("stale")
+        )
 
 
 def test_the_flow_and_its_environment_are_profiled_apart(
