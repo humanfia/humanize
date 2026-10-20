@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- The update's window: what a look for an update by hand, and an install, are doing as they
+     go. The app draws it, and asks nothing of it. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Software Update</title>
+    <link rel="stylesheet" href="ui.css" />
+    <script src="update.js" defer></script>
+  </head>
+  <body>
+    <main class="update">
+      <svg class="mark" viewBox="0 0 100 100" aria-hidden="true">
+        <polygon class="ink" points="12,16 32,16 62,50 32,84 12,84 42,50" />
+        <polygon class="green" points="60,84 94,84 94,64 60,74" />
+      </svg>
+      <div class="progress" role="status">
+        <p id="step">Checking for Updates…</p>
+        <div class="bar"><span></span></div>
+      </div>
+    </main>
+  </body>
+</html>

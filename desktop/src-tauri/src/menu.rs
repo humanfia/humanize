@@ -7,6 +7,11 @@ use tauri::{AppHandle, Manager, Runtime};
 /// Where the documentation is.
 pub const DOCS: &str = "https://docs.humanfia.ai/humanize/";
 
+/// Check for Updates…, and what it says while a look by hand runs.
+const CHECK: &str = "check-for-updates";
+const CHECK_LABEL: &str = "Check for Updates…";
+const CHECKING_LABEL: &str = "Checking for Updates…";
+
 /// How far each Zoom In or Zoom Out goes, and how far they may go in all.
 const ZOOM_STEP: f64 = 1.1;
 const ZOOM_RANGE: (f64, f64) = (0.5, 3.0);
@@ -56,8 +61,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
                     // Off in a development build, which is never updated.
                     &MenuItem::with_id(
                         app,
-                        "check-for-updates",
-                        "Check for Updates…",
+                        CHECK,
+                        CHECK_LABEL,
                         crate::update::checks(&app.package_info().version),
                         None::<&str>,
                     )?,
@@ -123,7 +128,7 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         "actual-size" => zoom(|_| 1.0),
         "zoom-in" => zoom(|zoom| zoom * ZOOM_STEP),
         "zoom-out" => zoom(|zoom| zoom / ZOOM_STEP),
-        "check-for-updates" => {
+        CHECK => {
             crate::update::check(app, crate::update::By::Hand);
             Ok(())
         }
@@ -135,5 +140,21 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
     };
     if let Err(why) = done {
         log::warn!("{}: {why}", event.id().as_ref());
+    }
+}
+
+/// Takes Check for Updates… off while a look by hand runs, saying so, and puts it back after.
+pub fn checking<R: Runtime>(app: &AppHandle<R>, on: bool) {
+    let item = app.menu().and_then(|menu| {
+        menu.items().ok()?.iter().find_map(|kind| {
+            let item = kind.as_submenu()?.get(CHECK)?;
+            item.as_menuitem().cloned()
+        })
+    });
+    if let Some(item) = item {
+        let label = if on { CHECKING_LABEL } else { CHECK_LABEL };
+        if let Err(why) = item.set_enabled(!on).and_then(|()| item.set_text(label)) {
+            log::warn!("{CHECK}: {why}");
+        }
     }
 }
