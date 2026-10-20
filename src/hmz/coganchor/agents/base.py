@@ -11,7 +11,6 @@ import functools
 import json
 import os
 import queue
-import re
 import subprocess
 import sys
 import threading
@@ -56,6 +55,7 @@ if TYPE_CHECKING:
     )
     from pathlib import Path
 
+    from markdown_it import MarkdownIt
     from pydantic import BaseModel
 
     from hmz.coganchor import AnchorConfig
@@ -239,8 +239,31 @@ Schema exactly:
 {schema}
 """
 
-#: What a model wraps an answer in when it is talking as well as answering.
-_FENCED = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
+
+@functools.cache
+def _commonmark() -> MarkdownIt:
+    from markdown_it import MarkdownIt
+
+    # Blocks alone are read: raw HTML would swallow a fence right under a tag.
+    return MarkdownIt("commonmark", {"html": False}).disable("inline")
+
+
+def fenced_blocks(text: str) -> list[str]:
+    """Reads the fenced code blocks of a Markdown text, as CommonMark reads them.
+
+    Any info string is taken (`JSON`, `jsonc`, none), with backtick or tilde fences of
+    any length. Backticks on one line are a code span, not a block, and a fence left
+    open runs to the end of the text.
+
+    Args:
+      text: The Markdown text.
+
+    Returns:
+      Each block's content, in document order.
+    """
+    return [
+        token.content for token in _commonmark().parse(text) if token.type == "fence"
+    ]
 
 
 def _readings(said: str) -> Iterator[str]:
@@ -258,8 +281,8 @@ def _readings(said: str) -> Iterator[str]:
     """
     held = said.strip()
     yield held
-    for block in _FENCED.findall(held):
-        yield str(block).strip()
+    for block in fenced_blocks(held):
+        yield block.strip()
     first, last = held.find("{"), held.rfind("}")
     if 0 <= first < last:
         yield held[first : last + 1]

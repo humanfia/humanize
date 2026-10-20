@@ -76,7 +76,6 @@ fence's cut network is what stops them, a search reaching no host but the model'
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final
@@ -448,10 +447,6 @@ def _text(said: object) -> str:
 
 # -------------------------------------------------------------------------------- answers
 
-#: A block of an answer fenced as code, which is where a model that talked as well as
-#: answered puts the object it was asked for.
-_FENCED_JSON = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
-
 
 def read_shape[T: pydantic.BaseModel](said: str, schema: type[T]) -> T:
     """Reads an answer as the model it was asked for.
@@ -470,8 +465,10 @@ def read_shape[T: pydantic.BaseModel](said: str, schema: type[T]) -> T:
     Raises:
       OutputSchemaError: If no part of it is one.
     """
+    from hmz.coganchor.agents.base import fenced_blocks
+
     held = said.strip()
-    readings = [held, *(str(one).strip() for one in _FENCED_JSON.findall(held))]
+    readings = [held, *(one.strip() for one in fenced_blocks(held))]
     first, last = held.find("{"), held.rfind("}")
     if 0 <= first < last:
         readings.append(held[first : last + 1])

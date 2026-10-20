@@ -1137,6 +1137,7 @@ source = { editable = "." }
 dependencies = [
     { name = "dateparser" },
     { name = "json5" },
+    { name = "markdown-it-py" },
     { name = "packaging" },
     { name = "psutil" },
     { name = "pydantic" },
@@ -1262,6 +1263,7 @@ requires-dist = [
     { name = "hmz", extras = ["dsh", "kimi", "litellm"], marker = "extra == 'all'" },
     { name = "httpx2", marker = "extra == 'litellm'", specifier = ">=2.5,<3" },
     { name = "json5", specifier = ">=0.12" },
+    { name = "markdown-it-py", specifier = ">=4.2" },
     { name = "litellm", marker = "extra == 'litellm'", specifier = ">=1.105" },
     { name = "litellm-enterprise", marker = "extra == 'litellm'", specifier = ">=0.1.73" },
     { name = "litellm-proxy-extras", marker = "extra == 'litellm'", specifier = ">=0.4.105" },

@@ -780,7 +780,8 @@ another machine. A refused turn leaves the session where it was, ready for a tur
 8. With `output_schema`, the final text is parsed (below).
 
 **Reading `output_schema`.** The model is validated with `model_validate_json` against, in
-order: the whole answer stripped; each fenced code block (```` ```json ```` or ```` ``` ````);
+order: the whole answer stripped; each Markdown fenced code block, regardless of its info
+string (including `JSON`, `jsonc` and tilde fences);
 the span from the first `{` to the last `}`. The first that validates is returned. If none
 does: `OutputSchemaError: the answer is not a <Model>: <first 200 chars, JSON-quoted>`.
 
