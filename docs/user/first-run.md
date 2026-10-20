@@ -368,6 +368,7 @@ What to look at, by number:
    [Cost and rate](/user/tally).
 6. **The status line**: who is working, for how long, and how to stop. Its right-hand end is
    the keys that work right now; `ctrl+c stop` means <kbd>ctrl+c</kbd> would start a stop.
+   Between pressing <kbd>enter</kbd> and the run starting, it spins on `starting…`.
 7. **Stopped**: back to `◉ ralph_loop`, and `ctrl+c exit`, because nothing is running.
 
 While it runs:
