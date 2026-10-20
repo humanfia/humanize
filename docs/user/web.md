@@ -254,7 +254,10 @@ opens one you double-click. See [Exporting a run](/user/export#importing-a-run).
 
 **New epic** opens on the directory `hmz web` started in, or the folder whose **+** was pressed,
 and on the flow that directory last ran; pick another of either at the top. **Open folder…**
-takes any directory by its path, completed as you type, and keeps it in the sidebar. Type the
+takes any directory by its path, completed as you type, and keeps it in the sidebar. **No
+workspace** works in none of yours: each epic started so gets a new directory of its own in the
+temporary directory, made as it starts, and set up as the directory `hmz web` started in is; the
+epic then shows in the sidebar under that directory. Type the
 task and press <kbd>Enter</kbd>. **Options** holds what the flow is set up with, as that
 directory last set it up:
 

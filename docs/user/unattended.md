@@ -370,6 +370,10 @@ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 \
   it prints.
 - **A script that waits for ever on `chat`.** It will not: with nobody at a prompt, `chat`
   answers once and returns.
+- **A long job that dies when the round ends.** A server or a training run an agent starts goes
+  with its session, unless the agent detached it: started with `setsid nohup … &` from a shell
+  command that then returns, it keeps running into the next round. Have the agent write down
+  where it logs, so the next session can find it.
 
 More in [Troubleshooting](/user/troubleshooting).
 

@@ -221,6 +221,7 @@ def test_a_virtual_home_reads_back_as_itself() -> None:
         skills=(("review", "/flow/review"),),
         merges=(merged(_settled, {"effort": "high"}),),
         records=(("state_*.sqlite", "threads", "rollout_path"),),
+        keeps="/epic/sessions/codex",
     )
 
     assert Virtual.loads(spec.dumps()) == spec
@@ -607,3 +608,93 @@ def test_a_path_of_the_home_the_cli_wrote_down_is_followed_as_it_goes(
         "gone": rows[1][1],
         "other": rows[2][1],
     }
+
+
+def _keeping(tmp_path: Path) -> Virtual:
+    """Codex's home, its conversations kept in a run's directory rather than the user's."""
+    return Virtual(
+        variable="CODEX_HOME",
+        default=".codex",
+        rewrites=("config.toml",),
+        made=("sessions", "session_index.jsonl"),
+        kept=("state_*.sqlite*",),
+        records=(("state_*.sqlite", "threads", "rollout_path"),),
+        keeps=str(tmp_path / "epic" / "codex"),
+    )
+
+
+def test_a_home_keeping_conversations_elsewhere_links_them_there(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "user" / ".codex"
+    (real / "sessions").mkdir(parents=True)
+    (real / "state_5.sqlite").write_text("theirs\n")
+    (real / "auth.json").write_text("token\n")
+    keeps = tmp_path / "epic" / "codex"
+    keeps.mkdir(parents=True)
+    (keeps / "state_6.sqlite").write_text("the run's\n")
+
+    home = build(_keeping(tmp_path), {"HOME": str(tmp_path / "user")}, under=tmp_path)
+    (home.at / "sessions" / "a.jsonl").write_text("{}\n")
+    (home.at / "session_index.jsonl").write_text("a\n")
+    (home.at / "state_5.sqlite").write_text("the run's own\n")
+
+    assert home.keeps == keeps
+    assert (home.at / "auth.json").resolve() == real / "auth.json"
+    assert (keeps / "sessions" / "a.jsonl").is_file()
+    assert (keeps / "session_index.jsonl").read_text() == "a\n"
+    assert (keeps / "state_5.sqlite").read_text() == "the run's own\n"
+    assert (home.at / "state_6.sqlite").read_text() == "the run's\n"
+    home.drop()
+    assert list((real / "sessions").iterdir()) == []
+    assert not (real / "session_index.jsonl").exists()
+    assert (real / "state_5.sqlite").read_text() == "theirs\n"
+    assert not (real / "state_6.sqlite").exists()
+
+
+def test_a_database_made_in_a_home_keeping_elsewhere_is_moved_there_followed(
+    tmp_path: Path,
+) -> None:
+    import sqlite3
+
+    real = tmp_path / "user" / ".codex"
+    real.mkdir(parents=True)
+    home = build(_keeping(tmp_path), {"HOME": str(tmp_path / "user")}, under=tmp_path)
+    (home.at / "sessions" / "a.jsonl").write_text("{}\n")
+    with sqlite3.connect(home.at / "state_5.sqlite") as connection:
+        connection.execute("create table threads (id text, rollout_path text)")
+        connection.execute(
+            "insert into threads values (?, ?)", ("a", f"{home.at}/sessions/a.jsonl")
+        )
+    connection.close()
+
+    home.drop()
+
+    keeps = tmp_path / "epic" / "codex"
+    with sqlite3.connect(keeps / "state_5.sqlite") as connection:
+        said = dict(connection.execute("select id, rollout_path from threads"))
+    connection.close()
+    assert said == {"a": os.path.realpath(keeps / "sessions" / "a.jsonl")}
+    assert not (real / "state_5.sqlite").exists()
+
+
+def test_a_replaced_link_into_a_kept_directory_is_written_back_there(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "user" / ".codex"
+    real.mkdir(parents=True)
+    home = build(_keeping(tmp_path), {"HOME": str(tmp_path / "user")}, under=tmp_path)
+    (home.at / "session_index.jsonl").unlink()
+    (home.at / "session_index.jsonl").write_text("renamed over\n")
+
+    home.drop()
+
+    assert (tmp_path / "epic" / "codex" / "session_index.jsonl").read_text() == (
+        "renamed over\n"
+    )
+    assert not (real / "session_index.jsonl").exists()
+
+
+def test_a_kept_directory_must_be_absolute() -> None:
+    with pytest.raises(ValueError, match="to keep sessions in"):
+        Virtual(variable="CODEX_HOME", default=".codex", keeps="epic/codex")

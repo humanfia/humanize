@@ -268,8 +268,12 @@ the host's answer: its fields, with `ok` `true`.
 cannot be asked MUST be refused 503, `The epics could not be asked: <why>`.
 
 **8.3.5** `start` MUST first write what the flow is started with as the workspace's set-up of
-that flow, as §11.4 does, and MUST answer with `slot`, the host it started on, beside the host's
-answer.
+that flow, as §11.4 does, and MUST answer with `slot`, the host it started on, and `workspace`,
+the absolute path of the workspace it started in, beside the host's answer.
+
+**8.3.5.1** `start` MUST take `scratch`, a bool, `false` where it is not sent; `true` MUST start
+the epic in a new directory made for it alone in the system's temporary directory, in place of the
+workspace parameter.
 
 **8.3.6** `start` of the built-in `chat` flow without a slot parameter MUST start on a new chat
 slot, starting its host; `start` on a chat slot MUST start that slot's host where none is.

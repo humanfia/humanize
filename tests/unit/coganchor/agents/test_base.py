@@ -47,7 +47,6 @@ from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.faking import FakeCli, FakeCommand, FakeTool
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers.store import Provider
-from hmz.runtime import telemetry
 from tests.unit.coganchor.agents.doubles_core import (
     Scripted,
     Steered,
@@ -178,26 +177,18 @@ def test_a_watcher_is_told_which_session_said_it() -> None:
     assert {who for who, _ in told} == {agent}
 
 
-def test_a_watcher_that_raises_is_reported_once_per_kind(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    snags: list[tuple[str, dict[str, Any]]] = []
-
-    def snag(what: str, **why: Any) -> None:
-        snags.append((what, why))
-
-    monkeypatch.setattr(telemetry, "snag", snag)
+def test_a_watcher_that_raises_fails_nothing_and_the_next_watcher_still_hears() -> None:
     agent = Scripted()
+    heard: list[str] = []
 
     def broken(*_: object) -> NoReturn:
         raise KeyError("x")
 
     agent.watch(broken)
+    agent.watch(lambda _agent, _session, event: heard.append(event.kind))
     assert agent("one") == "done"
     assert agent("two") == "done"
-    assert [why["kind"] for _, why in snags] == ["begins", "result", "ends"]
-    assert {what for what, _ in snags} == {"watcher-raised"}
-    assert snags[0][1]["why"] == "KeyError"
+    assert heard.count("result") == 2
 
 
 def test_a_stream_yields_what_the_agent_said_ending_on_the_result() -> None:
@@ -1176,6 +1167,47 @@ def test_stopping_closes_every_session() -> None:
     session("go")
     agent.stop()
     assert [one.moment for one in ended] == [Moment.SESSION_END]
+
+
+@pytest.mark.parametrize("backend", ["claude", "codex"])
+def test_a_machine_that_cannot_supervise_keeps_sessions_through_the_virtual_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    """Linked into the run from the home each process starts in, and supervised by nothing."""
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: False)
+    monkeypatch.delenv(KEEPING, raising=False)
+    user = tmp_path / "home"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(user))
+    monkeypatch.setenv("CODEX_HOME", str(user))
+    (user / "sessions").mkdir(parents=True)
+    agent = Scripted(backend=backend)
+    agent.epic = _Run(tmp_path / "epic")
+    into = tmp_path / "epic" / backend
+
+    home = agent.homed()
+    assert home is not None
+    try:
+        assert home.keeps == into
+        assert (home.at / "sessions").resolve() == (into / "sessions").resolve()
+        assert not any(
+            one.startswith("--keep") for one in agent.spawned(["x"], home=home)
+        )
+    finally:
+        home.drop()
+    assert agent.kept() == into
+    assert list((user / "sessions").iterdir()) == []
+
+
+def test_a_cli_keeping_sessions_below_its_home_keeps_them_there_unsupervised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Kimi's `server/events` is no name a link of its home can stand for."""
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: False)
+    monkeypatch.delenv(KEEPING, raising=False)
+    agent = Scripted(backend="kimi")
+    agent.epic = _Run(tmp_path / "epic")
+
+    assert agent.kept() != tmp_path / "epic" / "kimi"
 
 
 def test_where_an_agent_keeps_its_sessions(tmp_path: Path) -> None:

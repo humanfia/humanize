@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -161,6 +162,38 @@ def test_a_page_that_heard_part_of_the_stream_hears_the_rest_and_no_more(
             _, first = until(heard, lambda event, data: event == "record", "a record")
             assert first["seq"] == 1
         browser.post("/api/held/stop")
+
+
+def test_a_run_started_in_no_workspace_runs_in_a_new_directory_of_its_own(
+    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scratch = tmp_path / "temporary"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+
+        made: list[Path] = []
+        for _ in range(2):
+            started = browser.post("/api/held/start", _CHAT | {"scratch": True}).json()
+            where = Path(started["workspace"])
+            assert where.is_dir()
+            assert where.parent == scratch.resolve()
+            made.append(where)
+            with browser.follows(workspace=str(where)) as heard:
+                until(heard, _record("asked"), "chat asking")
+            stop = {"workspace": str(where)}
+            assert browser.post("/api/held/stop", stop).status == 200
+        # Each start makes one of its own, and the workspace the server serves is not one.
+        assert made[0] != made[1]
+        assert project.resolve() not in made
+        offered = {
+            one["path"] for one in browser.get("/api/workspaces").json()["workspaces"]
+        }
+        assert {str(one) for one in made} <= offered
+
+        assert browser.post("/api/held/start", _CHAT | {"scratch": "1"}).status == 400
 
 
 def test_a_page_asks_the_runs_only_what_they_take(project: Path) -> None:

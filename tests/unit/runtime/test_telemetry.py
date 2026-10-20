@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -225,17 +226,31 @@ def test_reporting_starts_once_with_nothing_about_the_person(on: Sentry) -> None
     assert said["server_name"] == ""
     assert said["release"].startswith("hmz@")
     assert [type(one).__name__ for one in said["disabled_integrations"]] == [
-        "ArgvIntegration"
+        "ArgvIntegration",
+        "LoggingIntegration",
     ]
     assert said["auto_enabling_integrations"] is False
+
+
+def test_nothing_is_timed_or_profiled(on: Sentry) -> None:
+    telemetry.start()
+
+    said = on.inits[0]
+    assert said["traces_sample_rate"] == 0.0
+    assert not {
+        "profile_session_sample_rate",
+        "profiles_sample_rate",
+        "before_send_transaction",
+        "transport",
+    } & set(said)
 
 
 def test_an_sdk_that_will_not_start_reports_nothing(on: Sentry) -> None:
     on.refuses = RuntimeError("no transport")
 
     assert telemetry.start() is False
-    telemetry.snag("dead-key")
-    assert on.messages == []
+    telemetry.crash(RuntimeError("boom"))
+    assert on.exceptions == []
 
 
 def test_stopping_what_never_started_does_nothing(sent: Sentry) -> None:
@@ -258,17 +273,8 @@ def test_a_crash_is_reported_with_its_tags_made_plain(on: Sentry) -> None:
     assert on.scopes[0].tags == {"doing": "a flow at ~/secret", "key": "…"}
 
 
-def test_a_snag_is_a_warning_named_for_what_happened(on: Sentry) -> None:
-    telemetry.start()
-    telemetry.snag("dead-key", sheet="flows", where="/home/bob/x")
-
-    assert on.messages == [("snag: dead-key", "warning")]
-    assert on.scopes[0].tags == {"snag": "dead-key", "sheet": "flows", "where": "~/x"}
-
-
 def test_nothing_is_reported_while_reporting_is_off(sent: Sentry) -> None:
     telemetry.crash(RuntimeError("boom"))
-    telemetry.snag("dead-key")
 
     assert sent.scopes == []
     assert sent.exceptions == []
@@ -279,7 +285,6 @@ def test_nothing_is_reported_by_a_process_that_never_started_reporting(
     on: Sentry,
 ) -> None:
     telemetry.crash(RuntimeError("boom"))
-    telemetry.snag("dead-key")
 
     assert on.inits == []
     assert on.exceptions == []
@@ -456,121 +461,93 @@ def test_struck_out_is_said_by_whoever_asks() -> None:
     assert said == 'auth: Bearer [gone], "api_key": "[gone]"'
 
 
-# ------------------------------------------------------------- what is timed
+# ------------------------------------------------------------- once apiece
 
 
-def test_a_transaction_is_sent_as_plain_as_a_report(on: Sentry, tmp_path: Path) -> None:
-    telemetry.start()
-    theirs = tmp_path / "my-secret-project" / "flow.py"
-    ours = Path(telemetry.__file__).resolve()
-    event = _event(
-        type="transaction",
-        transaction="run ghp_abcdefghijklmnop at /Users/eve/work",
-        contexts={"trace": {"op": "flow", "data": {"thread.name": "/home/eve/x"}}},
-        tags={"where": "/Users/eve/y"},
-        spans=[
-            {
-                "op": "subprocess",
-                "description": "claude -p 'do the secret thing'",
-                "data": {"subprocess.cwd": str(theirs.parent), "subprocess.pid": 7},
-            },
-            {
-                "op": "function",
-                "description": "secret_step",
-                "data": {
-                    "code.filepath": str(theirs),
-                    "code.function": "secret_step",
-                    "code.namespace": "my_secret_project",
-                    "code.lineno": 9,
-                },
-            },
-            {"op": "function", "data": {"code.filepath": str(ours)}},
-            {"op": "http.client", "description": "GET https://a:b@h/x?token=abcdef"},
-        ],
-    )
-
-    said = on.inits[0]["before_send_transaction"](event, None)
-
-    assert {"server_name", "user", "extra", "breadcrumbs"}.isdisjoint(said)
-    assert said["transaction"] == "run … at ~/work"
-    assert said["contexts"]["trace"]["data"] == {"thread.name": "~/x"}
-    assert said["tags"] == {"where": "~/y"}
-    command, step, ours_span, fetch = said["spans"]
-    assert command == {
-        "op": "subprocess",
-        "description": "A command",
-        "data": {"subprocess.pid": 7},
+def _crash(kind: str, line: int) -> dict[str, Any]:
+    ours = str(Path(telemetry.__file__).resolve())
+    frame = {"abs_path": ours, "lineno": line}
+    return {
+        "exception": {"values": [{"type": kind, "stacktrace": {"frames": [frame]}}]}
     }
-    assert step["data"] == {"code.filepath": "<not humanize>", "code.lineno": 9}
-    assert ours_span["data"] == {"code.filepath": "hmz/runtime/telemetry.py"}
-    assert fetch["description"] == "GET https://…@h/x?token=…"
 
 
-class Payload:
-    def __init__(self, json: Any) -> None:
-        self.json = json
-        self.bytes: bytes | None = b"stale"
+def test_a_crash_is_sent_once_per_kind_and_place(on: Sentry) -> None:
+    telemetry.start()
+
+    assert on.before_send(_crash("UniqueOneError", 11), None) is not None
+    assert on.before_send(_crash("UniqueOneError", 11), None) is None
+    assert on.before_send(_crash("UniqueOneError", 12), None) is not None
+    assert on.before_send(_crash("UniqueTwoError", 11), None) is not None
 
 
-class Item:
-    def __init__(self, kind: str, json: Any) -> None:
-        self.type = kind
-        self.payload = Payload(json)
+def test_what_is_not_a_crash_is_never_held_back(on: Sentry) -> None:
+    telemetry.start()
+
+    assert on.before_send({"message": "halt: no progress"}, None) is not None
+    assert on.before_send({"message": "halt: no progress"}, None) is not None
 
 
-class Envelope:
-    def __init__(self, *items: Item) -> None:
-        self.items = list(items)
+# ------------------------------------------------------------- standing still
 
 
-def test_a_profile_is_sent_with_its_frames_named_as_a_report_names_them(
-    on: Sentry, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.fixture
+def quick(monkeypatch: pytest.MonkeyPatch) -> float:
+    """A halt measured in hundredths of a second rather than minutes."""
+    monkeypatch.setattr(telemetry, "HALT", 0.05)
+    return 0.05
+
+
+def _waits(until: Callable[[], bool], *, seconds: float = 2.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if until():
+            return True
+        time.sleep(0.01)
+    return until()
+
+
+def test_a_run_that_stands_still_is_reported_once(on: Sentry, quick: float) -> None:
+    telemetry.start()
+
+    with telemetry.Still("a flow"):
+        assert _waits(lambda: bool(on.messages))
+        time.sleep(quick * 4)
+
+    assert on.messages == [("halt: no progress", "error")]
+    assert on.scopes[0].tags["doing"] == "a flow"
+    assert int(on.scopes[0].tags["still"]) >= 0
+
+
+def test_a_run_that_keeps_moving_is_not_reported(
+    on: Sentry, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sentry_sdk.transport import HttpTransport
-
-    sending: list[Envelope] = []
-
-    def sends(_: object, envelope: Envelope) -> None:
-        sending.append(envelope)
-
-    monkeypatch.setattr(HttpTransport, "capture_envelope", sends)
+    # A whole second to stand still in, against stirs a few hundredths apart: a runner that
+    # oversleeps by tenfold still stirs in time.
+    monkeypatch.setattr(telemetry, "HALT", 1.0)
     telemetry.start()
-    transport = on.inits[0]["transport"]
-    theirs = tmp_path / "my-secret-project" / "flow.py"
-    ours = Path(telemetry.__file__).resolve()
-    chunk = {
-        "profile": {
-            "frames": [
-                {
-                    "abs_path": str(theirs),
-                    "module": "my_secret_project",
-                    "function": "secret_step",
-                    "lineno": 9,
-                },
-                {
-                    "abs_path": str(ours),
-                    "module": "hmz.runtime.telemetry",
-                    "function": "crash",
-                    "lineno": 3,
-                },
-            ],
-            "thread_metadata": {"1": {"name": "/Users/eve/work"}},
-        },
-    }
-    event = {"spans": [{"description": "untouched /Users/eve"}]}
-    envelope = Envelope(Item("profile_chunk", chunk), Item("transaction", event))
 
-    transport.capture_envelope(object.__new__(transport), envelope)
+    with telemetry.Still("a flow") as still:
+        for _ in range(12):
+            time.sleep(0.05)
+            still.stirred()
 
-    assert sending == [envelope]
-    sent_chunk = envelope.items[0].payload
-    assert sent_chunk.bytes is None
-    theirs_frame, ours_frame = sent_chunk.json["profile"]["frames"]
-    assert theirs_frame == {
-        "abs_path": "<not humanize>",
-        "filename": "<not humanize>",
-        "lineno": 9,
-    }
-    assert ours_frame["filename"] == "hmz/runtime/telemetry.py"
-    assert sent_chunk.json["profile"]["thread_metadata"] == {"1": {"name": "~/work"}}
-    assert envelope.items[1].payload.json == event
+    assert on.messages == []
+
+
+def test_a_run_waiting_on_a_person_is_not_reported(on: Sentry, quick: float) -> None:
+    telemetry.start()
+
+    with telemetry.Still("a flow") as still, still.away():
+        time.sleep(quick * 4)
+
+    assert on.messages == []
+
+
+def test_nothing_watches_a_run_where_reporting_never_started(
+    on: Sentry, quick: float
+) -> None:
+    with telemetry.Still("a flow"):
+        time.sleep(quick * 3)
+
+    assert on.messages == []

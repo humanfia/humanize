@@ -108,6 +108,10 @@ class Virtual:
         `(the merger's name, its argument as JSON)` (:func:`merged`).
       records: Where the CLI writes down a path of its home that it reads back, as
         `(database, as a glob; table; column)`: said again as the home is dropped.
+      keeps: The directory its conversations are kept in instead of the user's home, as an
+        absolute path, or "" for the user's: what :attr:`made` and :attr:`kept` link to, and
+        what a database it made in the virtual home is moved into, where no supervisor
+        answers their paths from there.
     """
 
     variable: str
@@ -123,6 +127,7 @@ class Virtual:
     flag: str = ""
     merges: tuple[tuple[str, str], ...] = ()
     records: tuple[tuple[str, str, str], ...] = ()
+    keeps: str = ""
 
     def __post_init__(self) -> None:
         """Refuses a virtual home that would name something outside itself.
@@ -147,6 +152,10 @@ class Virtual:
         ):
             if one.startswith("/") or ".." in one.split("/"):
                 raise ValueError(f"unsupported path {one!r} in a virtual home")
+        if self.keeps and not os.path.isabs(self.keeps):  # noqa: PTH117
+            raise ValueError(
+                f"unsupported directory {self.keeps!r} to keep sessions in"
+            )
 
     def dumps(self) -> str:
         """It, as one JSON line a command line can carry."""
@@ -165,6 +174,7 @@ class Virtual:
                 "flag": self.flag,
                 "merges": [list(one) for one in self.merges],
                 "records": [list(one) for one in self.records],
+                "keeps": self.keeps,
             },
             separators=(",", ":"),
         )
@@ -195,6 +205,7 @@ class Virtual:
                     (one, table, column)
                     for one, table, column in held.get("records", ())
                 ),
+                keeps=held.get("keeps", ""),
             )
         except (KeyError, TypeError) as wrong:
             raise ValueError(f"not a virtual home: {said!r}") from wrong
@@ -337,6 +348,10 @@ class Home:
       answered: What a supervisor answers a path of the user's home with, as :func:`build`
         took it: where what is written back goes instead, for an account's own file.
       records: Where the CLI writes down paths of this home, as :attr:`Virtual.records`.
+      keeps: Where its conversations are kept instead of :attr:`real`, as
+        :attr:`Virtual.keeps`; None for the user's home.
+      held: The names of :attr:`linked` that were links into :attr:`keeps`: what is written
+        back there rather than to the user's home.
     """
 
     at: Path
@@ -350,6 +365,8 @@ class Home:
         default=lambda _path: None, compare=False, repr=False
     )
     records: tuple[tuple[str, str, str], ...] = ()
+    keeps: Path | None = None
+    held: tuple[str, ...] = ()
 
     def environ(self, environ: Mapping[str, str] | None) -> dict[str, str]:
         """The whole environment a process of the CLI is started in, given the one it had.
@@ -402,12 +419,18 @@ class Home:
         another process of the same account having saved since: the last to save wins.
 
         What the CLI made here that is the user's to keep (:attr:`kept`) and that the user's
-        home has none of yet is moved there next, rather than going with the rest. And a path
-        of this home it wrote down to read back (:attr:`records`) is said again with its links
-        followed, while they are still here to follow: what it names is where they lead.
+        home -- or :attr:`keeps`, for a home keeping its conversations there -- has none of yet
+        is moved there next, rather than going with the rest. And a path of this home it wrote
+        down to read back (:attr:`records`) is said again with its links followed, while they
+        are still here to follow: what it names is where they lead.
         """
-        _respelled(self.at, self.records)
+        _respelled(self.at, self.records, self.kept if self.keeps is not None else ())
         for name in self.linked:
+            whence = (
+                self.keeps
+                if self.keeps is not None and name in self.held
+                else self.real
+            )
             entry = self.at / name
             if entry.is_symlink() or not entry.exists():
                 continue
@@ -421,14 +444,15 @@ class Home:
                     if one.is_file() and not one.is_symlink():
                         _back(
                             one,
-                            self.real / name / one.relative_to(entry),
+                            whence / name / one.relative_to(entry),
                             self.answered,
                         )
             else:
-                _back(entry, self.real / name, self.answered)
+                _back(entry, whence / name, self.answered)
+        into = self.real if self.keeps is None else self.keeps
         with contextlib.suppress(OSError):
             for entry in self.at.iterdir() if self.kept else ():
-                there = self.real / entry.name
+                there = into / entry.name
                 if (
                     not entry.is_symlink()
                     and any(fnmatch.fnmatchcase(entry.name, one) for one in self.kept)
@@ -469,7 +493,7 @@ def build(
     real = spec.real(said)
     at = Path(os.path.realpath(tempfile.mkdtemp(prefix="hmz-home-", dir=under)))
     try:
-        linked = _built(spec, said, real, at, answered)
+        linked, held = _built(spec, said, real, at, answered)
         for name, argument in spec.merges:
             _merging(name)(at, json.loads(argument))
     except BaseException:
@@ -477,6 +501,7 @@ def build(
         raise
     # What a merge made the home's own in place of a link is the driver's, never written back.
     linked = tuple(one for one in linked if (at / one).is_symlink())
+    held = tuple(one for one in held if one in linked)
     sets = [(spec.variable, str(at))] if spec.variable else []
     argv: tuple[str, ...] = ()
     if spec.flag:
@@ -499,21 +524,29 @@ def build(
         linked=linked,
         answered=answered,
         records=spec.records,
+        keeps=Path(spec.keeps) if spec.keeps else None,
+        held=held,
     )
 
 
-def _respelled(at: Path, records: Iterable[tuple[str, str, str]]) -> None:
+def _respelled(
+    at: Path, records: Iterable[tuple[str, str, str]], moved: Iterable[str] = ()
+) -> None:
     """Says each path of a virtual home a CLI's databases hold with that home's links followed.
 
-    Only through a database that is a link, which is the user's: one of the home's own goes
-    with it. A path whose file is not there to follow to is left as it was.
+    Only through a database that is a link, which is the user's, or one of the home's own that
+    is moved out of it as it is dropped (`moved`, globs of its names): any other goes with it.
+    A path whose file is not there to follow to is left as it was.
     """
+    moved = tuple(moved)
     import sqlite3
 
     root = f"{at}/"
     for pattern, table, column in records:
         for database in sorted(at.glob(pattern)):
-            if not database.is_symlink():
+            if not database.is_symlink() and not any(
+                fnmatch.fnmatchcase(database.name, one) for one in moved
+            ):
                 continue
             try:
                 connection = sqlite3.connect(database, timeout=10)
@@ -547,13 +580,17 @@ def _built(
     real: Path,
     at: Path,
     answered: Callable[[str], str | None],
-) -> tuple[str, ...]:
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Fills a virtual home in; :func:`build`'s, which takes it away again if this fails.
 
     Returns:
-      The names directly in it that it linked to the user's home.
+      The names directly in it that it linked to the user's home or to where its
+      conversations are kept, and of those the ones linked to the latter.
     """
     linked: list[str] = []
+    held: list[str] = []
+    keeps = Path(spec.keeps) if spec.keeps else None
+    sessions = real if keeps is None else keeps
     for one in spec.rewrites:
         whence = real / one
         if not said.get(spec.variable):
@@ -574,11 +611,28 @@ def _built(
         if name in copied or name == spec.lodges:
             continue
         if "." not in name:
-            (real / name).mkdir(parents=True, exist_ok=True)
-        elif not real.is_dir():
-            real.mkdir(parents=True)
-        if _link(at / name, real / name):
+            (sessions / name).mkdir(parents=True, exist_ok=True)
+        elif not sessions.is_dir():
+            sessions.mkdir(parents=True)
+        if _link(at / name, sessions / name):
             linked.append(name)
+            held.append(name)
+    if keeps is not None and spec.kept:
+        # A database named for its schema's version: whichever the user's home or the kept
+        # directory has, linked to the kept one -- there or not yet -- so that the CLI opening
+        # it opens that one, as every process keeping its conversations there does.
+        keeps.mkdir(parents=True, exist_ok=True)
+        names = {
+            entry.name
+            for root in (real, keeps)
+            if root.is_dir()
+            for entry in root.iterdir()
+            if any(fnmatch.fnmatchcase(entry.name, one) for one in spec.kept)
+        }
+        for name in sorted(names):
+            if _link(at / name, keeps / name):
+                linked.append(name)
+                held.append(name)
     if real.is_dir():
         for entry in real.iterdir():
             name = entry.name
@@ -599,7 +653,7 @@ def _built(
                     _link(into / entry.name, entry)
         for name, whence in spec.skills:
             _link(into / name, Path(whence))
-    return tuple(linked)
+    return tuple(linked), tuple(held)
 
 
 def _link(at: Path, to: Path) -> bool:

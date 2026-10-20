@@ -3,8 +3,8 @@
 ## 1. Scope
 
 This specification defines the error reports **hmz** sends about itself: whether any report is
-sent, when the **user** is asked, what a report holds, what a report never holds, where reports
-go, and how reporting is turned on and off.
+sent, when the **user** is asked, which events are reported, what a report holds, what a report
+never holds, where reports go, and how reporting is turned on and off.
 
 Out of scope:
 
@@ -20,8 +20,8 @@ Out of scope:
 
 **2.2** **Crash report**: a report of an error raised inside hmz.
 
-**2.3** **Snag report**: a report that hmz did something the user undid, refused or cancelled,
-or that did nothing, identified by a short hyphenated name and carrying counts and names only.
+**2.3** **Halt report**: a report that an epic executing in the reporting process went the
+halt time (§2.9) without any event from any of its agents.
 
 **2.4** **Reporting destination**: the Sentry project of the hmz maintainers, reached at
 `o4511914126344192.ingest.us.sentry.io`.
@@ -34,6 +34,8 @@ or **unanswered**.
 **2.7** **Sent list**: the six statements of §4.1, in the wording given there.
 
 **2.8** **Never-sent list**: the four statements of §4.2, in the wording given there.
+
+**2.9** **Halt time**: 300 seconds.
 
 ## 3. Consent
 
@@ -85,6 +87,22 @@ where the effective answer is yes.
 **3.3.3** A reporter that cannot start, information that cannot be gathered, and a report that
 cannot be sent MUST each leave hmz and every epic behaving as they would without reporting.
 
+### 3.4 What is reported
+
+**3.4.1** hmz MUST send a crash report for an error that ends an epic or `hmz exec`, and for an
+error that nothing in hmz catches.
+
+**3.4.2** hmz MUST NOT send a crash report for an error of the same type raised at the same line
+of the same file as one already reported by that process.
+
+**3.4.3** Where something in the reporting process is told the events of an epic's agents
+(`api/sdk.md` §5.3), hmz MUST send a halt report once that epic has gone the halt time with no such
+event, not counting time spent waiting on the **outworlder**, and MUST send at most one halt
+report per epic.
+
+**3.4.4** hmz MUST NOT send any report other than a crash report or a halt report: no report of a
+logged message, no timing data, and no profiles.
+
 ## 4. Content
 
 ### 4.1 What is sent
@@ -92,8 +110,8 @@ cannot be sent MUST each leave hmz and every epic behaving as they would without
 **4.1.1** A report MUST hold nothing beyond what the following list states, which hmz MUST show
 in these words: "the error and where in humanize it occurred"; "which flow was running, and what
 each agent was configured to run"; "which coding agents are installed, and account names";
-"which skills and flowverses are active, by name"; "what humanize did that you undid, refused,
-or canceled"; "the version of humanize, of Python, and the operating system and architecture".
+"which skills and flowverses are active, by name"; "that a run went five minutes without any
+sign of progress"; "the version of humanize, of Python, and the operating system and architecture".
 
 **4.1.2** A crash report MUST hold the error's type, its message after §4.3, and its stack, each
 frame named as §4.4 defines.
@@ -108,12 +126,10 @@ role, CLI, model, effort, account name, permission scopes and skill names.
 system, the installed CLIs by name, each account by CLI, name and sign-in method, the skill names
 each CLI would load, and each flowverse by name with whether it has been fetched.
 
-**4.1.6** A snag report MUST hold its name and counts or names that hmz itself defines.
+**4.1.6** A halt report MUST hold how many seconds the epic went without an event, and what
+hmz was doing, `a flow`.
 
 **4.1.7** A report MUST hold the release of hmz that sent it.
-
-**4.1.8** hmz MAY send, with reports, timing data and sampled profiles of its own process;
-these MUST NOT hold anything §4.2.4 names.
 
 ### 4.2 What is never sent
 

@@ -393,7 +393,9 @@ canonical ref with characters outside `[A-Za-z0-9._@-]` â†’ `-` (`phases:plan` â
 ### Sessions {#sessions-dir}
 
 `sessions/<cli>/` holds the sessions the run's CLIs wrote, **the only copy**: each turn's CLI
-has these paths of its home answered from here instead, and resumes and forks from here. Its
+has these paths of its home answered from here instead, or, on a machine that cannot supervise
+a turn, linked here from its virtual home ([Where sessions are kept](/reference/providers#where-sessions-are-kept)).
+It resumes and forks from here. Its
 settings, skills and credentials remain the CLI's own.
 
 | CLI | Kept paths (relative to its home) |
@@ -413,9 +415,9 @@ settings, skills and credentials remain the CLI's own.
 | `mcode` | `v2/sqlite`, `v2/sessions`, `background-tasks` |
 
 A session no turn could keep stays in the CLI's home, and its `opened.where` is that absolute
-directory: a turn whose harness ran on another machine, any turn on a machine that cannot
-supervise one (anything but Linux on x86-64 or aarch64, or a kernel that refuses tracing),
-every turn under [`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions), and
+directory: a turn whose harness ran on another machine, a turn of `agy`, `kimi`,
+`cursor-agent`, `mcode`, `opencode` or `mimo` on a machine that cannot supervise one (anything
+but Linux on x86-64 or aarch64, or a kernel that refuses tracing), every turn under [`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions), and
 every turn of an agent driven outside any run (the agent API, a fresh `/btw` side session). An
 epic written before
 sessions were kept holds a directory of links per session instead, and still reads back.

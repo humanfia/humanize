@@ -42,6 +42,7 @@ __all__ = [
     "cont",
     "get_event_message",
     "getregs",
+    "seize",
     "setoptions",
     "setregs",
     "syscall",
@@ -61,6 +62,7 @@ _SETOPTIONS: Final = 0x4200
 _GETEVENTMSG: Final = 0x4201
 _GETREGSET: Final = 0x4204
 _SETREGSET: Final = 0x4205
+_SEIZE: Final = 0x4206
 _GET_SYSCALL_INFO: Final = 0x420E
 
 _NT_PRSTATUS: Final = 1
@@ -275,6 +277,16 @@ def _as_signed_int(value: int) -> int:
 def traceme() -> None:
     """Called in the forked child to request tracing by its parent."""
     _ptrace(_TRACEME, 0, 0, 0)
+
+
+def seize(pid: int, options: int = OPTIONS) -> None:
+    """Trace a running process without stopping it, telling the tracer what ``options`` say.
+
+    For a tracer that is not the process's parent: one the process named with
+    ``PR_SET_PTRACER`` where Yama asks for that, or any process of the same user where it
+    does not.
+    """
+    _ptrace(_SEIZE, pid, 0, options)
 
 
 def setoptions(pid: int, options: int = OPTIONS) -> None:

@@ -31,22 +31,20 @@ written under the reader; neither is a token that changes once in a while.
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import os
 import signal
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, NoReturn
 
 # The one rule both halves of a supervised turn answer a path by: the anchor's supervisor ships
 # to machines this package's accounts never reach, so the rule lives with it and is named here.
 from hmz.coganchor.policy import answered, head
 
-# At the top rather than in `swept`, which finalizers call: a collection can run one in the
-# middle of importing `_staging`, and an import there would find that module half made.
-from ._staging import swept as _sweep
-
 if TYPE_CHECKING:
+    import ctypes
     from collections.abc import Iterable, Sequence
 
     from ._trace import Tracing
@@ -59,7 +57,6 @@ __all__ = [
     "read",
     "run",
     "supervises",
-    "swept",
 ]
 
 #: `AT_FDCWD`, the directory descriptor that means "wherever the process is".
@@ -296,56 +293,168 @@ def run(swaps: Swaps, argv: Sequence[str]) -> int:
 def _supervised(tracing: Tracing, argv: Sequence[str]) -> int:
     """Runs a program under a supervisor answering its paths, and waits for it.
 
+    The program is this process's child, as an unsupervised one would be: what ends a turn by
+    ending the tree below its process, and what watches a turn by the time that tree spends,
+    find it there. The supervisor is not. It ends later than the program does -- a job the
+    session detached from itself, `setsid nohup ... &`, is one it meant to outlive it, and a
+    tracee nobody supervises cannot so much as open a file -- so it is started outside the
+    tree and outside the turn's session, and the program asks to be traced by it.
+
     Args:
       tracing: What answers them.
       argv: The program and its arguments.
 
     Returns:
-      Its exit status, or 128 plus the signal that killed it.
+      Its exit status, or 128 plus the signal that killed it; or 1 where it could not be
+      supervised, and was never run.
     """
-    # Imported here rather than above: this half needs ptrace and an x86-64 register map,
-    # which reading a provider and rendering a command line do not.
-    from hmz.coganchor.linux import ptrace, seccomp
+    import ctypes
 
+    # Loaded before the forks rather than in a child: a child of a process with threads may
+    # take no lock one of them held, and loading a library takes one.
+    libc = ctypes.CDLL(None, use_errno=True)
+    # The supervisor says its pid on one, so that the program can let it trace it; the
+    # program says its own on the other; and the supervisor says on the first that it traces
+    # it. Nothing said is a program that must not run.
+    said, saying = os.pipe()
+    traced, tracing_it = os.pipe()
+    middle = os.fork()
+    if not middle:
+        with contextlib.suppress(BaseException):
+            os.setsid()
+            if not os.fork():
+                os.close(saying)
+                os.close(traced)
+                _supervising(tracing, said, tracing_it)
+        os._exit(0)
+    os.waitpid(middle, 0)
+    turn = os.getpid()
     pid = os.fork()
     if not pid:
-        try:
-            ptrace.traceme()
-            seccomp.install(tracing.trapped())
-            os.kill(os.getpid(), signal.SIGSTOP)
-            # Becoming the program is the whole errand of this fork, and it is an argv
-            # rather than a command line, so there is no shell for one to go through.
-            os.execvp(argv[0], list(argv))  # noqa: S606
-        # Everything, deliberately: this is the forked child, and anything that escapes here
-        # would run the parent's code a second time rather than report a failed launch.
-        except BaseException as why:  # noqa: BLE001
-            os.write(2, f"hmz: cannot run {argv[0]}: {why}\n".encode())
-        os._exit(127)
+        os.close(said)
+        os.close(tracing_it)
+        _program(tracing, argv, (saying, traced), turn, libc)
+    for fd in (said, saying, traced, tracing_it):
+        os.close(fd)
+
+    # A signal aimed at this process is aimed at the program: whatever asked for it -- a flow
+    # taking a session down, a service manager -- asked for the agent to stop. So it is passed
+    # on rather than acted on. `SIGINT` is the exception, and is ignored: a ctrl-c at a
+    # terminal already reaches the whole group, so passing it on would deliver it twice.
+    def passed(signum: int, _frame: object) -> None:
+        with contextlib.suppress(OSError):
+            os.kill(pid, signum)
+
+    # Put back once the program is over, for a caller that goes on in this process -- which
+    # `hmz internal cred` called from the CLI's own `main` is.
+    was: dict[int, Any] = {}
+    for signum, then in (
+        (signal.SIGINT, signal.SIG_IGN),
+        (signal.SIGTERM, passed),
+        (signal.SIGQUIT, passed),
+        (signal.SIGHUP, passed),
+    ):
+        with contextlib.suppress(OSError, ValueError):
+            was[signum] = signal.signal(signum, then)
     try:
-        return tracing.watch(pid)
+        return failed(os.waitpid(pid, 0)[1])
     finally:
-        # The copies this run answered reads with, which are a secret in memory that belongs
-        # to nothing once the program is over. A signal aimed here is passed on to the
-        # program rather than acted on, so this runs for every way a run ends but the one
-        # that runs nothing at all -- and what that leaves is swept up by the next run.
-        tracing.close()
+        for signum, before in was.items():
+            with contextlib.suppress(OSError, ValueError):
+                signal.signal(signum, signal.SIG_DFL if before is None else before)
 
 
-def swept(pid: int) -> None:
-    """Takes away what a supervisor that was killed left of a credential in memory.
+#: `prctl`'s options for the signal a process is sent when its parent dies, and for the one
+#: process Yama is to let trace this one.
+_PR_SET_PDEATHSIG = 1
+_PR_SET_PTRACER = 0x59616D61
 
-    A turn is ended by killing the process it ran in, and `SIGKILL` runs no teardown of its
-    own, so whoever ended one says so here: the copies it was answering reads from are a
-    secret that belongs to nothing the moment that process is gone.
+#: What a program the supervisor could not take on exits with: it was never run.
+_UNSUPERVISED = 1
 
-    Nothing at all for a turn that ran without a supervisor, which is most of them, and
-    nothing for a process id that is somebody's again -- one still running is one still
-    reading what is in there.
+
+def _program(
+    tracing: Tracing,
+    argv: Sequence[str],
+    pipes: tuple[int, int],
+    turn: int,
+    libc: ctypes.CDLL,
+) -> NoReturn:
+    """The program's half: be traced, then become the program. Never returns.
 
     Args:
-      pid: The process the turn ran in, after it has been waited on.
+      tracing: What answers its paths, for the syscalls to stop.
+      argv: The program and its arguments.
+      pipes: Where to say its pid, and where to hear the supervisor's and then that it is
+        traced.
+      turn: The turn's process, which it goes with however that goes.
+      libc: The C library, for `prctl`.
     """
-    _sweep(pid)
+    from hmz.coganchor.linux import seccomp
+
+    saying, traced = pipes
+    try:
+        libc.prctl(_PR_SET_PDEATHSIG, signal.SIGKILL, 0, 0, 0)
+        if os.getppid() != turn:  # the turn went before that was said
+            os._exit(128 + signal.SIGKILL)
+        with os.fdopen(traced, "rb") as heard:
+            supervisor = int(heard.readline() or 0)
+            # Refused where there is no Yama to ask, which then lets any process of this user.
+            libc.prctl(_PR_SET_PTRACER, supervisor, 0, 0, 0)
+            os.write(saying, f"{os.getpid()}\n".encode())
+            os.close(saying)
+            if not (supervisor and heard.read(1)):
+                os.write(2, b"hmz internal cred: nothing could supervise it\n")
+                os._exit(_UNSUPERVISED)
+        seccomp.install(tracing.trapped())
+        # Becoming the program is the whole errand of this fork, and it is an argv rather
+        # than a command line, so there is no shell for one to go through.
+        os.execvp(argv[0], list(argv))  # noqa: S606
+    # Everything, deliberately: this is the forked child, and anything that escapes here
+    # would run the parent's code a second time rather than report a failed launch.
+    except BaseException as why:  # noqa: BLE001
+        os.write(2, f"hmz: cannot run {argv[0]}: {why}\n".encode())
+    os._exit(127)
+
+
+def _supervising(tracing: Tracing, said: int, tracing_it: int) -> NoReturn:
+    """The supervisor's half: trace the program and what it leaves. Never returns.
+
+    It exits once the last of them is over, which is the program alone where the session
+    left nothing running.
+
+    Args:
+      tracing: What answers the paths.
+      said: Where the program says its pid.
+      tracing_it: Where to tell the program who traces it, and then that it does.
+    """
+    code = 0
+    try:
+        os.write(tracing_it, f"{os.getpid()}\n".encode())
+        with os.fdopen(said, "rb") as heard:
+            pid = int(heard.readline() or 0)
+        if pid:
+            tracing.attach(pid)
+            os.write(tracing_it, b"!")
+            os.close(tracing_it)
+            # What reads the turn's output waits for it to close, which must not wait on this.
+            nothing = os.open(os.devnull, os.O_RDWR)
+            for fd in (0, 1, 2):
+                os.dup2(nothing, fd)
+            os.close(nothing)
+            tracing.serve()
+    # Everything, deliberately, as above: this is a forked child too.
+    except BaseException as why:  # noqa: BLE001
+        with contextlib.suppress(OSError):
+            os.write(2, f"hmz internal cred: {why}\n".encode())
+        code = 1
+    finally:
+        # The copies this run answered reads with, which are a secret in memory that belongs
+        # to nothing once what read them is over. Nothing ends a turn by killing this
+        # process, so this runs for every way a run ends but this process being killed by
+        # name -- and what that leaves is swept up by the next run.
+        tracing.close()
+    os._exit(code)
 
 
 def failed(status: int) -> int:

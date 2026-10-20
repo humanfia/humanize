@@ -169,13 +169,10 @@ def _ended(proc: subprocess.Popen[str]) -> None:
     """
     import psutil
 
-    from hmz.coganchor.providers.redirect import swept
-
     if proc.poll() is not None:
         # Already gone and already reaped. Asking the operating system what is below that pid
         # now is asking about whoever holds it next, and signalling that is signalling a
         # stranger's work.
-        swept(proc.pid)
         return
     kin: list[psutil.Process] = []
     with contextlib.suppress(psutil.Error):
@@ -202,9 +199,6 @@ def _ended(proc: subprocess.Popen[str]) -> None:
     for one in alive:
         with contextlib.suppress(psutil.Error):
             one.kill()
-    # And what the turn was answering its credential paths out of: a supervisor takes its own
-    # copies away when it is done, and a supervisor that was killed here never got to.
-    swept(proc.pid)
 
 
 @contextlib.contextmanager
@@ -217,7 +211,7 @@ def _dropped(home: Home | None) -> Generator[None]:
             home.drop()
 
 
-def _reaped(proc: subprocess.Popen[str], swept: Callable[[int], None]) -> None:
+def _reaped(proc: subprocess.Popen[str]) -> None:
     """Ends a process and takes its exit status, so that neither is left behind.
 
     Killed and then waited on, rather than killed: a process nobody waits on stays in the
@@ -227,17 +221,11 @@ def _reaped(proc: subprocess.Popen[str], swept: Callable[[int], None]) -> None:
 
     Args:
       proc: The process to end, which may already have ended.
-      swept: What takes away the credential copies it was answering reads from. Handed in
-        rather than imported here, since this runs as a finalizer: a collection can run it
-        in the middle of an import, which would find the module it wants half made.
     """
     with contextlib.suppress(OSError):
         proc.kill()
     with contextlib.suppress(OSError):
         proc.wait()
-    # A turn under an account is run inside a supervisor, and the copies it was answering
-    # credential paths out of are what it takes away when it exits. `SIGKILL` exits nothing.
-    swept(proc.pid)
 
 
 #: What a turn is told when its backend has no way of being held to a shape. The schema is the
@@ -3408,9 +3396,7 @@ class StreamSessionBase(SessionBase):
         # The one before it is let go, or a long flow keeps every process it ever started.
         if self._reaper is not None:
             self._reaper.detach()
-        from hmz.coganchor.providers.redirect import swept
-
-        self._reaper = weakref.finalize(self, _reaped, started, swept)
+        self._reaper = weakref.finalize(self, _reaped, started)
         return started
 
     def _relodged(self) -> bool:
@@ -3944,10 +3930,6 @@ class AgentBase(ABC):
         self._watchers: list[
             Callable[[AgentBase, SessionBase | None, Event], None]
         ] = []
-        #: The kinds of event a watcher has already failed on, so that one broken listener is
-        #: one report rather than one per thing the agent says. A watcher that raises on a
-        #: tool row raises on every tool row.
-        self._deafened: set[str] = set()
         #: What is hung on this agent's moments, which a flow adds to and takes from while
         #: the agent is running: the hooks are the flow's own callables rather than a table
         #: the backend read out of a settings file before anything started.
@@ -5024,9 +5006,11 @@ class AgentBase(ABC):
         Returns:
           True for a backend whose sessions are written down, which its driver tells where
           they go or a supervisor answers -- the anchor's, or one of this machine's own where
-          this machine can run one -- unless this agent has no :attr:`keeps`, which is one no
+          this machine can run one -- or which its virtual home links there where this machine
+          cannot (:meth:`_linking`), unless this agent has no :attr:`keeps`, which is one no
           run drives, or this process was told to keep none.
         """
+        from hmz.coganchor import homes
         from hmz.coganchor.backends import named
         from hmz.coganchor.providers.redirect import supervises
 
@@ -5038,7 +5022,12 @@ class AgentBase(ABC):
         if profile.told:
             return True
         if self._config.machine is None:
-            return supervises()
+            # Or linked from the virtual home every process of it is started in, for a CLI
+            # whose sessions are each a name directly in its home: what a link can stand for.
+            return supervises() or (
+                homes.virtual(profile) is not None
+                and not any("/" in one for one in profile.sessions)
+            )
         # One whose machine is not up yet has taken no turn: whatever it is about to be, it
         # has nothing kept anywhere to be read back.
         if self._anchor is None:
@@ -5048,6 +5037,26 @@ class AgentBase(ABC):
         # A CLI that runs on the target, or under a harness on another machine, keeps its
         # sessions on that machine: nothing of this one's is there to keep them in.
         return not self._anchor.native and not elsewhere(self._anchor)
+
+    def _linking(self) -> bool:
+        """Whether this agent's turns keep their sessions in :attr:`keeps` through links.
+
+        Returns:
+          True where they are kept there (:meth:`_keeping`) by a CLI on this machine that this
+          machine cannot supervise: its virtual home links each of its session paths to the
+          kept one, rather than a supervisor answering them from there.
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.providers.redirect import supervises
+
+        profile = named(self.backend)
+        return (
+            profile is not None
+            and not profile.told
+            and self._config.machine is None
+            and self._keeping()
+            and not supervises()
+        )
 
     def _tailing(self) -> bool:
         """Whether this agent's sessions are logged on another machine and copied here.
@@ -5201,6 +5210,16 @@ class AgentBase(ABC):
         spec = self.virtual(skills, merges)
         if spec is None:
             return None
+        if (at := self.keeps) is not None and self._linking():
+            from dataclasses import replace
+
+            from hmz.coganchor.backends import named
+
+            profile = named(self.backend)
+            assert profile is not None  # noqa: S101 -- `_linking` has checked
+            # Settled from here on, as a supervised turn settles it: see `_keeping_swaps`.
+            self._keeps, self._said, self._settled = at, True, True
+            spec = replace(spec, keeps=os.path.abspath(at / profile.name))  # noqa: PTH100
         provider = self.provider
         swaps = Swaps.of(provider.swaps() if provider is not None else ())
         return homes.build(
@@ -5244,6 +5263,8 @@ class AgentBase(ABC):
             return ()
         # Settled from here on: this process keeps them there, and so does the conversation.
         self._keeps, self._said, self._settled = at, True, True
+        if self._linking():
+            return ()  # its virtual home links them there (:meth:`homed`)
         return profile.kept(at, self._environ())
 
     def environment(self) -> Mapping[str, str]:
@@ -5741,7 +5762,6 @@ class AgentBase(ABC):
             signed in as -- the one failure this must not have.
         """
         from hmz.coganchor.backends import named
-        from hmz.runtime import telemetry
 
         if provider is None or not provider.name:
             return ()
@@ -5775,11 +5795,8 @@ class AgentBase(ABC):
                 "on another machine at without replacing its home -- so a turn driven there "
                 "would be taken as whatever account that machine is signed into"
             )
-        if stranded:
-            # It happened and the turn still runs as this account, which is what the variables
-            # and the projected roots are carrying. Said and not raised for that reason, and
-            # said without the path: which accounts somebody keeps do not leave the machine.
-            telemetry.snag("native-credential-stays-here")
+        # Where some of it is stranded and the rest is held, the turn still runs as this
+        # account, which is what the variables and the projected roots are carrying.
         return tuple(held)
 
     @property
@@ -5927,23 +5944,8 @@ class AgentBase(ABC):
         for listener in watching:
             try:
                 listener(self, session, event)
-            except Exception as why:  # noqa: BLE001 -- a watcher fails on its own account
-                with self._holding:
-                    if event.kind in self._deafened:
-                        continue
-                    self._deafened.add(event.kind)
-                # And the report is not a second thing that may take the turn down: this
-                # whole branch exists so that something looking at a flow cannot fail it, and
-                # a reporter that raised here would be the very failure it was reporting.
-                with contextlib.suppress(Exception):
-                    from hmz.runtime import telemetry
-
-                    telemetry.snag(
-                        "watcher-raised",
-                        backend=self.backend,
-                        kind=event.kind,
-                        why=type(why).__name__,
-                    )
+            except Exception:  # noqa: BLE001, S112 -- a watcher fails on its own account
+                continue
 
     def asked(self, question: Question) -> str | None:
         """Puts something a turn stopped to ask to whoever is driving this agent.

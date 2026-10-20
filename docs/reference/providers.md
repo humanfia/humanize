@@ -372,8 +372,20 @@ which is how a token is rotated by rename).
 
 - A path that cannot be answered fails with `EIO` rather than falling through to the real one;
   an `openat2` with `RESOLVE_BENEATH` or `RESOLVE_IN_ROOT` naming an answered path is refused.
-- The copies are removed when the supervisor exits; a killed supervisor's copies are removed
-  by whatever killed it, or by the next redirected run on the machine.
+- The CLI is a child of `hmz internal cred`, which exits with the CLI's status as soon as the CLI
+  exits; killing it kills the CLI. The supervisor runs outside that process tree, in a session
+  of its own, and traces the CLI with `PTRACE_SEIZE` (the CLI names it with `PR_SET_PTRACER`),
+  so ending the turn's tree or process group does not reach it.
+- When the CLI exits or is killed, everything it started is killed, except a process that left
+  it while it ran: one whose parent, or a parent's parent below the CLI, had already exited, as
+  with `setsid nohup … &` or `(cmd &)`. Such a process is still supervised, so its credential
+  paths are still answered, and it is left running after the turn. The supervisor exits when the
+  last of them does. A process that only started a session or a process group of its own
+  (`setsid cmd &` from a shell that is still running) has not left, and is killed. Inside a
+  [fence](/reference/agents#the-fence) that cuts the network, a process that left loses the
+  fence's proxy when the turn ends, and is killed with a turn that is cut off.
+- The copies are removed when the supervisor exits; a killed supervisor's copies are removed by
+  the next redirected run on the machine.
 - The filter lets other architectures' syscalls through: a 32-bit process below the CLI is not
   intercepted.
 - Requires Linux on x86-64 or aarch64 with ptrace permitted. A backend with no credential
@@ -451,12 +463,22 @@ as the CLI writes into them, and an entry may be a glob of one path component.
 | `pi` | `sessions` |
 | `qwen` | `projects`, `tmp`, `file-history` |
 
+Where this machine cannot supervise a turn (not Linux on x86-64/aarch64, or starting a traced
+no-op program fails; the answer is cached, and a failure is asked again after a minute), a CLI
+started in a [virtual home](/reference/agents#virtual-homes) whose kept paths are each a name directly under its
+home (`claude`, `codex`, `qwen`, `grok`, `pi`, `omp`) still keeps them in the run. In that home,
+each kept name is a symbolic link to `<epic>/sessions/<cli>/<name>` in place of the user's own
+entry. A glob such as Codex's `state_*.sqlite*` links every matching name in either directory,
+whether or not the run has that file yet. A database the CLI creates there under a new name is
+moved into `<epic>/sessions/<cli>/` when the home is removed.
+
 Sessions stay where the CLI keeps them, and nothing is supervised for them, when any of these
 holds:
 
 - `HUMANIZE_SESSIONS` is `off`, `0` or `no` (credentials are still supervised);
-- this machine cannot supervise a turn: not Linux on x86-64/aarch64, or starting a traced
-  no-op program fails (the answer is cached; a failure is asked again after a minute);
+- this machine cannot supervise a turn, and the CLI is not one linked as above (`agy`, `kimi`,
+  `cursor-agent`, `mcode`, whose kept paths lie below a directory of their home, and `opencode`,
+  `mimo`, which start in no virtual home);
 - the turn is native on a target, or its harness runs on another machine.
 
 ### Sessions on another machine
