@@ -22,7 +22,7 @@ function whenSaid(one) {
 }
 
 export function draw(holder, query, parts, scope) {
-  const listing = h('section', { class: 'panel', 'data-hmz': 'backups' })
+  const listing = h('section', { class: 'panel', 'data-hmz': 'backups' }, h('p', { class: 'loading', role: 'status' }, 'Reading the backups…'))
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-backup' })
   fill(holder, listing, writing)
   let data = null

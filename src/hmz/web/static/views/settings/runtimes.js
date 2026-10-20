@@ -10,7 +10,7 @@ import { pathPicker } from '../../paths.js'
 const GIB = 2 ** 30
 
 export function draw(holder, query, parts, scope) {
-  const listing = h('section', { class: 'panel', 'data-hmz': 'runtimes' })
+  const listing = h('section', { class: 'panel', 'data-hmz': 'runtimes' }, h('p', { class: 'loading', role: 'status' }, 'Reading the runtimes…'))
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-runtime' })
   const importing = h('section', { class: 'panel', 'data-hmz': 'import-runtimes' })
   fill(holder, listing, writing, importing)

@@ -936,6 +936,16 @@ code {
   padding: 4px;
 }
 
+.path-panel > .loading {
+  margin: 12px;
+}
+
+.path-panel[aria-busy='true'] .path-list,
+.reading[aria-busy='true'] {
+  opacity: 0.6;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 .path-list > .dim {
   padding: 8px;
   margin: 0;
@@ -1606,6 +1616,11 @@ p + .panel {
 .empty {
   color: var(--ink-3);
   margin: 24px 0;
+}
+
+/* A panel with nothing in it yet -- its part of a page still being read -- is not drawn. */
+.panel:empty {
+  display: none;
 }
 
 .empty strong {
