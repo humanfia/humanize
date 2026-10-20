@@ -102,12 +102,18 @@ async def test_checking_again_is_said_over_the_models_already_listed(
             await opens(pilot, "claude")
             await on(pilot, Agent)
             await opens(pilot, "model")
-            await on(pilot, Catalogue)
+            catalogue = await on(pilot, Catalogue)
             await pilot.click("#act-again")
             await shows(pilot, MODEL)
+            # The models may be listed before this first check is done: it ends first.
+            await until(
+                pilot,
+                lambda: "checking claude" not in screen(pilot.app),
+                "the first check to end",
+            )
 
             monkeypatch.setattr(hmz.coganchor.models, "ask", slow)
-            await pilot.click("#act-again")
+            catalogue.asked_again()
             await shows(pilot, MODEL, "checking claude for models…")
             held.set()
             await until(
