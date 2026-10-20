@@ -78,6 +78,9 @@ previous fetch succeeded.
 before it asks for the newest release.
 
 **4.1.2** `hmz update` MUST then fetch the newest release, whether or not the kept release is stale.
+While it fetches, where standard error is a terminal and escapes are allowed (`api/cli.md` §4.2),
+it MUST draw a transient spinner there saying that PyPI is being asked, and MUST take it down once
+PyPI answers or cannot be asked.
 
 **4.1.3** Where hmz was installed by `uv tool`, `hmz update` MUST run `uv tool upgrade hmz`.
 
