@@ -2298,7 +2298,12 @@ class Humanize(App[None]):
         # once it has and waits for you. Nothing about stopping, which a chat is not.
         chat = self.chatting()
         waits = self._waits_on() if self._run is not None and not working else ""
-        if chat and waits:
+        bar = _SPINNER[int(time.monotonic() / _REFRESH) % len(_SPINNER)]
+        if self._starting:
+            # Asked to start and not yet started: a host may be coming up and a flow being
+            # imported, and a line that still read as idle would be a line typed into nothing.
+            left = f"[$secondary]{bar}[/] starting…"
+        elif chat and waits:
             left = "[$secondary]◉[/] done"
         elif waits:
             # A flow that has run out of things to do until it is told one. Spinning a bar at
@@ -2309,7 +2314,6 @@ class Humanize(App[None]):
                 f"{_DOT}ctrl+c twice to stop[/]"
             )
         elif self._run is not None or (working and not chat):
-            bar = _SPINNER[int(time.monotonic() / _REFRESH) % len(_SPINNER)]
             # Whoever is talking and how long their turn has been going, or -- between two
             # turns -- the flow itself and how long the run has. A flow sleeps off a round,
             # commits, reads what the last turn wrote, and none of that is a flow that has
@@ -4482,6 +4486,7 @@ class Humanize(App[None]):
             backup=self._backed_up(),
             resume=str(resume) if resume is not None else False,
         )
+        self._draw()
 
     def _backed_up(self) -> list[str] | None:
         """The backup targets chosen on `/flow` that settings still has, or None for the defaults.
@@ -4709,6 +4714,7 @@ class Humanize(App[None]):
           record: The run, as it started.
         """
         self._following.started(record)
+        self._starting = False
         self._epic_as = dict(record)
         # A side conversation is about the run it was opened on, and that run has gone.
         if self._btw is not None:
