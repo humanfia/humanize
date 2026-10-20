@@ -159,14 +159,15 @@ host          = ? [user@]host[:port], or an ssh config alias; ssh only ? ;
 workdir       = "/" , ? any text ? ;                       (* "/~" or "/~/…" is home-relative *)
 
 param         = key , "=" , ? any text ? | limit ;
-limit         = "budget." , ( "duration" | "cost" | "output_tokens" | "graceful" ) , "=" , ? value ? ;
+limit         = "budget." , ( name | "graceful" , ( "." , name )? ) , "=" , ? value ? ;
+name          = "duration" | "cost" | "output_tokens" ;
 ```
 
 #### Items {#items}
 
 - Each occurrence of `-a`, `-e` or `-p` is split into items at every `,` that is followed,
-  after optional whitespace, by a `key=` or `budget.key=` (regex
-  `,\s*(?=(?:budget\.)?[A-Za-z_][\w-]*=)`). A comma not followed by one belongs to the value:
+  after optional whitespace, by a `key=`, `budget.key=` or `budget.graceful.key=` (regex
+  `,\s*(?=(?:budget\.(?:graceful\.)?)?[A-Za-z_][\w-]*=)`). A comma not followed by one belongs to the value:
   `-p tags=a,b,c` is one item.
 - A value therefore cannot contain `,<key>=`.
 - Items of every occurrence of one option form one list, in the order written:
@@ -298,6 +299,7 @@ hmz exec: docker:a cannot hold 'box': <why>; using docker:b
 
 ```text
 budget.duration=<duration> | budget.cost=<usd> | budget.output_tokens=<count> | budget.graceful=<bool>
+budget.graceful.duration=<bool> | budget.graceful.cost=<bool> | budget.graceful.output_tokens=<bool>
 ```
 
 Each limit at most once across every `-p`, among the flow's params or apart from them:
@@ -311,6 +313,7 @@ Each limit at most once across every `-p`, among the flow's params or apart from
 | `cost` | USD, optional leading `$`; `inf` for no limit. ≥ 0, not NaN. | `float` |
 | `output_tokens` | Integer with optional `_`, or a decimal with `k` (×1 000) or `m` (×1 000 000) that comes to a whole number (`200k`, `1.5m`). | `int` |
 | `graceful` | `1` `true` `yes` `on` / `0` `false` `no` `off`, case-insensitive. Default `true`: the turn under way when a limit is reached is let finish. | `bool` |
+| `graceful.duration`, `graceful.cost`, `graceful.output_tokens` | As `graceful`, for that limit alone, over what `graceful` says: `budget.cost=5,budget.output_tokens=200k,budget.graceful.output_tokens=false` cuts a turn off at its 200 000th token but lets one that reaches $5 finish. | `Graceful` |
 
 With no `budget.*`, `chat` runs under `Budget(cost=inf)`; any other flow is refused, the other
 flows humanize ships included.
@@ -402,7 +405,7 @@ Stage 1–2 messages are preceded by the usage block.
 | a `-p` without `key=` | `-p '<item>': expected <key>=<value>` |
 | a `-p` key twice | `-p: '<key>' is given twice` |
 | `budget` with no limit | `-p '<item>': a budget is given a limit at a time, as budget.cost=5` |
-| an unknown `budget.` limit | `-p budget.<limit>: not a limit; one of budget.duration, budget.cost, budget.output_tokens, budget.graceful` |
+| an unknown `budget.` limit | `-p budget.<limit>: not a limit; one of budget.duration, budget.cost, budget.output_tokens, budget.graceful, budget.graceful.duration, budget.graceful.cost, budget.graceful.output_tokens` |
 | a `budget.` value | `-p budget.duration: '<v>' names a unit twice`, `-p budget.duration: '<v>' is negative`, `-p budget.duration: duration '<v>' is too long`, `-p budget.duration: '<v>' is not a valid duration: must be finite and not negative`, `-p budget.duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`, `-p budget.cost: '<v>' is not a valid USD cost`, `-p budget.output_tokens: '<v>' must be a whole number of tokens`, `-p budget.output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`, `-p budget.graceful: '<v>' must be true or false` |
 | a budget that limits nothing | `-p budget.*: Value error, a budget sets at least one of duration, cost, output_tokens` |
 | no such flow | `<ref>: no flow is called '<ref>'` (a path: `<ref>: there is no flow at <ref>`); `<ref>: a flow of local is called @local/<flow> now`; `<ref>: a path starts with ./, / or ~, as ./<ref> does`; `<ref>: not installed -- install it from /flow (flowverse <flowverse>)`; `<ref>: the official flowverse has not been fetched yet -- fetch it from /flow` |

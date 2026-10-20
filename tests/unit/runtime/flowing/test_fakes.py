@@ -209,12 +209,26 @@ async def test_a_turn_spends_what_it_is_told_through_the_sink() -> None:
 @pytest.mark.parametrize(
     ("limits", "kind", "spent"),
     [
-        (Limits(cost=0.1, graceful=False), CostExceeded, (0.1, 7)),
-        (Limits(output_tokens=3, graceful=False), OutputTokensExceeded, (0.5, 3)),
-        (Limits(deadline=0.0, graceful=False), DurationExceeded, (0, 0)),
-        (Limits(cost=0.1, graceful=True), None, (0.5, 7)),
+        (Limits(cost=0.1, cost_graceful=False), CostExceeded, (0.1, 7)),
+        (
+            Limits(output_tokens=3, output_tokens_graceful=False),
+            OutputTokensExceeded,
+            (0.5, 3),
+        ),
+        (Limits(deadline=0.0, deadline_graceful=False), DurationExceeded, (0, 0)),
+        (Limits(cost=0.1), None, (0.5, 7)),
+        (
+            Limits(cost=0.1, output_tokens=100, output_tokens_graceful=False),
+            None,
+            (0.5, 7),
+        ),
+        (
+            Limits(cost=0.1, output_tokens=3, output_tokens_graceful=False),
+            OutputTokensExceeded,
+            (0.5, 3),
+        ),
     ],
-    ids=["cost", "tokens", "deadline", "graceful"],
+    ids=["cost", "tokens", "deadline", "graceful", "other-hard", "graceful-cost"],
 )
 async def test_a_hard_limit_stops_a_turn_at_it(
     limits: Limits, kind: type[Exception] | None, spent: tuple[float, int]
@@ -236,7 +250,7 @@ async def test_a_hard_deadline_cuts_off_a_turn_its_answer_holds_open() -> None:
         return await session.until_steered()
 
     session = await _open(FakeAgentDriver(reply=forever))
-    limits = Limits(deadline=time.monotonic() + 0.01, graceful=False)
+    limits = Limits(deadline=time.monotonic() + 0.01, deadline_graceful=False)
 
     with pytest.raises(DurationExceeded):
         await session.turn(TurnRequest("x", limits=limits), Sink())

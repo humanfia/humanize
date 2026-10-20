@@ -474,7 +474,8 @@ it calls.
   type checker holds you to it too.
 - **A graceful budget lets the turn finish.** With the default `graceful=True`, a step's budget
   is checked as a turn starts, so a one-turn step can run past it by what that turn spent. Pass
-  `graceful=False` to interrupt it at the limit, as `steps` does.
+  `graceful=False` to interrupt it at the limit, as `steps` does, or a `Graceful` to say it per
+  limit: `Graceful(output_tokens=False)` cuts a turn off at its token limit alone.
 - **Skills come with the callee.** A called flow's agents carry the [skills](/user/skills) the
   called flow names, found in its own `skills/` or fetched from the git URL it gives. A skill
   it names and cannot find raises `FlowDefinitionError` at the call.

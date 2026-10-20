@@ -386,7 +386,7 @@ class FakeSession:
         # A hard deadline stops the turn where it has got to, as a real driver's does.
         timer = (
             None
-            if limits.graceful or limits.deadline is None
+            if limits.deadline_graceful or limits.deadline is None
             else loop.call_later(
                 max(limits.deadline - time.monotonic(), 0.0), self._expire
             )
@@ -454,14 +454,21 @@ class FakeSession:
         cost, tokens, seconds = driver.cost, driver.output_tokens, driver.seconds
         limits = request.limits
         exceeded: type[Exception] | None = None
-        if not limits.graceful:
-            if limits.deadline is not None and time.monotonic() >= limits.deadline:
-                exceeded = DurationExceeded
-                cost = tokens = seconds = 0
-            if limits.cost is not None and cost > limits.cost:
-                cost, exceeded = limits.cost, CostExceeded
-            if limits.output_tokens is not None and tokens > limits.output_tokens:
-                tokens, exceeded = limits.output_tokens, OutputTokensExceeded
+        if (
+            not limits.deadline_graceful
+            and limits.deadline is not None
+            and time.monotonic() >= limits.deadline
+        ):
+            exceeded = DurationExceeded
+            cost = tokens = seconds = 0
+        if not limits.cost_graceful and limits.cost is not None and cost > limits.cost:
+            cost, exceeded = limits.cost, CostExceeded
+        if (
+            not limits.output_tokens_graceful
+            and limits.output_tokens is not None
+            and tokens > limits.output_tokens
+        ):
+            tokens, exceeded = limits.output_tokens, OutputTokensExceeded
         with self._lock:
             self._spent[0] += cost
             self._spent[1] += tokens

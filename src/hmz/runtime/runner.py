@@ -165,8 +165,8 @@ def read_line(argv: list[str]) -> Line:
         default=[],
         metavar="KEY=VALUE[,...]",
         help="a flow param, read as its type or as JSON; budget.duration, budget.cost "
-        "(USD), budget.output_tokens and budget.graceful set what the run may spend, "
-        "required except for chat",
+        "(USD), budget.output_tokens and budget.graceful -- or budget.graceful.<limit> "
+        "for one limit -- set what the run may spend, required except for chat",
     )
     parser.add_argument(
         "--profile-flow",

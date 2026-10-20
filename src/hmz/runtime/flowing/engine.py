@@ -17,8 +17,8 @@ What a call is handed is views: see :mod:`viewing`. What it may spend is a budge
 if the caller gave it one, under what remains of every budget above it. Spending rolls up to
 every call above as it is reported, from whichever thread reports it; `duration` is a
 deadline, enforced by a timer that stops the calls under it, letting a turn under way finish
-first where the budget is graceful. A run whose flow is resumable writes a journal (see
-:mod:`journaling`), which is what a resumed run's calls pick their state back up from.
+first where the budget's duration is graceful. A run whose flow is resumable writes a journal
+(see :mod:`journaling`), which is what a resumed run's calls pick their state back up from.
 """
 
 from __future__ import annotations
@@ -55,6 +55,7 @@ from hmz.flows import (
     FlowDepthExceeded,
     FlowParams,
     FlowRuntimeError,
+    Graceful,
     HarnessKind,
     HarnessMismatch,
     MissingRole,
@@ -773,7 +774,7 @@ class _Clock:
     Stopping is cancelling the task the call runs in, which reaches every call under it
     that it is waiting on -- awaited, gathered, or in a task group -- and is turned back
     into `DurationExceeded` where it leaves the call, as `asyncio.timeout` does. A graceful
-    budget lets the turns under way under the call finish first.
+    duration lets the turns under way under the call finish first.
 
     Named by `ref`, which is the call's own but for a run's, whose call is no flow's: that
     one's deadline is said as the flow the run was started with.
@@ -952,7 +953,7 @@ class Call:
     @property
     def budget(self) -> Budget:
         cost = tokens = _INF
-        graceful = True
+        graces = (True, True, True)
         node: Call | None = self
         with self.run.lock:
             while node is not None:
@@ -964,8 +965,14 @@ class Call:
                         tokens = min(
                             tokens, own.output_tokens - node.tokens + self.tokens
                         )
-                    if not own.graceful:
-                        graceful = False
+                    # Each limit is hard where a budget that sets it says so.
+                    grace = own.graces
+                    graces = (
+                        graces[0] and (own.duration is None or grace.duration),
+                        graces[1] and (own.cost is None or grace.cost),
+                        graces[2]
+                        and (own.output_tokens is None or grace.output_tokens),
+                    )
                 node = node.parent
         deadline = self.deadline
         duration = (
@@ -977,7 +984,9 @@ class Call:
             duration=duration,
             cost=None if cost == _INF and (tokens != _INF or duration) else cost,
             output_tokens=None if tokens == _INF else max(int(tokens), 0),
-            graceful=graceful,
+            graceful=graces[0]
+            if len(set(graces)) == 1
+            else Graceful(duration=graces[0], cost=graces[1], output_tokens=graces[2]),
         )
 
     @property
@@ -1017,9 +1026,10 @@ class Call:
           FlowCancelled: If the call's caller, or the run, is over.
           BudgetExceeded: The leaf for a budget over it that is spent.
         """
-        # Each limit is the least any budget over the turn leaves, and the turn is hard --
-        # stopped mid-turn when a limit is reached -- where a budget that sets one of them
-        # is: a hard budget stays hard under a graceful one, and the other way round.
+        # Each limit is the least any budget over the turn leaves, and is hard -- stops the
+        # turn mid-turn when reached -- where the budget that leaves it is not graceful for
+        # it, each limit on its own: a hard limit stays hard under a graceful one, and the
+        # other way round.
         cost = tokens = until = cut = _INF
         cost_hard = tokens_hard = until_hard = False
         node: Call | None = self
@@ -1028,16 +1038,20 @@ class Call:
                 self.check()
             own = node.own
             if own is not None:
-                hard = not own.graceful
+                grace = own.graces
                 if own.cost is not None:
-                    left = own.cost - node.cost
+                    left, hard = own.cost - node.cost, not grace.cost
                     if left < cost or (hard and left == cost):
                         cost, cost_hard = left, hard
                 if own.output_tokens is not None:
-                    left = own.output_tokens - node.tokens
+                    left, hard = (
+                        own.output_tokens - node.tokens,
+                        not grace.output_tokens,
+                    )
                     if left < tokens or (hard and left == tokens):
                         tokens, tokens_hard = left, hard
                 if own.duration is not None:
+                    hard = not grace.duration
                     ends = node.since + own.duration.total_seconds()
                     if ends < until or (hard and ends == until):
                         until, until_hard = ends, hard
@@ -1055,18 +1069,20 @@ class Call:
                 f"{self.ref}: its budget's output tokens are spent"
             )
         if budget is not None:
-            hard = not budget.graceful
+            grace = budget.graces
             if budget.cost is not None and budget.cost <= cost:
                 cost, cost_hard = (
                     budget.cost,
-                    hard or (cost_hard and budget.cost == cost),
+                    not grace.cost or (cost_hard and budget.cost == cost),
                 )
             if budget.output_tokens is not None and budget.output_tokens <= tokens:
                 tokens, tokens_hard = (
                     budget.output_tokens,
-                    hard or (tokens_hard and budget.output_tokens == tokens),
+                    not grace.output_tokens
+                    or (tokens_hard and budget.output_tokens == tokens),
                 )
             if budget.duration is not None:
+                hard = not grace.duration
                 ends = now + budget.duration.total_seconds()
                 if ends <= deadline:
                     deadline, until_hard = (
@@ -1075,21 +1091,17 @@ class Call:
                     )
                 if hard and ends < cut:
                     cut = ends
-        # `Limits` carry one deadline, and one `graceful` for every limit. A graceful soonest
-        # deadline lets the turn run on past it, which a driver told a hard limit would not:
-        # one held to a hard cost or token limit is told the hard deadline instead, if any,
-        # and one held to none is held to the hard deadline by the engine.
-        bites = (cost_hard and cost != _INF) or (tokens_hard and tokens != _INF)
-        if deadline != _INF and not until_hard:
-            if bites:
-                return limits_of(cost, tokens, cut, graceful=False), None
-            return (
-                limits_of(cost, tokens, deadline, graceful=True),
-                None if cut == _INF else cut,
-            )
-        return limits_of(
-            cost, tokens, deadline, graceful=not (bites or deadline != _INF)
-        ), None
+        # `Limits` carry one deadline: a graceful soonest one lets the turn run on past it,
+        # and the engine holds the turn to a hard one due later itself.
+        limits = limits_of(
+            cost,
+            tokens,
+            deadline,
+            cost_graceful=not cost_hard,
+            output_tokens_graceful=not tokens_hard,
+            deadline_graceful=not until_hard,
+        )
+        return limits, None if until_hard or cut == _INF else cut
 
     def turning(self, delta: int) -> None:
         """A turn of this call started (+1) or ended (-1), which a deadline waits on."""
@@ -1171,7 +1183,7 @@ class Call:
                 self,
                 task,
                 deadline - time.monotonic(),
-                graceful=own.graceful,
+                graceful=own.graces.duration,
                 ref=self.ref,
             )
 
@@ -1846,7 +1858,7 @@ async def run_flow(
                 top,
                 running_task,
                 top.deadline - time.monotonic(),
-                graceful=budget.graceful,
+                graceful=budget.graces.duration,
                 ref=impl.ref,
             )
         token = CALLING.set(top)

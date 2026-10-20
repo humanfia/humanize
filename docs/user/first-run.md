@@ -310,8 +310,14 @@ Press <kbd>enter</kbd> on `budget`:
    <b>output_tokens</b>                                                         <span class="a">0</span>
      <span class="m">maximum output tokens, 0 for no limit</span>
    ────────────────────────────────────────────────────────────────────────
-   <b>graceful</b>                                                         <span class="g">● on ▾</span> <span class="n">3</span>
-     <span class="m">finish the current turn when a limit is reached</span>
+   <b>graceful_duration</b>                                                <span class="g">● on ▾</span> <span class="n">3</span>
+     <span class="m">finish the current turn when the duration is reached</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>graceful_cost</b>                                                    <span class="g">● on ▾</span>
+     <span class="m">finish the current turn when the cost is reached</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>graceful_output_tokens</b>                                           <span class="g">● on ▾</span>
+     <span class="m">finish the current turn when the output tokens are reached</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
                                                                       <span class="btn"> Set </span> <span class="n">4</span>
@@ -325,9 +331,11 @@ Press <kbd>enter</kbd> on `budget`:
 2. **`cost`**: how many US dollars it may spend. <kbd>enter</kbd>, type `0.5`, <kbd>enter</kbd>:
    the first key you type replaces the `0.0` that was there. `output_tokens` works the same
    way.
-3. **`graceful`**: on lets the turn that is running finish when a limit is reached; off cuts
-   it off. <kbd>enter</kbd> or a click drops the two under it, opening on the one it is not.
-4. **Set** keeps all four: <kbd>tab</kbd> to it and press <kbd>enter</kbd>. The `budget` row
+3. **`graceful_duration`**, **`graceful_cost`** and **`graceful_output_tokens`**: on lets the
+   turn that is running finish when that limit is reached; off cuts it off. Each limit has its
+   own, so a hard token cap can sit beside a cost that lets the last turn finish.
+   <kbd>enter</kbd> or a click drops the two under it, opening on the one it is not.
+4. **Set** keeps them all: <kbd>tab</kbd> to it and press <kbd>enter</kbd>. The `budget` row
    then reads `set`, and under it `what an epic may spend: stops at 20m, $0.50`.
 
 The run stops at whichever limit it reaches first. If your account is billed by the token, set

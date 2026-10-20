@@ -767,17 +767,23 @@ function facts(detail) {
   )
 }
 
-/** A budget in words: each limit it set, and whether the last turn could finish over it. */
+/**
+ * A budget in words: each limit it set, and whether the last turn could finish over it --
+ * said once where every limit agrees, and after each limit that cuts off where they do not.
+ */
 function budgeted(budget) {
   if (!budget) return '—'
   const seconds = secondsOf(budget.duration)
+  const graceful = (limit) => (budget.graceful && typeof budget.graceful === 'object' ? budget.graceful[limit] : budget.graceful) !== false
   const limits = [
-    typeof budget.cost === 'number' && Number.isFinite(budget.cost) ? `$${budget.cost.toFixed(2)}` : '',
-    seconds ? lasting(seconds) : '',
-    typeof budget.output_tokens === 'number' ? `${budget.output_tokens} output tokens` : '',
+    typeof budget.cost === 'number' && Number.isFinite(budget.cost) ? [`$${budget.cost.toFixed(2)}`, graceful('cost')] : null,
+    seconds ? [lasting(seconds), graceful('duration')] : null,
+    typeof budget.output_tokens === 'number' ? [`${budget.output_tokens} output tokens`, graceful('output_tokens')] : null,
   ].filter(Boolean)
   if (!limits.length) return 'no limit'
-  return `${limits.join(' · ')}${budget.graceful === false ? ', cut off at once' : ', letting the last turn finish'}`
+  if (limits.every(([, soft]) => soft)) return `${limits.map(([said]) => said).join(' · ')}, letting the last turn finish`
+  if (limits.every(([, soft]) => !soft)) return `${limits.map(([said]) => said).join(' · ')}, cut off at once`
+  return `${limits.map(([said, soft]) => (soft ? said : `${said} cut off at once`)).join(' · ')}, else letting the last turn finish`
 }
 
 function tree(calls) {

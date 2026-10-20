@@ -230,7 +230,8 @@ model refuses MUST make the flow read as not set up.
 
 **5.2.7** `budget` MUST be a mapping with the keys `duration`, an ISO 8601 duration or null;
 `cost`, a number, the string `"Infinity"`, or null; `output_tokens`, an integer or null; and
-`graceful`, a boolean.
+`graceful`, a boolean or a mapping from any of `duration`, `cost` and `output_tokens` to a
+boolean.
 
 **5.2.8** A `budget` that does not validate as a budget MUST be read as absent.
 
