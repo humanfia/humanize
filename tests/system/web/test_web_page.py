@@ -1325,11 +1325,12 @@ def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
         expect(page.locator("[data-hmz=btw-tab]")).to_have_count(1)
         expect(closing).to_have_count(0)
 
-        # Upload, from the bar.
+        # Upload, from the bar: the button says it is busy, and nothing else says so too.
         holding("/api/runs/*/backup")
         page.locator("[data-hmz=upload]").click()
         expect(page.locator("[data-hmz=upload]")).to_have_attribute("aria-busy", "true")
         expect(page.locator("[data-hmz=upload]")).to_be_disabled()
+        expect(page.locator("[data-hmz=working]")).to_have_count(0)
         through()
         expect(page.locator(".toast")).to_be_visible()
         expect(page.locator("[data-hmz=upload]")).not_to_have_attribute(
@@ -1342,6 +1343,11 @@ def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
         page.get_by_role("button", name="Stop", exact=True).click()
         stopping = page.get_by_role("button", name="Stopping…")
         expect(stopping).to_be_disabled()
+        # The bar drawn again, for another view of the epic, asks no second time.
+        page.locator("[data-hmz=graph-session]").first.click()
+        expect(page).to_have_url(re.compile(r".*/sessions/[^/]+$"))
+        expect(stopping).to_be_disabled()
+        expect(page.get_by_role("button", name="Stop", exact=True)).to_have_count(0)
         through()
         expect(page.get_by_role("button", name="Stop", exact=True)).to_have_count(0)
         expect(page.locator("[data-hmz=bar] .badge")).to_have_text(

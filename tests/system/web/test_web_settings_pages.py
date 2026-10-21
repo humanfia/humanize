@@ -323,3 +323,69 @@ def test_a_range_shown_stays_busy_until_the_next_is_read(
         expect(usage.locator(".panel").first).to_be_visible()
         held.go()
         expect(usage).not_to_have_attribute("aria-busy", "true")
+
+
+def test_an_account_saved_or_made_says_so_until_it_is_answered(
+    project: Path, engine: str
+) -> None:
+    way = {
+        "name": "api-key",
+        "about": "A key of its own.",
+        "terminal": False,
+        "asks": [{"env": "KEY", "about": "", "secret": True, "fixed": ""}],
+    }
+    accounts = {
+        "accounts": [
+            {
+                "cli": "claude",
+                "name": "work",
+                "way": "api-key",
+                "sets": ["KEY"],
+                "models": [],
+                "asked": None,
+                "serves": [],
+            }
+        ],
+        "backends": [{"cli": "claude", "ways": [way], "wants": ""}],
+        "gateway": "LiteLLM",
+    }
+    waiting: list[Route] = []
+
+    def answer(route: Route) -> None:
+        # What is saved or made is held; what the page reads beside it is answered at once.
+        if re.search(r"/api/accounts(/correct)?$", route.request.url) and (
+            route.request.method == "POST"
+        ):
+            waiting.append(route)
+        else:
+            route.fulfill(json=accounts)
+
+    def through() -> None:
+        for _ in range(200):
+            if waiting:
+                break
+            page.wait_for_timeout(50)
+        assert waiting, "the page asked for nothing"
+        waiting.pop(0).fulfill(json=accounts)
+
+    with served() as site, opened(site, engine=engine) as page:
+        page.route("**/api/accounts**", answer)
+        go(page, "/settings/accounts")
+        page.locator("[data-hmz=account]").get_by_role("button", name="Edit").click()
+        correct = page.locator("[data-hmz=correct-account]")
+        correct.get_by_label("KEY").fill("new")
+        correct.get_by_role("button", name="Save").click()
+        saving = correct.get_by_role("button", name="Saving…")
+        expect(saving).to_be_disabled()
+        through()
+        expect(saving).to_have_count(0)
+
+        made = page.locator("[data-hmz=make-account]")
+        made.get_by_role("button", name="Cancel").click()
+        made.get_by_label("Name").fill("home")
+        made.get_by_label("KEY").fill("other")
+        made.get_by_role("button", name="Create").click()
+        creating = made.get_by_role("button", name="Creating…")
+        expect(creating).to_be_disabled()
+        through()
+        expect(made.get_by_role("button", name="Create")).to_be_enabled()
