@@ -366,9 +366,13 @@ function working(said, asked) {
   return asked.finally(() => mine.remove())
 }
 
-/** Backs an epic up to its targets now, behind the page: how it went is read as the epic is. */
-export function upload(name) {
-  return working('Uploading', post(`/api/runs/${encodeURIComponent(name)}/backup`, {})).then((answer) => toast(`Uploading to ${answer.queued.join(', ')}`), (error) => toast(error.message))
+/**
+ * Backs an epic up to its targets now, behind the page: how it went is read as the epic is.
+ * Unnoticed, it is for a button that says it is busy itself.
+ */
+export function upload(name, { noticed = true } = {}) {
+  const asked = post(`/api/runs/${encodeURIComponent(name)}/backup`, {})
+  return (noticed ? working('Uploading', asked) : asked).then((answer) => toast(`Uploading to ${answer.queued.join(', ')}`), (error) => toast(error.message))
 }
 
 /** How an epic's last backup to each target went, each in turn, or '' where it has none. */

@@ -140,10 +140,11 @@ export function mount(root, { parts, query }) {
     const turn = going && held().standing.run ? held().standing.run.turn : ''
     const state = chat ? chatState(going ? 'running' : detail.how, turn) : run ? (run.ended ? run.ended.how : run.state === 'stopping' ? 'stopping' : run.live ? 'running' : detail.how) : detail.how
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
-    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed], () => {
+    const stopWaits = Date.now() - (stopsAsked.get(detail.name) || 0) < STOP_WAITS
+    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, stopWaits], () => {
       const actions = []
       // A chat is never stopped from its page: it is a conversation, as a chat app's.
-      if (!chat && going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', busy: 'Stopping…', held: true, act: () => ask(here, 'stop') }))
+      if (!chat && going && run.state === 'running') actions.push(stopWaits ? h('button', { class: 'btn danger', type: 'button', disabled: true }, 'Stopping…') : confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', busy: 'Stopping…', held: true, act: () => stopping(detail.name) }))
       else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', busy: 'Stopping…', act: () => ask(here, 'force') }))
       if (!going && detail.picks_up && !chat) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
       if (!chat) actions.push(h('a', { class: 'icon-btn', href: hash(`/epics/${encodeURIComponent(detail.name)}/exomyth`), 'aria-label': 'Exomyth', title: 'Exomyth', 'data-hmz': 'exomyth-open' }, icon('chart')))
@@ -173,13 +174,27 @@ export function mount(root, { parts, query }) {
     if (clock) clock.textContent = [took(detail, run) && `took ${took(detail, run)}`, spent].filter(Boolean).join(' · ')
   }
 
+  /**
+   * Asks the epic to stop, held asked until it says it is stopping, or a while: the bar of an
+   * epic going is drawn again every second, so it gives Stop back once that while is up.
+   */
+  async function stopping(epic) {
+    stopsAsked.set(epic, Date.now())
+    try {
+      await ask(here, 'stop')
+    } catch (error) {
+      stopsAsked.delete(epic)
+      throw error
+    }
+  }
+
   /** Uploads the epic, the button busy until the daemon takes it. */
   async function uploading(event) {
     const button = event.currentTarget
     button.disabled = true
     button.setAttribute('aria-busy', 'true')
     try {
-      await upload(name)
+      await upload(name, { noticed: false })
     } finally {
       button.disabled = false
       button.removeAttribute('aria-busy')
@@ -613,6 +628,15 @@ function exomyth(root, name, query) {
     moved: () => false,
   }
 }
+
+/** How long Stop stays asked, waiting for the epic to say it is stopping. */
+const STOP_WAITS = 10000
+
+/**
+ * When Stop was last asked of each epic, by its name: kept beyond one drawing of its page, so
+ * that the bar drawn again for another view of it before it says it is stopping asks no more.
+ */
+const stopsAsked = new Map()
 
 function modeOf(parts) {
   return {
