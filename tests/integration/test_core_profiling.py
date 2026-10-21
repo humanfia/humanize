@@ -34,8 +34,9 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_what_a_run_was_asked_to_profile_is_written_and_laid_out(
     project: Path, flags: tuple[str, ...], flow: bool, environment: bool
 ) -> None:
-    # A program the agent runs for longer than the environment's sampler takes to see it.
-    task = 'run: [["sleep", "0.5"]]'
+    # A program the agent runs for longer than the environment's sampler takes to see it,
+    # with room for a machine busy running the rest of the suite beside it.
+    task = 'run: [["sleep", "2"]]'
     ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", *flags, task)
     assert ran.returncode == 0, ran.stderr
 
