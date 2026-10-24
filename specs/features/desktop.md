@@ -252,7 +252,8 @@ it to reload and to zoom.
 the window, besides those of §7.11.
 
 **7.19** On Windows, while it runs, the app MUST show a tray icon in the notification area of the
-taskbar, whose menu MUST hold `Show Humanize Desktop`, `Check for Updates…`, `Documentation` and `Quit`.
+taskbar, whose menu MUST hold `Show Humanize Desktop`, `Check for Updates…`, `Documentation` and
+`Quit`.
 
 ## 8. Files
 
