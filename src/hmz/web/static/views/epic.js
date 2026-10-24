@@ -428,12 +428,15 @@ export function mount(root, { parts, query }) {
     region('panel-tabs', [tabs, tab], () => {
       fill(
         panel.body,
+        // The top row of a wide window, beside the view; on a narrow one, a sheet's head inside it.
         dragged(
           tabbed(tabs, tab, (key) => {
             tab = key
             for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
             draw()
           }),
+          'deep',
+          'wide',
         ),
         h('div', { class: 'panel-pane' }),
       )

@@ -1105,26 +1105,9 @@ body.dropping .app {
   outline-offset: -3px;
 }
 
-/* The page's own parts are not text to select; what it says is. */
-.sidebar,
-.bar,
-.tabs,
-.segmented,
-button,
-.chip,
-.card,
-.node,
-.zoom,
-.frame-label,
-.composer-bar,
-.settings-nav,
-.dialog-head,
-.side-section h3,
-.field > .label,
-.field > label,
-.kicker,
-.badge,
-.popover {
+/* Nothing the page draws is text to select, as on a web page, but what it says: what is there to
+   be read, copied or written. */
+body {
   user-select: none;
   -webkit-user-select: none;
 }
@@ -1132,14 +1115,31 @@ button,
 .selectable,
 .thread,
 .prose,
+.said,
+.error,
+.note,
 pre,
 code,
 dd,
 .bar-sub .mono,
 input,
-textarea {
+textarea,
+[contenteditable]:not([contenteditable='false']) {
   user-select: text;
   -webkit-user-select: text;
+}
+
+/* A control is not, whatever it holds. */
+:is(button, [role='button'], [role='tab'], [role='menuitem']),
+:is(button, [role='button'], [role='tab'], [role='menuitem']) * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Nor is a link or a picture dragged out of it, as from a web page. */
+a,
+img {
+  -webkit-user-drag: none;
 }
 
 /* ------------------------------------------------------------------ a view and its bar */
@@ -4079,12 +4079,6 @@ input[aria-invalid='true'] {
   background-image: var(--dialog-image, none);
   background-size: var(--dialog-size, cover);
   background-repeat: var(--dialog-repeat, no-repeat);
-}
-
-/* What the window is dragged by is not text to select. */
-[data-tauri-drag-region='deep'] {
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 /* daemon bar */

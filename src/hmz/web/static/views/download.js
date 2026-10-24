@@ -14,7 +14,7 @@ export function mount(root, { query }) {
   const picker = h('select', { 'aria-label': 'Target', 'data-hmz': 'download-target', hidden: true })
   const body = h('div', { class: 'dialog-body', 'data-hmz': 'stored' }, h('p', { class: 'loading', role: 'status' }, 'Reading the targets…'))
   root.setAttribute('aria-label', 'Download')
-  fill(root, dragged(h('div', { class: 'dialog-head' }, icon('download'), h('h2', { class: 'dialog-title' }, 'Download'), picker, iconButton('close', 'Close', { onclick: shut }))), body)
+  fill(root, dragged(h('div', { class: 'dialog-head' }, icon('download'), h('h2', { class: 'dialog-title' }, 'Download'), picker, iconButton('close', 'Close', { onclick: shut })), 'deep', 'narrow'), body)
   /** Which target was asked of last: one answering after another was picked draws nothing. */
   let asking = ''
   let gone = false
