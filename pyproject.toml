@@ -1,6 +1,6 @@
 [project]
 name = "hmz"
-version = "0.2.1"
+version = "0.2.2"
 description = "The agent flow system for token maxxing."
 readme = "README.md"
 authors = [

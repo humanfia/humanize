@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.2.2](https://github.com/humanfia/humanize/compare/v0.2.1...v0.2.2) (2026-10-24)
+
+
+### Features
+
+* **cli:** spin while hmz update asks PyPI and hmz backup waits on git ([#492](https://github.com/humanfia/humanize/issues/492)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **desktop:** show Check for Updates' progress in a window of its own ([#494](https://github.com/humanfia/humanize/issues/494)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **flows:** let each budget limit be graceful on its own ([#497](https://github.com/humanfia/humanize/issues/497)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+
+
+### Fixes
+
+* **agents:** read every fenced block in structured answers ([#464](https://github.com/humanfia/humanize/issues/464)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **cli:** show a spinner while hmz reaches its daemon and before exec's first turn ([#495](https://github.com/humanfia/humanize/issues/495)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **prices:** refuse a run when a price is not a finite number ([#498](https://github.com/humanfia/humanize/issues/498)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **transport:** keep every Unix socket path within 103 bytes on macOS ([#501](https://github.com/humanfia/humanize/issues/501)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **tui:** never let markup in a transcript line crash the screen ([#496](https://github.com/humanfia/humanize/issues/496)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **tui:** say what is asked of another daemon while it is under way ([#487](https://github.com/humanfia/humanize/issues/487)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **tui:** spin on 'starting…' from a start asked for until it starts or fails ([#488](https://github.com/humanfia/humanize/issues/488)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **web:** ask Stop once until the epic says it is stopping, and say an upload once ([#500](https://github.com/humanfia/humanize/issues/500)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **web:** say a composer is sending, an epic starting, a flow being read and a folder opening ([#486](https://github.com/humanfia/humanize/issues/486)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **web:** say a flow card's update, copy and fetch, and mark search results old, while they go ([#493](https://github.com/humanfia/humanize/issues/493)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **web:** say a settings page or a path's listing is being read until it is ([#491](https://github.com/humanfia/humanize/issues/491)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **web:** say an epic page's presses are busy until their reply ([#490](https://github.com/humanfia/humanize/issues/490)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **web:** say what the sidebar sends off is going until the daemon answers ([#489](https://github.com/humanfia/humanize/issues/489)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+* **web:** select only text to read, and move the window only by its top row ([#502](https://github.com/humanfia/humanize/issues/502)) ([4c4b20c](https://github.com/humanfia/humanize/commit/4c4b20cd6a94050002652415fc3f0ebdd0849c25))
+
 ## [0.2.1](https://github.com/humanfia/humanize/compare/v0.2.0...v0.2.1) (2026-10-20)
 
 
