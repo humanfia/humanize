@@ -45,7 +45,7 @@ export function mount(root, { query }) {
   fill(
     root,
     // The top row of a narrow window, which it fills.
-    dragged(h('div', { class: 'dialog-head' }, icon('search'), search, h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'import', onclick: pick }, 'Import'), iconButton('close', 'Close', { onclick: shut }))),
+    dragged(h('div', { class: 'dialog-head' }, icon('search'), search, h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'import', onclick: pick }, 'Import'), iconButton('close', 'Close', { onclick: shut })), 'deep', 'narrow'),
     h('div', { class: 'dialog-filters' }, statuses, places, flows),
     body,
     foot,

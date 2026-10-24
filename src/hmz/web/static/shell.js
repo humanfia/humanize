@@ -53,11 +53,25 @@ export function settleSidebar() {
 /**
  * A row along the top of the window, which in the macOS app's window moves it where it is
  * dragged, and zooms it where it is double-clicked, by anything in it but what is clicked:
- * `deep` for all it holds, `''` for itself alone, `'false'` for none of what it holds.
+ * `deep` for all it holds, `''` for itself alone, `'false'` for none of what it holds. One that
+ * is the top row only on a narrow window, or only on a wide one, says which in `when`, and moves
+ * nothing on the other: a dialog's head, or a panel's tabs, there inside the window.
  */
-export function dragged(el, how = 'deep') {
-  if (inApp) el.setAttribute('data-tauri-drag-region', how)
+export function dragged(el, how = 'deep', when = null) {
+  if (!inApp) return el
+  if (!when) el.setAttribute('data-tauri-drag-region', how)
+  else {
+    el.dataset.dragged = `${when} ${how}`
+    reach(el)
+  }
   return el
+}
+
+/** Makes a row dragged on a narrow window, or a wide one, so on this one or not. */
+function reach(el) {
+  const [when, how = ''] = el.dataset.dragged.split(' ')
+  if ((when === 'narrow') === narrow.matches) el.setAttribute('data-tauri-drag-region', how)
+  else el.removeAttribute('data-tauri-drag-region')
 }
 
 /** The bar over a view: what it is, and what can be done to it. */
@@ -281,6 +295,7 @@ export function tabbed(tabs, picked, told) {
 }
 
 narrow.addEventListener('change', () => {
+  for (const el of document.querySelectorAll('[data-dragged]')) reach(el)
   app().classList.remove('side-open')
   document.querySelector('.scrim').hidden = true
 })
