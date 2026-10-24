@@ -54,7 +54,7 @@ objc2-user-notifications = { version = "0.3", default-features = false, features
 # Notifications the page asks for: toasts, told of a click.
 tauri-winrt-notification = "0.8"
 # The update's alerts: a task dialog, closed as the app quits.
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Controls", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_UI_Controls", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
 tempfile = "3"

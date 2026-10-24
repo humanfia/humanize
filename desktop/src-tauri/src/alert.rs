@@ -19,14 +19,17 @@ use objc2_core_foundation::{
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::{HWND, LPARAM, S_OK, WPARAM};
 #[cfg(windows)]
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+#[cfg(windows)]
 use windows_sys::Win32::UI::Controls::{
-    TASKDIALOG_BUTTON, TASKDIALOGCONFIG, TASKDIALOGCONFIG_0, TD_ERROR_ICON, TD_INFORMATION_ICON,
-    TDF_ALLOW_DIALOG_CANCELLATION, TDF_SIZE_TO_CONTENT, TDN_CREATED, TDN_DESTROYED,
-    TaskDialogIndirect,
+    TASKDIALOG_BUTTON, TASKDIALOGCONFIG, TASKDIALOGCONFIG_0, TD_ERROR_ICON,
+    TDF_ALLOW_DIALOG_CANCELLATION, TDF_SIZE_TO_CONTENT, TDF_USE_HICON_MAIN, TDN_CREATED,
+    TDN_DESTROYED, TaskDialogIndirect,
 };
 #[cfg(windows)]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    HWND_TOPMOST, PostMessageW, SWP_NOMOVE, SWP_NOSIZE, SetForegroundWindow, SetWindowPos, WM_CLOSE,
+    HWND_TOPMOST, IDI_APPLICATION, LoadIconW, PostMessageW, SWP_NOMOVE, SWP_NOSIZE,
+    SetForegroundWindow, SetWindowPos, WM_CLOSE,
 };
 #[cfg(windows)]
 use windows_sys::core::HRESULT;
@@ -145,7 +148,7 @@ const FIRST: i32 = 100;
 pub fn ask(level: Level, title: &str, said: &str, buttons: &[&str]) -> Option<usize> {
     lock(&UP).as_ref()?;
     let wide = |text: &str| text.encode_utf16().chain([0]).collect::<Vec<u16>>();
-    let (app, title, said) = (wide(env!("CARGO_PKG_NAME")), wide(title), wide(said));
+    let (app, title, said) = (wide("Humanize Desktop"), wide(title), wide(said));
     let labels: Vec<_> = buttons.iter().map(|button| wide(button)).collect();
     let buttons: Vec<_> = labels
         .iter()
@@ -155,19 +158,32 @@ pub fn ask(level: Level, title: &str, said: &str, buttons: &[&str]) -> Option<us
             pszButtonText: label.as_ptr(),
         })
         .collect();
+    // A note under the app's own icon, as on macOS; a failure under Windows' own.
+    let (icon, main) = match level {
+        // SAFETY: the icon the app's executable carries, by the identifier tauri-build gives it.
+        Level::Note => (
+            TDF_USE_HICON_MAIN,
+            TASKDIALOGCONFIG_0 {
+                hMainIcon: unsafe {
+                    LoadIconW(GetModuleHandleW(std::ptr::null()), IDI_APPLICATION)
+                },
+            },
+        ),
+        Level::Failure => (
+            0,
+            TASKDIALOGCONFIG_0 {
+                pszMainIcon: TD_ERROR_ICON,
+            },
+        ),
+    };
     let config = TASKDIALOGCONFIG {
         cbSize: size_of::<TASKDIALOGCONFIG>() as u32,
         // Closed by WM_CLOSE, as it is taken back, with no button pressed.
-        dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT,
+        dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | icon,
         pszWindowTitle: app.as_ptr(),
         pszMainInstruction: title.as_ptr(),
         pszContent: said.as_ptr(),
-        Anonymous1: TASKDIALOGCONFIG_0 {
-            pszMainIcon: match level {
-                Level::Note => TD_INFORMATION_ICON,
-                Level::Failure => TD_ERROR_ICON,
-            },
-        },
+        Anonymous1: main,
         pButtons: buttons.as_ptr(),
         cButtons: buttons.len() as u32,
         nDefaultButton: FIRST,
