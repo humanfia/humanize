@@ -81,6 +81,11 @@ the release MUST be published without them.
 
 **3.14** The app MUST run on Windows 10 or later, on x64, with WSL of version 2.
 
+**3.15** The installer MUST put the app in the Start menu, and MUST put it on the desktop only where
+whoever installs it ticks to; an update MUST keep a desktop shortcut that is there and add none.
+
+**3.16** The installer MUST show the Humanize mark as its icon and on each of its pages.
+
 ## 4. Installing hmz
 
 **4.1** A release of the app MUST run the app's hmz and no other hmz; the version `0.5.0-rc.1` of
@@ -278,7 +283,8 @@ Explorer on Windows once saved.
 ## 9. Notifications
 
 **9.1** The app MUST show each notification the page hands it as a macOS notification on macOS and
-as a Windows toast notification on Windows, its title and body as text.
+as a Windows toast notification on Windows, its title and body as text; a toast MUST show the
+Humanize mark beside them.
 
 **9.2** On macOS, the app MUST ask macOS for leave to notify the first time it notifies.
 

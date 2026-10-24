@@ -36,7 +36,9 @@ on Windows.
 
 1. Download `humanize-<version>-windows-x64-setup.exe` from the
    [latest release](https://github.com/humanfia/humanize/releases/latest).
-2. Run it. It installs Humanize Desktop for you alone, so it asks for no administrator rights.
+2. Run it. It installs Humanize Desktop for you alone, so it asks for no administrator rights,
+   and puts it in the Start menu; tick **Create desktop shortcut** on its last page for one on
+   the desktop too.
 3. Open Humanize Desktop from the Start menu.
 
 The first time, it says **Installing Humanize CLI**, with each step, while it installs uv and `hmz`

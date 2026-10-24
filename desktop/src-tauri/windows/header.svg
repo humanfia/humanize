@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 57" width="150" height="57">
+  <!-- The installer's other pages, in the corner of their white head: src/hmz/web/static/mark.svg.
+       `pnpm nsis-images` draws it into header.bmp. -->
+  <rect width="150" height="57" fill="#ffffff"/>
+  <g transform="translate(14 10.5) scale(0.36)">
+    <polygon fill="#141a1f" points="12,16 32,16 62,50 32,84 12,84 42,50"/>
+    <polygon fill="#76b900" points="60,84 94,84 94,64 60,74"/>
+  </g>
+</svg>

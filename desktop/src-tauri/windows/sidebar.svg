@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 164 314" width="164" height="314">
+  <!-- The installer's welcome and finish pages, beside what they say: src/hmz/web/static/mark.svg
+       on the page's dark paper, over the green and cyan rule the page sets under a heading.
+       `pnpm nsis-images` draws it into sidebar.bmp. -->
+  <rect width="164" height="314" fill="#0f1418"/>
+  <g transform="translate(42 92) scale(0.8)">
+    <polygon fill="#e6eff1" points="12,16 32,16 62,50 32,84 12,84 42,50"/>
+    <polygon fill="#76b900" points="60,84 94,84 94,64 60,74"/>
+  </g>
+  <rect x="42" y="190" width="48" height="6" fill="#76b900"/>
+  <polygon fill="#4fd8ea" points="90,190 126,190 122,196 90,196"/>
+</svg>

@@ -10,6 +10,7 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",
-    "dmg-background": "node scripts/dmg-background.mjs"
+    "dmg-background": "node scripts/dmg-background.mjs",
+    "nsis-images": "node scripts/nsis-images.mjs"
   }
 }
