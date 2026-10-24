@@ -13,6 +13,8 @@ mod notify;
 mod server;
 mod shell_env;
 mod update;
+#[cfg(windows)]
+mod wsl;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
