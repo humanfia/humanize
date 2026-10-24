@@ -518,7 +518,7 @@ SWARM = "swarm"
 #: unusable at any effort a person would actually type.
 _UNSAID = "as configured"
 
-#: The written form of no rung at all: an agent asked for `auto` is an agent humanize says
+#: The written form of no rung at all: an agent asked for `auto` is an agent Humanize says
 #: nothing to its CLI about how hard to think, which leaves the model at whatever that CLI
 #: gives it.
 #:
@@ -618,12 +618,12 @@ class Profile:
         found by, what the CLI keeps per conversation beside them. Paths relative to the home,
         any part of which may be a glob of one name (`state_*.sqlite*`, `projects/*/x`), a
         directory standing for everything inside it. These, and only these, are what a
-        humanize turn keeps in a directory of humanize's own instead: the settings, the
+        Humanize turn keeps in a directory of Humanize's own instead: the settings, the
         skills and the credentials stay the CLI's. Read off what a turn of each actually
         wrote and read, with a tracer, rather than off its documentation. Empty for a
         backend nothing is written down about, whose sessions stay where it keeps them.
       told: Whether its driver tells the CLI where to keep those, so that nothing has to be
-        answered for it: dsh is started by humanize's own SDK call, which names its session
+        answered for it: dsh is started by Humanize's own SDK call, which names its session
         root outright.
       skills: The skill files under that home, as globs, each naming the `SKILL.md` of one
         skill -- which is where the CLI itself looks for the skills a user has installed.
@@ -655,7 +655,7 @@ class Profile:
         flow's own skills are put beside links to the user's. Empty for a backend that can be
         given no skills of a flow's: a flow that brings skills brings that backend none,
         which is a turn run without them rather than a run that will not start. Never the
-        workspace: humanize places nothing of its own there.
+        workspace: Humanize places nothing of its own there.
       secures: A variable that keeps where it finds its sign-in where the user's own home
         would put it, for a CLI that names a keychain item or a credentials file after its
         home: set, in a virtual home, to the user's own value of `home_var`.
@@ -690,7 +690,7 @@ class Profile:
         is a window that kills healthy turns.
       restarts: Whether what holds a turn of this backend open may be put down and started
         again while the run continues. True for every CLI here: the transport is a process
-        humanize spawned or a runtime it opened, and either can be replaced. This is where a
+        Humanize spawned or a runtime it opened, and either can be replaced. This is where a
         backend whose transport is somebody else's to end would say so, and a watchdog that
         found one leaves its turn alone rather than reaching into it.
       resumes: Whether a conversation of this backend survives that, being picked back up by
@@ -849,7 +849,7 @@ class Profile:
         """
         rung = effort.removeprefix(SWARM) if self.swarms else effort
         # No rung at all, however it was written. Every backend takes it, because it is not
-        # something asked of the backend: it is humanize saying nothing about how hard to
+        # something asked of the backend: it is Humanize saying nothing about how hard to
         # think, which any CLI can be told by not being told.
         if not rung or rung == AUTO:
             return True
@@ -971,14 +971,14 @@ class Profile:
     def kept(
         self, at: Path, environment: Mapping[str, str] | None = None
     ) -> tuple[tuple[str, str], ...]:
-        """Every place one of its sessions is kept, and where a humanize turn keeps it instead.
+        """Every place one of its sessions is kept, and where a Humanize turn keeps it instead.
 
-        The same path under a directory of humanize's own as under the CLI's home, so that
+        The same path under a directory of Humanize's own as under the CLI's home, so that
         what is kept there is laid out exactly as the CLI lays out its own and is read back
         by whatever reads the one.
 
         Args:
-          at: Where humanize keeps sessions, a directory per backend inside it.
+          at: Where Humanize keeps sessions, a directory per backend inside it.
           environment: The environment the turn runs with, or None for this process's own,
             which is what says where the home it would have written to is.
 
@@ -1099,7 +1099,7 @@ _LITELLM = ("high", "medium", "low", "minimal", "none")
 #: has to write it. It MUST be kept in step with `pyproject.toml`, which is the copy that binds.
 LITELLM_SDK = "litellm>=1.105"
 
-#: Every backend humanize drives, as each of them reported itself. Codex says which efforts
+#: Every backend Humanize drives, as each of them reported itself. Codex says which efforts
 #: each of its models takes and they differ, so they are written down as it gave them.
 #: What a project's own Claude Code settings start, in either of its two files: its hooks'
 #: commands, the lines drawn under the prompt, the files it suggests, the helpers it asks for
@@ -1571,7 +1571,7 @@ PROFILES = (
             "generativelanguage.googleapis.com",
             "lh3.googleusercontent.com",
         ),
-        # Told by the agent a turn is started as, which is one of humanize's without the web's
+        # Told by the agent a turn is started as, which is one of Humanize's without the web's
         # two tools where it may not search: agy has no flag or setting that takes one away.
         searches=True,
         aliases=("agy", "antigravity"),
@@ -1633,7 +1633,7 @@ PROFILES = (
         # stream transport, opening `<workspace>/.agents/skills/<name>/SKILL.md`. Not under
         # the user's own home: it never looks there. A flow's own go into the first, in the
         # virtual home each process is started in, beside links to the user's -- with the
-        # agents humanize starts a turn as (:mod:`hmz.coganchor.agents.agy`), in `agents/`.
+        # agents Humanize starts a turn as (:mod:`hmz.coganchor.agents.agy`), in `agents/`.
         skills=("skills/*/SKILL.md",),
         works=(".agents/skills/*/SKILL.md",),
         lodges="skills",
@@ -2067,15 +2067,15 @@ PROFILES = (
         searches=True,
         # Shorter than the rest, and for a reason of its own: this is the one backend driven
         # through an SDK rather than a command line, and the three minutes the driver gives
-        # each of that SDK's requests is humanize's own -- `request_timeout_seconds` is None
+        # each of that SDK's requests is Humanize's own -- `request_timeout_seconds` is None
         # by default there, which is every request waiting for as long as it takes. What that
         # bounds is the acknowledgement rather than the turn, so this is what bounds the turn:
         # quiet for twice the acknowledgement is the runtime having stopped answering rather
         # than the model still thinking, and there is nothing to wait for.
         silence=360.0,
         # The whole of the `[dsh]` extra, named as its packages rather than as
-        # `hmz[dsh]`: the humanize saying this did not come from an index, so a line
-        # that asks one for humanize is a line that fails.
+        # `hmz[dsh]`: the Humanize saying this did not come from an index, so a line
+        # that asks one for Humanize is a line that fails.
         installs=f"pip install '{DSH_SDK}' 'python-dotenv>=1.2.3'",
         # Its own sentence for the one credential it takes, which names neither a status nor
         # a login: an SDK rather than a CLI, so nothing about it reads like HTTP.
@@ -2093,13 +2093,13 @@ PROFILES = (
         # plugin's own default is `zstd`, which answers only in whole frames, so an agent set
         # to that is one this path reads nothing from until its session is over.
         logs=("sessions/*/{ident}/session.v*.jsonl",),
-        # The sessions under the home the SDK is handed -- the only backend here humanize
+        # The sessions under the home the SDK is handed -- the only backend here Humanize
         # tells where to keep them.
         sessions=("sessions",),
         told=True,
         efforts=_DSH,
         # None yet. The SDK's `sdk` profile mounts `dsh-skill-filesystem` since 0.1.2, but
-        # humanize hands every runtime a home of the run's own, so which of a user's skills a
+        # Humanize hands every runtime a home of the run's own, so which of a user's skills a
         # session would load -- and how one is chosen -- is still to be put to the runtime; a
         # list here before then would be of skills nothing is known to load.
         # `DEEPSEEK_SEARCH_BASE_URL` beside the other two because the search provider mounted
@@ -2295,7 +2295,7 @@ PROFILES = (
             # every request's headers -- a token in one is an account like any other. The OIDC
             # pair narrow the sign-in the issuer and client id above start, and the label and
             # the lifetime belong to the provider command. The protocol the gateways ask about
-            # is humanize's own rather than Grok Build's, and is here so that one exported in a
+            # is Humanize's own rather than Grok Build's, and is here so that one exported in a
             # shell is not read as the answer an account gave.
             "GROK_AUTH_PROVIDER_LABEL",
             "GROK_AUTH_TOKEN_TTL",
@@ -4361,8 +4361,8 @@ PROFILES = (
             "api.groq.com",
             "api.mistral.ai",
         ),
-        # A home of humanize's own rather than a CLI's, for the conversations of an agent no
-        # run drives: under the cache humanize keeps beside every agent's own state, since a
+        # A home of Humanize's own rather than a CLI's, for the conversations of an agent no
+        # run drives: under the cache Humanize keeps beside every agent's own state, since a
         # run keeps its own under the run.
         home_var="",
         home_dir=".cache/humanize/litellm",
@@ -4494,7 +4494,7 @@ PROFILES = (
 )
 
 
-#: Where in humanize's settings the CLIs somebody added themselves are written down. A setting
+#: Where in Humanize's settings the CLIs somebody added themselves are written down. A setting
 #: of the machine rather than of one workspace: a CLI is installed on a machine, and a flow
 #: run in the next directory along is run against the same one.
 #:
@@ -4639,7 +4639,7 @@ def remember(name: str, command: Sequence[str]) -> str:
 
     Args:
       name: What to call it, which is what an `-a` will name and what the prompt will show.
-        The command it is installed as, and only that: every backend humanize drives answers
+        The command it is installed as, and only that: every backend Humanize drives answers
         to the command that CLI registers -- `claude` is `claude`, `codex` is `codex` -- and
         an added one that answered to something else would be a name that says nothing about
         what is running. Blank to be called what the command is called, which is the answer
@@ -4657,7 +4657,7 @@ def remember(name: str, command: Sequence[str]) -> str:
 
     Raises:
       ValueError: If it has no command, if it was called something the command is not, or if
-        it would shadow a backend humanize already drives -- two backends answering to one
+        it would shadow a backend Humanize already drives -- two backends answering to one
         name is a name nobody can resolve.
       OSError: If the settings cannot be read, or written.
     """
@@ -4669,10 +4669,10 @@ def remember(name: str, command: Sequence[str]) -> str:
     # installed where PATH does not name it is the same CLI, and `/opt/mimo/bin/mimo` is mimo.
     runs = PurePath(argv[0]).name
     # Against what it runs rather than against what it was called, and before the name is: a
-    # CLI humanize already drives is one this cannot add under any name, and saying which name
+    # CLI Humanize already drives is one this cannot add under any name, and saying which name
     # to use instead would be sending somebody round to the same refusal.
     if any(runs in one.aliases for one in PROFILES):
-        raise ValueError(f"{runs} is already a backend humanize drives")
+        raise ValueError(f"{runs} is already a backend Humanize drives")
     named_as = named_as or runs
     if named_as != runs:
         raise ValueError(
@@ -4721,7 +4721,7 @@ UNKNOWN = Profile(
 
 
 def profiles() -> tuple[Profile, ...]:
-    """Every backend there is: the ones humanize drives, and the ones somebody added.
+    """Every backend there is: the ones Humanize drives, and the ones somebody added.
 
     Read each time rather than settled at import: a CLI added at the prompt is a backend from
     that moment, and a list built once would be a list that says otherwise until the next run.
@@ -4740,7 +4740,7 @@ def _speaks(name: str) -> Profile:
       name: What it was added under.
 
     Returns:
-      A profile saying the little there is to say: it has no home humanize can find, no logs
+      A profile saying the little there is to say: it has no home Humanize can find, no logs
       it can read, and one rung of an effort ladder, because the protocol describes none of
       those. What it does have is a name to be chosen by, and two things that follow from the
       protocol itself: a conversation of its can be picked back up, and `session/fork` is a
@@ -4878,7 +4878,7 @@ def serves(env: Mapping[str, str], backend: str) -> dict[str, str] | None:
 
     Returns:
       The same account under the names that backend reads, or None where it could not be run
-      as that backend at all -- because the backend is not one humanize drives, because the
+      as that backend at all -- because the backend is not one Humanize drives, because the
       account holds nothing but files, or because one of the things it holds is a credential
       that backend has no name for.
     """

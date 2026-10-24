@@ -5,7 +5,7 @@ the agent half needs ptrace and an x86-64 register map, which is what lets the s
 serve a target of any architecture.
 
 `rendezvous` is the third thing this line can be, and the only one that is neither half: the
-meeting place two halves on two machines are introduced through, which humanize runs for
+meeting place two halves on two machines are introduced through, which Humanize runs for
 them. It is answered before the agent half too, and for the same reason -- it is a socket and
 a dictionary, and a machine that could host one may be none of the things a supervisor needs.
 """
@@ -52,7 +52,7 @@ def _logs(given: str | None, default: str) -> None:
 
     stderr is the one stream a session never speaks the protocol on. The level is the one on
     the line, else `HUMANIZE_LOG` -- trimmed, in any case -- else `default`. A variable
-    naming no level is said to be ignored and then is: it is read by every line humanize
+    naming no level is said to be ignored and then is: it is read by every line Humanize
     spawns for itself as well as by the one somebody typed, and a word nobody meant to reach
     those is no reason for all of them to fail.
 
@@ -160,7 +160,7 @@ def _serve(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(
         prog="hmz internal anchor serve",
-        description="Serve `hmz internal anchor` sessions on this machine. humanize "
+        description="Serve `hmz internal anchor` sessions on this machine. Humanize "
         "starts this on a target; start it by hand only to --listen for a tcp:// target.",
     )
     parser.add_argument(

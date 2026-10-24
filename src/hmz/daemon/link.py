@@ -401,7 +401,7 @@ def reached(
 
     Raises:
       OSError: If nothing is listening there, or what is will not take a frontend -- a
-        daemon of an older humanize says so rather than leaving this waiting.
+        daemon of an older Humanize says so rather than leaving this waiting.
     """
     import os
 

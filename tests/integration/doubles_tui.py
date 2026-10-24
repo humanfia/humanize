@@ -1,6 +1,6 @@
 """What the interface's integration tests drive it with: a stand-in `claude`, and a pilot's keys.
 
-The stand-in speaks Claude Code's stream-json closely enough for humanize's own `claude`
+The stand-in speaks Claude Code's stream-json closely enough for Humanize's own `claude`
 driver to take turns through it, so a test drives the whole chain -- the interface, the runs
 it holds, the driver, a process -- with nothing real behind it:
 

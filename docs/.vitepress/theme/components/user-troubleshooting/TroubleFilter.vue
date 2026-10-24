@@ -25,7 +25,7 @@ interface Entry {
   message: boolean
 }
 
-// Words that say nothing about which message it is, and the prefixes humanize puts in front.
+// Words that say nothing about which message it is, and the prefixes Humanize puts in front.
 const STOP = new Set([
   'a', 'an', 'and', 'as', 'at', 'be', 'by', 'for', 'in', 'is', 'it', 'its', 'of', 'on', 'or',
   'the', 'this', 'that', 'to', 'with', 'hmz', 'exec', 'error',

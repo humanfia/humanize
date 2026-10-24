@@ -176,7 +176,7 @@ LOCAL = "local"
 
 
 def _now() -> str:
-    """This moment, as every file humanize writes spells one."""
+    """This moment, as every file Humanize writes spells one."""
     return (
         datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     )
@@ -411,7 +411,7 @@ def _record(flow: str, ident: str) -> str:
 
     Args:
       flow: The flow, as it was asked for -- which may be a path, and is flattened the way
-        everything else humanize writes a name into a filename is.
+        everything else Humanize writes a name into a filename is.
       ident: What tells this call of it from the next one.
 
     Returns:
@@ -1226,7 +1226,7 @@ def spending(
 ) -> dict[str, Any]:
     """What the runs of the last few days spent, by day and by flow, as their epics say.
 
-    What every frontend reads of what humanize has cost: one reckoning, said however each
+    What every frontend reads of what Humanize has cost: one reckoning, said however each
     says it.
 
     Args:

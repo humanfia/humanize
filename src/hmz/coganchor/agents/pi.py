@@ -87,14 +87,14 @@ _KINDS = {
 #: on the node reading it, so an upgrade of either compiles once more and writes the entry
 #: again, and a directory it cannot write leaves the saving unmade and nothing else.
 #:
-#: The one thing on this command line that is humanize's idea rather than pi's, and so the one
+#: The one thing on this command line that is Humanize's idea rather than pi's, and so the one
 #: with a way out: `PiAgentConfig(compiled=False)` leaves the variable alone and a turn starts
 #: exactly as a bare `pi` would. It stays on by default because the saving is real and the
 #: cache is node's own -- but a flow timing a cold start, or one that must leave nothing on
 #: this machine, is asking a fair question and gets an answer rather than a monkeypatch.
 _COMPILED = "NODE_COMPILE_CACHE"
 
-#: Where that cache goes, under humanize's directory for this machine: it outlives one run of
+#: Where that cache goes, under Humanize's directory for this machine: it outlives one run of
 #: one flow, which is the whole point of it, it is bytecode for this machine's node and nothing
 #: another machine sharing the home could read, and it is not the CLI's own directory to put
 #: anything in.
@@ -137,7 +137,7 @@ _CHANGING = ("bash", "edit", "write", "powershell")
 #: being theirs to answer, and answer that instead of their own.
 _ABORTING = 5.0
 
-#: What every provider humanize declares in pi's `models.json` is called, before its hash.
+#: What every provider Humanize declares in pi's `models.json` is called, before its hash.
 _DECLARED = "humanize-"
 
 
@@ -152,7 +152,7 @@ def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
 
     The name is made of what is declared, so that two accounts on two gateways are two
     providers and one account's every turn is the one. Not the account's name: that is
-    humanize's, and nothing the way was answered with.
+    Humanize's, and nothing the way was answered with.
 
     Args:
       said: The variables the account sets.
@@ -199,7 +199,7 @@ def _declare(home: Path, given: dict[str, Any]) -> None:
         said = {}
     except ValueError as unread:
         msg = (
-            f"{at.name} is not JSON humanize can read (pi takes comments, which humanize "
+            f"{at.name} is not JSON Humanize can read (pi takes comments, which Humanize "
             f"cannot keep), so the gateway {declared['baseUrl']} cannot be added to a copy "
             f"of it: add {json.dumps({named: declared})} under its providers by hand"
         )
@@ -259,7 +259,7 @@ class PiAgentConfig(AgentConfig):
     turn that named only the id would run on whichever Gemini that account has.
 
     Every field here is defaulted to what a bare `pi` already does, so an agent that sets none
-    of them starts the CLI as it ships. Three things humanize imposes whatever this says, and
+    of them starts the CLI as it ships. Three things Humanize imposes whatever this says, and
     each is written down where it is imposed: ``--mode rpc``, which is the transport this
     driver is -- a turn is a line written to a process that is already up, and steering and
     moving the effort mid-session are commands there rather than flags; ``--session-id``,
@@ -269,9 +269,9 @@ class PiAgentConfig(AgentConfig):
     permission gate.
 
     Attributes:
-      compiled: Whether node may keep what it compiled of pi in humanize's directory for this
+      compiled: Whether node may keep what it compiled of pi in Humanize's directory for this
         machine, which is what makes the second session on a machine start in three quarters of
-        the time. True, which is humanize's choice rather than pi's: the CLI sets no
+        the time. True, which is Humanize's choice rather than pi's: the CLI sets no
         `NODE_COMPILE_CACHE` itself. False leaves the variable exactly as it was found. Either
         way one already set -- by a provider, or by whoever started this process -- is left
         alone, and a turn that lands on another machine is given none.
@@ -287,7 +287,7 @@ class PiAgentConfig(AgentConfig):
         is ``--offline``, the same as `PI_OFFLINE=1`.
       append_system_prompt: Text -- or the path of a file holding it -- added to pi's own
         coding-assistant prompt, once per entry, as ``--append-system-prompt``. Empty, as pi
-        ships. This adds to that prompt rather than replacing it: humanize does not hand a
+        ships. This adds to that prompt rather than replacing it: Humanize does not hand a
         backend a system prompt of its own, and a flow that means to say something to every
         turn of one agent says it here.
       skill_paths: Skill files or directories for pi to load by path, once per entry, as
@@ -348,7 +348,7 @@ class PiSession(StreamSessionBase):
     #: user message pi answers with is the model having it.
     steers: ClassVar[bool] = True
 
-    #: Through an extension of humanize's own (:data:`_TOOLS`), since pi takes no MCP server
+    #: Through an extension of Humanize's own (:data:`_TOOLS`), since pi takes no MCP server
     #: anywhere but in a file of the user's.
     takes_tools: ClassVar[bool] = True
 
@@ -523,7 +523,7 @@ class PiSession(StreamSessionBase):
           theirs is the cache they meant -- is not set at all for a turn that lands somewhere
           else, since the path would name a directory on this machine rather than on the one the
           turn runs on, and is not set for an agent configured `compiled=False`, which is the
-          way out of the one thing here humanize decided rather than read off pi. The preload is
+          way out of the one thing here Humanize decided rather than read off pi. The preload is
           there for an agent something is listening to and absent otherwise, which
           :mod:`hmz.coganchor.agents.preload` decides: pi runs on Node, so what a turn of it runs,
           reads, writes and opens can be read from inside the process taking it.

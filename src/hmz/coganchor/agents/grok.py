@@ -46,7 +46,7 @@ so an offline conversation takes every turn with `grok -p`. Every profile it has
 built in, and a custom one, which only extends one of those -- lets `/tmp` and `/var/tmp` be
 written and the working directory too, so none is as narrow as a fence that grants neither. A
 custom profile is read only out of the person's `~/.grok/sandbox.toml` or a `.grok/sandbox.toml`
-in the directory worked in, which are theirs, not humanize's, to write. And on a machine whose
+in the directory worked in, which are theirs, not Humanize's, to write. And on a machine whose
 kernel gives unprivileged users no user namespace, 1.0.24 does not start under any profile at
 all, built-ins included: `bwrap: setting up uid map: Permission denied`.
 
@@ -137,8 +137,8 @@ _NO_WEB = "--disable-web-search"
 #: about the web. An agent nobody was asked about is one `grok` decides for itself -- its own
 #: prompting, the permission rules this machine carries, the tools it starts with -- which is
 #: exactly what `grok -p` does when nobody hands it a flag. It is the loosest row here only in
-#: the sense that humanize withholds nothing: what it comes to is 1.0.24's own answer rather
-#: than humanize's.
+#: the sense that Humanize withholds nothing: what it comes to is 1.0.24's own answer rather
+#: than Humanize's.
 _PERMITTED = {
     "read-only": (_APPROVAL, "--tools", "read_file,grep,list_dir"),
     "workspace-write": (_APPROVAL, _NO_WEB),
@@ -164,7 +164,7 @@ _HELD_OPEN = frozenset(
 
 #: The rungs at which a tool call this client is asked about is answered yes, which is every
 #: rung that carries `--always-approve` -- the flag is the whole of what makes a grant here
-#: humanize's to give. At those rungs the CLI approves for itself and a request reaching the
+#: Humanize's to give. At those rungs the CLI approves for itself and a request reaching the
 #: client at all is one a hook of Grok Build's own put in front of it, so granting is saying
 #: again what the flag already said; a flow watches its agent there rather than gating it.
 #:
@@ -173,7 +173,7 @@ _HELD_OPEN = frozenset(
 #: on 1.0.24 what it decides is read out of `[ui] permission_mode` in that person's
 #: `~/.grok/config.toml`: a machine set to `always-approve` never asks, and one left at
 #: `default` asks over the protocol, tool call by tool call. Answering those yes would be
-#: humanize granting what nobody told it to grant -- the silence settling the rung it exists
+#: Humanize granting what nobody told it to grant -- the silence settling the rung it exists
 #: not to settle -- so the silence is not in here and :func:`_permits` refuses for it.
 #:
 #: Derived from the same table :data:`_HELD_OPEN` is, and the two say different things about
@@ -188,7 +188,7 @@ _GRANTED = frozenset(rung for rung, said in _PERMITTED.items() if _APPROVAL in s
 #: the refusal into that project's own configuration -- `User rejected the execution and
 #: excluded 'echo hello-from-grok' from future runs in this project` -- which is one refused
 #: turn leaving a rule behind it on somebody's machine, and the rung this is reached at is the
-#: one whose whole meaning is that humanize settles nothing about this machine. So a request
+#: one whose whole meaning is that Humanize settles nothing about this machine. So a request
 #: offering no `reject_once` falls through to `cancelled` instead of to that: refusing without
 #: writing anything down is worth more than refusing in the agent's preferred words.
 #:
@@ -203,7 +203,7 @@ _REFUSES = ("reject_once",)
 #: A leader is one backend process shared by every client that asks for it, and which a
 #: `grok agent` joins is not its own choice: it follows `[cli] use_leader` in the
 #: `~/.grok/config.toml` of whoever is at this machine. So `--no-leader` is the answer
-#: humanize has always given, and goes on giving unless it is told otherwise -- a flow whose
+#: Humanize has always given, and goes on giving unless it is told otherwise -- a flow whose
 #: sessions all landed on one backend because of a line in somebody's config file would be
 #: running something other than what it was measured as. `--leader` is the opposite answer
 #: said out loud, and None is the question left to that config file, which is the bare CLI's
@@ -697,7 +697,7 @@ class GrokBuildSession(StreamSessionBase):
         flag has already approved what the rung leaves, and a request arriving anyway is one
         a hook of Grok Build's own put in front of the client, which a flow watches rather
         than gates. At no rung at all the flag is not sent, so the asking is `grok`'s own and
-        the answer is no -- humanize, told nothing about this agent, does not grant on its
+        the answer is no -- Humanize, told nothing about this agent, does not grant on its
         behalf. Answered either way by the *kind* of the option rather than by its id, which
         is the agent's own word for it.
 
@@ -735,7 +735,7 @@ class GrokBuildSession(StreamSessionBase):
                 # Remembered so that the turn this ends says who ended it. Grok answers a
                 # refused prompt with `stopReason: cancelled` and nothing about why, and a
                 # flow told only that is a flow reading a refusal as the CLI misbehaving.
-                self._refused = asking.because or "humanize did not permit a tool call"
+                self._refused = asking.because or "Humanize did not permit a tool call"
             return
         # Everything else is something this client said it could not do, and an agent asking
         # anyway is told so in the protocol's own words rather than left waiting.
@@ -746,7 +746,7 @@ class GrokBuildSession(StreamSessionBase):
                     "id": at,
                     "error": {
                         "code": -32601,
-                        "message": f"humanize offers no {method}",
+                        "message": f"Humanize offers no {method}",
                     },
                 }
             )
@@ -933,7 +933,7 @@ class GrokBuildSession(StreamSessionBase):
         # the workspace away has said it, and the flag is a switch rather than a list. `is
         # False` rather than `not`, since None is the agent nobody was asked about and `not
         # None` is true: an agent nothing was said about would otherwise be told not to search
-        # the web, which is humanize settling the one thing it was meant to leave alone.
+        # the web, which is Humanize settling the one thing it was meant to leave alone.
         if not _searches(config) and _NO_WEB not in argv:
             argv.append(_NO_WEB)
         argv += _extras(config)
@@ -1099,7 +1099,7 @@ def _permits(params: dict[str, Any], *, granted: bool) -> dict[str, Any]:
 
     Args:
       params: What was asked, which carries the options the agent offers.
-      granted: Whether the rung this agent runs at is one humanize says yes at, which is
+      granted: Whether the rung this agent runs at is one Humanize says yes at, which is
         :data:`_GRANTED`. Where it is not, the asking is the CLI's own and so is the tool
         that does not run.
 
@@ -1295,7 +1295,7 @@ def _routed(
 
     Named for what it holds, so that the same endpoint, model and API are always the same
     entry, and a process started again asks for the one it asked for before. Hidden, being
-    humanize's rather than something the person at this machine picked: `-m` still reaches
+    Humanize's rather than something the person at this machine picked: `-m` still reaches
     it, and the picker does not show it.
 
     Args:
@@ -1423,7 +1423,7 @@ class GrokBuildAgentConfig(AgentConfig):
     Attributes:
       leader: Whether this conversation's held-open process joins the leader -- one backend
         shared by every client that asks for it -- or starts one of its own. False starts its
-        own, which is what humanize has always done and what keeps a run reproducible: a
+        own, which is what Humanize has always done and what keeps a run reproducible: a
         `use_leader = true` in the `~/.grok/config.toml` of whoever is at this machine would
         otherwise put every session of a flow on one backend. True joins it, and None leaves
         the question to that config file, which is the bare CLI's own answer. It is a setting
@@ -1434,7 +1434,7 @@ class GrokBuildAgentConfig(AgentConfig):
         no built-in ladder of profiles to pick from: `workspace` is a base to extend, and a
         profile is otherwise a `[profiles.<name>]` in the `sandbox.toml` of whoever is at this
         machine. So it is named here rather than being what a rung is made of: writing a
-        profile to enforce a rung would be humanize writing the CLI's own settings.
+        profile to enforce a rung would be Humanize writing the CLI's own settings.
       max_turns: How many turns of its own one run may take under this turn, or 0 for as many
         as it takes, which is the CLI's own answer. Its own setting rather than anything
         :class:`~hmz.coganchor.agents.config.Budget` reaches: a budget is per turn of *this*
@@ -1484,7 +1484,7 @@ class GrokBuildAgent(AgentBase):
         Grok Build 1.0.46 reads a project's skills only out of a folder it was told to trust,
         which a workspace a flow runs in has never been: the skills the workspace keeps under
         `.grok/skills` or `.agents/skills` were there and never seen. `GROK_FOLDER_TRUST=0`
-        takes the question away, as a workspace humanize was told to work in is trusted
+        takes the question away, as a workspace Humanize was told to work in is trusted
         already. The flow's own skills need no trust: they are at the user level, in the
         virtual home each process is started in.
 

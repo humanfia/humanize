@@ -85,16 +85,16 @@ __all__ = [
 #: What one release of one flow is written down as, inside `flows/[<user>/]<flow>/<version>/`.
 RELEASE = "flow.yaml"
 
-#: Who `official` lists flows of bare: humanize's own organisation on GitHub, which is never a
+#: Who `official` lists flows of bare: Humanize's own organisation on GitHub, which is never a
 #: user anything is listed under -- in any index, so that `@theirs/humanfia/x` is not a way of
-#: passing a flow off as humanize's.
+#: passing a flow off as Humanize's.
 OURS = "humanfia"
 
 #: What an installed flow's directory carries to say what it was installed from. Hidden, so
 #: that nothing that reads a flow's directory for what the flow brings takes it for any of it.
 RECORD = ".installed.json"
 
-#: The flows humanize ships in the package. Their names are humanize's own: an index may not
+#: The flows Humanize ships in the package. Their names are Humanize's own: an index may not
 #: offer one, and nothing installed may stand in for one, so `chat` is the same flow on every
 #: machine whatever anybody has fetched.
 RESERVED = frozenset(
@@ -191,7 +191,7 @@ class Release(BaseModel):
     """One release of one flow, as `flows/[<user>/]<flow>/<version>/flow.yaml` says it.
 
     Keys nobody here knows are let through unread, so that an index written for a later
-    humanize still lists for this one.
+    Humanize still lists for this one.
 
     Attributes:
       name: The flow, which is the directory its releases are in.
@@ -564,10 +564,10 @@ def _read(
         return f"version {release.version} is not the directory it is in, {version}"
     if not owner and release.name in taken:
         return (
-            f"{release.name} is built into humanize; nothing may be installed over it"
+            f"{release.name} is built into Humanize; nothing may be installed over it"
         )
     # Who a repository on GitHub is owned by is the one thing about it an index can be held to:
-    # a flow is listed under its owner, and humanize's own index lists bare only its own.
+    # a flow is listed under its owner, and Humanize's own index lists bare only its own.
     owned = release.owned
     if owner and owned and owned != owner:
         return f"{release.repo} is {owned}'s, so it is listed under flows/{owned}/"

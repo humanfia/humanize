@@ -15,7 +15,7 @@ session's agent as `AgentConfig.fence`. `system` is `/`, `user` the home directo
 `local` the workdir; READ lets a scope be read, ALL written, NONE neither. Whatever the scopes
 say, a CLI may read what any program needs to run -- the system's programs and libraries,
 the few files under `/etc` a resolver and a TLS stack read, `/proc`, `/sys` -- and its own
-programs and the Python running humanize, and write the devices, `/dev/shm`, its own state
+programs and the Python running Humanize, and write the devices, `/dev/shm`, its own state
 and a scratch directory of its own that is its `TMPDIR`, with the caches a build writes
 pointed into it wherever the home cannot be written. `online` NONE cuts the network to the
 hosts the CLI's model and sign-in are at (:func:`hmz.coganchor.backends.reachable`, read
@@ -39,10 +39,10 @@ every session runs at its CLI's nothing-asked mode, which is what the flow API c
 `danger-full-access` and `never` on Codex, `bypassPermissions` on Claude Code. Where a managed
 policy forbids that, the CLI runs at the most permissive mode left that no model reviews --
 the `workspace-write` sandbox with approval `on-request` on Codex, `acceptEdits` on Claude
-Code -- and humanize answers every request yes. `auto` is
+Code -- and Humanize answers every request yes. `auto` is
 Claude Code's and cursor-agent's model-reviewed modes and is never used for them; the one
 place it is used is the last column below, on the two CLIs where it means the CLI asks and
-humanize answers.
+Humanize answers.
 
 | `local`      | every harness but dsh, mcode and acp | dsh, mcode, acp |
 |--------------|--------------------------------------|-----------------|
@@ -57,7 +57,7 @@ humanize answers.
   nothing; the fence holds them to the scopes.
 
 While a hook is hung on a moment only asking reaches, three CLIs are started so that they
-ask, and humanize answers every request yes unless the hook says no -- never a model:
+ask, and Humanize answers every request yes unless the hook says no -- never a model:
 
 - Claude Code, a PERMISSION_REQUEST hook: `manual` in place of `bypassPermissions`, so every
   tool that would change something is asked about.
@@ -203,7 +203,7 @@ def prompting(harness: HarnessKind, hung: frozenset[HookKind]) -> bool:
     """Whether a Claude Code session is started so that its `bypass` asks, for the hooks hung.
 
     Claude's `bypassPermissions` asks nothing, so a PERMISSION_REQUEST hook would never be
-    reached at it: while one is hung, `bypass` runs at `manual` instead, and humanize answers
+    reached at it: while one is hung, `bypass` runs at `manual` instead, and Humanize answers
     every request yes unless the hook says no.
 
     Args:

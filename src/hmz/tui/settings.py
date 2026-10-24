@@ -1,10 +1,10 @@
-"""`/settings`: every setting humanize has, on a screen of its own, one level at a time.
+"""`/settings`: every setting Humanize has, on a screen of its own, one level at a time.
 
 What opens is the eight places settings are kept -- this machine's own, its notifications, the
 daemons, the accounts, the fallbacks, the runtimes, the backups and this workspace's -- and
 what the epics spent, each a card saying what is in it, as a phone's settings or VS Code's open
 on their categories. They stand from the broadest to the nearest: what is true wherever
-humanize runs and which of its epics it tells of, which machines it reaches, who its agents are
+Humanize runs and which of its epics it tells of, which machines it reaches, who its agents are
 and what takes over when one fails, where their work goes and where its epics are kept, and
 last the one directory open now. Where flows come from is `/flow`'s (:mod:`hmz.tui.flows`),
 drawn the same way. Enter or a
@@ -169,7 +169,7 @@ _PAGES = (
 )
 
 #: What the first screen says it is.
-_HOME_ABOUT = "Every setting humanize keeps. What you change is held until you save it."
+_HOME_ABOUT = "Every setting Humanize keeps. What you change is held until you save it."
 
 #: The rows the general and workspace pages are made of, by the id each is put up under.
 _SENTRY = "reports"
@@ -242,7 +242,7 @@ _MEANS = {
 
 
 class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
-    """Every setting humanize has: `/settings`, nine pages opened from one screen of them.
+    """Every setting Humanize has: `/settings`, nine pages opened from one screen of them.
 
     General is what is true of this machine however many projects are driven from it, and the
     notifications which of its epics it tells of; the
@@ -250,11 +250,11 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
     and the runtimes are what agents run as, where turns go when they cannot, and the
     machines their work goes on; the backups are where epics are copied to;
     the workspace is one directory's; the usage is what the epics spent. One menu because they
-    are one question -- what does humanize remember -- and a command apiece was nine things to
+    are one question -- what does Humanize remember -- and a command apiece was nine things to
     learn the names of.
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
-    written down is written down in humanize's own words, and a person should not have to know
+    written down is written down in Humanize's own words, and a person should not have to know
     the shape of a YAML file to turn a thing off. What is held lands together when it is saved,
     from the bar or from the question leaving asks, and each setting takes effect at once where
     it can; where it cannot, the row says when it will while it is held and the transcript says
@@ -445,7 +445,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
             _HOME_ABOUT
             if self._home
             else {
-                _EVERYWHERE: "How humanize behaves on this machine, in every directory.",
+                _EVERYWHERE: "How Humanize behaves on this machine, in every directory.",
                 _NOTIFICATIONS: "Which epics on this machine you are told of, here and in "
                 "the web interface, while you are not on them.",
                 _DIRECTORY: f"What {_shortly(self._workspace)} remembers: the flow it "
@@ -635,7 +635,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
                 _SENTRY,
                 "Error reports",
                 _word(self._sentry),
-                "send error reports to humanize",
+                "send error reports to Humanize",
                 _SWITCH,
                 group="Privacy",
             ),

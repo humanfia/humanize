@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 __all__ = ["ROUTES", "fetches"]
 
-#: The flowverse humanize's own flows are installed out of: what it lists goes bare.
+#: The flowverse Humanize's own flows are installed out of: what it lists goes bare.
 _OFFICIAL = "official"
 
 
@@ -42,7 +42,7 @@ def fetches(hmz: Any) -> threading.Thread:
     """Fetches every flowverse's index, on a thread of its own, saying nothing of how it went.
 
     Args:
-      hmz: humanize.
+      hmz: Humanize.
 
     Returns:
       The thread, started.

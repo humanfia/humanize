@@ -113,7 +113,7 @@ def _held(parser: argparse.ArgumentParser, hmz: Hmz, args: argparse.Namespace) -
 
     Args:
       parser: The line's parser, for a usage error.
-      hmz: humanize.
+      hmz: Humanize.
       args: The line, read.
 
     Returns:

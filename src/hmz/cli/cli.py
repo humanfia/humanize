@@ -33,7 +33,7 @@ def cli(argv: list[str]) -> int:
     """
     parser = argparse.ArgumentParser(
         prog="hmz internal cli",
-        description="Relay one run of a flow's command line to the flow. humanize puts "
+        description="Relay one run of a flow's command line to the flow. Humanize puts "
         "scripts on agents' PATH that run this; do not run it manually.",
     )
     parser.add_argument(

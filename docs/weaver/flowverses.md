@@ -210,7 +210,7 @@ license: Apache-2.0
 | `license` | Its licence, as [SPDX](https://spdx.org/licenses/) names it. |
 | `dependencies` | Optional: other flows of the same flowverse it calls, each with a version range. See [Dependencies](#dependencies). |
 
-Keys humanize does not know are ignored, so an index written for a later humanize still lists.
+Keys Humanize does not know are ignored, so an index written for a later Humanize still lists.
 
 **In the official flowverse.** Fork [humanfia/flowverse](https://github.com/humanfia/flowverse),
 add the manifest at `flows/<your-github-user>/review/0.1.0/flow.yaml`, and open a pull request.
@@ -325,7 +325,7 @@ installs `review` the same way, under whatever name they chose for it.
 | One flow per repository | Its variants included: see below |
 | The flow in a directory named after it | `review/`, holding the `__init__.py` with the `async` function marked `@flow`. Only this directory is installed, so the repository can hold tests, a README and a `pyproject.toml` beside it |
 | Or a single `.py` file | `review.py`, for a flow with nothing to bring along. It is installed as a directory of its own |
-| A name humanize does not ship | `[a-z][a-z0-9_]*`, and, listed bare, not `chat`, `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop` or `rlar`: a manifest naming one of those is skipped. Under a user any name goes: `you/chat` is yours |
+| A name Humanize does not ship | `[a-z][a-z0-9_]*`, and, listed bare, not `chat`, `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop` or `rlar`: a manifest naming one of those is skipped. Under a user any name goes: `you/chat` is yours |
 | A name starting with `_` | Is not a flow |
 
 **Variants are subflows of one module.** Two takes on one flow go in one directory as two
@@ -379,10 +379,10 @@ dependencies:
 A range is comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`) joined by `,`, all of which must hold;
 a bare version means `==`. Installing the flow installs the newest release of each dependency
 in range, a prerelease only where nothing else is, unless one already installed is in range.
-humanize refuses, saying why, an install with a cycle in it, one whose ranges no release
+Humanize refuses, saying why, an install with a cycle in it, one whose ranges no release
 satisfies, and one that would take another installed flow's dependency out of its range.
 Uninstalling a flow that another installed flow needs is refused too. The flows built into
-humanize are always there: never list them.
+Humanize are always there: never list them.
 
 A flow installed from a flowverse loads the others installed from it by the same names:
 `load("humanize1:rlcr")` inside an installed `recursive_lean_prover` finds the `humanize1`
@@ -431,7 +431,7 @@ where your edits are yours to keep, and from then on `review` in that project me
 `@local/review`. An installed flow is replaced whole by the next update.
 
 ::: danger Installing a flow is trusting its repository with this machine
-A flow is Python. Once it is installed, humanize imports it whenever it lists flows, and every
+A flow is Python. Once it is installed, Humanize imports it whenever it lists flows, and every
 agent it drives runs with approvals bypassed. Review in the official flowverse lowers the risk;
 it does not remove it. Adding a flowverse runs nothing: an index holds no code. Read
 [Security](/user/security) first.
@@ -452,7 +452,7 @@ it does not remove it. Adding a flowverse runs nothing: an index holds no code. 
 | `git+<url>[@<rev>][#<subdir>][:<name>]` | the flow in `<subdir>` of a repository (its root when left out), at `<rev>` if given, fetched for the run |
 
 A bare name is looked for **nearest first**: this project's `.hmz/flows`, then
-`~/.hmz/flows`, then the rest. So a flow of your own can stand in for one of humanize's by
+`~/.hmz/flows`, then the rest. So a flow of your own can stand in for one of Humanize's by
 taking its name: `.hmz/flows/chat/` is what `-f chat` runs in that project. A name nothing
 installed answers to is refused, saying where it could be installed from. `you/review` and
 `@yours/review` name one place, so nothing can stand in for them.
@@ -526,7 +526,7 @@ then move the directory into a repository of its own to publish it.
   hmz exec: error: flows/review: a path starts with ./, / or ~, as ./flows/review does
   ```
 - **Do nothing at import time** beyond defining things: no network calls, no files written.
-  humanize imports every flow it lists, in `/flow` and as `$` completes a name, so a flow that
+  Humanize imports every flow it lists, in `/flow` and as `$` completes a name, so a flow that
   acts on import acts for somebody who was only looking.
 - **Edits inside an installed flow go away** at the next update. Copy the flow here first.
 - **A name that is not there** is refused before anything runs:
@@ -534,7 +534,7 @@ then move the directory into a repository of its own to publish it.
 
 ## Next steps
 
-- [Flows](https://humanfia.ai/flows/): every flow humanize offers, with the shape of each drawn
+- [Flows](https://humanfia.ai/flows/): every flow Humanize offers, with the shape of each drawn
 - [humanfia/flowverse's CONTRIBUTING.md](https://github.com/humanfia/flowverse/blob/main/CONTRIBUTING.md):
   listing a flow in the official flowverse
 - [Testing a flow](/weaver/testing-flows)

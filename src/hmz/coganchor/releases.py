@@ -1,7 +1,7 @@
-"""Which release of humanize is the newest, as PyPI says, kept for this machine a day at a time.
+"""Which release of Humanize is the newest, as PyPI says, kept for this machine a day at a time.
 
 What `hmz update` installs and what the interfaces say is out. Asked of PyPI's JSON API, whose
-`info.version` is the newest release that is not a pre-release, and kept in humanize's
+`info.version` is the newest release that is not a pre-release, and kept in Humanize's
 directory for this machine, so that neither interface reaches for the network more than once
 a day, nor waits on it at all: :func:`newer` reads what was kept, and :func:`refresh` is asked
 for by whoever has a thread to spare.

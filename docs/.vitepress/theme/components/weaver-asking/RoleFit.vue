@@ -158,7 +158,7 @@ const wires = computed<Wire[]>(() => {
   <div class="fit hmz-panel">
     <div class="bar">
       <span class="what">Which CLIs can fill this role?</span>
-      <span class="note">worked out from the table humanize checks roles against; nothing runs</span>
+      <span class="note">worked out from the table Humanize checks roles against; nothing runs</span>
     </div>
 
     <div class="body">

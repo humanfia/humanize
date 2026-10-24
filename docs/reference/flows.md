@@ -39,7 +39,7 @@ hmz exec -f twice -a builder=claude/claude-opus-5:high -p budget.cost=5 "add a -
 
 | Module | Status |
 | --- | --- |
-| `hmz.flows` | Stable. Importing it loads pydantic and no other part of humanize. |
+| `hmz.flows` | Stable. Importing it loads pydantic and no other part of Humanize. |
 | `hmz.sdk`, `hmz.sdk.fakes` (as `from hmz.sdk import fakes`) | Stable. See [SDK](/reference/sdk) and [Testing a flow](#testing-a-flow). |
 | `hmz.runtime`, `hmz.runtime.flowing` | Internal. May change in any release. Named on this page only where a behaviour is defined there. |
 
@@ -539,7 +539,7 @@ any harness that serves them.
 | When a flow calls another | What the caller hands over covers the callee's declaration. | [`RequirementError`](#requirementerror) leaves; see [What the called flow is handed](#what-the-called-flow-is-handed) |
 | At every use | The view's grant contains the mixin for the operation. | [`CapabilityNotGranted`](#capabilitynotgranted) |
 
-Of the flows humanize ships in the package, only [`chat`](#the-flow-in-the-package) is marked
+Of the flows Humanize ships in the package, only [`chat`](#the-flow-in-the-package) is marked
 *full view*: each agent role is granted every mixin its harness serves, whatever it declares.
 
 ## Permissions {#what-each-agent-may-do}
@@ -600,7 +600,7 @@ for root, which gets those temporary directories and `/run/user/0` and keeps the
 
 - read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/sys`
   (on macOS `/System` and `/private/var/select` instead of `/lib*` and `/sys`), its own
-  programs and install trees, and the Python running humanize;
+  programs and install trees, and the Python running Humanize;
 - write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU and RDMA nodes;
   on macOS `/dev/ttys*`), `/proc` on Linux (CUDA names a thread through
   `/proc/self/task/<tid>/comm` as it starts), its own state and sign-in directories (on macOS also the login keychain,
@@ -624,7 +624,7 @@ with [`HarnessSandboxed`](#harnesssandboxed) when it opens:
 
 | Cause | Refused where |
 | --- | --- |
-| no Landlock (Linux < 5.13), or macOS where humanize already runs inside a sandbox | any fence other than all four scopes `ALL` with `online` `ALL` |
+| no Landlock (Linux < 5.13), or macOS where Humanize already runs inside a sandbox | any fence other than all four scopes `ALL` with `online` `ALL` |
 | Linux < 6.7 | `online` `NONE` |
 | wrapper cannot trace its children (a container's default seccomp profile; Yama `ptrace_scope` 2 or 3) | `online` `NONE` |
 
@@ -679,13 +679,13 @@ docker's default seccomp profile can hold `online` `ALL` but not `NONE`. See
 
 - `bypass` is the CLI's no-approval mode: Codex `danger-full-access` with approval `never`;
   Claude Code `bypassPermissions`. Where a managed policy forbids that, the CLI runs at the
-  most permissive mode left that no model reviews and humanize answers every request yes:
+  most permissive mode left that no model reviews and Humanize answers every request yes:
   Claude Code `acceptEdits`, Codex the `workspace-write` sandbox with approval `on-request`.
 - A hook only an asking CLI can deliver changes how it is started. Claude Code runs at
   `manual` instead of `bypassPermissions` while `on_permission_request` is hung. Codex runs with approval
   policy `untrusted` while `on_permission_request` is hung, and enables its
   `default_mode_request_user_input` feature while `on_ask_user` is hung. Kimi Code runs at
-  coganchor's `auto` rung (Kimi's `yolo`) while either is hung. humanize answers yes unless the
+  coganchor's `auto` rung (Kimi's `yolo`) while either is hung. Humanize answers yes unless the
   hook says no.
 - `online` also switches the CLI's own web tools (on for `ALL`, off for `NONE`) where the CLI
   can be told; where it cannot (`cursor-agent`, `mcode`, `pi`, `omp`, `agy`, `acp`) the cut
@@ -1143,7 +1143,7 @@ the cluster confines it to; nothing declared is asked for, leaving the partition
 runtime without that much left of its `cpus`, `memory` or `max_jobs`, or a job no node takes
 within its `max_wait`, is refused with `ResourceUnmet`
 ([how](/reference/machines#slurm-environments)). Everything derived from a `slurm`
-environment is on the job's node, under humanize's home there.
+environment is on the job's node, under Humanize's home there.
 
 ### Worktrees, copies and scratch directories {#worktrees-copies-and-scratch-directories}
 
@@ -1159,7 +1159,7 @@ without is refused before anything runs, as for [`GitEnvMixin`](#snapshots-and-r
 
 | Method | Behaviour | Raises |
 | --- | --- | --- |
-| `derive_worktree` | `git worktree add` of the repository the workdir is in, `ref` checked out detached (default: what the workdir has checked out), at `dir` (relative to the workdir or absolute; default a fresh directory under `envs/…/worktrees/`). Not removed by humanize. | `WorktreeError`: not in a repository, unknown ref, directory taken |
+| `derive_worktree` | `git worktree add` of the repository the workdir is in, `ref` checked out detached (default: what the workdir has checked out), at `dir` (relative to the workdir or absolute; default a fresh directory under `envs/…/worktrees/`). Not removed by Humanize. | `WorktreeError`: not in a repository, unknown ref, directory taken |
 | `derive_temp_clone(id)` | A copy of the workdir (a reflink where the filesystem supports it). Same `id` from the same environment → same copy, made once. Needs no git, except to copy a workdir that is a linked worktree. | `TempCloneBusy` if another environment holds that id; `EnvError` if the copy fails |
 | `derive_scratch(id)` | An empty directory; same `id` → same directory. | `ScratchError` |
 | `destroy_temp_clone(id)`, `destroy_scratch(id)` | Remove now; no-op if absent. | `ScratchError` (scratch) |
@@ -1167,7 +1167,7 @@ without is refused before anything runs, as for [`GitEnvMixin`](#snapshots-and-r
 Copies and scratch directories are removed when the flow call that made them ends (after
 every call it started), with at most 30 s allowed for cleanup, unless the run keeps a journal
 (a [resumable](#a-flow-that-can-be-picked-up) run): then each is recorded in the journal and
-kept for `--resume`. Locations are under `envs/` in humanize's home on the machine that holds
+kept for `--resume`. Locations are under `envs/` in Humanize's home on the machine that holds
 them; see [Files](/reference/files).
 
 ### Snapshots and rewinding {#snapshots-and-rewinding}
@@ -1272,7 +1272,7 @@ and [`Agent.run`](#run)). They nest:
 | After any of the above | The budget stays spent: every later turn under it raises again. |
 
 Spending is read as the CLI reports it (polled every 1 s while the CLI is silent) and priced
-with humanize's [price table](/reference/files#h-prices-json), which a run with a finite `cost`
+with Humanize's [price table](/reference/files#h-prices-json), which a run with a finite `cost`
 limit brings up to date before its first turn when it is missing or older than 24 h, however
 the run was started. A spend that is not a finite number, which a price list malformed
 mid-run leaves, raises `CostExceeded` on the next turn, whatever the budget.
@@ -1696,7 +1696,7 @@ dependencies:
 Other keys are ignored. A manifest that is unreadable, not a mapping, fails a rule above, or is
 missing from a version directory is **skipped**: listed with why (`name: …`,
 `version 0.2.0 is not the directory it is in, 0.1.0`,
-`rlar is built into humanize; nothing may be installed over it`,
+`rlar is built into Humanize; nothing may be installed over it`,
 `bob/kernel-flow is bob's, so it is listed under flows/bob/`,
 `bob/loop-flow is bob's; only humanfia's are listed bare here`) and never an error. Hidden
 directories are not read.
@@ -1785,7 +1785,7 @@ keeps in its state is what its next turn needs: `stateful_ralph` its [session](#
 
 ### The official flowverse {#the-official-flowverse}
 
-The flows humanize offers besides the ones in the package, listed by
+The flows Humanize offers besides the ones in the package, listed by
 [humanfia/flowverse](https://github.com/humanfia/flowverse), each released from a repository of
 its own (`humanfia/<name>-flow`), and run once [installed](#installing). Every flow here also
 has a `workspace: LocalEnv` role; `human` is an `Outworlder`. None declares a budget of its own.
@@ -1975,7 +1975,7 @@ environments are probed, before the flow is called, so a run refuses as a line t
 rather than failing at a session; a session started later (a callee's, under a narrower
 permission) is still refused as its first turn starts.
 Where each session's harness went is recorded in the epic (`opened.harness`: `local`, `env`,
-`<backend>:<name>`; `self` from an earlier humanize is read as `env`), for sessions whose work
+`<backend>:<name>`; `self` from an earlier Humanize is read as `env`), for sessions whose work
 was on another machine.
 
 ### Command-line refusals {#command-line-refusals}
@@ -2013,7 +2013,7 @@ Every exception the flow API raises derives from `FlowException`, in three branc
 
 ```
 FlowException
-├── FlowRuntimeError                  humanize refused something, or a budget ran out
+├── FlowRuntimeError                  Humanize refused something, or a budget ran out
 │   ├── FlowNotFound · FlowRefError (ValueError) · FlowDefinitionError · FlowLoadConflict
 │   ├── RequirementError              what was given does not meet the declaration; nothing ran
 │   │   └── MissingRole · CapabilityMissing · PermissionTooNarrow · ResourceUnmet · HarnessMismatch
@@ -2043,7 +2043,7 @@ FlowException
 | Class | Bases | Raised when |
 | --- | --- | --- |
 | <code id="flowexception">FlowException</code> | `Exception` | root |
-| <code id="flowruntimeerror">FlowRuntimeError</code> | `FlowException` | humanize refused something, or a limit ran out; also a flow called outside a run |
+| <code id="flowruntimeerror">FlowRuntimeError</code> | `FlowException` | Humanize refused something, or a limit ran out; also a flow called outside a run |
 | <code id="flownotfound">FlowNotFound</code> | `FlowRuntimeError` | a ref names no flow; a `git+` repository cannot be fetched |
 | <code id="flowreferror">FlowRefError</code> | `FlowRuntimeError`, `ValueError` | a ref is malformed, or relative with nothing to be relative to |
 | <code id="flowdefinitionerror">FlowDefinitionError</code> | `FlowRuntimeError` | a flow is written wrong ([tables](#flow)); its module fails to import; a skill a role names is missing |

@@ -1,5 +1,5 @@
 // `#/epics/import?path=<file>`: an epic read back in from a `.hmzepic` already on this machine,
-// by its path, and its Exomyth opened in place of this address -- what the desktop app opens a
+// by its path, and its Exomyth opened in place of this address -- what Humanize Desktop opens a
 // file with.
 // In a browser it is asked first: any page elsewhere can link here, and the page would carry
 // its key.

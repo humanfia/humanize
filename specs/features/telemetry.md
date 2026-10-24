@@ -108,10 +108,10 @@ logged message, no timing data, and no profiles.
 ### 4.1 What is sent
 
 **4.1.1** A report MUST hold nothing beyond what the following list states, which hmz MUST show
-in these words: "the error and where in humanize it occurred"; "which flow was running, and what
+in these words: "the error and where in Humanize it occurred"; "which flow was running, and what
 each agent was configured to run"; "which coding agents are installed, and account names";
 "which skills and flowverses are active, by name"; "that a run went five minutes without any
-sign of progress"; "the version of humanize, of Python, and the operating system and architecture".
+sign of progress"; "the version of Humanize, of Python, and the operating system and architecture".
 
 **4.1.2** A crash report MUST hold the error's type, its message after §4.3, and its stack, each
 frame named as §4.4 defines.
@@ -135,7 +135,7 @@ hmz was doing, `a flow`.
 
 **4.2.1** hmz MUST show the following list in these words, and MUST NOT send anything it names:
 "nothing you typed: no task, prompt, or command"; "no agent output, and nothing from any
-transcript or session log"; "no files, directory names, or paths outside humanize itself"; "no
+transcript or session log"; "no files, directory names, or paths outside Humanize itself"; "no
 keys, tokens, or account credentials -- not even environment variable names".
 
 **4.2.2** A report MUST NOT hold the command line of the reporting process.
@@ -171,7 +171,7 @@ states of itself by `A command `.
 **4.4.1** A frame in hmz's own package or in a library installed beside it MUST be named by its
 path relative to that installation root, with its line number.
 
-**4.4.2** A frame in any other file MUST be named `<not humanize>` with its line number, and MUST
+**4.4.2** A frame in any other file MUST be named `<not Humanize>` with its line number, and MUST
 NOT state its file, module or function.
 
 ## 5. Destination

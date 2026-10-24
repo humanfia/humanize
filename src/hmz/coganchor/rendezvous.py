@@ -2,12 +2,12 @@
 
 An anchor reaches a target by starting the serving half itself -- over `ssh`, over `docker
 exec`, as a child here -- and the channel is the pipe it started it down. That answer runs out
-the moment the two halves are on two *different* machines that humanize only talks to one at a
+the moment the two halves are on two *different* machines that Humanize only talks to one at a
 time: the agent runs on one, its work lands on the other, and nothing either of them has says
-how to reach the other one. Both can reach humanize, which is the whole of what this is built
+how to reach the other one. Both can reach Humanize, which is the whole of what this is built
 on.
 
-So humanize holds the meeting. A ticket names it -- one secret, one session -- and each half
+So Humanize holds the meeting. A ticket names it -- one secret, one session -- and each half
 dials this broker with it and says which half it is. Three things follow, in the order they
 are tried, and a session takes the first that works:
 
@@ -20,7 +20,7 @@ does, and it is one line of JSON here because it is one attribute of an accepted
 **It starts them at each other at the same instant.** Both halves open outward from the port
 they dialled here from, and both listen on it, and they do it at once. Where a NAT is
 address-independent -- which the common ones are -- each side's outbound attempt opens the
-hole its peer's attempt arrives through, and the two meet in the middle with humanize no
+hole its peer's attempt arrives through, and the two meet in the middle with Humanize no
 longer in the path. A session that gets this far pays nothing per byte for having been
 introduced.
 
@@ -290,7 +290,7 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
 
 
 class Broker:
-    """The meeting place: what humanize is to two machines that cannot reach each other.
+    """The meeting place: what Humanize is to two machines that cannot reach each other.
 
     One object per listening address. Started once and left running, it costs a thread per
     half currently being introduced and nothing at all per session already under way -- a
@@ -692,7 +692,7 @@ def _pour(source: socket.socket, sink: socket.socket) -> None:
             sink.shutdown(socket.SHUT_WR)
 
 
-# ------------------------------------------------------------------- the broker humanize is
+# ------------------------------------------------------------------- the broker Humanize is
 
 
 #: The one this process runs, made when something first needs it and kept afterwards. A

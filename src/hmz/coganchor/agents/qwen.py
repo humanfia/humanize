@@ -77,7 +77,7 @@ _SERVER = "humanize"
 
 #: What a turn hmz drives defaults to, and the two places Qwen Code itself says otherwise:
 #: `general.preventSystemSleep` is on unless it is told, and `general.enableAutoUpdate` is
-#: read as on unless it is told `false`. So both of these are humanize's answer rather than
+#: read as on unless it is told `false`. So both of these are Humanize's answer rather than
 #: the CLI's, and `QwenCodeAgentConfig.headless_defaults` is where an install takes them back.
 #:
 #: Neither is about the work, and both are about there being nobody at a terminal: one keeps
@@ -86,7 +86,7 @@ _SERVER = "humanize"
 #: fetch and install a new CLI under a conversation the running one opened, so that a flow
 #: three turns in is suddenly talking to a version whose protocol, flags and settings schema
 #: nothing here was read against. An unattended turn has nobody to notice either, which is
-#: why this is the one place the default is humanize's and not the CLI's.
+#: why this is the one place the default is Humanize's and not the CLI's.
 #:
 #: Said in the virtual home's `settings.json` only where the user's own says nothing of
 #: either, so a person who has configured either still gets what they configured.
@@ -106,12 +106,12 @@ _VERSION = {"$version": 4}
 
 #: Where V8 keeps what it compiled the CLI's bundle into, so the next process to start reads
 #: bytecode rather than compiling the whole bundle again. One directory for the machine, in
-#: humanize's directory for it rather than the home several machines may share: an entry is
+#: Humanize's directory for it rather than the home several machines may share: an entry is
 #: keyed by the file, its bytes and the Node version, so two flows, two agents and two
 #: installed versions share it without reading each other's. Node makes it if it is not there,
 #: and a missing or unreadable entry is a compile rather than a failure.
 #:
-#: Node itself writes nothing unless this is set, so a cache is humanize's choice and not the
+#: Node itself writes nothing unless this is set, so a cache is Humanize's choice and not the
 #: runtime's: `QwenCodeAgentConfig.compile_cache` is where an install declines the directory
 #: and takes the compile back.
 _COMPILED = "NODE_COMPILE_CACHE"
@@ -206,7 +206,7 @@ _REFUSED = re.compile(r"^\[API Error:(?P<said>.*)\]$", re.DOTALL)
 #: What Qwen Code says of a turn held to `--json-schema` whose model wrote its answer out as
 #: text rather than handing it to the `structured_output` tool the flag adds. The words are
 #: still the answer, and whether they are the shape is for whoever asked to check -- which
-#: humanize does of every shaped turn -- so this one refusal is not a failed turn: a model
+#: Humanize does of every shaped turn -- so this one refusal is not a failed turn: a model
 #: that answers `{"total": 42}` in prose has answered, and refusing it is refusing the shape
 #: for the channel it came down.
 _UNSHAPED = "Model produced plain text instead of calling the structured_output tool"
@@ -1001,7 +1001,7 @@ class QwenCodeAgentConfig(AgentConfig):
 
     The three below are every place this driver settles something Qwen Code would otherwise
     have settled for itself, so that an install which sets none of them can read what it is
-    getting instead of finding out. Two of them default to humanize's answer rather than the
+    getting instead of finding out. Two of them default to Humanize's answer rather than the
     CLI's, and say why; the third is the CLI's own.
 
     Attributes:
@@ -1015,7 +1015,7 @@ class QwenCodeAgentConfig(AgentConfig):
         Off leaves the layer unwritten and Qwen Code's own answer standing. Either way a
         person who has configured either, at any layer of their own, still wins.
       compile_cache: Whether to point Node at one directory for what it compiled the CLI's
-        bundle into. On, which is again humanize's answer and not Node's -- Node caches
+        bundle into. On, which is again Humanize's answer and not Node's -- Node caches
         nothing unless it is told where -- because a session here is a Node process a turn,
         and eight starting at once compile the same megabytes eight times. Off takes the
         compile back. A `NODE_COMPILE_CACHE` the flow or the provider already set wins over

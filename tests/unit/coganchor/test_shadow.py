@@ -427,7 +427,7 @@ def test_an_empty_directory_is_taken(tmp_path: Path) -> None:
 def test_a_directory_of_somebody_elses_files_is_refused(tmp_path: Path) -> None:
     (tmp_path / "m").mkdir()
     (tmp_path / "m" / "precious").write_text("x")
-    with pytest.raises(FileExistsError, match="not an humanize mirror"):
+    with pytest.raises(FileExistsError, match="not a Humanize mirror"):
         prepare_shadow_root(str(tmp_path / "m"), target="ssh://a")
     prepare_shadow_root(str(tmp_path / "m"), target="ssh://a", force=True)
 

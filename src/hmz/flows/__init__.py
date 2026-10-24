@@ -37,7 +37,7 @@ which are :mod:`hmz.coganchor.faking`'s own -- one type each, whichever side hol
 objects a flow is handed are the runtime's, and answer to these structurally. Three things here
 do run: :func:`flow`, :func:`load` and `Outworlder.new`, each of which hands its call to
 :mod:`hmz.runtime.flowing` when it is made -- so importing this costs pydantic and nothing of
-humanize's own but that one light module.
+Humanize's own but that one light module.
 """
 
 from __future__ import annotations

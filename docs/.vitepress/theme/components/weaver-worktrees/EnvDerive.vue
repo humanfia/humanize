@@ -3,7 +3,7 @@
 // workspace (`LocalEnv`, the run's own directory, where a turn given no `env=` works) a flow
 // derives others on the same machine, each kind granted by a mixin on the role's type
 // (src/hmz/flows/envs.py): `derive_subdir` needs none, `derive_worktree` needs
-// `GitWorktreeEnvMixin` (detached at `ref`, never removed by humanize),
+// `GitWorktreeEnvMixin` (detached at `ref`, never removed by Humanize),
 // `derive_temp_clone(id)` needs `TemporaryClonedDirEnvMixin` (a copy as it is, uncommitted
 // changes too) and `derive_scratch(id)` needs `ScratchDirEnvMixin` (empty), both removed when
 // the flow ends; `snapshot` and `rewind` need `GitEnvMixin`. A call the role did not declare
@@ -342,7 +342,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="9 / 16"
-    label="Worktrees, copies and scratch. From the workspace, the run's own directory, a flow derives other environments on the same machine, each kind granted by a mixin on the role's type: derive_subdir needs none; a call the role did not declare raises CapabilityNotGranted. parts derives three worktrees with derive_worktree(ref='main'), which needs GitWorktreeEnvMixin, each detached at main, and takes a turn in each at once, every run saying where it works with env=tree. guarded takes snapshot('before-task'), which needs GitEnvMixin, then a turn with no env=, which works in the workspace: it edits calc.py and adds NOTES.md. exec of the check exits 1 with an AssertionError, and rewind(before) puts the workspace back exactly: the edit undone, NOTES.md gone. A temporary clone, a copy of the workdir as it is, with TemporaryClonedDirEnvMixin, and an empty scratch directory, with ScratchDirEnvMixin, are removed when the flow ends; worktrees and snapshots are never removed by humanize."
+    label="Worktrees, copies and scratch. From the workspace, the run's own directory, a flow derives other environments on the same machine, each kind granted by a mixin on the role's type: derive_subdir needs none; a call the role did not declare raises CapabilityNotGranted. parts derives three worktrees with derive_worktree(ref='main'), which needs GitWorktreeEnvMixin, each detached at main, and takes a turn in each at once, every run saying where it works with env=tree. guarded takes snapshot('before-task'), which needs GitEnvMixin, then a turn with no env=, which works in the workspace: it edits calc.py and adds NOTES.md. exec of the check exits 1 with an AssertionError, and rewind(before) puts the workspace back exactly: the edit undone, NOTES.md gone. A temporary clone, a copy of the workdir as it is, with TemporaryClonedDirEnvMixin, and an empty scratch directory, with ScratchDirEnvMixin, are removed when the flow ends; worktrees and snapshots are never removed by Humanize."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <g class="world">

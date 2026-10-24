@@ -77,12 +77,12 @@ const turn = [
 
 # Settings — `/settings`
 
-Everything humanize remembers is in one place: `/settings`, a screen of its own. It holds
+Everything Humanize remembers is in one place: `/settings`, a screen of its own. It holds
 what is true of this machine, the accounts agents run as, where a turn goes when it cannot
 run, the machines a flow's environments go on, and what this directory remembers. It works with the keys and with the mouse alike.
 
 ::: info At a glance
-- **You will** change how humanize behaves on this machine and in this directory, and manage
+- **You will** change how Humanize behaves on this machine and in this directory, and manage
   the accounts, machines and fallbacks your flows use.
 - **Use it when** you want to see the working, add an API key or a second account, put a
   flow on another machine, or keep a run going when a model fails.
@@ -100,7 +100,7 @@ run, the machines a flow's environments go on, and what this directory remembers
 ## How it works
 
 `/settings` opens on nine pages and nothing else, each a card saying what is in it. The first
-eight run from the broadest to the nearest: what is true wherever you run humanize and which of
+eight run from the broadest to the nearest: what is true wherever you run Humanize and which of
 its epics it tells you of, which machines it reaches, who your agents are and what takes over
 when one fails, where their work goes and where its epics are kept, and the one directory open
 now. The last is what the epics spent.
@@ -110,7 +110,7 @@ straight into the one named, and the word is offered as you type it:
 
 | Page | `/settings …` | What it holds |
 | --- | --- | --- |
-| [**General**](#general) | `general` | whether the screen [shows the working](#details), which agent `/btw` talks to, and whether humanize reports what goes wrong |
+| [**General**](#general) | `general` | whether the screen [shows the working](#details), which agent `/btw` talks to, and whether Humanize reports what goes wrong |
 | [**Notifications**](#notifications) | `notifications` | which epics on this machine you are told of, and whether the terminal's bell and your system tell you too |
 | [**Daemons**](#daemons) | `daemons` | this machine's daemon and other machines', reached over ssh, and how each stands |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
@@ -206,7 +206,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 <Term title="/settings">
 
 <pre>  <span class="m">hmz ›</span> <span class="p b">/settings</span>
-  <span class="m">Every setting humanize keeps. What you change is held until you save it.</span>
+  <span class="m">Every setting Humanize keeps. What you change is held until you save it.</span>
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
   <span class="sel"> ⚙  <b>General</b>                                    details off · reports off </span> <span class="n">1</span>
@@ -240,7 +240,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 <Term title="/settings › General">
 
 <pre>  <span class="m">hmz › /settings ›</span> <span class="p b">General</span>
-  <span class="m">How humanize behaves on this machine, in every directory.</span>
+  <span class="m">How Humanize behaves on this machine, in every directory.</span>
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
    <span class="p">Display</span>
@@ -253,7 +253,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 
    <span class="p">Privacy</span>
    <b>Error reports</b>                                               <span class="m">○ off ▾</span>
-     <span class="m">send error reports to humanize</span>
+     <span class="m">send error reports to Humanize</span>
    ────────────────────────────────────────────────────────────────────────
    <b>What is sent</b>                                                      <span class="m">▸</span>
      <span class="m">what error reports include and exclude</span>
@@ -271,7 +271,7 @@ and <kbd>enter</kbd> on **Save**:
 <Term title="/settings › General">
 
 <pre>  <span class="m">hmz › /settings ›</span> <span class="p b">General</span>                         <span class="y">● unsaved changes</span> <span class="n">5</span>
-  <span class="m">How humanize behaves on this machine, in every directory.</span>
+  <span class="m">How Humanize behaves on this machine, in every directory.</span>
   <span class="m">…</span>
    <b>Details</b>                                                      <span class="g">● on ▾</span>
      <span class="m">show every tool call and all of the thinking</span>
@@ -316,7 +316,7 @@ about.
 | --- | --- | --- |
 | Display | Details | whether the screen [shows the working](#details): every tool call and all of the thinking |
 | Agents | /btw The Epic | the agent that answers a side question asked of The Epic, about a whole epic ([`/btw`](/user/btw)): `none`, the one you chose, or `another…`, which chooses its CLI, account, model and effort. With `none`, only a conversation can be asked. It takes effect the next time you enter btw mode. |
-| Privacy | Error reports | whether humanize [reports what goes wrong](/user/reporting) to its developers |
+| Privacy | Error reports | whether Humanize [reports what goes wrong](/user/reporting) to its developers |
 | Privacy | What is sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 
 ### Details
@@ -341,7 +341,7 @@ With details on, look for:
 Turning it on shows what arrives from then on. What scrolled past while it was off stays
 hidden, but the run's [trace](/user/tracing) has all of it.
 
-A yellow `●` line is humanize saying what it is doing about a turn: waiting out a rate limit,
+A yellow `●` line is Humanize saying what it is doing about a turn: waiting out a rate limit,
 carrying on as another account, cutting a turn off. It shows either way, because it is what
 tells a turn that is waiting apart from one that has hung.
 
@@ -605,7 +605,7 @@ agent session`: an agent picks the change up when it next opens a session, and a
 already running keeps the account it started with.
 
 Under a CLI that has accounts, the last row is `as local`: the CLI as you signed it in
-yourself. humanize keeps no credentials for it, so its menu offers nothing and says why.
+yourself. Humanize keeps no credentials for it, so its menu offers nothing and says why.
 
 ### One account, several CLIs
 
@@ -643,7 +643,7 @@ the model you want is missing, or when a failed turn says the list is out of dat
 An account does not say where a failed turn goes. That is said on the [Fallback](#fallback)
 page, against a *place*: a CLI, an account and a model together. To carry on under another
 account of the same CLI, write a rule from `claude@subscription/claude-opus-5` to
-`claude@key/claude-opus-5`. A `fallback` key an older humanize wrote into an account's
+`claude@key/claude-opus-5`. A `fallback` key an older Humanize wrote into an account's
 `provider.json` is ignored, and dropped the next time the account is saved.
 
 ### Good to know {#accounts-good-to-know}
@@ -875,7 +875,7 @@ signing in again, a CLI to install, or a model list to refresh with **Check agai
 ::: details Antigravity (agy) fails with nothing said
 agy exits with `Agent execution terminated due to error` and writes the real status only to
 its own log, `~/.gemini/antigravity-cli/cli.log` or `~/.gemini/antigravity-cli/log/cli-*.log`.
-humanize reads the end of that log when the output says nothing, so a rate-limited agy turn is
+Humanize reads the end of that log when the output says nothing, so a rate-limited agy turn is
 still treated as one. Look there yourself when an agy turn fails with no reason given.
 :::
 
@@ -1004,7 +1004,7 @@ answered, or why it could not be reached.
 | host | The machine: a name or an address. `user@host:port` is taken apart into the rows below. |
 | name | What `-e` and `/flow` call it. Written in after the host until you type one; never one already saved. |
 | user, port | Who to log in as, and the port. Blank is your ssh config's, or ssh's own. |
-| identity file | The key, by its path. humanize never reads what is in it. |
+| identity file | The key, by its path. Humanize never reads what is in it. |
 | proxy jump | The host it is reached through (`ProxyJump`). |
 | options | Anything else ssh is told, `KEYWORD=VALUE` with a comma between two: `ServerAliveInterval=15, Compression=yes`. A setting with a row of its own is refused here. |
 | workdir | Where it works when `-e` names no directory: `/abs/path`, or `~/path` under the login's home. |
@@ -1258,7 +1258,7 @@ carries on with what it opened with.
   - how the flow itself was [set up](/reference/tui), what a run of it may spend, and
     whether a run of it is [profiled](#whether-a-run-of-it-is-profiled).
 
-Each flow's setup is kept under the name the flow is offered by: `ralph_loop` for one humanize
+Each flow's setup is kept under the name the flow is offered by: `ralph_loop` for one Humanize
 ships, `@local/twice` for a project flow, `@user/twice` for a personal one. Within a flow, each
 agent is kept under its role name. A flow that gains a new role does not hand an existing
 role's model to it.
@@ -1338,7 +1338,7 @@ account.
 
 ### Every turn fails with `no claude provider called '…'`
 
-An agent names an account that is not there, perhaps one you removed. humanize never runs it as
+An agent names an account that is not there, perhaps one you removed. Humanize never runs it as
 you instead. Choose another account on the agent's `account` row in `/flow`, or put the account
 back on the Accounts page.
 

@@ -19,7 +19,7 @@ import { usePalette } from '../../motion/palette'
 import { useScene } from '../../motion/useScene'
 
 const BEATS = [
-  'An Outworlder role: humanize fills it, not -a',
+  'An Outworlder role: Humanize fills it, not -a',
   'human.run shows the person the answer',
   'What they type is the next prompt',
   'An empty line ends while said:',
@@ -159,7 +159,7 @@ const scene = useScene({
     tl.set(typed, { text: '' }, 0)
     tl.set(tcaret, { attr: { x: typedX.value } }, 0)
 
-    // 0 · the person is a role; humanize fills it, and naming it with -a is refused.
+    // 0 · the person is a role; Humanize fills it, and naming it with -a is refused.
     tl.addLabel('beat-0', 0)
     tl.fromTo(one('.card'), { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.6 }, 0.1)
     tl.to(at('.code-line'), { opacity: 0.55, duration: 0.4, stagger: 0.08 }, 0.3)
@@ -246,7 +246,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="4 / 7"
-    label="The person as an agent. The flow talk declares human: Outworlder. humanize fills that role itself, never -a: naming it with -a is refused with hmz exec: error: talk: 'human' is assigned automatically by the runtime and cannot be set with -a. In the loop, the assistant answers; human.run shows the person that answer and waits for what they type; what they type, Now in one word., is the assistant's next prompt. The next answer is shown, the person enters an empty line, and while said: ends after two turns. When the person is away, under hmz exec or with /afk on, run answers at once without asking: an empty string for text, the schema's defaults where every field has one, otherwise OutworlderAway. It runs no model and spends nothing: the assistant's cost goes up, the person's stays at zero."
+    label="The person as an agent. The flow talk declares human: Outworlder. Humanize fills that role itself, never -a: naming it with -a is refused with hmz exec: error: talk: 'human' is assigned automatically by the runtime and cannot be set with -a. In the loop, the assistant answers; human.run shows the person that answer and waits for what they type; what they type, Now in one word., is the assistant's next prompt. The next answer is shown, the person enters an empty line, and while said: ends after two turns. When the person is away, under hmz exec or with /afk on, run answers at once without asking: an empty string for text, the schema's defaults where every field has one, otherwise OutworlderAway. It runs no model and spends nothing: the assistant's cost goes up, the person's stays at zero."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <g class="world">
@@ -265,7 +265,7 @@ const scene = useScene({
           <rect class="card-box" :x="L.fill.x" :y="L.fill.y" :width="L.fill.w" height="66" rx="10" />
           <text class="fill-head" :x="L.fill.x + 12" :y="L.fill.y + 18">who fills the roles</text>
           <g class="row"><text class="row-line" :x="L.fill.x + 12" :y="L.fill.y + 36">assistant ← -a assistant=claude/…</text></g>
-          <g class="row row-bad"><text class="row-line" :x="L.fill.x + 12" :y="L.fill.y + 54">{{ 'human     ← ' }}<tspan class="ty">humanize</tspan>, never -a</text></g>
+          <g class="row row-bad"><text class="row-line" :x="L.fill.x + 12" :y="L.fill.y + 54">{{ 'human     ← ' }}<tspan class="ty">Humanize</tspan>, never -a</text></g>
         </g>
         <g v-for="(line, i) in ERROR" :key="i" class="err">
           <text class="err-text" :x="L.fill.x" :y="L.errY + i * 15">{{ line }}</text>

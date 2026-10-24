@@ -73,7 +73,7 @@ class Run:
 
     @property
     def chats(self) -> bool:
-        """Whether the flow is humanize's own `chat`, said by where it is, not by its name."""
+        """Whether the flow is Humanize's own `chat`, said by where it is, not by its name."""
         from hmz.runtime.flowing import privileged
 
         return privileged(self._runner.impl)
@@ -174,7 +174,7 @@ class Run:
         self._opened.append(callback)
 
     def noticed(self, callback: Callable[[str], None]) -> None:
-        """Has humanize's own word about the run told to `callback`, a line at a time.
+        """Has Humanize's own word about the run told to `callback`, a line at a time.
 
         Which is an environment moved off the runtime its `-e` named, and why: said before
         the flow is called, on the run's own loop.

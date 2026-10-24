@@ -507,7 +507,7 @@ def _detect() -> Arch:
     """
     if sys.platform != "linux":
         raise RuntimeError(
-            "humanize intercepts syscalls with a Linux seccomp filter and a ptrace "
+            "Humanize intercepts syscalls with a Linux seccomp filter and a ptrace "
             f"supervisor, and this host is {sys.platform!r}. {_UNAFFECTED} {_GET_A_LINUX}"
         )
     machine = platform.machine()
@@ -515,7 +515,7 @@ def _detect() -> Arch:
     if arch is None:
         supported = ", ".join(sorted(SUPPORTED_MACHINES))
         raise RuntimeError(
-            f"humanize has a register map for {supported}; this host reports {machine!r}, "
+            f"Humanize has a register map for {supported}; this host reports {machine!r}, "
             f"and interception needs an architecture-specific one. {_UNAFFECTED} "
             f"{_ANCHOR_FROM_ELSEWHERE}"
         )

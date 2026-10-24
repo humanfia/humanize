@@ -206,7 +206,7 @@ class ImageEnvMixin(Protocol):
 
     Said of a docker, swarm or Apple container environment only: one on this machine or over
     ssh is the machine it is, and the image says nothing of it. The image needs `/bin/sh` and
-    a Python of at least 3.12, which is what reaches into it; nothing else of humanize is put
+    a Python of at least 3.12, which is what reaches into it; nothing else of Humanize is put
     there, an sshd least of all.
 
     Attributes:

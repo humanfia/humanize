@@ -19,7 +19,7 @@ and a run of it reaches no network for its skills. A flow that was never install
 your own, a builtin, a VCS ref -- has them fetched as a run asks for them, into a clone kept
 in this machine's own place, `skills/<name>/`, and fetched again the next time.
 
-Nothing here installs anything into a CLI. What is fetched is put in a flow or where humanize
+Nothing here installs anything into a CLI. What is fetched is put in a flow or where Humanize
 keeps it, and a session lodges it in the virtual home its CLI is started in
 (:mod:`hmz.coganchor.homes`), never in the workspace. The skills the person at this machine
 installed are untouched, being theirs.

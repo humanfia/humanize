@@ -10,7 +10,7 @@ is a flow of its own, and each hands the next a file you can read and edit.
   review.
 - **You will end with** a draft, a plan and a working coding agent, as in the table below.
 - **Time:** an afternoon.
-- **You need** humanize and one signed-in coding agent CLI. Phase 3's builder must be Claude
+- **You need** Humanize and one signed-in coding agent CLI. Phase 3's builder must be Claude
   Code, Codex, Grok Build or Kimi Code; every other role runs on any backend, DeepSeek Harness
   included.
 :::
@@ -23,7 +23,7 @@ is a flow of its own, and each hands the next a file you can read and edit.
 
 ## Before you start
 
-- **Install humanize and sign in to a coding agent CLI.** See
+- **Install Humanize and sign in to a coding agent CLI.** See
   [Installation](/user/installation).
 - **Make one run first.** [Your first run](/user/first-run), or the
   [quickstart on the home page](/#run-a-flow), shows a flow working in a scratch repository.
@@ -31,8 +31,8 @@ is a flow of its own, and each hands the next a file you can read and edit.
   [flowverse](/weaver/flowverses). Open `hmz`, type `/flow`, press **Install more…**, open
   `official` and install `humanize1`. `hmz exec` installs nothing. Leave with `/exit`.
 
-Using DeepSeek Harness? Add humanize's `[dsh]` extra, with the line for the way you installed
-humanize, and export your key before step 2:
+Using DeepSeek Harness? Add Humanize's `[dsh]` extra, with the line for the way you installed
+Humanize, and export your key before step 2:
 
 ::: code-group
 
