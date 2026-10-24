@@ -1,14 +1,14 @@
 # The Windows app
 
-The humanize app on Windows is [`hmz web`](/user/web) in a window of its own, as
-[on a Mac](/user/desktop). The difference is where `hmz` runs. humanize needs Linux or macOS,
+Humanize Desktop on Windows is [`hmz web`](/user/web) in a window of its own, as
+[on a Mac](/user/desktop). The difference is where `hmz` runs. Humanize needs Linux or macOS,
 so on Windows `hmz` runs in [WSL](https://learn.microsoft.com/windows/wsl/), in your default
 distribution. That distribution is **Local**: your epics, your repositories, uv, `hmz` and the
 coding agent CLIs all live there. The window, the tray icon, notifications and downloads stay
 on Windows.
 
 ::: info At a glance
-- **You will** have humanize in your Start menu and tray, opening on every epic in your WSL
+- **You will** have Humanize Desktop in your Start menu and tray, opening on every epic in your WSL
   distribution.
 - **Use it when** you work on Windows and would rather open an app than run `hmz web` in WSL
   and keep its terminal.
@@ -36,10 +36,10 @@ on Windows.
 
 1. Download `humanize-<version>-windows-x64-setup.exe` from the
    [latest release](https://github.com/humanfia/humanize/releases/latest).
-2. Run it. It installs humanize for you alone, so it asks for no administrator rights.
-3. Open humanize from the Start menu.
+2. Run it. It installs Humanize Desktop for you alone, so it asks for no administrator rights.
+3. Open Humanize Desktop from the Start menu.
 
-The first time, it says **Installing humanize**, with each step, while it installs uv and `hmz`
+The first time, it says **Installing Humanize CLI**, with each step, while it installs uv and `hmz`
 in WSL; from then on it shows its mark while `hmz web` starts, then the page, with the sidebar
 of your epics.
 
@@ -59,7 +59,7 @@ serves. Windows reaches that page on `127.0.0.1` by WSL's localhost forwarding.
   `hmz` and the coding agent CLIs are found as a WSL terminal finds them.
 - **Keep your repositories in WSL**, under your Linux home -- `~/src/project`, not
   `/mnt/c/Users/you/project`. Files on a Windows drive are reached from WSL through a slow
-  share, and locks and permissions there do not behave as Linux's do, which humanize relies on.
+  share, and locks and permissions there do not behave as Linux's do, which Humanize relies on.
   From Windows, Explorer reaches your WSL files under **Linux** in its sidebar, or at
   `\\wsl.localhost\<distro>`.
 - **It keeps its port**, as the macOS app does, so the page opens as you left it.
@@ -67,8 +67,8 @@ serves. Windows reaches that page on `127.0.0.1` by WSL's localhost forwarding.
   close buttons over its top right. Drag the window by any empty part of the top row, and
   double-click it to maximize; hovering the maximize button offers Windows' snap layouts.
 - **Closing the window is not quitting.** The window goes, `hmz web` keeps serving, and
-  humanize stays in the tray. Click the tray icon, or open humanize again, to bring the window
-  back. The tray icon's menu has **Show humanize**, **Check for Updates…**, **Documentation**
+  Humanize Desktop stays in the tray. Click the tray icon, or open Humanize Desktop again, to bring the window
+  back. The tray icon's menu has **Show Humanize Desktop**, **Check for Updates…**, **Documentation**
   and **Quit**; **Quit** stops `hmz web` too.
 - **Links to elsewhere open in your browser**, and an export is saved to your Windows
   **Downloads** folder and shown in Explorer.
@@ -99,7 +99,7 @@ rest. Otherwise, keep the app open, minimized or in the tray, while epics run.
 ## Opening a `.hmzepic`
 
 The app is what a `.hmzepic` -- an [exported epic](/user/export) -- opens with. Double-click one
-in Explorer, or choose **Open with → humanize**: the app imports it, as **Import** on the page
+in Explorer, or choose **Open with → Humanize Desktop**: the app imports it, as **Import** on the page
 does, and opens it on its [Exomyth](/user/web#exomyth). A file on a Windows drive, or one in
 WSL reached as `\\wsl.localhost\<distro>\…`, is found in WSL at the path it has there. Opened
 while the app is starting, or while it is already open, it is imported once the page is there.
@@ -108,15 +108,15 @@ while the app is starting, or while it is already open, it is imported once the 
 
 The page's [notifications](/user/web#notifications) show in the window's bell and toasts as in
 a browser, and, while the window is hidden or not in front, as Windows notifications from
-humanize. Click one: the window comes back, on the epic it is about. Which kinds appear is set
-in **Settings → Notifications**; Windows' own **Settings → System → Notifications → humanize**
+Humanize Desktop. Click one: the window comes back, on the epic it is about. Which kinds appear is set
+in **Settings → Notifications**; Windows' own **Settings → System → Notifications → Humanize Desktop**
 decides how they are shown, or silences them.
 
 ## Updates
 
 The app updates itself as the macOS app does: see [Updates](/user/desktop#updates). To look now,
 choose **Check for Updates…** from the tray icon's menu. **Restart** installs the new release
-and opens humanize again on it; **Later** installs it when you quit. Once the new app opens, it
+and opens Humanize Desktop again on it; **Later** installs it when you quit. Once the new app opens, it
 updates `hmz` in WSL to its own version too.
 
 ### Check it worked
@@ -159,13 +159,13 @@ PowerShell:
 
 ```powershell
 $env:HUMANIZE_HMZ = '/home/you/src/humanize/.venv/bin/hmz'
-& "$env:LOCALAPPDATA\humanize\humanize.exe"
+& "$env:LOCALAPPDATA\Humanize Desktop\humanize.exe"
 ```
 
 ### `Failed` or `Stopped`
 
 `hmz web` exited, and the window shows what it said. **Retry** or **Restart** starts it again.
-The app's log has the rest, at `%LOCALAPPDATA%\ai.humanfia.humanize\logs\humanize.log`.
+The app's log has the rest, at `%LOCALAPPDATA%\ai.humanfia.humanize\logs\Humanize Desktop.log`.
 
 ### My epics stopped after I quit the app
 
@@ -173,7 +173,7 @@ WSL shut the distribution down: see [Your epics and WSL](#your-epics-and-wsl).
 
 ## Uninstall
 
-Quit humanize from its tray icon, then remove it in **Settings → Apps → Installed apps**. Its
+Quit Humanize Desktop from its tray icon, then remove it in **Settings → Apps → Installed apps**. Its
 own data -- its port and window, what the page remembers, and its log -- is in
 `%APPDATA%\ai.humanfia.humanize` and `%LOCALAPPDATA%\ai.humanfia.humanize`; delete both to
 forget it.
