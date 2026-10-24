@@ -498,7 +498,10 @@ pub fn on_exit<R: Runtime>(app: &AppHandle<R>) {
     };
     match update.install(bytes) {
         Ok(()) => log::info!("Humanize Desktop {} is installed", update.version),
-        Err(why) => log::error!("Humanize Desktop {} could not be installed: {why}", update.version),
+        Err(why) => log::error!(
+            "Humanize Desktop {} could not be installed: {why}",
+            update.version
+        ),
     }
 }
 
