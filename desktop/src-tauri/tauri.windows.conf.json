@@ -5,8 +5,8 @@
     "fileAssociations": [
       {
         "ext": ["hmzepic"],
-        "name": "humanize epic",
-        "description": "humanize epic",
+        "name": "Humanize epic",
+        "description": "Humanize epic",
         "role": "Viewer"
       }
     ],
