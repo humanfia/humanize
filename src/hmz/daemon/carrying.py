@@ -392,13 +392,13 @@ class Carrier:
                 name="humanize-control",
             ).start()
             return False
-        # Anything else is a reader speaking another protocol -- an older humanize's terminal,
+        # Anything else is a reader speaking another protocol -- an older Humanize's terminal,
         # reaching for a run held on a pseudoterminal -- told so rather than left waiting.
         with contextlib.suppress(OSError):
             reading.one.sendall(
                 frame(
                     GONE,
-                    b"held for frontends by a newer humanize; `hmz` of it reads it",
+                    b"held for frontends by a newer Humanize; `hmz` of it reads it",
                 )
             )
         self._gone(selector, reading)

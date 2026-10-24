@@ -8,12 +8,12 @@ runs is what somebody chose to install out of it, which is kept beside the clone
 `installed/`, and offered under the flowverse's name. Fetching an index again changes what may
 be installed, and never what runs.
 
-What a flow is called says which flowverse it is of. humanize's own are said as `official`
+What a flow is called says which flowverse it is of. Humanize's own are said as `official`
 lists them -- `aot`, `alice/kernel` -- and every other place's after an `@` and its name:
 `@theirs/review`, `@theirs/alice/kernel`, `@local/scheduler`. Anything starting with `.`, `/`
 or `~` is a path instead, and nothing else is.
 
-Three are always there, and none of them can be added or taken away. `official` is humanize's
+Three are always there, and none of them can be added or taken away. `official` is Humanize's
 own, and is there whether or not it has been fetched yet: a list that only mentioned it once
 somebody had thought to add it would be a list that hid what there is. And `local` and `user`
 are the flows of your own: this project's own flows directory, and the one in your home.
@@ -21,9 +21,9 @@ are the flows of your own: this project's own flows directory, and the one in yo
 `official` is the one that is read from two places at once. `chat` and the six loops beside it
 are in the package, because a machine that has never reached a network still has to have
 something to open talking to and a loop to leave running; whatever was installed out of
-humanize's index is beside them. Which of the two a flow is in is humanize's business rather
+Humanize's index is beside them. Which of the two a flow is in is Humanize's business rather
 than anybody else's, so both are offered under the one name: `chat` and an installed `aot` are
-each one of humanize's flows, said the same way. The package's own wins a name they both hold
+each one of Humanize's flows, said the same way. The package's own wins a name they both hold
 -- and an index may not offer one of those names at all.
 
 Those last two are places rather than indexes -- nothing fetches them, nothing is installed
@@ -31,7 +31,7 @@ into them, and what is in one is whatever you put there -- but they are flowvers
 because everything that goes looking for a flow has one question to ask and one list to ask it
 of. A flow of yours is read where it stands, offered under the name of the place it is in the
 way an installed flow is, and looked in first: `@local/chat` says which one it is, and a bare
-`chat` finds yours before humanize's.
+`chat` finds yours before Humanize's.
 
 Nothing here runs a flow, and nothing here reads one. It is the answer to "which flows are
 there, and where did each come from" -- and to the three things that can happen to a flowverse:
@@ -80,11 +80,11 @@ __all__ = [
     "under",
 ]
 
-#: What humanize's own flows are listed under, and where its index of them is. Always listed,
+#: What Humanize's own flows are listed under, and where its index of them is. Always listed,
 #: whether or not it has been fetched: what there is to install is not the same question as
 #: what has been downloaded, and somebody who has never fetched it should still be able to see
 #: it and say so. The flows in the package are listed under this name too -- one name for
-#: humanize's flows, whichever of the two places a given one happens to be kept in.
+#: Humanize's flows, whichever of the two places a given one happens to be kept in.
 OFFICIAL = "official"
 OFFICIAL_URL = "https://github.com/humanfia/flowverse"
 
@@ -94,7 +94,7 @@ LOCAL = "local"
 USER = "user"
 
 #: And where those two are, nearest first. Kept unresolved: the project one is relative to
-#: wherever humanize is being run, and `~` is whoever is running it, neither of which is
+#: wherever Humanize is being run, and `~` is whoever is running it, neither of which is
 #: settled when this is imported.
 MINE = {
     LOCAL: ".hmz/flows",
@@ -102,7 +102,7 @@ MINE = {
 }
 
 #: The names a flowverse cannot be added under, being the three that are always listed. One is
-#: humanize's own and two are yours, and a repository cloned into any of their slots would be
+#: Humanize's own and two are yours, and a repository cloned into any of their slots would be
 #: one nobody could reach.
 _ALWAYS = (OFFICIAL, LOCAL, USER)
 
@@ -157,7 +157,7 @@ class Flowverse:
         says rather than a download somebody is waiting for. Not the same question as whether
         it offers anything -- `official` offers the flows in the package either way, and what
         was installed out of an index stays installed whether or not it is fetched again.
-      fixed: Whether it is always listed and cannot be removed: humanize's own, and the two
+      fixed: Whether it is always listed and cannot be removed: Humanize's own, and the two
         your own flows live in.
     """
 
@@ -169,7 +169,7 @@ class Flowverse:
 
 
 def under() -> Path:
-    """Where every flowverse is kept, which is one directory under humanize's home."""
+    """Where every flowverse is kept, which is one directory under Humanize's home."""
     return home() / "flowverses"
 
 
@@ -180,8 +180,8 @@ def holds(one: Flowverse) -> tuple[Path, ...]:
     flows and nothing else -- yours -- which are read where they stand. Never the index itself:
     that is manifests, and a flow an index lists that nobody installed is not a flow to run.
 
-    More than one only for `official`, which is humanize's own flows and is kept in two places:
-    the ones in the package, read where they stand, and what was installed out of humanize's
+    More than one only for `official`, which is Humanize's own flows and is kept in two places:
+    the ones in the package, read where they stand, and what was installed out of Humanize's
     index. The package's own come first, so that a name both hold is the one that is always
     there rather than one an install could change.
 
@@ -228,9 +228,9 @@ def flowverses() -> list[Flowverse]:
     """Every place flows come from, in the order they are offered.
 
     Returns:
-      humanize's own first, then whatever else has been added, alphabetically, and last the
+      Humanize's own first, then whatever else has been added, alphabetically, and last the
       flows of your own: this project's, then the ones in your home directory. Three of them
-      are always here: humanize's, which is the one there is anything to fetch, and two
+      are always here: Humanize's, which is the one there is anything to fetch, and two
       directories of yours that are read wherever they are.
     """
     held = [
@@ -275,7 +275,7 @@ def nearest() -> list[Flowverse]:
 
     Returns:
       This project's flows, then yours, then the rest as they are listed -- so that a flow of
-      your own may stand in for one of humanize's by taking its name, and a project may mean
+      your own may stand in for one of Humanize's by taking its name, and a project may mean
       its own `chat` by `chat`.
     """
     held = flowverses()
@@ -299,7 +299,7 @@ def _own(name: str) -> Flowverse:
     Note:
       Expanded with `os.path` rather than `Path.expanduser`, which raises where there is no
       home behind the `~`: a machine with no home directory is a machine with no flows of
-      yours on it, which is a thing to say rather than the reason a flow humanize itself came
+      yours on it, which is a thing to say rather than the reason a flow Humanize itself came
       with could not be found.
     """
     # This project's are in its own directory, which moves one kept under its old name to
@@ -417,7 +417,7 @@ def add(url: str, name: str = "") -> Flowverse:
 
     Raises:
       ValueError: If the name is not one a flowverse may have, one is already called that, or
-        it is one of the three that are always listed -- humanize's own and the two your own
+        it is one of the three that are always listed -- Humanize's own and the two your own
         flows live in -- since a repository cloned into any of those slots is one nobody could
         reach.
       OSError: If git is not there, or the fetch failed. What git said is attached, and
@@ -428,10 +428,10 @@ def add(url: str, name: str = "") -> Flowverse:
         raise ValueError("no repository to fetch a flowverse from")
     called = name or _called(said)
     if called == OFFICIAL:
-        # This one is listed from the start with humanize's own URL against it, so a stranger's
-        # repository here would be shown as humanize's own.
+        # This one is listed from the start with Humanize's own URL against it, so a stranger's
+        # repository here would be shown as Humanize's own.
         raise ValueError(
-            f"{OFFICIAL} is humanize's own repository of flows; "
+            f"{OFFICIAL} is Humanize's own repository of flows; "
             f"`fetch {OFFICIAL}` gets it, and another name holds another one"
         )
     if called in MINE:
@@ -525,7 +525,7 @@ def remove(name: str) -> bool:
       Whether there was one to take away.
 
     Raises:
-      ValueError: If it is one of the three that are always there: humanize's own, and the
+      ValueError: If it is one of the three that are always there: Humanize's own, and the
         two directories your own flows live in, which are wherever you are.
       OSError: If it will not move out of its place.
     """
@@ -610,7 +610,7 @@ def plain(url: str) -> str:
 def refresh(at: Path) -> None:
     """Takes what a fetched repository says now, whatever is in the clone of it.
 
-    Fetched and reset rather than pulled: what humanize keeps is a copy of somebody else's
+    Fetched and reset rather than pulled: what Humanize keeps is a copy of somebody else's
     repository, not a branch of your own, and a merge nobody asked for is a fetch that fails
     the next time it is run.
 
@@ -868,7 +868,7 @@ def _url_of(said: str) -> str:
 
     Args:
       said: A URL, a path to a repository on this machine, or `owner/repo` for one on GitHub
-        -- which is how these are usually named, and how the one humanize ships is written
+        -- which is how these are usually named, and how the one Humanize ships is written
         down.
 
     Returns:

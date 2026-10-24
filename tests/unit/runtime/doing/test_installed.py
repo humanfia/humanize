@@ -195,7 +195,7 @@ def test_dsh_is_ready_to_open_only_once_configured(
 
 
 class _Hmz:
-    """humanize as it is installed: from an index, or from anywhere else."""
+    """Humanize as it is installed: from an index, or from anywhere else."""
 
     version = "1.2.3"
 
@@ -229,7 +229,7 @@ def test_adding_an_extra_names_what_is_missing_and_the_line_that_adds_it(
 
 
 def test_adding_a_backend_with_no_extra_says_to_install_it() -> None:
-    assert discover.adding("mine") == "install mine, then reopen humanize"
+    assert discover.adding("mine") == "install mine, then reopen Humanize"
 
 
 def test_adding_an_extra_to_a_humanize_that_is_no_distribution_names_its_packages(

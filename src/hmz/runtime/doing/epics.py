@@ -33,7 +33,7 @@ class Epics:
 
         Args:
           workspace: The project directory the runs were run in, or None for wherever
-            humanize is being run. None is kept as None rather than filled in: naming
+            Humanize is being run. None is kept as None rather than filled in: naming
             sessions without a workspace collects them wherever they were recorded, and a
             workspace here would narrow that to whatever directory somebody was standing in.
         """
@@ -228,7 +228,7 @@ class Epics:
         """Where one run kept its sessions, which is where a trace of it reads them.
 
         Its own directory for them, and wherever else one of them says it was kept by
-        humanize -- an agent that had kept sessions in another run before this one was handed
+        Humanize -- an agent that had kept sessions in another run before this one was handed
         it goes on keeping them there. Not a CLI's own home, which is read whatever is said
         here.
         """
@@ -320,7 +320,7 @@ class Epics:
           profile: Where the run's profile of its programs was written, for a run that
             profiled them.
           flow_profile: Where its profile of the flow's own Python was, likewise.
-          kept: Where humanize kept the sessions to read besides each CLI's own home, a
+          kept: Where Humanize kept the sessions to read besides each CLI's own home, a
             directory per CLI inside each, or None for everywhere it keeps them: every
             epic's, an agent no run was driving keeping its own in its CLI's home.
 

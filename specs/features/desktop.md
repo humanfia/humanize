@@ -19,8 +19,8 @@ Out of scope:
 
 ## 2. Definitions
 
-**2.1** The **app** is the application named `humanize`, for macOS and for Windows, with the
-identifier `ai.humanfia.humanize`.
+**2.1** The **app** is the application named `Humanize Desktop`, for macOS and for Windows, with
+the identifier `ai.humanfia.humanize`.
 
 **2.2** The **app's version** is the release of hmz the app was built for.
 
@@ -109,8 +109,8 @@ directory alone.
 
 **4.9** The app MUST leave no uv and no hmz half written, however it ends.
 
-**4.10** While it installs, the splash MUST show `Installing humanize` where no hmz was there and
-`Updating humanize` where it replaces one, with the step -- `Getting uv`, `Getting Python` or
+**4.10** While it installs, the splash MUST show `Installing Humanize CLI` where no hmz was there and
+`Updating Humanize CLI` where it replaces one, with the step -- `Getting uv`, `Getting Python` or
 `Installing hmz` -- and the last line uv said.
 
 **4.11** The app MUST NOT replace an hmz while this machine's daemon is running. While it runs, the
@@ -141,7 +141,7 @@ it in WSL's `~/.local/bin`.
 
 ## 5. Starting `hmz web`
 
-**5.1** The app MUST open its window on the splash at once, drawn in humanize's colours, light or
+**5.1** The app MUST open its window on the splash at once, drawn in Humanize's colours, light or
 dark as the system is, and MUST draw the window in the page's background colour before any page is
 drawn.
 
@@ -175,7 +175,7 @@ there, reading every path §5 names as a path of WSL.
 
 ## 6. The splash and errors
 
-**6.1** The splash MUST show the humanize mark and `Starting` while the server starts.
+**6.1** The splash MUST show the Humanize mark and `Starting` while the server starts.
 
 **6.2** Where the server exits before it listens, the splash MUST show `Failed` with what it said on
 standard error, and `Retry`.
@@ -220,10 +220,10 @@ that the page draws its top row around the window controls from its first frame.
 
 **7.8** The app MUST keep the window's size and position from one launch to the next.
 
-**7.9** On macOS, the app MUST have the menus of a Mac app: the app menu, with `About humanize` and
-`Check for Updates…`; `Edit`, with undo, redo, cut, copy, paste and select all; `View`, with
-`Reload`, `Actual Size`, `Zoom In`, `Zoom Out` and full screen; `Window`; and `Help`, with the
-documentation.
+**7.9** On macOS, the app MUST have the menus of a Mac app: the app menu, with `About Humanize
+Desktop` and `Check for Updates…`; `Edit`, with undo, redo, cut, copy, paste and select all;
+`View`, with `Reload`, `Actual Size`, `Zoom In`, `Zoom Out` and full screen; `Window`; and `Help`,
+with the documentation.
 
 **7.10** On macOS, the menus MUST NOT take a shortcut the page binds: Cmd+K, Cmd+Shift+O and Cmd+.
 MUST reach the page.
@@ -252,7 +252,7 @@ it to reload and to zoom.
 the window, besides those of §7.11.
 
 **7.19** On Windows, while it runs, the app MUST show a tray icon in the notification area of the
-taskbar, whose menu MUST hold `Show humanize`, `Check for Updates…`, `Documentation` and `Quit`.
+taskbar, whose menu MUST hold `Show Humanize Desktop`, `Check for Updates…`, `Documentation` and `Quit`.
 
 ## 8. Files
 

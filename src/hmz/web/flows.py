@@ -23,7 +23,7 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
     """One flow, as a page sets a run of it up: what it declares, and what was set last.
 
     Args:
-      hmz: humanize, for the workspace.
+      hmz: Humanize, for the workspace.
       name: The flow, as it is offered.
 
     Returns:
@@ -99,7 +99,7 @@ def remembered(hmz: Any, said: dict[str, Any]) -> None:
     -- nothing says what it may spend.
 
     Args:
-      hmz: humanize, for the workspace.
+      hmz: Humanize, for the workspace.
       said: The flow and what it is set up with, as a page sends a start.
 
     Raises:
@@ -177,7 +177,7 @@ def _place(asked: Asked) -> Any:
 
 
 def _hmz(asked: Asked) -> Any:
-    """humanize, for the workspace a request names, or where the interface started."""
+    """Humanize, for the workspace a request names, or where the interface started."""
     return asked.site.places.of(asked.query.get("workspace", "")).hmz
 
 

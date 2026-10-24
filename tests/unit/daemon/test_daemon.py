@@ -218,7 +218,7 @@ def test_host_refuses_a_daemon_of_another_protocol(
 ) -> None:
     _record(at, protocol=1)
     answering.append(_lists())
-    with pytest.raises(OSError, match="older humanize") as raised:
+    with pytest.raises(OSError, match="older Humanize") as raised:
         daemon.host(at)
     assert raised.value.errno == errno.EADDRINUSE
 
@@ -231,7 +231,7 @@ def test_older_says_where_the_runs_are_and_what_to_do(
 ) -> None:
     found = Daemon(at=Path("/d"), workspace=workspace, pid=42, started="")
     assert daemon.older(found) == (
-        f"the runs {said} are held by an older humanize (pid 42); "
+        f"the runs {said} are held by an older Humanize (pid 42); "
         "stop it with that version"
     )
 
@@ -264,7 +264,7 @@ def test_attach_refuses_runs_held_by_an_older_humanize(reached: mock.Mock) -> No
     reached.running.return_value = Daemon(
         at=Path("/d"), workspace="/w", pid=42, started="", protocol=PROTOCOL - 1
     )
-    with pytest.raises(daemon.Older, match="older humanize"):
+    with pytest.raises(daemon.Older, match="older Humanize"):
         daemon.attach("tui")
     reached.host.assert_not_called()
 

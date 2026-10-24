@@ -84,7 +84,7 @@ runs only where that is the work's own machine:
 | Supervised | no | refused |
 | Afar, third machine | no | refused |
 
-In a supervised or third-machine arrangement, humanize reads the files the CLI's
+In a supervised or third-machine arrangement, Humanize reads the files the CLI's
 `Profile.launchers` lists when a session opens, moves or carries on a conversation, and again
 before each turn. It reads them from the target's copy of the workspace, in the session's
 directory and each directory above it up to the workspace. A file counts if a listed key holds
@@ -121,7 +121,7 @@ machine in `AnchorConfig.harness`.
 | `apple-container://CONTAINER` | a running Apple container on this Mac | the serving half is bootstrapped with `container exec -i`, running as the container's user | yes | Apple's `container` here; `/bin/sh` and Python >= 3.12 in the container |
 | `slurm://JOBID[?python=PATH]` | the node a running Slurm job of this user's was given | the serving half is bootstrapped with `srun --jobid=JOBID --overlap`, a step of that job sharing its allocation, running as this user | yes | `srun` here; `/bin/sh` and Python >= 3.12 on the node (`PATH`, absolute or under `~/`, is tried first) |
 | `tcp://HOST:PORT` | a serving half [left listening](#serving-a-target) | a TCP connection, `TCP_NODELAY`, 30 s connect timeout | no | a served target and its token |
-| `peer://TICKET@HOST:PORT` | a serving half waiting at a broker | the broker at `HOST:PORT`, presenting `TICKET` | no | written by humanize only |
+| `peer://TICKET@HOST:PORT` | a serving half waiting at a broker | the broker at `HOST:PORT`, presenting `TICKET` | no | written by Humanize only |
 
 Parsing rules:
 
@@ -171,19 +171,19 @@ Parsing rules:
 
 ### Bootstrapping the serving half
 
-For `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://`, humanize starts `hmz internal anchor serve --stdio
+For `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://`, Humanize starts `hmz internal anchor serve --stdio
 --export WORKSPACE[:REAL]` on the far side and speaks the protocol over its stdin and stdout.
 
 | Step | Behaviour |
 | --- | --- |
-| Archive | A zipapp of `hmz.coganchor` and the command line reaching it, with an `hmz-<version>.dist-info/METADATA` so that `__version__` and `hmz --version` answer the same on the target, built once per source tree into `$TMPDIR/humanize-<uid>/humanize-<digest>.pyz` (directory `0700`, refused if anyone else can write it), beside a `<stamp>.digest` naming the archive each source tree (by version, path, file sizes and modification times) built. Two checkouts or versions never share an archive. A run touches the archive it uses at least hourly; a build removes anything in the directory, and the `$TMPDIR/humanize-<uid>.pyz` an earlier humanize shared, untouched for 14 days. A directory anyone else can write fails the install with `ConnectionError: could not install humanize on <target>: …`. The driving half (`agents`, `providers`, `machines`, `backends.py`, `models.py`, `fallbacks.py`, `prices.py`) is left out. Pure standard library; runs on any architecture. |
+| Archive | A zipapp of `hmz.coganchor` and the command line reaching it, with an `hmz-<version>.dist-info/METADATA` so that `__version__` and `hmz --version` answer the same on the target, built once per source tree into `$TMPDIR/humanize-<uid>/humanize-<digest>.pyz` (directory `0700`, refused if anyone else can write it), beside a `<stamp>.digest` naming the archive each source tree (by version, path, file sizes and modification times) built. Two checkouts or versions never share an archive. A run touches the archive it uses at least hourly; a build removes anything in the directory, and the `$TMPDIR/humanize-<uid>.pyz` an earlier Humanize shared, untouched for 14 days. A directory anyone else can write fails the install with `ConnectionError: could not install Humanize on <target>: …`. The driving half (`agents`, `providers`, `machines`, `backends.py`, `models.py`, `fallbacks.py`, `prices.py`) is left out. Pure standard library; runs on any architecture. |
 | Name on the target | `humanize-<digest>.pyz`, `<digest>` the first 16 hex digits of the archive's SHA-256. |
-| Cache on the target | `$HOME/.cache/humanize/` over ssh and on a Slurm node, `/tmp/humanize/` in a container, and `/tmp/humanize-<UID>/` in a container whose target names `user=UID[:GID]`. That one, and the target's mirror directory, are made by the far side's shell before anything is put in them or run from them, refused unless each is a directory (not a link) the user owns, and made `0700`: `humanize: <dir> is not a directory this user owns`, exit 1. |
-| Install | Run with the interpreter below, `HUMANIZE_BUNDLES` set to the cache and `mkdir -p`'d by the far side's shell, the archive on stdin: refuse it (`humanize: <n> bytes arrived that are not humanize-<digest>.pyz`) unless its SHA-256 starts with `<digest>`; keep a file already there only if its own SHA-256 does too, touching it; otherwise write `<file>.<pid>` and move it into place. Then remove other `humanize-*.pyz*` in the cache untouched for 14 days. Every line that runs the archive first `touch -c`es it. Concurrent installs are safe. Each (target, digest) pair is pushed at most once per process. |
+| Cache on the target | `$HOME/.cache/humanize/` over ssh and on a Slurm node, `/tmp/humanize/` in a container, and `/tmp/humanize-<UID>/` in a container whose target names `user=UID[:GID]`. That one, and the target's mirror directory, are made by the far side's shell before anything is put in them or run from them, refused unless each is a directory (not a link) the user owns, and made `0700`: `Humanize: <dir> is not a directory this user owns`, exit 1. |
+| Install | Run with the interpreter below, `HUMANIZE_BUNDLES` set to the cache and `mkdir -p`'d by the far side's shell, the archive on stdin: refuse it (`Humanize: <n> bytes arrived that are not humanize-<digest>.pyz`) unless its SHA-256 starts with `<digest>`; keep a file already there only if its own SHA-256 does too, touching it; otherwise write `<file>.<pid>` and move it into place. Then remove other `humanize-*.pyz*` in the cache untouched for 14 days. Every line that runs the archive first `touch -c`es it. Concurrent installs are safe. Each (target, digest) pair is pushed at most once per process. |
 | Interpreter | The first candidate that exists and reports a version >= 3.12, tried in order: a `slurm://` target's `python`, then `python3`, `python3.14`, `python3.13`, `python3.12`, `/opt/homebrew/bin/python3`, `/usr/local/bin/python3`, `/Library/Frameworks/Python.framework/Versions/Current/bin/python3`, `/usr/bin/python3`. |
-| No interpreter | Exit 127, stderr `humanize: no python 3.12 or newer on this machine; looked for: <candidates>`. |
-| Install failure | `ConnectionError: could not install humanize on <target>: <stderr>`; for a container, `; the container said: <last 3 log lines>` is appended. |
-| Protocol | Both halves send `PROTOCOL_VERSION` (currently `1`). A mismatch fails the handshake with `EPROTO`, `client speaks protocol <n>, this humanize speaks 1`, and closes the connection. |
+| No interpreter | Exit 127, stderr `Humanize: no python 3.12 or newer on this machine; looked for: <candidates>`. |
+| Install failure | `ConnectionError: could not install Humanize on <target>: <stderr>`; for a container, `; the container said: <last 3 log lines>` is appended. |
+| Protocol | Both halves send `PROTOCOL_VERSION` (currently `1`). A mismatch fails the handshake with `EPROTO`, `client speaks protocol <n>, this Humanize speaks 1`, and closes the connection. |
 
 The handshake reply (`Op.HELLO`) carries `version`, `hostname`, `platform` (`sys.platform`),
 `python`, `pid`, `exports` (`[{virtual, real}]`) and `fence` (`{fs: bool, net: bool}`, see
@@ -191,7 +191,7 @@ The handshake reply (`Op.HELLO`) carries `version`, `hostname`, `platform` (`sys
 
 ### ssh connections
 
-Every `ssh` humanize runs is:
+Every `ssh` Humanize runs is:
 
 ```text
 ssh <target options> -T -o BatchMode=no -o ServerAliveInterval=30 <reuse options> [-p PORT] HOST '<quoted command>'
@@ -210,7 +210,7 @@ ssh <target options> -T -o BatchMode=no -o ServerAliveInterval=30 <reuse options
 
 ### Slurm steps
 
-Every command humanize runs on a `slurm://JOBID` target is a step of that job:
+Every command Humanize runs on a `slurm://JOBID` target is a step of that job:
 
 ```text
 srun --jobid=JOBID --overlap --nodes=1 --ntasks=1 --unbuffered --quiet --export=HOME,USER --chdir=/ <argv>
@@ -287,7 +287,7 @@ as a usage error and exits 2.
 | --- | --- |
 | `target` or `harness` not a [target spelling](#targets) | the target parse message |
 | `native=True` with a harness on another machine | `a native session has no harness to put anywhere: the CLI on the target is the one that runs, so --harness and --native ask for opposite things` |
-| a `peer://` target with any `harness` but `local` | `a peer:// target is a meeting humanize books for a harness it is placing; naming both is naming the same introduction twice` |
+| a `peer://` target with any `harness` but `local` | `a peer:// target is a meeting Humanize books for a harness it is placing; naming both is naming the same introduction twice` |
 | `net` not `local` or `remote` | `unsupported net 'X'; expected local or remote` (the option: `argument --net: invalid choice: …`) |
 | a redirect that is not two absolute paths | `unsupported redirect 'a=b'; expected two absolute paths` |
 | an empty hush, or one containing `=` | `unsupported hush 'A=B'; expected a variable name` |
@@ -427,7 +427,7 @@ harness := env | local | ssh:<name> | docker:<name> | swarm:<name> | apple-conta
   (`<name>: '<setting>' is not where a harness runs: env, local or <ssh|docker|swarm|apple-container|slurm>:<runtime name>`,
   `<name>: its harness names itself; env is its own machine`). A setting naming a runtime
   nobody saved is accepted, and refused when used.
-- A runtime saved by an earlier humanize with an ordered `affinity` list is read as though its
+- A runtime saved by an earlier Humanize with an ordered `affinity` list is read as though its
   `harness` were the first entry (`self` read as `env`), or `env` where the list is empty; the
   next write of it drops `affinity`.
 
@@ -482,7 +482,7 @@ from its `spawn`. The refusals (`<where>` is `<backend>[@<provider>]` of the env
 
 Where each session's harness went is written with it: the epic's session record carries
 `harness` (`local`, `env`, or the `<backend>:<name>` of the harness runtime its runtime's
-setting named; `""` for work on this machine; `self`, written by an earlier humanize, is read
+setting named; `""` for work on this machine; `self`, written by an earlier Humanize, is read
 as `env`), and so does
 the daemon's `opened` record. See [Tracing](/reference/tracing).
 
@@ -575,8 +575,8 @@ network is answered from the target.
 
   | Condition | Without `force` |
   | --- | --- |
-  | the directory was last used for another target | `FileExistsError: <path> mirrors <old>, not <new>. humanize replaces this directory with the new target's contents and would delete everything only the old one has. Use a different directory, or pass --force.` |
-  | the directory holds files and was never a mirror | `FileExistsError: <path> already contains files and is not an humanize mirror. humanize replaces this directory with the target's contents and would delete them. Use an empty directory, or pass --force.` |
+  | the directory was last used for another target | `FileExistsError: <path> mirrors <old>, not <new>. Humanize replaces this directory with the new target's contents and would delete everything only the old one has. Use a different directory, or pass --force.` |
+  | the directory holds files and was never a mirror | `FileExistsError: <path> already contains files and is not a Humanize mirror. Humanize replaces this directory with the target's contents and would delete them. Use an empty directory, or pass --force.` |
   | the path exists and is not a directory | `Unmirrored: … shadow root is not a directory` (always) |
   | the path cannot be created here | `Unmirrored: … <reason>`, e.g. `Permission denied: /home/me` (always) |
 
@@ -727,7 +727,7 @@ refused rather than run as whatever account the target is signed into.
 
 With the harness on the target (`same`), nothing is introduced: the harness machine runs
 `hmz internal anchor --target local:<remote_path>` against itself. With the harness on a third
-machine, humanize books a meeting:
+machine, Humanize books a meeting:
 
 1. This process starts (once, for its lifetime) a broker listening on `0.0.0.0`, port
    `$HUMANIZE_RENDEZVOUS_PORT` (default `0`, any free port).
@@ -815,9 +815,9 @@ hmz internal anchor serve --export VIRTUAL[:REAL] [--export ...]
 
 | Mode | Serves | Started by |
 | --- | --- | --- |
-| `--stdio` | one session on stdin/stdout; fds 0 and 1 are pointed at `/dev/null` for the rest of the process | humanize, for `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://` targets |
+| `--stdio` | one session on stdin/stdout; fds 0 and 1 are pointed at `/dev/null` for the rest of the process | Humanize, for `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://` targets |
 | `--listen [HOST:]PORT` | every TCP connection, one thread each, until interrupted; prints `hmz internal anchor serve listening HOST PORT` on stderr | a person, for `tcp://` targets; or the batch step of a Slurm job whose runtime says `via: tcp`, on `0.0.0.0:0` with a random secret set in its script |
-| `--peer TICKET@HOST:PORT` | one session met at a broker | humanize, for a harness on a third machine |
+| `--peer TICKET@HOST:PORT` | one session met at a broker | Humanize, for a harness on a third machine |
 
 - `--export VIRTUAL[:REAL]` is required and repeatable. `VIRTUAL` must be absolute; `REAL`
   defaults to `VIRTUAL`, with `~` expanded. A path outside every export is refused with
@@ -896,7 +896,7 @@ from hmz.coganchor.anchor import NotInstalled
 - **A command's output may not reach the agent in a container.** The supervisor borrows each
   command's descriptors with `pidfd_getfd`, which docker's default seccomp profile refuses
   without `CAP_SYS_PTRACE`. A pipe or tty is opened again through `/proc` instead; a socket
-  cannot be, and is logged as `could not borrow fd <n> from pid <pid>`. humanize starts the
+  cannot be, and is logged as `could not borrow fd <n> from pid <pid>`. Humanize starts the
   container a harness setting puts a harness in with `--cap-add SYS_PTRACE`; one started otherwise needs it.
 - **A path is read when its syscall stops.** A descriptor replaced by another thread in between
   resolves as it was.
@@ -933,18 +933,18 @@ from hmz.coganchor.anchor import NotInstalled
 
 ## Environment variables
 
-Every variable humanize reads is listed in [Environment variables](/reference/environment).
+Every variable Humanize reads is listed in [Environment variables](/reference/environment).
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
 | `HUMANIZE_TARGET` | `hmz internal anchor` | default `--target` |
 | `HUMANIZE_HARNESS` | `hmz internal anchor` | default `--harness` |
-| `HUMANIZE_SHADOW` | `hmz internal anchor` | default `--shadow`; set by humanize for a harness elsewhere |
+| `HUMANIZE_SHADOW` | `hmz internal anchor` | default `--shadow`; set by Humanize for a harness elsewhere |
 | `HUMANIZE_TOKEN` | `hmz internal anchor`, `… serve` | default `--token`; passed to a spawned serving half |
 | `HUMANIZE_LOG` | `hmz internal anchor`, `… serve`, `… rendezvous` | default `--log-level` (`warning`; `info` for `rendezvous`); a value that is not a level is ignored with a warning |
 | `HUMANIZE_RENDEZVOUS` | `hmz internal anchor`, the in-process broker | default `--broker`; the address advertised to both halves |
 | `HUMANIZE_RENDEZVOUS_PORT` | the in-process broker | the port it listens on; `0` or unset for any |
-| `HUMANIZE_SSH_REUSE` | every `ssh` humanize runs | `off`, `0`, `no`, `false` (any case, trimmed) or empty disables connection sharing |
+| `HUMANIZE_SSH_REUSE` | every `ssh` Humanize runs | `off`, `0`, `no`, `false` (any case, trimmed) or empty disables connection sharing |
 | `HUMANIZE_SHADOWS` | the mirror guard and journal | where mirror records and journals are kept, instead of `~/.cache/humanize/shadows` |
-| `XDG_RUNTIME_DIR` | every `ssh` humanize runs | where `humanize-ssh-<uid>/` control sockets are made |
+| `XDG_RUNTIME_DIR` | every `ssh` Humanize runs | where `humanize-ssh-<uid>/` control sockets are made |
 | `HUMANIZE`, `HUMANIZE_TARGET`, `HUMANIZE_WORKSPACE` | set for the agent | see [Variables the agent is given](#variables-the-agent-is-given) |

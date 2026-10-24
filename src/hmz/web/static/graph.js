@@ -116,7 +116,7 @@ export function graph({ open }) {
     },
     { passive: false },
   )
-  // Safari, and so the desktop app's window, says a pinch as a gesture of its own.
+  // Safari, and so Humanize Desktop's window, says a pinch as a gesture of its own.
   let pinched = 1
   canvas.addEventListener('gesturestart', (event) => {
     event.preventDefault()

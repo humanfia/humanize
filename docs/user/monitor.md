@@ -466,7 +466,7 @@ graph for a picture that holds still.
 
 ### I cannot reach a subagent's log
 
-Subagents (`◆`, `◇`) are the agent's own. humanize shows that they ran, but has no transcript
+Subagents (`◆`, `◇`) are the agent's own. Humanize shows that they ran, but has no transcript
 of theirs to read. Read the agent that started them.
 
 ## Next steps

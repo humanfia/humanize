@@ -12,7 +12,7 @@ Write a flow when you would otherwise type the same instructions to an agent aga
 the flow types them for you, in the order you chose, and decides when to stop.
 
 ::: info Before you start
-- humanize installed and one coding agent CLI signed in. See [Installation](/user/installation).
+- Humanize installed and one coding agent CLI signed in. See [Installation](/user/installation).
 - A flow run behind you. The [User Guide](/user/) starts there.
 - A git repository you don't mind an agent editing. To follow along exactly, make one:
 
@@ -257,14 +257,14 @@ uvx --with hmz \
 
 ## Where flows are found
 
-A name is looked up nearest first, so a flow of yours can stand in for one of humanize's by
+A name is looked up nearest first, so a flow of yours can stand in for one of Humanize's by
 taking its name:
 
 | Put it in | Run it with | At the prompt |
 | --- | --- | --- |
 | `.hmz/flows/twice/` in the project | `-f twice` | `$@local/twice` |
 | `~/.hmz/flows/twice/` | `-f twice`, when the project has none of that name | `$@user/twice` |
-| the flows humanize ships, and those you installed from a [flowverse](/weaver/flowverses) | `-f ralph_loop`, `-f @theirs/review` | `$ralph_loop`, `$@theirs/review` |
+| the flows Humanize ships, and those you installed from a [flowverse](/weaver/flowverses) | `-f ralph_loop`, `-f @theirs/review` | `$ralph_loop`, `$@theirs/review` |
 | anywhere else | `-f ./path/to/twice` | |
 
 `-f @local/twice` and `-f @user/twice` say which one outright.

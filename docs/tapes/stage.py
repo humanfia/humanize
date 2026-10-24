@@ -1,6 +1,6 @@
 """Builds the throwaway world the demo GIFs are recorded in.
 
-Run once as the image is built, so a tape spends its frames on humanize rather than on
+Run once as the image is built, so a tape spends its frames on Humanize rather than on
 `mkdir`. Everything it writes is invented here: a two-file project, a catalogue of models
 nobody was asked for, trajectories that no agent ever produced, and the runs that would have
 opened them -- written down by the code that writes down a real run rather than by a second
@@ -25,7 +25,7 @@ from typing import Any
 #: The project every demo runs in. A name with nothing in it.
 WORK = pathlib.Path("/work/demo")
 
-#: Where humanize keeps what outlives one run, inside this container.
+#: Where Humanize keeps what outlives one run, inside this container.
 HOME = pathlib.Path("/root/.hmz")
 
 #: Claude Code's home, inside this container. The trajectories below are written under it,
@@ -52,7 +52,7 @@ PROJECT = {
     ),
 }
 
-#: A flow of the project's own, so `hmz exec` has one to name that is not humanize's.
+#: A flow of the project's own, so `hmz exec` has one to name that is not Humanize's.
 FLOW = '''"""Two passes: do the work, then read it back and fix what is wrong."""
 
 from hmz.flows import (
@@ -143,13 +143,13 @@ def _at(offset: float) -> str:
 
 
 def _stamped(offset: float) -> str:
-    """The same, as humanize names an epic's directory."""
+    """The same, as Humanize names an epic's directory."""
     moment = WHEN + datetime.timedelta(seconds=offset)
     return moment.strftime("%Y%m%dT%H%M%S.") + f"{moment.microsecond // 1000:03d}Z"
 
 
 def _written(offset: float) -> str:
-    """The same, as humanize writes a moment inside a record."""
+    """The same, as Humanize writes a moment inside a record."""
     moment = WHEN + datetime.timedelta(seconds=offset)
     return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{moment.microsecond // 1000:03d}Z"
 
@@ -392,7 +392,7 @@ def _runs() -> None:
     )
     written_as._stamp = lambda: next(moments)  # noqa: SLF001 -- the moment is invented too
     # And the six hex that tell two runs started in one millisecond apart, so that a demo
-    # rendered again differs where humanize has changed and nowhere else.
+    # rendered again differs where Humanize has changed and nowhere else.
     written_as.uuid = _Invented()
 
     config = AgentConfig(model="claude-opus-4-8", effort="high")
@@ -561,7 +561,7 @@ def _machines() -> None:
 def _settings() -> None:
     """Answers what a first start asks, and sets the demo project up with a flow to run.
 
-    Answered rather than left: humanize asks once whether it may report its own failures, and
+    Answered rather than left: Humanize asks once whether it may report its own failures, and
     a demo that opened on that question would be a demo of that question -- and one keystroke
     away from answering it on camera. This machine has been asked and has said no, which is
     also the only answer a throwaway container should have.
@@ -570,7 +570,7 @@ def _settings() -> None:
     from hmz.runtime.settings import Settings
 
     Settings(WORK).answers(enable_sentry=False)
-    # And what this project was last set up to run, so that what humanize remembers about a
+    # And what this project was last set up to run, so that what Humanize remembers about a
     # directory is a directory it has been used in -- a run of it profiled as well as traced,
     # which is said on the flow menu beside its budget.
     Settings(WORK).remember(
@@ -581,14 +581,14 @@ def _settings() -> None:
     )
 
 
-#: What humanize's own flowverse lists, as its index says it, each at a commit nobody cut.
+#: What Humanize's own flowverse lists, as its index says it, each at a commit nobody cut.
 #: `aot` has two releases, so that its page has one to choose; the rest have one apiece.
 RELEASES = {
     "aot": "Writes a flow from a description, then loads, smoke-runs and reviews it before "
     "landing it.",
     "flame_chasoid": "The flame chase and its variants (agent cleanup, fixed interrupt, "
     "parallel lanes) as subflows of one flow.",
-    "humanize1": "RLCR from humanize 1 as three flows (gen-idea, gen-plan, rlcr), each set up "
+    "humanize1": "RLCR from Humanize 1 as three flows (gen-idea, gen-plan, rlcr), each set up "
     "before it starts.",
     "recursive_lean_prover": "Recursively plans, proves, compares, reviews and catalogues "
     "Lean theorems.",
@@ -634,7 +634,7 @@ async def aot(
 
 
 def _repo(name: str) -> str:
-    """Where one of humanize's own flows lives, as its manifest says: `humanfia/<name>-flow`."""
+    """Where one of Humanize's own flows lives, as its manifest says: `humanfia/<name>-flow`."""
     return f"humanfia/{name.replace('_', '-')}-flow"
 
 
@@ -644,7 +644,7 @@ def _commit(name: str, version: str) -> str:
 
 
 def _index() -> None:
-    """Writes humanize's own flowverse in, as a clone of its index would leave it.
+    """Writes Humanize's own flowverse in, as a clone of its index would leave it.
 
     Written rather than cloned, since nothing here reaches a network. An empty `.git` beside
     the manifests is what makes it read as fetched; the fetch the interface tries as it opens

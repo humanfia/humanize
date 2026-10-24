@@ -1,6 +1,6 @@
 // The notifications, of every daemon at once rather than the one shown: a bell with how many are
 // unread, a menu of them newest first, a card for each as it comes, and -- while the page is not
-// looked at -- one the system shows, by the macOS app or by the browser. Each opens what it is
+// looked at -- one the system shows, by Humanize Desktop or by the browser. Each opens what it is
 // about: the epic going, for a question or a chat's next turn, or the epic that ended. None is
 // told of the epic the page is on while it is looked at: that one is read as it comes.
 

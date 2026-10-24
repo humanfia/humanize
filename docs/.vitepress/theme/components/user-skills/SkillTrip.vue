@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The two sets of skills an agent carries, and one of the flow's making its trip. Yours are
 // where the CLI keeps them, `~/.claude/skills/` and the project's `.claude/skills/`, and every
-// agent of that CLI carries them; humanize never changes them. The flow's are in its own
+// agent of that CLI carries them; Humanize never changes them. The flow's are in its own
 // `skills/` (or fetched from a git repository), for the roles it gives them to: in `rlar` the
 // reviewer carries `review-notes` and the actor does not. When the reviewer's Claude Code
 // starts, it starts in a home of its own: copies of the settings it rewrites, links to the rest
@@ -290,7 +290,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="5 / 8"
-    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's Claude Code starts, it starts in a home of its own: a copy of the .claude.json it rewrites, links to the rest of yours, and a skills/ directory with links to your skills and review-notes beside them. When it stops, that home goes, all of it, and nothing of yours was written. Every other CLI gets the same, except that opencode and MiMo Code are told where the flow's skills are, and dsh gets none, carrying only what you installed. Nothing is put in the workspace."
+    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; Humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's Claude Code starts, it starts in a home of its own: a copy of the .claude.json it rewrites, links to the rest of yours, and a skills/ directory with links to your skills and review-notes beside them. When it stops, that home goes, all of it, and nothing of yours was written. Every other CLI gets the same, except that opencode and MiMo Code are told where the flow's skills are, and dsh gets none, carrying only what you installed. Nothing is put in the workspace."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
@@ -313,7 +313,7 @@ const scene = useScene({
             <text :x="chipAt(L.yours, 0, i, 60).x + 7" :y="chipAt(L.yours, 0, i, 60).y + 13">{{ name }}</text>
           </g>
           <g class="note note-yours">
-            <text class="note-text" :x="L.yours.x + 26" :y="L.yours.y + 101">untouched by humanize</text>
+            <text class="note-text" :x="L.yours.x + 26" :y="L.yours.y + 101">untouched by Humanize</text>
           </g>
           <g class="lock">
             <rect class="lock-body" :x="L.yours.x + 12" :y="L.yours.y + 96" width="8" height="7" rx="1.5" />

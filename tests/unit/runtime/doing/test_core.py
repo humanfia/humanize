@@ -1,4 +1,4 @@
-"""humanize as one object: a workspace, and everything it hands out, made when asked for."""
+"""Humanize as one object: a workspace, and everything it hands out, made when asked for."""
 
 from __future__ import annotations
 

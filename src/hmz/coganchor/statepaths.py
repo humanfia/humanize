@@ -64,7 +64,7 @@ PROFILES: tuple[AgentProfile, ...] = (
     # MiniMax Code keeps its settings, its sign-in, its sessions and the runtime it serves
     # them from under one directory, and read the one it used to be called before that.
     # litellm is a model called from this process rather than a program, and keeps nothing
-    # but the conversations humanize writes for it.
+    # but the conversations Humanize writes for it.
     AgentProfile(
         name="litellm",
         state_paths=("~/.cache/humanize/litellm",),
@@ -117,7 +117,7 @@ _BY_NAME = {profile.name: profile for profile in PROFILES}
 
 #: Directories that hold per-user state for *any* agent and should never be
 #: mirrored, even when the workspace happens to contain them.  ``~/.hmz``
-#: is humanize's own home, which holds the providers a turn may be run as: those
+#: is Humanize's own home, which holds the providers a turn may be run as: those
 #: credentials belong to this machine, never to the one the work lands on.
 #: ``~/.humanize`` is what it was called before, which is not moved where it
 #: cannot be and is no less this machine's for that.

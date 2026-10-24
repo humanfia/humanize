@@ -1,11 +1,11 @@
 # Security policy
 
-humanize runs coding agents unattended, on your machine and with your logins. A flaw in what
+Humanize runs coding agents unattended, on your machine and with your logins. A flaw in what
 holds those agents back is worth reporting privately, and this file says how.
 
 ## Supported versions
 
-humanize is before 1.0. A security fix lands on `main` first and ships in the next release; it
+Humanize is before 1.0. A security fix lands on `main` first and ships in the next release; it
 is not backported.
 
 | Version | Supported |
@@ -55,16 +55,16 @@ credentials are kept. Read it first.
 These are vulnerabilities, for example:
 
 - an agent, or a command it runs, reaching past the permission its flow declared, on a machine
-  where humanize says the grant is held;
+  where Humanize says the grant is held;
 - a grant that cannot be held being widened rather than refused;
-- account credentials humanize keeps reaching someone else: another user on the machine, a log,
+- account credentials Humanize keeps reaching someone else: another user on the machine, a log,
   a trace, an export, a crash report, or another account's turn;
 - a remote target, a container, an ssh host or the daemon accepting a connection or a command it
   should refuse;
-- humanize fetching or running a flow's code from anywhere other than where its flowverse says
+- Humanize fetching or running a flow's code from anywhere other than where its flowverse says
   that code is.
 
-These are not, because they are how humanize is meant to work or are already documented:
+These are not, because they are how Humanize is meant to work or are already documented:
 
 - **Agents run with approvals bypassed.** Every flow's agents edit files, run commands and make
   commits without asking. That is the design: what holds an agent back is the permission its
@@ -79,7 +79,7 @@ These are not, because they are how humanize is meant to work or are already doc
 Some reports belong elsewhere:
 
 - a coding agent CLI itself, such as Claude Code or Codex: its vendor;
-- a flow that is not built into humanize: the repository the flow comes from.
+- a flow that is not built into Humanize: the repository the flow comes from.
 
 A flow in [humanfia/flowverse](https://github.com/humanfia/flowverse) that is malicious, or a
 flaw in that repository itself, is reported here, the same way: the same maintainers run it.

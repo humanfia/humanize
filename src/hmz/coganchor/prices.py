@@ -3,14 +3,14 @@
 A token count says how much work was done and nothing about what it came to. The unit prices
 are somebody else's to keep -- they change on the vendors' own schedule, and a list written
 down in here would be wrong the week after it was written -- so they are fetched from
-OpenLLMPrices, which is one JSON file of them, and kept in humanize's directory for this
+OpenLLMPrices, which is one JSON file of them, and kept in Humanize's directory for this
 machine.
 
 Two rules hold this whole module up. **Nothing here may cost a prompt its responsiveness**:
 `price` and `cost` read what was already kept and never reach for the network, and fetching
 is asked for by whoever has time for it: on a thread of its own, or -- by a run that a cost
 cap is to hold, before its first turn -- held to the fetch's own timeout. And **a model
-nobody lists reads as tokens alone**: the list covers a few dozen models and humanize drives
+nobody lists reads as tokens alone**: the list covers a few dozen models and Humanize drives
 whatever CLI you have, so answering nothing is the ordinary case rather than the broken one.
 A `$0.00` against a model nobody priced would be a lie about a bill.
 
@@ -89,7 +89,7 @@ _MOST = 64 * 1024 * 1024
 #: A price is per this many tokens, which is what the file's own `unit` says.
 _MILLION = 1_000_000
 
-#: What each priced category is called here. The file's vocabulary is not humanize's, and a
+#: What each priced category is called here. The file's vocabulary is not Humanize's, and a
 #: kind is named the same thing wherever it is counted. `cache_storage` is deliberately
 #: absent: it is charged by the hour rather than by the token, and there is no token count
 #: here to multiply it by.
@@ -178,7 +178,7 @@ def where() -> pathlib.Path:
     """Where what was fetched is kept.
 
     Returns:
-      The file, under humanize's directory for this machine: it is a copy of what anybody can
+      The file, under Humanize's directory for this machine: it is a copy of what anybody can
       fetch again, not anything of yours for machines sharing a home to share. It holds the
       newest version of the list and nothing else: the source carries three years of dated
       snapshots, and what a run costs is what it costs today.
@@ -206,7 +206,7 @@ def price(model: str) -> Price | None:
 
     Returns:
       Its price, or None where the list does not have it -- which is the ordinary answer,
-      the list being a few dozen models and humanize driving whatever CLI you have.
+      the list being a few dozen models and Humanize driving whatever CLI you have.
 
     Raises:
       PriceError: If the list gives any model a price that is not a finite number.
@@ -522,7 +522,7 @@ def _trim(loaded: object, whence: str, etag: str) -> dict[str, Any] | None:
     if not isinstance(versions, list) or not versions:
         return None
     # By its date rather than by its place in the list. The source writes them newest first
-    # today; a source that one day appended instead would otherwise have humanize quietly
+    # today; a source that one day appended instead would otherwise have Humanize quietly
     # serving three-year-old prices, with nothing anywhere to notice it by.
     listed: dict[str, Any] | None = None
     latest = ""
@@ -573,10 +573,10 @@ def _per_million(items: object, named: str) -> dict[str, float]:
       named: The model, for the error.
 
     Returns:
-      Dollars per million tokens, by the kind humanize counts them under.
+      Dollars per million tokens, by the kind Humanize counts them under.
 
     Raises:
-      PriceError: If a kind humanize counts is priced at something not a finite number.
+      PriceError: If a kind Humanize counts is priced at something not a finite number.
     """
     per: dict[str, float] = {}
     if not isinstance(items, list):
@@ -629,7 +629,7 @@ def _finite(named: str, kind: str, rate: float) -> float:
 def _keep(kept: pathlib.Path, trimmed: dict[str, Any]) -> bool:
     """Writes what was fetched, whole or not at all.
 
-    Through :func:`hmz.coganchor.atomic.writes`: two humanize processes refresh this on their
+    Through :func:`hmz.coganchor.atomic.writes`: two Humanize processes refresh this on their
     own clocks, and a reader must never see half a file -- nor a writer find its copy beside
     it already moved away by the other's.
 

@@ -1,6 +1,6 @@
 """Everything a flow can catch, as one tree under :class:`FlowException`.
 
-Three branches, by whose fault it was: :class:`FlowRuntimeError` for what humanize refused or
+Three branches, by whose fault it was: :class:`FlowRuntimeError` for what Humanize refused or
 ran out of while running flows, :class:`HarnessError` for a coding agent CLI that could not
 take a turn, and :class:`EnvError` for an environment that could not do what it was asked.
 A flow that wants to handle one thing catches the leaf; one that wants to handle everything

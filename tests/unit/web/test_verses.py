@@ -9,7 +9,7 @@ from hmz.web.verses import listed
 
 
 def _hmz(*names: str, fixed: tuple[str, ...] = ()) -> Any:
-    """A stand-in for humanize's one object, holding a flowverse under each of `names`.
+    """A stand-in for Humanize's one object, holding a flowverse under each of `names`.
 
     The ones in `fixed` are always listed and cannot be removed.
     """

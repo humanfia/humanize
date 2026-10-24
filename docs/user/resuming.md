@@ -262,7 +262,7 @@ hmz exec: error: stateful_ralph has no run to resume here: none saved any progre
 
 The second one also appears in a directory where the flow never ran: check that you are in
 the directory the first run started in. On a fresh CI runner there is never anything to pick
-up; see [humanize in CI](/user/ci). More in [Troubleshooting](/user/troubleshooting).
+up; see [Humanize in CI](/user/ci). More in [Troubleshooting](/user/troubleshooting).
 
 ## Make a flow resumable
 

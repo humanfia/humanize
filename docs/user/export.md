@@ -32,17 +32,17 @@ When it is done, the line under the list, and the transcript, say where it went:
 ## What an export is
 
 An export is the opposite of an [error report](/user/reporting). A report is sent by
-humanize, on its own, and carries nothing you typed. An export is **your own run, sent on
+Humanize, on its own, and carries nothing you typed. An export is **your own run, sent on
 purpose**: the task, the prompts, what the agents said, and whatever of your files they
 wrote into a log. It is made on your machine, lands as a file, and goes nowhere until you
 attach it somewhere yourself.
 
 Three things go into it:
 
-- **The run's own record**, as humanize kept it: what happened, a line at a time.
+- **The run's own record**, as Humanize kept it: what happened, a line at a time.
 - **Each agent's log**, as its CLI wrote it, copied from where the run kept it.
 - **A timeline** of the whole run, gathered as part of the export, so whoever receives it can
-  open it in [Perfetto](/user/tracing) without having humanize.
+  open it in [Perfetto](/user/tracing) without having Humanize.
 
 Every file is scrubbed of credentials on the way in.
 
@@ -117,7 +117,7 @@ A file the run never wrote is left out: `resume.jsonl` only for a flow that
 
 **`manifest.json`** is what lets somebody else read the rest:
 
-- humanize's version, Python's, and the machine's;
+- Humanize's version, Python's, and the machine's;
 - the flow, the task, and how the run ended;
 - each agent's CLI, model, effort and account (by name only);
 - the workspace, and the git commit it is on when you export, or, for a run you imported, the
@@ -298,7 +298,7 @@ why.
 ## Next steps
 
 - [Tracing a run](/user/tracing): reading the timeline yourself
-- [Reporting](/user/reporting): what humanize sends on its own, which is far less
+- [Reporting](/user/reporting): what Humanize sends on its own, which is far less
 - [Picking a run up](/user/resuming): the other thing `/epics` offers about a run
 - [Tracing reference](/reference/tracing): the archive and the trace, exactly
 

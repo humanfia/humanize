@@ -76,9 +76,9 @@ there is one line.
 ::: info At a glance
 - **You will** choose a flow, give its role an agent and the run a budget, start it with a
   task, watch it, and stop it.
-- **Use it when** you have just installed humanize, or want to see how any flow is set up at
+- **Use it when** you have just installed Humanize, or want to see how any flow is set up at
   the prompt.
-- **You need** humanize and one signed-in coding agent CLI
+- **You need** Humanize and one signed-in coding agent CLI
   ([Installation](/user/installation)), git, and about ten minutes. The run itself costs a few
   cents.
 :::
@@ -142,7 +142,7 @@ commits its work or not.
 hmz
 ```
 
-The first time, humanize asks whether to report what goes wrong to its developers. The question
+The first time, Humanize asks whether to report what goes wrong to its developers. The question
 says what a report carries; answer either way, and `/settings` changes it later
 ([Reporting](/user/reporting)).
 
@@ -152,7 +152,7 @@ runs on its own you choose a **flow**.
 ## 3. Choose a flow
 
 Type `/flow` and press <kbd>enter</kbd>. It opens on **Installed**: every flow ready to run
-here, the ones built into humanize first. Press <kbd>/</kbd>, type `ralph`, press
+here, the ones built into Humanize first. Press <kbd>/</kbd>, type `ralph`, press
 <kbd>enter</kbd> to go back to the list, and <kbd>enter</kbd> on `ralph_loop`:
 
 <Term title="hmz · /flow">
@@ -181,7 +181,7 @@ here, the ones built into humanize first. Press <kbd>/</kbd>, type `ralph`, pres
 
 1. **The search box.** It keeps the flows whose names hold the letters you typed, in that
    order. <kbd>esc</kbd> clears it, then steps out of the menu.
-2. **`built in`** is where these flows come from: they ship with humanize. A flow you install
+2. **`built in`** is where these flows come from: they ship with Humanize. A flow you install
    from a [flowverse](/user/concepts#flowverse) is listed under that flowverse's name, and this
    project's own under `local`.
 3. **Copy here** copies the flow under the cursor into this project, to read or change. You do
@@ -189,7 +189,7 @@ here, the ones built into humanize first. Press <kbd>/</kbd>, type `ralph`, pres
    would.
 
 ::: details More flows than these
-**Install more…** goes to the flowverses: indexes of flows humanize can install, `official`
+**Install more…** goes to the flowverses: indexes of flows Humanize can install, `official`
 first. `hmz` fetches them in the background every time it opens. Open one, then a flow, and
 install it; from then on it is listed here, with its version at the end of its row. See
 [Flowverses](/weaver/flowverses#managing-flowverses).
@@ -198,7 +198,7 @@ install it; from then on it is listed here, with its version at the end of its r
 ## 4. Give the role an agent
 
 The flow opens on its **roles**: a row for each agent it drives, then `budget`,
-`profile flow` and `profile environment`, and buttons under them, **Save** last. `ralph_loop` has one role, `agent`. humanize
+`profile flow` and `profile environment`, and buttons under them, **Save** last. `ralph_loop` has one role, `agent`. Humanize
 fills it with the first CLI it found, so the row already names one.
 
 <Term title="hmz · /flow › ralph_loop">
@@ -344,7 +344,7 @@ a `cost` as well as a `duration`. See [Every run has a budget](/features/allowan
 ## 6. Save
 
 Press <kbd>tab</kbd> to reach **Save** under the roles, and <kbd>enter</kbd>. The status line
-now reads `◉ ralph_loop`, and humanize says `enter a task to start the flow`.
+now reads `◉ ralph_loop`, and Humanize says `enter a task to start the flow`.
 
 Nothing is applied before you save. <kbd>esc</kbd> steps back, and leaving `/flow` with changes
 in it asks `Save?` in a box, with **Save** and **Discard**. A flow with no budget refuses to save, saying
@@ -409,7 +409,7 @@ git diff start
 
 ## Next time: one line
 
-humanize remembers the setup for this directory, so the next `hmz` here opens on
+Humanize remembers the setup for this directory, so the next `hmz` here opens on
 `ralph_loop` with the same agent and budget. Type the task and press <kbd>enter</kbd>.
 
 What this directory remembers:
@@ -458,12 +458,12 @@ what you save there is what the next run starts with.
 
 ### The agent row names a CLI you did not want
 
-humanize fills a role with the first CLI it found. <kbd>enter</kbd> on the role, then on
+Humanize fills a role with the first CLI it found. <kbd>enter</kbd> on the role, then on
 `cli`, and pick another; then pick its model again.
 
 ### A flow from the [Flows](https://humanfia.ai/flows/) pages is not listed
 
-Only the flows built into humanize are there from the start. Install the others from a
+Only the flows built into Humanize are there from the start. Install the others from a
 flowverse: see the note under [step 3](#_3-choose-a-flow).
 
 ## Next steps
@@ -473,7 +473,7 @@ flowverse: see the note under [step 3](#_3-choose-a-flow).
   [Beat a benchmark](/user/tutorials/take-home),
   [Port a project](/user/tutorials/port-a-project) and
   [Build a coding agent](/user/tutorials/build-an-agent).
-- [Flows](https://humanfia.ai/flows/) lists every flow humanize and its official flowverse offer.
+- [Flows](https://humanfia.ai/flows/) lists every flow Humanize and its official flowverse offer.
 - [Run it unattended](/user/unattended): the same run as one `hmz exec` line.
 
 <style scoped>

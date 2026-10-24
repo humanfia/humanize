@@ -4,7 +4,7 @@ What a run leaves on disk and how it is read back: the **epic** (the run's own r
 sessions its CLIs logged, the optional **profile** of the programs it ran, the **trace** that
 gathers all of it onto one timeline (a Chrome JSON trace, opened in
 [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://tracing`), and the **bundle** a run is
-exported as. Exomyth, humanize's visualizer, is the part that builds the trace and the
+exported as. Exomyth, Humanize's visualizer, is the part that builds the trace and the
 [timeline](#timeline) (`hmz.runtime.tracing`). Guides: [Exporting a run](/user/export), [Tracing](/user/tracing).
 
 ## Model
@@ -60,7 +60,7 @@ With the lower-level [agent API](/reference/agents), each `AgentBase` has `id` a
 | `start`, `end` | Any wording [dateparser](https://dateparser.readthedocs.io/) reads (`"3 days ago"`, `"2026-08-09 09:00"`), made timezone-aware. Records outside the window are dropped. Default: unbounded. |
 | `profile` | A `profile.jsonl` path (or its epic directory), or the records; programs overlapping the window are drawn. |
 | `flow_profile` | A `flow-profile.jsonl` path (or its epic directory), or the samples; drawn as one more process, `python`, whose one track `flow` nests each frame in the one that called it. Samples overlapping the window are drawn. |
-| `kept` | Directories humanize kept sessions in, each holding `<cli>/` laid out as that CLI's home, read beside every CLI's own home. |
+| `kept` | Directories Humanize kept sessions in, each holding `<cli>/` laid out as that CLI's home, read beside every CLI's own home. |
 
 A trace of a **run** (`Epics.traced`) names exactly the ids the run's epic recorded, with no
 workspace: a directory run in fifty times has fifty separate traces, a run that opened nothing
@@ -96,7 +96,7 @@ then over `<kept>/<cli>` for every `kept` directory. Homes are resolved as in
 | `mcode` | `~/.minimax` | `v2/sessions/<y>/<m>/<d>/<opened>-session_<base64url id>/messages.jsonl` | `workspaceDir` of `local_runtime_sessions.record_json` in SQLite `v2/sqlite/runtime-state.sqlite`; a session absent there belongs to no workspace | `mcode:<id>` | none separate: a sub-agent's work is in its parent's log |
 | `agy` | `~/.gemini/antigravity-cli` | SQLite `conversations/<id>.db` (`steps`, protobuf metadata read by field number); `conversation_summaries.db` | `cache/last_conversations.json` (workspace → last conversation opened there): a workspace keeps only that one conversation | `agy:<id>` | conversations with `parent_conversation_id` |
 | `cursor-agent` | `~/.cursor` | <Badge type="warning" text="no reader" /> | | | |
-| `acp` | | no logs humanize can find | | | |
+| `acp` | | no logs Humanize can find | | | |
 
 Token counts are read as each CLI records them; where a CLI records cached input beside
 input (pi, omp, opencode, mimo, mcode, agy), both are counted.
@@ -347,7 +347,7 @@ H/epics/<ws>/<stamp>-<hex6>/
     traces/<%Y%m%dT%H%M%SZ>.trace.json   written by Epics.traced, one per call
 ```
 
-`H` is [humanize's home](/reference/files). `<ws>` is the workspace's resolved absolute path
+`H` is [Humanize's home](/reference/files). `<ws>` is the workspace's resolved absolute path
 with every character outside `[A-Za-z0-9]` replaced by `-` (`/home/you/code` →
 `-home-you-code`). `<stamp>` is the UTC start, `%Y%m%dT%H%M%S.mmmZ`; `<hex6>` is random.
 Epics sort by name, so in start order. Only a directory holding `epic.jsonl` is an epic.
@@ -360,7 +360,7 @@ JSON Lines, one line per event, appended and flushed as it happens. Every line h
 | `event` | When | Fields |
 | --- | --- | --- |
 | `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider, name}`, one per role: `agent` is the role, `name` what the agent filling it is called; `name` is absent from an epic written before agents had names of their own, whose sessions were written under the role), `envs` (list of `role=<-e spec>`, as given; in a record with no `spelling`, one written in a spelling `-e` now refuses, `local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets, is read back as `-e` spells it), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited; `graceful` a boolean, or `{duration, cost, output_tokens}` of booleans where the limits differ), `profile_flow`, `profile_environment` (`true`, only for a run [profiled](#profiling-a-run) that way), `spelling` (`2`: `envs` and `used` are spelled as `-e` writes `@` only before a provider) |
-| `opened` | a session's CLI has given it an id (when it opens, or during its first turn); a session whose CLI never started is not written | `agent` (the agent's own name, such as `NeiKos496`, never the role it fills), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<agent>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `env`, or the `<backend>:<name>` of the runtime a harness setting named; only when its work was on another machine; `self` in an epic an earlier humanize wrote is read as `env`) |
+| `opened` | a session's CLI has given it an id (when it opens, or during its first turn); a session whose CLI never started is not written | `agent` (the agent's own name, such as `NeiKos496`, never the role it fills), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<agent>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `env`, or the `<backend>:<name>` of the runtime a harness setting named; only when its work was on another machine; `self` in an epic an earlier Humanize wrote is read as `env`) |
 | `called` | the flow calls a flow | `flow` (callee's canonical ref), `task`, `epic` (the callee's record file name) |
 | `returned` | that call ends, however | `flow`, `epic` |
 | `usage` | the run ends | `cost` (USD), `output_tokens`, `seconds`: the run's total as its budget counted it |
@@ -527,7 +527,7 @@ def traced(self, epic: Path, *, output: str | os.PathLike[str] | None = None,
 | `start`, `end` | unbounded | As in [Selecting sessions](#selecting-sessions). |
 
 Collects exactly the ids the run recorded, named by role (`opened`), reading the epic's
-`sessions/` and every other directory a session says humanize kept it in, with the epic's
+`sessions/` and every other directory a session says Humanize kept it in, with the epic's
 `profile.jsonl` and `flow-profile.jsonl`. Returns the path written and the document.
 
 ### `Epics.trace`
@@ -550,7 +550,7 @@ def trace(self, *, sessions: str | Iterable[str] | None = None,
 | `start`, `end` | unbounded | Window. |
 | `profile` | none | A `profile.jsonl` to draw. |
 | `flow_profile` | none | A `flow-profile.jsonl` to draw. |
-| `kept` | every epic's `sessions/` (of this workspace; of every workspace for an `Hmz()` with no workspace) | Where humanize kept sessions. |
+| `kept` | every epic's `sessions/` (of this workspace; of every workspace for an `Hmz()` with no workspace) | Where Humanize kept sessions. |
 
 The workspace is the `Hmz` workspace; with `Hmz()` and named sessions, sessions are collected
 wherever they were recorded; `Hmz("/path")` keeps only sessions recorded there (the path is

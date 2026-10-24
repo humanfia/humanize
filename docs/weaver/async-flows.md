@@ -25,7 +25,7 @@ every module, an actor and a reviewer side by side, or one flow run on several p
 <ManyTurns />
 
 A flow is an `async def`, and `agent.run` is a coroutine, so turns you start together run
-together. Nothing new is needed from humanize: `asyncio.gather` and its relatives do the
+together. Nothing new is needed from Humanize: `asyncio.gather` and its relatives do the
 waiting.
 
 The one rule is that **two turns at once need two sessions**. A session is one conversation,
@@ -109,7 +109,7 @@ async def fanout(
    files.
 2. **`exec(["git", "ls-files", "*.py"])`** answers with the exit status, stdout and stderr. The
    files are the lines of stdout.
-3. **`asyncio.Semaphore(AT_ONCE)`** caps how many turns go at once. Nothing in humanize caps
+3. **`asyncio.Semaphore(AT_ONCE)`** caps how many turns go at once. Nothing in Humanize caps
    it, so without the semaphore every file starts at the same moment. How wide is worth going
    depends on the CLI, your account's rate limits and the machine: see [Running
    together](/features/concurrency).

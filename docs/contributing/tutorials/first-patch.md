@@ -1,6 +1,6 @@
 # Your first patch
 
-In this tutorial you clone humanize, change one small thing, pass the checks, and open a pull
+In this tutorial you clone Humanize, change one small thing, pass the checks, and open a pull
 request CI agrees with. It takes **half an hour**, most of it the first `uv sync` and the test
 run. Every command is written out, in order.
 

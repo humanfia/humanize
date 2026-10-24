@@ -168,7 +168,7 @@ needs a daemon MUST start one of the release installed.
 daemon or host beside one.
 
 **7.5** A frontend that finds the epics of a workspace held by an older daemon MUST refuse them,
-saying `the runs in <workspace> are held by an older humanize (pid <pid>); stop it with that
+saying `the runs in <workspace> are held by an older Humanize (pid <pid>); stop it with that
 version`, or `on this machine` in place of `in <workspace>` where the daemon itself is older.
 
 **7.6** The terminal interface and `hmz web` MUST say that refusal on standard error and exit 1
@@ -176,7 +176,7 @@ where they cannot serve without those epics; the page of `hmz web` MUST say it w
 for that workspace's epics, and MUST serve every other workspace.
 
 **7.7** A daemon or host MUST tell a frontend that is older than it ``held for frontends by a newer
-humanize; `hmz` of it reads it``, and MUST then detach it.
+Humanize; `hmz` of it reads it``, and MUST then detach it.
 
 ## 8. Remote daemons
 

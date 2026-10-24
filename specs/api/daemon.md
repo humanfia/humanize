@@ -124,7 +124,7 @@ that is not JSON-native as its text.
 **5.7** A reader MUST hand out each whole frame exactly once, in the order received.
 
 **5.8** On receiving a frame of a kind it does not know, the daemon and a host MUST answer with
-one `GONE` frame carrying ``held for frontends by a newer humanize; `hmz` of it reads it`` and
+one `GONE` frame carrying ``held for frontends by a newer Humanize; `hmz` of it reads it`` and
 close the connection.
 
 ## 6. Control requests
@@ -593,7 +593,7 @@ send it in `welcome`.
 
 **12.3** A client finding a daemon of another protocol version, or of none, MUST NOT reach it
 and MUST NOT start a daemon beside it, and MUST report `the runs in <workspace> are held by an
-older humanize (pid <pid>); stop it with that version`, with `on this machine` in place of
+older Humanize (pid <pid>); stop it with that version`, with `on this machine` in place of
 `in <workspace>` where no workspace is concerned.
 
 **12.4** The daemon and a host MUST answer a reader that speaks another protocol, by a frame kind

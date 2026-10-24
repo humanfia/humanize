@@ -29,7 +29,7 @@ def fence(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(
         prog="hmz internal fence",
-        description="Run an agent held to the paths and hosts its flow permits. humanize "
+        description="Run an agent held to the paths and hosts its flow permits. Humanize "
         "runs this command for every turn it fences; do not run it manually.",
     )
     parser.add_argument(

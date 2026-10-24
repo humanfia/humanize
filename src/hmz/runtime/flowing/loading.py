@@ -26,7 +26,7 @@ checkouts claiming one name in one run is a :class:`~hmz.flows.FlowLoadConflict`
 whose files changed is imported afresh by the next run that nobody else is running it in. A
 run asks for a module once; every later `load` of the same ref is a dictionary lookup.
 
-A repository named by URL is cloned once per commit into humanize's home, the ref resolved to
+A repository named by URL is cloned once per commit into Humanize's home, the ref resolved to
 the commit it stands at, and loaded from there -- fetched on a thread the first time it is
 called rather than when `load` is, so that naming one costs a flow nothing until it is used.
 """

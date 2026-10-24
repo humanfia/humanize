@@ -3,7 +3,7 @@
 Two halves, and the difference between them is who they belong to.
 
 The first is a reading. A skill installed on this machine is the CLI's own -- installed the
-way that CLI installs one and switched off the way that CLI switches one off -- so humanize
+way that CLI installs one and switched off the way that CLI switches one off -- so Humanize
 lists them so that whoever is setting an agent up can see what it will be carrying, and
 changes nothing about any of them. Nothing is asked of the CLI itself, for the reason nothing
 else here asks it either: starting one costs seconds a prompt does not have. Where each of
@@ -14,7 +14,7 @@ The second is what a flow brings: the skills it works by, which every session it
 open gets. They go into the virtual home the session's CLI is started in
 (:attr:`~hmz.coganchor.backends.Profile.lodges`, :mod:`hmz.coganchor.homes`), beside links to
 the user's own, or are named in its configuration where a CLI reads them from a list -- never
-into the workspace, which is the project's and holds nothing of humanize's.
+into the workspace, which is the project's and holds nothing of Humanize's.
 """
 
 from __future__ import annotations

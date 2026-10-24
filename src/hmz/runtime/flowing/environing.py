@@ -8,7 +8,7 @@ machine: :mod:`.environing_local` for this one and :mod:`.environing_ssh` for on
 ssh. Everything a driver derives -- a subdirectory, a worktree, a temporary copy, a scratch
 directory -- is another driver on the same machine object, so they share its connection.
 
-Where what a driver makes lives, on the machine it makes it on, under humanize's own home
+Where what a driver makes lives, on the machine it makes it on, under Humanize's own home
 there (`hmz.home()` here, `${HUMANIZE_HOME:-~/.hmz}` over ssh)::
 
     envs/<name>-<digest>/            one per workdir things are derived from
@@ -17,7 +17,7 @@ there (`hmz.home()` here, `${HUMANIZE_HOME:-~/.hmz}` over ssh)::
         scratch/<id>-<digest>/       a scratch directory, kept until destroyed
         worktrees/<ref>-<random>/    a worktree added with no `dir` of its own
 
-Under humanize's home rather than the system's temporary directory for three reasons. A
+Under Humanize's home rather than the system's temporary directory for three reasons. A
 resumable run keeps its copies across a reboot, which a temporary directory that is a tmpfs
 or is swept by `systemd-tmpfiles` does not promise. A copy is a reflink only on the
 filesystem the workdir is on, and a home directory is far likelier to share one with a
@@ -97,7 +97,7 @@ __all__ = [
 
 log = logging.getLogger(__name__)
 
-#: The directory under humanize's home on a machine that everything derived there lives in.
+#: The directory under Humanize's home on a machine that everything derived there lives in.
 ENVS = "envs"
 
 #: Errnos that mean the machine, rather than the path, is the trouble.
@@ -263,9 +263,9 @@ cd -- "$top"
 #: whose parents are what was checked out -- where anything was -- and the first. The files
 #: are added to a copy of the index, so that its stat cache saves reading what did not change,
 #: kept beside the real one so that a split index finds what it shares. The commits are
-#: humanize's, whoever the repository says commits, and never signed. A workspace's own
+#: Humanize's, whoever the repository says commits, and never signed. A workspace's own
 #: `.hmz/` -- its flows, what was exported there -- is left out, as if git ignored it, and so
-#: is a `.humanize/`, what that was called before, where humanize has not been run since.
+#: is a `.humanize/`, what that was called before, where Humanize has not been run since.
 SNAPSHOT_SCRIPT = (
     _TO_TOP
     + r"""
@@ -1211,7 +1211,7 @@ class MachineEnvDriver:
         Args:
           ref: What to check out, detached; None for the workdir's `HEAD`.
           dir: Where, relative to the workdir, absolute, or `~/...`; None for a fresh
-            directory under `envs/` in humanize's home on the machine.
+            directory under `envs/` in Humanize's home on the machine.
 
         Raises:
           WorktreeError: Not a repository, an unknown ref, or a directory that is taken,
@@ -1306,7 +1306,7 @@ class MachineEnvDriver:
         if target.is_relative_to(source):
             raise EnvError(
                 f"a temporary copy of {source} would be made inside it, at {target}: "
-                "humanize's home is under the workdir"
+                "Humanize's home is under the workdir"
             )
         key = (machine.identity, str(target))
         # Asked first so that another holder is refused at once rather than after the copy

@@ -6,7 +6,7 @@ import FlowCall from '../.vitepress/theme/components/weaver-calling/FlowCall.vue
 
 In this guide you build flows out of other flows. You write `steps`, which splits its task
 into steps and runs each as a call to a hidden flow beside it, under a budget of its own. Then
-you write `aimed`, which calls the `goal` flow humanize ships and carries on after it.
+you write `aimed`, which calls the `goal` flow Humanize ships and carries on after it.
 
 Reach for `load` when a flow somebody has already written does one step of what you want, or
 when a flow of your own has grown steps worth naming, testing and budgeting one at a time.
@@ -225,7 +225,7 @@ async def test_a_step_over_its_budget_does_not_end_the_run() -> None:
 
 ## Example: a published flow
 
-`aimed` calls [`goal`](https://humanfia.ai/flows/goal), which ships with humanize, then takes a turn of its own
+`aimed` calls [`goal`](https://humanfia.ai/flows/goal), which ships with Humanize, then takes a turn of its own
 once the goal is met:
 
 ```python
@@ -278,7 +278,7 @@ async def aimed(
 1. **`GoalCommandAgentMixin` on your role**, because `goal`'s `worker` role asks for it. An
    agent reaches your flow granted what **your** role declared, and that is all it can pass
    on, whatever its CLI could do.
-2. **A name**, as `-f` takes one: `goal` ships with humanize, so it is there on every
+2. **A name**, as `-f` takes one: `goal` ships with Humanize, so it is there on every
    machine. A flow of another repository is named by a git ref instead, written the way pip
    writes one: the repository, `@` a branch, tag or commit, and `#` the directory the flow is
    in, as in `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr`. It is

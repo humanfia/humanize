@@ -30,7 +30,7 @@ __all__ = [
     "say",
 ]
 
-#: Every kind of token humanize counts, in the order a reader is shown them: what went in,
+#: Every kind of token Humanize counts, in the order a reader is shown them: what went in,
 #: what came out, the two cache kinds, and the reasoning some backends count beside the output
 #: rather than inside it. One vocabulary rather than each CLI's own, so that a run driving two
 #: backends reads one word for one thing and the prices -- which are per kind -- can be put
@@ -124,7 +124,7 @@ class Failed(subprocess.CalledProcessError):
     actually went wrong in an attribute nothing prints. What actually went wrong is the whole
     of what a person needs: `the model is not supported when using a ChatGPT account`, `the
     free service has ended`, `no credential`. Those are the lines that tell somebody their
-    account needs attention rather than that humanize is broken -- and until this they were
+    account needs attention rather than that Humanize is broken -- and until this they were
     a field on an exception whose message said nothing.
 
     It also says which *kind* of failure it was, where somebody has worked that out. A kind
@@ -322,7 +322,7 @@ class Event:
         `took`, which is the agent saying that a word put into the turn is now in front of
         it -- carrying that word, so that whoever said it knows which one landed --
         `subagent` and `subagent-ends`, which bracket an agent this one started of its own,
-        and `notice`, which is humanize rather than the agent: a turn waiting out a rate
+        and `notice`, which is Humanize rather than the agent: a turn waiting out a rate
         limit, carried to another account, cut off, or taken away from a backend that had
         stopped saying anything. A `notice` is not the working, and must not be hidden with
         it -- a turn told to wait half a minute and a turn that has hung look identical from

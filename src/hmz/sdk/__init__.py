@@ -1,4 +1,4 @@
-"""The SDK: how a tool that is not humanize reaches humanize.
+"""The SDK: how a tool that is not Humanize reaches Humanize.
 
     from hmz.sdk import Hmz
 
@@ -31,7 +31,7 @@ answers for and saying what the others type:
 on -- scripted agents, dictionary filesystems, an outworlder that answers from a list -- which
 are :mod:`hmz.runtime.flowing.fakes`, handed through whole.
 
-Nothing under this names it. What is here is not a layer humanize is built out of -- every
+Nothing under this names it. What is here is not a layer Humanize is built out of -- every
 answer is written where it is carried out, in :mod:`hmz.runtime` and :mod:`hmz.daemon`, and
 this restates none of it. That is the whole of the difference between this and the seam every
 way in used to pass through: a seam somebody outside reaches in through is a different job,
@@ -84,7 +84,7 @@ __all__ = [
 #: holding a workspace's runs apart from a terminal. The name of the layer rather than the
 #: module inside it that happens to hold the class, so that what is offered out here follows
 #: what is done in there -- and one entry apiece, so that `from hmz.sdk import Hmz` costs the
-#: one module `Hmz` is in rather than every layer humanize has.
+#: one module `Hmz` is in rather than every layer Humanize has.
 _WRITTEN = {
     "Accounts": "hmz.runtime",
     "Daemon": "hmz.daemon",
@@ -113,7 +113,7 @@ def __getattr__(name: str) -> object:
 
     Returns:
       The same object that layer holds, so that there is one of each however it was reached --
-      a tool that named this and humanize itself are holding one class, not two that agree.
+      a tool that named this and Humanize itself are holding one class, not two that agree.
 
     Raises:
       AttributeError: If nothing here is called that, as for any other module.

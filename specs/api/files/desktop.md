@@ -17,7 +17,7 @@ Out of scope:
 
 ## 2. Definitions
 
-**2.1** **App**: the macOS application bundle `humanize.app`, whose bundle identifier is
+**2.1** **App**: the macOS application bundle `Humanize Desktop.app`, whose bundle identifier is
 `ai.humanfia.humanize`, or on Windows the program `humanize.exe` of the identifier
 `ai.humanfia.humanize`.
 
@@ -58,7 +58,7 @@ opens its window at its default size and position.
 
 ## 4. The log
 
-**4.1** `humanize.log` in the log directory MUST receive, appended, the log of the **app** at
+**4.1** `Humanize Desktop.log` in the log directory MUST receive, appended, the log of the **app** at
 level info and above: each line the web **frontend** writes to its standard error, each line
 `uv` writes while it installs `hmz`, the start, exit and stop of the web **frontend**, the
 decisions of the **app** about installing `hmz`, and the results of looking for updates.
@@ -66,7 +66,7 @@ decisions of the **app** about installing `hmz`, and the results of looking for 
 **4.2** The **app** MUST name the address of the web **frontend** in its log by its origin alone,
 and MUST NOT write the access key of that address into any file.
 
-**4.3** The **app** MUST replace `humanize.log` with an empty file when it exceeds 40,000 bytes,
+**4.3** The **app** MUST replace `Humanize Desktop.log` with an empty file when it exceeds 40,000 bytes,
 and MUST NOT keep the replaced content.
 
 **4.4** The **user** MAY delete the log directory at any time.
@@ -98,7 +98,7 @@ the browser.
 of the Windows session that end with it, and MUST create no file for it.
 
 **5.7** On Windows, the installer of the **app** MUST install it, for the **user** alone, into
-`%LOCALAPPDATA%\humanize\`, and MUST remove that directory when it uninstalls the **app**.
+`%LOCALAPPDATA%\Humanize Desktop\`, and MUST remove that directory when it uninstalls the **app**.
 
 **5.8** On Windows, the **app** MAY write the installer of an update of itself into a directory
 under the temporary directory of Windows while it installs that update.

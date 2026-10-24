@@ -129,7 +129,7 @@ class Daemon:
       pid: The host process holding them.
       started: When it was started, in UTC.
       protocol: Which version of the frontends' protocol the daemon speaks, or 0 for one of
-        an older humanize that said none -- which no frontend of this one reaches.
+        an older Humanize that said none -- which no frontend of this one reaches.
       slot: Which of the workspace's hosts it is: "" for its own, `chat:<hex>` for a chat's.
     """
 
@@ -157,7 +157,7 @@ class Daemon:
           The link, attached; a context manager, closed to let go.
 
         Raises:
-          OSError: If nothing answers there, or what does is a daemon of an older humanize.
+          OSError: If nothing answers there, or what does is a daemon of an older Humanize.
         """
         from hmz.daemon.link import reached
 
@@ -281,7 +281,7 @@ def running(
     """The host holding the runs of one workspace, if one is.
 
     Args:
-      workspace: The project directory, or None for wherever humanize is being run.
+      workspace: The project directory, or None for wherever Humanize is being run.
       slot: Which of its hosts: "" for its own, `chat:<hex>` for a chat's.
 
     Returns:
@@ -330,7 +330,7 @@ def host(
     or once it is stopped; the daemon goes once no host is left.
 
     Args:
-      workspace: The project directory, or None for wherever humanize is being run.
+      workspace: The project directory, or None for wherever Humanize is being run.
       seconds: How long to wait for each of the two to come up.
       slot: Which of its hosts: "" for its own, `chat:<hex>` for a chat's.
 
@@ -338,7 +338,7 @@ def host(
       The host of this workspace's runs, reachable: the one already there, or one started now.
 
     Raises:
-      OSError: If this machine's daemon is of an older humanize, or no host could be started.
+      OSError: If this machine's daemon is of an older Humanize, or no host could be started.
     """
     named = where.workspace(workspace)
     failed: OSError | None = None
@@ -380,7 +380,7 @@ def _machine(seconds: float) -> dict[str, Any]:
       What it wrote down about itself.
 
     Raises:
-      OSError: If it is a daemon of an older humanize, or none could be started.
+      OSError: If it is a daemon of an older Humanize, or none could be started.
     """
     said = _daemon()
     failed: OSError | None = None
@@ -401,7 +401,7 @@ def _machine(seconds: float) -> dict[str, Any]:
 
 
 class Older(RuntimeError):  # noqa: N818 -- what holds the runs, not what went wrong
-    """The runs asked for are held by an older humanize, which no frontend of this one reads.
+    """The runs asked for are held by an older Humanize, which no frontend of this one reads.
 
     Apart from failing to reach a host at all: a second daemon started beside it would fight
     it over the socket, so a frontend says so and opens nothing rather than holding the runs
@@ -424,7 +424,7 @@ def attach(
     Args:
       kind: What the frontend is, as the runs list their frontends: `tui`, `web`.
       name: What to call it there, or "" for the runs to name it.
-      workspace: The project directory, or None for wherever humanize is being run.
+      workspace: The project directory, or None for wherever Humanize is being run.
       slot: Which of its hosts: "" for its own, `chat:<hex>` for a chat's -- a new one is a
         new chat's, started here.
 
@@ -432,7 +432,7 @@ def attach(
       The link, attached.
 
     Raises:
-      Older: If this workspace's runs are held by an older humanize.
+      Older: If this workspace's runs are held by an older Humanize.
       OSError: If no host could be reached or started, after a few tries.
     """
     failed = OSError(f"the runs in {where.workspace(workspace)} could not be reached")
@@ -450,7 +450,7 @@ def attach(
 
 
 def older(daemon: Daemon) -> str:
-    """What to say of a daemon of an older humanize, which no frontend of this one reaches.
+    """What to say of a daemon of an older Humanize, which no frontend of this one reaches.
 
     Args:
       daemon: The daemon.
@@ -460,7 +460,7 @@ def older(daemon: Daemon) -> str:
     """
     held = f"in {daemon.workspace}" if daemon.workspace else "on this machine"
     return (
-        f"the runs {held} are held by an older humanize (pid {daemon.pid}); "
+        f"the runs {held} are held by an older Humanize (pid {daemon.pid}); "
         "stop it with that version"
     )
 
@@ -703,7 +703,7 @@ def _hosts() -> list[Daemon]:
 
 
 def _other(said: dict[str, Any], workspace: str) -> Daemon:
-    """This machine's daemon, of a humanize speaking another protocol, as a daemon to name."""
+    """This machine's daemon, of a Humanize speaking another protocol, as a daemon to name."""
     pid, protocol = said.get("pid"), said.get("protocol")
     return Daemon(
         at=where.at(),

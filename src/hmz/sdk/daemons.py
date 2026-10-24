@@ -1,4 +1,4 @@
-"""The runs humanize is holding apart from a terminal, as a tool outside reaches them.
+"""The runs Humanize is holding apart from a terminal, as a tool outside reaches them.
 
 A workspace's runs outlive the program that asked for them: they are held in a process of
 their own, one per workspace, and are reached through the one daemon of the machine. That is
@@ -58,7 +58,7 @@ class Daemons:
           The daemon, listening.
 
         Raises:
-          OSError: If a daemon of an older humanize holds it, or no host could be started.
+          OSError: If a daemon of an older Humanize holds it, or no host could be started.
         """
         from hmz import daemon
 

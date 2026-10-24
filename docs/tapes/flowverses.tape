@@ -1,5 +1,5 @@
 # `/flow`: out to its first screen, into the flowverses -- the indexes more flows are installed
-# from -- and into humanize's own, to install one flow at the release asked for.
+# from -- and into Humanize's own, to install one flow at the release asked for.
 #
 # Nothing reaches a network. The official index is the one `stage.py` wrote into this
 # container, and the fetch the interface tries as it opens fails quietly. The release installed

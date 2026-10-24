@@ -1,7 +1,7 @@
 """Unix sockets under a temporary directory too long to hold them: a Mac's, or a fence's.
 
 A socket path has 104 bytes on macOS, its NUL included. A Mac's `TMPDIR` spends 49 of them and
-a fenced process's more, so every socket humanize makes is checked here under one long enough
+a fenced process's more, so every socket Humanize makes is checked here under one long enough
 that nothing under it would fit -- and is bound, which is what refuses a path too long.
 """
 

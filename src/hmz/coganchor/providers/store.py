@@ -52,7 +52,7 @@ _NAMED = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 _HELD = "provider.json"
 
 #: What the account this machine is already signed into is called, which is no name at all.
-#: It is the CLI as whoever is at this machine runs it -- humanize did not make it, keeps no
+#: It is the CLI as whoever is at this machine runs it -- Humanize did not make it, keeps no
 #: credentials for it and cannot take it away -- and it is already the spelling an agent
 #: configured with no account uses, in `AgentConfig.provider` and in `Runs.provider`. So it is
 #: an account here too, and the one thing every backend has whether or not anybody made one.
@@ -128,7 +128,7 @@ class Provider:
     def at(self) -> Path:
         """The directory this account's credentials are kept in.
 
-        Which for one humanize made is its own directory, and for the account this machine is
+        Which for one Humanize made is its own directory, and for the account this machine is
         already signed into is the CLI's own home: those credentials are the CLI's, which is
         what makes that account the one nobody has to make.
         """
@@ -195,7 +195,7 @@ class Provider:
 
 
 def under() -> Path:
-    """Where every provider is kept, which is one directory under humanize's own home.
+    """Where every provider is kept, which is one directory under Humanize's own home.
 
     Returns:
       The directory, whether or not anything is in it.
@@ -271,7 +271,7 @@ def serves(one: Provider) -> tuple[str, ...]:
       one: The account.
 
     Returns:
-      The other backends, in the order humanize lists them. Nothing at all for an account
+      The other backends, in the order Humanize lists them. Nothing at all for an account
       that cannot travel: a subscription signed into writes the CLI's own credential store,
       in that CLI's own format, and nothing else reads it.
     """
@@ -534,7 +534,7 @@ def _read(cli: str, at: Path) -> Provider | None:
         args=tuple(str(one) for one in cast("list[Any]", args))
         if isinstance(args, list)
         else (),
-        # And nothing else: a `fallback` an older humanize wrote here named the account to
+        # And nothing else: a `fallback` an older Humanize wrote here named the account to
         # carry on under, which accounts no longer say, so it is read past and gone the next
         # time the account is written down.
         made=str(held.get("made") or ""),
