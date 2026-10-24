@@ -48,6 +48,13 @@ _APP = (
     " (KHTML, like Gecko) humanize-desktop/0.0.0"
 )
 
+#: What the Windows app's window says it is: WebView2, and the app.
+_WINDOWS_APP = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    " (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0"
+    " humanize-desktop/0.0.0"
+)
+
 pytestmark = pytest.mark.parametrize("engine", ENGINES)
 
 
@@ -847,6 +854,58 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
             "document.documentElement.toggleAttribute('data-fullscreen', false)"
         )
         assert top(page, "[data-hmz=bar] .bar-side") >= strip
+
+
+def test_in_the_windows_app_the_top_row_keeps_clear_of_the_caption_buttons(
+    project: Path, engine: str
+) -> None:
+    """The app's window draws the page to its top edge, its caption buttons over the top right."""
+    # What can be clicked where they stand, the window's top 32 pixels and its right 138: what
+    # is drawn there, every 4 pixels.
+    under = (
+        "(() => { const found = new Set(); for (let x = innerWidth - 138; x < innerWidth;"
+        " x += 4) for (let y = 0; y < 32; y += 4) { const el = document"
+        ".elementFromPoint(x, y)?.closest('a, button, input, select, textarea, summary,"
+        " [role=tab]'); if (el) found.add(el.outerHTML.slice(0, 80)) } return [...found] })()"
+    )
+    windows = "Object.defineProperty(navigator, 'platform', { get: () => 'Win32' })"
+    with (
+        served() as site,
+        opened(site, engine=engine, user_agent=_WINDOWS_APP, init=windows) as page,
+    ):
+        assert page.evaluate("document.documentElement.dataset.shell") == "windows"
+        expect(page.locator("[data-hmz=bar]")).to_have_attribute(
+            "data-tauri-drag-region", "deep"
+        )
+        # The shortcuts as Windows writes them.
+        expect(page.locator(".side-nav kbd")).to_have_text(["Ctrl+Shift+O", "Ctrl+K"])
+        assert page.evaluate(under) == []
+
+        # The panel beside the epic, open, is the top right; and shut, the bar is.
+        _start_chat(page, "hello there")
+        expect(page.locator("[data-hmz=inspector]")).to_be_visible()
+        assert page.evaluate(under) == []
+        page.locator(".panel-close").click()
+        expect(page.locator("[data-hmz=inspector]")).to_be_hidden()
+        assert page.evaluate(under) == []
+        # Full screen, where they are gone, it is drawn as in a browser.
+        page.evaluate(
+            "document.documentElement.toggleAttribute('data-fullscreen', true)"
+        )
+        assert page.evaluate(under) != []
+        page.evaluate(
+            "document.documentElement.toggleAttribute('data-fullscreen', false)"
+        )
+
+        # A narrow window: the bar, and a dialog that fills it.
+        page.set_viewport_size({"width": 700, "height": 800})
+        assert page.evaluate(under) == []
+        page.keyboard.press("Control+k")
+        expect(page.locator("[data-hmz=dialog-search]")).to_be_visible()
+        assert page.evaluate(under) == []
+        go(page, "/settings/general")
+        expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
+        assert page.evaluate(under) == []
 
 
 def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:

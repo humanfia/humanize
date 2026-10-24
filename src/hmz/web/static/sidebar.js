@@ -39,6 +39,8 @@ export function mountSidebar(root, context, where) {
     updates.title = count ? `${count} flow${count === 1 ? ' has' : 's have'} a newer release` : ''
   })
   const bar = daemonBar(context)
+  // The keys the shortcuts are pressed with, as this system writes them.
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform)
   fill(
     root,
     dragged(
@@ -53,8 +55,8 @@ export function mountSidebar(root, context, where) {
     h(
       'div',
       { class: 'side-nav' },
-      h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('new'), h('span', {}, 'New epic'), h('kbd', {}, '⇧⌘O')),
-      h('a', { href: hash('/search'), 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search epics'), h('kbd', {}, '⌘K')),
+      h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('new'), h('span', {}, 'New epic'), h('kbd', {}, mac ? '⇧⌘O' : 'Ctrl+Shift+O')),
+      h('a', { href: hash('/search'), 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search epics'), h('kbd', {}, mac ? '⌘K' : 'Ctrl+K')),
       h('a', { href: hash('/flows'), 'data-nav': 'flows' }, icon('flows'), h('span', {}, 'Flows'), updates),
     ),
     h('div', { class: 'side-scroll' }, list, more),
