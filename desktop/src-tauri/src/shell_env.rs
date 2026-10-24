@@ -5,7 +5,6 @@
 //! login shell gives this account there.
 
 use std::collections::HashMap;
-#[cfg(unix)]
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
@@ -50,6 +49,11 @@ pub fn login() -> Env {
             .map(OsString::as_os_str),
     );
     env.insert("PATH".into(), path);
+    // WSL is not handed this process's environment, so the hmz named in Windows is carried in.
+    #[cfg(windows)]
+    if let Some(named) = env::var_os(crate::server::OVERRIDE) {
+        env.insert(crate::server::OVERRIDE.into(), named);
+    }
     env
 }
 
