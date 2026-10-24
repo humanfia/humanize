@@ -33,7 +33,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from hmz import sockets
+from hmz.coganchor.unix import sockets
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping

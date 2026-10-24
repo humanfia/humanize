@@ -709,7 +709,7 @@ class Gate:
         import tempfile
         from pathlib import Path
 
-        from hmz import sockets
+        from hmz.coganchor.unix import sockets
 
         with self._lock:
             if self._sock is not None:

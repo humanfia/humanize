@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz import sockets
+from hmz.coganchor.unix import sockets
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable

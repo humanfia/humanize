@@ -47,9 +47,10 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from hmz import coganchor, sockets
+from hmz import coganchor
 from hmz.coganchor import atomic
 from hmz.coganchor.proto import Channel
+from hmz.coganchor.unix import sockets
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence

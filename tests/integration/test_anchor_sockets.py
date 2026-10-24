@@ -22,9 +22,7 @@ from hmz.coganchor.agents.hooks import Hooks, Moment
 from hmz.coganchor.agents.preload import Watch
 from hmz.coganchor.agents.tools import Toolbox
 from hmz.coganchor.faking import FakeCli, FakeCommand
-
-#: What a socket path may spend, its NUL left out: macOS's, the shorter.
-LONGEST = 103
+from hmz.coganchor.unix import LONGEST
 
 
 @pytest.fixture
