@@ -314,7 +314,7 @@ Every path in this section is safe to delete while humanize is not running.
 | --- | --- | --- |
 | `$TMPDIR/hmz-fence-XXXXXXXX/` (`0700`) | a fenced process's `TMPDIR`; `cache/<var>` inside for redirected caches | when the process ends (left on `SIGKILL`) |
 | the same path, on a machine a supervised agent's commands run on | that agent's commands' `TMPDIR` there | kept |
-| `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock` | sockets a CLI reports hooks, tool calls and preload events on | with the session |
+| `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock`, `humanize-clis-*/cli.sock` (under `/tmp` instead where `$TMPDIR` is too long for the socket's path to fit in 103 bytes) | sockets a CLI reports hooks, tool calls and preload events on, and a flow's command lines are run through | with the session |
 | `$TMPDIR/hmz-dsh-*/humanize.patch.yml` | per-session CLI configuration | with the session |
 | `$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>/` | checkouts of [`git+` refs](/reference/flows#refs), and of the releases [installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`, checked out detached at `<sha>`, renamed into place; one per commit | never; cloned again when missing |
 | `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
@@ -325,7 +325,7 @@ Every path in this section is safe to delete while humanize is not running.
 | `$TMPDIR/humanize-<uid>/models/<cli>/<name>.json`, `_local.json` | [model catalogues](#model-catalogues) of each account and of the CLI's own sign-in | an account's when it is removed; the rest kept |
 | `$TMPDIR/humanize-*` | a docker or Apple container environment's cid file and machine shadow, or a `SlurmConfig` machine's shadow | with the container or job |
 | `$TMPDIR/humanize-<uid>/.<backend>.<name>.lock` | empty; held with `flock(LOCK_EX)` while containers of a docker or Apple container runtime are sized and started, or services of a swarm counted and created (not while their tasks are placed and come up), or jobs of a Slurm runtime counted and submitted (not while they wait in the queue), so two runs on this machine never allocate from one runtime at once | kept |
-| `${XDG_RUNTIME_DIR:-$TMPDIR}/humanize-ssh-<uid>/%C[-<hex8>]` (`0700`) | ssh control sockets ([`HUMANIZE_SSH_REUSE`](/reference/environment#humanize-ssh-reuse)) | 120 s after last use |
+| `${XDG_RUNTIME_DIR:-$TMPDIR}/humanize-ssh-<uid>/%C[-<hex8>]` (`0700`; under `/tmp` instead where the socket's path would pass 103 bytes, as under a Mac's `$TMPDIR`) | ssh control sockets ([`HUMANIZE_SSH_REUSE`](/reference/environment#humanize-ssh-reuse)) | 120 s after last use |
 | `/dev/shm/hmz-<pid>-<hex16>-*/<n>.<file>` (`0700`/`0600`) | credential copies staged for a turn (≤ 1 MiB each) | on close; dead-pid directories swept |
 
 ## On other machines

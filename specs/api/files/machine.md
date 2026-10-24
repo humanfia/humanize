@@ -219,11 +219,15 @@ swarm service or Slurm job of an **env**, a process-private temporary directory 
 only) and the directory `shadow`, and MUST remove it when the container, service or job is
 removed.
 
-**8.3** The directories of ssh connection sharing MUST be
-`${XDG_RUNTIME_DIR:-<tmp>}/humanize-ssh-<uid>/`, with mode `0700`, holding the control sockets
-`ssh` creates, named `%C` or `%C-<8 hexadecimal digits>`, which `ssh` removes 120 seconds after
-their last use; `hmz` MUST NOT create the directory where `HUMANIZE_SSH_REUSE` turns sharing off,
-and MUST NOT remove it.
+**8.3** The directories of ssh connection sharing MUST be `<sdir>/humanize-ssh-<uid>/`, with
+mode `0700`, holding the control sockets `ssh` creates, named `%C` or
+`%C-<8 hexadecimal digits>`, which `ssh` removes 120 seconds after their last use, where
+`<sdir>` is `${XDG_RUNTIME_DIR:-<tmp>}` where
+`<sdir>/humanize-ssh-<uid>/%C-<8 hexadecimal digits>.<16 hexadecimal digits>`, the longest name
+`ssh` binds a control socket under, is at most 103 bytes long, and `/tmp` otherwise where `/tmp`
+is writable; `hmz` MUST NOT create the directory where
+`HUMANIZE_SSH_REUSE` turns sharing off, MUST NOT remove it, and MUST NOT share connections
+where it is not a directory owned by the user that nobody else may read, write or enter.
 
 ## 9. The cache directory
 

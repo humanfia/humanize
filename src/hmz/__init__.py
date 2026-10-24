@@ -14,11 +14,19 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-__all__ = ["here", "home", "machine", "working_in"]
+__all__ = ["here", "home", "machine", "sockets", "working_in"]
 
 #: What humanize's own directories are called, and what they were called before.
 _NAME = ".hmz"
 _WAS = ".humanize"
+
+#: The longest path a Unix socket is bound or reached by, in bytes: macOS has room for 104 with
+#: the NUL that ends it, Linux for 108, and the shorter is what is measured against so that a
+#: humanize which works on one works on the other.
+_SOCKET = 103
+
+#: Where a socket goes whose directory would be too long a way to it: short on every Unix.
+_SHORT = "/tmp"  # noqa: S108 -- a directory made under it is checked to be this user's
 
 #: The workspace a thread is working in, where it is not the directory being run in.
 _WORKING: contextvars.ContextVar[pathlib.Path | None] = contextvars.ContextVar(
@@ -95,6 +103,29 @@ def machine() -> pathlib.Path:
             f"{mine} is not a directory only this user can write; remove it"
         )
     return mine
+
+
+def sockets(room: int, under: str = "") -> pathlib.Path:
+    """Where a directory holding a Unix socket goes, so that the socket's path fits.
+
+    The temporary directory, unless that is too long a way in: on a Mac it is a directory
+    under `/var/folders` that spends half of the hundred bytes a socket path has, and a fenced
+    process is given one longer still. Then `/tmp`, which is short on every Unix.
+
+    Args:
+      room: How many bytes the socket's path spends after the directory, its separator
+        included.
+      under: The directory to prefer to the temporary directory, where there is one.
+
+    Returns:
+      `under` or the temporary directory where the socket fits under it, and `/tmp`
+      otherwise -- or the first again where `/tmp` is not this user's to write in either, so
+      that what goes wrong is what would have gone wrong without this.
+    """
+    at = under or tempfile.gettempdir()
+    if len(at.encode()) + room <= _SOCKET or not os.access(_SHORT, os.W_OK | os.X_OK):
+        return pathlib.Path(at)
+    return pathlib.Path(_SHORT)
 
 
 @functools.cache
