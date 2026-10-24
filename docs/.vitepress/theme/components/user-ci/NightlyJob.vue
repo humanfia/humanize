@@ -82,7 +82,7 @@ const NARROW: Layout = {
 const SLOTS = [
   { name: 'the repo', detail: 'TASK.md · ci/trace.py', by: 'checkout' },
   { name: 'claude', detail: '@anthropic-ai/claude-code', by: 'npm' },
-  { name: 'hmz', detail: 'uv pip install humanize', by: 'uv' },
+  { name: 'hmz', detail: 'uv pip install hmz', by: 'uv' },
   { name: 'signed in', detail: 'CLAUDE_CODE_OAUTH_TOKEN', by: 'secret' },
   { name: 'price list', detail: 'fetched, at most 20 s', by: 'hmz' },
 ]
