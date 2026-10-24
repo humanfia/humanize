@@ -4,11 +4,11 @@
     hmz exec -f ralph_loop -a coder=claude/MODEL:high -p budget.cost=5 "$(cat TASK.md)"
 
 A few commands anybody types -- running a flow, serving the web interface, backing an epic up
-to git repositories, and moving humanize itself to its newest release -- and everything else
-humanize keeps is walked at the prompt: a listing with a noun in it for every store would be a
+to git repositories, and moving Humanize itself to its newest release -- and everything else
+Humanize keeps is walked at the prompt: a listing with a noun in it for every store would be a
 second interface to learn, and the one with the sheets in it is the interface.
 
-The other command in the listing is `hmz internal`, which is the six lines humanize spawns
+The other command in the listing is `hmz internal`, which is the six lines Humanize spawns
 for itself gathered under one name. They are listed rather than hidden because a command
 nobody can discover is a command nobody can debug, and a listing that leaves out half of what
 a program runs says something untrue about it. What they are is said instead of concealed:
@@ -206,7 +206,7 @@ def _executes(argv: list[str]) -> int:
                 raise SystemExit(128 + ended[0]) from None
             # Reported and then raised on exactly as it was: what a flow does when it fails
             # is the flow's business and the person at the terminal's, and this is only
-            # humanize finding out that it happened.
+            # Humanize finding out that it happened.
             telemetry.crash(why, doing="hmz exec")
             raise
         finally:
@@ -396,7 +396,7 @@ def _web(argv: list[str]) -> int:
 
 
 def _update(argv: list[str]) -> int:
-    """Moves this install of humanize to its newest release, with whatever installed it.
+    """Moves this install of Humanize to its newest release, with whatever installed it.
 
     Args:
       argv: What followed the command name.
@@ -424,7 +424,7 @@ def _backup(argv: list[str]) -> int:
 
 
 def _internal(argv: list[str]) -> int:
-    """Routes to whichever of the lines humanize spawns for itself was named.
+    """Routes to whichever of the lines Humanize spawns for itself was named.
 
     The same routing as the top of the line, one level down, and for the same reason: a name
     it knows is handed the rest of the line untouched, so that `hmz internal anchor --help` is
@@ -446,7 +446,7 @@ def _internal(argv: list[str]) -> int:
         # out, and it is reached only when somebody asks about them.
         parser = argparse.ArgumentParser(
             prog="hmz internal",
-            description="Commands humanize spawns for itself, listed for debugging. "
+            description="Commands Humanize spawns for itself, listed for debugging. "
             "Not intended to be run directly.",
             epilog="Run `hmz internal COMMAND --help` for more information on a "
             "command.",
@@ -532,7 +532,7 @@ def opens() -> int:
             out.spins(lambda: "connecting to the runs held here")
             link = daemon.attach("tui")
     except daemon.Older as why:
-        # This machine's runs held by an older humanize, which nothing here can read and
+        # This machine's runs held by an older Humanize, which nothing here can read and
         # which a second daemon beside it would fight over the socket with.
         print(f"hmz: {why}", file=sys.stderr)
         return 1
@@ -619,7 +619,7 @@ def _at_a_terminal() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
-#: What humanize spawns for itself, each as what carries it out and the line `hmz internal`
+#: What Humanize spawns for itself, each as what carries it out and the line `hmz internal`
 #: shows it as. A turn taken as an account runs the CLI with the paths it keeps its
 #: credentials at pointed into that account's directory, and the supervisor doing the pointing
 #: has to be a process of its own -- it forks the program and takes the signal handling with
@@ -651,19 +651,19 @@ INTERNAL = {
 }
 
 #: Each command, as what carries it out and the line a listing shows it as. Four are for
-#: anybody: running a flow in a directory, serving the web interface, moving humanize itself
-#: to its newest release, and backing an epic up from a script -- everything else humanize
+#: anybody: running a flow in a directory, serving the web interface, moving Humanize itself
+#: to its newest release, and backing an epic up from a script -- everything else Humanize
 #: keeps is walked at the prompt
 #: rather than typed, a run already held here included, which `hmz` with no command opens.
 #: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
-#: person may type stays short while what humanize runs stays something they can read. There
+#: person may type stays short while what Humanize runs stays something they can read. There
 #: is no command for the terminal interface either: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
     "update": (_update, "update hmz to its newest release"),
     "backup": (_backup, "back epics up to git repositories, or download them"),
-    "internal": (_internal, "internal commands used by humanize; do not run directly"),
+    "internal": (_internal, "internal commands used by Humanize; do not run directly"),
 }
 
 
@@ -693,7 +693,7 @@ def main(argv: list[str] | None = None) -> int:
         # The same line `hmz` itself takes, with the commands added: one help, saying both
         # what may be opened and what may be run, since both are `hmz` and somebody typing
         # `hmz --help` is asking about the whole of it. Every command is in it, including the
-        # door onto what humanize spawns for itself -- a listing that showed only the line a
+        # door onto what Humanize spawns for itself -- a listing that showed only the line a
         # person types would be describing a different program from the one that runs. It
         # knows the commands by name and not by what they take -- each one answers
         # `hmz COMMAND --help` itself.

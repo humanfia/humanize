@@ -341,7 +341,7 @@ class Router:
         # the case the target does not distinguish -- and be mirrored onto the target, which
         # is the one place the agent's own state must never reach. Only a hole *in* the
         # mirror is one: a mirror kept inside a directory that stays here -- a container's,
-        # under humanize's own home -- is the target's workspace all the same, and what is
+        # under Humanize's own home -- is the target's workspace all the same, and what is
         # beside it in that directory stays here because it is outside the mirror.
         if any(
             path_within(local_path, kept, fold_case=insensitive) is not None

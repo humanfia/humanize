@@ -1,4 +1,4 @@
-# Contributing to humanize
+# Contributing to Humanize
 
 Thank you for helping. This file is how a change gets from an idea to `main`: where to raise
 it, what a pull request needs, and how it is reviewed. How to set up a checkout, run the
@@ -83,7 +83,7 @@ No sign-off or CLA is asked for. What you contribute is under the project's
 
 ## Working with coding agents
 
-humanize is built with coding agents, and you may use them too. [AGENTS.md](AGENTS.md) is the
+Humanize is built with coding agents, and you may use them too. [AGENTS.md](AGENTS.md) is the
 rules they work under in this repository, and the rules are the same for people. You are the
 author of what you send: read it, run it, and be ready to answer for every line.
 

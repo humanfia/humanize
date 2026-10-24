@@ -60,7 +60,7 @@ Show
 
 `Width`, `Height`, `FontSize` and `Padding` give the terminal its columns and rows, as VHS would
 fit them. Then record it and play it on its page, under `pnpm dev`, before you commit it. A demo
-shows humanize and nothing about the machine it was recorded on.
+shows Humanize and nothing about the machine it was recorded on.
 
 `cast.py` understands what the tapes here use -- `Type`, the keys, `Ctrl+`, `Sleep`,
 `Wait+Screen`, `Hide`, `Show` and `Set` -- and stops on anything else rather than guess.
@@ -71,7 +71,7 @@ that leaves the screen as it was is left off it: a menu sends one twice a second
 
 | | |
 | --- | --- |
-| `Dockerfile` | humanize built out of this checkout, the stand-ins, and what `cast.py` needs |
+| `Dockerfile` | Humanize built out of this checkout, the stand-ins, and what `cast.py` needs |
 | `cast.py` | plays a tape into a terminal and writes the cast |
 | `stage.py` | builds the throwaway world, at image build time |
 | `standin/` | the coding agent CLIs that are not coding agent CLIs |

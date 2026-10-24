@@ -559,7 +559,7 @@ _ANSWERS = ("approved", "rejected")
 #: a plan with: gated at every mode but `auto`, so at this rung the agent cannot quietly leave
 #: the rung either.
 #:
-#: `auto` is `yolo`, for the reason humanize's `auto` exists: the agent may ask for more than
+#: `auto` is `yolo`, for the reason Humanize's `auto` exists: the agent may ask for more than
 #: it has, and the asking is granted. That is `yolo` exactly -- the dangerous command, the
 #: sensitive file, the path under `.git`, each one asked for and each one answered -- and it
 #: is the same row Codex's table writes as `on-request`.
@@ -604,7 +604,7 @@ _PERMITTED = {
     # and the watchdog ended it as a stall a quarter of an hour later. It no longer does.
     # `manual` is a rung this driver can answer now, and saying nothing lands on it the same
     # way `read-only` does -- the approval is read, a hook gets it, and the turn goes on. On
-    # `rejected`, where no hook said otherwise: what humanize was told about this agent is
+    # `rejected`, where no hook said otherwise: what Humanize was told about this agent is
     # nothing, and nothing is not a yes. See :data:`_GRANTED`.
     UNSAID: {},
 }
@@ -655,7 +655,7 @@ _GRANTS = ("auto", "yolo")
 #: would make the rung name a thing it does not do: plan mode already refuses the edits, and
 #: the Bash that plan mode lets through is precisely what the approval is for. The silence is
 #: out because it names no mode at all: an agent nobody wrote a rung for bootstraps at
-#: `manual`, and granting there would be humanize handing out, one call at a time, the `yolo`
+#: `manual`, and granting there would be Humanize handing out, one call at a time, the `yolo`
 #: that an agent declared at `auto` gets by asking for it.
 #:
 #: Refusing is not the same as leaving it: the daemon holds the tool until somebody resolves
@@ -824,7 +824,7 @@ class KimiCodeCLIAgentConfig(AgentConfig):
 
     The daemon fields are here because of a rule this repository holds every backend to: the
     default of an option is the harness's own default, so that an install which sets nothing
-    behaves as the bare CLI does, and anything humanize puts on top is a field somebody can
+    behaves as the bare CLI does, and anything Humanize puts on top is a field somebody can
     take back off. Three of the four below break that rule on purpose, and say which way.
     ``kimi web`` is written for a person who runs one of them at a terminal and wants a
     browser; this driver runs one per agent, unattended, and reads its first line. Left at the

@@ -456,7 +456,7 @@ class Shown:
             named, _, about = text.partition(" ")
             self._out.line((f"{_SAID} ", "green"), (named, ""), (f"({about})", "dim"))
         elif kind == "notice":
-            # humanize saying what it is doing about the turn rather than the agent working:
+            # Humanize saying what it is doing about the turn rather than the agent working:
             # a rate limit being waited out, another account being carried on as, a turn being
             # cut off. Said in its own colour so it does not read as a tool call.
             self._out.line((f"{_SAID} ", "yellow"), (text, "dim"))
@@ -491,7 +491,7 @@ class Shown:
 
         In money as well as in tokens, since nobody is watching a token count for its own
         sake. Blank rather than nought where the model is one nobody lists -- which is the
-        ordinary case, the list being a few dozen models and humanize driving whatever CLI is
+        ordinary case, the list being a few dozen models and Humanize driving whatever CLI is
         installed: `$0.00` beside a turn that cost something would be a claim about a bill,
         and a wrong one.
         """

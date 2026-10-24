@@ -1,7 +1,7 @@
 """Where a turn goes when the place taking it cannot: tries again, then the next place.
 
 A place is `CLI[@ACCOUNT]/MODEL`, and what is written down about it with `fallbacks.points`
-and `fallbacks.retrying` -- into the test's own humanize home -- is what a failed turn reads.
+and `fallbacks.retrying` -- into the test's own Humanize home -- is what a failed turn reads.
 Each place here is a stand-in CLI on PATH: an `opencode run` that fails as many times as the
 file `fails` beside it says before it answers, and a `claude` that is either absent or exits.
 """

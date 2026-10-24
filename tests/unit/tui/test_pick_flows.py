@@ -52,7 +52,7 @@ def flows(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def store(monkeypatch: pytest.MonkeyPatch) -> doubles.Hmz:
-    """The one store every sheet reaches, in place of humanize's own."""
+    """The one store every sheet reaches, in place of Humanize's own."""
     held = doubles.Hmz()
     monkeypatch.setattr(hmz.daemon, "Hmz", held)
     return held

@@ -10,7 +10,7 @@ from hmz.web.runtimes import listed
 
 
 def _hmz(*held: dict[str, Any]) -> Any:
-    """A stand-in for humanize's one object, whose runtimes are written down as `held`."""
+    """A stand-in for Humanize's one object, whose runtimes are written down as `held`."""
     saved = [SimpleNamespace(held=partial(dict[str, Any], one)) for one in held]
     return SimpleNamespace(runtimes=SimpleNamespace(all=lambda: saved))
 

@@ -29,7 +29,7 @@ a docker swarm that picks the node for you.
     <dl>
       <dt>agents run</dt><dd>in the container</dd>
       <dt>commands run</dt><dd>in the container</dd>
-      <dt>the image needs</dt><dd>humanize, the agents' CLIs, and their sign-in</dd>
+      <dt>the image needs</dt><dd>Humanize, the agents' CLIs, and their sign-in</dd>
       <dt>works with</dt><dd>any flow</dd>
     </dl>
   </div>
@@ -83,7 +83,7 @@ The agent's commands run in a fresh container, and its edits land in your direct
 
 ## Before you start
 
-- **humanize and one coding agent here**, installed and signed in: see
+- **Humanize and one coding agent here**, installed and signed in: see
   [Installation](/user/installation).
 - **Linux and `docker` here.** The daemon can be this machine's or one reached over a socket,
   TCP, ssh or a docker context; `docker info` must work against it.
@@ -91,7 +91,7 @@ The agent's commands run in a fresh container, and its edits land in your direct
   and no sign-in. With nothing said, `python:3.12-slim` is used.
 - **The directory on the daemon's host.** It is mounted into the container at the path it has,
   so it has to exist there. For docker's default here, `local`, that is this machine.
-- **A flow with a role for another machine.** The flows humanize ships and the official
+- **A flow with a role for another machine.** The flows Humanize ships and the official
   flowverse lists all work in the directory you start in. This page uses
   [`boxed`](#the-flow-used-on-this-page), a one-role flow you can save into your project.
 
@@ -107,7 +107,7 @@ A flow's environment role put on docker, with `-e role=docker/workdir` or
 - **The container gets exactly what the role declares** of CPUs, memory and GPUs, out of what
   the daemon was saved to hand out. A daemon with less left than the role asks for refuses the
   run before any agent starts.
-- **It goes when the run ends.** Every container humanize starts is labelled with your uid.
+- **It goes when the run ends.** Every container Humanize starts is labelled with your uid.
 - **The agent's CLI runs here with the daemon's harness `local`**, supervised, working in a
   copy of the directory kept under `~/.hmz/envs/mirrors/`. Every command it runs lands in the container through
   `docker exec`. That is why the tool lines above name a `…/envs/mirrors/…` path while the edit
@@ -225,7 +225,7 @@ hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
    the agent's CLI here, as the image has none: see [Where the agent's CLI
    runs](#where-the-agent-s-cli-runs).
 3. **`image`**, left blank, leaves the choice to the flow, then `python:3.12-slim`.
-4. **`cpus` and `memory`** cap what this daemon may hand out to humanize's containers, across
+4. **`cpus` and `memory`** cap what this daemon may hand out to Humanize's containers, across
    every run on it at once. **Detect**, beside **Done**, asks the daemon and writes in
    everything it has, to type over: the line under the list says `detecting resources on
    local…`, then what it found, and the cursor lands on `cpus`.
@@ -362,7 +362,7 @@ How it differs from docker:
 
 ### The whole run in one container
 
-Mount the project at the path it already has, and run `hmz exec` in an image that has humanize
+Mount the project at the path it already has, and run `hmz exec` in an image that has Humanize
 and the agents' CLIs:
 
 ```sh
@@ -482,7 +482,7 @@ hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
   or CPUs, memory and GPUs to hand out are refused beside `container`. What the environment has
   is what the container says it has.
 - **A harness put in it** (a harness setting of `docker:build-box`) needs the container to have been
-  started with `--cap-add SYS_PTRACE`; humanize cannot add it to a running container.
+  started with `--cap-add SYS_PTRACE`; Humanize cannot add it to a running container.
 
 See [Machines › A running container](/reference/machines#a-running-container).
 
@@ -523,7 +523,7 @@ Read [Security](/user/security).
 | `… has 4 of 4 CPUs free, and 'box' asks for 8` | The daemon, as saved, cannot give the role what it declares. Raise the daemon's allowance, or use another. |
 | `could not start a container of python:3.12: …` | Docker's own words follow: no daemon to reach, an image not pulled, or no shell in the image. |
 | `no directory to give the container on …` | The directory is not on the daemon's host. Make it there. |
-| `could not install humanize on docker://…: … is not running` | The image has no Python 3.12 or newer; its last words say where it looked. |
+| `could not install Humanize on docker://…: … is not running` | The image has no Python 3.12 or newer; its last words say where it looked. |
 | a tool the agent tries to install fails with a permission error | The role may write its workdir only. Put the tool in the image. |
 | `… claude's harness cannot run where its harness setting (env) says: claude is not installed on docker@…` | `env` (the default, and `docker/…` with nothing saved) on an image without the CLI. Save the daemon with its harness `local`, or use an image with the CLI. |
 | containers left behind after a run was killed | `docker rm -f $(docker ps -q --filter label=humanize=$(id -u))` removes yours and nobody else's. |

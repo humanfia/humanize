@@ -155,7 +155,7 @@ Then the interface holds the run in its own process, and closing the terminal en
   HUMANIZE_DAEMON=off hmz
   ```
 
-- **humanize could not set it up**, which it says as it opens:
+- **Humanize could not set it up**, which it says as it opens:
   `hmz: runs cannot be detached from the terminal (…), so they will run in this process
   instead`.
 

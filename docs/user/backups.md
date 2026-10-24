@@ -30,7 +30,7 @@ The repository now holds one commit, `Back up epic 20261012T091500.123Z-1a2b3c (
 ## Before you start
 
 - A git repository you can push to from this machine, with no password prompt: an ssh key, or
-  a credential helper. humanize uses your own `git` and never asks for, or keeps, a password.
+  a credential helper. Humanize uses your own `git` and never asks for, or keeps, a password.
 - `git` on `PATH`.
 
 ## What a backup is

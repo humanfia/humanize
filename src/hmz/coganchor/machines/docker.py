@@ -100,10 +100,10 @@ class DockerConfig(MachineConfig):
       runtime: The OCI runtime to run it under, or None for the daemon's default.
       network: The network to put it on, or None for the daemon's default.
       run_args: What else `docker run` is told, ahead of the image -- a daemon's own mounts,
-        devices or options, as whoever runs it says it is to be run. Said before humanize's
+        devices or options, as whoever runs it says it is to be run. Said before Humanize's
         own resources and GPUs, which a later flag of docker's outranks.
       env: Variables to set in it.
-      labels: Labels to put on it beside humanize's own, which are never taken from here:
+      labels: Labels to put on it beside Humanize's own, which are never taken from here:
         what a container holds is read back off those, and they say only what it was given.
     """
 
@@ -172,7 +172,7 @@ class DockerConfig(MachineConfig):
         asks it, and refuses a container that says otherwise.
 
         And the road, for the reason an anchored place says it: a container is reached by an
-        anchor like any other target, and this is the one place in humanize certain of which
+        anchor like any other target, and this is the one place in Humanize certain of which
         anchor it will be -- :meth:`Docker.start` builds a supervised one every time.
 
         The words are :mod:`hmz.coganchor.places`' own. `linux` is the one of the four this
@@ -192,14 +192,14 @@ class DockerConfig(MachineConfig):
 
 @dataclass(frozen=True, slots=True)
 class Allocation:
-    """One of humanize's containers running on a daemon, and what it was given there.
+    """One of Humanize's containers running on a daemon, and what it was given there.
 
     Attributes:
       name: The container.
       cpus: The CPUs it may use, or None for no limit.
       memory: The bytes of memory it may use, or None for no limit.
       gpus: The GPUs it was given, or `all`.
-      labels: Every label it carries, humanize's own among them.
+      labels: Every label it carries, Humanize's own among them.
     """
 
     name: str
@@ -215,7 +215,7 @@ def allocations(
     *,
     seconds: float | None = None,
 ) -> list[Allocation]:
-    """What humanize's running containers on one daemon hold of its host.
+    """What Humanize's running containers on one daemon hold of its host.
 
     Whoever started them: a daemon is shared out between everybody using it, and a container
     is holding its share whichever user's flow brought it up.
@@ -698,7 +698,7 @@ class Docker(MachineBase):
         """The labels: the caller's, then whose it is and what it holds of the host."""
         config = self._config
         # Whose it is, so that sweeping up after a flow that was killed outright cannot
-        # reach past this user on a machine several of them share. And none of humanize's
+        # reach past this user on a machine several of them share. And none of Humanize's
         # own from the caller, even where the setting says nothing of its own under that
         # name: a limit that is only a label is one `allocations` would count as taken.
         said = {

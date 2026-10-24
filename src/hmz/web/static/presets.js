@@ -1,4 +1,4 @@
-// The themes humanize comes with, a light one and a dark one of each pair: its own, Humanize
+// The themes Humanize comes with, a light one and a dark one of each pair: its own, Humanize
 // Green, and twelve more, each named for a mood and the colour it is most. Each is said in a few
 // colours, its ground, its ink and its five accents, and the rest of what a theme sets is worked
 // out of them as style.css works out its own: the planes from the paper, the greys from the ink,
@@ -139,7 +139,7 @@ export function colours(scheme, said) {
   return made
 }
 
-/** The two themes of every pair: humanize's own, kept by the ids they always had, then the rest. */
+/** The two themes of every pair: Humanize's own, kept by the ids they always had, then the rest. */
 export const OWN = PAIRS.flatMap((pair) =>
   ['light', 'dark'].map((scheme) => ({
     id: pair.key === 'humanize' ? scheme : `${pair.key}-${scheme}`,

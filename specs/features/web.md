@@ -93,7 +93,7 @@ the credentials removed.
 
 **4.1.1** The page MUST consist of a sidebar and, beside it, the current view.
 
-**4.1.2** The sidebar MUST show, from top to bottom: the humanize mark, the notification bell, a
+**4.1.2** The sidebar MUST show, from top to bottom: the Humanize mark, the notification bell, a
 control that hides the sidebar, the entries `New epic`, `Search epics` and `Flows`, the workspaces
 of the daemon shown as §5 specifies, and the daemon bar.
 
@@ -592,9 +592,9 @@ other daemon's.
 
 ## 12. Themes
 
-**12.1** The page MUST be drawn in humanize's own typeface and in a theme.
+**12.1** The page MUST be drawn in Humanize's own typeface and in a theme.
 
-**12.2** The page MUST offer the presets: humanize's own, `Humanize Green`, `Temperate Gold`,
+**12.2** The page MUST offer the presets: Humanize's own, `Humanize Green`, `Temperate Gold`,
 `Concordant Scarlet`, `Restrained Crimson`, `Critical Teal`, `Desirous Indigo`, `Peaceful Lilac`,
 `Hateful Silver`, `Devoted Pink`, `Self-Negating Plum`, `Dominant Azure`, `Surviving Jade` and
 `Lamenting Orchid`.

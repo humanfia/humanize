@@ -1,6 +1,6 @@
 # Settings
 
-Every setting humanize persists: its key, scope, type, default, the file it is stored in, who
+Every setting Humanize persists: its key, scope, type, default, the file it is stored in, who
 writes and reads it, and when a change takes effect. The screen that edits them is
 [`/settings`](/reference/tui#menus); the Python object is `Hmz().settings`
 (`hmz.runtime.settings.Settings`, internal).
@@ -128,7 +128,7 @@ written; `envs`, `params`, `budget`, `profile_flow`, `profile_environment` and `
 written as given, carried over from the file where the caller passes none, and an empty value
 (or a profiling switch off) erases the
 key -- but an empty `backup`, which is kept as none. A `harness` key an older
-humanize wrote is dropped at the next save.
+Humanize wrote is dropped at the next save.
 
 **Reading.** When the TUI starts a flow without opening `/flow` (a `$flow` line, the default
 flow), it uses the remembered setup only if it is complete: the remembered agent roles equal
@@ -166,7 +166,7 @@ every added CLI.
 [Runtimes](/reference/machines#runtimes), written by `/settings` › Runtimes and
 `Hmz().runtimes`: `runtimes.<backend>.<name>`, `<backend>` `ssh`, `docker`, `swarm`,
 `apple-container` or `slurm`. The backend and the name are where the entry is, whatever it says; an
-entry that does not validate is skipped. A runtime an earlier humanize wrote with an ordered
+entry that does not validate is skipped. A runtime an earlier Humanize wrote with an ordered
 `affinity` list is read as though its `harness` were the list's first entry (`self` read as
 `env`), and as having none where the list is empty; the next write of it drops `affinity`.
 

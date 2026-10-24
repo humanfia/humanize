@@ -1,5 +1,5 @@
 // How the page looks: the pair -- or any two themes -- Auto follows the system with, every pair
-// humanize comes with and every pair and theme made here -- used, copied, written out as a
+// Humanize comes with and every pair and theme made here -- used, copied, written out as a
 // `.hmztheme` file or read in from one -- and one made here opened to be changed: its name, what
 // it is made on, each of its colours and a picture behind any of the large planes, shown on the
 // page as it is changed and kept at once.
@@ -72,7 +72,7 @@ function list(holder) {
     look.choose(one.id)
     redraw()
   }
-  // What can be done to one theme humanize comes with or one made here.
+  // What can be done to one theme Humanize comes with or one made here.
   const offered = (one) => [
     { head: look.label(one) },
     { label: 'Use', glyph: 'check', act: () => use(one) },

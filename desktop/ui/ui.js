@@ -10,26 +10,26 @@ const STEPS = { uv: 'Getting uv', python: 'Getting Python', hmz: 'Installing hmz
 // Each state the app tells, as drawn: its heading, what it says, and which buttons it offers.
 const STATES = {
   installing: ({ updating, step, line }) => ({
-    title: updating ? 'Updating humanize' : 'Installing humanize',
+    title: updating ? 'Updating Humanize CLI' : 'Installing Humanize CLI',
     step: STEPS[step],
     line,
   }),
   waiting: (version) => ({
     title: 'Update waiting',
-    lead: `Epics are running in humanize${version ? ` ${version}` : ''}, which this app cannot open. It updates once they end; updating now may stop them.`,
+    lead: `Epics are running in Humanize CLI${version ? ` ${version}` : ''}, which this app cannot open. It updates once they end; updating now may stop them.`,
     buttons: ['update_now', 'docs'],
   }),
   'install-failed': ({ updating, said, keep }) => ({
     title: updating ? 'Update failed' : 'Install failed',
     lead: keep
-      ? 'Check the connection and retry, or continue with the humanize installed.'
+      ? 'Check the connection and retry, or continue with the Humanize CLI installed.'
       : 'Check the connection, then retry.',
     detail: said,
     buttons: ['retry', keep && 'keep', 'docs'],
   }),
   missing: () => ({
     title: 'Not found',
-    lead: 'This build installs no humanize. Install hmz, or name one in HUMANIZE_HMZ, then retry.',
+    lead: 'This build installs no Humanize CLI. Install hmz, or name one in HUMANIZE_HMZ, then retry.',
     buttons: ['retry', 'docs'],
   }),
   outdated: () => ({

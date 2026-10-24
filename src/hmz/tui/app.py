@@ -1,4 +1,4 @@
-"""humanize as a coding agent's own terminal, with a flow underneath instead of one agent.
+"""Humanize as a coding agent's own terminal, with a flow underneath instead of one agent.
 
 Laid out the way Claude Code is, and no wider: a transcript the width of the terminal, an
 editor under it between two rules, and a status line under that. Nothing sits beside them --
@@ -245,7 +245,7 @@ _UNWINDING = "it is finishing the turn it was in"
 _STARTS_ON = "chat"
 
 #: What a `$` may name, which is a flow by the name it is offered under: `@<where it came
-#: from>/` for one that is not humanize's, or else a letter, or a GitHub user -- who may begin
+#: from>/` for one that is not Humanize's, or else a letter, or a GitHub user -- who may begin
 #: with a figure -- a slash and a letter; then what the directory holding a flow is called,
 #: `<user>/<flow>` for one an index lists under a user, and `:<inside>` for one of the several
 #: a file holds. Only a line whose `$` is followed by that and then by whitespace or nothing is
@@ -1118,7 +1118,7 @@ class Humanize(App[None]):
         #: has, as the web keeps its badge: said once in the transcript is said to whoever
         #: was looking then.
         self._updates = 0
-        #: humanize, as the one object what the interface reads and writes on this machine
+        #: Humanize, as the one object what the interface reads and writes on this machine
         #: goes through: the flows there are, the agents and accounts they run as, the runs
         #: already made here. Reached through the daemon, as the interface reaches everything
         #: of the runtime; the runs themselves are asked of through the link instead. A
@@ -1561,7 +1561,7 @@ class Humanize(App[None]):
         the log, and what was fetched last time goes on being what is offered.
 
         Every one with somewhere to fetch from, whether or not it has ever been fetched:
-        `official` on a machine humanize was installed on this morning is a list of flows to
+        `official` on a machine Humanize was installed on this morning is a list of flows to
         install that nobody can see until this lands. And not one somebody has written into: a
         fetch resets the clone to what the repository says now, which is a fair thing to do on
         a key somebody pressed and not behind them.
@@ -1635,7 +1635,7 @@ class Humanize(App[None]):
         self._looks_for_resume()
 
     def _tells_of_releases(self) -> None:
-        """Says, once, that a newer release of humanize is out, asking PyPI where it has got old.
+        """Says, once, that a newer release of Humanize is out, asking PyPI where it has got old.
 
         On a thread of its own, which is what asking may hold up for as long as it takes.
         """
@@ -1682,7 +1682,7 @@ class Humanize(App[None]):
                 padding=(1, 4),
                 box=ROUNDED,
                 border_style="dim",
-                title=f"[dim]humanize v{version('hmz')}[/dim]",
+                title=f"[dim]Humanize v{version('hmz')}[/dim]",
                 title_align="left",
                 expand=False,
             ),
@@ -1699,7 +1699,7 @@ class Humanize(App[None]):
           is a dozen ways for it to be wrong.
         """
         for face in ("ansi_shadow", "small"):
-            art = pyfiglet.figlet_format("humanize", font=face).rstrip("\n")
+            art = pyfiglet.figlet_format("Humanize", font=face).rstrip("\n")
             drawn = [line for line in art.splitlines() if line.strip()]
             # Against what is left after the box: a border and four columns of room a side.
             if max(len(line) for line in drawn) <= self.size.width - 10:
@@ -3844,10 +3844,10 @@ class Humanize(App[None]):
 
     @work
     async def _asks_about_reports(self) -> None:
-        """Asks, once, whether humanize reports its own failures.
+        """Asks, once, whether Humanize reports its own failures.
 
         Only where nobody has been asked yet, and only here: the interface is the one thing
-        humanize has that has somebody at it. A headless run reports if this was answered yes
+        Humanize has that has somebody at it. A headless run reports if this was answered yes
         and is silent otherwise -- silence is not consent, and a question nobody is there to
         answer is a run that has stopped.
 
@@ -3871,7 +3871,7 @@ class Humanize(App[None]):
         )
 
     def action_settings(self, page: str = "") -> None:
-        """Opens every setting humanize has, which is what `/settings` is for.
+        """Opens every setting Humanize has, which is what `/settings` is for.
 
         Five pages: what is true of this machine, what is remembered about this workspace,
         the accounts agents run as, the machines environments go on, and where a turn goes
@@ -3957,7 +3957,7 @@ class Humanize(App[None]):
             # What this interface opened on is already in hand, so it is the next one that
             # opens without it.
             self.show(
-                "[dim]cleared saved settings for this directory; humanize will "
+                "[dim]cleared saved settings for this directory; Humanize will "
                 "open without them on next launch[/dim]"
             )
         for cli, name in said.corrected:
@@ -4613,7 +4613,7 @@ class Humanize(App[None]):
         elif kind == "printed":
             self._prints(str(message.get("text") or ""))
         elif kind == "notice":
-            # humanize's own word about the run, such as a cap nothing can price: said
+            # Humanize's own word about the run, such as a cap nothing can price: said
             # whatever the details say, as `hmz exec` says it on its stderr.
             self.show(f"hmz: {message.get('text') or ''}", "yellow")
         elif kind == "welcome":
@@ -4945,7 +4945,7 @@ class Humanize(App[None]):
                     packs=True,
                 )
         elif kind == "notice":
-            # Not the working, so details do not hide it: this is humanize saying what it
+            # Not the working, so details do not hide it: this is Humanize saying what it
             # is doing about a turn -- waiting out a rate limit, carrying on as another
             # account, cutting the turn off, taking it away from a backend that had stopped
             # saying anything. Hidden with the tool rows it reads as a hang, which is the one

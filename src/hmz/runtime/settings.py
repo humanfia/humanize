@@ -1,11 +1,11 @@
-"""What humanize remembers: what was set up to run here, and what is true everywhere.
+"""What Humanize remembers: what was set up to run here, and what is true everywhere.
 
-One file under humanize's own home. Most of it is one entry per workspace -- the flow that was
+One file under Humanize's own home. Most of it is one entry per workspace -- the flow that was
 last run there, and for each flow the workspace has run, what each of its roles was given, what
 it was set up with, what a run of it may spend and whether that run is profiled -- so a project
 driven by one flow on two agents is driven by them again tomorrow, rather than falling back to
 the default every time it is opened. Beside those is the handful of settings
-that are not a workspace's at all, which is what `enable_sentry` is: whether humanize reports
+that are not a workspace's at all, which is what `enable_sentry` is: whether Humanize reports
 its own failures, answered once and true wherever it is run from -- `details`, whether the
 interface shows the working of each turn, and `backup`, the git repositories epics are backed
 up to.
@@ -100,7 +100,7 @@ class Settings:
 
     @property
     def enable_sentry(self) -> bool | None:
-        """Whether humanize reports its own failures, and None while nobody has been asked.
+        """Whether Humanize reports its own failures, and None while nobody has been asked.
 
         Three answers rather than two, and the third is the one the question turns on: a
         setting that is not there is a machine nobody has put the question to yet, which is
@@ -163,7 +163,7 @@ class Settings:
         self._sets("every_epic", on)
 
     def answers(self, *, enable_sentry: bool) -> None:
-        """Writes down whether humanize reports its own failures.
+        """Writes down whether Humanize reports its own failures.
 
         Args:
           enable_sentry: What was answered.

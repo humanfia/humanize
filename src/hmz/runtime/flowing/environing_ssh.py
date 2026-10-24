@@ -64,7 +64,7 @@ _NO_SUCH_HOST = ("Could not resolve hostname", "Name or service not known")
 _PROBE_WITHIN = 60.0
 
 #: What a host is asked when it is first reached, in POSIX sh, as `key=value` lines: its home,
-#: humanize's home there, its CPUs, memory and GPUs, `CUDA_VISIBLE_DEVICES` if it is set, and
+#: Humanize's home there, its CPUs, memory and GPUs, `CUDA_VISIBLE_DEVICES` if it is set, and
 #: whether each program an environment mixin is served with (`git`, `bash`) is on its PATH.
 #: A home there kept under the name it had before, `~/.humanize`, is moved first, as
 #: :func:`hmz.home` moves the one here: only where nothing is at `~/.hmz` and `HUMANIZE_HOME`

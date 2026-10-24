@@ -59,7 +59,7 @@ roles.
 
 **Symptom.** `hmz exec` refuses an `-a` for a role such as `human`.
 
-**Cause.** That role is the person outside the run, and humanize fills it.
+**Cause.** That role is the person outside the run, and Humanize fills it.
 `… is the workspace the run started in and cannot be set with -e` is the same for an
 environment: it is the directory you ran `hmz exec` in.
 
@@ -82,7 +82,7 @@ want the agents to work in.
 
 **Symptom.** `hmz exec` prints its usage, then this.
 
-**Cause.** A part is missing, or the CLI is not one humanize knows. The CLI and the model are
+**Cause.** A part is missing, or the CLI is not one Humanize knows. The CLI and the model are
 required; the effort may be left off, which asks for none.
 
 **Fix.** Write the CLI, a `/` and the model, and the effort after a `:` if you want one. `auto`
@@ -164,7 +164,7 @@ which CLI does what, and the agent sheet at `/flow` offers only the CLIs that ca
 **Symptom.** `hmz exec` cannot find the flow `-f` names.
 
 **Cause.** Nothing offers a flow by that name. A bare name is looked up in this project's
-`.hmz/flows`, then in `~/.hmz/flows`, then among the flows built into humanize and
+`.hmz/flows`, then in `~/.hmz/flows`, then among the flows built into Humanize and
 those installed from a [flowverse](/weaver/flowverses). Only what starts with `.`, `/` or `~` is
 read as a path.
 
@@ -192,7 +192,7 @@ over: set the flow up again under its new one.
 **Symptom.** `hmz exec` refuses a flow by name that a flowverse lists.
 
 **Cause.** A flow a [flowverse](/weaver/flowverses) lists runs only once it is installed, and
-`hmz exec` installs nothing. Only the flows built into humanize are there from the start.
+`hmz exec` installs nothing. Only the flows built into Humanize are there from the start.
 
 **Fix.** Install it: type `/flow`, press **Install more…**, open the flowverse the message
 names, and install the flow. From a script, or on a machine that never opens `hmz`, such as a
@@ -215,7 +215,7 @@ past the check.
 
 **Symptom.** `hmz exec` refuses a flow by name, on a machine that has not fetched the official
 flowverse. Until it is fetched, any name that nothing else offers gets this message, even one
-that is misspelled. The flows humanize ships, such as `chat` and `ralph_loop`, never do.
+that is misspelled. The flows Humanize ships, such as `chat` and `ralph_loop`, never do.
 
 **Cause.** The flowverse's index has not been downloaded yet. `hmz` fetches every flowverse in
 the background each time it starts, and `hmz exec` never does.
@@ -300,7 +300,7 @@ there was one. See [Picking a run up](/user/resuming).
 
 **Symptom.** A warning before the first turn. The run goes ahead.
 
-**Cause.** humanize knows no price for that model, so a `cost` cap never fills. It happens for a
+**Cause.** Humanize knows no price for that model, so a `cost` cap never fills. It happens for a
 model the price list does not have, and for every model on a machine that has never opened
 `hmz`, which is what fetches the list.
 
@@ -352,7 +352,7 @@ The interface prints most of these in red, after `hmz:`.
 
 **Symptom.** You typed a task, and nothing started.
 
-**Cause.** The flow has no agent to run it on. humanize looks for a coding agent CLI on your
+**Cause.** The flow has no agent to run it on. Humanize looks for a coding agent CLI on your
 `PATH` and in the directories installers use, such as `~/.local/bin` and `/usr/local/bin`, and
 found none.
 
@@ -375,7 +375,7 @@ installed, open `/flow` and give the role a CLI and a model.
 
 | Flow | Typed as |
 | --- | --- |
-| built into humanize, or installed from the official flowverse | `$ralph_loop` |
+| built into Humanize, or installed from the official flowverse | `$ralph_loop` |
 | this project's, in `.hmz/flows` | `$@local/twice` |
 | yours, in `~/.hmz/flows` | `$@user/twice` |
 | installed from another flowverse | `$@<flowverse>/name` |
@@ -415,7 +415,7 @@ every command the list leaves out: `/resume` with a flow going or nothing here t
 **Symptom.** A `/flow <name>` or a `$` line is refused while a flow runs.
 `a flow is already running` has the same cause.
 
-**Cause.** Starting another flow would stop this one, so humanize refuses.
+**Cause.** Starting another flow would stop this one, so Humanize refuses.
 
 **Fix.** Stop it first with [`/stop`](/user/stopping), or <kbd>ctrl+c</kbd> twice on an empty
 line. `/flow` on its own still opens, on the roles of the flow that is running.
@@ -482,11 +482,11 @@ and that was somebody else.
 
 **Verify.** Their answer is in the transcript, marked ` · by alice@tui`.
 
-### `hmz: the runs on this machine are held by an older humanize (pid …); stop it with that version`
+### `hmz: the runs on this machine are held by an older Humanize (pid …); stop it with that version`
 
 **Symptom.** `hmz` will not open after an upgrade, or says `the runs in <dir>` instead.
 
-**Cause.** The daemon an older humanize started on this machine is still running, or a host one
+**Cause.** The daemon an older Humanize started on this machine is still running, or a host one
 started for this directory is, and it speaks a protocol this version cannot read.
 
 **Fix.** Open it with that version and stop it, or end the process named, then run `hmz`
@@ -573,31 +573,31 @@ Command 'claude' returned non-zero exit status 1. 429 rate limit exceeded
 (throttled: the service asks it to slow down, with no quota spent; a wait is what answers it)
 ```
 
-humanize waits, retries, or moves to the next place of its [fallback](/user/settings#fallback) chain
+Humanize waits, retries, or moves to the next place of its [fallback](/user/settings#fallback) chain
 by itself, depending on the kind. The entries below say what is left for you to do. A failure with
-no brackets is one humanize did not recognise, and it is retried as that place says. Under
+no brackets is one Humanize did not recognise, and it is retried as that place says. Under
 `hmz exec`, a failure nothing recovers from ends the run with a traceback whose last line is
 the same message, and exit status 1.
 
 ### The agent fails on its first turn
 
-**Symptom.** The first turn fails, with no bracket humanize recognises, or with the CLI's own
+**Symptom.** The first turn fails, with no bracket Humanize recognises, or with the CLI's own
 complaint about the model.
 
-**Cause.** Usually a model that account cannot run. humanize checks the effort before it starts,
+**Cause.** Usually a model that account cannot run. Humanize checks the effort before it starts,
 but only the CLI knows which models your account may use.
 
 **Fix.** Run the CLI yourself with the same model, under the same account, and fix what it
 says. Then choose a model it runs.
 
-**Verify.** The CLI answers on its own, and the next turn under humanize does too.
+**Verify.** The CLI answers on its own, and the next turn under Humanize does too.
 
 ### `(throttled: the service asks it to slow down, with no quota spent; a wait is what answers it)`
 
 **Symptom.** A turn fails with this bracket, and the run pauses or moves to another place.
 
 **Cause.** The account hit its rate limit: the service is asking it to slow down, and has not
-said a quota is spent. humanize waits, tries once more, then moves to the next place of the
+said a quota is spent. Humanize waits, tries once more, then moves to the next place of the
 [fallback chain](/user/settings#fallback), if there is one.
 
 **Fix.** Give it one to move to: add an account on [the Accounts page of
@@ -611,7 +611,7 @@ account, say) on the chain of the place that failed, on the Fallback page.
 **Symptom.** A turn fails with this bracket, and the run pauses or moves to another place.
 
 **Cause.** The provider said the account's quota or balance is used up (`insufficient_quota`,
-`Quota exceeded`, a credit balance too low, billing). humanize answers it as it answers a rate
+`Quota exceeded`, a credit balance too low, billing). Humanize answers it as it answers a rate
 limit: it waits, tries once more, then moves to the next place of the chain.
 
 **Fix.** Top the account up, or wait for its quota to renew. Meanwhile give it somewhere to
@@ -623,13 +623,13 @@ move to, as for a rate limit above.
 
 **Symptom.** A turn fails with this bracket.
 
-**Cause.** The credential was refused, or the login expired. humanize moves straight on to the
+**Cause.** The credential was refused, or the login expired. Humanize moves straight on to the
 next place of the fallback chain.
 
 A login that renews itself (Codex with ChatGPT, Claude Code with a subscription) is also
 revoked, with `refresh token was revoked`, when two copies of it renewed apart: a copy of
 `~/.codex/auth.json` or `~/.claude/.credentials.json` put in a container, on another machine or
-in a test's temporary home. humanize never makes one, but a copy made by hand does.
+in a test's temporary home. Humanize never makes one, but a copy made by hand does.
 
 **Fix.** Sign the account back in, with the CLI's own login for the account this machine uses:
 
@@ -638,7 +638,7 @@ claude auth login
 codex login
 ```
 
-For an account humanize keeps, type `/settings accounts`, choose the account, and pick **sign
+For an account Humanize keeps, type `/settings accounts`, choose the account, and pick **sign
 in again**. Then delete every copy of the file that was made, so it cannot happen again: on
 another machine, sign its CLI in there instead.
 
@@ -651,7 +651,7 @@ another machine, sign its CLI in there instead.
 
 **Cause.** The role has `online` of `NONE`, so its [fence](/user/permissions) lets it reach only
 the hosts its model and login are at, and the CLI reached for another. Nothing was wrong with
-the account. humanize moves straight on to the next place of the fallback chain.
+the account. Humanize moves straight on to the next place of the fallback chain.
 
 **Fix.** Give the role `online` of `ALL`, or point it at a model whose host the fence knows.
 
@@ -683,14 +683,14 @@ machine share the one file and run side by side.
 ### `(unlisted: … this account was last offered …)`
 
 **Symptom.** A turn fails because the account may not use that model. The bracket says whether
-humanize's list of this account's models is out of date:
+Humanize's list of this account's models is out of date:
 
 ```
 (unlisted: the 3 models this account was last offered (asked 2026-09-10) still list it, so
 that list is stale; the "check again" button under its models checks again)
 ```
 
-**Cause.** The account is signed in, but may not use that model. humanize never asks an account
+**Cause.** The account is signed in, but may not use that model. Humanize never asks an account
 again on its own.
 
 **Fix.** In `/flow`, open the agent, open its `model` row, and press **Check again** under the
@@ -753,7 +753,7 @@ setting the harness of the runtime the work is on to `env`. See [The path is tak
 **Symptom.** A turn of opencode or mimocode fails with this bracket.
 
 **Cause.** Two turns wrote to the CLI's one database at once and got `database is locked`.
-humanize retries three times, a second apart, which nearly always clears it. A turn of any CLI
+Humanize retries three times, a second apart, which nearly always clears it. A turn of any CLI
 whose account is a login that renews itself can end here too, when another turn holds it the
 other way round: see
 [the entry above](#this-account-signs-in-with-a-token-that-refreshes-itself).
@@ -767,7 +767,7 @@ other way round: see
 **Symptom.** A turn fails with this bracket.
 
 **Cause.** The CLI was killed rather than answering: out of memory, or a crash signal.
-humanize waits a moment, reopens it and tries once more.
+Humanize waits a moment, reopens it and tries once more.
 
 **Fix.** If it keeps happening, free memory or run fewer agents.
 
@@ -777,7 +777,7 @@ humanize waits a moment, reopens it and tries once more.
 
 **Symptom.** A turn fails with this bracket, then carries on.
 
-**Cause.** The connection to the CLI or its service was lost. humanize reopens it and resumes
+**Cause.** The connection to the CLI or its service was lost. Humanize reopens it and resumes
 the same conversation.
 
 **Fix.** Nothing, unless it keeps happening: then check this machine's network.
@@ -788,10 +788,10 @@ the same conversation.
 
 **Symptom.** A turn is ended with this, and retried like any failed turn.
 
-**Cause.** The CLI was still running but had gone silent, so humanize ended the turn. The words
+**Cause.** The CLI was still running but had gone silent, so Humanize ended the turn. The words
 before `has said nothing` say what it saw: `is gone` is a crash to look for in the CLI's own
 log, `is stopped` means something suspended it, and `is idle` means it was waiting on
-something that never answered. humanize looks at a turn after 15 minutes of complete silence,
+something that never answered. Humanize looks at a turn after 15 minutes of complete silence,
 6 for DeepSeek Harness, and ends it unless the CLI is visibly busy.
 
 **Fix.** If your turns really go quiet for longer, give them more room, in seconds, or `0` to
@@ -810,7 +810,7 @@ HUMANIZE_WATCHDOG=3600 hmz
 **Cause.** This Codex has requirements set by whoever manages it, an enterprise policy or the
 machine's own, and they forbid full access. So the agent runs one
 [permission](/user/permissions) rung down, at `auto`: Codex asks before it reaches past the
-workspace, and humanize says yes.
+workspace, and Humanize says yes.
 
 **Fix.** Nothing to do.
 
@@ -822,7 +822,7 @@ workspace, and humanize says yes.
 
 **Cause.** The Claude account's managed settings carry `"disableBypassPermissionsMode":
 "disable"`, or Claude runs as root, so Claude will not run at `bypassPermissions`. The agent
-runs at `acceptEdits` instead: Claude asks before what that mode does not cover, and humanize
+runs at `acceptEdits` instead: Claude asks before what that mode does not cover, and Humanize
 says yes.
 
 **Fix.** Nothing to do.
@@ -835,11 +835,11 @@ says yes.
 
 **Cause.** The role's [permission](/user/permissions) is narrower than everything, and this
 machine cannot hold it: a Linux kernel older than 5.13 or booted without Landlock, or a Mac
-where humanize itself runs inside another sandbox (an agent's own, say), which cannot start
+where Humanize itself runs inside another sandbox (an agent's own, say), which cannot start
 Seatbelt again. Cutting the network needs Linux 6.7 or later. A `cursor-agent` or `mcode` role whose `online`
 is `NONE` is refused on any machine, since its web search runs on its vendor's servers.
 
-**Fix.** Run humanize on a Linux machine with Landlock, or on a Mac outside any other
+**Fix.** Run Humanize on a Linux machine with Landlock, or on a Mac outside any other
 sandbox, or give that role a CLI and a permission this machine can hold. The message says
 what is needed.
 
@@ -855,7 +855,7 @@ nothing.
 **Cause.** In order of likelihood:
 
 1. **The run ended before its first turn.** `/epics` says how many sessions each run opened.
-2. **The agent was cursor-agent.** humanize cannot read its sessions into a trace. The rest of
+2. **The agent was cursor-agent.** Humanize cannot read its sessions into a trace. The rest of
    the archive is still there.
 3. **The run's sessions were moved or deleted** since it ran.
 
@@ -900,7 +900,7 @@ written for another machine, as [Remote execution](/user/remote-execution) shows
 **Symptom.** The run is refused, or its first turn fails, with ssh's own words after the colon.
 `there is no ssh host build-box: …` means ssh could not resolve the name at all.
 
-**Cause.** humanize uses your own ssh config, agent and keys, and adds nothing. Whatever stops
+**Cause.** Humanize uses your own ssh config, agent and keys, and adds nothing. Whatever stops
 `ssh build-box` stops it too.
 
 **Fix.** Run `ssh build-box` yourself and fix what it says: the host name, the key, the
@@ -935,7 +935,7 @@ walks the whole path to a target without starting an agent.
 resource that is short (containers, CPUs, memory, GPUs) and which containers hold the rest.
 
 **Cause.** The docker daemon saved as `gpubox` may hand out only so much, and running
-containers of humanize's already hold it.
+containers of Humanize's already hold it.
 
 **Fix.** Wait for those runs to end, stop them, or give the daemon more to hand out on the
 [runtimes page of `/settings`](/user/settings#runtimes). A daemon that names no GPU says
@@ -962,7 +962,7 @@ The message ends `… there, or set the harness of the runtime it is on to local
 
 **Cause.** The host's harness setting is `env`, the default and what a host nobody saved has:
 the agent's CLI runs on the host, and the host does not have it on the `PATH` its shell gives a
-command. humanize does not run it anywhere else instead.
+command. Humanize does not run it anywhere else instead.
 
 **Fix.** Install the CLI there, and sign it in there, with the line the message gives; or save
 the host with its harness `local`, to run the CLI here.
@@ -993,7 +993,7 @@ allows Landlock.
 harness setting (ssh:gpu-box) says: …`, before the flow starts, with exit status 2.
 
 **Cause.** The harness setting of the runtime the work is on puts the CLI on another runtime,
-where humanize cannot hold a permission narrower than everything. Only a role granted `ALL` in
+where Humanize cannot hold a permission narrower than everything. Only a role granted `ALL` in
 every scope can run that way; any other is refused.
 
 **Fix.** Set the runtime's harness to `local` or `env`, or copy the flow and grant the role
@@ -1015,23 +1015,23 @@ that hook as a program on this machine, so a CLI running on the host, as the run
 
 **Verify.** The run starts, and the transcript at the prompt says `<agent>'s harness runs here`.
 
-### `humanize: no python 3.12 or newer on this machine; looked for: …`
+### `Humanize: no python 3.12 or newer on this machine; looked for: …`
 
 **Symptom.** The run fails when it first reaches the machine.
 
-**Cause.** The target needs Python 3.12 or newer, and it has none that humanize can find. It
-does not have to be on the `PATH`: the message lists every place humanize looked.
+**Cause.** The target needs Python 3.12 or newer, and it has none that Humanize can find. It
+does not have to be on the `PATH`: the message lists every place Humanize looked.
 
 **Fix.** Install Python 3.12 or newer there.
 
 **Verify.** One of the places the message lists now holds a `python3` that prints 3.12 or
 newer for `--version`.
 
-### `could not install humanize on docker://…: … is not running; the container said: …`
+### `could not install Humanize on docker://…: … is not running; the container said: …`
 
 **Symptom.** A container's first turn fails with this.
 
-**Cause.** humanize copies itself to a target before the agent starts, and this target refused.
+**Cause.** Humanize copies itself to a target before the agent starts, and this target refused.
 What it said follows the colon. A container that is `not running` stopped as soon as it
 started, which is what an image with no Python 3.12 or newer does: its last words say where it
 looked.
@@ -1040,11 +1040,11 @@ looked.
 
 **Verify.** `docker run --rm <image> python3 --version` prints 3.12 or newer.
 
-### `humanize: /tmp/humanize-… is not a directory this user owns`
+### `Humanize: /tmp/humanize-… is not a directory this user owns`
 
 **Symptom.** The first turn on a docker target that names a `user` fails with this.
 
-**Cause.** humanize keeps its copy of itself, and a harness's mirrors, in directories of that
+**Cause.** Humanize keeps its copy of itself, and a harness's mirrors, in directories of that
 user's own in the container (`/tmp/humanize-<UID>` and `/tmp/humanize-mirrors-<UID>`), and
 uses one only where it is a directory, not a link, that this user owns. Another user of the
 container made one of these first, or a link stands in its place.
@@ -1055,19 +1055,19 @@ container made one of these first, or a link stands in its place.
 **Verify.** The turn starts, and `docker exec <container> ls -ld /tmp/humanize-<UID>` shows a
 `drwx------` directory owned by that UID.
 
-### `humanize intercepts syscalls with a Linux seccomp filter and a ptrace supervisor, and this host is 'darwin'. …`
+### `Humanize intercepts syscalls with a Linux seccomp filter and a ptrace supervisor, and this host is 'darwin'. …`
 
 **Symptom.** An agent whose work lands elsewhere will not start on a Mac.
 
 **Cause.** An agent supervised here while its work lands elsewhere can only run on Linux.
 
-**Fix.** Run humanize inside a Linux virtual machine: Docker Desktop, colima and lima each give
+**Fix.** Run Humanize inside a Linux virtual machine: Docker Desktop, colima and lima each give
 you one, on Intel and Apple silicon alike. The Mac can still be a target for an agent running
 somewhere else.
 
 **Verify.** The same line, run in the Linux machine, starts the agent.
 
-### `humanize has a register map for aarch64, x86_64; this host reports 'riscv64', …`
+### `Humanize has a register map for aarch64, x86_64; this host reports 'riscv64', …`
 
 **Symptom.** An agent whose work lands elsewhere will not start on this machine.
 
@@ -1078,14 +1078,14 @@ aarch64 Linux machine.
 
 **Verify.** The agent starts.
 
-### `the target speaks protocol …, this humanize speaks …`
+### `the target speaks protocol …, this Humanize speaks …`
 
 **Symptom.** The first turn on a target fails with this.
 
-**Cause.** The two ends are different versions of humanize, usually a target that was left
+**Cause.** The two ends are different versions of Humanize, usually a target that was left
 listening before you upgraded.
 
-**Fix.** Start it again with the humanize you have now.
+**Fix.** Start it again with the Humanize you have now.
 
 **Verify.** The turn starts.
 
@@ -1093,9 +1093,9 @@ listening before you upgraded.
 
 **Symptom.** A target is refused.
 
-**Cause.** humanize cannot read the target as written.
+**Cause.** Humanize cannot read the target as written.
 
-**Fix.** Write it in one of the forms the message lists. `peer://` is one humanize writes for
+**Fix.** Write it in one of the forms the message lists. `peer://` is one Humanize writes for
 itself; you do not type it.
 
 **Verify.** The target is accepted.
@@ -1105,7 +1105,7 @@ itself; you do not type it.
 **Symptom.** A docker daemon is refused.
 
 **Cause.** The daemon after a container's `@`, or in a saved docker environment's `endpoint`, is
-not one humanize can read. A socket path and a `?tls=` directory must be absolute.
+not one Humanize can read. A socket path and a `?tls=` directory must be absolute.
 
 **Fix.** Write it in one of the forms the message lists. See
 [Endpoints](/reference/machines#endpoints).
@@ -1146,11 +1146,11 @@ a log level. It is ignored, and the command logs at its default level.
 
 **Verify.** The line is gone.
 
-### `… already contains files and is not an humanize mirror. …`
+### `… already contains files and is not a Humanize mirror. …`
 
 **Symptom.** An agent whose work lands elsewhere will not start.
 
-**Cause.** The agent works in a local copy of the target at the same path, and humanize replaces
+**Cause.** The agent works in a local copy of the target at the same path, and Humanize replaces
 a copy's contents with the target's. So it will not take a directory holding other files, or
 one copying another target (`… mirrors ssh://a, not ssh://b. …`).
 
@@ -1188,7 +1188,7 @@ shell.
 
 **Symptom.** A container will not start.
 
-**Cause.** The workspace directory does not exist. humanize refuses rather than letting Docker
+**Cause.** The workspace directory does not exist. Humanize refuses rather than letting Docker
 create it, owned by root.
 
 **Fix.** Create it first.
@@ -1204,7 +1204,7 @@ hangup all let it take them down first, but a second <kbd>ctrl+c</kbd>, `kill -9
 that went down do not. The
 next run on the same daemon takes down those whose run has gone.
 
-**Fix.** Every container humanize starts is labelled with your uid, so this removes yours and
+**Fix.** Every container Humanize starts is labelled with your uid, so this removes yours and
 nobody else's:
 
 ```sh
@@ -1242,7 +1242,7 @@ decorated, not because of its name.
 
 **Symptom.** The flow is refused when it is loaded.
 
-**Cause.** The role's type is imported only under `if TYPE_CHECKING:`. humanize reads the roles
+**Cause.** The role's type is imported only under `if TYPE_CHECKING:`. Humanize reads the roles
 when the flow runs.
 
 **Fix.** Import the type at runtime.

@@ -42,7 +42,7 @@ const board = [
 # The mission board
 
 The board is a handful of named lines kept beside a run, that you and the run both write and
-neither waits on. It belongs to the person agent in humanize's lower
+neither waits on. It belongs to the person agent in Humanize's lower
 [agent layer](/reference/agents), and a run that holds one shows it on
 [the monitor](/user/monitor), under the drawing.
 

@@ -269,7 +269,7 @@ def test_add_clones_an_index_under_the_repositorys_name(git: Git) -> None:
     ("url", "name", "says"),
     [
         ("  ", "", "no repository"),
-        ("https://x/official.git", "", "humanize's own"),
+        ("https://x/official.git", "", "Humanize's own"),
         (THEIRS, LOCAL, "your own flows"),
         (THEIRS, USER, "your own flows"),
         (THEIRS, "../up", "not a flowverse name"),

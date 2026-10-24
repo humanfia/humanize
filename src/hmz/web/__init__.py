@@ -5,7 +5,7 @@
 One more frontend of the runs the daemon holds, beside every terminal interface opened on them
 -- not of one directory, as the terminal interface is, but of the machine, as the daemon is:
 every epic of every workspace, each going as it happens, the flows there are to start and where,
-what they have spent, and what humanize remembers -- read and acted on in a browser rather than a
+what they have spent, and what Humanize remembers -- read and acted on in a browser rather than a
 terminal. It reaches each workspace's runs as the terminal interface does, through
 `hmz.daemon`, and works out what it draws of a run with the same `hmz.runtime.watching`.
 """
@@ -31,8 +31,8 @@ __all__ = ["listening", "serve"]
 #: on the machine can.
 _FORWARD = (
     '<!doctype html><meta charset="utf-8"><meta name="referrer" content="no-referrer">'
-    '<meta http-equiv="refresh" content="0;url={0}"><title>humanize</title>'
-    '<a href="{0}">Open humanize</a>'
+    '<meta http-equiv="refresh" content="0;url={0}"><title>Humanize</title>'
+    '<a href="{0}">Open Humanize</a>'
 )
 
 
@@ -73,7 +73,7 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
         site = Site(port, places=places, runs=Runs(places), notices=notices)
         # What each index lists now, fetched once in the background as the interface starts.
         fetches(places.hmz)
-        # And which release of humanize is the newest, where what is kept has got old.
+        # And which release of Humanize is the newest, where what is kept has got old.
         releases.refresh()
         held_open.callback(site.server_close)
         # Every daemon on another machine let go of as the block ends, and what reached it.

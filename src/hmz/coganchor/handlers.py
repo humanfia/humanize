@@ -258,7 +258,7 @@ class SyscallDispatcher:
             if instead == named:
                 continue
             if answered is not None and _creates(tracee.pid, registers):
-                # Where it is answered may not have been made yet: a session humanize keeps
+                # Where it is answered may not have been made yet: a session Humanize keeps
                 # is written into a directory the CLI already has at home.
                 parents(answered, self._made)
             if _confined(tracee.pid, registers):

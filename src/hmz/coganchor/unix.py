@@ -14,7 +14,7 @@ from pathlib import Path
 __all__ = ["LONGEST", "sockets"]
 
 #: The longest path a Unix socket is bound or reached by, in bytes: macOS's, the shorter, so
-#: that a humanize which works on one works on the other.
+#: that a Humanize which works on one works on the other.
 LONGEST = 103
 
 #: Where a socket goes whose directory would be too long a way to it.

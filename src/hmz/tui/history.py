@@ -3,7 +3,7 @@
 Everything said goes down, the task that starts a flow and the words put into one already
 running alike: both are things a person wrote, and either may be worth writing again.
 
-One file holds them all, under humanize' own home, and every line says which directory it was
+One file holds them all, under Humanize's own home, and every line says which directory it was
 typed in. What is walked is what was typed here, and everything ever typed anywhere where
 nothing has been typed here yet -- so a directory nothing has been run in still has something
 to walk back through. Which of the two it is, is settled when the interface starts rather than

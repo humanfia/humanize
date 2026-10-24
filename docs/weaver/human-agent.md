@@ -30,7 +30,7 @@ returns what they typed.
 
 Three things set it apart from a coding agent:
 
-- **Nobody picks what it runs.** humanize fills an `Outworlder` role itself, and `-a` never
+- **Nobody picks what it runs.** Humanize fills an `Outworlder` role itself, and `-a` never
   does. Naming it with `-a` is refused.
 - **It can be away.** `human.away` says whether anybody is there to answer. A run of `hmz exec`
   is always away, since nobody is at a prompt, and so is a run in the interface while

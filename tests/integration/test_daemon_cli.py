@@ -106,7 +106,7 @@ def test_runs_held_by_an_older_humanize_are_said_to_be_and_left_alone(
     with standing(where.at(), {}), at_a_terminal():
         assert cli.opens() == 1
 
-    assert "older humanize" in capsys.readouterr().err
+    assert "older Humanize" in capsys.readouterr().err
     assert Stands.opened == []
 
 

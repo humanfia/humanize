@@ -1,6 +1,6 @@
 """Reaching a coding agent by patching the bundle it ships, on a copy that is ours.
 
-The deepest of the three ways humanize reaches into a CLI it drives, and the one it turns to
+The deepest of the three ways Humanize reaches into a CLI it drives, and the one it turns to
 last. Two of these agents -- Claude Code and opencode -- are shipped as a single Bun
 executable: the whole of the program, its JavaScript minified and packed into one file behind
 a documented ``---- Bun! ----`` trailer, runtime and all. There is no script to preload and no
@@ -9,7 +9,7 @@ cannot reach a thing, this one reaches it by rewriting the bundle -- and, becaus
 brittle by construction, does everything it can to be safe about it and falls back the moment
 it cannot.
 
-Never the installed binary. A patch is applied to a copy humanize makes in a directory of its
+Never the installed binary. A patch is applied to a copy Humanize makes in a directory of its
 own, run for the length of one session and removed after, so nothing this does outlives the run
 or touches what the person at this machine installed. And never on faith: the copy is
 fingerprinted against what :mod:`hmz.coganchor.backends` wrote down for it -- a pattern the bundle
@@ -138,7 +138,7 @@ class Located:
 class Patched:
     """A patched copy of a CLI, held for as long as the session that made it needs it.
 
-    The copy lives in humanize's directory for this machine and is removed when this is closed
+    The copy lives in Humanize's directory for this machine and is removed when this is closed
     or collected, whichever comes first -- a finalizer for the reason the mounted skills are
     one: a run that dropped the handle without closing it still leaves nothing of a 200 MB copy
     behind.
@@ -406,7 +406,7 @@ def patched(
 ) -> Patched | None:
     """A session-scoped patched copy of a CLI, or None to run the installed one instead.
 
-    The whole of the safe path: the bundle is fingerprinted, copied into a directory humanize
+    The whole of the safe path: the bundle is fingerprinted, copied into a directory Humanize
     owns, and rewritten in place -- every patch the same length as what it replaces, inside the
     one module the fingerprint picked out, with that module's bytecode cleared so the rewritten
     source is what runs. The copy is then made to prove it still starts before it is handed back;

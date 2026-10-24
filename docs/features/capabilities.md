@@ -24,8 +24,8 @@ import { withBase } from 'vitepress'
 | **Skills.** The skills each agent loads. A flow can bring its own. | [Skills](/user/skills) |
 | **In a browser.** The run going, every run before it, starting one and what they spent, on a page. | [In a browser](/user/web)<br><small>[Prompt, browser, script or Python](/features/surfaces)</small> |
 | **From a script.** A flow from a shell script or a cron job, no interface. | [Run it unattended](/user/unattended)<br><small>[Prompt, browser, script or Python](/features/surfaces)</small> |
-| **In CI.** A flow on a schedule that opens a pull request. | [humanize in CI](/user/ci) |
-| **From Python.** humanize driven by a program of your own. | [SDK reference](/reference/sdk)<br><small>[Prompt, browser, script or Python](/features/surfaces)</small> |
+| **In CI.** A flow on a schedule that opens a pull request. | [Humanize in CI](/user/ci) |
+| **From Python.** Humanize driven by a program of your own. | [SDK reference](/reference/sdk)<br><small>[Prompt, browser, script or Python](/features/surfaces)</small> |
 
 ## While it runs
 
@@ -38,7 +38,7 @@ import { withBase } from 'vitepress'
 | **What it costs.** Tokens, money and rate for every agent, live. | [Cost and rate](/user/tally) |
 | **A budget on every run.** Time, cost or output tokens; the first limit reached stops it. | [Run it unattended](/user/unattended)<br><small>[A budget on every run](/features/allowances)</small> |
 | **Stop it.** From the keyboard, and by force if it will not stop. | [Stopping](/user/stopping) |
-| **Leave it running.** Close the terminal; open humanize in the same directory to find it again. | [Daemon reference](/reference/daemon)<br><small>[Close the terminal, keep the run](/features/daemon)</small> |
+| **Leave it running.** Close the terminal; open Humanize in the same directory to find it again. | [Daemon reference](/reference/daemon)<br><small>[Close the terminal, keep the run](/features/daemon)</small> |
 
 ## Where the work lands
 

@@ -1,4 +1,4 @@
-/* The web interface's look: humanize's own, the constructivist one humanfia.ai draws in -- ink
+/* The web interface's look: Humanize's own, the constructivist one humanfia.ai draws in -- ink
    on a cool white, hard edges and offset shadows cut like paper -- laid out as a desktop chat app
    lays itself out: a sidebar, a view, and a panel beside it.
 
@@ -3883,7 +3883,7 @@ pre.exo-args {
   }
 }
 
-/* ------------------------------------------------------------------ the macOS app's window */
+/* -------------------------------------------------------- Humanize Desktop's window */
 
 /* There the page runs to the window's top edge, and the window's traffic lights stand where
    macOS puts them, in its top 32 pixels at the left. That strip is kept for them alone, across

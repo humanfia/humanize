@@ -686,7 +686,7 @@ def serves(backend: str, role: AgentRole | None) -> bool:
     try:
         harness = HarnessKind(backend)
     except ValueError:
-        # Every backend humanize does not drive itself is driven over ACP.
+        # Every backend Humanize does not drive itself is driven over ACP.
         harness = HarnessKind.ACP
     if role.harness is not None and harness != role.harness:
         return False

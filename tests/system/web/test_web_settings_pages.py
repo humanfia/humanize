@@ -167,7 +167,7 @@ def test_without_the_endpoints_the_pages_say_unavailable(
     project: Path, engine: str
 ) -> None:
     def older(page: Page) -> None:
-        # A server of an older humanize, which has neither.
+        # A server of an older Humanize, which has neither.
         page.route(
             re.compile(r".*/api/(daemons|notifications)(/.*|\?.*)?$"),
             lambda route: route.fulfill(status=404, json={"error": "Not found."}),

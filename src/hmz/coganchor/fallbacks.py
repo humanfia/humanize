@@ -67,7 +67,7 @@ __all__ = [
     "waits",
 ]
 
-#: Where in humanize's settings every step is written down: one list rather than one entry
+#: Where in Humanize's settings every step is written down: one list rather than one entry
 #: per step, because a chain is read whole every time it is read at all -- a turn that failed
 #: asks where it goes, and the answer is the walk rather than the step.
 _HELD = "fallbacks"
@@ -219,7 +219,7 @@ ANSWERS: tuple[Answer, ...] = (
     # this account runs will not have changed by the next call, and it is the list rather than
     # the moment that is wrong.
     # What a person does about it is said by the turn that failed, which is the only place
-    # that knows which id was named and what humanize was last told this account runs.
+    # that knows which id was named and what Humanize was last told this account runs.
     Answer(
         "unlisted",
         "was refused that model",

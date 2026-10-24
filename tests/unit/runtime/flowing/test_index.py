@@ -218,7 +218,7 @@ SKIPS: list[tuple[Callable[[Path], object], str]] = [
     (lambda at: release(at, "x", "1.0.0", name="y"), "is not the directory"),
     (lambda at: release(at, "x", "1.0.0", version="1.0.1"), "is not the directory"),
     (lambda at: release(at, "x", "1.0.0", commit="nope"), "commit"),
-    (lambda at: release(at, "chat", "1.0.0"), "built into humanize"),
+    (lambda at: release(at, "chat", "1.0.0"), "built into Humanize"),
     (lambda at: release(at, "x", "1.0.0", owner="alice", repo="bob/x"), "bob's"),
     (lambda at: (at / "flows" / "Not_A_User" / "x").mkdir(parents=True), "neither"),
     (

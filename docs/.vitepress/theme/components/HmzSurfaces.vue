@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The ways into humanize -- an interface, in a terminal (`hmz`) or a browser (`hmz web`), the
+// The ways into Humanize -- an interface, in a terminal (`hmz`) or a browser (`hmz web`), the
 // command line and Python -- over one workspace: the same flows (this project's first, then
 // yours, then the flowverses), the same accounts, and one history of runs whichever way a run
 // was started. The two interfaces are one door here: each is a frontend of the same runs, and

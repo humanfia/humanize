@@ -1,11 +1,12 @@
 # The macOS app
 
-The humanize app is [`hmz web`](/user/web) in a window of its own: the same page, every epic on
+Humanize Desktop is [`hmz web`](/user/web) in a window of its own: the same page, every epic on
 this Mac, with no terminal to keep open and no browser tab to find. It starts `hmz web` when it
 opens and stops it when you quit.
 
 ::: info At a glance
-- **You will** have humanize in your Dock and Applications, opening on every epic on this Mac.
+- **You will** have Humanize Desktop in your Dock and Applications, opening on every epic on this
+  Mac.
 - **Use it when** you would rather open an app than run `hmz web` and keep its terminal.
 - **You need** macOS 11 or newer, on Apple silicon or Intel, and a connection the first time:
   the app installs `hmz` itself.
@@ -15,22 +16,22 @@ opens and stops it when you quit.
 
 1. Download `humanize-<version>-macos-universal.dmg` from the
    [latest release](https://github.com/humanfia/humanize/releases/latest).
-2. Open it, and drag **humanize** onto **Applications**.
-3. Open humanize from Applications. The first time, macOS stops it: the disk image's window
-   says what to do, and so does [The first time it opens](#the-first-time-it-opens).
+2. Open it, and drag **Humanize Desktop** onto **Applications**.
+3. Open Humanize Desktop from Applications. The first time, macOS stops it: the disk image's
+   window says what to do, and so does [The first time it opens](#the-first-time-it-opens).
 
-The first time, it says **Installing humanize**, with each step, while it installs `hmz`; from
+The first time, it says **Installing Humanize CLI**, with each step, while it installs `hmz`; from
 then on it shows its mark while `hmz web` starts, then the page, with the sidebar of your epics.
 
 ## How it works
 
-The app is a window, not a second humanize. It runs `hmz` as
+The app is a window, not a second Humanize. It runs `hmz` as
 `hmz web --no-open --attached` and shows the page it serves.
 
-- **It installs `hmz` for you, at its own version.** humanize 0.5.0 runs `hmz` 0.5.0, since both
-  come from the same release. Where there is none, or one of another version, it runs
-  `uv tool install --force hmz==<its version>`, keeping any extras you installed with, and says
-  **Installing humanize** or **Updating humanize** while it does. That is the same
+- **It installs `hmz` for you, at its own version.** Humanize Desktop 0.5.0 runs Humanize CLI
+  0.5.0, since both come from the same release. Where there is none, or one of another version,
+  it runs `uv tool install --force hmz==<its version>`, keeping any extras you installed with, and
+  says **Installing Humanize CLI** or **Updating Humanize CLI** while it does. That is the same
   `~/.local/bin/hmz` a terminal finds, so the `hmz` you type is the app's version too; another
   `hmz` on your `PATH`, from pipx or pip, is left alone and not used.
 - **It brings uv only where you have none.** It uses yours -- on your `PATH`, or in
@@ -69,40 +70,41 @@ The app is a window, not a second humanize. It runs `hmz` as
 
 ## Opening a `.hmzepic` {#opening-a-hmzepic}
 
-The app is what a `.hmzepic` -- an [exported epic](/user/export) -- opens with. Double-click one
-in the Finder, choose **Open With → humanize**, or drop one on the window: the app imports it,
-as **Import** on the page does, and opens it on its [Exomyth](/user/web#exomyth). Opened while
-the app is still starting, it is imported once the page is there. Of several opened or dropped
-at once, the last is imported; anything but a `.hmzepic` is left alone.
+The app is what a `.hmzepic` -- an [exported epic](/user/export) -- opens with. Double-click one in
+the Finder, choose **Open With → Humanize Desktop**, or drop one on the window: the app imports it,
+as **Import** on the page does, and opens it on its [Exomyth](/user/web#exomyth). Opened while the
+app is still starting, it is imported once the page is there. Of several opened or dropped at once,
+the last is imported; anything but a `.hmzepic` is left alone.
 
 One you already have is refused, with **Open** to go to it; one that cannot be picked up on this
 Mac says why on its own page, as any [imported epic](/user/web#importing-an-epic) does.
 
 ## Notifications {#notifications}
 
-The page's [notifications](/user/web#notifications) -- an epic done, failed or stopped, a
-question for you, a `chat` waiting for your next line, on any daemon -- show in the window's bell
-and toasts as in a browser, and, while the window is hidden or not in front, as macOS
-notifications from humanize. Click one: the window comes to the front, on the epic it is about.
+The page's [notifications](/user/web#notifications) -- an epic done, failed or stopped, a question
+for you, a `chat` waiting for your next line, on any daemon -- show in the window's bell and toasts
+as in a browser, and, while the window is hidden or not in front, as macOS notifications from
+Humanize Desktop. Click one: the window comes to the front, on the epic it is about.
 
 The kinds that appear, and whether they are macOS notifications at all, are set in
 **Settings → Notifications**; the app needs no permission asked there, as a browser does. The
-first one asks whether humanize may send them: choose **Allow**. After that, macOS's own
-**System Settings → Notifications → humanize** decides how they are shown, or silences them.
+first one asks whether Humanize Desktop may send them: choose **Allow**. After that, macOS's own
+**System Settings → Notifications → Humanize Desktop** decides how they are shown, or silences them.
 
 ## Updates {#updates}
 
 The app looks for a new release a few seconds after it opens, and every 6 hours after. It
-downloads one in the background, checks that it was signed by humanize's release, and then asks
+downloads one in the background, checks that it was signed by Humanize's release, and then asks
 once, naming the version:
 
-- **Restart** installs it, and opens humanize again on it, `hmz web` stopped and started with it.
-- **Later** leaves it until you quit humanize, which installs it then.
+- **Restart** installs it, and opens Humanize Desktop again on it, `hmz web` stopped and started
+  with it.
+- **Later** leaves it until you quit Humanize Desktop, which installs it then.
 
-To look now, choose **humanize → Check for Updates…**: a small window shows it looking, then
+To look now, choose **Humanize Desktop → Check for Updates…**: a small window shows it looking, then
 how far the download is, and the menu item reads **Checking for Updates…** until it is done. Then
-it offers the new release, or says humanize is up to date, or why it could not look; choose
-**Restart** and the window shows the install until humanize opens again. Only releases are
+it offers the new release, or says Humanize Desktop is up to date, or why it could not look; choose
+**Restart** and the window shows the install until Humanize Desktop opens again. Only releases are
 offered, never a pre-release, unless the app you run is a pre-release itself: then the newest
 release or pre-release is.
 
@@ -111,15 +113,15 @@ once where no epics are running, and otherwise once they have ended.
 
 ## The first time it opens {#the-first-time-it-opens}
 
-humanize is not yet signed with an Apple Developer ID, so the first time you open it, macOS says
-it cannot check it and offers only **Done** or **Move to Trash**. Choose **Done**, then either:
+Humanize Desktop is not yet signed with an Apple Developer ID, so the first time you open it, macOS
+says it cannot check it and offers only **Done** or **Move to Trash**. Choose **Done**, then either:
 
-- open **System Settings → Privacy & Security**, scroll to the message about humanize, and click
-  **Open Anyway**; or
+- open **System Settings → Privacy & Security**, scroll to the message about Humanize Desktop, and
+  click **Open Anyway**; or
 - in a terminal, take the quarantine off the app:
 
   ```sh
-  xattr -dr com.apple.quarantine /Applications/humanize.app
+  xattr -dr com.apple.quarantine "/Applications/Humanize Desktop.app"
   ```
 
 Either is once: macOS remembers it, until you install the app again.
@@ -127,8 +129,8 @@ Either is once: macOS remembers it, until you install the app again.
 ### Check it worked
 
 - The window shows the sidebar of your epics, as `hmz web` does in a browser.
-- **humanize → About humanize** names the version you downloaded, or the one it updated itself
-  to since.
+- **Humanize Desktop → About Humanize Desktop** names the version you downloaded, or the one it
+  updated itself to since.
 
 ## Troubleshooting
 
@@ -151,7 +153,7 @@ To have the app run another `hmz` -- a checkout you are working on, say -- name 
 `HUMANIZE_HMZ` and open the app from that shell. It then installs nothing:
 
 ```sh
-HUMANIZE_HMZ=~/src/humanize/.venv/bin/hmz /Applications/humanize.app/Contents/MacOS/humanize
+HUMANIZE_HMZ=~/src/humanize/.venv/bin/hmz "/Applications/Humanize Desktop.app/Contents/MacOS/humanize"
 ```
 
 ### `Failed` or `Stopped`
@@ -160,17 +162,17 @@ HUMANIZE_HMZ=~/src/humanize/.venv/bin/hmz /Applications/humanize.app/Contents/Ma
 The app's log has the rest:
 
 ```sh
-open ~/Library/Logs/ai.humanfia.humanize/humanize.log
+open ~/Library/Logs/ai.humanfia.humanize/"Humanize Desktop.log"
 ```
 
-`hmz: the runs … are held by an older humanize` is the most common: an older `hmz` holds them.
+`hmz: the runs … are held by an older Humanize` is the most common: an older `hmz` holds them.
 See [`hmz web`'s troubleshooting](/user/web#troubleshooting).
 
 ### No macOS notifications
 
 They come only while the window is hidden or not in front. Check that **Settings →
 Notifications** in the app has them switched on, and that **System Settings → Notifications →
-humanize** allows them.
+Humanize Desktop** allows them.
 
 ### The window opened on a page that forgot what I chose
 
@@ -179,8 +181,8 @@ time, so it took another. It keeps the new one from then on.
 
 ## Uninstall
 
-Quit humanize and move it from Applications to the Trash. To forget what it kept as well -- its
-port and window, what the page remembers, and its log:
+Quit Humanize Desktop and move it from Applications to the Trash. To forget what it kept as well --
+its port and window, what the page remembers, and its log:
 
 ```sh
 rm -rf ~/Library/{Application\ Support,WebKit,Caches,Logs}/ai.humanfia.humanize

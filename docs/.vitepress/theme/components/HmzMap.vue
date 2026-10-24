@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Everything humanize does, by what the reader is trying to do, each item a link to the page
+// Everything Humanize does, by what the reader is trying to do, each item a link to the page
 // that does it. The areas and items are the sections and rows of `features/capabilities.md`,
 // one for one: add a row there and it is an item here, in the same place. The scene flies each
 // area in, in turn, then settles on the whole map and stays there, since it is something to
@@ -288,7 +288,7 @@ onUnmounted(() => {
 
 const label = computed(
   () =>
-    `Everything humanize does, in ${AREAS.length} areas: ${AREAS.map((area) => `${area.name}, ${area.items.map((item) => item.name).join(', ')}`).join('; ')}. Each item links to the page that does it.`,
+    `Everything Humanize does, in ${AREAS.length} areas: ${AREAS.map((area) => `${area.name}, ${area.items.map((item) => item.name).join(', ')}`).join('; ')}. Each item links to the page that does it.`,
 )
 </script>
 

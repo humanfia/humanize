@@ -20,7 +20,7 @@ import { withBase } from 'vitepress'
   empty answer.
 - **Give defaults to run unattended.** Away, a shape with a default in every field gets those,
   and any other fails the flow.
-- **You fill your own role.** You never pick an agent for the person: humanize puts you there.
+- **You fill your own role.** You never pick an agent for the person: Humanize puts you there.
 - **A flow can stand in.** A calling flow can answer a called flow's questions itself.
 
 </div>

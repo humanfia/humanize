@@ -71,10 +71,10 @@
       <text x="76" y="519">OR</text>
     </g>
     <g font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13" fill="#f4f8f9">
-      <text x="196" y="449" fill-opacity="0.6">humanize is not signed by Apple yet, so macOS stops it once.</text>
-      <text x="104" y="475">Open humanize from Applications, and choose <tspan font-weight="700">Done</tspan>.</text>
+      <text x="196" y="449" fill-opacity="0.6">Humanize Desktop is not signed by Apple yet, so macOS stops it once.</text>
+      <text x="104" y="475">Open Humanize Desktop from Applications, and choose <tspan font-weight="700">Done</tspan>.</text>
       <text x="104" y="497">System Settings → Privacy &amp; Security → <tspan font-weight="700">Open Anyway</tspan>.</text>
     </g>
-    <text x="104" y="519" font-family="'SF Mono', ui-monospace, Menlo, monospace" font-size="11" fill="#f4f8f9">xattr -dr com.apple.quarantine /Applications/humanize.app</text>
+    <text x="104" y="519" font-family="'SF Mono', ui-monospace, Menlo, monospace" font-size="11" fill="#f4f8f9">xattr -dr com.apple.quarantine /Applications/Humanize\ Desktop.app</text>
   </g>
 </svg>

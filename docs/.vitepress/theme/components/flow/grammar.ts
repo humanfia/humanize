@@ -31,7 +31,7 @@ export const ROLE_SAID: Record<RoleKind, string> = {
   checker: 'an agent that reads and judges',
   steward: 'an agent that plans or cleans, not builds',
   human: 'you',
-  program: 'humanize or your script: no model',
+  program: 'Humanize or your script: no model',
 }
 
 export const SESSION_SAID = {

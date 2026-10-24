@@ -73,7 +73,7 @@ opens runs at. Two agents set up alike are still two agents. Set one up in `/flo
 
 ## Backend
 
-A coding agent CLI that humanize drives: `agy`, `claude`, `codex`, `cursor-agent`, `dsh`,
+A coding agent CLI that Humanize drives: `agy`, `claude`, `codex`, `cursor-agent`, `dsh`,
 `grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `pi` or `qwen`. It is the `cli` row of an
 agent. See [Installation](/user/installation) and [Many backends, one
 agent](/features/backends).
@@ -113,7 +113,7 @@ choose one at `/flow` or name it with `$`. See [Your first run](/user/first-run)
 ## Flowverse
 
 An index of flows: a git repository listing each release of a flow, and the repository and
-commit it is. A flow it lists runs once you install it from `/flow`. `official` is humanize's
+commit it is. A flow it lists runs once you install it from `/flow`. `official` is Humanize's
 own; add others on `/flow`'s Flowverses page. A flow built in or installed from `official` is
 named as `official` lists it -- `aot` for humanfia's own, `<user>/<flow>` for anybody else's --
 and one installed from another flowverse `@<flowverse>/<flow>`. See
