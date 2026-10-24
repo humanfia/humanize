@@ -27,6 +27,9 @@ export function draw(holder) {
   let reading = 0
   let gone = false
   const states = new Map()
+  // Where Local is: this machine, or the WSL distribution hmz runs in there.
+  const where = h('td', { class: 'mono dim' }, 'this machine')
+  get('/d/local/api/held').then((held) => held.wsl && fill(where, `${held.wsl} (WSL)`), () => {})
 
   /**
    * Reads the daemons again, and draws them; while one is still being reached, again soon. The
@@ -50,7 +53,7 @@ export function draw(holder) {
       'tr',
       { 'data-hmz': 'daemon', 'data-name': 'local' },
       h('td', {}, h('b', {}, 'Local')),
-      h('td', { class: 'mono dim' }, 'this machine'),
+      where,
       h('td', {}, shownState({ state: 'up' })),
       h('td', {}),
     )

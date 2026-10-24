@@ -24,7 +24,7 @@ const MARKS = { running: '●', stopping: '◐', done: '✔', failed: '✕', sto
 
 /**
  * @param {HTMLElement} root The sidebar.
- * @param {{machine: string, here: string, newer: string}} context What the server said this page is of.
+ * @param {{machine: string, wsl: ?string, here: string, newer: string}} context What the server said this page is of.
  * @param {() => {parts: string[], query: URLSearchParams}} where Where the page is.
  */
 export function mountSidebar(root, context, where) {
@@ -416,7 +416,10 @@ function named(name) {
  * and what the epics spent.
  */
 function daemonBar(context) {
-  const local = { name: 'local', host: context.machine || '', state: 'up' }
+  // Local's host, as Local says it: the machine's name, or the WSL distribution hmz runs in.
+  const hostOf = (held) => (held.wsl ? `${held.wsl} (WSL)` : held.machine || '')
+  const local = { name: 'local', host: daemon() === 'local' ? hostOf(context) : '', state: 'up' }
+  if (daemon() !== 'local') get('/d/local/api/held').then((held) => ((local.host = hostOf(held)), draw()), () => {})
   let daemons = [local]
   // How many epics are going, and on which daemon they were counted.
   let live = { of: '', count: 0 }
@@ -449,7 +452,7 @@ function daemonBar(context) {
   // Every daemon, as the machine serving the page has them; Local alone where it keeps none.
   poll('/api/daemons', 10000, (answer, error) => {
     const listed = Array.isArray(answer) ? answer : answer && answer.daemons
-    if (Array.isArray(listed)) daemons = listed.some((one) => one.name === 'local') ? listed : [local, ...listed]
+    if (Array.isArray(listed)) daemons = [local, ...listed.filter((one) => one.name !== 'local')]
     else if (error && error.status === 404) daemons = [local]
     draw()
   })

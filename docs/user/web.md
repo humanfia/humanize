@@ -251,7 +251,8 @@ here at the same path, holding the commit its archive says; otherwise it says wh
 `Imported · not resumable here: …`, and offers no **Resume**. A `.hmzepic` already on this
 machine is imported by its address too, `#/epics/import?path=<file>`, once you press **Import**
 under its path, and opens on its [Exomyth](#exomyth) -- as the [macOS app](/user/desktop#opening-a-hmzepic)
-opens one you double-click. See [Exporting a run](/user/export#importing-a-run).
+opens one you double-click. Where `hmz` runs in WSL, a Windows path, `C:\…` or `\\wsl$\…`, is
+read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}
 
@@ -405,8 +406,9 @@ Start `hmz web` in a project, and open **New epic**:
 ## Daemons {#daemons}
 
 Each machine whose epics the page reaches is a **daemon**: the [daemon](/features/daemon) there
-holds its runs. **Local** is this machine, always there and never removed. Every other is an ssh
-host, reached the way `ssh` reaches it, with your keys and your ssh config.
+holds its runs. **Local** is this machine, always there and never removed -- where `hmz` runs in
+WSL, as with the Windows app, the WSL distribution, its host shown as `Debian (WSL)`. Every other
+is an ssh host, reached the way `ssh` reaches it, with your keys and your ssh config.
 
 The page shows one daemon at a time: the sidebar's folders and epics, a new epic, search,
 flows and the Daemon pages of Settings are all that daemon's. To see another's, switch to it.

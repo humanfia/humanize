@@ -510,7 +510,7 @@ def test_the_epic_lists_and_asks_the_sessions_of_the_earlier_epic_it_is_asked_ab
 
 
 def test_an_exported_epic_is_imported_back_by_its_bytes_or_its_path(
-    project: Path, tmp_path: Path
+    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     with served() as site:
         browser = Browser(site)
@@ -544,6 +544,17 @@ def test_an_exported_epic_is_imported_back_by_its_bytes_or_its_path(
         assert "is already here" in again.json()["error"]
         named = browser.post("/api/runs/import", {"path": str(archive)})
         assert (named.status, named.json()["name"]) == (409, name)
+        # In WSL, a Windows path, as the desktop app on Windows says one, is read as WSL names it.
+        wslpath = tmp_path / "bin" / "wslpath"
+        wslpath.write_text(
+            f'#!/bin/sh\n[ "$2" = "C:\\\\x.hmzepic" ] && echo "{archive}"\n'
+        )
+        wslpath.chmod(0o755)
+        monkeypatch.setenv("WSL_DISTRO_NAME", "Debian")
+        windows = browser.post("/api/runs/import", {"path": "C:\\x.hmzepic"})
+        assert (windows.status, windows.json()["name"]) == (409, name)
+        monkeypatch.delenv("WSL_DISTRO_NAME")
+        assert browser.post("/api/runs/import", {"path": "C:\\x.hmzepic"}).status == 400
 
         # Somebody else's: a workspace this machine has not got.
         (tmp_path / "theirs").mkdir()

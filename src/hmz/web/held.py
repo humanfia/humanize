@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import bisect
 import contextlib
+import os
 import re
 import secrets
 import sys
@@ -719,6 +720,8 @@ def _held(asked: Asked) -> dict[str, Any]:
     places = asked.site.places
     return {
         "machine": socket.gethostname().split(".")[0],
+        # The WSL distribution hmz runs in, as Windows names it; None outside WSL.
+        "wsl": os.environ.get("WSL_DISTRO_NAME") or None,
         "here": str(places.here),
         "version": __version__,
         "newer": releases.newer() or "",

@@ -210,8 +210,10 @@ text of `api/daemon.md §12.3`; a host it cannot reach MUST be refused 503,
 ### 8.1 `GET /api/held`
 
 **8.1.1** `GET /api/held` MUST answer `machine` (this machine's host name up to its first `.`),
-`here` (the directory the server started in), `version` (the server's `hmz` version), `newer` (a
-newer release of `hmz`, as `features/updates.md` defines it, or `""`) and `running`.
+`wsl` (the WSL distribution the server runs in, as `WSL_DISTRO_NAME` names it, or `null` where
+it names none), `here` (the directory the server started in), `version` (the server's `hmz`
+version), `newer` (a newer release of `hmz`, as `features/updates.md` defines it, or `""`) and
+`running`.
 
 **8.1.2** `running` MUST hold, for every host of this machine whose epic is going or stopping,
 its `run` snapshot (`api/daemon.md §9.3`) where the server follows it, else `state`, `run`,
@@ -412,6 +414,10 @@ percent-encoded; or JSON `{"path": "<absolute path of a .hmzepic on this machine
 absolute 400, `Say path as a whole path on this machine.`; an archive that cannot be imported 400
 with the runtime's sentence; and an epic already present 409 with the runtime's sentence and
 `name`, that epic's name.
+
+**10.6.5** Where the server runs in WSL, a `path` that is a Windows path (`C:\…`,
+`\\wsl$\…`, `\\wsl.localhost\…`) MUST be read as `wslpath -u` translates it before
+it is refused.
 
 ### 10.7 Backup targets
 

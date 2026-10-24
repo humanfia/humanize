@@ -12,8 +12,10 @@ from __future__ import annotations
 import contextlib
 import datetime
 import functools
+import os
 import re
 import shutil
+import subprocess
 import tempfile
 import threading
 from pathlib import Path
@@ -29,10 +31,13 @@ if TYPE_CHECKING:
     from .places import Places
     from .routing import Asked
 
-__all__ = ["BUNDLE", "ROUTES", "Runs", "refused"]
+__all__ = ["BUNDLE", "ROUTES", "Runs", "local", "refused"]
 
 #: What an epic's archive is sent as.
 BUNDLE = "application/vnd.hmz.epic+gzip"
+
+#: A Windows path: a drive's, or a share's such as `\\wsl$\...`.
+_WINDOWS = re.compile(r"[A-Za-z]:[\\/]|\\\\")
 
 #: How a chat is said between its turns, and once it is over however it ended but failing.
 DONE = "done"
@@ -635,10 +640,27 @@ def _reason(why: str) -> str:
     return f"{why[:1].upper()}{why[1:]}."
 
 
+def local(said: str) -> Path:
+    """A path said on this machine, as hmz reads it: in WSL, a Windows one as WSL names it.
+
+    Args:
+      said: The path, as the user or the desktop app said it.
+
+    Returns:
+      The path; a Windows one in WSL translated by `wslpath -u`, or as said where it cannot be.
+    """
+    if os.environ.get("WSL_DISTRO_NAME") and _WINDOWS.match(said):
+        with contextlib.suppress(OSError, subprocess.CalledProcessError):
+            said = subprocess.run(
+                ["wslpath", "-u", said], capture_output=True, text=True, check=True
+            ).stdout.rstrip("\n")
+    return Path(said)
+
+
 def _import(asked: Asked) -> Made:
     archive = asked.file
     if archive is None:
-        said = Path(asked.text("path"))
+        said = local(asked.text("path"))
         if not said.is_absolute():
             raise Refusal("Say path as a whole path on this machine.")
         archive = said
