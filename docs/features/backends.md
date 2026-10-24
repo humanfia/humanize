@@ -21,13 +21,8 @@ import { withBase } from 'vitepress'
 - **Auto sends nothing.** The model runs at its CLI's own default, on every backend.
 - **Skills stay yours.** A flow's skills come and go with the session. pi, DeepSeek Harness,
   litellm and an ACP CLI take none.
-- **Or no CLI at all.** `litellm` calls a model directly: one chat completion a turn over the
-  session's history, no tools, no environment.
-- **Any endpoint, any CLI.** With litellm installed, Claude Code, Antigravity, Codex,
-  DeepSeek Harness, Grok Build, Kimi Code, pi, Qwen Code, opencode, MiMo Code and MiniMax Code
-  run as any account litellm has a way in for -- a vendor's key, a gateway, Bedrock, Vertex,
-  Azure -- through a
-  [gateway on loopback](/reference/providers#through-litellm).
+- **Any endpoint.** With the litellm extra, most CLIs can also run as a vendor's key, a gateway,
+  Bedrock, Vertex or Azure, [through a gateway on loopback](/reference/providers#through-litellm).
 - **Three need an extra.** DeepSeek Harness, Kimi Code and litellm, at
   [install](/user/installation).
 

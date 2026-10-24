@@ -14,8 +14,7 @@ uv tool install hmz
 ```
 
 Three backends need a package of their own: `[dsh]` for DeepSeek Harness, `[kimi]` for Kimi
-Code, `[litellm]` for a model called directly -- or most CLIs run through litellm, as any
-account it can reach -- `[all]` for all three.
+Code, `[litellm]` for litellm, `[all]` for all three.
 
 ```sh
 uv tool install 'hmz[all]'
