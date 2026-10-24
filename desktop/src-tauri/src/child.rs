@@ -166,6 +166,7 @@ pub(crate) mod tests {
 
     /// The pid a fake writes once it is going, waited for: a script run the first time is
     /// checked by macOS first, which can take a while.
+    #[cfg(unix)]
     pub fn written(path: &std::path::Path) -> u32 {
         let began = Instant::now();
         loop {
