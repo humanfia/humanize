@@ -170,7 +170,7 @@ class AnchorConfig:
       broker: Where the two halves are introduced, when `harness` and `target` are two
         different machines and neither can dial the other. Empty asks this machine which of
         its addresses faces outward, which is right wherever the two are on the same network
-        as this one; a machine they reach humanize by some other name at says that name here.
+        as this one; a machine they reach Humanize by some other name at says that name here.
       chdir: Where inside that workspace the agent starts, as the target names it, or None
         for the workspace itself. What a session opened at a directory of its own comes to:
         the agent is put in this machine's mirror of it, and what it does there lands there.
@@ -300,7 +300,7 @@ class AnchorConfig:
             )
         if self.harness != "local" and work.scheme == "peer":
             raise ValueError(
-                "a peer:// target is a meeting humanize books for a harness it is placing; "
+                "a peer:// target is a meeting Humanize books for a harness it is placing; "
                 "naming both is naming the same introduction twice"
             )
         if self.net not in ("local", "remote"):
@@ -442,7 +442,7 @@ class AnchorConfig:
 
         Raises:
           ValueError: If a swap is not between two absolute paths.
-          ConnectionError: If the harness runs on another machine and humanize cannot be put
+          ConnectionError: If the harness runs on another machine and Humanize cannot be put
             there, or the serving half cannot be left where the work lands.
         """
         from hmz.coganchor.argv import render
@@ -458,7 +458,7 @@ class AnchorConfig:
             if swaps or private or chdir
             else self
         )
-        # A harness on another machine is the same line behind whatever runs humanize there,
+        # A harness on another machine is the same line behind whatever runs Humanize there,
         # which is why it is answered here: what the layers above spawn is one command whose
         # streams are the agent's, and where that command runs is no part of what they read.
         if elsewhere(answering):
@@ -658,7 +658,7 @@ def _supervised(command: Sequence[str], config: AnchorConfig, home: Home | None)
             + [os.path.abspath(path) for path in config.local_paths]
             # What a path is answered with is this machine's business: mirroring a
             # provider's credentials onto the target would put them where the work lands,
-            # and a session humanize keeps is kept here. A pattern's is the directory it is
+            # and a session Humanize keeps is kept here. A pattern's is the directory it is
             # in, which is the one every path it answers is under.
             + [
                 instead if head(instead) == instead else os.path.dirname(head(instead))
@@ -878,7 +878,7 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     is given on stdin reaches the CLI's stdin, what the CLI writes reaches these streams
     unchanged and unbuffered, a signal aimed here is aimed there, and the call returns with
     the CLI's own status. Which is what makes running a turn elsewhere an argv change for the
-    backends that already speak a framed protocol to a process humanize spawns: the frames
+    backends that already speak a framed protocol to a process Humanize spawns: the frames
     cross a machine boundary and neither end is told.
 
     Three things do not ride along on their own, and each is answered here. The environment is
@@ -1552,7 +1552,7 @@ def _wrapping(hushes: Sequence[str], said: Mapping[str, str]) -> list[str]:
     composed there -- this machine's is layered onto the target's own, so a key in the target's
     shell profile survives merely not being sent. And a variable is *set* here where the target
     would strike it out on the way in: the ones that move a program's home are exactly the ones
-    it reads as describing the wrong machine, and so are humanize's own, and both are things a
+    it reads as describing the wrong machine, and so are Humanize's own, and both are things a
     turn taken here would have had.
 
     Every one of them is a name or a path rather than a secret. What the account actually is
@@ -1564,7 +1564,7 @@ def _wrapping(hushes: Sequence[str], said: Mapping[str, str]) -> list[str]:
 
     Returns:
       The words to put in front of the CLI. Always some: a turn always has at least what
-      humanize marks it with to say, so there is no case worth a branch.
+      Humanize marks it with to say, so there is no case worth a branch.
     """
     return [
         "env",

@@ -36,7 +36,7 @@ it, however it tried.
 ## Before you start
 
 - **Linux with Landlock, or macOS**: on Linux, a kernel of 5.13 or newer, booted with it, and
-  6.7 or newer for a role that may not reach the network. On macOS, any version: humanize
+  6.7 or newer for a role that may not reach the network. On macOS, any version: Humanize
   uses the Seatbelt sandbox built into it. See [Pitfalls](#pitfalls) for where a role is
   refused.
 - The flow's page, which says what its roles are granted. Most say nothing, and run at the
@@ -132,7 +132,7 @@ inside.txt
    lets it write. Start a flow in the project you want changed, never in your home directory.
 2. **The write inside the workdir** runs, with no question asked of anybody.
 3. **The write outside it** is refused by the kernel as `permission denied`. The CLI's own
-   approval setting is bypassed; this is humanize's limit, held around the agent and every
+   approval setting is bypassed; this is Humanize's limit, held around the agent and every
    program it starts, so a script the agent writes cannot get round it either.
 4. **Checking the result yourself** is the way to be sure: only the file inside the workdir
    exists.
@@ -179,7 +179,7 @@ At the prompt, the agent sheet does not offer the others for such a role.
 ## How each CLI holds to it
 
 Every grant below everything is enforced on the agent's process and on every command it runs.
-Where a CLI can hold part of a grant itself, it is told to. humanize holds the rest from
+Where a CLI can hold part of a grant itself, it is told to. Humanize holds the rest from
 outside:
 
 - **`local`, `user` and `system`** are held by Landlock, a Linux kernel feature, or on macOS
@@ -209,7 +209,7 @@ reaches for its model, so a cut network would not stop them: a `cursor-agent` ro
 MiniMax's own service in the same way, so an `mcode` role with `online` of `NONE` is refused
 too. The `aot` critic is such a role: give it another CLI.
 
-humanize knows nothing of a CLI you added over the Agent Client Protocol: not the hosts its
+Humanize knows nothing of a CLI you added over the Agent Client Protocol: not the hosts its
 model is at, and not where it keeps its state. Declare both where it was added, or a role that
 grants it `online` of `NONE` is refused (see
 [A CLI of your own](/reference/agents#a-cli-of-your-own)).
@@ -231,7 +231,7 @@ down, and says so once:
 codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks for is granted
 ```
 
-It keeps the same freedom: Codex asks before it reaches past the workspace, and humanize says
+It keeps the same freedom: Codex asks before it reaches past the workspace, and Humanize says
 yes.
 
 **Claude Code, on an account whose managed settings turn off bypass mode, or as root.** The
@@ -241,7 +241,7 @@ agent runs at `acceptEdits` instead, and says so once:
 claude: this account will not run an agent at bypass, so it runs at acceptEdits, where what it asks for is granted
 ```
 
-It keeps the same freedom: Claude asks before what `acceptEdits` does not cover, and humanize
+It keeps the same freedom: Claude asks before what `acceptEdits` does not cover, and Humanize
 says yes. The organisation's own `deny` rules still apply.
 
 ### On another machine
@@ -259,13 +259,13 @@ there and ends with its own exit status.
 ## Pitfalls
 
 ::: warning Where a grant cannot be held, the role does not start
-humanize never runs an agent with more than its grant. A role is refused before it starts
+Humanize never runs an agent with more than its grant. A role is refused before it starts
 (`HarnessSandboxed`) when:
 
 - **this machine cannot fence:** a Linux kernel older than 5.13 or booted without Landlock,
-  or a Mac where humanize itself runs inside another sandbox, which cannot start one of its
+  or a Mac where Humanize itself runs inside another sandbox, which cannot start one of its
   own. A kernel older than 6.7 cannot cut the network, so `online` of `NONE` is refused
-  there. So is a Linux machine where humanize may not look into the programs it starts
+  there. So is a Linux machine where Humanize may not look into the programs it starts
   (inside a container with its default seccomp profile, or with Yama's `ptrace_scope` at 2
   or 3): it could not keep what they listen on to this machine.
 - **the CLI would reach the web around the cut:** `cursor-agent` or `mcode` with `online` of

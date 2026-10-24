@@ -1,4 +1,4 @@
-"""coganchor -- everything humanize knows about driving a coding agent CLI.
+"""coganchor -- everything Humanize knows about driving a coding agent CLI.
 
 The whole of the capability, so that the layers above it only ever schedule flows. What each
 CLI *is* -- its name, its efforts, where it keeps its logs and its credentials, what it runs
@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from hmz.coganchor.anchor import AnchorConfig, check, connect, drive
 
-    #: humanize's version: the one `pyproject.toml` says, as the installed `hmz` carries it.
+    #: Humanize's version: the one `pyproject.toml` says, as the installed `hmz` carries it.
     __version__: str
 
 __all__ = ["AnchorConfig", "__version__", "check", "connect", "drive"]

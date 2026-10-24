@@ -371,7 +371,7 @@ def test_a_chat_that_kept_nothing_to_carry_on_says_it_cannot_be_continued(
         _start_chat(page, "hello there")
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: hello there")
         stop(page)
-        # As a chat of an earlier humanize was written down: with no journal to pick up.
+        # As a chat of an earlier Humanize was written down: with no journal to pick up.
         journals = list(project.parent.glob("humanize-home/epics/*/*/resume.jsonl"))
         assert journals
         for journal in journals:
@@ -549,7 +549,7 @@ def _painted(page: Page, token: str, said: str) -> None:
     raise AssertionError(f"{token} is {_paints(page, token)!r}, not {said!r}")
 
 
-#: Every pair of themes humanize comes with: its own, then twelve more, each named for a mood
+#: Every pair of themes Humanize comes with: its own, then twelve more, each named for a mood
 #: and its colour.
 _PAIRS = [
     "Humanize Green",

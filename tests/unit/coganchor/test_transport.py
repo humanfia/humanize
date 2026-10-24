@@ -381,7 +381,7 @@ def test_directories_owned_are_checked_and_closed_before_the_settings() -> None:
             f'[ ! -L "{path}" ] && [ -O "{path}" ] && chmod 700 "{path}" ||' in script
         )
         assert (
-            f'echo "humanize: {path} is not a directory this user owns" >&2' in script
+            f'echo "Humanize: {path} is not a directory this user owns" >&2' in script
         )
     assert (
         script.index('[ -O "/tmp/c-7" ]')
@@ -405,7 +405,7 @@ def test_an_ssh_road_quotes_one_line_for_the_far_shell() -> None:
     prefix = list(road.prefix)
     assert prefix[0] == "ssh"
     assert prefix[-3:] == ["-p", "2201", "me@box"]
-    # The target's own options come before humanize's, so that ssh keeps them.
+    # The target's own options come before Humanize's, so that ssh keeps them.
     assert prefix.index("IdentityFile=/k") < prefix.index("-T")
     line = road.line(["ls", "a b", "$HOME"])
     assert line[: len(prefix)] == prefix
@@ -592,7 +592,7 @@ def test_an_archive_that_would_not_install_says_why(
     road = Road.to(Target.parse("ssh://refuses"))
     road.forget()
     with pytest.raises(
-        ConnectionError, match="could not install humanize on ssh://refuses: disk full"
+        ConnectionError, match="could not install Humanize on ssh://refuses: disk full"
     ):
         road.installed()
 

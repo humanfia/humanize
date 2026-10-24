@@ -4,7 +4,7 @@ import CostReadout from '../.vitepress/theme/components/user-agents/CostReadout.
 
 # Cost and rate
 
-While a flow runs, humanize counts what it has spent, in tokens and in dollars, and how fast it
+While a flow runs, Humanize counts what it has spent, in tokens and in dollars, and how fast it
 is spending. Use this page to read those figures: to see what a run is costing before it ends,
 to compare two agents or two efforts, and to know when a figure is short of the whole truth.
 
@@ -25,14 +25,14 @@ The turn ends with a line of what it cost:
 
 ## Before you start
 
-- humanize is [installed](/user/installation) and a coding agent CLI is signed in.
+- Humanize is [installed](/user/installation) and a coding agent CLI is signed in.
 - For money as well as tokens, open `hmz` once on this machine: the interface is what fetches
   the price list. Until it has, every figure is tokens only.
 
 ## What is counted
 
 Every turn an agent takes spends tokens of up to five **kinds**, and each kind has its own
-price, so humanize keeps them apart rather than adding them into one total:
+price, so Humanize keeps them apart rather than adding them into one total:
 
 | Kind | Is |
 | --- | --- |

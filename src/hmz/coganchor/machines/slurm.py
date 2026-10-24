@@ -146,7 +146,7 @@ class SlurmConfig(MachineConfig):
       via: How the job's node is reached once it runs: :data:`SRUN`, a step of the job per
         command, or :data:`TCP`, a connection apiece to the serving half the job runs.
       sbatch_args: What else `sbatch` is told, ahead of what the job asks for.
-      labels: Labels to write in the job's comment beside humanize's own.
+      labels: Labels to write in the job's comment beside Humanize's own.
       placing: How long, in seconds, the job may wait for a node before it is given up on,
         or None for as long as it waits.
     """
@@ -208,7 +208,7 @@ class SlurmConfig(MachineConfig):
 def jobs(
     labels: Mapping[str, str] | None = None, *, seconds: float | None = None
 ) -> list[Allocation]:
-    """What this user's jobs of humanize's on the cluster hold of it, waiting or running.
+    """What this user's jobs of Humanize's on the cluster hold of it, waiting or running.
 
     Args:
       labels: Labels a job must also carry to be counted, such as its runtime's.

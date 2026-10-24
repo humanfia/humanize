@@ -302,7 +302,7 @@
   color: var(--vp-c-text-1);
 }
 
-/* Where humanize is going, set apart from what it does today: a rule down its side, the
+/* Where Humanize is going, set apart from what it does today: a rule down its side, the
    figures in the green. */
 .vp-doc .hmz-vision {
   margin: 24px 0;
@@ -400,7 +400,7 @@
   max-width: 46rem;
 }
 
-/* The pair the humanize mark is drawn in, and the home page with it: ink and a cool white
+/* The pair the Humanize mark is drawn in, and the home page with it: ink and a cool white
    paper, which trade places in the dark, and one green. `--hmz-ink` is whatever is drawn on the
    page; `--hmz-paper` is the page under it. The rest are those at the strengths the page's
    construction lines, marks and planes are drawn at. */
@@ -491,7 +491,7 @@
 
 /* The one warning that belongs on a front page, in a line rather than in a block: `::: danger`
    at the foot of the root page would be the loudest thing on it, and the loudest thing on it
-   should be what humanize is. */
+   should be what Humanize is. */
 .hmz-warn {
   margin: 20px 0 0;
   padding: 14px 18px;
@@ -711,7 +711,7 @@
 }
 
 /* A terminal window around a code block, for a line typed somewhere other than your shell --
-   at humanize's own prompt, say. Paper-light in the light theme and night-dark in the dark
+   at Humanize's own prompt, say. Paper-light in the light theme and night-dark in the dark
    one, as the reader's own terminal most likely is; its colours are the `--hmz-term-*` tokens:
 
      <div class="hmz-term" data-title="hmz">

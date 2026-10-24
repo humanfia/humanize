@@ -141,9 +141,9 @@ fn script(view: &View) -> String {
     let (title, percent) = match view {
         View::Checking => ("Checking for Updates…".to_owned(), None),
         View::Downloading { version, percent } => {
-            (format!("Downloading humanize {version}…"), *percent)
+            (format!("Downloading Humanize Desktop {version}…"), *percent)
         }
-        View::Installing(version) => (format!("Installing humanize {version}…"), None),
+        View::Installing(version) => (format!("Installing Humanize Desktop {version}…"), None),
     };
     format!(
         "draw({})",
@@ -308,7 +308,7 @@ fn replaceable(exe: &Path) -> Option<&Path> {
             // SAFETY: a path, NUL-terminated, that `access` only reads.
             .is_ok_and(|path| unsafe { libc::access(path.as_ptr(), libc::W_OK) } == 0)
     };
-    // humanize.app/Contents/MacOS/humanize
+    // Humanize Desktop.app/Contents/MacOS/humanize
     let bundle = exe.ancestors().nth(3)?;
     let ours = bundle.extension().is_some_and(|ext| ext == "app");
     (ours && writable(bundle) && writable(bundle.parent()?)).then_some(bundle)
@@ -385,7 +385,7 @@ async fn fetch<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Ready>, String> 
     let exe = std::env::current_exe().map_err(|why| why.to_string())?;
     if replaceable(&exe).is_none() {
         return Err(format!(
-            "humanize cannot replace itself where it is. {ELSEWHERE}"
+            "Humanize Desktop cannot replace itself where it is. {ELSEWHERE}"
         ));
     }
     let current = app.package_info().version.clone();
@@ -410,7 +410,7 @@ async fn fetch<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Ready>, String> 
     };
     // The look's patience is not handed on to the download.
     update.timeout = Some(PATIENCE);
-    log::info!("humanize {} is out, downloading it", update.version);
+    log::info!("Humanize Desktop {} is out, downloading it", update.version);
     let version = update.version.clone();
     let (mut got, mut was) = (0, None);
     let bytes = update
@@ -428,7 +428,7 @@ async fn fetch<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Ready>, String> 
         .await
         .map_err(|why| why.to_string())?;
     log::info!(
-        "humanize {} is downloaded, its signature verified",
+        "Humanize Desktop {} is downloaded, its signature verified",
         update.version
     );
     Ok(Some((update, bytes)))
@@ -449,16 +449,16 @@ fn settle<R: Runtime>(app: &AppHandle<R>, found: Result<Option<Ready>, String>) 
             Box::new(move || offer(on, version))
         }
         Ok(None) => {
-            log::info!("humanize is up to date");
+            log::info!("Humanize Desktop is up to date");
             let said = format!("{} is the newest version.", app.package_info().version);
             Box::new(move || {
                 if by_hand {
-                    tell(Level::Note, "humanize is up to date", said);
+                    tell(Level::Note, "Humanize Desktop is up to date", said);
                 }
             })
         }
         Err(why) => {
-            log::warn!("humanize could not check for updates: {why}");
+            log::warn!("Humanize Desktop could not check for updates: {why}");
             Box::new(move || {
                 if by_hand {
                     tell(Level::Failure, "Update failed", why);
@@ -474,9 +474,9 @@ fn settle<R: Runtime>(app: &AppHandle<R>, found: Result<Option<Ready>, String>) 
 fn offer<R: Runtime>(app: AppHandle<R>, version: String) {
     thread::spawn(move || {
         let said = format!(
-            "humanize {version} is ready. Restart to use it now, or it installs as humanize quits."
+            "Humanize Desktop {version} is ready. Restart to use it now, or it installs as Humanize Desktop quits."
         );
-        let title = format!("humanize {version}");
+        let title = format!("Humanize Desktop {version}");
         let restart = alert::ask(Level::Note, &title, &said, &[RESTART, LATER]) == Some(0);
         let stage = app.state::<Mutex<Stage<Ready>>>();
         let mut stage = lock(&stage);
@@ -484,14 +484,14 @@ fn offer<R: Runtime>(app: AppHandle<R>, version: String) {
             return;
         };
         if !restart {
-            log::info!("humanize {version} installs as humanize quits");
+            log::info!("Humanize Desktop {version} installs as Humanize Desktop quits");
             *stage = Stage::Deferred(ready);
             return;
         }
         // Its setup runs as the app quits, and relaunches it.
         #[cfg(windows)]
         {
-            log::info!("humanize {version} installs as humanize restarts");
+            log::info!("Humanize Desktop {version} installs as Humanize Desktop restarts");
             let (update, bytes) = ready;
             *stage = Stage::Installing(Some((update.restart_after_install(true), bytes)));
             drop(stage);
@@ -508,11 +508,11 @@ fn offer<R: Runtime>(app: AppHandle<R>, version: String) {
             let (update, bytes) = ready;
             match update.install(bytes) {
                 Ok(()) => {
-                    log::info!("humanize {version} is installed, restarting");
+                    log::info!("Humanize Desktop {version} is installed, restarting");
                     app.request_restart();
                 }
                 Err(why) => {
-                    log::error!("humanize {version} could not be installed: {why}");
+                    log::error!("Humanize Desktop {version} could not be installed: {why}");
                     *lock(&app.state::<Mutex<Stage<Ready>>>()) = Stage::Idle;
                     present(&app, move || {
                         tell(Level::Failure, "Update failed", why.to_string());
@@ -540,8 +540,11 @@ pub fn on_exit<R: Runtime>(app: &AppHandle<R>) {
         return;
     };
     match update.install(bytes) {
-        Ok(()) => log::info!("humanize {} is installed", update.version),
-        Err(why) => log::error!("humanize {} could not be installed: {why}", update.version),
+        Ok(()) => log::info!("Humanize Desktop {} is installed", update.version),
+        Err(why) => log::error!(
+            "Humanize Desktop {} could not be installed: {why}",
+            update.version
+        ),
     }
 }
 
@@ -670,15 +673,15 @@ mod tests {
         };
         assert_eq!(
             script(&downloading(Some(42))),
-            r#"draw({"percent":42,"title":"Downloading humanize 0.3.0…"})"#
+            r#"draw({"percent":42,"title":"Downloading Humanize Desktop 0.3.0…"})"#
         );
         assert_eq!(
             script(&downloading(None)),
-            r#"draw({"percent":null,"title":"Downloading humanize 0.3.0…"})"#
+            r#"draw({"percent":null,"title":"Downloading Humanize Desktop 0.3.0…"})"#
         );
         assert_eq!(
             script(&View::Installing("0.3.0".into())),
-            r#"draw({"percent":null,"title":"Installing humanize 0.3.0…"})"#
+            r#"draw({"percent":null,"title":"Installing Humanize Desktop 0.3.0…"})"#
         );
     }
 
@@ -699,7 +702,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = tempfile::tempdir().unwrap();
-        let bundle = dir.path().join("humanize.app");
+        let bundle = dir.path().join("Humanize Desktop.app");
         let exe = bundle.join("Contents/MacOS/humanize");
         fs::create_dir_all(exe.parent().unwrap()).unwrap();
         fs::write(&exe, "").unwrap();
@@ -717,8 +720,8 @@ mod tests {
     #[test]
     fn replaces_only_an_install_it_may_write() {
         let dir = tempfile::tempdir().unwrap();
-        // %LOCALAPPDATA%\humanize, where its setup installs it for one user.
-        let folder = dir.path().join("humanize");
+        // %LOCALAPPDATA%\Humanize Desktop, where its setup installs it for one user.
+        let folder = dir.path().join("Humanize Desktop");
         let exe = folder.join("humanize.exe");
         let uninstaller = folder.join("uninstall.exe");
         fs::create_dir_all(&folder).unwrap();

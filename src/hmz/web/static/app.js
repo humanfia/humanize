@@ -241,7 +241,7 @@ window.addEventListener('hmz:daemon', () => {
 function named() {
   const asked = daemon()
   return get('/api/held').then((context) => {
-    if (asked === daemon()) document.title = `humanize · ${context.machine}`
+    if (asked === daemon()) document.title = `Humanize · ${context.machine}`
     return context
   })
 }

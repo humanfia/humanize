@@ -253,7 +253,7 @@ const span = (t: (typeof TURNS)[number]) => {
     :beats="BEATS"
     sim
     mobile-ratio="2 / 3"
-    label="One run of rlar, the review loop that ships with humanize. Its two roles, actor and reviewer, are filled with -a: Claude Code for the actor, Codex for the reviewer. The actor takes its first turn in one session, with the task as its prompt, and edits calc.py in your directory. A reviewer, in a fresh session, reads the repository and answers in the flow's shape: done false, with notes asking for a test. The notes are the actor's next prompt, in the same session; it adds the test. Another fresh reviewer reads it and answers done true, and the run ends. The run's trace shows its four turns, two by each agent, and what they cost."
+    label="One run of rlar, the review loop that ships with Humanize. Its two roles, actor and reviewer, are filled with -a: Claude Code for the actor, Codex for the reviewer. The actor takes its first turn in one session, with the task as its prompt, and edits calc.py in your directory. A reviewer, in a fresh session, reads the repository and answers in the flow's shape: done false, with notes asking for a test. The notes are the actor's next prompt, in the same session; it adds the test. Another fresh reviewer reads it and answers done true, and the run ends. The run's trace shows its four turns, two by each agent, and what they cost."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <g class="far">

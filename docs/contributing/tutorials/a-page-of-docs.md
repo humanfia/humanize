@@ -5,7 +5,7 @@ every link on it resolves, and look at it the way a reader will. It takes **twen
 and every command is written out, in order.
 
 ::: info Before you start
-Node and [pnpm](https://pnpm.io/). Nothing Python: the site builds without humanize
+Node and [pnpm](https://pnpm.io/). Nothing Python: the site builds without Humanize
 installed. `corepack enable` gives you the pnpm version `docs/package.json` pins.
 :::
 
@@ -28,7 +28,7 @@ A page answers one kind of question, and the question picks the section:
 | to understand how something works | [Features](/features/) |
 | to do something with `hmz` | [User Guide](/user/) |
 | to write a flow | [Weaver Guide](/weaver/) |
-| to change humanize itself | [Contributing](/contributing/) |
+| to change Humanize itself | [Contributing](/contributing/) |
 | to look up a flag, key or signature | [Reference](/reference/) |
 
 [Working on these docs](/contributing/docs#where-a-page-goes) says what a page in each looks

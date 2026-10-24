@@ -6,13 +6,13 @@ what came back. Which is what a flow wants where the work is the model's judgeme
 an agent's hands -- a reviewer that reads what it is shown, a classifier, a judge -- and it costs
 one request rather than a CLI starting up.
 
-The conversation is a file of humanize's own, one JSON line per message under the directory
+The conversation is a file of Humanize's own, one JSON line per message under the directory
 this agent keeps its sessions in, so a turn after the first is the file read back and the
 prompt put on the end of it, and a fork is the file copied under a new id as the fork's first
 turn goes. What the model spent is on each answer's line, which is where the tally and the
 trace read it.
 
-The account is whatever litellm is handed: under an account of humanize's, its key, its
+The account is whatever litellm is handed: under an account of Humanize's, its key, its
 gateway or its cloud, passed on the call rather than through the environment -- a turn is a
 call in this process, and this process's environment is everybody's. With no account, litellm
 reads the variables it always reads, which is the machine's own account for every vendor it
@@ -527,7 +527,7 @@ def _count(held: object) -> float:
 
 
 def _usage(held: object) -> Usage:
-    """A chat completion's usage, under humanize's names and with its kinds apart.
+    """A chat completion's usage, under Humanize's names and with its kinds apart.
 
     A prompt's cached tokens are inside its `prompt_tokens` on the OpenAI contract, so they
     are taken back out of the input rather than counted twice; Anthropic's cache writes are

@@ -22,7 +22,7 @@ import { withBase } from 'vitepress'
 - **Two windows, one run.** A browser on [`hmz web`](/user/web) and a terminal on `hmz` read and
   drive the same run, and each says who did what.
 - **Many machines, one page.** The page reaches the [daemons](/user/web#daemons) of your ssh
-  hosts as it does this machine's, one at a time, and installs the same humanize where one is
+  hosts as it does this machine's, one at a time, and installs the same Humanize where one is
   missing.
 - **Told when it matters.** An epic ending, a question for you or a `chat` waiting, on any of
   them, is a [notification](/user/web#notifications): in the page, the browser or macOS.

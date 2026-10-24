@@ -7,7 +7,7 @@ installing, updating, searching, saving -- a bar of buttons under it. What is he
 this menu's own: its pages, and what each does.
 
 Two pages under the first screen. **Installed** is what there is to run: the flows built into
-humanize, the ones installed out of a flowverse with the release each is at and a mark where a
+Humanize, the ones installed out of a flowverse with the release each is at and a mark where a
 newer one is listed, and the flows of your own. Enter on one goes into what it runs on -- an
 agent or an environment per role it declares, what it takes, what a run of it may spend and
 whether it is profiled -- which is held until the menu is saved, as everything a menu holds
@@ -540,7 +540,7 @@ class Flows(Drafts[Chosen]):
         return split(offer.name.partition(":")[0])
 
     def _builtin(self, offer: Offer) -> bool:
-        """Whether an offer is one of the flows built into humanize."""
+        """Whether an offer is one of the flows built into Humanize."""
         from hmz.runtime.flowing import OFFICIAL
 
         return offer.whose == OFFICIAL and self._module(offer) not in self._installs()

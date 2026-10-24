@@ -10,7 +10,7 @@ round, until it is willing to say the port is done.
   literal port invites, and how a run ends on a reviewer's `done`.
 - **You will end with** the three things in the table below.
 - **Time:** about an hour, most of it waiting.
-- **You need** humanize and one signed-in coding agent CLI. Any backend works, DeepSeek
+- **You need** Humanize and one signed-in coding agent CLI. Any backend works, DeepSeek
   Harness included, which needs only an API key and an extra.
 :::
 
@@ -22,7 +22,7 @@ round, until it is willing to say the port is done.
 
 ## Before you start
 
-- **Install humanize and sign in to a coding agent CLI.** See
+- **Install Humanize and sign in to a coding agent CLI.** See
   [Installation](/user/installation).
 - **Make one run first.** [Your first run](/user/first-run), or the
   [quickstart on the home page](/#run-a-flow), shows a flow working in a scratch repository.
@@ -128,8 +128,8 @@ actor's next prompt, word for word.
 
 <HmzFlow flow="rlar" />
 
-Using DeepSeek Harness? Add humanize's `[dsh]` extra first, with the line for the way you
-installed humanize:
+Using DeepSeek Harness? Add Humanize's `[dsh]` extra first, with the line for the way you
+installed Humanize:
 
 ::: code-group
 
@@ -290,7 +290,7 @@ implemented. Before you trust the number, open `tests/test_module.py` beside
 
 ### `dsh` is not offered, or its turns fail with no key
 
-DeepSeek Harness needs the `[dsh]` extra in humanize's own environment and a key. See
+DeepSeek Harness needs the `[dsh]` extra in Humanize's own environment and a key. See
 [Installation](/user/installation).
 
 ### It ran out of budget before the reviewer said `done`

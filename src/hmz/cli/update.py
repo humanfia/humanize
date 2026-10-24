@@ -1,4 +1,4 @@
-"""``hmz update`` -- this install of humanize, moved to its newest release.
+"""``hmz update`` -- this install of Humanize, moved to its newest release.
 
 Moved by whatever installed it, rather than by a copy of what that tool does: `uv tool
 upgrade` for a uv tool, `pipx upgrade` for a pipx one -- each keeping the extras it was

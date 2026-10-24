@@ -363,11 +363,11 @@ How it is sent:
 Per-backend rules:
 
 - **agy**: `--mode plan` alone does not stop writes (agy 1.2 writes in it), so `read-only`
-  also starts the turn as `--agent hmz-read-only`, an agent file humanize writes into the
+  also starts the turn as `--agent hmz-read-only`, an agent file Humanize writes into the
   `agents/` of the turn's [virtual home](#virtual-homes) whose only tools are `view_file`, `grep_search`,
   `find_by_name` and `list_dir`. That file exists only on this machine, so `read-only` or
   `web_search=False` on another machine is `Unserved: agy cannot run at read-only or off the
-  web on another machine: what holds it there is an agent of humanize's that is a file on this
+  web on another machine: what holds it there is an agent of Humanize's that is a file on this
   one`. At `workspace-write` edits pass and commands are soft-denied (named in
   `denied_actions`).
 - **claude**: `bypass` is `bypassPermissions`. An account whose managed settings carry
@@ -504,7 +504,7 @@ command it runs. A flow sets one on every session from the role's `Permission`
   `/etc/ssl`, `/etc/ca-certificates`, `/etc/pki`, `/etc/resolv.conf`, `/etc/hosts`,
   `/etc/host.conf`, `/etc/gai.conf`, `/etc/nsswitch.conf`, `/etc/passwd`, `/etc/group`,
   `/etc/localtime`, `/etc/timezone`, `/etc/os-release`, `/etc/ld.so.cache`, `/etc/ld.so.conf`,
-  `/etc/ld.so.conf.d`, `/etc/alternatives`, `/sys`, and the Python running humanize.
+  `/etc/ld.so.conf.d`, `/etc/alternatives`, `/sys`, and the Python running Humanize.
 - Always added to `write`: `/dev/null`, `/dev/zero`, `/dev/full`, `/dev/random`,
   `/dev/urandom`, `/dev/tty`, `/dev/pts`, `/dev/ptmx`, `/dev/shm`, `/proc` (a thread named by
   another is named through `/proc/self/task/<tid>/comm`, which CUDA's `cuInit` does), every
@@ -569,7 +569,7 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | Condition | Message |
 | --- | --- |
 | this machine has no Landlock (Linux < 5.13, or not in the `lsm=` list) | `<Agent> cannot be held to its permission on this machine: it does not enforce it natively, and fencing it from outside needs Landlock (Linux 5.13 or later, with landlock in its lsm= list)` |
-| macOS, where `sandbox-exec` cannot apply a profile (humanize itself already runs inside a sandbox) | `… needs Seatbelt, which a process already inside a sandbox cannot apply` |
+| macOS, where `sandbox-exec` cannot apply a profile (Humanize itself already runs inside a sandbox) | `… needs Seatbelt, which a process already inside a sandbox cannot apply` |
 | `online=False` and no Landlock ABI 4, no seccomp notification, or `pidfd_getfd` refused (a container's default seccomp profile, Yama `ptrace_scope` >= 2) | `… needs Landlock ABI 4 (Linux 6.7 or later) and seccomp to cut the network` |
 | a fence drawn path by path on an agent whose `machine` is set | `<Agent>: a fence drawn path by path cannot be held on another machine` |
 | a harness on another machine | `<Agent>: a fence cannot hold a harness that runs on another machine` |
@@ -805,7 +805,7 @@ spent=Usage())`.
 
 `agent.watch(listener)` registers `listener(agent, session | None, event)` for every session,
 which also sees `begins`, `ends` (bracketing a turn), `asks` (a [question](#questions)) and
-`notice` (humanize itself: a rate limit waited out, an account moved, a turn cut off, a wedged
+`notice` (Humanize itself: a rate limit waited out, an account moved, a turn cut off, a wedged
 backend ended). With no watcher, a `notice` is written to stderr. A watcher that raises does
 not fail the flow.
 
@@ -1103,7 +1103,7 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
 
 ## Skills {#the-skills-an-agent-carries}
 
-Skills installed for a CLI are the CLI's own; humanize does not disable them or write its
+Skills installed for a CLI are the CLI's own; Humanize does not disable them or write its
 settings. `hmz.coganchor.agents.skills.skills(cli)` lists what the CLI would load here.
 
 `agent.loaded` / `agent.loads(loaded)` are the skills whoever drives the agent brings (under a
@@ -1183,7 +1183,7 @@ right after the program's name).
   such path whose file is there is rewritten with the home's links followed, to where the file
   really is. Codex finds a thread's rollout by `threads.rollout_path` in its `state_*.sqlite`,
   so this is what lets a Codex conversation be resumed, forked or carried on after its app
-  server has gone. On a native anchor's target, where no humanize runs, `homes.BACK` does the
+  server has gone. On a native anchor's target, where no Humanize runs, `homes.BACK` does the
   same with the target's `sqlite3`, and leaves them as they are where it has none.
 - A brought skill sent to a native anchor's target is written a file at a time, each beside
   itself and renamed into place with its own mode (a script stays executable); one that
@@ -1192,10 +1192,10 @@ right after the program's name).
   where unset), unless the environment sets it: Claude Code's `CLAUDE_SECURESTORAGE_CONFIG_DIR`,
   which keeps its keychain item and `.credentials.json` where they were.
 - The system level is never replaced, and the project level is the workspace, read as the CLI
-  reads it. What humanize itself manages for a CLI with no flag or variable for it is merged
+  reads it. What Humanize itself manages for a CLI with no flag or variable for it is merged
   into the copy at the user level: Qwen Code's effort, hook table and `humanize` MCP server
   into `settings.json`, a gateway account's `[model.*]` entry into Grok Build's `config.toml`,
-  a gateway account's provider into pi's `models.json`, and humanize's agents into agy's
+  a gateway account's provider into pi's `models.json`, and Humanize's agents into agy's
   `agents/` (a directory of the home's own, with links to the user's agents beside them).
   Each is said as data (`Virtual.merges`, a session's `_merges`) and applied as the home is
   built, by a function its driver registers (`homes.merger`), so it is applied wherever the
@@ -1203,7 +1203,7 @@ right after the program's name).
 - A fenced agent may write the directory its virtual homes are built in.
 - Under a native anchor whose account is projected, the virtual home is that account's: the
   session paths stay in it, and none of the target user's credentials is linked or copied.
-  Under a native anchor nothing humanize manages is merged into the copies there.
+  Under a native anchor nothing Humanize manages is merged into the copies there.
 - A harness on another machine (`AnchorConfig.harness`, `hmz.coganchor.elsewhere.afar`) is
   started in one built on that machine: `AgentBase.homed` builds none here, and the anchor's
   options carry what it is made of (`AnchorConfig.home`, the session's skills and merges) to
@@ -1221,7 +1221,7 @@ right after the program's name).
 | `qwen` | `settings.json` | `skills` | none |
 | `pi` | `models.json`, `settings.json` | `skills` | none |
 | `omp` | none | `skills` | none |
-| `agy` | none | `skills` (and humanize's agents in `agents/`, beside links to the user's) | none |
+| `agy` | none | `skills` (and Humanize's agents in `agents/`, beside links to the user's) | none |
 | `cursor-agent` | none | `skills` | none |
 | `kimi` | none | `skills` | none |
 | `mcode` | `config.yaml` | `skills` | none |
@@ -1325,7 +1325,7 @@ usage error like a missing flag.
   started again for its next turn.
 - `call` runs on a thread of its own per run. Stdin and the working directory are not passed.
 - Under a [fence](#the-fence) the directory is readable. Under a supervised anchor it and the
-  Python running humanize are kept here (`local_execs`, `local_paths`). A native anchored turn
+  Python running Humanize are kept here (`local_execs`, `local_paths`). A native anchored turn
   on a non-`local` target with any shelved is refused.
 
 ## Machine and account
@@ -1443,7 +1443,7 @@ conversation.
 | `dsh` | `$DSH_HOME`, `~/.dsh` | `sessions/*/{ident}/session.v*.jsonl` | yes | yes |
 | `grok` | `$GROK_HOME`, `~/.grok` | `sessions/*/{ident}/updates.jsonl` | yes | yes |
 | `kimi` | `$KIMI_CODE_HOME`, `~/.kimi-code` | `server/events/{ident}.jsonl` | yes | yes |
-| `litellm` | `~/.cache/humanize/litellm` | `sessions/{ident}.jsonl`, written by humanize | yes | — |
+| `litellm` | `~/.cache/humanize/litellm` | `sessions/{ident}.jsonl`, written by Humanize | yes | — |
 | `mcode` | `$MINIMAX_DATA_DIR`, `~/.minimax` | `v2/sessions/*/*/*/*-session_{ident}/messages.jsonl`, `{ident}` URL-safe base64 without padding (`Profile.encodes`) | yes | no |
 | `mimo` | `$XDG_DATA_HOME/mimocode`, `~/.local/share/mimocode` | SQLite `mimocode.db` | yes | yes |
 | `omp` | `$PI_CODING_AGENT_DIR`, `~/.omp/agent` | `sessions/*/*{ident}.jsonl` | yes | no |
@@ -1491,7 +1491,7 @@ or flow resources restart the process; an anchored turn always ends it.
   as before, without the flow's skills; there `read-only` or `web_search=False` is
   `Unserved: agy cannot run at read-only or off the web under an account naming its own
   --app_data_dir: ...`. agy replaces `jetbox_summaries_proto.pb` (its conversation
-  summaries index) rather than writing through it, so that index keeps what humanize's turns
+  summaries index) rather than writing through it, so that index keeps what Humanize's turns
   wrote to it only for their process.
 - [Fake tools](#callbacks-as-tools) are a plugin `humanize` in a temporary directory added
   with `--add-dir` (the session directory is then always added too); a change in the offered
@@ -1623,7 +1623,7 @@ cursor-agent --print --output-format stream-json --workspace <dir> --model <id>
 
 `dsh`. Driven through `deepseek-harness-sdk` (`>=0.1.5rc1,<0.1.6`) in this process; no CLI.
 Models: `deepseek-v4-flash`, `deepseek-v4-pro`. Each runtime starts under the SDK's own `sdk`
-profile with one patch of humanize's over it, holding only what the agent's settings change; the
+profile with one patch of Humanize's over it, holding only what the agent's settings change; the
 effort goes in the handshake.
 
 | Field | Default | Meaning |
@@ -1918,7 +1918,7 @@ unreadable settings file reads as no added CLIs.
 | `remember` refusal | `ValueError` message |
 | --- | --- |
 | no command | `an added CLI needs a command to start it with` |
-| the command is a built-in backend (any alias, by its last path component) | `claude is already a backend humanize drives` |
+| the command is a built-in backend (any alias, by its last path component) | `claude is already a backend Humanize drives` |
 | a name other than the command's own | `an added CLI is called what it runs, so my-agent is added as my-agent rather than as foo` |
 
 Protocol use: `initialize`; `session/new`; `session/prompt` per turn; `session/update`
@@ -1951,7 +1951,7 @@ client does for the agent is held to the same fence: a refused file or path is a
 `opencode`) where no shallower route reaches a behaviour. `patched(profile, path, patches)`
 returns the copy's path, or `None`.
 
-- Never the installed binary: the copy lives in a directory of humanize's own for one session.
+- Never the installed binary: the copy lives in a directory of Humanize's own for one session.
 - Fingerprinted against `Profile.bundles` (a path glob, a regular expression one module must
   match, an optional SHA-256); the system tests check them against the installed CLIs.
 - Any mismatch or failure returns `None`, is logged, and the shallower route is used.
@@ -2006,12 +2006,12 @@ one.
 
 ## Environment variables {#environment-variables}
 
-The variables the agent layer reads or sets. Every variable humanize reads is listed in
+The variables the agent layer reads or sets. Every variable Humanize reads is listed in
 [Environment variables](/reference/environment).
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
-| `HUMANIZE_HOME` | everything | humanize's home (default `~/.hmz`): `settings.yaml`, `providers/`; `prices.json` and `compiled/` are in `$TMPDIR/humanize-<uid>/` |
+| `HUMANIZE_HOME` | everything | Humanize's home (default `~/.hmz`): `settings.yaml`, `providers/`; `prices.json` and `compiled/` are in `$TMPDIR/humanize-<uid>/` |
 | `HUMANIZE_WATCHDOG` | the watchdog | seconds of silence allowed; `0` or less disables it |
 | `HUMANIZE_SESSIONS` | session keeping | `off`, `0` or `no`: sessions stay in the CLI's home |
 | `HUMANIZE_PRICES` | `prices` | the price list's URL or path; `off`, `0`, `no`, `none` or empty disables fetching |

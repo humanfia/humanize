@@ -1,6 +1,6 @@
-"""What humanize reports about itself when something goes wrong, and what it never reports.
+"""What Humanize reports about itself when something goes wrong, and what it never reports.
 
-humanize is early. A crash on somebody else's machine is a crash nobody here sees, and nor is
+Humanize is early. A crash on somebody else's machine is a crash nobody here sees, and nor is
 a run that stopped moving without stopping -- so both are reported, and both are answered for
 once, by hand, on the first start. Nothing else is: no timings, no profiles, no logged lines,
 no report of a key that did nothing. Every report is a failure somebody here has to fix, and a
@@ -11,7 +11,7 @@ Three rules shape everything here.
 **Nothing is sent that a person would be surprised by.** What a flow was told, what an agent
 said back, what is in a file, what is in an account: none of it leaves this machine, and none
 of it is reachable from what does. What is sent is the shape of a failure -- the exception and
-where in humanize it happened -- and the shape of the run it happened in: which flow, which
+where in Humanize it happened -- and the shape of the run it happened in: which flow, which
 backends at which models, which accounts by name, which skills by name. Names and never
 values, counts and never contents. The three switches that would upload the rest are off and
 say why where they are set.
@@ -30,7 +30,7 @@ this suite use.
 place it is raised, and a halt once per run: a loop failing the same way a thousand times is
 one failure, and a thousand reports of it are what would leave no room for the next one.
 
-A leaf: it names nothing of humanize but the settings it reads and the home they are in, so
+A leaf: it names nothing of Humanize but the settings it reads and the home they are in, so
 every layer may report and none of them has to be reached into to do it. What goes with a
 report is the layers' own to say, and each says it by handing over a callable -- see
 :func:`about` -- which is only ever run when a report is actually being sent.
@@ -66,7 +66,7 @@ __all__ = [
     "stop",
 ]
 
-#: Where the reports go. humanize's own project, and the one thing here that is not a
+#: Where the reports go. Humanize's own project, and the one thing here that is not a
 #: setting: a report that went somewhere else would be a report nobody who could fix it reads.
 DSN = "https://cd097c311af7e8db070f593f62697d62@o4511914126344192.ingest.us.sentry.io/4511914131324928"
 
@@ -84,20 +84,20 @@ SAYS = "HUMANIZE_SENTRY"
 #: is the promise: whatever is not on this list does not leave the machine, and the scrubbing
 #: below is what keeps the list true rather than the list being what the scrubbing came to.
 SENT = (
-    "the error and where in humanize it occurred",
+    "the error and where in Humanize it occurred",
     "which flow was running, and what each agent was configured to run",
     "which coding agents are installed, and account names",
     "which skills and flowverses are active, by name",
     "that a run went five minutes without any sign of progress",
-    "the version of humanize, of Python, and the operating system and architecture",
+    "the version of Humanize, of Python, and the operating system and architecture",
 )
 
 #: And what is not, in the same words. Written down rather than left to be inferred from the
-#: first list: what somebody wants to know before answering is what humanize will not take.
+#: first list: what somebody wants to know before answering is what Humanize will not take.
 KEPT = (
     "nothing you typed: no task, prompt, or command",
     "no agent output, and nothing from any transcript or session log",
-    "no files, directory names, or paths outside humanize itself",
+    "no files, directory names, or paths outside Humanize itself",
     "no keys, tokens, or account credentials -- not even environment variable names",
 )
 
@@ -152,7 +152,7 @@ _LONG = 500
 #: message. The status is what a report needs and the command is what it must not carry.
 _RAN = re.compile(r"Command\s+'.*?'\s+(?=returned|timed out|died)", re.DOTALL)
 
-#: The roots a report may name a file under: humanize's own package, and wherever Python keeps
+#: The roots a report may name a file under: Humanize's own package, and wherever Python keeps
 #: what is installed beside it. A frame under one of them is named by its path under that root,
 #: which is the whole of what a traceback needs and none of where this machine keeps things.
 #: Settled once, since a traceback has thirty frames and this is per frame.
@@ -177,12 +177,12 @@ _ROOTS = tuple(
     )
 )
 
-#: What a frame is named where humanize does not recognise the file it is in. A traceback runs
-#: through humanize, through what humanize is installed beside, and through whatever the person
+#: What a frame is named where Humanize does not recognise the file it is in. A traceback runs
+#: through Humanize, through what Humanize is installed beside, and through whatever the person
 #: running it wrote -- and the last of those is a file in their project, under a name they
 #: chose, in a directory named after the work. The line it stopped at is worth having; the rest
 #: of it is theirs.
-_THEIRS = "<not humanize>"
+_THEIRS = "<not Humanize>"
 
 #: What is registered to be asked when a report is being made, and nothing else: a callable
 #: apiece, run at the moment of the report and never before. Under a lock, since a flow
@@ -205,7 +205,7 @@ _answered: list[bool | None] = []
 
 
 def enabled() -> bool | None:
-    """Whether humanize reports its own failures, and None while nobody has been asked.
+    """Whether Humanize reports its own failures, and None while nobody has been asked.
 
     Read once and kept: a settings file parsed per question is a settings file parsed per
     question. What is written down is settled for the life of the process, which is
@@ -235,7 +235,7 @@ def again() -> None:
 
 
 def asked(*, enable_sentry: bool) -> None:
-    """Writes down the answer, which is asked once and holds wherever humanize is run.
+    """Writes down the answer, which is asked once and holds wherever Humanize is run.
 
     It also takes effect now. An answer of no from somebody who has been reporting all
     session is somebody saying stop, and a reporter that went on until the next start would
@@ -260,8 +260,8 @@ def start() -> bool:
     Returns:
       Whether anything is reporting from here on. False for an answer that is no, for a
       machine nobody has been asked on, and for an SDK that will not start -- none of which
-      is a reason to stop: humanize's own failures being unreported is a smaller thing than
-      humanize not running.
+      is a reason to stop: Humanize's own failures being unreported is a smaller thing than
+      Humanize not running.
     """
     if _started or not enabled():
         return bool(_started)
@@ -282,9 +282,9 @@ def start() -> bool:
             # that would make a report say more about the person than about the failure.
             send_default_pii=False,
             # The same, said again where the SDK reads it separately: what is in a frame is
-            # what humanize was working on, and what humanize works on is somebody's project.
+            # what Humanize was working on, and what Humanize works on is somebody's project.
             include_local_variables=False,
-            # Off for the same reason: what humanize logs is paths, commands and the odd line
+            # Off for the same reason: what Humanize logs is paths, commands and the odd line
             # of what a backend wrote, and a log line is not a thing anybody consented to.
             enable_logs=False,
             # The machine is not named, and nor is the directory: a hostname is a person at a
@@ -297,7 +297,7 @@ def start() -> bool:
             # ralph_loop -a agent=claude/... -p budget.cost=5 "$(cat TASK.md)"` puts the whole
             # task on it -- taken off again in `_before_send`, since a switch this load-bearing
             # is worth being wrong about twice. The other makes a report of every line logged
-            # as an error, which is a line humanize already handled.
+            # as an error, which is a line Humanize already handled.
             disabled_integrations=[ArgvIntegration(), LoggingIntegration()],
             # Off: each one imports its library wherever that is installed -- openai, mcp,
             # fastapi and more come with the extras -- which took a host's start, reporting
@@ -379,7 +379,7 @@ def crash(why: BaseException, **said: object) -> None:
     Args:
       why: What went wrong.
       said: Anything else worth knowing, as short strings: what was being done, and by which
-        part of humanize.
+        part of Humanize.
     """
     if not _started:
         return
@@ -580,12 +580,12 @@ def _again(event: Any) -> bool:
 def _framed(frame: dict[str, Any]) -> None:
     """One frame of a traceback, named the way a report may name it.
 
-    A frame in humanize or in something humanize is installed beside is named by where it is
+    A frame in Humanize or in something Humanize is installed beside is named by where it is
     under that root -- `hmz/agents/base.py`, `textual/app.py` -- which is what makes the report
     worth reading and says nothing about the machine it came off. A frame in anything else is a
     file of theirs: their flow, in their project, under names they chose. Its line number stays
     and the rest of it goes, because a directory named after the work is exactly what the
-    promise above says humanize does not take.
+    promise above says Humanize does not take.
 
     Args:
       frame: The frame, changed in place.
@@ -604,14 +604,14 @@ def _framed(frame: dict[str, Any]) -> None:
 
 
 def _under(said: str) -> str | None:
-    """One file, as the path under whichever root humanize knows it by.
+    """One file, as the path under whichever root Humanize knows it by.
 
     Args:
       said: The file, as the SDK found it.
 
     Returns:
-      Its path under that root -- so `hmz/telemetry.py` rather than wherever humanize is
-      installed -- or None for a file under no root humanize knows, which is somebody's own.
+      Its path under that root -- so `hmz/telemetry.py` rather than wherever Humanize is
+      installed -- or None for a file under no root Humanize knows, which is somebody's own.
     """
     if not said:
         return None
@@ -661,7 +661,7 @@ def scrubbed(said: str, instead: str = "…") -> str:
 
 
 def _version() -> str:
-    """What humanize this is, as the release a report is filed under."""
+    """What Humanize this is, as the release a report is filed under."""
     from importlib.metadata import PackageNotFoundError, version
 
     try:

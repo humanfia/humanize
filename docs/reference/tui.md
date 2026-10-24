@@ -44,13 +44,13 @@ At mount, in the background, the interface:
 | Fetches flowverses | Every flowverse index with a URL (cloning `official` the first time) whose clone holds no local edits, one at a time. Installed flows are not touched. A fetch that brings new commits makes open flow lists re-read. Then, where any installed flow's index lists a newer release, prints once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`, and keeps `<n> flow update(s)` at the front of the status line until none is left, counted again each time `/flow` closes. |
 | Looks for a run to resume | Decides whether [`/resume`](#resume) is listed. |
 | Refreshes prices | `$TMPDIR/humanize-<uid>/prices.json` from `HUMANIZE_PRICES` (default `https://openllmprices.com/data/prices.json`) when older than 24 h; at most one attempt an hour, 20 s timeout. |
-| Asks after a newer humanize | `$TMPDIR/humanize-<uid>/releases.json` from `HUMANIZE_RELEASES` (default PyPI) when older than 24 h; then, where it names a release newer than this one, prints once, dim: ``hmz <version> is out: run `hmz update` to update``. |
+| Asks after a newer Humanize | `$TMPDIR/humanize-<uid>/releases.json` from `HUMANIZE_RELEASES` (default PyPI) when older than 24 h; then, where it names a release newer than this one, prints once, dim: ``hmz <version> is out: run `hmz update` to update``. |
 | Asks the reporting question | Only where unanswered: [First start](#first-start). |
 
 ## Screen {#the-screen}
 
 ```text
-╭─ humanize v0.1.0 ──────────────────────────────────╮
+╭─ Humanize v0.1.0 ──────────────────────────────────╮
 │                                                    │
 │    HUMANIZE, drawn large                           │
 │                                                    │
@@ -70,7 +70,7 @@ At mount, in the background, the interface:
 
 | Region | Content |
 | --- | --- |
-| Opening box | Rounded dim border, title `humanize v<version>`; the word `humanize` in blue, figlet font `ansi_shadow` where it fits the width minus 10, else `small`; a blank line; the package summary. Redrawn by [`/clear`](#cmd-clear). |
+| Opening box | Rounded dim border, title `Humanize v<version>`; the word `Humanize` in blue, figlet font `ansi_shadow` where it fits the width minus 10, else `small`; a blank line; the package summary. Redrawn by [`/clear`](#cmd-clear). |
 | Transcript | The [view](#views) being read. Follows the end until scrolled up; follows again once back at the bottom. |
 | Offers list | Above the editor, at most 10 rows: [completion](#completion) offers or one hint row. |
 | Right of the pin area | [Agent lines](#agent-lines), [outworlder lines](#outworlder-lines), [cost readout](#cost-readout). |
@@ -133,7 +133,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 | `hmz: nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` | yellow | always, before the first turn of a run whose `cost` limit no agent's price can enforce |
 | `✻ Worked for <s>s · <agent>` | dim | always |
 | `❯ <task> · by <name>` | | a run another frontend started |
-| `<agent>'s harness runs here` / `<agent>'s harness runs on its environment's machine` / `<agent>'s harness runs on the runtime <backend>:<name>` | dim | once per agent per run, where the session reports where its harness went (`opened.harness` not empty: `local`, `env`, or `<backend>:<name>`; `self`, which an earlier humanize wrote, is said as `env`) |
+| `<agent>'s harness runs here` / `<agent>'s harness runs on its environment's machine` / `<agent>'s harness runs on the runtime <backend>:<name>` | dim | once per agent per run, where the session reports where its harness went (`opened.harness` not empty: `local`, `env`, or `<backend>:<name>`; `self`, which an earlier Humanize wrote, is said as `env`) |
 | `— stopping the flow —` / `— <name> is stopping the flow —` | | this / another frontend stopped the run |
 | `hmz: <why>` / `hmz: stopped -- <why>` / `— the flow is done —` | red / yellow / — | run ended refused-failed-crashed / by its budget / normally |
 
@@ -933,7 +933,7 @@ Permission, skills and required capabilities are the flow's, not rows.
 | Title | `Select a coding agent` |
 | About | `The CLI for this agent. Accounts and models belong to the CLI, so choosing another resets them.` |
 | Rows | Alphabetical: `<cli>[ ✔]  <n> model(s)` or `no models reported yet`. Only CLIs installed here whose harness is the one the role names (if any) and that support every capability the role requires. |
-| Installable rows | `dsh` or `kimi` whose program is present but whose Python extra is missing, with the install line: `DeepSeek Harness is not installed; run: uv pip install --python <python> 'hmz[dsh]==<version>'; then reopen hmz` / `Kimi Code is installed, but the websockets package is not; run: uv pip install --python <python> 'hmz[kimi]==<version>'; then reopen hmz`, `<version>` being the humanize running. For a humanize installed from a repository or a checkout rather than PyPI, the extra's packages instead: `'<sdk>' 'python-dotenv>=1.2.3'` / `'websockets>=15,<18'`. |
+| Installable rows | `dsh` or `kimi` whose program is present but whose Python extra is missing, with the install line: `DeepSeek Harness is not installed; run: uv pip install --python <python> 'hmz[dsh]==<version>'; then reopen hmz` / `Kimi Code is installed, but the websockets package is not; run: uv pip install --python <python> 'hmz[kimi]==<version>'; then reopen hmz`, `<version>` being the Humanize running. For a Humanize installed from a repository or a checkout rather than PyPI, the extra's packages instead: `'<sdk>' 'python-dotenv>=1.2.3'` / `'websockets>=15,<18'`. |
 | Buttons | **Search…** |
 | Keys | `enter choose   / search   tab actions   esc back` |
 | Empty | `<role> needs <harness>, <Capabilities>, and no coding agent installed here has that` / `no coding agent installed here can run this agent` |
@@ -1140,7 +1140,7 @@ as the path it names; error `the file to import is required`. It is then read in
 `imported into <workspace>`, repeated in the transcript on close, with the cursor on it. One
 of another directory turns the list to this machine's until the sheet closes, without
 changing `every_epic`. Refused in the store's words: `<file> is not a .hmzepic file`, `<file>
-is not a bundle humanize can read: …`, `<file> does not hold exactly one epic`, and `<name> is
+is not a bundle Humanize can read: …`, `<file> does not hold exactly one epic`, and `<name> is
 already here, at <path>`, which puts the cursor on that one.
 
 `enter`, `→` or a click on a run opens it, a pick list of what can be done with it (`/epics` as
@@ -1348,7 +1348,7 @@ Storage keys are in [Settings](/reference/settings).
 
 ```text
   hmz › /settings                                            ● unsaved changes
-  Every setting humanize keeps. What you change is held until you save it.
+  Every setting Humanize keeps. What you change is held until you save it.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ ⚙  General                                      details off · reports on │
@@ -1459,18 +1459,18 @@ order done, including things done at once, even after a discard), then:
 | Error reports on / off | `error reporting enabled` / `error reporting disabled` |
 | Details on / off | `showing details: tool calls, thinking, and backend output` / `showing turn responses only, without details` |
 | /btw The Epic | `/btw will ask <spec> about The Epic next time you enter btw mode`, or with none `/btw will ask nobody about The Epic: set its agent to ask it` |
-| Forget | `cleared saved settings for this directory; humanize will open without them on next launch` |
+| Forget | `cleared saved settings for this directory; Humanize will open without them on next launch` |
 
 ### General page {#general-page}
 
-Intro: `How humanize behaves on this machine, in every directory.` Scope: this machine. Rows
+Intro: `How Humanize behaves on this machine, in every directory.` Scope: this machine. Rows
 in this order, under the heading in the first column.
 
 | Heading | Row | Values (description) | Default | Stored as |
 | --- | --- | --- | --- | --- |
 | Display | **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
 | Agents | **/btw The Epic** ▾ `the agent that answers side questions asked of The Epic` | `none` (`nobody answers The Epic`), the current choice (`chosen`), `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up The Epic's agent`) | none | `btw` (`cli[@account]/model:effort`) |
-| Privacy | **Error reports** ▾ `send error reports to humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
+| Privacy | **Error reports** ▾ `send error reports to Humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
 | Privacy | **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
 
 Once answered, Error reports cannot return to *not set*. Where `HUMANIZE_SENTRY` overrides it,
@@ -1560,7 +1560,7 @@ actions   esc back`.
 | `sign in again` | `run the CLI's sign-in again; takes over the terminal while running` | at once. `<name> uses <way>, which has no command to run; edit its settings instead`; `sign-in for <name> failed with exit code <n>`. |
 | **Remove** (red) / **Cancel removal** | `remove the account and its credentials when /settings is saved` / `keep the account after all` | on save |
 
-`as local` offers no rows and no button: `this is <cli> as local: humanize keeps no
+`as local` offers no rows and no button: `this is <cli> as local: Humanize keeps no
 credentials for it, so you cannot edit, sign in, or remove it`. Where a failing turn goes is the
 [Fallback page](#where-a-turn-goes-when-it-cannot-be-taken)'s, not an account's.
 
@@ -1640,7 +1640,7 @@ not configure models or effort, so it runs with its own configuration.`; row `co
 to run the agent, e.g. my-agent --acp`); **Done** `saves it as a backend`. Applied at once, named
 after the command's first word: `<name> added as a backend`; transcript ``<name> is saved as a
 backend: `<command>` starts it``. Refusals: `command is required`, `<x> is already a backend
-humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-your-own).
+Humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-your-own).
 
 ### Fallback page {#where-a-turn-goes-when-it-cannot-be-taken}
 
@@ -1934,7 +1934,7 @@ Where neither `HUMANIZE_SENTRY` nor `settings.yaml` answers reporting, a [box](#
 ```text
 ╭────────────────────────────────────────────────────────────────╮
 │                                                                │
-│  Report errors to humanize?                                    │
+│  Report errors to Humanize?                                    │
 │  Send error reports to help fix bugs. Sent: <…>. Never sent:   │
 │  <…>. You can change this later in /settings.                  │
 │                                                                │
@@ -1947,12 +1947,12 @@ Where neither `HUMANIZE_SENTRY` nor `settings.yaml` answers reporting, a [box](#
 
 `Yes` (focused, green; `send error reports`) and `No` (`send nothing`).
 
-Sent: the error and where in humanize it occurred; which flow was running, and what each agent
+Sent: the error and where in Humanize it occurred; which flow was running, and what each agent
 was configured to run; which coding agents are installed, and account names; which skills and
 flowverses are active, by name; that a run went five minutes without any sign of progress; the
-version of humanize, of Python, and the operating system and architecture. Never sent: nothing
+version of Humanize, of Python, and the operating system and architecture. Never sent: nothing
 you typed (no task, prompt, or command); no agent output, and nothing from any transcript or
-session log; no files, directory names, or paths outside humanize itself; no keys, tokens, or
+session log; no files, directory names, or paths outside Humanize itself; no keys, tokens, or
 account credentials, not even environment variable names.
 
 Answering writes `enable_sentry` and says `error reporting enabled; use /settings to turn it
@@ -2104,7 +2104,7 @@ run: `This environment is not in the epic.`
 | `image` | the image the flow declares for the role |
 | `grants` | the role's environment capabilities (class names without `EnvMixin`), or `nothing beyond running in it` |
 | `needs` | `<n> CPUs · <x> GiB memory · <n> GPU(s) · <x> GiB per GPU` (declared parts only) |
-| `harness` | `<setting>: <where>`, the setting being each session's [`opened.harness`](/reference/daemon#history-records). `<where>`: `local` (with an anchored environment) `on this machine; what it runs lands here`; `local` (no anchor) `on this machine, in this workdir`; `env` (also `self`, which an earlier humanize wrote) `on this environment's machine, with the CLI installed there`; `<backend>:<name>` `on a runtime of its own, reaching this environment through the anchor`. Where its sessions went different ways: `<setting> for <key>, <key> · <setting> for <key>`. |
+| `harness` | `<setting>: <where>`, the setting being each session's [`opened.harness`](/reference/daemon#history-records). `<where>`: `local` (with an anchored environment) `on this machine; what it runs lands here`; `local` (no anchor) `on this machine, in this workdir`; `env` (also `self`, which an earlier Humanize wrote) `on this environment's machine, with the CLI installed there`; `<backend>:<name>` `on a runtime of its own, reaching this environment through the anchor`. Where its sessions went different ways: `<setting> for <key>, <key> · <setting> for <key>`. |
 | `status` | `<w> of <n> session(s) working` |
 | `Sessions` | `●\|○ <role> · session <n> · <spec>` (or the bare key before its first turn); `enter` or a click reads it and leaves the monitor. |
 

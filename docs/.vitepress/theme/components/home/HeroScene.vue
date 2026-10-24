@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The drawing beside the hero's words: the humanize mark, `>_`, put together from its planes
+// The drawing beside the hero's words: the Humanize mark, `>_`, put together from its planes
 // the way a constructivist poster is -- a ruled sheet, one circle, and one diagonal that every
 // other piece is set against -- and then put to work.
 //

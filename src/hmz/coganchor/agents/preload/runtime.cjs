@@ -1,6 +1,6 @@
 // The preload layer, as the runtime sees it: the Node process a coding agent CLI is running
 // on, patched from inside so that what its turn actually does -- the processes it starts, the
-// files it reads and writes, the connections it opens -- is said out loud to humanize.
+// files it reads and writes, the connections it opens -- is said out loud to Humanize.
 //
 // CommonJS because `--require` takes CommonJS, and it is `--require` that puts this here:
 // `NODE_OPTIONS="--require <this file>"` is read by Node before the CLI's own entry point, so
@@ -107,7 +107,7 @@ function start() {
   // anything gets through: a gap has to read as a gap, and what was in it is gone.
   let dropped = 0;
 
-  // Nowhere to report to is not a failure: humanize may have stopped listening, or may never
+  // Nowhere to report to is not a failure: Humanize may have stopped listening, or may never
   // have been there. The socket is dropped and the turn goes on, saying nothing.
   carrying.on("error", () => {
     carrying = null;

@@ -5,7 +5,7 @@
 // A simulation, and it has to say what the code says. The reading is
 // `hmz.runtime.flowing.specs.parse_agents` over `hmz.coganchor.backends.read`, the ladders
 // are each profile's `efforts` in `hmz.coganchor.backends`, and every refusal below is the
-// line `hmz exec` prints for it. It knows the thirteen CLIs humanize ships and no CLI added at
+// line `hmz exec` prints for it. It knows the thirteen CLIs Humanize ships and no CLI added at
 // the accounts page of /settings, and it cannot know which roles a flow declares.
 //
 // The reading is played as a labelled transform: the spelled-out value comes apart, a brace

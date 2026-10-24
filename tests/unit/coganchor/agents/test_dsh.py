@@ -278,7 +278,7 @@ def test_the_runtime_is_started_where_the_session_works_with_its_key(
     assert started["model"] == "deepseek-v4"
     assert started["reasoning_effort"] == "high"
     assert started["cwd"] == str(tmp_path)
-    # The bundled runtime under the SDK's own profile, with humanize's patch over it.
+    # The bundled runtime under the SDK's own profile, with Humanize's patch over it.
     assert harness.launch[-5:-1] == ("/dsh/runtime.js", "--profile", "sdk", "--patch")
     node = harness.launch[-6]
     # `node` by name, or by the path a machine that keeps it off `PATH` has it at.

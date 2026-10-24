@@ -31,7 +31,7 @@ No one flow suits every task, because tasks are different kinds of problem:
   the first program that meets every check is enough. A loop that works and then has a fresh
   agent review the work until nothing is left to fix finds one. That is RLCR, the loop of
   [Humanize 1](https://humanfia.ai/flows/humanize1), and [`rlar`](https://humanfia.ai/flows/rlar)
-  ships with humanize.
+  ships with Humanize.
 - **A fast kernel is optimization.** Every candidate already runs, so passing is not the
   question. The question is how fast the best one is. In our kernel runs, Codex tended to
   fine-tune, climbing to the nearest optimum and staying there, while Claude Code tended to
@@ -45,7 +45,7 @@ No one flow suits every task, because tasks are different kinds of problem:
 <WhyFlows />
 
 Flow-level ablations on benchmarks say the same: the flow that wins on one kind of task loses
-on another. humanize lets you pick a flow for the task, configure one, or weave your own in
+on another. Humanize lets you pick a flow for the task, configure one, or weave your own in
 Python. What the ablations found is on [Flow Science](https://humanfia.ai/research/flow-science#findings), on humanfia.ai.
 
 <p class="hmz-vision">Where this is going: one flow framework that puts <b>a 100T model</b>,
@@ -55,19 +55,19 @@ one big problem. A direction, not a measurement.</p>
 ## How it fits together
 
 A flow is a Python function that says which agents take turns, what each is asked, and when it
-stops. Here is one run of `rlar`, the review loop humanize ships: one agent works, a fresh one
+stops. Here is one run of `rlar`, the review loop Humanize ships: one agent works, a fresh one
 reads what it did, and the review is the next prompt.
 
 <HmzRun />
 
-Under every run, the same four layers: the flow decides, humanize carries each turn out and
+Under every run, the same four layers: the flow decides, Humanize carries each turn out and
 records it, a coding agent does the work, and the work lands in an environment.
 
 <HmzArch />
 
 ## Run a flow
 
-Install humanize, give it a scratch repository with a bug in it, and watch an agent fix it.
+Install Humanize, give it a scratch repository with a bug in it, and watch an agent fix it.
 
 ::: warning Agents here act without asking
 Every flow's agents run with approvals bypassed: they edit files, run commands and make commits
@@ -77,11 +77,11 @@ one at work you care about.
 
 <div class="hmz-steps">
 
-### Install humanize
+### Install Humanize
 
 You need Python 3.12 or newer, [uv](https://docs.astral.sh/uv/) or pip, and a coding agent
 CLI you have already signed in to: Claude Code, Codex, or [any of the
-others](/features/backends). humanize drives it under that login.
+others](/features/backends). Humanize drives it under that login.
 
 ::: code-group
 
@@ -121,7 +121,7 @@ fresh conversation, and it does not stop when the work is done: its budget stops
 <template #prompt>
 
 Open the terminal interface in the repository. Its first start asks once whether to report
-errors to humanize; answer as you like.
+errors to Humanize; answer as you like.
 
 ```sh
 hmz
@@ -159,7 +159,7 @@ the same run in a browser, run `hmz web` in another terminal in the same directo
 </template>
 <template #exec>
 
-The same run as one line. `ralph_loop` ships with humanize, so nothing has to be installed
+The same run as one line. `ralph_loop` ships with Humanize, so nothing has to be installed
 first. Pick your CLI:
 
 ::: code-group
@@ -229,7 +229,7 @@ git diff before
 its tutorials each take a real piece of work start to finish: [Beat a
 benchmark](/user/tutorials/take-home), [Port a project](/user/tutorials/port-a-project) and
 [Build a coding agent](/user/tutorials/build-an-agent). To run a flow with nobody at the
-keyboard, on every push or every night, see [humanize in CI](/user/ci). [Flows](https://humanfia.ai/flows/), on
+keyboard, on every push or every night, see [Humanize in CI](/user/ci). [Flows](https://humanfia.ai/flows/), on
 humanfia.ai, lists what else there is to run.
 
 ## Weave a flow
@@ -316,7 +316,7 @@ patch](/contributing/tutorials/first-patch) takes one change from a clone to a p
   </a>
   <a href="https://humanfia.ai/flows/">
     <strong>Flows</strong>
-    <span>Every flow humanize ships or its official flowverse lists, each with its loop played, on humanfia.ai.</span>
+    <span>Every flow Humanize ships or its official flowverse lists, each with its loop played, on humanfia.ai.</span>
   </a>
   <a :href="withBase('/weaver/')">
     <strong>Weaver Guide</strong>
@@ -324,7 +324,7 @@ patch](/contributing/tutorials/first-patch) takes one change from a clone to a p
   </a>
   <a :href="withBase('/features/')">
     <strong>Features</strong>
-    <span>How humanize works, drawn: one diagram per capability.</span>
+    <span>How Humanize works, drawn: one diagram per capability.</span>
   </a>
   <a :href="withBase('/reference/')">
     <strong>Reference</strong>
@@ -332,6 +332,6 @@ patch](/contributing/tutorials/first-patch) takes one change from a clone to a p
   </a>
   <a :href="withBase('/contributing/')">
     <strong>Contributing</strong>
-    <span>Working on humanize itself: the layers, the checks, and these docs.</span>
+    <span>Working on Humanize itself: the layers, the checks, and these docs.</span>
   </a>
 </div>

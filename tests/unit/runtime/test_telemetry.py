@@ -1,4 +1,4 @@
-"""Whether humanize reports its own failures, and what a report may carry when it does."""
+"""Whether Humanize reports its own failures, and what a report may carry when it does."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ class Scope:
 
 
 class Sentry:
-    """The SDK, as far as humanize reaches into it: nothing leaves the process."""
+    """The SDK, as far as Humanize reaches into it: nothing leaves the process."""
 
     def __init__(self) -> None:
         self.inits: list[dict[str, Any]] = []
@@ -413,11 +413,11 @@ def test_an_exception_is_sent_without_its_frames_variables_or_paths(
         "lineno": 3,
     }
     assert theirs_frame == {
-        "abs_path": "<not humanize>",
-        "filename": "<not humanize>",
+        "abs_path": "<not Humanize>",
+        "filename": "<not Humanize>",
         "lineno": 9,
     }
-    assert nameless["filename"] == "<not humanize>"
+    assert nameless["filename"] == "<not Humanize>"
 
 
 def test_a_credential_in_a_url_is_taken_out(on: Sentry) -> None:

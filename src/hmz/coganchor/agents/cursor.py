@@ -247,7 +247,7 @@ def spelled(model: str, effort: str, *, fast: bool, listed: tuple[str, ...]) -> 
     Which combinations exist is the account's to say and not this driver's to guess.
     `gpt-5.2-low` is listed and `gpt-5.2-medium` is not; `composer-2.5` and `auto` have no rung
     form at all and run at whatever Cursor gives them. So the id this builds is checked against
-    the catalogue humanize last took from this account, and one that account lists no such
+    the catalogue Humanize last took from this account, and one that account lists no such
     thing for is refused here -- naming what it does list for that model -- rather than spent
     on a turn that comes back `Cannot use this model`. Refused rather than quietly dropped:
     an effort a flow chose being silently no effort at all is the setting that lies.
@@ -255,7 +255,7 @@ def spelled(model: str, effort: str, *, fast: bool, listed: tuple[str, ...]) -> 
     What the catalogue says nothing about is not refused. An account nobody has asked yet has
     an empty list and one asked before the vendor moved has a wrong one, and neither is a
     reason to withhold a rung somebody asked for: that id goes out as it was built and Cursor
-    answers it with its own list, which is the `unlisted` failure humanize already tells a
+    answers it with its own list, which is the `unlisted` failure Humanize already tells a
     person how to fix.
 
     Args:

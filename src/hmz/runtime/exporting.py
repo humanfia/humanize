@@ -7,13 +7,13 @@ layout its CLI keeps them in at home.
 
 A directory is not something to attach to an issue, so this is the other reading of a run:
 every file each session was logged to carried whole, every record it holds, and a manifest
-saying what humanize and each backend were when it ran -- their versions, and the hash of the
+saying what Humanize and each backend were when it ran -- their versions, and the hash of the
 executable that actually took the turns. One archive. An epic written before sessions were
 kept holds links instead, and those are followed to the files behind them.
 
 **What it carries is the user's. What it never carries is a credential.**
 :mod:`hmz.runtime.telemetry` promises that nothing anybody typed, nothing an agent said and nothing
-out of any file leaves the machine on humanize's initiative. A bundle is the opposite errand --
+out of any file leaves the machine on Humanize's initiative. A bundle is the opposite errand --
 somebody is sending their run on purpose, prompts and output and all, because a report of a bug
 without the run in it is a report nobody can develop against -- so the contents are theirs to send.
 Credentials are nobody's to send. Every byte written here goes through :func:`plain` first: the
@@ -171,7 +171,7 @@ def bundle(
         own choosing is one somebody has to go looking for -- or, landed in the project they
         are standing in, one the next commit of everything carries along.
       transcript: A screen that went with this run, as it was written rather than as it was
-        drawn, or None -- which is what everything humanize itself asks for a bundle with
+        drawn, or None -- which is what everything Humanize itself asks for a bundle with
         hands in, the run being one read back rather than one being watched.
 
     Returns:
@@ -367,7 +367,7 @@ def unbundle(archive: str | os.PathLike[str]) -> Path:
             )
     except (tarfile.TarError, gzip.BadGzipFile, EOFError, zlib.error) as why:
         raise ValueError(
-            f"{source.name} is not a bundle humanize can read: {why}"
+            f"{source.name} is not a bundle Humanize can read: {why}"
         ) from why
     except OSError as why:
         raise ValueError(f"{source.name} could not be imported: {why}") from why
@@ -656,7 +656,7 @@ def sized(count: int) -> str:
 
 
 def _now() -> str:
-    """This moment, as every file humanize writes spells one."""
+    """This moment, as every file Humanize writes spells one."""
     return (
         datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     )
@@ -786,7 +786,7 @@ def _about(name: str, size: int) -> tarfile.TarInfo:
 
 
 def _struck(ran: Ran) -> tuple[str, ...]:
-    """Every credential humanize keeps here, as the values to take out of anything copied.
+    """Every credential Humanize keeps here, as the values to take out of anything copied.
 
     By value rather than by name. An account is `ANTHROPIC_AUTH_TOKEN` and a base URL and
     whatever else that way asked for, and which of those is secret is a judgement no rule
@@ -845,7 +845,7 @@ def _sessions(
     """What each session of one run was, and what of it the bundle actually holds.
 
     Every session gets an entry, the ones with nothing behind them among them: a CLI that
-    keeps its sessions in a database of its own logs nothing humanize can read, and a bundle
+    keeps its sessions in a database of its own logs nothing Humanize can read, and a bundle
     that answered that with an absence would read exactly like a bundle that lost the logs.
 
     Args:
@@ -926,11 +926,11 @@ def _nothing(one: Session) -> str:
     profile = backends.named(one.backend)
     if profile is None:
         return (
-            f"humanize knows no backend called {one.backend!r}, so knows no logs of one"
+            f"Humanize knows no backend called {one.backend!r}, so knows no logs of one"
         )
     if not profile.logs:
         return (
-            f"{profile.name} keeps its sessions to itself -- there is no file humanize can "
+            f"{profile.name} keeps its sessions to itself -- there is no file Humanize can "
             "read one out of, so there is none to carry"
         )
     return "nothing was logged here, or what was has since gone"
@@ -1063,7 +1063,7 @@ def _cli(name: str) -> dict[str, Any]:
     and a run that cannot be pinned to a build is a run nobody can repeat.
 
     Args:
-      name: The backend, by the name humanize knows it under.
+      name: The backend, by the name Humanize knows it under.
 
     Returns:
       What it is, with whatever could not be found left empty.

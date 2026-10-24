@@ -209,7 +209,7 @@ const scene = useScene({
     tl.fromTo(at('.slot-hot')[0], { opacity: 0 }, { opacity: 1, duration: 0.3, yoyo: true, repeat: 1 }, 3.9)
     cam.flare(slotIn(0), warm, 3.9, 14)
 
-    // 1 · the seam between what humanize is and what it drives; everything past it is faked.
+    // 1 · the seam between what Humanize is and what it drives; everything past it is faked.
     const T1 = 4.8
     tl.addLabel('beat-1', T1)
     tl.to(at('.step-hl'), { opacity: 0, duration: 0.3 }, T1)

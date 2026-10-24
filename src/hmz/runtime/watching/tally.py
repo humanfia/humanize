@@ -207,7 +207,7 @@ def _spent(
         # One record per message of the conversation, and an answer carries what the request
         # it came back on cost, under pi's names -- the cache beside the input, not inside it
         # -- and the provider and model that answered, which is what it is counted against.
-        # litellm's conversations are written by humanize in the same shape, its model
+        # litellm's conversations are written by Humanize in the same shape, its model
         # already carrying the provider in front.
         said: dict[str, Any] = row.get("message") or {}
         if said.get("role") != "assistant":

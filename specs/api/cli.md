@@ -93,7 +93,7 @@ exec      run an agent flow in this directory
 web       open this machine's epics in a browser on it
 update    update hmz to its newest release
 backup    back epics up to git repositories, or download them
-internal  internal commands used by humanize; do not run directly
+internal  internal commands used by Humanize; do not run directly
 ```
 
 ## 4. Output conventions

@@ -1,5 +1,5 @@
-// What is true wherever humanize runs: whether a turn's working is shown, which agent answers
-// side questions asked of The Epic, and whether humanize reports its own failures.
+// What is true wherever Humanize runs: whether a turn's working is shown, which agent answers
+// side questions asked of The Epic, and whether Humanize reports its own failures.
 
 import { get, post } from '../../api.js'
 import { acting, fill, h, problem } from '../../dom.js'
@@ -17,7 +17,7 @@ export function draw(holder, query, parts, scope) {
     whom.addEventListener('change', () => (picker.node.hidden = whom.value !== 'chosen'))
     const reports = h(
       'select',
-      { 'aria-label': 'Report humanize’s own failures' },
+      { 'aria-label': 'Report Humanize’s own failures' },
       h('option', { value: '', selected: settings.reports === null, disabled: true }, 'Not set'),
       h('option', { value: 'yes', selected: settings.reports === true }, 'On'),
       h('option', { value: 'no', selected: settings.reports === false }, 'Off'),
@@ -39,7 +39,7 @@ export function draw(holder, query, parts, scope) {
           { class: 'form' },
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Details'), h('label', { class: 'check' }, details, 'Tool calls and thinking')),
           h('div', { class: 'field', 'data-hmz': 'btw-agent' }, h('span', { class: 'label' }, 'The Epic'), whom, picker.node, h('span', { class: 'hint' }, 'The agent that answers a side question asked of The Epic, about a whole epic. With none, only a conversation can be asked.')),
-          h('div', { class: 'field' }, h('span', { class: 'label' }, 'Error reports'), reports, h('span', { class: 'hint' }, 'Whether humanize sends a report of its own crashes. Nothing anybody typed, no file and no credential is ever sent.')),
+          h('div', { class: 'field' }, h('span', { class: 'label' }, 'Error reports'), reports, h('span', { class: 'hint' }, 'Whether Humanize sends a report of its own crashes. Nothing anybody typed, no file and no credential is ever sent.')),
           h('div', { class: 'row' }, save, scope.batch(() => [['/api/settings', said()]])),
         ),
       ),

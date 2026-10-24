@@ -15,7 +15,7 @@ end of this page you will have found a run, exported its trace and read it.
 2. Move to the run with <kbd>↑</kbd> <kbd>↓</kbd> and press <kbd>enter</kbd>. In a long list,
    press <kbd>/</kbd> first (or the **Search…** button) and type part of the run's flow, task
    or name to narrow it.
-3. Choose **export epic**. humanize gathers the trace and packs the run into an archive, then
+3. Choose **export epic**. Humanize gathers the trace and packs the run into an archive, then
    says what it wrote under the list.
 4. Open [ui.perfetto.dev](https://ui.perfetto.dev) and drop in `traces/export.trace.json` from
    the archive. Nothing is uploaded: Perfetto reads the file in your browser.
@@ -47,7 +47,7 @@ by turn, read back out of its log.
 
 ## Every run is kept {#what-a-run-writes-down}
 
-humanize keeps a record of every run of a flow, called an **epic**, whether the run finished or
+Humanize keeps a record of every run of a flow, called an **epic**, whether the run finished or
 not. `/epics` lists them for the directory you are in: when each ran, which flow, what it was
 asked to do, its agents, what it spent and how long it took, where it is backed up, how many
 sessions it opened, and how it ended if it did not finish.

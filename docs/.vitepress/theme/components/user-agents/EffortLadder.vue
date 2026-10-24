@@ -27,7 +27,7 @@ const BACKENDS: Backend[] = [
     called: 'Claude Code',
     ladder: ['ultracode', 'max', 'xhigh', 'high', 'medium', 'low'],
     marks: { ultracode: 'xhigh, free to run a fleet of its own' },
-    note: 'Claude Code never lists ultracode itself; humanize offers it anyway.',
+    note: 'Claude Code never lists ultracode itself; Humanize offers it anyway.',
   },
   {
     cli: 'codex',
@@ -453,7 +453,7 @@ onBeforeUnmount(() => {
     </div>
 
     <p class="caption">
-      A simulation of the check <code>hmz exec -a</code> makes, drawn from humanize’s own table
+      A simulation of the check <code>hmz exec -a</code> makes, drawn from Humanize’s own table
       of backends. Nothing here runs a CLI.
     </p>
   </div>

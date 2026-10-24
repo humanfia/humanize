@@ -12,5 +12,5 @@ otherwise each have written the same answer, and every rule it is composing goes
 written where it is carried out.
 
 Reached through :mod:`hmz.runtime`, which is what a command line, a daemon and whoever is
-calling humanize from outside all name.
+calling Humanize from outside all name.
 """

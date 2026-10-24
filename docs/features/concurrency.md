@@ -19,7 +19,7 @@ import { withBase } from 'vitepress'
   [another machine](/user/remote-execution).
 - **Whole flows too.** Flows run side by side, each with its own sessions and a
   [budget](/features/allowances) inside its caller's.
-- **No cap from humanize.** The CLI and the machine set the pace; widen while turns stay quick.
+- **No cap from Humanize.** The CLI and the machine set the pace; widen while turns stay quick.
 - **Read as one.** One agent is one screen; a [trace](/features/tracing) lays every
   conversation on one timeline.
 

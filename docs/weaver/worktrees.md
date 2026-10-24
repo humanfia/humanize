@@ -37,10 +37,10 @@ agent's role declares what it may be asked. A call the role did not declare rais
 | You want | Declare on the role | Call | Removed |
 | --- | --- | --- | --- |
 | a directory under the workdir | nothing | `derive_subdir(subdir=…)` | never |
-| a new git worktree, at any ref | `GitWorktreeEnvMixin` | `derive_worktree(ref=…, dir=…)` | never, by humanize |
+| a new git worktree, at any ref | `GitWorktreeEnvMixin` | `derive_worktree(ref=…, dir=…)` | never, by Humanize |
 | a throwaway copy of the workdir as it is | `TemporaryClonedDirEnvMixin` | `derive_temp_clone(id)` | when the flow ends\* |
 | an empty directory of the flow's own | `ScratchDirEnvMixin` | `derive_scratch(id)` | when the flow ends\* |
-| the workdir put back as it was | `GitEnvMixin` | `snapshot()`, then `rewind(ref)` | never, by humanize |
+| the workdir put back as it was | `GitEnvMixin` | `snapshot()`, then `rewind(ref)` | never, by Humanize |
 
 \* A run that can be picked up keeps them: see [How long they last](#how-long-they-last).
 
@@ -106,7 +106,7 @@ async def parts(
    its PATH: a run on one without is refused with `CapabilityMissing` before anything runs.
 2. **`derive_worktree(ref="main")`** checks out a new worktree of the repository, detached at
    `main`, and answers with an environment there. Leave `ref` out for whatever the workdir has
-   checked out. `tree.workdir` is where it is: humanize picks a fresh directory unless you
+   checked out. `tree.workdir` is where it is: Humanize picks a fresh directory unless you
    pass `dir=`.
 3. **`run(…, env=tree)`** takes the session's turn in the worktree, so every file it edits
    and every command it runs is there, not in your checkout.
@@ -426,7 +426,7 @@ A run that [can be picked up](/user/resuming) keeps them instead. A run resumed 
 that asks for the same id finds the copy it left. In a flow that runs for days, destroy what you
 are done with yourself.
 
-Worktrees and snapshots are never removed by humanize. They are git's, and yours.
+Worktrees and snapshots are never removed by Humanize. They are git's, and yours.
 
 ## Variations
 

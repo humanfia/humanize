@@ -2,7 +2,7 @@
 
 No CLI here: a turn is one streamed chat completion from this process, sent by litellm to the
 OpenAI-compatible endpoint `OPENAI_BASE_URL` names -- which is an `Endpoint` on the loopback.
-The conversation is a file of humanize's own, so a second turn is the first one's messages sent
+The conversation is a file of Humanize's own, so a second turn is the first one's messages sent
 again with the new prompt on the end.
 """
 

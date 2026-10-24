@@ -15,7 +15,7 @@ provider's directory. Two agents of one CLI can therefore run as two accounts at
 | --- | --- |
 | Name | `<cli>/<name>`, e.g. `claude/work`. `<cli>` is the backend's name (any [alias](/reference/agents#backends) is accepted and normalised). |
 | `<name>` | `[A-Za-z0-9][A-Za-z0-9._-]*` |
-| The machine's own account | `<cli>/` with the empty name, `providers.LOCAL == ""`. Exists for every backend; humanize keeps no credentials for it, and turns under it are the CLI as already signed in. Nothing about it can be set. |
+| The machine's own account | `<cli>/` with the empty name, `providers.LOCAL == ""`. Exists for every backend; Humanize keeps no credentials for it, and turns under it are the CLI as already signed in. Nothing about it can be set. |
 | Chosen with | `-a ROLE=CLI@NAME/MODEL:EFFORT`; `AgentConfig.provider="NAME"`; an agent's sheet in the TUI ([TUI](/reference/tui)) |
 | Which CLIs | every built-in backend, and every [ACP CLI](/reference/agents#a-cli-of-your-own) added on this machine (which has only the `env` way) |
 
@@ -29,7 +29,7 @@ provider's directory. Two agents of one CLI can therefore run as two accounts at
 
 ## Storage
 
-The rest of humanize's home is in [Files](/reference/files).
+The rest of Humanize's home is in [Files](/reference/files).
 
 ```text
 $HUMANIZE_HOME/                         default ~/.hmz
@@ -46,7 +46,7 @@ $TMPDIR/humanize-<uid>/models/<cli>/    model catalogues: a cache of this machin
 
 | Rule | |
 | --- | --- |
-| Modes | Every directory humanize creates on the way to `providers/<cli>/<name>/` and to each credential's parent is `0700`. Every file is written to a file of its own beside it (`.<file>.<random>.new`, mode `0600` from creation), fsynced and renamed into place. |
+| Modes | Every directory Humanize creates on the way to `providers/<cli>/<name>/` and to each credential's parent is `0700`. Every file is written to a file of its own beside it (`.<file>.<random>.new`, mode `0600` from creation), fsynced and renamed into place. |
 | Directory name | The backend's canonical name and the account's name. The directory, not the file, decides which backend and name an account has. |
 | Unreadable entries | A directory whose `provider.json` is missing or not a JSON object is not listed. |
 | Removal | `remove(cli, name)` deletes the whole directory, credentials included, and the account's model catalogue. |
@@ -78,7 +78,7 @@ is written. So is `local/<cli>.json`, which held only that.
 
 ### Model catalogues {#models-json}
 
-The account's model catalogue, kept on this machine (`hmz.machine()`) rather than in humanize's
+The account's model catalogue, kept on this machine (`hmz.machine()`) rather than in Humanize's
 home, at `models/<cli>/<name>.json` and at `models/<cli>/_local.json` for the machine's own
 account, whose name no account can take. Written by `hmz.coganchor.models.ask` when the account is made
 and when it is asked again (the **Check again** button of the TUI's model list). Read by every
@@ -291,7 +291,7 @@ set in.
   `--effort` for them.
 - `agy`'s `key` way needs `"modelProvider": "gemini"` in `~/.gemini/antigravity-cli/settings.json`
   (agy 1.1.13 and later). That file is shared by every agy account, and agy refuses to start
-  while the setting is there without `GEMINI_API_KEY`, so humanize does not write it.
+  while the setting is there without `GEMINI_API_KEY`, so Humanize does not write it.
 
 ### The `env` way
 
@@ -453,7 +453,7 @@ as the CLI writes into them, and an entry may be a glob of one path component.
 | `codex` | `sessions`, `archived_sessions`, `session_index.jsonl`, `state_*.sqlite*`, `thread_history_*.sqlite*`, `goals_*.sqlite*`, `queue_*.sqlite*`, `memories_*.sqlite*`, `thread-writer-locks`, `shell_snapshots` |
 | `cursor-agent` | `chats`, `projects/*/agent-transcripts` |
 | `dsh` | `sessions`, named to the SDK as its session root (`Profile.told`) rather than supervised |
-| `litellm` | `sessions`, written by humanize's own driver (`Profile.told`) |
+| `litellm` | `sessions`, written by Humanize's own driver (`Profile.told`) |
 | `grok` | `sessions`, `active_sessions.*` |
 | `kimi` | `sessions`, `session_index.jsonl`, `workspaces.json`, `server/events`, `search-index`, `file-history` |
 | `mcode` | `v2/sqlite`, `v2/sessions`, `background-tasks` |
@@ -594,7 +594,7 @@ endpoint's ids do not carry, except on a gateway account, whose every turn is he
 provider below.
 
 `omp` has no gateway way and no endpoint variable. An endpoint of its own is a provider in
-omp's own `models.yml` (or `models.yaml`) in its home, which humanize does not write; the fence
+omp's own `models.yml` (or `models.yaml`) in its home, which Humanize does not write; the fence
 lets through the `baseUrl` of the provider the model is named under
 ([Agents › Oh My Pi](/reference/agents#oh-my-pi)).
 

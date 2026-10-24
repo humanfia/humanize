@@ -9,7 +9,7 @@ there (the files an agent edits, the builds and tests it runs) happens on that m
 this when the build, the data or the GPUs are on a host you reach over ssh, and your coding
 agent and its sign-in are on the machine in front of you. This page takes you from
 `ssh build-box` working to a flow building on it, and shows each of the places the agent's
-CLI itself can run. The part of humanize that does this is called **CogAnchor**
+CLI itself can run. The part of Humanize that does this is called **CogAnchor**
 (`hmz.coganchor`).
 
 <div class="re-split">
@@ -76,23 +76,23 @@ ends:
 
 ## Before you start
 
-- **humanize and one coding agent here**, installed and signed in: see
+- **Humanize and one coding agent here**, installed and signed in: see
   [Installation](/user/installation).
-- **`ssh build-box` works from here without a password prompt.** humanize uses your own ssh
+- **`ssh build-box` works from here without a password prompt.** Humanize uses your own ssh
   config, agent and keys, and adds nothing. `ssh -o BatchMode=yes build-box true` is the test:
   it must exit 0.
 - **On the host:** Linux or macOS on any architecture, Python 3.12 or newer, and the project
-  already at the path you will name. You install nothing else there: humanize brings what it
+  already at the path you will name. You install nothing else there: Humanize brings what it
   needs.
 - **This machine is Linux** on x86-64 or aarch64.
-- **A flow with a role for another machine.** The flows humanize ships and the official
+- **A flow with a role for another machine.** The flows Humanize ships and the official
   flowverse lists all work in the directory you start in, so none of them takes an `-e`. This page uses
   [`onbox`](#the-flow-used-on-this-page), a two-role flow you can save into your project.
 
 ## How remote execution works
 
 A flow declares **environment roles**: named places its agents work. One is always the
-**workspace**, the directory you started `hmz` in, and humanize fills it. Any other is yours to
+**workspace**, the directory you started `hmz` in, and Humanize fills it. Any other is yours to
 name, with `-e role=…` on the command line or on its row at `/flow`. `onbox` has one, `box`:
 its builder works there, and its reviewer reads in the workspace.
 
@@ -355,7 +355,7 @@ leaves it out. Nothing is left to answer, so the focus moves on to **Done**:
 4. **`harness runs on`** is the host's harness setting: where the CLI of an agent working on
    it runs, [below](#where-the-agent-runs). `local` keeps it here, which a host with no CLI
    needs; blank is the default, `env`, the CLI on the host.
-5. **`answers`** is the check: humanize reached the host with nobody there to type a password,
+5. **`answers`** is the check: Humanize reached the host with nobody there to type a password,
    and read its home, CPUs and memory. A host that cannot be reached says why on this line.
 6. **The `box` row** holds what the form set, as `-e` spells it: `ssh@build-box`, the saved
    host and its saved workdir.
@@ -430,9 +430,9 @@ What to know before the first run:
   from the cluster's `SrunPortRange` (`scontrol show config | grep SrunPortRange`). A cluster
   may allow only a few dozen: `SrunPortRange=30927-30951` caps it at about 8 connections at
   once, which a flow with several roles and agents runs out of.
-- **`via: tcp` holds none.** The job itself runs humanize's serving half on its node, on a free
+- **`via: tcp` holds none.** The job itself runs Humanize's serving half on its node, on a free
   port, and each connection presents a secret only this run knows; `srun` is used just to put
-  humanize on the node and read the port. It needs this machine to reach the nodes' ports, and
+  Humanize on the node and read the port. It needs this machine to reach the nodes' ports, and
   its traffic, authenticated but not encrypted, stays within the cluster's network.
 - **A job waiting in the queue keeps no one else waiting.** Every role's environment is brought
   up at once, and other runs on this machine can submit while yours waits.
@@ -474,7 +474,7 @@ its harness to `local`.
 ### `local`: here
 
 The CLI runs here, with this machine's sign-in and its sessions kept with the run. It works in
-a copy of the host's directory that humanize keeps here, and every command it runs is sent to
+a copy of the host's directory that Humanize keeps here, and every command it runs is sent to
 the host. The transcript says `builder's harness runs here`. Use it when the host has no CLI,
 when it is one you would not give your account to, or when its CLI is signed in as somebody
 else. A role with a hook that decides whether each tool runs, such as the builder of
@@ -485,7 +485,7 @@ program on this machine.
 
 ::: warning The copy here has the host's path
 The copy the agent works in is kept **at the same path** on this machine. That path has to be
-one you can create here, and must be free: absent, empty, or humanize's copy of that same host
+one you can create here, and must be free: absent, empty, or Humanize's copy of that same host
 from an earlier run.
 
 - A directory with other files in it is refused rather than overwritten, so
@@ -571,7 +571,7 @@ Its other caveats:
 | **The host** | Linux or macOS on any architecture, Python 3.12 or newer, `ssh` access, and the project already at that path. The CLI too, for `env`, the default. |
 | **The flow** | a role for the host, besides its workspace |
 
-A Mac gives a remote command no `python3` on its `PATH`, so humanize also looks where Homebrew
+A Mac gives a remote command no `python3` on its `PATH`, so Humanize also looks where Homebrew
 and the python.org installer put one, and says what it looked for if it finds none.
 
 ## Variations
@@ -605,11 +605,11 @@ status 2.
 | `onbox: 'workspace' is the workspace the run started in and cannot be set with -e` | Start `hmz` in that directory instead. |
 | `there is no ssh host build-box: …` | Nothing resolves the name. Check your ssh config. |
 | `could not reach build-box over ssh: …` | Run `ssh build-box` yourself and fix what it says. |
-| `could not reach build-box over ssh: … no python 3.12 or newer on this machine; …` | The host has no Python 3.12 or newer that humanize can find. Install one there. |
+| `could not reach build-box over ssh: … no python 3.12 or newer on this machine; …` | The host has no Python 3.12 or newer that Humanize can find. Install one there. |
 | `the workdir /home/me/build/myproject is not there` | Put the project on the host at that path. |
 | `… 'box' needs 8 GPUs, and the environment given has 0` | The flow asks more of the host than it has. Pick another host. |
-| `… already contains files and is not an humanize mirror …` | The same path here holds other files. See [the path is taken here too](#the-path-is-taken-here-too). |
-| `… mirrors ssh://old-box, not ssh://build-box …` | That path here holds humanize's copy of another host. Use another path. |
+| `… already contains files and is not a Humanize mirror …` | The same path here holds other files. See [the path is taken here too](#the-path-is-taken-here-too). |
+| `… mirrors ssh://old-box, not ssh://build-box …` | That path here holds Humanize's copy of another host. Use another path. |
 | `cannot keep the local copy of the work at …` on the first turn | The path cannot be created here. Use one you can create, or set the host's harness to `env`. |
 | `… claude's harness cannot run where its harness setting (env) says: claude is not installed on ssh@build-box: …` | `env` (the default, and a host nobody saved) and no CLI on the host's `PATH`. Install it there, or save the host with its harness `local`. |
 | `… harness cannot run where its harness setting (env) says: a pre_tool_use hook cannot gate the tools of a CLI on another machine; …` | The flow gates the role's tools with a hook. Save the host with its harness `local`. |
@@ -687,7 +687,7 @@ async def onbox(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
   harness setting, and where the account lives in each
 - [Machines › Runtimes](/reference/machines#runtimes): every field of
   a saved host, its harness among them
-- [humanize in CI](/user/ci): the same `-e` in a scheduled job
+- [Humanize in CI](/user/ci): the same `-e` in a scheduled job
 
 <style scoped>
 .re-split {

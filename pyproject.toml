@@ -33,7 +33,7 @@ dependencies = [
     "json5>=0.12",
     # Structured answers may put JSON in any Markdown fenced code block.
     "markdown-it-py>=4.2",
-    # Which release of humanize is newer than the one running, and which extras an install
+    # Which release of Humanize is newer than the one running, and which extras an install
     # took, are PEP 440's and PEP 508's rules: `hmz update` reads both.
     "packaging>=26.2",
     "psutil>=7.2.2",
@@ -50,7 +50,7 @@ dependencies = [
     # What a flowverse's index says of a flow's versions is SemVer: which is newer, and which
     # of them a dependency's range takes, are the package's rules rather than ours.
     "semver>=3.0.4",
-    # What a crash is reported through, for as long as humanize is early enough that a
+    # What a crash is reported through, for as long as Humanize is early enough that a
     # stack nobody sees is a bug nobody fixes. Off until somebody says otherwise, and an
     # ordinary dependency rather than an extra: an install that could be missing the half
     # that reports its own failures is an install whose failures are not reported.
@@ -67,10 +67,10 @@ dependencies = [
 ]
 
 # What three of the backends want from this Python environment, and nobody else does. Every
-# other backend humanize drives is a CLI somebody installs for themselves, and humanize
+# other backend Humanize drives is a CLI somebody installs for themselves, and Humanize
 # carries nothing for it; these three also want a package here, and two of them are not small --
 # the DeepSeek runtime is a bundled executable, published as a wheel for three platforms and
-# no others, so an ordinary dependency would be a machine humanize cannot be installed on at
+# no others, so an ordinary dependency would be a machine Humanize cannot be installed on at
 # all, for the sake of a backend nobody there runs. Nothing below is imported where a module
 # is read: the three drivers load them where a turn needs one, so `hmz` starts, lists its
 # backends, and takes every other backend's turns with none of this installed. What is
@@ -85,7 +85,7 @@ dsh = [
     # its surface moves: 0.1.2a3 replaced a whole composition handed over as `cordis` with a
     # profile and patches over it, and `coganchor/agents/dsh.py` drives the latter. Move this
     # only together with that driver, and with `DSH_SDK` in `coganchor/backends.py`, which is
-    # what humanize tells somebody to install by hand.
+    # what Humanize tells somebody to install by hand.
     "deepseek-harness-sdk>=0.1.5rc1,<0.1.6",
     "python-dotenv>=1.2.3",
 ]
@@ -302,7 +302,7 @@ ignore = [
 # What a command line writes, it prints.
 "src/hmz/cli/**" = ["T201"]
 # And so does a flow: what it prints is what its run shows whoever is watching. The flows
-# humanize ships are written the way anybody's flow is, against what the flow API hands every
+# Humanize ships are written the way anybody's flow is, against what the flow API hands every
 # one of them: the params and context a flow is called with whether or not it reads them, and
 # a state that is read like a dict and has no `.get`.
 "src/hmz/flows/builtin/**" = ["T201", "ARG001", "SIM401"]

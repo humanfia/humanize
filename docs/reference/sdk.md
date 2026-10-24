@@ -8,7 +8,7 @@ import '../.vitepress/theme/components/ref-cli/ref.css'
 
 # SDK reference
 
-`hmz.sdk`: the supported import path for programs that drive humanize. It defines nothing of
+`hmz.sdk`: the supported import path for programs that drive Humanize. It defines nothing of
 its own but `Daemons`; every other name is the object the runtime or the daemon layer holds,
 handed through unchanged. Notation: [Conventions](/reference/#conventions).
 
@@ -56,7 +56,7 @@ class Hmz:
     def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None
 ```
 
-One workspace and everything humanize can be asked to do in it. The constructor loads
+One workspace and everything Humanize can be asked to do in it. The constructor loads
 nothing.
 
 | Parameter | Type | Default | Meaning |
@@ -95,7 +95,7 @@ cached on the instance.
 - `host(slot="")`: a [`Host`](#host) of this workspace, created on first call with that slot
   and cached on the instance. Frontends attached to it share one run. `slot` is `""` for the
   workspace's own, or `chat:<hex>` for one chat's; anything else raises `ValueError`.
-- `backends()`: every coding-agent CLI humanize drives, installed or not, as internal
+- `backends()`: every coding-agent CLI Humanize drives, installed or not, as internal
   `hmz.coganchor.backends.Profile` objects (`.name`, `.aliases`, `.efforts`, `.installs`, …).
   `[p.name for p in Hmz().backends()]` is `['claude', 'agy', 'codex', 'dsh', 'grok', 'kimi',
   'pi', 'omp', 'qwen', 'opencode', 'mimo', 'cursor-agent', 'mcode', 'litellm']`.
@@ -235,7 +235,7 @@ One run of one flow. Made by [`Hmz.run`](#hmz-run). Constructing one starts noth
 | `close()` | `None` | `stop()`, then closes every open session and agent at once. The flow sees a failed turn. |
 | `unreadable()` | `str` | The budget cap nothing driven can enforce, in words (the [`hmz exec` note](/reference/cli#writing-a-budget)), or `""`. A finite `cost` limit first brings a missing or stale price list up to date (at most 20 s), as `run` and `start` do. Raises `Refused` if the price list gives a price that is not a finite number. |
 | `watch(listener)` | `None` | Registers `listener(agent: AgentBase, session: SessionBase \| None, event: Event)`, called for every event of every session from the thread that read it. Watching also stops CLIs writing their own progress to this process's streams. |
-| `noticed(callback)` | `None` | Registers `callback(text: str)`, called on the run's loop with humanize's own word about the run before the flow is called: an environment moved down its runtime's [fallback list](/reference/machines#falling-back) (`docker:a cannot hold 'box': <why>; using docker:b`). |
+| `noticed(callback)` | `None` | Registers `callback(text: str)`, called on the run's loop with Humanize's own word about the run before the flow is called: an environment moved down its runtime's [fallback list](/reference/machines#falling-back) (`docker:a cannot hold 'box': <why>; using docker:b`). |
 | `opened(callback)` | `None` | Registers `callback(role: str, agent: AgentBase, session: SessionBase, where: Placement | None)` (`where` is `None` where the driver reports no placement), called on the run's loop as each session opens, before its first turn. |
 
 `AgentBase`, `SessionBase` and `Event` are coganchor's ([Agents](/reference/agents)).
@@ -393,7 +393,7 @@ places tried after it, in order.
 | `foreign(epic)` | `str` | Why an imported run cannot be picked up here (its workspace is not at that path, or lacks the commit its bundle recorded), or `""`. |
 | `state(epic, flow: str = "")` | `dict[str, Any]` | A resumable flow's kept `ctx.state`: the run's own flow, or another by canonical ref. |
 | `traced(epic, *, output=None, start=None, end=None)` | `tuple[Path, dict]` | Gathers the run's own sessions into a Chrome trace. Default `output`: the epic's `traces/`, named for the moment. `start`/`end`: any wording `dateparser` reads. [Tracing](/reference/tracing#from-python). |
-| `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None, flow_profile=None, kept=None)` | `dict` | The same collector for any sessions. `sessions=None`: every session of the workspace; empty iterable: none. `kept`: directories of kept sessions to read (default: everywhere humanize keeps them). |
+| `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None, flow_profile=None, kept=None)` | `dict` | The same collector for any sessions. `sessions=None`: every session of the workspace; empty iterable: none. `kept`: directories of kept sessions to read (default: everywhere Humanize keeps them). |
 | `transcripts(epic)` | `list[dict]` | What each session of the run said and did, read back out of its logs: per session that did anything, `key` (`<cli>:<id>`), `agent` and `actions` -- each `category`, `name`, `at`, `start`, `seconds` and `args` -- in order. Writes nothing. |
 | `timeline(epic)` | `Timeline` | The run as an [Exomyth timeline](/reference/tracing#timeline): `.document`, and `.span(id)` for one span whole. Writes nothing. |
 | `bundled(epic, *, output, transcript=None)` | `tuple[Path, dict]` | One `.hmzepic` of the whole run, credentials struck out. `output` (required): a file, or a directory to put it in. Returns the path and its manifest. [Exporting a run](/user/export). |
@@ -436,7 +436,7 @@ class Daemons:
 | --- | --- | --- |
 | `here(workspace=None)` | `hmz.daemon.running` | The host holding that workspace's runs, or `None` (no daemon answers on this machine's socket, or it holds no host of that workspace). |
 | `all()` | `hmz.daemon.daemons` | Every live workspace's host on this machine, oldest first. |
-| `host(workspace=None)` | `hmz.daemon.host` | The host of the workspace, started where none is -- and this machine's daemon with it (10 s each to come up). `OSError`: an older humanize's daemon is running, or none came up. |
+| `host(workspace=None)` | `hmz.daemon.host` | The host of the workspace, started where none is -- and this machine's daemon with it (10 s each to come up). `OSError`: an older Humanize's daemon is running, or none came up. |
 
 `workspace=None` is the current directory.
 
@@ -451,7 +451,7 @@ class Daemon:
     workspace: str      # the project directory its host holds runs for
     pid: int            # the host process
     started: str        # UTC, ISO 8601
-    protocol: int = 0   # the frontend protocol the daemon speaks; 0 = an older humanize's
+    protocol: int = 0   # the frontend protocol the daemon speaks; 0 = an older Humanize's
 ```
 
 | Member | Returns | Behaviour |
