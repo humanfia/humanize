@@ -25,13 +25,6 @@ tauri-plugin-updater = { version = "2", default-features = false, features = ["r
 tauri-plugin-window-state = "2"
 libc = "0.2"
 log = "0.4"
-# The update's alerts: CFUserNotification, which never holds up a quit as a sheet would.
-objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFDate", "CFDictionary", "CFString", "CFURL", "CFUserNotification"] }
-# Notifications the page asks for: UNUserNotificationCenter, and a delegate told of a click.
-block2 = { version = "0.6", default-features = false, features = ["std"] }
-objc2 = { version = "0.6", default-features = false, features = ["std"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSError", "NSObject", "NSString"] }
-objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSound", "UNNotificationTrigger", "UNUserNotificationCenter"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 # What generate_context! writes the updater's configuration out with.
@@ -45,6 +38,21 @@ flate2 = "1"
 sha2 = "0.10"
 tar = { version = "0.4", default-features = false }
 ureq = { version = "3", default-features = false, features = ["rustls", "platform-verifier"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# The update's alerts: CFUserNotification, which never holds up a quit as a sheet would.
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFDate", "CFDictionary", "CFString", "CFURL", "CFUserNotification"] }
+# Notifications the page asks for: UNUserNotificationCenter, and a delegate told of a click.
+block2 = { version = "0.6", default-features = false, features = ["std"] }
+objc2 = { version = "0.6", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSError", "NSObject", "NSString"] }
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSound", "UNNotificationTrigger", "UNUserNotificationCenter"] }
+
+[target.'cfg(windows)'.dependencies]
+# Notifications the page asks for: toasts, told of a click.
+tauri-winrt-notification = "0.8"
+# The update's alerts: a task dialog, closed as the app quits.
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Controls", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
 tempfile = "3"
