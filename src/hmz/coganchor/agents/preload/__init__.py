@@ -60,6 +60,8 @@ import weakref
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from hmz.coganchor.unix import sockets
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -262,7 +264,9 @@ class Watch:
             self._closed.clear()
             try:
                 self._where = tempfile.TemporaryDirectory(
-                    prefix="humanize-preload-", ignore_cleanup_errors=True
+                    prefix="humanize-preload-",
+                    dir=sockets(len("/humanize-preload-XXXXXXXX/said.sock")),
+                    ignore_cleanup_errors=True,
                 )
                 # Inside a directory this user alone may enter: what is said on this socket is
                 # every file the agent touched, and one anybody could connect to is a way for

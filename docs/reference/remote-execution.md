@@ -202,7 +202,9 @@ ssh <target options> -T -o BatchMode=no -o ServerAliveInterval=30 <reuse options
   case-insensitive) or set and empty:
   `-o ControlMaster=auto -o ControlPersist=120 -o ControlPath=<dir>/%C[-<8 hex>]`, where
   `<dir>` is `$XDG_RUNTIME_DIR/humanize-ssh-<uid>` (else the system temporary directory), mode
-  `0700`. The `-<8 hex>` suffix is a digest of the target's options, so two targets at one host
+  `0700` — or `/tmp/humanize-ssh-<uid>` where that path would leave the socket longer than a
+  Unix socket path may be (103 bytes; a Mac's `$TMPDIR` alone is about 49). Connections are not
+  shared where `<dir>` is not a directory of the user's that nobody else may enter. The `-<8 hex>` suffix is a digest of the target's options, so two targets at one host
   with different options use different master connections.
 - The command is sent as one string, each word shell-quoted, prefixed with `exec`.
 

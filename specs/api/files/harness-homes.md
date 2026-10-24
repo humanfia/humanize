@@ -231,7 +231,9 @@ directory of §7.
 ## 7. Process-private temporary directories of a harness process
 
 **7.1** `hmz` MUST create the directories of this section on the **harness machine** with mode
-`0700`, and MUST remove each when the **agent** or **session** it serves ends.
+`0700`, and MUST remove each when the **agent** or **session** it serves ends. A directory of
+§7.2 to §7.5 MUST be created in `/tmp` rather than `<tmp>` where the path of its socket would
+otherwise be longer than 103 bytes and `/tmp` is writable.
 
 **7.2** A directory with the prefix `humanize-hook-` MUST hold the Unix-domain socket `hook.sock`
 on which the hooks of a **harness** process report to **hmz**.

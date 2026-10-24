@@ -709,6 +709,8 @@ class Gate:
         import tempfile
         from pathlib import Path
 
+        from hmz.coganchor.unix import sockets
+
         with self._lock:
             if self._sock is not None:
                 return self._at
@@ -717,7 +719,9 @@ class Gate:
             self._closed.clear()
             try:
                 self._where = tempfile.TemporaryDirectory(
-                    prefix="humanize-hook-", ignore_cleanup_errors=True
+                    prefix="humanize-hook-",
+                    dir=sockets(len("/humanize-hook-XXXXXXXX/hook.sock")),
+                    ignore_cleanup_errors=True,
                 )
                 # Inside a directory this user alone may enter: a socket is a way into this
                 # process, and one anybody could connect to is a way in for anybody.

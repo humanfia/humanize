@@ -33,6 +33,8 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from hmz.coganchor.unix import sockets
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
@@ -138,7 +140,9 @@ class Shelf:
         """Makes the directory and starts serving on the socket inside it."""
         self._closed.clear()
         self._where = tempfile.TemporaryDirectory(
-            prefix="humanize-clis-", ignore_cleanup_errors=True
+            prefix="humanize-clis-",
+            dir=sockets(len("/humanize-clis-XXXXXXXX/cli.sock")),
+            ignore_cleanup_errors=True,
         )
         # Inside a directory this user alone may enter, as a toolbox's is: the socket is a way
         # into this process.
