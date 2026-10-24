@@ -1,6 +1,6 @@
 # Lint and the package, then the tests on Linux and macOS: on each system one job runs the unit
-# tests a package at a time and the integration tests a topic at a time; the macOS app in
-# desktop/ is built and tested on macOS. Each runs
+# tests a package at a time and the integration tests a topic at a time; the app in desktop/
+# is built and tested on macOS, and on Windows. Each runs
 # only for what the change touched: a package's unit tests when the package or its tests
 # changed, a topic when a package it runs or its tests changed, everything when what all the
 # tests share changed. Few jobs, because the organisation runs at most 20 at once and 5 of them on macOS,
@@ -275,14 +275,64 @@ jobs:
           hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" src-tauri/target/debug/bundle/dmg/*.dmg
           test -f "$RUNNER_TEMP/dmg/.DS_Store" || { echo "::error::The disk image was not laid out."; exit 1; }
 
+  # The Windows app in desktop/, whose hmz runs in WSL: the same checks, and its installer as a
+  # release builds it, but unoptimised.
+  desktop-windows:
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"desktop"')) }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+          # Restores what cache.yml saved on `main`, and writes nothing.
+          save-if: false
+
+      - name: cargo fmt --check
+        working-directory: desktop/src-tauri
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        working-directory: desktop/src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: desktop/src-tauri
+        run: cargo test --locked
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the installer
+        run: pnpm tauri build --debug --bundles nsis
+
   ci-ok:
     if: always()
-    needs: [changes, static, tests, desktop]
+    needs: [changes, static, tests, desktop, desktop-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           # `changes` on a dispatch, and what the change left alone.
-          allowed-skips: changes, tests, desktop
+          allowed-skips: changes, tests, desktop, desktop-windows
           jobs: ${{ toJSON(needs) }}

@@ -44,8 +44,9 @@ rules as `main`. Three workflows do it:
    never out before its package. Beside them, on macOS, it builds [the macOS app](/user/desktop)
    as one disk image for Apple silicon and Intel, `humanize-X.Y.Z-macos-universal.dmg`, attests
    it, and attaches it to the release, with the app's update beside it: see
-   [The app's updates](#the-apps-updates). Those are all the release offers: the wheel and the
-   sdist are PyPI's.
+   [The app's updates](#the-apps-updates). On Windows it builds the Windows app, whose hmz runs
+   in WSL, as a per-user installer, `humanize-X.Y.Z-windows-x64-setup.exe`, attests it, and
+   attaches it as well. Those are all the release offers: the wheel and the sdist are PyPI's.
 
 `main` itself never says a released version: its `pyproject.toml` says `0.0.0`, and so does
 `tauri.conf.json`.
@@ -65,7 +66,10 @@ the app is a pre-release itself. For
 that, `publish.yml` builds the app's update as well, `humanize-X.Y.Z-macos-universal.app.tar.gz`,
 signs it with the updater's key, attests it, and writes `latest.json`, which names the version,
 links the release as its notes, and offers the update with its signature to both
-`darwin-aarch64` and `darwin-x86_64`. Both are attached to the release with the disk image.
+`darwin-aarch64` and `darwin-x86_64`. Both are attached to the release with the disk image. On
+Windows the installer is the update: it is signed with the same key, as
+`humanize-X.Y.Z-windows-x64-setup.exe.sig`, attached beside it, and offered in `latest.json` to
+`windows-x86_64`.
 
 The key is held in the secrets `TAURI_SIGNING_PRIVATE_KEY` and
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; its public half is `plugins.updater.pubkey` in
@@ -232,8 +236,8 @@ can no longer install it.
 | `invalid-publisher` in `publish to PyPI` | PyPI's trusted publisher does not describe this workflow | on PyPI, the publisher must name owner `humanfia`, repository `humanize`, workflow `publish.yml` and environment `pypi`; then `gh run rerun <run-id> --failed` |
 | `File already exists` | PyPI has this version already | open the next version: PyPI never takes a version's files twice |
 | a failed `publish the release` | PyPI has the release, and the GitHub release is still a draft | `gh run rerun <run-id> --failed` |
-| a failed `desktop` | the disk image did not build, or did not sign or notarize. PyPI may have the release; the GitHub release is still a draft | fix what its log says, then `gh run rerun <run-id> --failed`; a fix that needs a commit goes to `main`, then the next version |
-| `No TAURI_SIGNING_PRIVATE_KEY` in `desktop` | the updater's secrets are not set. The release has no update, and installed apps are not offered it | set both secrets, then release the next version |
+| a failed `desktop` or `desktop-windows` | the disk image or the installer did not build, or did not sign or notarize. PyPI may have the release; the GitHub release is still a draft | fix what its log says, then `gh run rerun <run-id> --failed`; a fix that needs a commit goes to `main`, then the next version |
+| `No TAURI_SIGNING_PRIVATE_KEY` in `desktop` or `desktop-windows` | the updater's secrets are not set. The release has no update, and installed apps are not offered it | set both secrets, then release the next version |
 
 ::: details For admins: guarding the `pypi` environment
 In **Settings → Environments → pypi**, add yourself and another maintainer as required

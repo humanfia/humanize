@@ -28,7 +28,8 @@ static      every hook, then the package ─────────────
 changes ─┬▶ tests    unit, a package at a time, then            │
          │           integration, a topic at a time             ├─▶ ci-ok
          │                                     × Linux, macOS ──┤
-         └▶ desktop  the macOS app, on macOS ───────────────────┘
+         ├▶ desktop  the macOS app, on macOS ───────────────────┤
+         └▶ desktop-windows  the Windows app, on Windows ───────┘
 ```
 
 | Runs | When the change touched |
@@ -40,7 +41,7 @@ changes ─┬▶ tests    unit, a package at a time, then            │
 | the `tui` topic | those of `agents`, `daemon` or `tui` |
 | the `core`, `anchor` and `web` topics | anything in `src/hmz/`: they run `hmz` whole |
 | a topic | also its own files in `tests/integration/`; `doubles_core.py` counts for `core`, `anchor` and `web` |
-| `desktop` | `desktop/` or `ci.yml` |
+| `desktop` and `desktop-windows` | `desktop/` or `ci.yml` |
 
 `runtime`, `flows` and `coganchor` import each other, so a topic that runs one runs all three.
 The other topics' rows follow what their tests import, and `hmz`, which loads a package only
@@ -53,10 +54,11 @@ the row in `ci.yml`'s `changes`.
 | `tests (<os>)` | `tests/unit/<package>`, each directory under `tests/unit/` on its own; then `tests/integration/test_<topic>_*.py`, each of `core`, `agents`, `tui`, `daemon`, `anchor` and `web` on its own; each that the change touched. Skipped when the change touched none | `uv run pytest tests/unit/<package>`, `uv run pytest tests/integration/test_<topic>_*.py` |
 | `changes` | What the change touched, by the table above. Skipped on `release.yml`'s run, which runs everything | |
 | `desktop` | [The macOS app](/contributing/#the-macos-app) in `desktop/`: `cargo fmt --check`, `cargo clippy` with warnings as errors, `cargo test`, and the app and its disk image built unoptimised, the disk image checked to be laid out by Finder. Skipped when `desktop/` is unchanged | the commands in [The macOS app](/contributing/#the-macos-app) |
+| `desktop-windows` | The same app on Windows, whose hmz runs in WSL: `cargo fmt --check`, `cargo clippy` with warnings as errors, `cargo test`, and its NSIS installer built unoptimised. Skipped when `desktop/` is unchanged | the same commands on Windows, with `pnpm tauri build --debug --bundles nsis` |
 | `ci-ok` | Every job above passed, or was skipped as it says | |
 | `title`, in `title.yml` | The pull request's title is a [Conventional Commit](/contributing/#commits): squashing writes it to the branch, and a release's changelog is written from those titles. Skipped in the merge queue, whose pull requests had theirs checked before they queued. The release pull request has none: release-please writes its title | |
 
-Every job but `desktop` runs on Python 3.12, from the environment `uv.lock` pins with every extra; the tests
+Every job but `desktop` and `desktop-windows` runs on Python 3.12, from the environment `uv.lock` pins with every extra; the tests
 run on Linux and macOS. `tests/system` is never run here: it drives real agents for minutes a
 test and spends real tokens, and `hmz web`'s page in real browsers, so it is yours to run when
 your change needs it. [Where a test goes](/contributing/#where-a-test-goes) says when.
@@ -123,10 +125,10 @@ None of them reports to `ci-ok`.
 | Workflow | Runs on | Does |
 | --- | --- | --- |
 | `title.yml` | a pull request, its title edited, and the merge queue | `title`, above, which `main` needs besides `ci-ok` |
-| `cache.yml` | a push to `main` that changed what a cache is made from, once a week, and by hand | Saves the caches `ci.yml`'s jobs restore: Python's environment on Linux and macOS, pre-commit's hooks, and the macOS app's Rust and pnpm. Only `main`'s caches can be read by every pull request and the merge queue, so `ci.yml` itself writes none |
+| `cache.yml` | a push to `main` that changed what a cache is made from, once a week, and by hand | Saves the caches `ci.yml`'s jobs restore: Python's environment on Linux and macOS, pre-commit's hooks, and the desktop app's Rust and pnpm on macOS and Windows. Only `main`'s caches can be read by every pull request and the merge queue, so `ci.yml` itself writes none |
 | `build-docs.yml` | a pull request or a push to `main` that changed `docs/` | Builds the site, checks every `#fragment` resolves and every word is legible on a phone, and on `main` deploys it: [Working on these docs](/contributing/docs) |
 | `release.yml` | a maintainer, by hand on `main`, with a version | Checks it, cuts `release/X.Y` from `main` for a new line, and has release-please open the release pull request against it: [Releasing](/contributing/releasing) |
-| `publish.yml` | a push to a `release/*` branch | Once a release pull request merges, tags it, builds the wheel and sdist and the macOS app's disk image, publishes the package to PyPI, then publishes the GitHub release with all three: [Releasing](/contributing/releasing) |
+| `publish.yml` | a push to a `release/*` branch | Once a release pull request merges, tags it, builds the wheel and sdist, the macOS app's disk image and the Windows app's installer, publishes the package to PyPI, then publishes the GitHub release with the app's files: [Releasing](/contributing/releasing) |
 
 ## Next steps
 

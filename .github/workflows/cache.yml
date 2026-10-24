@@ -1,6 +1,6 @@
 # The caches ci.yml restores, saved on `main`, the one branch whose caches every pull request
 # and the merge queue can read: Python's environment on Linux and macOS, pre-commit's hooks, and
-# the macOS app's Rust and pnpm. A push to `main` saves those its change made stale; once a week
+# the desktop app's Rust and pnpm on macOS and Windows. A push to `main` saves those its change made stale; once a week
 # all of them, since a runner's new image or a week unread loses them with no change at all.
 # ci.yml itself never runs on `main`: the merge queue tested each commit before it landed.
 
@@ -133,3 +133,46 @@ jobs:
 
       - name: Build the app
         run: pnpm tauri build --debug --bundles app
+
+  # ci.yml's `desktop-windows` reads these, as `desktop` above does on macOS.
+  desktop-windows:
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.changes.outputs.desktop == 'true') }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: cargo clippy
+        working-directory: desktop/src-tauri
+        run: cargo clippy --locked --all-targets
+
+      - name: cargo test --no-run
+        working-directory: desktop/src-tauri
+        run: cargo test --locked --no-run
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the installer
+        run: pnpm tauri build --debug --bundles nsis
