@@ -3,7 +3,8 @@
 // dark. A theme is one Humanize comes with or one made in this browser, on Light or Dark, kept
 // with the colours it changes of it; its pictures, kept apart, follow in themes.js, which paints
 // with what is here. And whether the page is Humanize Desktop's window, which says so in its
-// user agent: there the page draws its top row around the window's traffic lights.
+// user agent, and on which system: there the page draws its top row around the window's own
+// buttons, the traffic lights on macOS or the caption buttons on Windows.
 (() => {
   const read = (name) => {
     try {
@@ -34,5 +35,6 @@
     return theme
   }
   window.hmzPaint()
-  if (/\bhumanize-desktop\//.test(navigator.userAgent)) document.documentElement.dataset.shell = 'macos'
+  const agent = navigator.userAgent
+  if (/\bhumanize-desktop\//.test(agent)) document.documentElement.dataset.shell = /\bWindows NT\b/.test(agent) ? 'windows' : 'macos'
 })()

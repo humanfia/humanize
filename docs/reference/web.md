@@ -174,7 +174,7 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/held` | | `machine` (this machine's name), `here` (where `hmz web` started), `version`, `newer` (a newer release of `hmz` PyPI lists, asked as `hmz web` starts and at most once a day, or `""`), `running` (`[run]`: the [`run` snapshot](/reference/daemon#snapshots) of each host whose epic is going, or what its `status` says of it, each with its `workspace` and `slot`) |
+| `GET /api/held` | | `machine` (this machine's name), `wsl` (the WSL distribution `hmz` runs in, from `WSL_DISTRO_NAME`, or `null` outside WSL), `here` (where `hmz web` started), `version`, `newer` (a newer release of `hmz` PyPI lists, asked as `hmz web` starts and at most once a day, or `""`), `running` (`[run]`: the [`run` snapshot](/reference/daemon#snapshots) of each host whose epic is going, or what its `status` says of it, each with its `workspace` and `slot`) |
 | `GET /api/held/stream` | `?workspace=&slot=`; `Last-Event-ID` header, or `?last=` | [The stream](#stream) of that host's runs, attaching to them; `409` for a chat's host that has gone, its chat folded away |
 | `POST /api/held/start` | `workspace`, `slot`; `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile_flow`, `profile_environment` (bool); `resume` (bool, or an epic); `backup` (target names, `[]` for none; `null`, the default, for the defaults) | The host's answer: `run`; and `slot`, the host it started on -- a `chat` started without `slot` is a new chat's, on a host of its own. A `chat` picked up (`resume` its epic) goes on in that epic |
 | `POST /api/held/say` | `text`; `to` (`""`, an agent, `<agent>/<n>`, or `outworlder:<role>`, routed as [`say` routes it](/reference/daemon#say-routing)) | The host's answer |
@@ -234,7 +234,7 @@ is. It is sent one of two ways, each from the page's own origin as every write i
 | `Content-Type` | Body | Also |
 | --- | --- | --- |
 | `application/vnd.hmz.epic+gzip` or `application/octet-stream` | The `.hmzepic`'s bytes, at most **2 GiB**, with its `Content-Length` | `X-Hmz-Filename`: the file's name, percent-encoded (`encodeURIComponent`) -- its last part is kept, and must end `.hmzepic` |
-| `application/json` | `{"path": "/whole/path/to/<name>.hmzepic"}`: a file already on this machine | |
+| `application/json` | `{"path": "/whole/path/to/<name>.hmzepic"}`: a file already on this machine | In WSL, a Windows path (`C:\…`, `\\wsl$\…`, `\\wsl.localhost\…`) is read as `wslpath -u` names it |
 
 A file sent is written into a directory of its own under this machine's own directory, and
 removed once it has been answered.

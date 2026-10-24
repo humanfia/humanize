@@ -2,7 +2,7 @@
 
 Humanize Desktop is [`hmz web`](/user/web) in a window of its own: the same page, every epic on
 this Mac, with no terminal to keep open and no browser tab to find. It starts `hmz web` when it
-opens and stops it when you quit.
+opens and stops it when you quit. On Windows, see [The Windows app](/user/desktop-windows).
 
 ::: info At a glance
 - **You will** have Humanize Desktop in your Dock and Applications, opening on every epic on this
@@ -194,4 +194,5 @@ rm -rf ~/Library/{Application\ Support,WebKit,Caches,Logs}/ai.humanfia.humanize
 
 - [In a browser (`hmz web`)](/user/web): the page itself, and what it refuses.
 - [Leaving it running](/user/leaving): what goes on after the window closes.
+- [The Windows app](/user/desktop-windows): the same app on Windows, with `hmz` in WSL.
 - [Installation](/user/installation): `hmz`, and the coding agent CLIs it drives.

@@ -65,7 +65,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **An epic** | Its graph: who handed to whom -- a `chat` is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
-| **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
+| **Search epics** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar is the [daemon bar](#daemon-bar): it names the daemon the page shows,
@@ -73,7 +73,8 @@ its host and whether it is reached, and says how many epics are going on it. Its
 **Daemon**, which opens a list of the daemons beside it to switch to, then **Settings** and
 **Usage**. Where a newer Humanize is out, the bar is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. The bell at the top of the sidebar
-opens your [notifications](#notifications). <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
+opens your [notifications](#notifications). <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away;
+off a Mac, as on Windows, they are <kbd>Ctrl+Shift+O</kbd> and <kbd>Ctrl+.</kbd>. On a phone
 the sidebar is a drawer behind the button in the corner.
 
 Every view is an address: copy it, keep it, or open it in another tab. The address names the
@@ -251,7 +252,8 @@ here at the same path, holding the commit its archive says; otherwise it says wh
 `Imported · not resumable here: …`, and offers no **Resume**. A `.hmzepic` already on this
 machine is imported by its address too, `#/epics/import?path=<file>`, once you press **Import**
 under its path, and opens on its [Exomyth](#exomyth) -- as the [macOS app](/user/desktop#opening-a-hmzepic)
-opens one you double-click. See [Exporting a run](/user/export#importing-a-run).
+opens one you double-click. Where `hmz` runs in WSL, a Windows path, `C:\…` or `\\wsl$\…`, is
+read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}
 
@@ -405,8 +407,9 @@ Start `hmz web` in a project, and open **New epic**:
 ## Daemons {#daemons}
 
 Each machine whose epics the page reaches is a **daemon**: the [daemon](/features/daemon) there
-holds its runs. **Local** is this machine, always there and never removed. Every other is an ssh
-host, reached the way `ssh` reaches it, with your keys and your ssh config.
+holds its runs. **Local** is this machine, always there and never removed -- where `hmz` runs in
+WSL, as with the Windows app, the WSL distribution, its host shown as `Debian (WSL)`. Every other
+is an ssh host, reached the way `ssh` reaches it, with your keys and your ssh config.
 
 The page shows one daemon at a time: the sidebar's folders and epics, a new epic, search,
 flows and the Daemon pages of Settings are all that daemon's. To see another's, switch to it.

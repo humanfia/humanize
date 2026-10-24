@@ -12,7 +12,8 @@ a few minutes, most of it the CLI's own sign-in.
   drive.
 - **Use it when** you are setting Humanize up on a machine for the first time, or adding a
   backend to one that has it.
-- **You need** **Python 3.12 or newer**, and `npm` for most of the coding agent CLIs.
+- **You need** **Python 3.12 or newer** on Linux or macOS -- on Windows, in
+  [WSL](/user/desktop-windows#before-you-start) -- and `npm` for most of the coding agent CLIs.
 :::
 
 ## Try it
@@ -67,11 +68,12 @@ Each one gives you the `hmz` command, from [PyPI](https://pypi.org/project/hmz/)
 `pipx` put it in an environment of its own, on your `PATH` from every directory. `pip` installs
 into whichever environment is active, so `hmz` is there only while that environment is.
 
-::: tip On a Mac, the app installs it for you
+::: tip On a Mac or on Windows, the app installs it for you
 [The macOS app](/user/desktop) opens `hmz web` in a window of its own, from the Dock, and
 installs `hmz` itself with `uv tool`, downloading uv where you have none: open it, and there is
 nothing to run here. It keeps `hmz` at its own version, so with the app, update the app rather
-than `hmz`.
+than `hmz`. [The Windows app](/user/desktop-windows) does the same inside WSL, where humanize
+runs on Windows.
 :::
 
 ### Or run it without installing {#uvx}
@@ -383,9 +385,9 @@ pip install --upgrade hmz
 Each moves Humanize to the newest release. `uv tool upgrade` keeps the extras it was installed
 with; `pipx` and `pip` install again, so name an extra again: `pip install --upgrade 'hmz[all]'`.
 
-With [the macOS app](/user/desktop), update the app instead: it puts the `uv tool` `hmz` back at
-its own version the next time it opens with no epics running, older or newer, keeping its
-extras.
+With [the macOS app](/user/desktop) or [the Windows app](/user/desktop-windows), update the app
+instead: it puts the `uv tool` `hmz` back at its own version the next time it opens with no
+epics running, older or newer, keeping its extras.
 
 What changed is in each release's notes, on
 [GitHub Releases](https://github.com/humanfia/humanize/releases).

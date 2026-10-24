@@ -5,9 +5,12 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::fs;
 use std::io::{BufRead, BufReader};
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{ChildStderr, ChildStdin, Command, ExitStatus, Stdio};
+#[cfg(unix)]
+use std::process::Command;
+use std::process::{ChildStderr, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
@@ -77,9 +80,9 @@ impl fmt::Debug for Address {
 /// `hmz web`, running.
 pub struct Server {
     pub address: Address,
+    /// Its stdin held open in it: `--attached` stops `hmz web` once it closes, so it goes however
+    /// the app ends.
     child: Child,
-    /// Held open: `--attached` stops `hmz web` once it closes, so it goes however the app ends.
-    _stdin: ChildStdin,
     stderr: Stderr,
     /// Whether `stop` was asked, so that the exit it brings is not taken for one of its own.
     stopping: AtomicBool,
@@ -100,7 +103,9 @@ impl Server {
     /// Interrupts `hmz web`, as Ctrl+C would, and kills it if it has not stopped in time.
     pub fn stop(&self) {
         self.stopping.store(true, Ordering::SeqCst);
-        log::info!("hmz web stopped: {}", how(child::ended(&self.child)));
+        // Out of the log's arguments, which are not run where it is off.
+        let status = child::ended(&self.child);
+        log::info!("hmz web stopped: {}", how(status));
     }
 }
 
@@ -142,9 +147,9 @@ impl Stderr {
 }
 
 /// The `hmz` found where nothing installs one: the one `HUMANIZE_HMZ` names, or the first on
-/// `PATH`.
+/// `PATH`. On Windows, a Linux path in WSL.
 pub fn find(env: &Env) -> Option<PathBuf> {
-    candidates(env).into_iter().find(|path| runnable(path))
+    first(candidates(env))
 }
 
 fn candidates(env: &Env) -> Vec<PathBuf> {
@@ -155,17 +160,75 @@ fn candidates(env: &Env) -> Vec<PathBuf> {
         return vec![named.into()];
     }
     env.get(OsStr::new("PATH"))
-        .map(|path| {
-            std::env::split_paths(path)
-                .filter(|dir| dir.is_absolute())
-                .map(|dir| dir.join("hmz"))
-                .collect()
-        })
+        .map(|path| on(path))
         .unwrap_or_default()
 }
 
+/// `hmz` in each absolute directory of `path`.
+#[cfg(unix)]
+fn on(path: &OsStr) -> Vec<PathBuf> {
+    std::env::split_paths(path)
+        .filter(|dir| dir.is_absolute())
+        .map(|dir| dir.join("hmz"))
+        .collect()
+}
+
+/// `hmz` in each absolute directory of WSL's `path`, whose Linux paths only `/` joins.
+#[cfg(windows)]
+fn on(path: &OsStr) -> Vec<PathBuf> {
+    path.to_string_lossy()
+        .split(':')
+        .filter(|dir| dir.starts_with('/'))
+        .map(|dir| format!("{}/hmz", dir.trim_end_matches('/')).into())
+        .collect()
+}
+
+#[cfg(unix)]
+fn first(paths: Vec<PathBuf>) -> Option<PathBuf> {
+    paths.into_iter().find(|path| runnable(path))
+}
+
+#[cfg(unix)]
 pub fn runnable(path: &Path) -> bool {
     fs::metadata(path).is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+}
+
+/// The first of `paths` WSL can run, asked of it once for them all.
+#[cfg(windows)]
+fn first(paths: Vec<PathBuf>) -> Option<PathBuf> {
+    let script = r#"for p; do [ -f "$p" ] && [ -x "$p" ] && { printf %s "$p"; exit; }; done"#;
+    let out = crate::wsl::command("/bin/sh", None)
+        .args(["-c", script, "sh"])
+        .args(&paths)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()
+        .filter(|out| out.status.success())?;
+    let found = String::from_utf8_lossy(&out.stdout).into_owned();
+    (!found.is_empty()).then(|| found.into())
+}
+
+#[cfg(windows)]
+pub fn runnable(path: &Path) -> bool {
+    first(vec![path.into()]).is_some()
+}
+
+/// The port to ask `hmz web` for: `port`, where 0 is any.
+#[cfg(unix)]
+fn free(port: u16) -> u16 {
+    port
+}
+
+/// On Windows the window reaches WSL's port through Windows' own, where a Windows program that
+/// holds it would be handed the key: a port taken there is not asked for, but one free there.
+#[cfg(windows)]
+fn free(port: u16) -> u16 {
+    use std::net::TcpListener;
+    TcpListener::bind(("127.0.0.1", port))
+        .or_else(|_| TcpListener::bind(("127.0.0.1", 0)))
+        .and_then(|listener| listener.local_addr())
+        .map_or(port, |address| address.port())
 }
 
 /// Starts `hmz web` on the port it had last, kept in `port_file` so that what its page keeps in
@@ -175,11 +238,12 @@ pub fn start(env: &Env, hmz: &Path, home: &Path, port_file: &Path) -> Result<Ser
         .ok()
         .and_then(|port| port.trim().parse().ok())
         .unwrap_or(0);
-    log::info!("starting {} web on port {last}", hmz.display());
-    let server = match spawn(hmz, env, home, last) {
-        Err(Early { code, stderr }) if retries(last, code, &stderr) => {
-            log::info!("port {last} is taken; asking for any");
-            spawn(hmz, env, home, 0)
+    let asked = free(last);
+    log::info!("starting {} web on port {asked}", hmz.display());
+    let server = match spawn(hmz, env, home, asked) {
+        Err(Early { code, stderr }) if retries(asked, code, &stderr) => {
+            log::info!("port {asked} is taken; asking for any");
+            spawn(hmz, env, home, free(0))
         }
         started => started,
     }
@@ -221,30 +285,44 @@ impl Early {
 
 fn spawn(hmz: &Path, env: &Env, home: &Path, port: u16) -> Result<Server, Early> {
     let early = |stderr: String| Early { code: None, stderr };
+    #[cfg(unix)]
     let mut command = Command::new(hmz);
+    #[cfg(unix)]
+    command.current_dir(home).env_clear().envs(env);
+    // In WSL, from its home, saying first its pid there: killing `wsl.exe` may not stop it.
+    #[cfg(windows)]
+    let mut command = crate::wsl::command("/bin/sh", Some(env));
+    #[cfg(windows)]
+    command.args(["-c", r#"echo $$; exec "$0" "$@""#]).arg(hmz);
+    #[cfg(windows)]
+    let _ = home;
     command
         .args(["web", "--no-open", "--attached", "--port"])
         .arg(port.to_string())
-        .current_dir(home)
-        .env_clear()
-        .envs(env)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     // Kept from the first: quitting while it starts stops it too.
     let child = child::spawn(&mut command)
         .map_err(|why| early(format!("{} could not be run: {why}", hmz.display())))?;
-    let (Some(stdin), Some(stdout), Some(stderr)) =
-        (child.take_stdin(), child.take_stdout(), child.take_stderr())
-    else {
+    let (Some(stdout), Some(stderr)) = (child.take_stdout(), child.take_stderr()) else {
         child::ended(&child);
         return Err(early("hmz web could not be read".into()));
     };
     let stderr = Stderr::read(stderr);
     let (heard, said_where) = mpsc::channel();
+    #[cfg(windows)]
+    let wsl = child.id();
     thread::spawn(move || {
         let mut lines = BufReader::new(stdout);
         let mut line = String::new();
+        #[cfg(windows)]
+        if lines.read_line(&mut line).is_ok() {
+            if let Ok(pid) = line.trim().parse() {
+                child::inside(wsl, pid);
+            }
+            line.clear();
+        }
         while lines.read_line(&mut line).is_ok_and(|n| n > 0) {
             if let Some(address) = Address::parse(&line) {
                 let _ = heard.send(address);
@@ -259,7 +337,6 @@ fn spawn(hmz: &Path, env: &Env, home: &Path, port: u16) -> Result<Server, Early>
         Ok(address) => Ok(Server {
             address,
             child,
-            _stdin: stdin,
             stderr,
             stopping: AtomicBool::new(false),
         }),
@@ -309,16 +386,21 @@ fn keep(kept: &mut String, line: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::sync::Once;
+    #[cfg(unix)]
     use std::time::Instant;
 
     const KEY: &str = "s3cret";
 
     /// Every line logged in this process, to tell that the key is in none of them.
+    #[cfg(unix)]
     static LOGGED: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+    #[cfg(unix)]
     struct Kept;
 
+    #[cfg(unix)]
     impl log::Log for Kept {
         fn enabled(&self, _: &log::Metadata) -> bool {
             true
@@ -329,6 +411,7 @@ mod tests {
         fn flush(&self) {}
     }
 
+    #[cfg(unix)]
     fn logging() {
         static ONCE: Once = Once::new();
         ONCE.call_once(|| {
@@ -338,11 +421,13 @@ mod tests {
     }
 
     /// A stand-in for `hmz`, doing what `$FAKE` says, in a home of its own.
+    #[cfg(unix)]
     struct Fake {
         home: tempfile::TempDir,
         env: Env,
     }
 
+    #[cfg(unix)]
     impl Fake {
         fn new(mode: &str) -> Self {
             let home = tempfile::tempdir().unwrap();
@@ -377,6 +462,7 @@ mod tests {
     }
 
     /// `hmz web --no-open --attached --port <port>`, as each `$FAKE` has it behave.
+    #[cfg(unix)]
     const FAKE: &str = r#"#!/bin/sh
 pwd > "$HOME/cwd"
 echo "$@" > "$HOME/args"
@@ -414,6 +500,7 @@ fi
 exec cat > /dev/null
 "#;
 
+    #[cfg(unix)]
     fn gone(server: &Server) -> bool {
         (unsafe { libc::kill(server.child.id() as libc::pid_t, 0) }) != 0
     }
@@ -454,6 +541,18 @@ exec cat > /dev/null
         assert!(candidates(&Env::new()).is_empty());
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn asks_for_a_port_no_windows_program_holds() {
+        let held = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = held.local_addr().unwrap().port();
+        assert_ne!(free(port), port);
+        assert_ne!(free(0), 0);
+        drop(held);
+        assert_eq!(free(port), port);
+    }
+
+    #[cfg(unix)]
     #[test]
     fn finds_the_first_runnable_hmz() {
         let dirs: Vec<_> = (0..3).map(|_| tempfile::tempdir().unwrap()).collect();
@@ -491,6 +590,7 @@ exec cat > /dev/null
         assert!(kept.ends_with("é\n"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn starts_in_home_remembers_its_port_and_stops() {
         let fake = Fake::new("ok");
@@ -517,6 +617,7 @@ exec cat > /dev/null
         assert!(!lock(&LOGGED).iter().any(|line| line.contains(KEY)));
     }
 
+    #[cfg(unix)]
     #[test]
     fn takes_any_port_where_its_own_is_taken() {
         let fake = Fake::new("taken");
@@ -528,6 +629,7 @@ exec cat > /dev/null
         server.stop();
     }
 
+    #[cfg(unix)]
     #[test]
     fn says_why_it_did_not_start() {
         let fake = Fake::new("ok");
@@ -554,6 +656,7 @@ exec cat > /dev/null
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn interrupts_it_where_the_app_was_started_ignoring_ctrl_c() {
         // As from a script's background job, which hands on SIGINT ignored.
@@ -565,6 +668,7 @@ exec cat > /dev/null
         assert_eq!(status.code(), Some(0), "{status}");
     }
 
+    #[cfg(unix)]
     #[test]
     fn tells_when_it_stops_on_its_own() {
         let server = Fake::new("crash").start().unwrap();
@@ -575,6 +679,7 @@ exec cat > /dev/null
         server.stop();
     }
 
+    #[cfg(unix)]
     #[test]
     fn quitting_while_it_starts_stops_it() {
         if child::tests::apart("server::tests::quitting_while_it_starts_stops_it") {

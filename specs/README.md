@@ -184,6 +184,12 @@ otherwise.
 **5.1.6** A **workspace** is a directory of a machine in which epics are run, identified by its
 absolute path with every symbolic link resolved.
 
+**5.1.7** A distribution of the Windows Subsystem for Linux (WSL) is a machine apart
+from the Windows that runs it.
+
+**5.1.8** For the desktop application on Windows, which runs hmz in WSL, this machine is
+the WSL distribution in which it runs hmz, and not the Windows that runs the application.
+
 ### 5.2 Flows and epics
 
 **5.2.1** A **flow** is a Python function, declared through the flow API (`api/flows.md`), that
@@ -247,7 +253,8 @@ are put.
 epics apart from every frontend.
 
 **5.4.2** A **frontend** is a way for a user to start, watch and steer epics: the command line,
-the terminal interface (TUI), the web interface, or the desktop application.
+the terminal interface (TUI), the web interface, or the desktop application for macOS or for
+Windows.
 
 **5.4.3** The **settings file** is the file `settings.yaml` in the home (`api/settings.md`).
 

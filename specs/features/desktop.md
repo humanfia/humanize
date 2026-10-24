@@ -2,11 +2,12 @@
 
 ## 1. Scope
 
-This document specifies the macOS app of hmz: how it is released and installed, how it installs and
-starts hmz, what its window shows while it starts and when something goes wrong, how its window
-behaves, how it opens exported epics and saves downloads, how it shows notifications, how it quits,
-and how it updates itself. The app is a window on the page `hmz web` serves, and draws nothing of
-hmz's own but its splash and its errors.
+This document specifies the app of hmz for macOS and for Windows: how it is released and
+installed, how it installs and starts hmz, what its window shows while it starts and when
+something goes wrong, how its window behaves, how it opens exported epics and saves downloads, how
+it shows notifications, how it quits, and how it updates itself. The app is a window on the page
+`hmz web` serves, and draws nothing of hmz's own but its splash and its errors. On Windows, hmz
+runs in WSL, while the window, its notifications and its files are of Windows.
 
 Out of scope:
 
@@ -18,8 +19,8 @@ Out of scope:
 
 ## 2. Definitions
 
-**2.1** The **app** is the macOS application named `Humanize Desktop`, with the bundle identifier
-`ai.humanfia.humanize`.
+**2.1** The **app** is the application named `Humanize Desktop`, for macOS and for Windows, with
+the identifier `ai.humanfia.humanize`.
 
 **2.2** The **app's version** is the release of hmz the app was built for.
 
@@ -31,6 +32,11 @@ and in its place when `hmz web` cannot be shown.
 **2.5** A **development build** is a build of the app whose version is `0.0.0`.
 
 **2.6** The **server** is the `hmz web` process the app started.
+
+**2.7** **WSL** is the default distribution of the Windows Subsystem for Linux of the Windows user
+the app runs as: the one `wsl.exe` runs where it is given none.
+
+**2.8** The **installer** is the program that installs the app on Windows.
 
 ## 3. Releases
 
@@ -60,6 +66,21 @@ repository.
 **3.9** The app's version MUST be the release's tag; a pre-release MUST still give macOS a bundle
 version of numbers alone.
 
+**3.10** Every release of hmz MUST also be published with the installer for Windows on x64, named
+`humanize-<version>-windows-x64-setup.exe`, attached to the GitHub release.
+
+**3.11** The installer MUST install the app for the Windows user who runs it alone, and MUST NOT ask
+for an administrator.
+
+**3.12** Where the repository holds the updater's key, every release MUST also publish the
+installer's signature with that key, `humanize-<version>-windows-x64-setup.exe.sig`, and its
+`latest.json` MUST offer the installer as the update of `windows-x86_64`. Where the key is not held,
+the release MUST be published without them.
+
+**3.13** The installer MUST be attested as built by the release workflow of the repository.
+
+**3.14** The app MUST run on Windows 10 or later, on x64, with WSL of version 2.
+
 ## 4. Installing hmz
 
 **4.1** A release of the app MUST run the app's hmz and no other hmz; the version `0.5.0-rc.1` of
@@ -79,9 +100,10 @@ the app's hmz, replacing the other and keeping the extras it was installed with.
 **4.6** The app MUST use the user's uv where one is found on `PATH`, in `~/.local/bin`,
 `~/.cargo/bin` or `/opt/homebrew/bin`.
 
-**4.7** Where the user has no uv, the app MUST download the uv release it pins for this Mac's
-architecture over HTTPS, through the proxy the login shell sets and trusting what macOS trusts, MUST
-refuse it unless its checksum is the one pinned, and MUST keep it in its own data directory alone.
+**4.7** On macOS, where the user has no uv, the app MUST download the uv release it pins for this
+Mac's architecture over HTTPS, through the proxy the login shell sets and trusting what macOS
+trusts, MUST refuse it unless its checksum is the one pinned, and MUST keep it in its own data
+directory alone.
 
 **4.8** The app MUST NOT change any shell profile.
 
@@ -109,6 +131,13 @@ MUST install nothing.
 **4.15** A development build MUST install nothing, and MUST run the first hmz it finds on `PATH`,
 then in `~/.local/bin`, `$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` and
 `/bin`.
+
+**4.16** On Windows, the app MUST run every hmz and uv of §4 in WSL, through `wsl.exe`, and MUST
+read every path §4 names, the one `HUMANIZE_HMZ` names included, as a path of WSL.
+
+**4.17** On Windows, where WSL has no uv, the app MUST download the uv release it pins for Linux on
+WSL's architecture over HTTPS, MUST refuse it unless its checksum is the one pinned, and MUST put
+it in WSL's `~/.local/bin`.
 
 ## 5. Starting `hmz web`
 
@@ -139,6 +168,11 @@ however the app ends.
 **5.9** The app MUST start every process with the signals interrupt, terminate and hangup at their
 defaults, whatever the app was started with.
 
+**5.10** On Windows, the app MUST ask WSL's login shell for its environment, MUST use the one WSL
+gives a process where that shell does not answer within the time of §5.2, and MUST start the
+server and every other process of §5 in WSL, through `wsl.exe`, from the user's home directory
+there, reading every path §5 names as a path of WSL.
+
 ## 6. The splash and errors
 
 **6.1** The splash MUST show the Humanize mark and `Starting` while the server starts.
@@ -159,6 +193,9 @@ standard error, and `Restart`.
 **6.7** The splash MUST NOT ask the user to run a command.
 
 **6.8** Every heading and button of the splash MUST be a word or a short phrase.
+
+**6.9** On Windows, where `wsl.exe` or WSL is missing, the splash MUST show `WSL missing` with
+`Retry`.
 
 ## 7. The window
 
@@ -183,21 +220,40 @@ that the page draws its top row around the window controls from its first frame.
 
 **7.8** The app MUST keep the window's size and position from one launch to the next.
 
-**7.9** The app MUST have the menus of a Mac app: the app menu, with `About Humanize Desktop` and `Check for
-Updates…`; `Edit`, with undo, redo, cut, copy, paste and select all; `View`, with `Reload`, `Actual
-Size`, `Zoom In`, `Zoom Out` and full screen; `Window`; and `Help`, with the documentation.
+**7.9** On macOS, the app MUST have the menus of a Mac app: the app menu, with `About Humanize
+Desktop` and `Check for Updates…`; `Edit`, with undo, redo, cut, copy, paste and select all;
+`View`, with `Reload`, `Actual Size`, `Zoom In`, `Zoom Out` and full screen; `Window`; and `Help`,
+with the documentation.
 
-**7.10** The menus MUST NOT take a shortcut the page binds: Cmd+K, Cmd+Shift+O and Cmd+. MUST reach
-the page.
+**7.10** On macOS, the menus MUST NOT take a shortcut the page binds: Cmd+K, Cmd+Shift+O and Cmd+.
+MUST reach the page.
 
 **7.11** The app MUST NOT give the page any power of the app's but showing a notification, moving
 and zooming the window, and learning whether the window is full screen.
 
 **7.12** Closing the window MUST hide it and leave the app and the server running; clicking the Dock
-icon, or opening the app again, MUST show it again.
+icon on macOS or the tray icon on Windows, or opening the app again, MUST show it again.
 
 **7.13** Opening the app while it runs MUST bring the running app's window forward, and MUST NOT
 start a second app.
+
+**7.14** On Windows, the window controls MUST be minimize, maximize and close, taking
+together 138 by 32 pixels at the window's top right, with the snap layouts of Windows on maximize.
+
+**7.15** On Windows, the user agent MUST be the one of WebView2 followed by
+` humanize-desktop/<version>`.
+
+**7.16** On Windows, the app MUST have no menu bar, and the window MUST keep the keys WebView2 gives
+it to reload and to zoom.
+
+**7.17** On Windows, Ctrl+K, Ctrl+Shift+O and Ctrl+. MUST reach the page.
+
+**7.18** On Windows, the app MAY give the page the power to minimize, maximize, restore and close
+the window, besides those of §7.11.
+
+**7.19** On Windows, while it runs, the app MUST show a tray icon in the notification area of the
+taskbar, whose menu MUST hold `Show Humanize Desktop`, `Check for Updates…`, `Documentation` and
+`Quit`.
 
 ## 8. Files
 
@@ -212,15 +268,19 @@ Exomyth.
 **8.4** Of several files opened or dropped at once, the app MUST import the last `.hmzepic`, and
 MUST ignore every file that is not a `.hmzepic`.
 
-**8.5** A download MUST be saved in `~/Downloads` under the name the page gave it, numbered where
-that name is taken, never over another file, and MUST be shown in the Finder once saved.
+**8.5** A download MUST be saved in the user's Downloads folder -- `~/Downloads` on macOS, the
+Downloads folder of Windows on Windows -- under the name the page gave it, numbered where that
+name is taken, never over another file, and MUST be shown in the Finder on macOS or in File
+Explorer on Windows once saved.
+
+**8.6** On Windows, the app MUST hand the page the Windows path of a `.hmzepic` file, unchanged.
 
 ## 9. Notifications
 
-**9.1** The app MUST show each notification the page hands it as a macOS notification, its title and
-body as text.
+**9.1** The app MUST show each notification the page hands it as a macOS notification on macOS and
+as a Windows toast notification on Windows, its title and body as text.
 
-**9.2** The app MUST ask macOS for leave to notify the first time it notifies.
+**9.2** On macOS, the app MUST ask macOS for leave to notify the first time it notifies.
 
 **9.3** A click on a notification MUST bring the window forward and open the address the
 notification carries, only where that address is of the server's own origin.
@@ -237,10 +297,14 @@ interrupt, so that no process of the app outlives it.
 
 **10.4** Quitting the app MUST NOT stop any epic.
 
+**10.5** On Windows, quitting MUST interrupt each process of §10.1 by closing its standard input.
+
+**10.6** On Windows, `Quit` in the menu of the tray icon MUST quit the app.
+
 ## 11. Updating itself
 
 **11.1** The app MUST look for a newer release 5 seconds after it starts, and every 6 hours after by
-the wall clock, whether or not the Mac slept between.
+the wall clock, whether or not the computer slept between.
 
 **11.2** The app MUST look only at the latest release's `latest.json`, over HTTPS, and MUST take
 only a version newer than its own, and a pre-release only where its own version is one.
@@ -270,3 +334,9 @@ the install until the app starts again.
 the app's log alone.
 
 **11.10** Once an updated app starts, it MUST install its own hmz as §4 specifies.
+
+**11.11** On Windows, the app MUST NOT download an update where it does not run from where the
+installer put it for the user alone.
+
+**11.12** On Windows, the app MUST install an update by running the installer it downloaded, asking
+the user nothing.

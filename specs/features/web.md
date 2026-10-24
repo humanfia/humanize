@@ -31,7 +31,7 @@ Out of scope:
 drawn in it.
 
 **2.2** **Local** is the daemon of this machine as the page names it. Local is always present on the
-page.
+page. Where hmz runs in WSL, Local's host is the WSL distribution, shown as `<distro> (WSL)`.
 
 **2.3** An **SSH daemon** is the daemon of another machine that the user has added to the page, and
 that the page reaches over ssh as `features/daemons.md` §8 specifies.
@@ -362,7 +362,8 @@ a new epic set up as that epic was started, in that epic's workspace.
 ### 6.8 Importing
 
 **6.8.1** The page MUST let the user import an exported epic by picking the file, by dropping it
-anywhere on the window, or by opening the import address that names its path on this machine.
+anywhere on the window, or by opening the import address that names its path on this machine;
+where hmz runs in WSL, that path MAY be a Windows path, read as WSL names it.
 
 **6.8.2** In a browser, the import address MUST import only once the user presses `Import`.
 

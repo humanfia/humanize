@@ -3,8 +3,12 @@
 //! `hmz` of another version holds running epics: an install takes its files from under them.
 
 use std::ffi::OsStr;
+#[cfg(unix)]
 use std::fs;
+#[cfg(windows)]
+use std::io::Write;
 use std::io::{BufRead, BufReader, Read};
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -19,8 +23,11 @@ use crate::server;
 use crate::shell_env::{self, Env};
 
 /// The uv the app downloads where the user has none, for each architecture, and its archive's
-/// sha256 as astral-sh/uv published it.
+/// sha256 as astral-sh/uv published it: a Mac's, and on Windows WSL's Linux.
 const UV: &str = "0.12.24";
+#[cfg(unix)]
+const UV_TARGET: &str = "apple-darwin";
+#[cfg(unix)]
 const UV_SHA256: [(&str, &str); 2] = [
     (
         "aarch64",
@@ -31,6 +38,50 @@ const UV_SHA256: [(&str, &str); 2] = [
         "4fa82e37cb94767661f532b001e470b67a186c7260e305bd84ddb78fd545c0b6",
     ),
 ];
+#[cfg(windows)]
+const UV_TARGET: &str = "unknown-linux-gnu";
+#[cfg(windows)]
+const UV_SHA256: [(&str, &str); 2] = [
+    (
+        "aarch64",
+        "5231be65f496304623895dacdbf1de8504fec90303684bdf05805aa34414dd21",
+    ),
+    (
+        "x86_64",
+        "b4dfaef47d491a7296981f8374a4595f55dbf84e8937c8ecd2983574d8bb3da6",
+    ),
+];
+
+/// Where in WSL's home the app puts the uv it downloads: where uv's own installer would, since
+/// the app's data directory on Windows is out of WSL's reach.
+#[cfg(windows)]
+const OWN_UV: &str = ".local/bin";
+
+/// Runs `$@`, uv, in WSL so that `wsl.exe` killed, as quitting does, stops it as on a Mac. The
+/// hangup goes to this shell alone, which interrupts uv as Ctrl+C would, and kills it where it
+/// has not stopped in time. uv runs as a job of its own, so that an interrupt is not ignored, and
+/// says what it says into a file, followed from there, which no hangup closes.
+#[cfg(windows)]
+const INTERRUPTIBLE: &str = r#"said=$(mktemp) || exit
+set -m
+"$@" 2>"$said" & uv=$!
+set +m
+tail -n +1 -f --pid="$uv" "$said" >&2 &
+exec 2>/dev/null
+trap 'kill -INT "$uv"; sleep 3; kill -KILL "$uv"' HUP
+while wait "$uv"; status=$?; kill -0 "$uv"; do :; done
+wait
+rm -f "$said"
+exit "$status""#;
+
+/// What an install that failed says first where there is no WSL to install in: the app's page
+/// shows it as such.
+#[cfg(windows)]
+const NO_WSL: &str = "WSL missing";
+
+/// How long WSL may take to start, its virtual machine with it.
+#[cfg(windows)]
+const WAKING: Duration = Duration::from_secs(60);
 
 /// The most a uv archive may weigh, and how long its download may take: to connect, and in all.
 const UV_LIMIT: u64 = 64 << 20;
@@ -122,6 +173,12 @@ pub fn choose(
     how: How,
     tell: &dyn Fn(Progress),
 ) -> Result<Chosen, Failed> {
+    #[cfg(windows)]
+    wsl().map_err(|why| Failed {
+        updating: false,
+        said: format!("{NO_WSL}: {why}"),
+        keep: false,
+    })?;
     let named = env
         .get(OsStr::new(server::OVERRIDE))
         .is_some_and(|named| !named.is_empty());
@@ -144,11 +201,11 @@ pub fn choose(
                 })
             };
             getting(&format!("uv {UV}"));
-            let uv = download(env, &data.join("uv"), &getting).map_err(failed)?;
+            let uv = download(env, &own(env, data), &getting).map_err(failed)?;
             answers(&uv, env).ok_or_else(|| failed(format!("{} did not answer", uv.display())))?
         }
     };
-    let hmz = bin.join("hmz");
+    let hmz = joined(&bin, "hmz");
     if how == How::Keep {
         return Ok(Chosen::Ready(hmz));
     }
@@ -233,21 +290,123 @@ pub fn said_version(out: &str) -> Option<String> {
 /// app's own.
 pub fn uvs(env: &Env, data: &Path) -> Vec<PathBuf> {
     let home = shell_env::home(env);
-    let path = env.get(OsStr::new("PATH")).map(std::env::split_paths);
-    let dirs = path.into_iter().flatten().filter(|dir| dir.is_absolute());
+    let path = env.get(OsStr::new("PATH")).map(|path| split(path));
+    let dirs = path.into_iter().flatten().filter(|dir| dir.has_root());
     let mut uvs: Vec<PathBuf> = Vec::new();
     for dir in dirs.chain([
-        home.join(".local/bin"),
-        home.join(".cargo/bin"),
+        joined(&home, ".local/bin"),
+        joined(&home, ".cargo/bin"),
         "/opt/homebrew/bin".into(),
-        data.join("uv"),
+        own(env, data),
     ]) {
-        let uv = dir.join("uv");
+        let uv = joined(&dir, "uv");
         if !uvs.contains(&uv) {
             uvs.push(uv);
         }
     }
     uvs
+}
+
+/// The directories in a `PATH`: on Windows WSL's, split as Linux splits it.
+#[cfg(unix)]
+fn split(path: &OsStr) -> Vec<PathBuf> {
+    std::env::split_paths(path).collect()
+}
+
+#[cfg(windows)]
+fn split(path: &OsStr) -> Vec<PathBuf> {
+    path.to_string_lossy()
+        .split(':')
+        .map(PathBuf::from)
+        .collect()
+}
+
+/// `name` in `dir`: on Windows a path in WSL, joined as Linux joins it.
+#[cfg(unix)]
+fn joined(dir: &Path, name: &str) -> PathBuf {
+    dir.join(name)
+}
+
+#[cfg(windows)]
+fn joined(dir: &Path, name: &str) -> PathBuf {
+    format!("{}/{name}", dir.to_string_lossy().trim_end_matches('/')).into()
+}
+
+/// Where the app keeps the uv it downloads.
+#[cfg(unix)]
+fn own(_env: &Env, data: &Path) -> PathBuf {
+    data.join("uv")
+}
+
+#[cfg(windows)]
+fn own(env: &Env, _data: &Path) -> PathBuf {
+    joined(&shell_env::home(env), OWN_UV)
+}
+
+/// A program run as the app runs it, in the login shell's environment alone: on Windows, in WSL.
+#[cfg(unix)]
+fn command(program: &Path, env: &Env) -> Command {
+    let mut command = Command::new(program);
+    command.env_clear().envs(env);
+    command
+}
+
+#[cfg(windows)]
+fn command(program: &Path, env: &Env) -> Command {
+    crate::wsl::command(program, Some(env))
+}
+
+/// uv, as it is run to install.
+#[cfg(unix)]
+fn installing(uv: &Path, env: &Env) -> Command {
+    command(uv, env)
+}
+
+#[cfg(windows)]
+fn installing(uv: &Path, env: &Env) -> Command {
+    let mut command = crate::wsl::command("/bin/sh", Some(env));
+    command.args(["-c", INTERRUPTIBLE, "sh"]).arg(uv);
+    command
+}
+
+/// Whether there is a WSL to install in: `wsl.exe`, and a distribution it starts.
+#[cfg(windows)]
+fn wsl() -> Result<(), String> {
+    let mut command = crate::wsl::command("true", None);
+    // What `wsl.exe` says of itself in UTF-8, not UTF-16.
+    command
+        .env("WSL_UTF8", "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child =
+        child::spawn(&mut command).map_err(|why| format!("wsl.exe could not be run: {why}"))?;
+    let reading = |out: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut said = String::new();
+            if let Some(mut out) = out {
+                let _ = out.read_to_string(&mut said);
+            }
+            said
+        })
+    };
+    let out = reading(child.take_stdout().map(|out| Box::new(out) as _));
+    let err = reading(child.take_stderr().map(|err| Box::new(err) as _));
+    let status = child.wait_timeout(WAKING);
+    if !matches!(status, Ok(Some(_))) {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    let said = [out, err]
+        .map(|said| said.join().unwrap_or_default())
+        .concat();
+    match status {
+        Ok(Some(status)) if status.success() => Ok(()),
+        _ if !said.trim().is_empty() => Err(said.trim().to_owned()),
+        Ok(Some(status)) => Err(format!("wsl.exe exited: {status}")),
+        Ok(None) => Err(format!("WSL did not start in {} s", WAKING.as_secs())),
+        Err(why) => Err(format!("wsl.exe could not be waited for: {why}")),
+    }
 }
 
 /// A uv, and where it puts tools' programs, where it is there and says so: one too old to know
@@ -258,7 +417,7 @@ fn answers(uv: &Path, env: &Env) -> Option<(PathBuf, PathBuf)> {
     }
     let bin = asked(uv, ["tool", "dir", "--bin"], env)?;
     let bin = PathBuf::from(bin.trim());
-    bin.is_absolute().then(|| (uv.to_owned(), bin))
+    bin.has_root().then(|| (uv.to_owned(), bin))
 }
 
 /// What `hmz --version` says it is.
@@ -274,11 +433,9 @@ fn attached(hmz: &Path, env: &Env) -> bool {
 
 /// What a program prints, where it exits well in time.
 fn asked<const N: usize>(program: &Path, args: [&str; N], env: &Env) -> Option<String> {
-    let mut command = Command::new(program);
+    let mut command = command(program, env);
     command
         .args(args)
-        .env_clear()
-        .envs(env)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
@@ -305,6 +462,7 @@ fn asked<const N: usize>(program: &Path, args: [&str; N], env: &Env) -> Option<S
 /// Whether this machine's daemon is running: it holds a workspace's epics, or is about to let go.
 /// What a daemon writes beside its socket -- `daemon.json` in `humanize-<uid>` in the temporary
 /// directory -- names its process.
+#[cfg(unix)]
 pub fn busy(env: &Env) -> bool {
     let tmp = env
         .get(OsStr::new("TMPDIR"))
@@ -323,10 +481,26 @@ pub fn busy(env: &Env) -> bool {
     pid.is_some_and(alive)
 }
 
+#[cfg(unix)]
 fn alive(pid: libc::pid_t) -> bool {
     // SAFETY: signal 0 checks the process is there, and sends nothing.
     (unsafe { libc::kill(pid, 0) }) == 0
         || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+
+/// On Windows, WSL's daemon: its record read, and its process looked for, in WSL.
+#[cfg(windows)]
+pub fn busy(env: &Env) -> bool {
+    let sh = Path::new("/bin/sh");
+    let record = r#"cat "${TMPDIR:-/tmp}/humanize-$(id -u)/daemon.json""#;
+    let pid = asked(sh, ["-c", record], env)
+        .and_then(|said| serde_json::from_str::<serde_json::Value>(&said).ok())
+        .and_then(|said| said.get("pid")?.as_i64())
+        .and_then(|pid| i32::try_from(pid).ok())
+        .filter(|&pid| pid > 0);
+    pid.is_some_and(|pid| {
+        asked(sh, ["-c", r#"kill -0 "$1""#, "sh", &pid.to_string()], env).is_some()
+    })
 }
 
 /// `uv tool install --force hmz==<pinned>`, keeping the extras it was installed with, telling
@@ -339,13 +513,13 @@ fn install(
     tell: &dyn Fn(Step, &str),
 ) -> Result<(), String> {
     tell(Step::Hmz, "");
-    let extras = extras(hmz);
+    let extras = extras(hmz, env);
     let wanted = if extras.is_empty() {
         format!("hmz=={pinned}")
     } else {
         format!("hmz[{}]=={pinned}", extras.join(","))
     };
-    let mut command = Command::new(uv);
+    let mut command = installing(uv, env);
     command
         .args(["tool", "install", "--force"])
         // A Python hmz runs on, downloaded where there is none: uv would take the first found,
@@ -354,12 +528,12 @@ fn install(
         // Asked of the index again: a release this new may be missing from what uv has cached.
         .args(["--refresh-package", "hmz"])
         .arg(&wanted)
-        .current_dir(shell_env::home(env))
-        .env_clear()
-        .envs(env)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+    // In WSL, `wsl.exe` starts it in its home already.
+    #[cfg(unix)]
+    command.current_dir(shell_env::home(env));
     // Interrupted as the app quits, which uv takes as Ctrl+C: what it installs is put in place
     // whole or not at all.
     let child = child::spawn(&mut command)
@@ -409,13 +583,22 @@ fn step(line: &str) -> Step {
 /// The extras an `hmz` was installed with, as uv wrote them in the receipt beside its
 /// environment: `requirements = [{ name = "hmz", extras = ["all"], ... }]`, on one line or one
 /// requirement a line.
-fn extras(hmz: &Path) -> Vec<String> {
+#[cfg(unix)]
+fn extras(hmz: &Path, _env: &Env) -> Vec<String> {
     let receipt = fs::canonicalize(hmz)
         .ok()
         .and_then(|real| Some(real.parent()?.parent()?.join("uv-receipt.toml")))
         .and_then(|receipt| fs::read_to_string(receipt).ok())
         .unwrap_or_default();
     receipt_extras(&receipt)
+}
+
+#[cfg(windows)]
+fn extras(hmz: &Path, env: &Env) -> Vec<String> {
+    let receipt = r#"cat "$(dirname "$(dirname "$(readlink -f "$1")")")/uv-receipt.toml""#;
+    let hmz = hmz.to_string_lossy();
+    let receipt = asked(Path::new("/bin/sh"), ["-c", receipt, "sh", &hmz], env);
+    receipt_extras(&receipt.unwrap_or_default())
 }
 
 fn receipt_extras(receipt: &str) -> Vec<String> {
@@ -441,17 +624,21 @@ fn receipt_extras(receipt: &str) -> Vec<String> {
         .collect()
 }
 
-/// The uv of `UV` for this Mac's architecture, from its GitHub release into `dir`, checked
-/// against the sum pinned here.
+/// The uv of `UV` for this Mac's architecture -- on Windows, WSL's -- from its GitHub release
+/// into `dir`, checked against the sum pinned here.
 fn download(env: &Env, dir: &Path, tell: &dyn Fn(&str)) -> Result<PathBuf, String> {
+    #[cfg(unix)]
     let arch = std::env::consts::ARCH;
+    #[cfg(windows)]
+    let arch = asked(Path::new("uname"), ["-m"], env).unwrap_or_default();
+    let arch = arch.trim();
     let sum = UV_SHA256
         .iter()
         .find(|(of, _)| *of == arch)
         .map(|(_, sum)| *sum)
         .ok_or_else(|| format!("no uv for {arch}"))?;
     let url = format!(
-        "https://github.com/astral-sh/uv/releases/download/{UV}/uv-{arch}-apple-darwin.tar.gz"
+        "https://github.com/astral-sh/uv/releases/download/{UV}/uv-{arch}-{UV_TARGET}.tar.gz"
     );
     log::info!("downloading {url}");
     // Through the proxy the login shell names, as uv and everything run from a terminal would.
@@ -471,7 +658,7 @@ fn download(env: &Env, dir: &Path, tell: &dyn Fn(&str)) -> Result<PathBuf, Strin
         .timeout_connect(Some(UV_CONNECT))
         .timeout_global(Some(UV_TIMEOUT))
         .proxy(proxy)
-        // What macOS trusts, a company's own authority in the keychain included.
+        // What the system trusts, a company's own authority in the keychain or store included.
         .tls_config(
             ureq::tls::TlsConfig::builder()
                 .root_certs(ureq::tls::RootCerts::PlatformVerifier)
@@ -511,9 +698,8 @@ fn download(env: &Env, dir: &Path, tell: &dyn Fn(&str)) -> Result<PathBuf, Strin
     unpack(&archive, sum, dir)
 }
 
-/// The `uv` in a release archive, once its sha256 is the one expected, written into `dir`
-/// whole and then moved into place.
-pub fn unpack(archive: &[u8], sha256: &str, dir: &Path) -> Result<PathBuf, String> {
+/// The `uv` in a release archive, once its sha256 is the one expected.
+pub fn unpacked(archive: &[u8], sha256: &str) -> Result<Vec<u8>, String> {
     let sum = format!("{:x}", Sha256::digest(archive));
     if sum != sha256 {
         return Err(format!(
@@ -521,31 +707,82 @@ pub fn unpack(archive: &[u8], sha256: &str, dir: &Path) -> Result<PathBuf, Strin
         ));
     }
     let broken = |why: std::io::Error| format!("uv could not be unpacked: {why}");
-    fs::create_dir_all(dir).map_err(broken)?;
-    let uv = dir.join("uv");
-    let beside = dir.join(format!(".uv.{}.new", std::process::id()));
     let mut entries = tar::Archive::new(GzDecoder::new(archive));
     for entry in entries.entries().map_err(broken)? {
         let mut entry = entry.map_err(broken)?;
         if entry.path().map_err(broken)?.file_name() != Some(OsStr::new("uv")) {
             continue;
         }
-        let written = std::io::copy(&mut entry, &mut fs::File::create(&beside).map_err(broken)?)
-            .and_then(|_| fs::set_permissions(&beside, fs::Permissions::from_mode(0o755)))
-            .and_then(|()| fs::rename(&beside, &uv));
-        if let Err(why) = written {
-            let _ = fs::remove_file(&beside);
-            return Err(broken(why));
-        }
+        let mut uv = Vec::new();
+        entry.read_to_end(&mut uv).map_err(broken)?;
         return Ok(uv);
     }
     Err("the uv archive holds no uv".into())
 }
 
+/// The `uv` in a release archive, once its sha256 is the one expected, written into `dir`
+/// whole and then moved into place.
+#[cfg(unix)]
+pub fn unpack(archive: &[u8], sha256: &str, dir: &Path) -> Result<PathBuf, String> {
+    let unpacked = unpacked(archive, sha256)?;
+    let broken = |why: std::io::Error| format!("uv could not be unpacked: {why}");
+    fs::create_dir_all(dir).map_err(broken)?;
+    let uv = dir.join("uv");
+    let beside = dir.join(format!(".uv.{}.new", std::process::id()));
+    let written = fs::write(&beside, unpacked)
+        .and_then(|()| fs::set_permissions(&beside, fs::Permissions::from_mode(0o755)))
+        .and_then(|()| fs::rename(&beside, &uv));
+    if let Err(why) = written {
+        let _ = fs::remove_file(&beside);
+        return Err(broken(why));
+    }
+    Ok(uv)
+}
+
+/// Writes what it reads to `uv` in `$1` in WSL: beside it first, and moved into place once its
+/// sha256 is `$2`, so it is never there half written -- `wsl.exe` killed ends what it reads.
+#[cfg(windows)]
+const WRITE: &str = r#"mkdir -p "$1" && new="$1/.uv.$$.new" || exit
+trap 'rm -f "$new"; exit 1' HUP INT TERM
+cat > "$new" && echo "$2  $new" | sha256sum -c --status && chmod 755 "$new" &&
+mv -f "$new" "$1/uv" || { rm -f "$new"; exit 1; }"#;
+
+/// On Windows, into `dir` in WSL.
+#[cfg(windows)]
+pub fn unpack(archive: &[u8], sha256: &str, dir: &Path) -> Result<PathBuf, String> {
+    let unpacked = unpacked(archive, sha256)?;
+    let mut command = crate::wsl::command("/bin/sh", None);
+    command
+        .args(["-c", WRITE, "sh"])
+        .arg(dir)
+        .arg(format!("{:x}", Sha256::digest(&unpacked)))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let broken = |why: &dyn std::fmt::Display| format!("uv could not be written into WSL: {why}");
+    let child = child::spawn(&mut command).map_err(|why| broken(&why))?;
+    if let Some(mut stdin) = child.take_stdin() {
+        // Where it fails, `sh` says why.
+        let _ = stdin.write_all(&unpacked);
+    }
+    let mut said = String::new();
+    if let Some(mut stderr) = child.take_stderr() {
+        let _ = stderr.read_to_string(&mut said);
+    }
+    match child.wait() {
+        Ok(status) if status.success() => Ok(joined(dir, "uv")),
+        _ if !said.trim().is_empty() => Err(broken(&said.trim())),
+        Ok(status) => Err(broken(&status)),
+        Err(why) => Err(broken(&why)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::lock;
+    #[cfg(unix)]
     use std::sync::Mutex as Lock;
 
     #[test]
@@ -589,6 +826,7 @@ mod tests {
         assert_eq!(plan(Some("0.5.0"), "0.5.0", true), Plan::Use);
     }
 
+    #[cfg(unix)]
     #[test]
     fn looks_for_uv_along_path_then_where_installers_put_it() {
         let env = Env::from([
@@ -604,6 +842,26 @@ mod tests {
             "/Users/u/.local/bin/uv",
             "/Users/u/.cargo/bin/uv",
             "/data/uv/uv",
+        ]
+        .map(PathBuf::from)
+        .into();
+        assert_eq!(found, expected);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn looks_for_uv_along_wsls_path_then_where_installers_put_it() {
+        let env = Env::from([
+            ("PATH".into(), "/a:relative:/b/:/opt/homebrew/bin".into()),
+            ("HOME".into(), "/home/u".into()),
+        ]);
+        let found: Vec<PathBuf> = uvs(&env, Path::new(r"C:\data"));
+        let expected: Vec<PathBuf> = [
+            "/a/uv",
+            "/b/uv",
+            "/opt/homebrew/bin/uv",
+            "/home/u/.local/bin/uv",
+            "/home/u/.cargo/bin/uv",
         ]
         .map(PathBuf::from)
         .into();
@@ -651,6 +909,20 @@ requirements = [
     }
 
     #[test]
+    fn takes_uv_from_an_archive_only_where_its_sum_is_the_pinned_one() {
+        let good = archive("uv-x86_64-unknown-linux-gnu/uv", b"#!/bin/sh\n");
+        let sum = format!("{:x}", Sha256::digest(&good));
+        assert_eq!(unpacked(&good, &sum).unwrap(), b"#!/bin/sh\n");
+        let tampered = archive("uv-x86_64-unknown-linux-gnu/uv", b"#!/bin/sh\nevil\n");
+        let refused = unpacked(&tampered, &sum).unwrap_err();
+        assert!(refused.contains("sha256"), "{refused}");
+        let empty = archive("uv-x86_64-unknown-linux-gnu/uvx", b"");
+        let sum = format!("{:x}", Sha256::digest(&empty));
+        assert!(unpacked(&empty, &sum).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn unpacks_uv_only_where_its_sum_is_the_pinned_one() {
         let dir = tempfile::tempdir().unwrap();
         let good = archive("uv-aarch64-apple-darwin/uv", b"#!/bin/sh\n");
@@ -673,7 +945,8 @@ requirements = [
     }
 
     #[test]
-    fn pins_a_sum_for_each_mac() {
+    fn pins_a_sum_for_each_architecture() {
+        assert_eq!(UV_SHA256.map(|(arch, _)| arch), ["aarch64", "x86_64"]);
         for (arch, sum) in UV_SHA256 {
             assert!(["aarch64", "x86_64"].contains(&arch));
             assert_eq!(sum.len(), 64);
@@ -681,6 +954,24 @@ requirements = [
         }
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn joins_wsls_paths_as_linux_does() {
+        assert_eq!(
+            joined(Path::new("/home/u"), "uv"),
+            PathBuf::from("/home/u/uv")
+        );
+        assert_eq!(
+            joined(Path::new("/home/u/"), "uv"),
+            PathBuf::from("/home/u/uv")
+        );
+        assert_eq!(
+            split(OsStr::new("/usr/bin:/bin")),
+            [PathBuf::from("/usr/bin"), PathBuf::from("/bin")]
+        );
+    }
+
+    #[cfg(unix)]
     #[test]
     fn tells_a_daemon_running_from_none() {
         let tmp = tempfile::tempdir().unwrap();
@@ -704,6 +995,7 @@ requirements = [
     /// A stand-in for uv: `tool dir --bin` names `$FAKE_BIN`, and `tool install` writes down
     /// what it was asked and puts there an `hmz` saying the version asked for -- or fails, as
     /// `$FAKE` says.
+    #[cfg(unix)]
     const FAKE_UV: &str = r#"#!/bin/sh
 case "$1 $2" in
   "tool dir") echo "$FAKE_BIN" ;;
@@ -730,11 +1022,13 @@ case "$1 $2" in
 esac
 "#;
 
+    #[cfg(unix)]
     struct Fake {
         dir: tempfile::TempDir,
         env: Env,
     }
 
+    #[cfg(unix)]
     impl Fake {
         fn new(mode: &str) -> Self {
             let dir = tempfile::tempdir().unwrap();
@@ -782,6 +1076,7 @@ esac
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn installs_the_apps_own_version_with_uv() {
         let fake = Fake::new("ok");
@@ -804,6 +1099,7 @@ esac
         assert_eq!(fake.argv().lines().count(), 1);
     }
 
+    #[cfg(unix)]
     #[test]
     fn replaces_another_version_unless_its_epics_run() {
         let fake = Fake::new("ok");
@@ -827,6 +1123,7 @@ esac
         assert_eq!(version_of(&fake.hmz(), &fake.env).as_deref(), Some("0.5.0"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn says_why_it_did_not_install_and_whether_to_keep_the_old() {
         let fake = Fake::new("offline");
@@ -859,6 +1156,7 @@ esac
         assert!(failed.said.contains("9.9.9"), "{}", failed.said);
     }
 
+    #[cfg(unix)]
     #[test]
     fn quitting_while_it_installs_stops_uv_and_starts_nothing_after() {
         if child::tests::apart(
@@ -880,6 +1178,7 @@ esac
         assert!(!fake.hmz().exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn installs_nothing_for_a_development_build_or_a_named_hmz() {
         let fake = Fake::new("ok");

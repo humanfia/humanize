@@ -1,12 +1,14 @@
 //! The environment `hmz web` is started in: the one a login shell gives this account. An app
 //! opened from the Finder is handed launchd's bare `PATH`, which misses the directories a
 //! shell profile adds -- where `hmz` is, and node, nvm or volta, and the coding agents the
-//! daemon `hmz web` forks goes on to run.
+//! daemon `hmz web` forks goes on to run. On Windows, where hmz lives in WSL, it is the one a
+//! login shell gives this account there.
 
 use std::collections::HashMap;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
+#[cfg(unix)]
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -29,11 +31,12 @@ const MARK: &str = "__HMZ_ENV__";
 const OWN: [&str; 4] = ["PWD", "OLDPWD", "SHLVL", "_"];
 
 /// The login shell's environment, or this process's where it does not answer in time, with
-/// the directories `hmz` is installed to put after `PATH`.
+/// the directories `hmz` is installed to put after `PATH`. On Windows, WSL's own stands in for
+/// this process's.
 pub fn login() -> Env {
     let mut env = captured().unwrap_or_else(|| {
         log::warn!("the login shell did not say its environment; using the app's own");
-        env::vars_os().collect()
+        own()
     });
     for own in OWN {
         env.remove(OsStr::new(own));
@@ -46,25 +49,62 @@ pub fn login() -> Env {
             .map(OsString::as_os_str),
     );
     env.insert("PATH".into(), path);
+    // WSL is not handed this process's environment, so the hmz named in Windows is carried in.
+    #[cfg(windows)]
+    if let Some(named) = env::var_os(crate::server::OVERRIDE) {
+        env.insert(crate::server::OVERRIDE.into(), named);
+    }
     env
 }
 
-/// This account's home directory.
+/// This account's home directory; on Windows, its home in WSL.
 pub fn home(env: &Env) -> PathBuf {
-    env.get(OsStr::new("HOME"))
-        .map(PathBuf::from)
-        .or_else(env::home_dir)
-        .unwrap_or_else(|| "/".into())
+    let home = env.get(OsStr::new("HOME")).map(PathBuf::from);
+    #[cfg(unix)]
+    let home = home.or_else(env::home_dir);
+    home.unwrap_or_else(|| "/".into())
+}
+
+/// What a shell runs to answer its environment between two marks.
+fn script() -> String {
+    format!("printf %s {MARK}; command env -0; printf %s {MARK}")
 }
 
 /// `$SHELL -ilc`, answering its environment between two marks.
+#[cfg(unix)]
 fn captured() -> Option<Env> {
     let shell = env::var_os("SHELL")
         .filter(|shell| !shell.is_empty())
         .unwrap_or_else(|| "/bin/zsh".into());
-    let script = format!("printf %s {MARK}; command env -0; printf %s {MARK}");
-    let mut child = Command::new(shell)
-        .args([OsStr::new("-ilc"), OsStr::new(&script)])
+    let mut command = Command::new(shell);
+    command.args([OsStr::new("-ilc"), OsStr::new(&script())]);
+    answered(command)
+}
+
+#[cfg(unix)]
+fn own() -> Env {
+    env::vars_os().collect()
+}
+
+/// `$SHELL -ilc` in WSL, where `wsl.exe` sets `SHELL` to the account's.
+#[cfg(windows)]
+fn captured() -> Option<Env> {
+    let mut command = crate::wsl::command("/bin/sh", None);
+    command.args(["-c", r#"exec "${SHELL:-/bin/sh}" -ilc "$0""#, &script()]);
+    answered(command)
+}
+
+/// WSL's own environment, which no profile adds to; none where WSL does not answer either.
+#[cfg(windows)]
+fn own() -> Env {
+    let mut command = crate::wsl::command("/bin/sh", None);
+    command.args(["-c", &script()]);
+    answered(command).unwrap_or_default()
+}
+
+/// The environment `command` answers between two marks, where it does so in time.
+fn answered(mut command: Command) -> Option<Env> {
+    let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -107,16 +147,25 @@ fn parse(out: &[u8]) -> Env {
     out.split(|&b| b == 0)
         .filter_map(|entry| {
             let eq = entry.iter().position(|&b| b == b'=').filter(|&eq| eq > 0)?;
-            Some((
-                OsString::from_vec(entry[..eq].to_vec()),
-                OsString::from_vec(entry[eq + 1..].to_vec()),
-            ))
+            Some((os(&entry[..eq]), os(&entry[eq + 1..])))
         })
         .collect()
 }
 
+#[cfg(unix)]
+fn os(bytes: &[u8]) -> OsString {
+    OsString::from_vec(bytes.to_vec())
+}
+
+/// WSL's bytes, which Windows holds only as text.
+#[cfg(windows)]
+fn os(bytes: &[u8]) -> OsString {
+    String::from_utf8_lossy(bytes).into_owned().into()
+}
+
 /// `PATH`, then where `uv tool install` and Homebrew put programs, for whichever of them it
 /// does not already name.
+#[cfg(unix)]
 fn with_fallbacks(path: Option<&OsStr>, home: &Path, uv_tool_bin_dir: Option<&OsStr>) -> OsString {
     let mut dirs: Vec<PathBuf> = path
         .map(|p| env::split_paths(p).collect())
@@ -138,9 +187,40 @@ fn with_fallbacks(path: Option<&OsStr>, home: &Path, uv_tool_bin_dir: Option<&Os
     env::join_paths(dirs).unwrap_or_else(|_| path.unwrap_or_default().to_owned())
 }
 
+/// WSL's `PATH`, then where `uv tool install` and Debian put programs, for whichever of them it
+/// does not already name: Linux paths, joined as Linux joins them.
+#[cfg(windows)]
+fn with_fallbacks(path: Option<&OsStr>, home: &Path, uv_tool_bin_dir: Option<&OsStr>) -> OsString {
+    let path = path.map(OsStr::to_string_lossy).unwrap_or_default();
+    let mut dirs: Vec<String> = path
+        .split(':')
+        .filter(|dir| !dir.is_empty())
+        .map(Into::into)
+        .collect();
+    let fallbacks = [
+        Some(format!(
+            "{}/.local/bin",
+            home.to_string_lossy().trim_end_matches('/')
+        )),
+        uv_tool_bin_dir
+            .filter(|d| !d.is_empty())
+            .map(|d| d.to_string_lossy().into_owned()),
+        Some("/usr/local/bin".into()),
+        Some("/usr/bin".into()),
+        Some("/bin".into()),
+    ];
+    for dir in fallbacks.into_iter().flatten() {
+        if !dirs.contains(&dir) {
+            dirs.push(dir);
+        }
+    }
+    dirs.join(":").into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::ffi::OsStrExt;
 
     #[test]
@@ -160,6 +240,7 @@ mod tests {
         assert_eq!(between(format!("{MARK}PATH=/bin").as_bytes()), None);
     }
 
+    #[cfg(unix)]
     #[test]
     fn falls_back_after_path_without_repeating_it() {
         let path = with_fallbacks(
@@ -178,6 +259,31 @@ mod tests {
         );
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn falls_back_after_wsls_path_without_repeating_it() {
+        let path = with_fallbacks(
+            Some(OsStr::new("/custom:/mnt/c/Program Files/x::/usr/bin")),
+            Path::new("/home/a"),
+            Some(OsStr::new("/uv/bin")),
+        );
+        assert_eq!(
+            path,
+            "/custom:/mnt/c/Program Files/x:/usr/bin:/home/a/.local/bin:/uv/bin:/usr/local/bin:/bin"
+        );
+        let bare = with_fallbacks(None, Path::new("/"), None);
+        assert_eq!(bare, "/.local/bin:/usr/local/bin:/usr/bin:/bin");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn takes_wsls_home_as_it_is() {
+        let env = Env::from([("HOME".into(), "/home/a".into())]);
+        assert_eq!(home(&env).to_str(), Some("/home/a"));
+        assert_eq!(home(&Env::new()).to_str(), Some("/"));
+    }
+
+    #[cfg(unix)]
     #[test]
     fn captures_a_login_shell() {
         let env = captured().expect("a login shell answers");
@@ -185,6 +291,7 @@ mod tests {
         assert!(env.contains_key(OsStr::new("HOME")));
     }
 
+    #[cfg(unix)]
     #[test]
     fn login_drops_what_is_the_shells_own() {
         let env = login();

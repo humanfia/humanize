@@ -48,6 +48,18 @@ def test_a_browser_is_let_in_by_the_key_it_was_printed_and_nothing_else(
         assert held.json()["here"] == str(project.resolve())
 
 
+@pytest.mark.parametrize("distro", ["Debian", ""])
+def test_the_page_is_told_the_wsl_distribution_hmz_runs_in(
+    project: Path, monkeypatch: pytest.MonkeyPatch, distro: str
+) -> None:
+    monkeypatch.setenv("WSL_DISTRO_NAME", distro)
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+
+        assert browser.get("/api/held").json()["wsl"] == (distro or None)
+
+
 def test_a_newer_release_is_in_what_the_page_is_told(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

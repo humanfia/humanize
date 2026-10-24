@@ -1,7 +1,11 @@
 //! The menu bar: what a Mac app has, and nothing that takes a shortcut the page binds --
-//! Cmd+K, Cmd+Shift+O and Cmd+. are its own.
+//! Cmd+K, Cmd+Shift+O and Cmd+. are its own. On Windows, no menu bar but the tray icon's menu.
 
-use tauri::menu::{AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
+#[cfg(target_os = "macos")]
+use tauri::menu::{AboutMetadata, Submenu};
+use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+#[cfg(windows)]
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Runtime};
 
 /// Where the documentation is.
@@ -12,11 +16,67 @@ const CHECK: &str = "check-for-updates";
 const CHECK_LABEL: &str = "Check for Updates…";
 const CHECKING_LABEL: &str = "Checking for Updates…";
 
+/// Show humanize and Quit, in the tray icon's menu.
+#[cfg(windows)]
+const SHOW: &str = "show";
+#[cfg(windows)]
+const QUIT: &str = "quit";
+
 /// How far each Zoom In or Zoom Out goes, and how far they may go in all.
 const ZOOM_STEP: f64 = 1.1;
 const ZOOM_RANGE: (f64, f64) = (0.5, 3.0);
 
-pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+/// The menu bar.
+#[cfg(target_os = "macos")]
+pub fn init<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    app.set_menu(build(app)?).map(drop)
+}
+
+/// The tray icon, whose menu stands for the menu bar, and which a click shows the window by.
+#[cfg(windows)]
+pub fn init<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    let item = |id: &str, label: &str| MenuItem::with_id(app, id, label, true, None::<&str>);
+    let menu = Menu::with_items(
+        app,
+        &[
+            &item(SHOW, "Show Humanize Desktop")?,
+            &check(app)?,
+            &item("docs", "Documentation")?,
+            &PredefinedMenuItem::separator(app)?,
+            &item(QUIT, "Quit")?,
+        ],
+    )?;
+    let mut tray = TrayIconBuilder::with_id(crate::MAIN)
+        .tooltip("Humanize Desktop")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                crate::reveal(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
+    // Where Check for Updates… is found again.
+    app.manage(menu);
+    Ok(())
+}
+
+/// Check for Updates…, off in a development build, which is never updated.
+fn check<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<MenuItem<R>> {
+    let on = crate::update::checks(&app.package_info().version);
+    MenuItem::with_id(app, CHECK, CHECK_LABEL, on, None::<&str>)
+}
+
+#[cfg(target_os = "macos")]
+fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let about = AboutMetadata {
         website: Some(DOCS.into()),
         website_label: Some("Documentation".into()),
@@ -58,14 +118,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
                 true,
                 &[
                     &PredefinedMenuItem::about(app, Some("About Humanize Desktop"), Some(about))?,
-                    // Off in a development build, which is never updated.
-                    &MenuItem::with_id(
-                        app,
-                        CHECK,
-                        CHECK_LABEL,
-                        crate::update::checks(&app.package_info().version),
-                        None::<&str>,
-                    )?,
+                    &check(app)?,
                     &separator()?,
                     &PredefinedMenuItem::hide(app, None)?,
                     &PredefinedMenuItem::hide_others(app, None)?,
@@ -136,6 +189,16 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
             crate::browse(DOCS);
             Ok(())
         }
+        #[cfg(windows)]
+        SHOW => {
+            crate::reveal(app);
+            Ok(())
+        }
+        #[cfg(windows)]
+        QUIT => {
+            app.exit(0);
+            Ok(())
+        }
         _ => Ok(()),
     };
     if let Err(why) = done {
@@ -145,12 +208,17 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
 
 /// Takes Check for Updates… off while a look by hand runs, saying so, and puts it back after.
 pub fn checking<R: Runtime>(app: &AppHandle<R>, on: bool) {
+    #[cfg(target_os = "macos")]
     let item = app.menu().and_then(|menu| {
         menu.items().ok()?.iter().find_map(|kind| {
             let item = kind.as_submenu()?.get(CHECK)?;
             item.as_menuitem().cloned()
         })
     });
+    #[cfg(windows)]
+    let item = app
+        .try_state::<Menu<R>>()
+        .and_then(|menu| menu.get(CHECK)?.as_menuitem().cloned());
     if let Some(item) = item {
         let label = if on { CHECKING_LABEL } else { CHECK_LABEL };
         if let Err(why) = item.set_enabled(!on).and_then(|()| item.set_text(label)) {

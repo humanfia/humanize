@@ -1,23 +1,34 @@
-//! A notification as macOS posts one for an app, through `UNUserNotificationCenter`: what
-//! `hmz web`'s page asks for when an epic ends, a flow asks, or a chat turn is done while the
-//! window is not looked at. Clicking one brings the window forward, and opens on `hmz web`'s
-//! page the address it was given -- a hash of that page, and never anywhere else.
+//! A notification as the system posts one for an app -- on macOS through
+//! `UNUserNotificationCenter`, on Windows a toast: what `hmz web`'s page asks for when an epic
+//! ends, a flow asks, or a chat turn is done while the window is not looked at. Clicking one
+//! brings the window forward, and opens on `hmz web`'s page the address it was given -- a hash
+//! of that page, and never anywhere else.
 
 use std::sync::OnceLock;
+#[cfg(target_os = "macos")]
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(target_os = "macos")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[cfg(target_os = "macos")]
 use block2::{DynBlock, RcBlock};
+#[cfg(target_os = "macos")]
 use objc2::rc::Retained;
+#[cfg(target_os = "macos")]
 use objc2::runtime::{Bool, NSObject, NSObjectProtocol, ProtocolObject};
+#[cfg(target_os = "macos")]
 use objc2::{AnyThread, define_class, msg_send};
+#[cfg(target_os = "macos")]
 use objc2_foundation::{NSError, NSString};
+#[cfg(target_os = "macos")]
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNMutableNotificationContent, UNNotification,
     UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationResponse,
     UNNotificationSound, UNUserNotificationCenter, UNUserNotificationCenterDelegate,
 };
 use tauri::AppHandle;
+#[cfg(windows)]
+use tauri_winrt_notification::Toast;
 use url::Url;
 
 use crate::{lock, on_main, reveal, show};
@@ -29,8 +40,10 @@ const LONGEST: usize = 2048;
 static APP: OnceLock<AppHandle> = OnceLock::new();
 
 /// Notifications posted this launch, numbering each apart from the others.
+#[cfg(target_os = "macos")]
 static POSTED: AtomicU64 = AtomicU64::new(0);
 
+#[cfg(target_os = "macos")]
 define_class!(
     // SAFETY: NSObject has no subclassing requirements, and the delegate keeps no state.
     #[unsafe(super(NSObject))]
@@ -70,6 +83,7 @@ define_class!(
 
 /// Listens for notifications clicked, those of an earlier launch too. On the main thread, as
 /// the app sets up.
+#[cfg(target_os = "macos")]
 pub fn init(app: &AppHandle) {
     let _ = APP.set(app.clone());
     if !bundled() {
@@ -83,10 +97,21 @@ pub fn init(app: &AppHandle) {
     std::mem::forget(delegate);
 }
 
-/// Posts a notification, asking the first time whether the app may.
+/// Listens for notifications clicked, while the app runs: Windows tells a toast clicked to the
+/// launch that posted it alone.
+#[cfg(windows)]
+pub fn init(app: &AppHandle) {
+    let _ = APP.set(app.clone());
+}
+
+/// Posts a notification, asking the first time on macOS whether the app may.
 pub fn post(title: &str, body: &str, address: &str) {
-    // Kept with the notification for as long as macOS keeps it: only what a click may open.
-    let address = hash(address).map_or("", |_| address);
+    // Kept with the notification for as long as the system keeps it: only what a click may open.
+    display(title, body, hash(address).map_or("", |_| address));
+}
+
+#[cfg(target_os = "macos")]
+fn display(title: &str, body: &str, address: &str) {
     if !bundled() {
         log::info!("a notification is not posted outside the app's bundle");
         return;
@@ -125,6 +150,30 @@ pub fn post(title: &str, body: &str, address: &str) {
     );
 }
 
+#[cfg(windows)]
+fn display(title: &str, body: &str, address: &str) {
+    let Some(app) = APP.get() else { return };
+    // Installed, the app is known to Windows by its identifier, which its Start menu shortcut
+    // carries; run by `tauri dev`, it is not, and posts as PowerShell.
+    let id = if tauri::is_dev() {
+        Toast::POWERSHELL_APP_ID
+    } else {
+        &app.config().identifier
+    };
+    let address = address.to_owned();
+    let shown = Toast::new(id)
+        .title(title)
+        .text1(body)
+        .on_activated(move |_| {
+            clicked(address.clone());
+            Ok(())
+        })
+        .show();
+    if let Err(why) = shown {
+        log::warn!("a notification could not be posted: {why}");
+    }
+}
+
 /// Brings the window forward, on `hmz web`'s page at the address clicked where it is one: on
 /// the page it shows, by its hash alone; or, where it shows none yet -- a click that launched
 /// the app -- on the page it opens once there is one.
@@ -148,10 +197,12 @@ fn clicked(address: String) {
 
 /// Whether the app runs from its bundle, `….app/Contents/MacOS/…`: the notification centre
 /// throws for a process that is not, as one `cargo` runs.
+#[cfg(target_os = "macos")]
 fn bundled() -> bool {
     std::env::current_exe().is_ok_and(|exe| in_bundle(&exe))
 }
 
+#[cfg(target_os = "macos")]
 fn in_bundle(exe: &std::path::Path) -> bool {
     let mut up = exe.ancestors().skip(1);
     up.next().and_then(|dir| dir.file_name()) == Some("MacOS".as_ref())
@@ -164,6 +215,7 @@ fn in_bundle(exe: &std::path::Path) -> bool {
 
 /// A notification's identifier: unique, so that none replaces another, and carrying the address
 /// it opens, so that one of an earlier launch opens it too.
+#[cfg(target_os = "macos")]
 fn identifier(address: &str) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -174,6 +226,7 @@ fn identifier(address: &str) -> String {
 }
 
 /// The address a notification's identifier carries.
+#[cfg(target_os = "macos")]
 fn address(identifier: &str) -> &str {
     identifier
         .split_once(' ')
@@ -241,6 +294,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn carries_its_address_in_a_unique_identifier() {
         let one = identifier("#/@local/live?workspace=a b");
         let two = identifier("#/@local/live?workspace=a b");
@@ -251,6 +305,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn posts_only_from_its_bundle() {
         let at = |path: &str| in_bundle(std::path::Path::new(path));
         assert!(at(

@@ -5,6 +5,8 @@
 // What @tauri-apps/api's `invoke` calls, with no bundle of it put into every page, `hmz web`'s too.
 const invoke = (command, args) => window.__TAURI_INTERNALS__.invoke(command, args)
 
+const NO_WSL = 'WSL missing'
+
 const STEPS = { uv: 'Getting uv', python: 'Getting Python', hmz: 'Installing hmz' }
 
 // Each state the app tells, as drawn: its heading, what it says, and which buttons it offers.
@@ -19,7 +21,13 @@ const STATES = {
     lead: `Epics are running in Humanize CLI${version ? ` ${version}` : ''}, which this app cannot open. It updates once they end; updating now may stop them.`,
     buttons: ['update_now', 'docs'],
   }),
-  'install-failed': ({ updating, said, keep }) => ({
+  // On Windows, where there is no WSL for humanize to run in, which an install says first.
+  'install-failed': ({ updating, said, keep }) => said.startsWith(NO_WSL) ? {
+    title: NO_WSL,
+    lead: 'humanize runs in WSL. Set up WSL with a Linux distribution, then retry.',
+    detail: said.slice(NO_WSL.length).replace(/^:\s*/, ''),
+    buttons: ['retry', 'docs'],
+  } : ({
     title: updating ? 'Update failed' : 'Install failed',
     lead: keep
       ? 'Check the connection and retry, or continue with the Humanize CLI installed.'

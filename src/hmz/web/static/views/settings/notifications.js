@@ -5,7 +5,7 @@
 
 import { get, post } from '../../api.js'
 import { empty, fill, h, problem } from '../../dom.js'
-import { inApp } from '../../shell.js'
+import { inApp, shell } from '../../shell.js'
 
 /** Every kind, by its word in the settings, and what the page calls it. */
 const KINDS = [
@@ -96,7 +96,7 @@ export function draw(holder) {
             h('span', { class: 'label' }, 'System'),
             toggle('On', system, (on) => (system = on), 'notify-system'),
             allowing,
-            h('span', { class: 'hint' }, inApp ? 'Shown by macOS while the window is away.' : 'Shown by the browser while the page is away.'),
+            h('span', { class: 'hint' }, inApp ? `Shown by ${shell === 'windows' ? 'Windows' : 'macOS'} while the window is away.` : 'Shown by the browser while the page is away.'),
           ),
           said,
         ),

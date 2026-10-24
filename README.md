@@ -37,6 +37,11 @@ On macOS, `humanize-<version>-macos-universal.dmg` from the
 window of its own: drag Humanize Desktop to Applications. It runs the `hmz` installed above. The
 [guide](https://docs.humanfia.ai/humanize/user/desktop) says how to open it the first time.
 
+On Windows, `humanize-<version>-windows-x64-setup.exe` from the same release does the same,
+with `hmz` in WSL: it needs WSL 2 with a default distribution (`wsl --install`), and a coding
+agent CLI signed in inside it. The app installs uv and `hmz` there itself. See its
+[guide](https://docs.humanfia.ai/humanize/user/desktop-windows).
+
 ## Usage
 
 Open the terminal interface in a repository:

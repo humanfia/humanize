@@ -2925,7 +2925,8 @@ details.said-more summary {
   position: absolute;
   top: 6px;
   right: 6px;
-  z-index: 1;
+  /* Over the tabs, whose row it stands in. */
+  z-index: 2;
 }
 
 .panel-body .tabs {
@@ -3906,6 +3907,51 @@ pre.exo-args {
 @media (max-width: 860px) {
   :root[data-shell='macos']:not([data-fullscreen]) .overlay {
     padding-top: var(--lights-strip);
+  }
+}
+
+/* ------------------------------------------------------------------ the Windows app's window */
+
+/* There the page runs to the window's top edge too, and the window's minimize, maximize and
+   close buttons stand over its top right, 138 by 32 pixels. The top row under them keeps that
+   room at its right for them alone, as Claude's window does: the bar over the view, the panel
+   beside it where it is open on a wide window, and the head of a dialog that fills a narrow
+   one. Full screen, where they are gone, the page is drawn as anywhere else. */
+:root[data-shell='windows']:not([data-fullscreen]) {
+  --captions: 138px;
+}
+
+:root[data-shell='windows']:not([data-fullscreen]) .bar {
+  padding-right: calc(16px + var(--captions));
+}
+
+@media (min-width: 861px) {
+  /* The panel, open, is the top right instead: the bar beside it has the room to itself. */
+  :root[data-shell='windows']:not([data-fullscreen]) .view:has(> .inspector:not([hidden])) .bar {
+    padding-right: 16px;
+  }
+
+  :root[data-shell='windows']:not([data-fullscreen]) .panel-close {
+    right: calc(6px + var(--captions));
+  }
+
+  :root[data-shell='windows']:not([data-fullscreen]) .panel-body .tabs {
+    padding-right: calc(46px + var(--captions));
+  }
+}
+
+@media (max-width: 860px) {
+  :root[data-shell='windows']:not([data-fullscreen]) .bar {
+    padding-right: calc(10px + var(--captions));
+  }
+
+  :root[data-shell='windows']:not([data-fullscreen]) .dialog-head {
+    padding-right: calc(8px + var(--captions));
+  }
+
+  /* What scrolls across would scroll under them through its padding: it stops short of them. */
+  :root[data-shell='windows']:not([data-fullscreen]) .settings-nav {
+    margin-right: var(--captions);
   }
 }
 

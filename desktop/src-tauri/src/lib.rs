@@ -1,4 +1,5 @@
-//! Humanize Desktop, for macOS: one window on the page `hmz web` serves, started as the app's child.
+//! Humanize Desktop, for macOS and Windows: one window on the page `hmz web` serves, started as
+//! the app's child.
 //! The window opens on the app's own page at once -- a splash while `hmz` is installed and
 //! `hmz web` starts, and what went wrong where it cannot -- and goes on to `hmz web`'s once it
 //! says where it listens. A `.hmzepic` opened with the app, or dropped on its window, is
@@ -13,6 +14,8 @@ mod notify;
 mod server;
 mod shell_env;
 mod update;
+#[cfg(windows)]
+mod wsl;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
@@ -23,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent};
 use tauri::window::Color;
 use tauri::{
-    AppHandle, DragDropEvent, Manager, RunEvent, State, Theme, WebviewUrl, WebviewWindow,
+    AppHandle, DragDropEvent, Manager, RunEvent, Runtime, State, Theme, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_window_state::StateFlags;
@@ -37,7 +40,10 @@ use server::{Failure, Server};
 const MAIN: &str = "main";
 
 /// The app's own page, as the bundle serves it.
+#[cfg(target_os = "macos")]
 const OWN: &str = "tauri://localhost/";
+#[cfg(windows)]
+const OWN: &str = "http://tauri.localhost/";
 
 /// The page's paper, `--paper` in hmz's style.css, light and dark: what the window is drawn in
 /// before a page is, so it never flashes white.
@@ -293,6 +299,21 @@ fn open(app: &AppHandle, path: PathBuf) {
     reveal(app);
 }
 
+/// Of a launch's arguments, after its own path, the epic's archive Windows opens it with:
+/// where it is from where it was launched.
+fn argued<A: Into<PathBuf>>(args: impl IntoIterator<Item = A>, from: &Path) -> Option<PathBuf> {
+    epic(args.into_iter().skip(1).map(|arg| from.join(arg.into())))
+}
+
+/// A launch, the first or a second one handed over: the epic's archive it was opened with is
+/// imported, and the window brought forward.
+fn launched(app: &AppHandle, epic: Option<PathBuf>) {
+    match epic {
+        Some(path) => open(app, path),
+        None => reveal(app),
+    }
+}
+
 /// The app's own page: bundled, or served by `tauri dev` while it is developed.
 fn own(app: &AppHandle) -> Option<Url> {
     app.config()
@@ -392,7 +413,7 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .on_download(move |_, event| {
             let shell = downloads.state::<Shell>();
             match event {
-                // Into ~/Downloads, under the name the page suggested.
+                // Into the Downloads folder, under the name the page suggested.
                 DownloadEvent::Requested { url, destination } => {
                     let suggested = destination
                         .file_name()
@@ -428,8 +449,8 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     Ok(window)
 }
 
-/// Brings the window back: from the Dock, or from a second launch.
-fn reveal(app: &AppHandle) {
+/// Brings the window back: from the Dock or the tray, or from a second launch.
+fn reveal<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window(MAIN) {
         let _ = window.unminimize();
         let _ = window.show();
@@ -445,8 +466,11 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 pub fn run() {
     let app = tauri::Builder::default()
         // First: a second launch hands over to the first before anything else is set up.
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| reveal(app)))
-        // To stdout and ~/Library/Logs/ai.humanfia.humanize.
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            launched(app, argued(args, Path::new(&cwd)))
+        }))
+        // To stdout and ~/Library/Logs/ai.humanfia.humanize, or on Windows
+        // %LOCALAPPDATA%\ai.humanfia.humanize\logs.
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
@@ -470,20 +494,23 @@ pub fn run() {
             opening: Mutex::default(),
             notified: Mutex::default(),
         })
-        .menu(menu::build)
         .on_menu_event(menu::handle)
         .invoke_handler(tauri::generate_handler![
             status, retry, keep, update_now, notify
         ])
         .setup(|app| {
+            menu::init(app.handle())?;
             window(app.handle())?;
+            let here = std::env::current_dir().unwrap_or_default();
+            launched(app.handle(), argued(std::env::args_os(), &here));
             notify::init(app.handle());
             start(app.handle().clone(), How::Usual);
             update::init(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| match event {
-            // Closing the window only hides it: the app stays in the Dock, `hmz web` with it.
+            // Closing the window only hides it: the app stays in the Dock or the tray, `hmz web`
+            // with it.
             // The update's window is the updater's own.
             _ if window.label() != MAIN => {}
             WindowEvent::CloseRequested { api, .. } => {
@@ -512,8 +539,10 @@ pub fn run() {
     };
     app.run(|app, event| match event {
         // Whether or not the update's window shows.
+        #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => reveal(app),
         // Double-clicked in the Finder, or Open With: at launch too, before `hmz web` listens.
+        #[cfg(target_os = "macos")]
         RunEvent::Opened { urls } => {
             if let Some(path) = epic(urls.iter().filter_map(|url| url.to_file_path().ok())) {
                 open(app, path);
@@ -540,7 +569,14 @@ mod tests {
         let own = Url::parse(OWN).ok();
         let server = Url::parse("http://127.0.0.1:8765/?key=secret").ok();
         let at = |url: &str| allowed(&Url::parse(url).unwrap(), own.as_ref(), server.as_ref());
+        #[cfg(target_os = "macos")]
         assert!(at("tauri://localhost/index.html"));
+        #[cfg(windows)]
+        {
+            assert!(at("http://tauri.localhost/index.html"));
+            assert!(!at("https://tauri.localhost/index.html"));
+            assert!(!at("tauri://localhost/index.html"));
+        }
         assert!(at("http://127.0.0.1:8765/"));
         assert!(at("http://127.0.0.1:8765/#/epics/x"));
         assert!(!at("http://127.0.0.1:8766/"));
@@ -576,11 +612,34 @@ mod tests {
         );
         assert_eq!(epic(paths(&[])), None);
         // As the Finder hands them over.
-        let url = Url::parse("file:///Users/me/My%20Epics/1T2.3Z-a.hmzepic").unwrap();
-        assert_eq!(
-            epic(url.to_file_path()),
-            Some(PathBuf::from("/Users/me/My Epics/1T2.3Z-a.hmzepic"))
-        );
+        #[cfg(target_os = "macos")]
+        {
+            let url = Url::parse("file:///Users/me/My%20Epics/1T2.3Z-a.hmzepic").unwrap();
+            assert_eq!(
+                epic(url.to_file_path()),
+                Some(PathBuf::from("/Users/me/My Epics/1T2.3Z-a.hmzepic"))
+            );
+            let exe = "/Applications/Humanize Desktop.app/Contents/MacOS/humanize";
+            assert_eq!(
+                argued([exe, "a.hmzepic"], Path::new("/Users/me")),
+                Some(PathBuf::from("/Users/me/a.hmzepic"))
+            );
+        }
+        // As Explorer hands them over, after the app's own path; and from a terminal, where it
+        // was launched.
+        #[cfg(windows)]
+        {
+            let exe = r"C:\Program Files\Humanize Desktop\humanize.exe";
+            let opened = r"C:\Users\me\My Epics\1T2.3Z-a.hmzepic";
+            let from = Path::new(r"D:\work");
+            assert_eq!(argued([exe, opened], from), Some(PathBuf::from(opened)));
+            assert_eq!(
+                argued([exe, r"epics\a.hmzepic"], from),
+                Some(PathBuf::from(r"D:\work\epics\a.hmzepic"))
+            );
+            assert_eq!(argued([opened], from), None);
+            assert_eq!(argued([exe], from), None);
+        }
     }
 
     #[test]
@@ -598,6 +657,12 @@ mod tests {
         let read: Vec<_> = hash.query_pairs().collect();
         assert_eq!(read, [("path".into(), path.to_str().unwrap().into())]);
         assert!(allowed(&url, None, Some(&first)));
+        // A Windows path as it is: hmz, in WSL, makes it its own.
+        let url = importing(&first, Path::new(r"C:\Users\me\a b.hmzepic")).unwrap();
+        assert_eq!(
+            url.fragment(),
+            Some("/epics/import?path=C%3A%5CUsers%5Cme%5Ca+b.hmzepic")
+        );
     }
 
     #[test]

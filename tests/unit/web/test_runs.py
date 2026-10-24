@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import datetime
+import subprocess
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.web.runs import held_by, refused, row
+from hmz.web.runs import held_by, local, refused, row
 
 if TYPE_CHECKING:
     from hmz.runtime.epic import Ran
@@ -204,3 +205,46 @@ def test_a_run_lists_each_agent_by_its_own_name_and_the_role_it_filled_beside() 
         ("NeiKos496", "builder"),
         ("critic", "critic"),
     ]
+
+
+@pytest.mark.parametrize(
+    "said",
+    [r"C:\Users\me\x.hmzepic", "c:/Users/me/x.hmzepic", r"\\wsl$\Debian\x.hmzepic"],
+)
+def test_a_windows_path_is_read_as_wsl_names_it_in_wsl(
+    said: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[list[str]] = []
+
+    def wslpath(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        asked.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "/mnt/c/Users/me/x.hmzepic\n")
+
+    monkeypatch.setenv("WSL_DISTRO_NAME", "Debian")
+    monkeypatch.setattr(subprocess, "run", wslpath)
+
+    assert str(local(said)) == "/mnt/c/Users/me/x.hmzepic"
+    assert asked == [["wslpath", "-u", said]]
+
+
+def test_a_path_is_kept_as_said_outside_wsl_or_where_wsl_cannot_name_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked: list[list[str]] = []
+
+    def fails(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        asked.append(argv)
+        raise subprocess.CalledProcessError(1, argv)
+
+    monkeypatch.setattr(subprocess, "run", fails)
+    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
+    assert str(local("/home/me/x.hmzepic")) == "/home/me/x.hmzepic"
+    assert not local(r"C:\x.hmzepic").is_absolute()
+    assert asked == []
+
+    monkeypatch.setenv("WSL_DISTRO_NAME", "Debian")
+    assert str(local("/home/me/x.hmzepic")) == "/home/me/x.hmzepic"
+    assert asked == []
+    # One wslpath cannot name is refused as a path that is not whole.
+    assert not local(r"C:\x.hmzepic").is_absolute()
+    assert asked == [["wslpath", "-u", r"C:\x.hmzepic"]]

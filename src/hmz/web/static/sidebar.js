@@ -24,7 +24,7 @@ const MARKS = { running: '●', stopping: '◐', done: '✔', failed: '✕', sto
 
 /**
  * @param {HTMLElement} root The sidebar.
- * @param {{machine: string, here: string, newer: string}} context What the server said this page is of.
+ * @param {{machine: string, wsl: ?string, here: string, newer: string}} context What the server said this page is of.
  * @param {() => {parts: string[], query: URLSearchParams}} where Where the page is.
  */
 export function mountSidebar(root, context, where) {
@@ -39,6 +39,8 @@ export function mountSidebar(root, context, where) {
     updates.title = count ? `${count} flow${count === 1 ? ' has' : 's have'} a newer release` : ''
   })
   const bar = daemonBar(context)
+  // The keys the shortcuts are pressed with, as this system writes them.
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform)
   fill(
     root,
     dragged(
@@ -53,8 +55,8 @@ export function mountSidebar(root, context, where) {
     h(
       'div',
       { class: 'side-nav' },
-      h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('new'), h('span', {}, 'New epic'), h('kbd', {}, '⇧⌘O')),
-      h('a', { href: hash('/search'), 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search epics'), h('kbd', {}, '⌘K')),
+      h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('new'), h('span', {}, 'New epic'), h('kbd', {}, mac ? '⇧⌘O' : 'Ctrl+Shift+O')),
+      h('a', { href: hash('/search'), 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search epics'), h('kbd', {}, mac ? '⌘K' : 'Ctrl+K')),
       h('a', { href: hash('/flows'), 'data-nav': 'flows' }, icon('flows'), h('span', {}, 'Flows'), updates),
     ),
     h('div', { class: 'side-scroll' }, list, more),
@@ -416,7 +418,10 @@ function named(name) {
  * and what the epics spent.
  */
 function daemonBar(context) {
-  const local = { name: 'local', host: context.machine || '', state: 'up' }
+  // Local's host, as Local says it: the machine's name, or the WSL distribution hmz runs in.
+  const hostOf = (held) => (held.wsl ? `${held.wsl} (WSL)` : held.machine || '')
+  const local = { name: 'local', host: daemon() === 'local' ? hostOf(context) : '', state: 'up' }
+  if (daemon() !== 'local') get('/d/local/api/held').then((held) => ((local.host = hostOf(held)), draw()), () => {})
   let daemons = [local]
   // How many epics are going, and on which daemon they were counted.
   let live = { of: '', count: 0 }
@@ -449,7 +454,7 @@ function daemonBar(context) {
   // Every daemon, as the machine serving the page has them; Local alone where it keeps none.
   poll('/api/daemons', 10000, (answer, error) => {
     const listed = Array.isArray(answer) ? answer : answer && answer.daemons
-    if (Array.isArray(listed)) daemons = listed.some((one) => one.name === 'local') ? listed : [local, ...listed]
+    if (Array.isArray(listed)) daemons = [local, ...listed.filter((one) => one.name !== 'local')]
     else if (error && error.status === 404) daemons = [local]
     draw()
   })

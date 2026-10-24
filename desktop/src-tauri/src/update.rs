@@ -4,11 +4,11 @@
 //! pre-release, and may predate the app. What it finds it downloads in the background, accepts
 //! only signed with the key in tauri.conf.json, and offers once: Restart installs it and
 //! relaunches, Later installs it as the app quits. A development build, version 0.0.0, never
-//! looks. A look by hand, and an install, show in a small window of their own as they go.
+//! looks. A look by hand, and an install, show in a small window of their own as they go. On
+//! Windows its setup replaces the app only once the app has quit: Restart quits into it, and it
+//! relaunches the app.
 
-use std::ffi::CString;
 use std::mem;
-use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::sync::Mutex;
 use std::thread;
@@ -43,6 +43,12 @@ const RELEASES: &str = "https://api.github.com/repos/humanfia/humanize/releases?
 /// What a release offers its update in.
 const LATEST: &str = "latest.json";
 
+/// What `fetch` says where `replaceable` refuses.
+#[cfg(target_os = "macos")]
+const ELSEWHERE: &str = "Move it to Applications, and open it from there.";
+#[cfg(windows)]
+const ELSEWHERE: &str = "Install it for yourself with its setup, and open it from there.";
+
 /// What the prompt's buttons say.
 const RESTART: &str = "Restart";
 const LATER: &str = "Later";
@@ -76,8 +82,9 @@ enum Stage<T> {
     Offering(T),
     /// Downloaded, and Later chosen: it installs as the app quits.
     Deferred(T),
-    /// Restart chosen: installing, then relaunching.
-    Installing,
+    /// Restart chosen: installing, then relaunching. On Windows it holds what goes in as the app
+    /// quits.
+    Installing(Option<T>),
 }
 
 /// What a look asked for does, from where the updater stands.
@@ -98,13 +105,16 @@ fn step<T>(stage: &Stage<T>, by: By) -> Step {
         (Stage::Deferred(_), By::Hand) => Step::Offer,
         // Its prompt is up already, or what it holds goes in as the app quits.
         (Stage::Checking { .. } | Stage::Offering(_) | Stage::Deferred(_), By::Schedule)
-        | (Stage::Offering(_) | Stage::Installing, _) => Step::Skip,
+        | (Stage::Offering(_) | Stage::Installing(_), _) => Step::Skip,
     }
 }
 
 /// Whether the progress window is up: while a look asked by hand runs, and while installing.
 fn shows<T>(stage: &Stage<T>) -> bool {
-    matches!(stage, Stage::Checking { by_hand: true } | Stage::Installing)
+    matches!(
+        stage,
+        Stage::Checking { by_hand: true } | Stage::Installing(_)
+    )
 }
 
 /// What the progress window says.
@@ -265,7 +275,7 @@ fn latest(current: &Version, releases: Vec<Release>) -> Option<Url> {
 fn releases() -> Result<Vec<Release>, String> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(PATIENCE))
-        // What macOS trusts, a company's own authority in the keychain included.
+        // What the system trusts, a company's own authority included.
         .tls_config(
             ureq::tls::TlsConfig::builder()
                 .root_certs(ureq::tls::RootCerts::PlatformVerifier)
@@ -288,7 +298,11 @@ fn releases() -> Result<Vec<Release>, String> {
 /// The app bundle the executable `exe` is in, where the app may replace it: not one run
 /// read-only -- from its disk image, or moved aside by Gatekeeper -- nor one only an
 /// administrator could replace, which would ask for a password as the app quits.
+#[cfg(target_os = "macos")]
 fn replaceable(exe: &Path) -> Option<&Path> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
     let writable = |path: &Path| {
         CString::new(path.as_os_str().as_bytes())
             // SAFETY: a path, NUL-terminated, that `access` only reads.
@@ -298,6 +312,20 @@ fn replaceable(exe: &Path) -> Option<&Path> {
     let bundle = exe.ancestors().nth(3)?;
     let ours = bundle.extension().is_some_and(|ext| ext == "app");
     (ours && writable(bundle) && writable(bundle.parent()?)).then_some(bundle)
+}
+
+/// The folder the executable `exe` is in, where the app may replace it: one its setup installed
+/// it in, which leaves the uninstaller beside it, and one this user may write -- not a build, nor
+/// a copy run from elsewhere, nor one only an administrator could replace.
+#[cfg(windows)]
+fn replaceable(exe: &Path) -> Option<&Path> {
+    let folder = exe.parent()?;
+    // Opened to write, and written nothing.
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(folder.join("uninstall.exe"))
+        .is_ok()
+        .then_some(folder)
 }
 
 /// Sets the updater up, and starts looking where this build looks.
@@ -356,11 +384,9 @@ pub fn check<R: Runtime>(app: &AppHandle<R>, by: By) {
 async fn fetch<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Ready>, String> {
     let exe = std::env::current_exe().map_err(|why| why.to_string())?;
     if replaceable(&exe).is_none() {
-        return Err(
-            "Humanize Desktop cannot replace itself where it is. Move it to Applications, and \
-                    open it from there."
-                .into(),
-        );
+        return Err(format!(
+            "Humanize Desktop cannot replace itself where it is. {ELSEWHERE}"
+        ));
     }
     let current = app.package_info().version.clone();
     let listed = tauri::async_runtime::spawn_blocking(releases)
@@ -374,6 +400,8 @@ async fn fetch<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Ready>, String> 
         .endpoints(vec![endpoint])
         .map_err(|why| why.to_string())?
         .timeout(PATIENCE)
+        // On Windows, where its setup would relaunch the app: only after Restart.
+        .restart_after_install(false)
         .version_comparator(|current, remote| newer(&current, &remote.version))
         .build()
         .map_err(|why| why.to_string())?;
@@ -460,29 +488,43 @@ fn offer<R: Runtime>(app: AppHandle<R>, version: String) {
             *stage = Stage::Deferred(ready);
             return;
         }
-        *stage = Stage::Installing;
-        drop(stage);
-        show(&app, View::Installing(version.clone()));
-        present(&app, || {});
-        let (update, bytes) = ready;
-        match update.install(bytes) {
-            Ok(()) => {
-                log::info!("Humanize Desktop {version} is installed, restarting");
-                app.request_restart();
-            }
-            Err(why) => {
-                log::error!("Humanize Desktop {version} could not be installed: {why}");
-                *lock(&app.state::<Mutex<Stage<Ready>>>()) = Stage::Idle;
-                present(&app, move || {
-                    tell(Level::Failure, "Update failed", why.to_string());
-                });
+        // Its setup runs as the app quits, and relaunches it.
+        #[cfg(windows)]
+        {
+            log::info!("Humanize Desktop {version} installs as Humanize Desktop restarts");
+            let (update, bytes) = ready;
+            *stage = Stage::Installing(Some((update.restart_after_install(true), bytes)));
+            drop(stage);
+            show(&app, View::Installing(version));
+            present(&app, || {});
+            app.request_restart();
+        }
+        #[cfg(target_os = "macos")]
+        {
+            *stage = Stage::Installing(None);
+            drop(stage);
+            show(&app, View::Installing(version.clone()));
+            present(&app, || {});
+            let (update, bytes) = ready;
+            match update.install(bytes) {
+                Ok(()) => {
+                    log::info!("Humanize Desktop {version} is installed, restarting");
+                    app.request_restart();
+                }
+                Err(why) => {
+                    log::error!("Humanize Desktop {version} could not be installed: {why}");
+                    *lock(&app.state::<Mutex<Stage<Ready>>>()) = Stage::Idle;
+                    present(&app, move || {
+                        tell(Level::Failure, "Update failed", why.to_string());
+                    });
+                }
             }
         }
     });
 }
 
 /// Takes back an alert and the progress window still up, and installs what was downloaded and
-/// not yet installed, as the app quits.
+/// not yet installed, as the app quits: on Windows, by starting its setup and exiting at once.
 pub fn on_exit<R: Runtime>(app: &AppHandle<R>) {
     alert::withdraw();
     if let Some(window) = app.get_webview_window(WINDOW) {
@@ -491,8 +533,9 @@ pub fn on_exit<R: Runtime>(app: &AppHandle<R>) {
     let Some(stage) = app.try_state::<Mutex<Stage<Ready>>>() else {
         return;
     };
-    let (Stage::Offering((update, bytes)) | Stage::Deferred((update, bytes))) =
-        mem::take(&mut *lock(&stage))
+    let (Stage::Offering((update, bytes))
+    | Stage::Deferred((update, bytes))
+    | Stage::Installing(Some((update, bytes)))) = mem::take(&mut *lock(&stage))
     else {
         return;
     };
@@ -513,7 +556,6 @@ fn tell(level: Level, title: &'static str, said: String) {
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::os::unix::fs::PermissionsExt;
 
     use super::*;
 
@@ -595,8 +637,8 @@ mod tests {
         assert_eq!(step(&Stage::Deferred(()), Schedule), Step::Skip);
         assert_eq!(step(&Stage::Deferred(()), Hand), Step::Offer);
         // Installing, then relaunching: nothing more to look for.
-        assert_eq!(step(&Stage::<()>::Installing, Schedule), Step::Skip);
-        assert_eq!(step(&Stage::<()>::Installing, Hand), Step::Skip);
+        assert_eq!(step(&Stage::<()>::Installing(None), Schedule), Step::Skip);
+        assert_eq!(step(&Stage::<()>::Installing(None), Hand), Step::Skip);
     }
 
     #[test]
@@ -606,7 +648,7 @@ mod tests {
         assert!(shows(&Stage::<()>::Checking { by_hand: true }));
         assert!(!shows(&Stage::Offering(())));
         assert!(!shows(&Stage::Deferred(())));
-        assert!(shows(&Stage::<()>::Installing));
+        assert!(shows(&Stage::<()>::Installing(None)));
     }
 
     #[test]
@@ -654,8 +696,11 @@ mod tests {
         assert!(due(last, last - Duration::from_secs(1)));
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn replaces_only_a_bundle_it_may_write() {
+        use std::os::unix::fs::PermissionsExt;
+
         let dir = tempfile::tempdir().unwrap();
         let bundle = dir.path().join("Humanize Desktop.app");
         let exe = bundle.join("Contents/MacOS/humanize");
@@ -669,5 +714,31 @@ mod tests {
         mode(dir.path(), 0o555).unwrap();
         assert_eq!(replaceable(&exe), None);
         mode(dir.path(), 0o755).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn replaces_only_an_install_it_may_write() {
+        let dir = tempfile::tempdir().unwrap();
+        // %LOCALAPPDATA%\Humanize Desktop, where its setup installs it for one user.
+        let folder = dir.path().join("Humanize Desktop");
+        let exe = folder.join("humanize.exe");
+        let uninstaller = folder.join("uninstall.exe");
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(&exe, "").unwrap();
+        // Not installed: while it is developed, or a copy unpacked.
+        assert_eq!(replaceable(&exe), None);
+        fs::write(&uninstaller, "").unwrap();
+        assert_eq!(replaceable(&exe), Some(folder.as_path()));
+        assert_eq!(fs::read(&uninstaller).unwrap(), b"");
+        // Where it may not be replaced.
+        let readonly = |readonly| {
+            let mut permissions = fs::metadata(&uninstaller).unwrap().permissions();
+            permissions.set_readonly(readonly);
+            fs::set_permissions(&uninstaller, permissions).unwrap();
+        };
+        readonly(true);
+        assert_eq!(replaceable(&exe), None);
+        readonly(false);
     }
 }

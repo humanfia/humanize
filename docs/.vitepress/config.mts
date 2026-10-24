@@ -274,6 +274,7 @@ export default defineConfig({
             { text: 'Leaving it running', link: '/user/leaving' },
             { text: 'In a browser (hmz web)', link: '/user/web' },
             { text: 'The macOS app', link: '/user/desktop' },
+            { text: 'The Windows app', link: '/user/desktop-windows' },
             { text: 'The mission board', link: '/user/board' },
           ],
         },
