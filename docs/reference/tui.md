@@ -1060,7 +1060,9 @@ under the list. Equivalent on the command line: [`-p`](/reference/cli#writing-pa
 | `duration` | written | `""` | `maximum epic duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-p budget.duration`](/reference/cli#writing-a-budget); reopens in days, hours, minutes and seconds, e.g. `6h`, `12d`, `1m30s`) |
 | `cost` | written | `0.0` | `maximum cost in US dollars, 0 for no limit` |
 | `output_tokens` | written | `0` | `maximum output tokens, 0 for no limit` |
-| `graceful` | ▾ `● on`/`○ off` | `on` | `finish the current turn when a limit is reached` |
+| `graceful_duration` | ▾ `● on`/`○ off` | `on` | `finish the current turn when the duration is reached` |
+| `graceful_cost` | ▾ `● on`/`○ off` | `on` | `finish the current turn when the cost is reached` |
+| `graceful_output_tokens` | ▾ `● on`/`○ off` | `on` | `finish the current turn when the output tokens are reached` |
 
 Button: **Set** (`all of the above`). Rows, keys and typing are as on the
 [params sheet](#setting-a-flow-up): the first character typed replaces the value.
@@ -1080,8 +1082,14 @@ Button: **Set** (`all of the above`). Rows, keys and typing are as on the
   │ output_tokens                                                          0 │
   │   maximum output tokens, 0 for no limit                                  │
   │──────────────────────────────────────────────────────────────────────────│
-  │ graceful                                                          ● on ▾ │
-  │   finish the current turn when a limit is reached                        │
+  │ graceful_duration                                                 ● on ▾ │
+  │   finish the current turn when the duration is reached                   │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ graceful_cost                                                     ● on ▾ │
+  │   finish the current turn when the cost is reached                       │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ graceful_output_tokens                                            ● on ▾ │
+  │   finish the current turn when the output tokens are reached             │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
                                                                            Set
@@ -1099,7 +1107,9 @@ Button: **Set** (`all of the above`). Rows, keys and typing are as on the
 
 Row summary: `stops at <duration>, <n> out, <money>[, even mid-turn]` for the limits set, the
 duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 12d, $5.00`;
-`stops at 1m30s, 12.0k out, $0.50, even mid-turn`); unset: `none set; an epic needs one`, or for
+`stops at 1m30s, 12.0k out, $0.50, even mid-turn`); where only some of the limits set cut a turn
+off, ` even mid-turn` follows each of those instead (`stops at 12.0k out even mid-turn, $0.50`);
+unset: `none set; an epic needs one`, or for
 `chat` `none needed; runs until you stop it`.
 
 ## `/epics` {#the-runs-that-have-already-happened}
@@ -2109,7 +2119,7 @@ back. The same content as the web's epic panel:
 | Heading | Rows |
 | --- | --- |
 | `Figures` | `time` (`<clock> elapsed`, or `total` once over), `spent` (`$<cost> · <n> out/s`, as the [cost readout](#cost-readout)'s second line, or `nothing yet`), `tokens` (by kind, its first line, or `none yet`) |
-| `Budget` | per limit set -- `cost`, `output`, `time` -- `<spent> of <allowed>` and a ten-cell meter with its share, red once spent; then `when spent`: `the last turn finishes` or `cut off at once`. A budget with no measurable limit: `limit none`. |
+| `Budget` | per limit set -- `cost`, `output`, `time` -- `<spent> of <allowed>` and a ten-cell meter with its share, red once spent; then `when spent`: `the last turn finishes`, `cut off at once`, or, where only some of the limits set cut a turn off, `cut off at once by <limit>[ or <limit>], else the last turn finishes`. A budget with no measurable limit: `limit none`. |
 | `Set up` | `flow`, `task`, `agents` (`[<name> · ]<role>=<spec>` each), `envs` (`<role>=<spec>`), `params` (`<name>=<JSON>`), `profiled` (`flow`, `environment`, both, `yes` or `no`) |
 | `Flows` | the flow started and each it called, innermost last, with how long each has run |
 

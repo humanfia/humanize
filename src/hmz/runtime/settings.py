@@ -342,8 +342,9 @@ class Settings:
           flow: The flow it was set for.
 
         Returns:
-          The budget as JSON -- `duration`, `cost`, `output_tokens`, `graceful` -- and
-          nothing at all for a flow nobody has set one for here.
+          The budget as JSON -- `duration`, `cost`, `output_tokens`, `graceful` (a boolean,
+          or one apiece for each limit) -- and nothing at all for a flow nobody has set one
+          for here.
         """
         return self._kept(flow, "budget")
 

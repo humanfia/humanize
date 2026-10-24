@@ -83,8 +83,8 @@ export function mount(root, { parts, query }) {
   root.setAttribute('aria-label', 'Settings')
   fill(
     root,
-    // The top row of a narrow window, which it fills.
-    dragged(nav),
+    // The top row of a narrow window, which it fills; on a wide one, a column inside it.
+    dragged(nav, 'deep', 'narrow'),
     h(
       'div',
       { class: 'settings-page' },

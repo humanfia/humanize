@@ -16,7 +16,7 @@ import Allowances from '../.vitepress/theme/components/features/Allowances.vue'
 <div class="hmz-facts">
 
 - **Graceful by default.** The turn under way ends and answers. Not graceful cuts it off where
-  it stands.
+  it stands. Each limit is graceful or not on its own.
 - **Nested.** Cost and tokens roll up through every flow a run calls. Duration is a deadline,
   not a sum.
 - **humanize holds it.** No flow and no hook can talk a spent budget into another turn.

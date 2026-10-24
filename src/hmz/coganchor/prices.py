@@ -13,6 +13,14 @@ cap is to hold, before its first turn -- held to the fetch's own timeout. And **
 nobody lists reads as tokens alone**: the list covers a few dozen models and humanize drives
 whatever CLI you have, so answering nothing is the ordinary case rather than the broken one.
 A `$0.00` against a model nobody priced would be a lie about a bill.
+
+And one rule turns the other way: **a price that is not a number stops everything**. A list
+with a `NaN` or an infinity in it -- a malformed snapshot, a hand-written `HUMANIZE_PRICES`
+file -- is not a list to price some models from and shrug at the rest: one such figure added
+to a run's spend makes it a spend no cost cap can hold, and the turns after it would run on
+the person's money with nothing counting. So `price` and `cost` raise :class:`PriceError`
+for as long as the list is like that, and a run is refused before its first turn rather than
+started on a bill nobody can read.
 """
 
 from __future__ import annotations
@@ -20,6 +28,7 @@ from __future__ import annotations
 import contextlib
 import http.client
 import json
+import math
 import os
 import pathlib
 import re
@@ -36,7 +45,17 @@ from hmz.coganchor import atomic
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-__all__ = ["SOURCE", "Price", "cost", "money", "price", "ready", "refresh", "where"]
+__all__ = [
+    "SOURCE",
+    "Price",
+    "PriceError",
+    "cost",
+    "money",
+    "price",
+    "ready",
+    "refresh",
+    "where",
+]
 
 #: The one JSON file OpenLLMPrices is over. There is no API beside it: the site itself reads
 #: this and nothing else, so this is the whole of the source rather than a scrape of a page.
@@ -112,8 +131,13 @@ _ROUTED = re.compile(r"^(?:bedrock|vertex|azure|aws|gcp)-")
 _lock = threading.Lock()
 #: What was last read off the disk, and the modification time it was read at -- so that a
 #: refresh landing is picked up without the file being parsed again on every draw.
-_listing: dict[str, Price] | None = None
+_listing: dict[str, Price] | PriceError | None = None
 _read_from: tuple[str, float] | None = None
+#: Why the list last fetched was refused, by where it would have been kept and where it was
+#: fetched from: a list that is not kept is still one that was wrong, and serving what was
+#: kept before it as though nothing had happened would hide that. Another home, or another
+#: source -- `HUMANIZE_PRICES=off` among them -- is another list, which this says nothing of.
+_refused: dict[tuple[str, str], str] = {}
 #: Whether a fetch is already running, and when one was last attempted: a source that is down
 #: must not be asked again on every redraw of a screen.
 _fetching = False
@@ -122,6 +146,15 @@ _tried = 0.0
 #: one somebody else already started rather than starting a second.
 _idle = threading.Event()
 _idle.set()
+
+
+class PriceError(ValueError):
+    """The price list gives some model a price that is not a finite number of dollars.
+
+    Raised by :func:`price` and :func:`cost` for as long as it does, whichever model is asked
+    about: what the list is wrong about is not known to stop at the one model it was caught
+    on. The message says which list, which model, and what to do about it.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +207,9 @@ def price(model: str) -> Price | None:
     Returns:
       Its price, or None where the list does not have it -- which is the ordinary answer,
       the list being a few dozen models and humanize driving whatever CLI you have.
+
+    Raises:
+      PriceError: If the list gives any model a price that is not a finite number.
     """
     listed = _index()
     for key in _keys(model):
@@ -195,6 +231,9 @@ def cost(usage: Mapping[str, float], model: str) -> float | None:
       kinds this model is priced for -- a caller MUST show either as tokens alone rather than
       as nothing spent. A kind that is not priced adds nothing, so what comes back is what the
       priced kinds came to: a floor, and never more than the truth.
+
+    Raises:
+      PriceError: If the list gives any model a price that is not a finite number.
     """
     listed = price(model)
     if listed is None:
@@ -227,8 +266,11 @@ def money(dollars: float) -> str:
     Returns:
       The money, cut to what can be read at a glance -- and to four places while it is under
       a cent, since a run that has cost a tenth of one has still cost something and `$0.00`
-      would say it had not.
+      would say it had not. A figure that is not a finite number reads `$?`: it is a bill
+      nobody can read, and no amount would be the truth about it.
     """
+    if not math.isfinite(dollars):
+        return "$?"
     if dollars >= 100:  # noqa: PLR2004 -- cents nobody reads on a bill this size
         return f"${dollars:,.0f}"
     if dollars >= 0.01:  # noqa: PLR2004 -- a cent, under which two places say nothing
@@ -245,7 +287,9 @@ def refresh(*, wait: bool = False) -> bool:
     starts -- and never by the drawing of a figure. It runs on a thread of its own, it is
     conditional on the etag of what is already here, and every way it can go wrong ends with
     what was kept still being served: a price list that could stop a run would be worth less
-    than no price list.
+    than no price list. Save one: a list that gives a price that is not a finite number is
+    not kept, and :func:`price` and :func:`cost` raise :class:`PriceError` until a fetch
+    brings one that does not.
 
     Args:
       wait: Whether to fetch on this thread instead of on one of its own. For a caller that
@@ -261,7 +305,11 @@ def refresh(*, wait: bool = False) -> bool:
         return False  # somebody has said not to reach for it at all
     now = time.monotonic()
     with _lock:
-        if _fetching or (_tried and now - _tried < STALE / 24):
+        # Not held to the hour while the source is refused: what is to be done about that is
+        # to fix it, and a source fixed is to be read the next time anybody asks.
+        if _fetching or (
+            _tried and now - _tried < STALE / 24 and not _refusing(whence)
+        ):
             return False
         if not wait and _fresh():
             return False  # what is kept is new enough to go on serving
@@ -303,13 +351,18 @@ def ready(*, stopped: Callable[[], bool] | None = None) -> bool:
     tried at most once an hour in a process. The fetch is on a thread of its own, a fetch
     already in the air is waited on rather than doubled, and the wait is held to the fetch's
     own timeout by the clock -- one that outlasts it lands for the turns after the first.
-    Every way it goes wrong leaves what was kept serving, and none of them stops the run.
+    Every way it goes wrong leaves what was kept serving, and none of them stops the run but
+    the one :class:`PriceError` is for.
 
     Args:
       stopped: Asked as it waits, so that a run stopped in the meantime is not held up.
 
     Returns:
       Whether there is a list kept to price with now, however old.
+
+    Raises:
+      PriceError: If the list fetched, or the one kept, gives a price that is not a finite
+        number.
     """
     if not _fresh() and _whence():
         refresh()
@@ -318,6 +371,14 @@ def ready(*, stopped: Callable[[], bool] | None = None) -> bool:
             if time.monotonic() >= until or (stopped is not None and stopped()):
                 break
     return bool(_index())
+
+
+def _refusing(whence: str) -> bool:
+    """Whether the list last fetched from `whence` into this home was refused."""
+    try:
+        return (str(where()), whence) in _refused
+    except OSError:
+        return False
 
 
 def _whence() -> str:
@@ -353,6 +414,7 @@ def _fetch(whence: str) -> bool:
         # Nowhere of this user's alone to keep it on this machine: nothing kept, nothing failed.
         return False
     _sweeps(kept)
+    asked = (str(kept), whence)
     held = _held(kept)
     # The etag only where it belongs to the source being asked. Replayed at another, a 304
     # would date the first source's prices forward and go on serving them as this one's.
@@ -367,6 +429,7 @@ def _fetch(whence: str) -> bool:
         # written again, which is what stops the next read fetching it all over.
         with contextlib.suppress(OSError):
             os.utime(kept)
+        _refused.pop(asked, None)
         return True
     except (OSError, http.client.HTTPException, urllib.error.URLError, ValueError):
         # The network is gone, the file is, or the answer stopped half way through. Every
@@ -376,9 +439,17 @@ def _fetch(whence: str) -> bool:
         loaded: object = json.loads(body)
     except ValueError:
         return False
-    trimmed = _trim(loaded, whence, etag)
+    try:
+        trimmed = _trim(loaded, whence, etag)
+    except PriceError as why:
+        # Not kept, so that the list kept before it goes on being a list of numbers -- and
+        # not dropped either: it is what the source says now, and every price is refused
+        # until it says something else.
+        _refused[asked] = f"the price list at {whence} {why}"
+        return False
     if trimmed is None:
         return False  # not the shape this reads, or not priced in dollars a token
+    _refused.pop(asked, None)
     return _keep(kept, trimmed)
 
 
@@ -436,6 +507,9 @@ def _trim(loaded: object, whence: str, etag: str) -> dict[str, Any] | None:
     Returns:
       What to keep, or None for a document this cannot read -- which includes one priced in
       another currency or by another unit. Showing the wrong money is worse than none.
+
+    Raises:
+      PriceError: If the newest version prices a model at something not a finite number.
     """
     if not isinstance(loaded, dict):
         return None
@@ -468,7 +542,7 @@ def _trim(loaded: object, whence: str, etag: str) -> dict[str, Any] | None:
             continue
         model = cast("dict[str, Any]", one)
         named = str(model.get("id") or "")
-        per = _per_million(model.get("pricingItems") or [])
+        per = _per_million(model.get("pricingItems") or [], named)
         if named and per:
             models[named] = {
                 "provider": str(model.get("provider") or ""),
@@ -486,7 +560,7 @@ def _trim(loaded: object, whence: str, etag: str) -> dict[str, Any] | None:
     }
 
 
-def _per_million(items: object) -> dict[str, float]:
+def _per_million(items: object, named: str) -> dict[str, float]:
     """What one model costs per million tokens, by kind.
 
     The first entry for a kind wins. One model carries several, one per context tier and one
@@ -496,9 +570,13 @@ def _per_million(items: object) -> dict[str, float]:
 
     Args:
       items: The model's `pricingItems`.
+      named: The model, for the error.
 
     Returns:
       Dollars per million tokens, by the kind humanize counts them under.
+
+    Raises:
+      PriceError: If a kind humanize counts is priced at something not a finite number.
     """
     per: dict[str, float] = {}
     if not isinstance(items, list):
@@ -511,10 +589,41 @@ def _per_million(items: object) -> dict[str, float]:
         asked: object = item.get("price")
         if kind is None or kind in per or not isinstance(asked, (int, float)):
             continue
-        if isinstance(asked, bool) or asked < 0:
+        if isinstance(asked, bool):
             continue
-        per[kind] = float(asked)
+        rate = _finite(named, kind, asked)
+        if rate < 0:
+            continue
+        per[kind] = rate
     return per
+
+
+def _finite(named: str, kind: str, rate: float) -> float:
+    """A rate as a float, refused where it is not a finite number.
+
+    Args:
+      named: The model, for the error.
+      kind: The kind of token, likewise.
+      rate: As JSON read it: `NaN`, an infinity, or an integer too big for a float among
+        what it may be.
+
+    Returns:
+      The rate.
+
+    Raises:
+      PriceError: If it is not a finite number, naming the model and what to do about it.
+    """
+    try:
+        dollars = float(rate)
+    except OverflowError:
+        dollars = math.inf
+    if not math.isfinite(dollars):
+        msg = (
+            f"prices {named}'s {kind} tokens at {dollars!r} dollars, which is not a "
+            f"number; point {WHENCE} at a list that prices it, or set {WHENCE}=off"
+        )
+        raise PriceError(msg)
+    return dollars
 
 
 def _keep(kept: pathlib.Path, trimmed: dict[str, Any]) -> bool:
@@ -577,6 +686,10 @@ def _index() -> dict[str, Price]:
 
     Returns:
       One entry per way of spelling a model that is listed, which is what `price` looks in.
+
+    Raises:
+      PriceError: If the list last fetched, or the one kept, gives a price that is not a
+        finite number.
     """
     global _listing, _read_from  # noqa: PLW0603 -- one list per process, held beside it
     try:
@@ -592,10 +705,16 @@ def _index() -> dict[str, Price]:
     # is what a suite does to every test -- is another list, however old either of them is.
     at = (str(kept), stamp)
     with _lock:
-        if _listing is not None and at == _read_from:
-            return _listing
-        _read_from = at
-        _listing = _read(kept)
+        if refused := _refused.get((str(kept), _whence())):
+            raise PriceError(refused)
+        if _listing is None or at != _read_from:
+            _read_from = at
+            try:
+                _listing = _read(kept)
+            except PriceError as why:
+                _listing = why
+        if isinstance(_listing, PriceError):
+            raise PriceError(*_listing.args)
         return _listing
 
 
@@ -608,6 +727,10 @@ def _read(kept: pathlib.Path) -> dict[str, Price]:
     Returns:
       Every listed model under every spelling of it this can recognise. An id wins over a
       name, two models never being one because their display names squash the same.
+
+    Raises:
+      PriceError: If it prices a model at something not a finite number, which a list kept
+        before such a list was refused may.
     """
     held = _held(kept)
     models: object = held.get("models")
@@ -621,11 +744,15 @@ def _read(kept: pathlib.Path) -> dict[str, Price]:
         per: object = model.get("per_million")
         if not isinstance(per, dict):
             continue
-        rates: dict[str, float] = {
-            str(kind): float(rate)
-            for kind, rate in cast("dict[str, Any]", per).items()
-            if isinstance(rate, (int, float)) and not isinstance(rate, bool)
-        }
+        try:
+            rates: dict[str, float] = {
+                str(kind): _finite(str(named), str(kind), rate)
+                for kind, rate in cast("dict[str, Any]", per).items()
+                if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+            }
+        except PriceError as why:
+            msg = f"the price list kept at {kept} {why}, or delete it"
+            raise PriceError(msg) from None
         if not rates:
             continue
         priced = Price(

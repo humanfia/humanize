@@ -80,6 +80,15 @@ export function mount(root, { query }) {
     return answer
   }
 
+  /** What a card's menu does, said while it goes: then what changed, or a toast of why not. */
+  function busy(doing, url, body) {
+    fill(said, said.querySelector('[data-hmz=update-banner]'), h('p', { class: 'loading', role: 'status', 'data-hmz': 'busy' }, doing))
+    change(url, body).catch((error) => {
+      said.querySelector('[data-hmz=busy]')?.remove()
+      toast(error.message)
+    })
+  }
+
   function drawUpdates(error) {
     if (error) return
     const updates = verses ? verses.updates : []
@@ -140,8 +149,8 @@ export function mount(root, { query }) {
                 { label: 'New epic', glyph: 'new', href: newEpic },
                 { label: 'Show', glyph: 'open', act: () => show(one.name) },
                 '-',
-                updates[one.name] ? { label: `Update to ${updates[one.name].to}`, glyph: 'download', act: () => change('/api/flowverses/install', { flow: one.name, version: updates[one.name].to }).catch((error) => toast(error.message)) } : null,
-                one.name.startsWith('@local/') ? null : { label: 'Copy here', glyph: 'copy', act: () => change('/api/flows/fork', { flow: one.name, workspace }).catch((error) => toast(error.message)) },
+                updates[one.name] ? { label: `Update to ${updates[one.name].to}`, glyph: 'download', act: () => busy(`Updating ${one.name}…`, '/api/flowverses/install', { flow: one.name, version: updates[one.name].to }) } : null,
+                one.name.startsWith('@local/') ? null : { label: 'Copy here', glyph: 'copy', act: () => busy(`Copying ${one.name}…`, '/api/flows/fork', { flow: one.name, workspace }) },
                 { label: 'Copy name', glyph: 'copy', act: () => copy(one.name, 'Name copied') },
               ])
             }),
@@ -229,7 +238,7 @@ export function mount(root, { query }) {
           return menuOn(card, () => [
             { head: one.url || one.name },
             { label: 'Open', glyph: 'open', act: () => openVerse(one.name) },
-            !one.fixed || one.name === 'official' ? { label: 'Fetch', glyph: 'resume', act: () => change('/api/flowverses/fetch', { name: one.name }).catch((error) => toast(error.message)) } : null,
+            !one.fixed || one.name === 'official' ? { label: 'Fetch', glyph: 'resume', act: () => busy(`Fetching ${one.name}…`, '/api/flowverses/fetch', { name: one.name }) } : null,
             one.url ? { label: 'Copy URL', glyph: 'copy', act: () => copy(one.url, 'URL copied') } : null,
           ])
         }),

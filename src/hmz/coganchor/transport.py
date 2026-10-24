@@ -36,6 +36,7 @@ import re
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -49,6 +50,7 @@ from typing import TYPE_CHECKING
 from hmz import coganchor
 from hmz.coganchor import atomic
 from hmz.coganchor.proto import Channel
+from hmz.coganchor.unix import sockets
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -236,6 +238,11 @@ _SSH_OPTIONS = ("-T", "-o", "BatchMode=no", "-o", "ServerAliveInterval=30")
 #: second. It is on unless `HUMANIZE_SSH_REUSE` says `off`, `0`, `no` or `false` -- trimmed and in
 #: any case -- or is set and empty, which is for a machine whose sshd refuses multiplexing.
 _SSH_REUSE = ("-o", "ControlMaster=auto", "-o", "ControlPersist=120")
+
+#: What a control socket's path spends after its directory: `%C`, ssh's 40-digit digest, the
+#: `-<8 digits>` of a target's own options, and the `.<16 digits>` ssh binds it under first
+#: and then renames it from.
+_CONTROL = 40 + 9 + 17
 
 #: Finding an interpreter, in POSIX sh, because this runs on the target before anything of
 #: humanize exists there.  Each candidate is *run* rather than merely looked for: macOS's
@@ -1275,8 +1282,10 @@ def _reuse(options: Sequence[tuple[str, str]] = ()) -> tuple[str, ...]:
 
     The socket lives under this user's runtime directory where there is one and in the
     temporary directory otherwise, named by `%C` -- ssh's own digest of host, port and user,
-    which is short, which matters: a unix socket path has about a hundred bytes to live in and
-    a home directory can spend most of them.
+    which is short, which matters: a unix socket path has about a hundred bytes to live in,
+    and a Mac's temporary directory spends half of them. Where what is left is too few, it
+    lives under `/tmp` instead, and is shared there only where the directory is this user's
+    alone.
 
     Args:
       options: The target's own options. A digest of them joins the name where there are
@@ -1288,14 +1297,26 @@ def _reuse(options: Sequence[tuple[str, str]] = ()) -> tuple[str, ...]:
         _reusing_held = ()
         said = os.environ.get("HUMANIZE_SSH_REUSE", "on").strip().lower()
         if said not in ("off", "0", "no", "false", ""):
-            under = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
-            control = os.path.join(under, f"humanize-ssh-{os.getuid()}")
+            name = f"humanize-ssh-{os.getuid()}"
+            under = sockets(
+                len(f"/{name}/") + _CONTROL, os.environ.get("XDG_RUNTIME_DIR", "")
+            )
+            control = os.path.join(under, name)
+            with contextlib.suppress(OSError):
+                os.mkdir(control, mode=0o700)
             try:
-                os.makedirs(control, mode=0o700, exist_ok=True)
+                found = os.lstat(control)
             except OSError:
                 pass
             else:
-                _reusing_held = (*_SSH_REUSE, "-o", f"ControlPath={control}/%C")
+                # Under `/tmp` a directory of this name may be anybody's, made first, and a
+                # socket in it one they could take this user's connections over.
+                if (
+                    stat.S_ISDIR(found.st_mode)
+                    and found.st_uid == os.getuid()
+                    and not found.st_mode & 0o077
+                ):
+                    _reusing_held = (*_SSH_REUSE, "-o", f"ControlPath={control}/%C")
     if not options or not _reusing_held:
         return _reusing_held
     told = hashlib.sha256(repr(tuple(options)).encode()).hexdigest()[:8]

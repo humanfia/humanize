@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 import hmz.daemon
 import hmz.runtime.flowing
-from hmz.flows import Budget
+from hmz.flows import Budget, Graceful
 from hmz.runtime.flowing import SpecError
 from hmz.tui import pick
 from tests.unit.tui import doubles_u14 as doubles
@@ -184,12 +184,25 @@ def durations(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("durations")
 def test_budgeted_answers_with_the_budget_it_was_set_to() -> None:
-    asked = pick.Budgeted(duration=" 90 ", cost=1.5, output_tokens=0, graceful=False)
+    asked = pick.Budgeted(
+        duration=" 90 ",
+        cost=1.5,
+        output_tokens=0,
+        graceful_duration=False,
+        graceful_cost=False,
+        graceful_output_tokens=False,
+    )
 
     assert asked.duration == "90"
     assert asked.budget() == Budget(
         duration=datetime.timedelta(minutes=90), cost=1.5, graceful=False
     )
+
+
+def test_budgeted_answers_with_each_limit_graceful_on_its_own() -> None:
+    asked = pick.Budgeted(cost=1.5, graceful_cost=False)
+
+    assert asked.budget() == Budget(cost=1.5, graceful=Graceful(cost=False))
 
 
 @pytest.mark.usefixtures("durations")
@@ -217,16 +230,25 @@ def test_budgeted_refuses_a_budget_that_limits_nothing_or_misreads(
             Budget(
                 duration=datetime.timedelta(hours=2), output_tokens=9, graceful=False
             ),
-            ("2h", 0.0, 9, False),
+            ("2h", 0.0, 9, (False, False, False)),
         ),
-        (Budget(cost=math.inf), ("", 0.0, 0, True)),
-        (Budget(cost=0), ("", 0.0, 0, True)),
-        (Budget(cost=4.25), ("", 4.25, 0, True)),
+        (
+            Budget(cost=1, graceful=Graceful(output_tokens=False)),
+            ("", 1.0, 0, (True, True, False)),
+        ),
+        (Budget(cost=math.inf), ("", 0.0, 0, (True, True, True))),
+        (Budget(cost=0), ("", 0.0, 0, (True, True, True))),
+        (Budget(cost=4.25), ("", 4.25, 0, (True, True, True))),
     ],
 )
 def test_budgeted_of_shows_a_budget_without_checking_it(
-    budget: Budget, shown: tuple[str, float, int, bool]
+    budget: Budget, shown: tuple[str, float, int, tuple[bool, bool, bool]]
 ) -> None:
     sheet = pick.Budgeted.of(budget)
 
-    assert (sheet.duration, sheet.cost, sheet.output_tokens, sheet.graceful) == shown
+    graces = (
+        sheet.graceful_duration,
+        sheet.graceful_cost,
+        sheet.graceful_output_tokens,
+    )
+    assert (sheet.duration, sheet.cost, sheet.output_tokens, graces) == shown

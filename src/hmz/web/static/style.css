@@ -936,6 +936,16 @@ code {
   padding: 4px;
 }
 
+.path-panel > .loading {
+  margin: 12px;
+}
+
+.path-panel[aria-busy='true'] .path-list,
+.reading[aria-busy='true'] {
+  opacity: 0.6;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 .path-list > .dim {
   padding: 8px;
   margin: 0;
@@ -1084,32 +1094,20 @@ code {
   color: inherit;
 }
 
+/* What a menu asked of the server, going until it answers. */
+.notice.working .dot {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 /* A file dragged over the window, which takes a .hmzepic dropped anywhere on it. */
 body.dropping .app {
   outline: 3px dashed var(--pink);
   outline-offset: -3px;
 }
 
-/* The page's own parts are not text to select; what it says is. */
-.sidebar,
-.bar,
-.tabs,
-.segmented,
-button,
-.chip,
-.card,
-.node,
-.zoom,
-.frame-label,
-.composer-bar,
-.settings-nav,
-.dialog-head,
-.side-section h3,
-.field > .label,
-.field > label,
-.kicker,
-.badge,
-.popover {
+/* Nothing the page draws is text to select, as on a web page, but what it says: what is there to
+   be read, copied or written. */
+body {
   user-select: none;
   -webkit-user-select: none;
 }
@@ -1117,14 +1115,31 @@ button,
 .selectable,
 .thread,
 .prose,
+.said,
+.error,
+.note,
 pre,
 code,
 dd,
 .bar-sub .mono,
 input,
-textarea {
+textarea,
+[contenteditable]:not([contenteditable='false']) {
   user-select: text;
   -webkit-user-select: text;
+}
+
+/* A control is not, whatever it holds. */
+:is(button, [role='button'], [role='tab'], [role='menuitem']),
+:is(button, [role='button'], [role='tab'], [role='menuitem']) * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Nor is a link or a picture dragged out of it, as from a web page. */
+a,
+img {
+  -webkit-user-drag: none;
 }
 
 /* ------------------------------------------------------------------ a view and its bar */
@@ -1279,6 +1294,14 @@ textarea {
 .icon-btn:hover {
   background: var(--hover);
   color: var(--ink);
+}
+
+.icon-btn[aria-busy='true'] {
+  cursor: progress;
+}
+
+.icon-btn[aria-busy='true'] svg {
+  animation: pulse 1s ease-in-out infinite;
 }
 
 .icon-btn[aria-pressed='true'] {
@@ -1598,6 +1621,11 @@ p + .panel {
 .empty {
   color: var(--ink-3);
   margin: 24px 0;
+}
+
+/* A panel with nothing in it yet -- its part of a page still being read -- is not drawn. */
+.panel:empty {
+  display: none;
 }
 
 .empty strong {
@@ -2108,8 +2136,14 @@ pre.block {
   display: none;
 }
 
-.composer-said .error {
+.composer-said .error,
+.composer-said .loading {
   margin: 0 0 4px;
+}
+
+.composer-said .loading {
+  font: 12px var(--mono);
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .composer-bar {
@@ -2144,8 +2178,13 @@ pre.block {
   text-overflow: ellipsis;
 }
 
+.options.stale {
+  opacity: 0.5;
+}
+
 .composer.busy .send {
   opacity: 0.6;
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .send {
@@ -3409,6 +3448,11 @@ pre.exo-args {
   display: none;
 }
 
+.flows-said .loading {
+  margin: 0 0 12px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 .flows-said .chip {
   white-space: normal;
   overflow-wrap: anywhere;
@@ -3570,6 +3614,12 @@ pre.exo-args {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/* What is listed while another page of it, or another search, is read. */
+.dialog-body[aria-busy='true'] > * {
+  opacity: 0.6;
+  animation: pulse 1.6s ease-in-out infinite;
 }
 
 .result {
@@ -4029,12 +4079,6 @@ input[aria-invalid='true'] {
   background-image: var(--dialog-image, none);
   background-size: var(--dialog-size, cover);
   background-repeat: var(--dialog-repeat, no-repeat);
-}
-
-/* What the window is dragged by is not text to select. */
-[data-tauri-drag-region='deep'] {
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 /* daemon bar */

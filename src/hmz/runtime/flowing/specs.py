@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 import pydantic
 
-from hmz.flows import Budget, EnvBackendKind, HarnessKind
+from hmz.flows import Budget, EnvBackendKind, Graceful, HarnessKind
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -131,12 +131,15 @@ class EnvSpec:
 #: and so never a flow's.
 BUDGET = "budget"
 
+#: What a key is: a param's, or one limit of the budget, or whether one limit is graceful.
+_WORD = rf"(?:{BUDGET}\.(?:graceful\.)?)?[A-Za-z_][\w-]*"
+
 #: Where one item of a flag ends and the next begins: a comma followed by a key and `=`,
 #: with any spaces between them, which are the separator's rather than the next item's.
-_ITEMS = re.compile(rf",\s*(?=(?:{BUDGET}\.)?[A-Za-z_][\w-]*=)")
+_ITEMS = re.compile(rf",\s*(?={_WORD}=)")
 
-#: What a key is, which is what `_ITEMS` splits before: a param's, or one limit of the budget.
-_KEY = re.compile(rf"(?:{BUDGET}\.)?[A-Za-z_][\w-]*")
+#: What a key is, which is what `_ITEMS` splits before.
+_KEY = re.compile(_WORD)
 
 #: `-e` read whole: the role, the backend, the provider after an `@` -- a name, or a host in
 #: brackets, which may hold an `@` of its own as `user@host` does --, and the workdir from the
@@ -509,8 +512,12 @@ def _params(values: Sequence[str]) -> dict[str, str]:
     return params
 
 
-#: The limits a budget takes, each as `-p budget.<limit>=`, and nothing else.
-_BUDGET = ("duration", "cost", "output_tokens", "graceful")
+#: The limits a budget sets.
+_LIMITS = ("duration", "cost", "output_tokens")
+
+#: What a budget takes, each as `-p budget.<name>=`, and nothing else: its limits, whether
+#: every limit is graceful, and whether one limit is, which overrides that.
+_BUDGET = (*_LIMITS, "graceful", *(f"graceful.{one}" for one in _LIMITS))
 
 #: What each unit of a written duration is, in seconds.
 _UNITS = {"w": 604800, "d": 86400, "h": 3600, "m": 60, "s": 1}
@@ -623,8 +630,8 @@ def parse_budget(values: Sequence[str]) -> Budget | None:
 
     Args:
       values: What each `-p` was given: of which `budget.duration=`, `budget.cost=`,
-        `budget.output_tokens=` and `budget.graceful=` are read, each at most once across
-        all of them, and the flow's own params left alone.
+        `budget.output_tokens=`, `budget.graceful=` and `budget.graceful.<limit>=` are
+        read, each at most once across all of them, and the flow's own params left alone.
 
     Returns:
       The budget, or None where no `-p` named a limit.
@@ -654,11 +661,21 @@ def parse_budget(values: Sequence[str]) -> Budget | None:
         "graceful": _flag,
     }
     fields: dict[str, Any] = {}
+    graces: dict[str, bool] = {}
     for key, value in said.items():
+        _, graceful, limit = key.partition("graceful.")
         try:
-            fields[key] = readers[key](value)
+            if graceful:
+                graces[limit] = _flag(value)
+            else:
+                fields[key] = readers[key](value)
         except ValueError as error:
             raise BudgetSpecError(f"-p {BUDGET}.{key}: {error}") from error
+    if graces:
+        every = fields.get("graceful", True)
+        fields["graceful"] = Graceful.model_validate(
+            dict.fromkeys(_LIMITS, every) | graces
+        )
     try:
         return Budget.model_validate(fields)
     except pydantic.ValidationError as error:

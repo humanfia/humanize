@@ -38,6 +38,7 @@ export function mount(root, { query }) {
     label: 'Task',
     tools: [optionsChip, summary],
     empty: true,
+    busy: 'Starting…',
     submit: (task) => start(task),
   })
   box.node.dataset.hmz = 'start'
@@ -85,10 +86,18 @@ export function mount(root, { query }) {
   /** Which workspace was read last: one read after another was picked draws nothing. */
   let loading = ''
 
+  /** Says the flow drawn is being read again, rather than leave the last one standing as if current. */
+  function reading(on) {
+    fill(about, on ? h('span', { class: 'loading', role: 'status' }, 'Reading…') : picked ? picked.description || '' : '')
+    options.classList.toggle('stale', on)
+    options.toggleAttribute('aria-busy', on)
+  }
+
   /** Reads what a workspace offers -- its flows, and the one it last set up -- and opens one. */
   async function load(flow) {
     const mine = (loading = scratch ? 'none' : workspace || 'here')
     fill(box.said)
+    reading(true)
     try {
       const ran = resume ? await get(`/api/runs/${encodeURIComponent(resume)}`) : null
       if (mine !== loading) return
@@ -108,10 +117,14 @@ export function mount(root, { query }) {
       // A flow the address names that is not on offer there opens the one it last set up.
       const asked = flows.some((one) => one.name === flow) ? flow : ''
       const wanted = (ran && ran.flow) || asked || found.flow || (flows[0] && flows[0].name) || ''
-      if (!wanted) fill(options, problem('No flow is on offer here.'))
-      else choose(wanted, ran)
+      if (!wanted) {
+        reading(false)
+        fill(options, problem('No flow is on offer here.'))
+      } else choose(wanted, ran)
     } catch (error) {
-      if (mine === loading) fill(box.said, problem(error))
+      if (mine !== loading) return
+      reading(false)
+      fill(box.said, problem(error))
     }
   }
   load(query.get('flow') || '')
@@ -123,17 +136,20 @@ export function mount(root, { query }) {
     // The address of a dialog opened over it is the dialog's own.
     if (!covered()) stays({ workspace: scratch ? '' : workspace, scratch: scratch ? '1' : '', flow: name, resume: ran ? ran.name : '' })
     fill(picker.querySelector('b'), name)
+    reading(true)
     let read
     try {
       read = await get(`/api/flow?name=${encodeURIComponent(name)}&workspace=${encodeURIComponent(workspace)}`)
     } catch (error) {
-      if (choosing === name) fill(box.said, problem(error))
+      if (choosing !== name) return
+      reading(false)
+      fill(box.said, problem(error))
       return
     }
     // Another flow, or another workspace's, was chosen while this one was read.
     if (choosing !== name || at !== workspace) return
     picked = read
-    fill(about, picked.description || '')
+    reading(false)
     fill(resumed, ran ? h('p', { class: 'note' }, `Picks up ${ran.name}, carrying on from where it stopped.`) : null)
     greeting.textContent = ran ? 'Resume epic' : `What should ${name} do?`
     setup = drawOptions(picked, ran)
@@ -257,12 +273,21 @@ export function mount(root, { query }) {
   }
 }
 
-/** The fields of a budget: what it may cost, how long it may take, and how much it may write. */
+/**
+ * The fields of a budget: what it may cost, how long it may take, and how much it may write,
+ * and for each whether the turn under way when it is reached may finish.
+ */
 function budgetFields(kept, changed) {
   const cost = h('input', { type: 'number', min: '0', step: '0.01', value: kept.cost === 'Infinity' ? '' : kept.cost ?? '', placeholder: 'dollars', 'aria-label': 'Most it may cost, in dollars' })
   const minutes = h('input', { type: 'number', min: '0', step: '1', value: minutesOf(kept.duration), placeholder: 'minutes', 'aria-label': 'Longest it may take, in minutes' })
   const tokens = h('input', { type: 'number', min: '0', step: '1000', value: kept.output_tokens ?? '', placeholder: 'output tokens', 'aria-label': 'Most output tokens it may write' })
-  const graceful = h('input', { type: 'checkbox', checked: kept.graceful !== false })
+  // Graceful is one flag for every limit, or one apiece; a box apiece either way.
+  const graces = Object.fromEntries(
+    ['cost', 'duration', 'output_tokens'].map((limit) => [
+      limit,
+      h('input', { type: 'checkbox', checked: (kept.graceful && typeof kept.graceful === 'object' ? kept.graceful[limit] : kept.graceful) !== false }),
+    ]),
+  )
   for (const one of [cost, minutes, tokens]) one.addEventListener('input', changed)
   return {
     fields: h(
@@ -271,7 +296,9 @@ function budgetFields(kept, changed) {
       h('label', { class: 'field' }, h('span', { class: 'label' }, 'Cost, $'), cost),
       h('label', { class: 'field' }, h('span', { class: 'label' }, 'Time, min'), minutes),
       h('label', { class: 'field' }, h('span', { class: 'label' }, 'Output tokens'), tokens),
-      h('label', { class: 'check' }, graceful, 'Graceful'),
+      h('label', { class: 'check' }, graces.cost, 'Cost graceful'),
+      h('label', { class: 'check' }, graces.duration, 'Time graceful'),
+      h('label', { class: 'check' }, graces.output_tokens, 'Tokens graceful'),
     ),
     said() {
       return [cost.value !== '' && `$${cost.value}`, minutes.value !== '' && `${minutes.value} min`, tokens.value !== '' && `${tokens.value} out`].filter(Boolean).join(' · ')
@@ -282,7 +309,9 @@ function budgetFields(kept, changed) {
       if (minutes.value !== '') said.duration = Number(minutes.value) * 60
       if (tokens.value !== '') said.output_tokens = Number(tokens.value)
       if (!Object.keys(said).length) return null
-      said.graceful = graceful.checked
+      const flags = Object.fromEntries(Object.entries(graces).map(([limit, box]) => [limit, box.checked]))
+      const every = Object.values(flags)
+      said.graceful = every.every((one) => one === every[0]) ? every[0] : flags
       return said
     },
   }

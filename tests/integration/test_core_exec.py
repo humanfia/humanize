@@ -213,6 +213,74 @@ def test_output_tokens_spent_cut_off_the_turn_that_spends_them(tmp_path: Path) -
     assert len(started(tmp_path)) == 1
 
 
+def test_a_price_that_is_not_a_number_refuses_the_run_before_its_first_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listed = tmp_path / "prices.json"
+    # NaN as Python's own JSON writes it, which is what a malformed snapshot carries.
+    listed.write_text(
+        json.dumps(
+            {
+                "currency": "USD",
+                "unit": "USD/1M tokens",
+                "versions": [
+                    {
+                        "date": "2026-10-01",
+                        "models": [
+                            {
+                                "id": MODEL,
+                                "pricingItems": [
+                                    {"category": "output_tokens", "price": float("nan")}
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+    )
+    monkeypatch.setenv("HUMANIZE_PRICES", str(listed))
+
+    ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win")
+
+    assert ran.returncode == 2, ran.stderr
+    assert "hmz exec: error:" in ran.stderr
+    assert f"{MODEL}'s output tokens at nan dollars" in ran.stderr
+    assert "Traceback" not in ran.stderr
+    assert started(tmp_path) == []
+
+
+def test_a_graceful_output_token_limit_lets_its_turn_finish_under_a_hard_budget(
+    tmp_path: Path, project: Path
+) -> None:
+    ran = hmz_exec(
+        "-f",
+        "stateful_ralph",
+        "-a",
+        f"agent={AGENT}",
+        "-p",
+        f"budget.output_tokens={TOKENS - 1},budget.graceful=false",
+        "-p",
+        "budget.graceful.output_tokens=true",
+        "work",
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    assert "output tokens" in ran.stderr
+    assert "wrote" not in ran.stderr
+    assert len(started(tmp_path)) == 1
+    epics = Hmz(project).epics
+    (epic,) = epics.all()
+    ran_as = epics.read(epic)
+    assert ran_as is not None
+    assert ran_as.budget is not None
+    assert ran_as.budget["graceful"] == {
+        "duration": False,
+        "cost": False,
+        "output_tokens": True,
+    }
+
+
 def test_json_writes_the_run_as_one_object_per_line() -> None:
     ran = hmz_exec(
         "--json", "-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win"

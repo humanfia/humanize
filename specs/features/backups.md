@@ -113,6 +113,11 @@ there is no target.
 **3.4.4** A frontend offering a backup by hand MUST return at once, and MUST then show how the
 backup went as the epic records it.
 
+**3.4.5** While `hmz backup` waits on a target -- backing up to it, listing it, or downloading from
+it -- and standard error is a terminal and escapes are allowed (`api/cli.md` §4.2), it MUST draw a
+transient spinner there saying what it is doing and to which target, and MUST take it down before
+it states how that went.
+
 ### 3.5 Content and delivery
 
 **3.5.1** A backup MUST hold exactly the files a bundle of the epic holds (§4.1), scrubbed as a

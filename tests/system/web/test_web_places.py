@@ -21,6 +21,8 @@ from tests.system.web.doubles_browser import ENGINES, go, opened, stop
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from playwright.sync_api import Route
+
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
@@ -143,7 +145,23 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
         page.locator("[data-hmz=workspace-picker]").click()
         page.get_by_role("menuitem", name="Open folder…").click()
         page.locator("[data-hmz=workspace-path]").fill(str(other))
+        # Opening it says so until the daemon answers.
+        held: list[Route] = []
+
+        def hold(route: Route) -> None:
+            if route.request.method == "POST":
+                held.append(route)
+            else:
+                route.fallback()
+
+        page.route("**/api/workspaces", hold)
         page.get_by_role("button", name="Open", exact=True).click()
+        expect(page.get_by_role("button", name="Opening…")).to_be_disabled()
+        for _ in range(200):
+            if held:
+                break
+            page.wait_for_timeout(50)
+        held.pop().fallback()
         expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text("other")
 
         page.get_by_role("button", name="Options").click()

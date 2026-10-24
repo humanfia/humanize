@@ -8,15 +8,17 @@ from __future__ import annotations
 
 import os
 import tarfile
+import threading
 from importlib.metadata import version
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from textual.widgets import OptionList
 
+from hmz.daemon import link
 from hmz.runtime import Hmz
 from hmz.runtime.epic import Epic
-from hmz.tui import Humanize
+from hmz.tui import Humanize, pick
 from hmz.tui.afar import Afar
 from hmz.tui.pick import (
     Acts,
@@ -31,12 +33,14 @@ from hmz.tui.settings import Adjusts
 from tests.integration.doubles_ssh import Host, faked
 from tests.integration.doubles_tui import (
     MODEL,
+    PATIENCE,
     SIZE,
     leaves,
     on,
     onto,
     opened,
     picks,
+    screen,
     shows,
     stand_in,
     typed,
@@ -202,3 +206,97 @@ async def test_an_epic_is_started_on_another_daemon_and_followed_here(
         await shows(pilot, "heard again")
         await pilot.press("escape")
         await on(pilot, RemoteEpics)
+
+
+class _Held:
+    """Another daemon's interface, holding each answer but the list until it is let go."""
+
+    def __init__(self) -> None:
+        self.gates: dict[str, threading.Event] = {}
+
+    def gate(self, path: str) -> threading.Event:
+        return self.gates.setdefault(path, threading.Event())
+
+    def asked(self, _daemon: str, path: str, *_args: Any, **_kwargs: Any) -> object:
+        if not path.startswith("/api/runs?"):
+            self.gate(path).wait(PATIENCE)
+        return {
+            "/api/held": {"here": "/w"},
+            "/api/runs/e1": {"task": "tidy the whole far project"},
+            "/api/runs/e1/backup": {"queued": ["s3"]},
+        }.get(
+            path,
+            {
+                "runs": [
+                    {
+                        "name": "e1",
+                        "flow": "ralph",
+                        "task": "tidy the far project",
+                        "workspace": "/w",
+                        "sessions": 1,
+                        "how": "done",
+                        "held": True,
+                    }
+                ],
+                "total": 1,
+            },
+        )
+
+    def close(self) -> None:
+        for one in self.gates.values():
+            one.set()
+
+
+async def test_what_is_asked_of_another_daemon_is_said_while_it_is_under_way(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None
+) -> None:
+    del asking
+    stand_in(tmp_path, monkeypatch)
+    held = _Held()
+    monkeypatch.setattr(pick, "remotes", lambda: held)
+    following = threading.Event()
+
+    def remote(*_args: object) -> object:
+        following.wait(PATIENCE)
+        raise OSError("box went away")
+
+    monkeypatch.setattr(link, "remote", remote)
+    Hmz().daemons.write("box", {"host": "box.example"})
+    try:
+        async with Humanize().run_test(size=SIZE) as pilot:
+            await opened(pilot)
+            await typed(pilot, "/epics @box")
+            await on(pilot, RemoteEpics)
+            await shows(pilot, "tidy the far project")
+
+            await pilot.press("n")
+            await shows(pilot, "reaching box…")
+            held.gate("/api/held").set()
+            await on(pilot, Starting)
+            await pilot.press("escape")
+            await on(pilot, RemoteEpics)
+            assert "reaching box…" not in screen(pilot.app)
+
+            await _menu(pilot, "e1")
+            await onto(pilot, "copy-task")
+            await pilot.press("enter")
+            await shows(pilot, "fetching the task…")
+            held.gate("/api/runs/e1").set()
+            await shows(pilot, "task copied")
+
+            await _menu(pilot, "e1")
+            await onto(pilot, "upload")
+            await pilot.press("enter")
+            await shows(pilot, "backing e1 up…")
+            held.gate("/api/runs/e1/backup").set()
+            await shows(pilot, "backing e1 up to s3")
+
+            await _menu(pilot, "e1")
+            await onto(pilot, "follow")
+            await pilot.press("enter")
+            await shows(pilot, "following /w on box…")
+            following.set()
+            await shows(pilot, "box went away")
+    finally:
+        held.close()
+        following.set()

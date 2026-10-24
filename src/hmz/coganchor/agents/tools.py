@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from hmz.coganchor.unix import sockets
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
@@ -144,7 +146,9 @@ class Toolbox:
             # old answer and stop before it had taken anything.
             self._closed.clear()
             self._where = tempfile.TemporaryDirectory(
-                prefix="humanize-tools-", ignore_cleanup_errors=True
+                prefix="humanize-tools-",
+                dir=sockets(len("/humanize-tools-XXXXXXXX/tools.sock")),
+                ignore_cleanup_errors=True,
             )
             # Inside a directory this user alone may enter: a socket is a way into this
             # process, and one anybody could connect to is a way in for anybody.

@@ -710,6 +710,20 @@ def test_a_run_with_no_cost_cap_fetches_prices_without_waiting(
     assert (engine_.readied, engine_.refreshed) == (0, 1)
 
 
+@pytest.mark.parametrize("budget", [BUDGET, {"output_tokens": 5}])
+def test_a_price_that_is_not_a_number_refuses_the_run_capped_or_not(
+    engine_: Flowing, monkeypatch: pytest.MonkeyPatch, budget: dict[str, float]
+) -> None:
+    def price(model: str) -> None:
+        raise prices.PriceError("prices opus's output tokens at nan dollars")
+
+    monkeypatch.setattr(prices, "price", price)
+    runner = _runner(budget=budget)
+
+    with pytest.raises(Refused, match="opus's output tokens at nan"):
+        runner.unreadable()
+
+
 def test_every_session_is_watched_through_each_driver_that_can_be(
     engine_: Flowing,
 ) -> None:

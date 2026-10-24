@@ -7,10 +7,12 @@ carried on, in the same epic, from `/epics`.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import threading
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz.daemon.link import Link
 from hmz.runtime.epic import Ran, epics, read
 from hmz.tui import Humanize
 from hmz.tui.monitoring import Monitoring
@@ -31,6 +33,7 @@ from tests.integration.doubles_tui import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
 
@@ -59,6 +62,79 @@ async def test_a_chat_is_running_while_the_assistant_answers_and_done_after(
         assert "waiting for you" not in drawn
         assert "outworlder" not in drawn
     assert heard(workspace) == ["wait for it", "now"]
+
+
+async def test_tool_rows_shown_in_detail_are_drawn_as_written_and_again_on_a_resize(
+    workspace: Path, tmp_path: Path
+) -> None:
+    home = tmp_path / "humanize-home"
+    home.mkdir(exist_ok=True)
+    (home / "settings.yaml").write_text("details: true\n")
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "tools")
+        rows = ("Agent(look around) started", "Bash(foo\\ bar)", "heard tools")
+        await shows(pilot, *rows)
+
+        # Drawn again from what was kept, at the new width: what a row was written with is
+        # read a second time, and a row that was not markup would fail every redraw after.
+        await pilot.resize_terminal(SIZE[0] - 10, SIZE[1])
+
+        await shows(pilot, *rows)
+
+
+def holds_the_start(
+    monkeypatch: pytest.MonkeyPatch, *, refusing: bool = False
+) -> threading.Event:
+    """Holds every `start` asked until the event answered is set, refused if `refusing`."""
+    let_go = threading.Event()
+    asking = Link.asked
+
+    def held(self: Link, said: Mapping[str, Any], **kwargs: Any) -> dict[str, Any]:
+        if said.get("do") == "start":
+            let_go.wait(10)
+            if refusing:
+                raise RuntimeError("no room to start")
+        return asking(self, said, **kwargs)
+
+    monkeypatch.setattr(Link, "asked", held)
+    return let_go
+
+
+async def test_a_chat_says_it_is_starting_until_it_has_started(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    let_go = holds_the_start(monkeypatch)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "hello")
+
+        drawn = await shows(pilot, "starting…")
+        assert "starting…" in drawn.splitlines()[-1]
+        assert "◉ chat" not in drawn
+
+        let_go.set()
+        drawn = await shows(pilot, "heard hello", "◉ done")
+        assert "starting…" not in drawn
+    del workspace
+
+
+async def test_a_refused_start_puts_the_status_line_back_at_rest(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    let_go = holds_the_start(monkeypatch, refusing=True)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "hello")
+        await shows(pilot, "starting…")
+
+        let_go.set()
+        drawn = await shows(pilot, "no room to start", "◉ chat")
+        assert "starting…" not in drawn
+    del workspace
 
 
 async def test_ctrl_c_never_stops_a_chat_and_twice_leaves(workspace: Path) -> None:

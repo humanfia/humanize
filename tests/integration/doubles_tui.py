@@ -11,6 +11,9 @@ it holds, the driver, a process -- with nothing real behind it:
   cutting one off observable;
 - told something starting with `ask`, it stops to ask `Which colour?`, offering `red` and
   `blue`, and answers `picked <the answer>`;
+- told something starting with `tools`, it starts an agent of its own to `look around` and
+  runs `foo bar` in Bash with a backslash before the space, before it answers -- a backslash
+  being what a row of markup is likeliest to trip over;
 - a word put into a turn under way is acknowledged as Claude acknowledges one;
 - every turn costs 1,000 input tokens and 200 output tokens;
 - what it is told is kept as a conversation where Claude Code keeps one, under
@@ -154,6 +157,13 @@ for line in sys.stdin:
     if held[0].startswith("wait") and len(held) == 1:
         say(type="assistant", message={"content": [{"type": "text", "text": "still on it"}]})
         continue
+    if held[0].startswith("tools"):
+        say(type="assistant", message={"content": [
+            {"type": "tool_use", "id": "a1", "name": "Agent",
+             "input": {"description": "look around"}},
+            {"type": "tool_use", "id": "b1", "name": "Bash",
+             "input": {"command": "foo\\\\ bar"}},
+        ]})
     answer = "heard " + " then ".join(held)
     say(type="assistant", message={"content": [{"type": "text", "text": answer}]})
     turns += 1

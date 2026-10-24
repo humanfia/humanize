@@ -20,6 +20,7 @@ runs through, for a figure nobody reads between turns.
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 import weakref
@@ -251,7 +252,12 @@ class Ledger:
         for agent in enrolled:
             usage = agent.spent()
             output += usage.output
-            money = prices.cost(usage, agent.config.model)
+            try:
+                money = prices.cost(usage, agent.config.model)
+            except prices.PriceError:
+                # A price that is not a number is a bill no allowance can afford: the run
+                # stops on it rather than going on with its spending uncounted.
+                money = math.inf
             if money is not None:
                 billed.append(money)
         return Reading(
@@ -362,8 +368,11 @@ def blinded(
     blind: set[str] = set()
     if allowance.tokens > 0 and not counting:
         blind.add("tokens")
-    if allowance.dollars > 0 and not any(
-        prices.price(one) is not None for one in named
-    ):
-        blind.add("dollars")
+    if allowance.dollars > 0:
+        try:
+            priced = any(prices.price(one) is not None for one in named)
+        except prices.PriceError:
+            priced = True  # read, and read as over at once, by `Ledger.reads`
+        if not priced:
+            blind.add("dollars")
     return frozenset(blind)

@@ -55,7 +55,8 @@ The app is a window, not a second humanize. It runs `hmz` as
 - **Your epics outlive it**, as they outlive `hmz web`: quitting the app leaves an epic going.
   See [Leaving it running](/user/leaving).
 - **The page is the whole window**, up to its top edge, with the window's buttons over the
-  sidebar's top. Drag the window by any empty part of the top row, and double-click it to zoom.
+  sidebar's top. Drag the window by any empty part of the top row, and double-click it to zoom;
+  nothing inside the window moves it, a dialog or the panel over a narrow window included.
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown
   in the Finder.
 - **Other machines too.** The [daemons](/user/web#daemons) the page reaches -- your ssh hosts
@@ -98,10 +99,12 @@ once, naming the version:
 - **Restart** installs it, and opens humanize again on it, `hmz web` stopped and started with it.
 - **Later** leaves it until you quit humanize, which installs it then.
 
-To look now, choose **humanize → Check for Updates…**: it offers the new release, or says
-humanize is up to date, or why it could not look. Only releases are offered, never a
-pre-release, unless the app you run is a pre-release itself: then the newest release or
-pre-release is.
+To look now, choose **humanize → Check for Updates…**: a small window shows it looking, then
+how far the download is, and the menu item reads **Checking for Updates…** until it is done. Then
+it offers the new release, or says humanize is up to date, or why it could not look; choose
+**Restart** and the window shows the install until humanize opens again. Only releases are
+offered, never a pre-release, unless the app you run is a pre-release itself: then the newest
+release or pre-release is.
 
 Once the new app opens, it updates `hmz` to its own version too, as it would at any launch: at
 once where no epics are running, and otherwise once they have ended.

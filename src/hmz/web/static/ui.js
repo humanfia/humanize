@@ -51,7 +51,7 @@ function close() {
 
 /** Where the browser's own menu is the right one: what is there to be read, copied or written. */
 function readable(target) {
-  return Boolean(target.closest('input, textarea, select, [contenteditable], .selectable, .thread, .prose, pre, code, dd, .said, .error, .note'))
+  return Boolean(target.closest('input, textarea, select, [contenteditable], .selectable, .thread, .prose, pre, code, dd, .said, .error, .note, .bar-sub .mono'))
 }
 
 function open(items, x, y) {

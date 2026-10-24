@@ -9,7 +9,7 @@ import { get, post } from '../../api.js'
 import { acting, ago, confirming, fill, h, problem } from '../../dom.js'
 
 export function draw(holder, query, parts, scope) {
-  const listing = h('section', { class: 'panel', 'data-hmz': 'accounts' })
+  const listing = h('section', { class: 'panel', 'data-hmz': 'accounts' }, h('p', { class: 'loading', role: 'status' }, 'Reading the accounts…'))
   const making = h('section', { class: 'panel', 'data-hmz': 'make-account' })
   fill(
     holder,
@@ -113,6 +113,7 @@ export function draw(holder, query, parts, scope) {
       const given = {}
       for (const input of form.querySelectorAll('input[data-env]')) if (input.value) given[input.dataset.env] = input.value
       save.disabled = true
+      save.textContent = 'Saving…'
       try {
         shown(await post(scope.at('/api/accounts/correct'), { cli: one.cli, name: one.name, answers: given }))
         fill(said, h('span', { class: 'dim', role: 'status' }, 'Saved.'))
@@ -121,6 +122,7 @@ export function draw(holder, query, parts, scope) {
         fill(said, problem(error))
       } finally {
         save.disabled = false
+        save.textContent = 'Save'
       }
     })
     fill(making, h('h2', {}, `Edit ${one.cli}@${one.name}`), form)
@@ -203,6 +205,7 @@ export function draw(holder, query, parts, scope) {
       const given = {}
       for (const input of answers.querySelectorAll('input[data-env]')) if (input.value) given[input.dataset.env] = input.value
       make.disabled = true
+      make.textContent = 'Creating…'
       try {
         shown(await post(scope.at('/api/accounts'), { cli: cli.value, name: name.value.trim(), way: way.value, answers: given }))
         fill(said, h('span', { class: 'dim', role: 'status' }, `Made ${cli.value}@${name.value.trim()}.`))
@@ -212,6 +215,7 @@ export function draw(holder, query, parts, scope) {
         fill(said, problem(error))
       } finally {
         make.disabled = Boolean(picked()?.terminal)
+        make.textContent = 'Create'
       }
     })
     fill(making, h('h2', {}, 'New account'), form)

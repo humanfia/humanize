@@ -77,7 +77,7 @@ def test_a_turn_asks_for_text_with_no_limit_by_default() -> None:
     request = TurnRequest("hi")
 
     assert request.output_schema is None
-    assert request.limits == Limits(None, None, None, graceful=True)
+    assert request.limits == Limits(None, None, None, True, True, True)
 
 
 def test_a_placement_is_this_machines_workspace_unless_told_otherwise() -> None:

@@ -265,6 +265,22 @@ _PATIENCE = 10.0
 _FIRST = {"stopped": "the flow stopped", "ended": "the flow ended"}
 
 
+def _escaped(text: str) -> list[str]:
+    """The lines of something said, each escaped as markup that a tag can be put after.
+
+    Line by line rather than the whole and then split: Rich's escape doubles a backslash only
+    where it ends what it was given, so every other line ending in one would keep it -- and a
+    tag put after that line is escaped by it, leaving a `[/]` that closes nothing.
+
+    Args:
+      text: What was said.
+
+    Returns:
+      Its lines, escaped, and none for nothing at all.
+    """
+    return [escape(line) for line in text.splitlines()]
+
+
 def _where() -> str:
     """The directory this is working in, as somebody reading a status line wants it.
 
@@ -1720,7 +1736,7 @@ class Humanize(App[None]):
         # when details keep it out of the visible transcript.
         self._following.printed(text)
         if text.strip() and self._details:
-            for line in escape(text.rstrip("\n")).splitlines():
+            for line in _escaped(text.rstrip("\n")):
                 self.show(f"[dim]  {_CAME_BACK}  {line}[/]")
 
     def on_text_selected(self) -> None:
@@ -1774,9 +1790,11 @@ class Humanize(App[None]):
         # What is read next starts its own part.
         self._keeping(whose or None).packed = False
         said = escape(text).splitlines() or [""]
+        # The first line on its own where who said it is put after it; see `_escaped`.
+        first = f"{(_escaped(text) or [''])[0]}[dim]{escape(by)}[/]" if by else said[0]
         for line in (
             "",
-            f"[dim]{_YOURS}[/] {said[0]}" + (f"[dim]{escape(by)}[/]" if by else ""),
+            f"[dim]{_YOURS}[/] {first}",
             *(f"  {one}" for one in said[1:]),
         ):
             self._into(whose or None, line, shared=shared)
@@ -2298,7 +2316,12 @@ class Humanize(App[None]):
         # once it has and waits for you. Nothing about stopping, which a chat is not.
         chat = self.chatting()
         waits = self._waits_on() if self._run is not None and not working else ""
-        if chat and waits:
+        bar = _SPINNER[int(time.monotonic() / _REFRESH) % len(_SPINNER)]
+        if self._starting:
+            # Asked to start and not yet started: a host may be coming up and a flow being
+            # imported, and a line that still read as idle would be a line typed into nothing.
+            left = f"[$secondary]{bar}[/] starting…"
+        elif chat and waits:
             left = "[$secondary]◉[/] done"
         elif waits:
             # A flow that has run out of things to do until it is told one. Spinning a bar at
@@ -2309,7 +2332,6 @@ class Humanize(App[None]):
                 f"{_DOT}ctrl+c twice to stop[/]"
             )
         elif self._run is not None or (working and not chat):
-            bar = _SPINNER[int(time.monotonic() / _REFRESH) % len(_SPINNER)]
             # Whoever is talking and how long their turn has been going, or -- between two
             # turns -- the flow itself and how long the run has. A flow sleeps off a round,
             # commits, reads what the last turn wrote, and none of that is a flow that has
@@ -3304,7 +3326,9 @@ class Humanize(App[None]):
           because: Why, where it was not asked for, or "" for `/btw` or esc.
         """
         self._close_btw()
-        self.show(f"[dim]btw: exited{f' -- {because}' if because else ''}[/dim]")
+        self.show(
+            f"[dim]btw: exited{f' -- {escape(because)}' if because else ''}[/dim]"
+        )
         self._draw()
 
     def _close_btw(self) -> None:
@@ -3381,7 +3405,7 @@ class Humanize(App[None]):
 
     def _btw_answer(self, question: str, answer: str) -> None:
         """Shows a completed side answer, in cyan, in the current transcript."""
-        lines = escape(answer).splitlines() or [""]
+        lines = _escaped(answer) or [""]
         self._part(
             None,
             "\n".join(
@@ -4482,6 +4506,7 @@ class Humanize(App[None]):
             backup=self._backed_up(),
             resume=str(resume) if resume is not None else False,
         )
+        self._draw()
 
     def _backed_up(self) -> list[str] | None:
         """The backup targets chosen on `/flow` that settings still has, or None for the defaults.
@@ -4709,6 +4734,7 @@ class Humanize(App[None]):
           record: The run, as it started.
         """
         self._following.started(record)
+        self._starting = False
         self._epic_as = dict(record)
         # A side conversation is about the run it was opened on, and that run has gone.
         if self._btw is not None:
@@ -4913,7 +4939,7 @@ class Humanize(App[None]):
                 self._on_screen(
                     self._part,
                     whose,
-                    f"[$secondary]{_SAID}[/] {escape(named)}"
+                    f"[cyan]{_SAID}[/] {escape(named)}"
                     f"[dim]({escape(about)}) "
                     f"{'started' if kind == 'subagent' else 'done'}[/]",
                     packs=True,
@@ -4932,20 +4958,18 @@ class Humanize(App[None]):
             )
         elif kind == "tool" and self._details:
             # The tool on the bullet, what it came back with under it -- Claude Code's shape.
-            named, _, about = escape(text).partition(" ")
+            named, _, about = text.partition(" ")
             self._on_screen(
                 self._part,
                 whose,
-                f"[green]{_SAID}[/] {named}[dim]({about})[/]",
+                f"[green]{_SAID}[/] {escape(named)}[dim]({escape(about)})[/]",
                 packs=True,
             )
         elif kind == "reasoning" and self._details:
             self._on_screen(
                 self._part,
                 whose,
-                "\n".join(
-                    f"[dim italic]{line}[/]" for line in escape(text).splitlines()
-                ),
+                "\n".join(f"[dim italic]{line}[/]" for line in _escaped(text)),
                 packs=False,
             )
         elif kind == "asks":
@@ -5267,11 +5291,13 @@ class Humanize(App[None]):
         if given:
             # Put to an agent, which never said it had it: it may well have reached the
             # model, and saying it never went would be as wrong as saying it landed.
-            self.show(f"[dim]   sent to the agent, not acknowledged: {because}[/dim]")
+            self.show(
+                f"[dim]   sent to the agent, not acknowledged: {escape(because)}[/dim]"
+            )
         for one in queued:
             self._said_by_you(str(one.get("text")), by=self._by(one))
         if queued:
-            self.show(f"[dim]   never sent: {because}[/dim]")
+            self.show(f"[dim]   never sent: {escape(because)}[/dim]")
 
 
 def _machine() -> dict[str, object]:

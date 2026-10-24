@@ -140,16 +140,17 @@ export function mount(root, { parts, query }) {
     const turn = going && held().standing.run ? held().standing.run.turn : ''
     const state = chat ? chatState(going ? 'running' : detail.how, turn) : run ? (run.ended ? run.ended.how : run.state === 'stopping' ? 'stopping' : run.live ? 'running' : detail.how) : detail.how
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
-    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed], () => {
+    const stopWaits = Date.now() - (stopsAsked.get(detail.name) || 0) < STOP_WAITS
+    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, stopWaits], () => {
       const actions = []
       // A chat is never stopped from its page: it is a conversation, as a chat app's.
-      if (!chat && going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask(here, 'stop') }))
-      else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask(here, 'force') }))
+      if (!chat && going && run.state === 'running') actions.push(stopWaits ? h('button', { class: 'btn danger', type: 'button', disabled: true }, 'Stopping…') : confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', busy: 'Stopping…', held: true, act: () => stopping(detail.name) }))
+      else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', busy: 'Stopping…', act: () => ask(here, 'force') }))
       if (!going && detail.picks_up && !chat) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
       if (!chat) actions.push(h('a', { class: 'icon-btn', href: hash(`/epics/${encodeURIComponent(detail.name)}/exomyth`), 'aria-label': 'Exomyth', title: 'Exomyth', 'data-hmz': 'exomyth-open' }, icon('chart')))
       if (!going) actions.push(h('a', { class: 'icon-btn', href: scoped(`/api/runs/${encodeURIComponent(detail.name)}/bundle`), download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
       // How each target last took it, said on hover; read again as the epic is.
-      actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Upload', title: backedSaid(detail.backed) || 'Upload', 'data-hmz': 'upload', onclick: () => upload(detail.name) }, icon('up')))
+      actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Upload', title: backedSaid(detail.backed) || 'Upload', 'data-hmz': 'upload', onclick: uploading }, icon('up')))
       actions.push(copier('Copy link', () => location.href))
       actions.push(panel.toggle)
       const base = hash(`/epics/${encodeURIComponent(detail.name)}`)
@@ -171,6 +172,33 @@ export function mount(root, { parts, query }) {
     // What moves on its own is said again in place, never drawing over a question being asked.
     const clock = head.querySelector('[data-hmz=clock]')
     if (clock) clock.textContent = [took(detail, run) && `took ${took(detail, run)}`, spent].filter(Boolean).join(' · ')
+  }
+
+  /**
+   * Asks the epic to stop, held asked until it says it is stopping, or a while: the bar of an
+   * epic going is drawn again every second, so it gives Stop back once that while is up.
+   */
+  async function stopping(epic) {
+    stopsAsked.set(epic, Date.now())
+    try {
+      await ask(here, 'stop')
+    } catch (error) {
+      stopsAsked.delete(epic)
+      throw error
+    }
+  }
+
+  /** Uploads the epic, the button busy until the daemon takes it. */
+  async function uploading(event) {
+    const button = event.currentTarget
+    button.disabled = true
+    button.setAttribute('aria-busy', 'true')
+    try {
+      await upload(name, { noticed: false })
+    } finally {
+      button.disabled = false
+      button.removeAttribute('aria-busy')
+    }
   }
 
   // ------------------------------------------------------------------ the graph
@@ -400,12 +428,15 @@ export function mount(root, { parts, query }) {
     region('panel-tabs', [tabs, tab], () => {
       fill(
         panel.body,
+        // The top row of a wide window, beside the view; on a narrow one, a sheet's head inside it.
         dragged(
           tabbed(tabs, tab, (key) => {
             tab = key
             for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
             draw()
           }),
+          'deep',
+          'wide',
         ),
         h('div', { class: 'panel-pane' }),
       )
@@ -601,6 +632,15 @@ function exomyth(root, name, query) {
   }
 }
 
+/** How long Stop stays asked, waiting for the epic to say it is stopping. */
+const STOP_WAITS = 10000
+
+/**
+ * When Stop was last asked of each epic, by its name: kept beyond one drawing of its page, so
+ * that the bar drawn again for another view of it before it says it is stopping asks no more.
+ */
+const stopsAsked = new Map()
+
 function modeOf(parts) {
   return {
     session: parts[2] === 'sessions' ? parts[3] || '' : '',
@@ -754,17 +794,23 @@ function facts(detail) {
   )
 }
 
-/** A budget in words: each limit it set, and whether the last turn could finish over it. */
+/**
+ * A budget in words: each limit it set, and whether the last turn could finish over it --
+ * said once where every limit agrees, and after each limit that cuts off where they do not.
+ */
 function budgeted(budget) {
   if (!budget) return '—'
   const seconds = secondsOf(budget.duration)
+  const graceful = (limit) => (budget.graceful && typeof budget.graceful === 'object' ? budget.graceful[limit] : budget.graceful) !== false
   const limits = [
-    typeof budget.cost === 'number' && Number.isFinite(budget.cost) ? `$${budget.cost.toFixed(2)}` : '',
-    seconds ? lasting(seconds) : '',
-    typeof budget.output_tokens === 'number' ? `${budget.output_tokens} output tokens` : '',
+    typeof budget.cost === 'number' && Number.isFinite(budget.cost) ? [`$${budget.cost.toFixed(2)}`, graceful('cost')] : null,
+    seconds ? [lasting(seconds), graceful('duration')] : null,
+    typeof budget.output_tokens === 'number' ? [`${budget.output_tokens} output tokens`, graceful('output_tokens')] : null,
   ].filter(Boolean)
   if (!limits.length) return 'no limit'
-  return `${limits.join(' · ')}${budget.graceful === false ? ', cut off at once' : ', letting the last turn finish'}`
+  if (limits.every(([, soft]) => soft)) return `${limits.map(([said]) => said).join(' · ')}, letting the last turn finish`
+  if (limits.every(([, soft]) => !soft)) return `${limits.map(([said]) => said).join(' · ')}, cut off at once`
+  return `${limits.map(([said, soft]) => (soft ? said : `${said} cut off at once`)).join(' · ')}, else letting the last turn finish`
 }
 
 function tree(calls) {

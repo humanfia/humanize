@@ -47,7 +47,13 @@ def update(argv: list[str]) -> int:
     if isinstance(how, str):
         print(f"hmz update: {how}", file=sys.stderr)
         return 1
-    newest = releases.fetch()
+    from .output import Out
+
+    # PyPI can take seconds to answer, and a line saying nothing for them looks like one
+    # that did nothing.
+    with Out() as out:
+        out.spins(lambda: "asking PyPI for the newest release")
+        newest = releases.fetch()
     if newest is None:
         print(
             "hmz update: PyPI could not be asked for the newest release",

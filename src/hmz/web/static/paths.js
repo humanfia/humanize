@@ -46,15 +46,26 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
     }, 150)
   })
 
+  // Which listing was asked for last: only it is drawn, whatever order the answers come in.
+  let asked = 0
   async function show(dir) {
+    const mine = ++asked
+    // While a directory is read -- over SSH, for a daemon elsewhere -- the listing shown stays,
+    // plainly on its way out, or the panel says it is reading where it has none yet.
+    if (panel.querySelector('.path-list')) panel.setAttribute('aria-busy', 'true')
+    else fill(panel, h('p', { class: 'loading', role: 'status' }, 'Reading…'))
     let read
     try {
       read = await get(`${from}/api/files?at=${encodeURIComponent(dir)}${files ? '&files=1' : ''}${hidden ? '&hidden=1' : ''}`)
     } catch (error) {
+      if (mine !== asked) return
       if (dir !== '~') return show('~')
+      panel.removeAttribute('aria-busy')
       fill(panel, h('p', { class: 'error' }, error.message))
       return
     }
+    if (mine !== asked) return
+    panel.removeAttribute('aria-busy')
     at = read.at
     // The way there, a step a click: `~`, then each directory under it.
     const steps = read.at === '~' || read.at.startsWith('~/') ? ['~', ...read.at.slice(2).split('/').filter(Boolean)] : ['/', ...read.at.split('/').filter(Boolean)]
@@ -119,6 +130,8 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
 
   browse.addEventListener('click', () => {
     if (!panel.hidden) return closePanel()
+    fill(panel)
+    panel.removeAttribute('aria-busy')
     panel.hidden = false
     // Against the window rather than whatever holds the field, a menu or a dialog that scrolls.
     unfollow = follow(panel, node, { align: 'end' })

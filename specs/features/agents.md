@@ -671,6 +671,11 @@ priced at zero.
 
 **8.2.6** A failed fetch MUST leave the cached list unchanged.
 
+**8.2.7** A price list that gives any model a price that is not a finite number (`NaN`, an
+infinity, or a number too large to be finite) MUST be refused: fetched, it MUST NOT be cached
+and MUST count as a failed fetch for §8.2.6; and while the list last fetched from the source in
+force, or the cached list, is such a list, pricing any model MUST fail rather than answer.
+
 ## 9. Hooks
 
 ### 9.1 Moments

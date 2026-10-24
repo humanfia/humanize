@@ -28,7 +28,7 @@ from tests.integration.doubles_web import backed_up_elsewhere, elsewhere, served
 from tests.system.web.doubles_browser import ENGINES, go, opened, stop
 
 if TYPE_CHECKING:
-    from playwright.sync_api import FloatRect, Locator, Page
+    from playwright.sync_api import FloatRect, Locator, Page, Route
 
 #: Every settings page, by the word its address ends in.
 _PAGES = (
@@ -393,6 +393,25 @@ def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
         page.keyboard.press("Control+k")
         search = page.get_by_role("searchbox", name="Find")
         expect(page.locator("[data-hmz=found] .result")).to_have_count(1)
+        # What is listed stays, marked old, until the search typed is answered.
+        held: list[Route] = []
+
+        def hold(route: Route) -> None:
+            # Playwright takes a function of Python's, not a bound builtin.
+            held.append(route)
+
+        page.route("**/api/runs?*", hold)
+        search.fill("find")
+        found = page.locator("[data-hmz=found]")
+        page.wait_for_timeout(500)
+        assert held
+        expect(found).to_have_attribute("aria-busy", "true")
+        expect(found.locator(".result")).to_have_count(1)
+        expect(search).to_have_value("find")
+        for one in held:
+            one.continue_()
+        page.unroute("**/api/runs?*")
+        expect(found).not_to_have_attribute("aria-busy", "true")
         search.fill("nothing like it")
         expect(page.locator("[data-hmz=found]")).to_contain_text(
             "No epic is like that."
@@ -879,6 +898,57 @@ def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -
         expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
 
 
+def test_a_start_says_it_is_starting_until_the_epic_opens(
+    project: Path, engine: str
+) -> None:
+    held: list[Route] = []
+
+    def hold(route: Route) -> None:
+        held.append(route)
+
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new?flow=chat")
+        page.route("**/api/held/start", hold)
+        page.get_by_role("button", name="Options").click()
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_value("claude-haiku-4-5")
+        page.locator("[data-hmz=composer-text]").fill("hold on")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        box = page.locator("[data-hmz=start]")
+        expect(box).to_have_attribute("aria-busy", "true")
+        expect(box.get_by_role("status")).to_have_text("Starting…")
+        expect(box.get_by_role("button", name="Starting…")).to_be_disabled()
+        held[0].continue_()
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+
+
+def test_a_workspace_read_marks_the_flow_drawn_until_it_is_read(
+    project: Path, engine: str
+) -> None:
+    held: list[Route] = []
+
+    def hold(route: Route) -> None:
+        held.append(route)
+
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new?flow=chat")
+        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
+        expect(page.locator("[data-hmz=options]")).not_to_have_class(
+            re.compile("stale")
+        )
+        page.route(re.compile(r".*/api/flow\?name="), hold)
+        page.locator("[data-hmz=flow-picker]").click()
+        page.get_by_role("menuitem", name=re.compile("chat")).first.click()
+        expect(page.locator(".greeting-about [role=status]")).to_have_text("Reading…")
+        expect(page.locator("[data-hmz=options]")).to_have_class(re.compile("stale"))
+        held[0].continue_()
+        expect(page.locator(".greeting-about [role=status]")).to_have_count(0)
+        expect(page.locator("[data-hmz=options]")).not_to_have_class(
+            re.compile("stale")
+        )
+
+
 def test_the_flow_and_its_environment_are_profiled_apart(
     project: Path, engine: str
 ) -> None:
@@ -1199,6 +1269,90 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         page.locator("[data-hmz=btw-close]").click()
         expect(tabs).to_have_count(1)
         expect(log).to_contain_text("and you, slowly")
+        stop(page)
+
+
+def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
+    project: Path, engine: str, talking: None
+) -> None:
+    #: Each request held back until let through, so what is pressed is seen waiting on it.
+    waiting: list[Route] = []
+
+    def held(route: Route) -> None:
+        waiting.append(route)
+
+    def holding(path: str) -> None:
+        page.route(f"**{path}", held, times=1)
+
+    def through() -> None:
+        deadline = time.monotonic() + 10
+        while not waiting:
+            assert time.monotonic() < deadline, "nothing was sent"
+            page.wait_for_timeout(100)
+        waiting.pop().continue_()
+
+    with served() as site, opened(site, engine=engine) as page:
+        _start_talk(page, "busy me")
+
+        # The question's typed answer.
+        card = page.locator("[data-hmz=question]")
+        expect(card).to_be_visible()
+        holding("/api/held/answer")
+        card.get_by_label("Answer").fill("go on")
+        card.get_by_label("Answer").press("Enter")
+        answering = card.get_by_role("button", name="Answering…")
+        expect(answering).to_be_disabled()
+        through()
+        expect(answering).to_have_count(0)
+
+        # An aside's Close.
+        named = page.evaluate(
+            """async () => (await fetch('/api/settings', {method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({btw: 'claude/claude-haiku-4-5'})})).status"""
+        )
+        assert named == 200
+        page.get_by_role("tab", name="Aside").click()
+        aside = page.locator("[data-hmz=btw]")
+        aside.locator("textarea").fill("what now")
+        aside.locator("textarea").press("Enter")
+        expect(page.locator("[data-hmz=btw-log] .said.btw")).to_have_count(1)
+        holding("/api/btw/leave")
+        page.locator("[data-hmz=btw-close]").click()
+        closing = page.get_by_role("button", name="Closing…")
+        expect(closing).to_be_disabled()
+        through()
+        expect(page.locator("[data-hmz=btw-tab]")).to_have_count(1)
+        expect(closing).to_have_count(0)
+
+        # Upload, from the bar: the button says it is busy, and nothing else says so too.
+        holding("/api/runs/*/backup")
+        page.locator("[data-hmz=upload]").click()
+        expect(page.locator("[data-hmz=upload]")).to_have_attribute("aria-busy", "true")
+        expect(page.locator("[data-hmz=upload]")).to_be_disabled()
+        expect(page.locator("[data-hmz=working]")).to_have_count(0)
+        through()
+        expect(page.locator(".toast")).to_be_visible()
+        expect(page.locator("[data-hmz=upload]")).not_to_have_attribute(
+            "aria-busy", "true"
+        )
+
+        # Stop, which stays stopping until the epic says it is.
+        holding("/api/held/stop")
+        page.get_by_role("button", name="Stop", exact=True).click()
+        page.get_by_role("button", name="Stop", exact=True).click()
+        stopping = page.get_by_role("button", name="Stopping…")
+        expect(stopping).to_be_disabled()
+        # The bar drawn again, for another view of the epic, asks no second time.
+        page.locator("[data-hmz=graph-session]").first.click()
+        expect(page).to_have_url(re.compile(r".*/sessions/[^/]+$"))
+        expect(stopping).to_be_disabled()
+        expect(page.get_by_role("button", name="Stop", exact=True)).to_have_count(0)
+        through()
+        expect(page.get_by_role("button", name="Stop", exact=True)).to_have_count(0)
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("stopping|stopped")
+        )
         stop(page)
 
 

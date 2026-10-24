@@ -101,7 +101,7 @@ p {
 
 main[data-state='starting'] :is(h1, #lead, .progress, pre, .actions),
 main:not([data-state='starting']) .starting,
-main:not([data-state='installing']) .progress,
+main:not([data-state='installing'], .update) .progress,
 main[data-state='installing'] .actions,
 #lead:empty,
 pre:empty,
@@ -146,6 +146,37 @@ pre:empty,
 #step {
   color: var(--ink-2);
   font-weight: 600;
+}
+
+/* A download whose size is known: the bar fills as it goes. */
+.bar.determinate span {
+  animation: none;
+  opacity: 1;
+  transition: width 0.2s;
+}
+
+/* The update's window: the mark beside what it is doing, as a Mac app's own updater has it. */
+main.update {
+  flex-direction: row;
+  gap: 18px;
+  padding: 20px 24px;
+  text-align: left;
+}
+
+.update .mark {
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+
+.update .progress {
+  flex: 1;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.update #step {
+  color: var(--ink);
 }
 
 #line {
@@ -237,6 +268,10 @@ pre {
     animation: none;
     width: 100%;
     opacity: 0.5;
+  }
+
+  .bar.determinate span {
+    transition: none;
   }
 
   .btn {

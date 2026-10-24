@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+import hmz.cli.output
 import hmz.cli.update
 import hmz.coganchor
 import hmz.daemon
@@ -21,6 +22,7 @@ from hmz.cli import main
 from hmz.coganchor import releases
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 #: What `hmz` requires, as its installed metadata says.
@@ -268,3 +270,21 @@ def test_help_takes_nothing_else(capsys: pytest.CaptureFixture[str]) -> None:
         main(["update", "--help"])
     assert raised.value.code == 0
     assert capsys.readouterr().out.startswith("usage: hmz update")
+
+
+def test_a_spinner_says_pypi_is_being_asked_until_it_answers(
+    world: _World, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "uv-receipt.toml").touch()
+    shown: list[str] = []
+
+    def spins(_: object, says: Callable[[], str] | None) -> None:
+        shown.append(says() if says else "")
+
+    seen: list[list[str]] = []
+    monkeypatch.setattr(hmz.cli.output.Out, "spins", spins)
+    monkeypatch.setattr(releases, "fetch", lambda: seen.append(shown[:]) or "0.2.0")
+
+    assert main(["update"]) == 0
+    assert seen == [["asking PyPI for the newest release"]]
+    assert shown[-1] == ""

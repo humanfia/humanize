@@ -4,7 +4,7 @@
 //! pre-release, and may predate the app. What it finds it downloads in the background, accepts
 //! only signed with the key in tauri.conf.json, and offers once: Restart installs it and
 //! relaunches, Later installs it as the app quits. A development build, version 0.0.0, never
-//! looks.
+//! looks. A look by hand, and an install, show in a small window of their own as they go.
 
 use std::ffi::CString;
 use std::mem;
@@ -16,7 +16,8 @@ use std::time::{Duration, SystemTime};
 
 use semver::Version;
 use serde::Deserialize;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::webview::PageLoadEvent;
+use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_updater::{Update, UpdaterExt};
 use url::Url;
 
@@ -46,6 +47,12 @@ const LATEST: &str = "latest.json";
 const RESTART: &str = "Restart";
 const LATER: &str = "Later";
 
+/// The progress window's label.
+pub const WINDOW: &str = "update";
+
+/// What the progress window says, kept so that it says it once it loads.
+static VIEW: Mutex<View> = Mutex::new(View::Checking);
+
 /// An update, downloaded and its signature verified, with what to install it from.
 type Ready = (Update, Vec<u8>);
 
@@ -69,6 +76,8 @@ enum Stage<T> {
     Offering(T),
     /// Downloaded, and Later chosen: it installs as the app quits.
     Deferred(T),
+    /// Restart chosen: installing, then relaunching.
+    Installing,
 }
 
 /// What a look asked for does, from where the updater stands.
@@ -89,8 +98,119 @@ fn step<T>(stage: &Stage<T>, by: By) -> Step {
         (Stage::Deferred(_), By::Hand) => Step::Offer,
         // Its prompt is up already, or what it holds goes in as the app quits.
         (Stage::Checking { .. } | Stage::Offering(_) | Stage::Deferred(_), By::Schedule)
-        | (Stage::Offering(_), By::Hand) => Step::Skip,
+        | (Stage::Offering(_) | Stage::Installing, _) => Step::Skip,
     }
+}
+
+/// Whether the progress window is up: while a look asked by hand runs, and while installing.
+fn shows<T>(stage: &Stage<T>) -> bool {
+    matches!(stage, Stage::Checking { by_hand: true } | Stage::Installing)
+}
+
+/// What the progress window says.
+#[derive(Clone, Debug, PartialEq)]
+enum View {
+    /// Looking: a bar that only says it is going.
+    Checking,
+    /// Downloading, how far where the size is known.
+    Downloading {
+        version: String,
+        percent: Option<u8>,
+    },
+    Installing(String),
+}
+
+/// How far a download is, of `total` where it is known.
+fn percent(got: u64, total: Option<u64>) -> Option<u8> {
+    let total = total.filter(|&total| total > 0)?;
+    Some((got.saturating_mul(100) / total).min(100) as u8)
+}
+
+/// What draws `view` on the progress window's page.
+fn script(view: &View) -> String {
+    let (title, percent) = match view {
+        View::Checking => ("Checking for Updates…".to_owned(), None),
+        View::Downloading { version, percent } => {
+            (format!("Downloading humanize {version}…"), *percent)
+        }
+        View::Installing(version) => (format!("Installing humanize {version}…"), None),
+    };
+    format!(
+        "draw({})",
+        serde_json::json!({ "title": title, "percent": percent })
+    )
+}
+
+/// Says `view` in the progress window, where it is up, and once it is.
+fn show<R: Runtime>(app: &AppHandle<R>, view: View) {
+    let mut shown = lock(&VIEW);
+    if *shown == view {
+        return;
+    }
+    *shown = view;
+    if let Some(window) = app.get_webview_window(WINDOW) {
+        let _ = window.eval(script(&shown));
+    }
+}
+
+/// Puts the progress window up, or takes it down, and Check for Updates… with it, as the
+/// updater stands, then does `then`: on the main thread after each change, so that the last
+/// change has its way, and an alert goes up only once the window is down.
+fn present<R: Runtime>(app: &AppHandle<R>, then: impl FnOnce() + Send + 'static) {
+    let on = app.clone();
+    let presented = app.run_on_main_thread(move || {
+        let (up, looking) = {
+            let stage = on.state::<Mutex<Stage<Ready>>>();
+            let stage = lock(&stage);
+            (
+                shows(&stage),
+                matches!(*stage, Stage::Checking { by_hand: true }),
+            )
+        };
+        crate::menu::checking(&on, looking);
+        match (up, on.get_webview_window(WINDOW)) {
+            (true, Some(window)) => {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            (true, None) => {
+                if let Err(why) = open(&on) {
+                    log::warn!("the update's window could not be opened: {why}");
+                }
+            }
+            (false, Some(window)) => {
+                let _ = window.destroy();
+            }
+            (false, None) => {}
+        }
+        then();
+    });
+    if let Err(why) = presented {
+        log::warn!("the update's window could not be told: {why}");
+    }
+}
+
+/// The progress window: small, its size its own, drawn in the page's paper before anything is.
+fn open<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    let window = WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("update.html".into()))
+        .title("Software Update")
+        .inner_size(400.0, 104.0)
+        .resizable(false)
+        .closable(false)
+        .minimizable(false)
+        .maximizable(false)
+        .center()
+        .visible(false)
+        .on_page_load(|window, page| {
+            if page.event() == PageLoadEvent::Finished {
+                let said = script(&lock(&VIEW));
+                let _ = window.eval(said);
+            }
+        })
+        .build()?;
+    window.set_background_color(Some(crate::paper(window.theme()?)))?;
+    window.show()?;
+    window.set_focus()
 }
 
 /// Whether a look is due, the one before having been at `last`: a clock set back makes it due.
@@ -212,6 +332,7 @@ pub fn check<R: Runtime>(app: &AppHandle<R>, by: By) {
             *stage = Stage::Checking {
                 by_hand: by == By::Hand,
             };
+            *lock(&VIEW) = View::Checking;
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
                 let found = fetch(&app).await;
@@ -227,6 +348,8 @@ pub fn check<R: Runtime>(app: &AppHandle<R>, by: By) {
         }
         Step::Skip => {}
     }
+    drop(stage);
+    present(app, || {});
 }
 
 /// The newer release, downloaded, its signature verified.
@@ -260,8 +383,20 @@ async fn fetch<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Ready>, String> 
     // The look's patience is not handed on to the download.
     update.timeout = Some(PATIENCE);
     log::info!("humanize {} is out, downloading it", update.version);
+    let version = update.version.clone();
+    let (mut got, mut was) = (0, None);
     let bytes = update
-        .download(|_, _| {}, || {})
+        .download(
+            |chunk, total| {
+                got += chunk as u64;
+                let percent = percent(got, total);
+                if was.replace(percent) != Some(percent) {
+                    let version = version.clone();
+                    show(app, View::Downloading { version, percent });
+                }
+            },
+            || {},
+        )
         .await
         .map_err(|why| why.to_string())?;
     log::info!(
@@ -278,26 +413,33 @@ fn settle<R: Runtime>(app: &AppHandle<R>, found: Result<Option<Ready>, String>) 
     let mut stage = lock(&stage);
     let by_hand = matches!(*stage, Stage::Checking { by_hand: true });
     *stage = Stage::Idle;
-    match found {
+    let on = app.clone();
+    let say: Box<dyn FnOnce() + Send> = match found {
         Ok(Some(ready)) => {
-            offer(app.clone(), ready.0.version.clone());
+            let version = ready.0.version.clone();
             *stage = Stage::Offering(ready);
+            Box::new(move || offer(on, version))
         }
         Ok(None) => {
             log::info!("humanize is up to date");
-            if by_hand {
-                let version = &app.package_info().version;
-                let said = format!("{version} is the newest version.");
-                tell(Level::Note, "humanize is up to date", said);
-            }
+            let said = format!("{} is the newest version.", app.package_info().version);
+            Box::new(move || {
+                if by_hand {
+                    tell(Level::Note, "humanize is up to date", said);
+                }
+            })
         }
         Err(why) => {
             log::warn!("humanize could not check for updates: {why}");
-            if by_hand {
-                tell(Level::Failure, "Update failed", why);
-            }
+            Box::new(move || {
+                if by_hand {
+                    tell(Level::Failure, "Update failed", why);
+                }
+            })
         }
-    }
+    };
+    drop(stage);
+    present(app, say);
 }
 
 /// Asks once whether to restart into `version` now, and does what is chosen.
@@ -318,7 +460,10 @@ fn offer<R: Runtime>(app: AppHandle<R>, version: String) {
             *stage = Stage::Deferred(ready);
             return;
         }
+        *stage = Stage::Installing;
         drop(stage);
+        show(&app, View::Installing(version.clone()));
+        present(&app, || {});
         let (update, bytes) = ready;
         match update.install(bytes) {
             Ok(()) => {
@@ -327,16 +472,22 @@ fn offer<R: Runtime>(app: AppHandle<R>, version: String) {
             }
             Err(why) => {
                 log::error!("humanize {version} could not be installed: {why}");
-                tell(Level::Failure, "Update failed", why.to_string());
+                *lock(&app.state::<Mutex<Stage<Ready>>>()) = Stage::Idle;
+                present(&app, move || {
+                    tell(Level::Failure, "Update failed", why.to_string());
+                });
             }
         }
     });
 }
 
-/// Takes back an alert still up, and installs what was downloaded and not yet installed, as the
-/// app quits.
+/// Takes back an alert and the progress window still up, and installs what was downloaded and
+/// not yet installed, as the app quits.
 pub fn on_exit<R: Runtime>(app: &AppHandle<R>) {
     alert::withdraw();
+    if let Some(window) = app.get_webview_window(WINDOW) {
+        let _ = window.destroy();
+    }
     let Some(stage) = app.try_state::<Mutex<Stage<Ready>>>() else {
         return;
     };
@@ -440,6 +591,53 @@ mod tests {
         // Later: the timer leaves it be, a hand asks again.
         assert_eq!(step(&Stage::Deferred(()), Schedule), Step::Skip);
         assert_eq!(step(&Stage::Deferred(()), Hand), Step::Offer);
+        // Installing, then relaunching: nothing more to look for.
+        assert_eq!(step(&Stage::<()>::Installing, Schedule), Step::Skip);
+        assert_eq!(step(&Stage::<()>::Installing, Hand), Step::Skip);
+    }
+
+    #[test]
+    fn shows_its_progress_only_for_a_look_by_hand_and_an_install() {
+        assert!(!shows(&Stage::<()>::Idle));
+        assert!(!shows(&Stage::<()>::Checking { by_hand: false }));
+        assert!(shows(&Stage::<()>::Checking { by_hand: true }));
+        assert!(!shows(&Stage::Offering(())));
+        assert!(!shows(&Stage::Deferred(())));
+        assert!(shows(&Stage::<()>::Installing));
+    }
+
+    #[test]
+    fn says_how_far_a_download_is_where_its_size_is_known() {
+        assert_eq!(percent(0, Some(200)), Some(0));
+        assert_eq!(percent(50, Some(200)), Some(25));
+        assert_eq!(percent(200, Some(200)), Some(100));
+        assert_eq!(percent(300, Some(200)), Some(100));
+        assert_eq!(percent(50, None), None);
+        assert_eq!(percent(50, Some(0)), None);
+    }
+
+    #[test]
+    fn draws_what_the_progress_window_says() {
+        assert_eq!(
+            script(&View::Checking),
+            r#"draw({"percent":null,"title":"Checking for Updates…"})"#
+        );
+        let downloading = |percent| View::Downloading {
+            version: "0.3.0".into(),
+            percent,
+        };
+        assert_eq!(
+            script(&downloading(Some(42))),
+            r#"draw({"percent":42,"title":"Downloading humanize 0.3.0…"})"#
+        );
+        assert_eq!(
+            script(&downloading(None)),
+            r#"draw({"percent":null,"title":"Downloading humanize 0.3.0…"})"#
+        );
+        assert_eq!(
+            script(&View::Installing("0.3.0".into())),
+            r#"draw({"percent":null,"title":"Installing humanize 0.3.0…"})"#
+        );
     }
 
     #[test]

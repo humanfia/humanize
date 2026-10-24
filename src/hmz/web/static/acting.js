@@ -9,6 +9,30 @@ import { chipSelect, composer } from './composer.js'
 import { choice, menu, section, submenu } from './shell.js'
 import { line } from './transcript.js'
 
+/**
+ * Sends a form once at a time, once it is ready to: its button says it is busy and takes no
+ * second press until the reply, and a refusal is said under it.
+ */
+function sending(form, busy, act, ready = () => true) {
+  const button = form.querySelector('button[type=submit]')
+  const label = button.textContent
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    if (button.disabled || !ready()) return
+    form.querySelector('.error')?.remove()
+    button.disabled = true
+    button.textContent = busy
+    try {
+      await act()
+    } catch (error) {
+      form.append(problem(error))
+    } finally {
+      button.disabled = false
+      button.textContent = label
+    }
+  })
+}
+
 /** One question the run is waiting on a person for, answerable here unless another holds it. */
 export function question(workspace, one, me, clients) {
   const named = Object.fromEntries((clients || []).map((client) => [client.client, client.name || client.client]))
@@ -22,17 +46,15 @@ export function question(workspace, one, me, clients) {
   )
   const typed = h('input', { type: 'text', placeholder: 'Answer', 'aria-label': 'Answer' })
   const form = h('form', { class: 'row' }, typed, h('button', { class: 'btn small primary', type: 'submit' }, 'Answer'))
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault()
-    if (!typed.value.trim()) return
-    form.querySelector('.error')?.remove()
-    try {
+  sending(
+    form,
+    'Answering…',
+    async () => {
       await ask(workspace, 'answer', { question: one.question, text: typed.value })
       typed.value = ''
-    } catch (error) {
-      form.append(problem(error))
-    }
-  })
+    },
+    () => typed.value.trim(),
+  )
   if (options.length) holder.append(h('div', { class: 'row' }, options))
   holder.append(form)
   return holder
@@ -84,14 +106,7 @@ export function board(workspace, items) {
     edit.addEventListener('click', () => {
       const field = h('input', { type: 'text', value: one.value, 'aria-label': `New value of ${one.key}` })
       const form = h('form', { class: 'row' }, field, h('button', { class: 'btn small primary', type: 'submit' }, 'Save'))
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault()
-        try {
-          await ask(workspace, 'board', { key: one.key, value: field.value })
-        } catch (error) {
-          form.append(problem(error))
-        }
-      })
+      sending(form, 'Saving…', () => ask(workspace, 'board', { key: one.key, value: field.value }))
       fill(value, form)
       field.focus()
     })
@@ -116,17 +131,15 @@ export function board(workspace, items) {
   const key = h('input', { type: 'text', placeholder: 'Key', 'aria-label': 'Key', size: '12' })
   const value = h('input', { type: 'text', placeholder: 'Value', 'aria-label': 'Value' })
   const adding = h('form', { class: 'row' }, key, value, h('button', { class: 'btn small', type: 'submit' }, 'Add'))
-  adding.addEventListener('submit', async (event) => {
-    event.preventDefault()
-    if (!key.value.trim() || !value.value.trim()) return
-    adding.querySelector('.error')?.remove()
-    try {
+  sending(
+    adding,
+    'Adding…',
+    async () => {
       await ask(workspace, 'board', { key: key.value.trim(), value: value.value })
       key.value = value.value = ''
-    } catch (error) {
-      adding.append(problem(error))
-    }
-  })
+    },
+    () => key.value.trim() && value.value.trim(),
+  )
   return [items.length ? lines : h('p', { class: 'dim' }, 'Nothing is on the board yet.'), adding]
 }
 
@@ -230,11 +243,15 @@ export function asides(workspace, epic = '') {
     box.node.dataset.hmz = 'btw'
     const node = h('div', { class: 'aside-one', 'data-hmz': 'btw-aside' }, h('div', { class: 'aside-head' }, title, leave), log, h('div', { class: 'aside-to' }, picker), box.node)
     leave.addEventListener('click', async () => {
+      leave.disabled = true
+      leave.textContent = 'Closing…'
       try {
         await post('/api/btw/leave', { workspace, aside: id })
         forget(one)
       } catch (error) {
         box.said.replaceChildren(problem(error))
+        leave.disabled = false
+        leave.textContent = 'Close'
       }
     })
     let was = ''

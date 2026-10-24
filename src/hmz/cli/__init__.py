@@ -522,8 +522,15 @@ def opens() -> int:
 
     from hmz import daemon
 
+    from .output import Out
+
     try:
-        link = daemon.attach("tui")
+        # Reaching a daemon can mean starting one, which takes long enough on a blank terminal
+        # to read as nothing happening. The clock says otherwise, and is gone, line and all,
+        # before the interface takes the screen.
+        with Out() as out:
+            out.spins(lambda: "connecting to the runs held here")
+            link = daemon.attach("tui")
     except daemon.Older as why:
         # This machine's runs held by an older humanize, which nothing here can read and
         # which a second daemon beside it would fight over the socket with.

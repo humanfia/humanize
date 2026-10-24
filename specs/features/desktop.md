@@ -261,6 +261,10 @@ version: `Restart` MUST install it and start the app again, through a quit that 
 
 **11.8** `Check for Updates…` MUST look at once and say what it found -- the update, that the app is
 up to date, or why it could not look -- or, where an update is already downloaded, MUST ask again.
+While it looks, a small window apart from the one of §7.1 MUST show that it is looking, then how
+far the download is, and `Check for Updates…` MUST be off and read `Checking for Updates…`; the
+window MUST close before the app says what it found. Once `Restart` is chosen, the window MUST show
+the install until the app starts again.
 
 **11.9** A look the app takes by itself MUST tell the user nothing, and MUST write what it found to
 the app's log alone.

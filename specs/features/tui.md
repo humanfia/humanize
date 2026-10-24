@@ -547,14 +547,16 @@ refused, showing `hmz: btw is still answering the last question` in red.
 
 **13.2** The state MUST be the first of these that holds:
 
-1. in a chat, `done` while between turns, and otherwise `running` with a spinner and the
+1. from a start being asked for until the epic or chat has started or the start has failed,
+   a spinner and `starting…`;
+2. in a chat, `done` while between turns, and otherwise `running` with a spinner and the
    seconds since the turn began;
-2. with an epic going, no turn open and a question waiting for an answer, `waiting for` and
+3. with an epic going, no turn open and a question waiting for an answer, `waiting for` and
    `you`, or the name of the frontend that holds it, and that `ctrl+c` twice stops it;
-3. with a turn open or an epic going, a spinner, the agents working (or the flows running,
+4. with a turn open or an epic going, a spinner, the agents working (or the flows running,
    innermost last, where no agent works), the seconds since the oldest open turn began (or
    since the epic began), and that `ctrl+c` twice stops it;
-4. otherwise, the flow set up and the working directory, the home directory written `~`.
+5. otherwise, the flow set up and the working directory, the home directory written `~`.
 
 **13.3** The right of the status line MUST show, joined by ` · `, the hints that hold now: what
 `enter` does; `shift+tab switch view` where the round holds another view; `/ commands`;
@@ -809,9 +811,9 @@ whole, and MUST refuse what `-e` refuses in `-e`'s words (`features/environments
 sections the flow declares, a boolean or a choice of literals picked from a dropdown and any
 other value typed, and **Set** MUST refuse what the flow's model refuses with its first error.
 
-**16.7.2** The budget sheet MUST take a duration, a cost in US dollars, output tokens, and
-whether the last turn finishes when a limit is reached, and **Set** MUST refuse a budget with no
-limit set.
+**16.7.2** The budget sheet MUST take a duration, a cost in US dollars, output tokens, and, for
+each of the three, whether the last turn finishes when it is reached, and **Set** MUST refuse a
+budget with no limit set.
 
 **16.7.3** On a typed row of the params or budget sheets, `enter` MUST begin writing with the
 whole value selected, so that the first character typed replaces it.

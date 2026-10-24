@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import math
 import os
 import sys
 import threading
@@ -358,6 +359,10 @@ class Shown:
         # against the wrong moment, the second against nothing at all, and the clock at the
         # foot would go out while a turn was still thinking.
         self._began: dict[tuple[str, str], float] = {}
+        # Whether any turn has opened yet: before the first one, the run is still setting up
+        # its environments and anchors, which is work too and is said as such.
+        self._opened = False
+        self._since = time.monotonic()
         self._lock = threading.Lock()
         # A run nobody watched used to tee its progress to stderr and put each turn's answer
         # on stdout, and a script reading one reads that stdout -- so it goes on going there.
@@ -430,6 +435,7 @@ class Shown:
         if kind == "begins":
             with self._lock:
                 self._began[whose, said["key"]] = time.monotonic()
+                self._opened = True
             self._out.line(
                 (f"{_SAID} ", "dim"),
                 (f"{whose} is working{where}", "dim"),
@@ -490,7 +496,7 @@ class Shown:
         and a wrong one.
         """
         from hmz.coganchor.agents import KINDS
-        from hmz.coganchor.prices import cost, money
+        from hmz.coganchor.prices import PriceError, cost, money
 
         spent: dict[str, float] = said["spent"]
         model, whose = str(said["model"]), str(said["agent"])
@@ -514,7 +520,10 @@ class Shown:
                 ),
             )
         )
-        bill = cost(spent, model)
+        try:
+            bill = cost(spent, model)
+        except PriceError:
+            bill = math.inf  # a bill nobody can read, which `money` says as `$?`
         priced = f"{money(bill)}{_DOT}" if bill is not None else ""
         self._out.line(
             (f"{_WORKED} ", "dim"),
@@ -524,14 +533,19 @@ class Shown:
     def _working(self) -> str:
         """What the clock at the foot of the run says now, or "" between turns.
 
+        Before the first turn it says the run is starting, since setting a run up takes time
+        that nothing else on the terminal would account for.
+
         Counted in turns rather than in agents: an agent that has three conversations open is
         one agent and three things being waited on, and the number worth reading is how many
         are still going.
         """
         with self._lock:
-            began = dict(self._began)
+            began, opened = dict(self._began), self._opened
         if not began:
-            return ""
+            return (
+                "" if opened else f"starting{_DOT}{time.monotonic() - self._since:.0f}s"
+            )
         # The oldest of them, which is how long the run has been waiting on anything at all.
         took = time.monotonic() - min(began.values())
         if len(began) == 1:
