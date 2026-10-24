@@ -14,3 +14,11 @@
     ${EndIf}
   ${EndIf}
 !macroend
+
+; The logo the app keeps for its toasts goes with it, unless this is an update.
+!macro NSIS_HOOK_POSTUNINSTALL
+  ${If} $UpdateMode <> 1
+    Delete "$%ProgramData%\${BUNDLEID}\logo.png"
+    RMDir "$%ProgramData%\${BUNDLEID}"
+  ${EndIf}
+!macroend

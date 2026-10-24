@@ -31,8 +31,6 @@ use std::{fs, path::PathBuf};
 use tauri::AppHandle;
 
 #[cfg(windows)]
-use tauri::Manager;
-#[cfg(windows)]
 use tauri_winrt_notification::{IconCrop, Toast};
 use url::Url;
 
@@ -183,11 +181,14 @@ fn display(title: &str, body: &str, address: &str) {
 
 /// The logo a toast shows beside what it says, as a file, which is all a toast takes: Windows
 /// draws an app's own icon in the toast's corner only where it has made out its shortcut, and
-/// not always then.
+/// not always then. Under ProgramData, which every account reads: Windows leaves out a toast's
+/// picture kept under a user's AppData where that is shut to all but the user.
 #[cfg(windows)]
 fn logo(app: &AppHandle) -> Option<PathBuf> {
     const LOGO: &[u8] = include_bytes!("../icons/128x128@2x.png");
-    let path = app.path().app_cache_dir().ok()?.join("logo.png");
+    let path = PathBuf::from(std::env::var_os("ProgramData")?)
+        .join(&app.config().identifier)
+        .join("logo.png");
     if fs::read(&path).ok().as_deref() != Some(LOGO) {
         fs::create_dir_all(path.parent()?).ok()?;
         fs::write(&path, LOGO).ok()?;
