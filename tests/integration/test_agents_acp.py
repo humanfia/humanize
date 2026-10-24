@@ -1,4 +1,4 @@
-"""A CLI of somebody's own, added to humanize and driven over the Agent Client Protocol.
+"""A CLI of somebody's own, added to Humanize and driven over the Agent Client Protocol.
 
 The stand-in is `my-agent --acp`, written down with `backends.remember` as any CLI a person
 adds: it answers the handshake, opens a session, and plays a `session/prompt` as

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The reference as a map of humanize as built: one card per page, with the package it covers,
+// The reference as a map of Humanize as built: one card per page, with the package it covers,
 // in four tiers -- what you type into, the Python you write against, what sits below the flow
 // API, and what a run reads and leaves behind. The pages and packages are the table under
 // "Pages" on docs/reference/index.md.
@@ -23,7 +23,7 @@ import { usePalette } from '../../motion/palette'
 import { useScene } from '../../motion/useScene'
 
 const BEATS = [
-  'humanize as built, layer by layer',
+  'Humanize as built, layer by layer',
   'One line, typed into the CLI',
   'The runtime runs the flow it names',
   'Its turn drives a CLI, as an account, on a machine',
@@ -331,7 +331,7 @@ const argClass = (part: string) => (part === ARG_F ? 'arg-f' : part === ARG_A ? 
     :beats="BEATS"
     sim
     :mobile-ratio="`${NARROW.w} / ${NARROW.h}`"
-    label="The reference as a map of humanize as built, a card per page with the package it covers. What you type into: CLI, hmz.cli; TUI, hmz.tui; Web, hmz.web; Daemon, hmz.daemon. The Python you write against: Flows, hmz.flows; SDK, hmz.sdk. Below the flow API, all in hmz.coganchor: Agents, Machines, Providers, Remote execution. What a run reads and leaves behind: Tracing, hmz.runtime; Files; Environment variables; Settings. One request is followed through it: hmz exec -f twice -a builder=claude/… -p budget.cost=1 is typed into the CLI, which reads its environment as it starts; the runtime's runner reads the flow and its budget and runs twice; its turn goes through the runtime's flowing drivers to the claude agent driver, which runs the CLI as local, on this machine, in the workspace, and the answer comes back up; the run is written down as an epic under ~/.hmz/epics, with epic.jsonl and the sessions' logs, which Tracing reads back."
+    label="The reference as a map of Humanize as built, a card per page with the package it covers. What you type into: CLI, hmz.cli; TUI, hmz.tui; Web, hmz.web; Daemon, hmz.daemon. The Python you write against: Flows, hmz.flows; SDK, hmz.sdk. Below the flow API, all in hmz.coganchor: Agents, Machines, Providers, Remote execution. What a run reads and leaves behind: Tracing, hmz.runtime; Files; Environment variables; Settings. One request is followed through it: hmz exec -f twice -a builder=claude/… -p budget.cost=1 is typed into the CLI, which reads its environment as it starts; the runtime's runner reads the flow and its budget and runs twice; its turn goes through the runtime's flowing drivers to the claude agent driver, which runs the CLI as local, on this machine, in the workspace, and the answer comes back up; the run is written down as an epic under ~/.hmz/epics, with epic.jsonl and the sessions' logs, which Tracing reads back."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

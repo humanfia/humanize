@@ -1,8 +1,8 @@
 # Environment variables
 
-Every environment variable humanize reads, and every one it sets in the environment of a
+Every environment variable Humanize reads, and every one it sets in the environment of a
 process it starts. Variables read only by a coding agent CLI itself are out of scope except
-where humanize reads them too.
+where Humanize reads them too.
 
 ## Which process reads them
 
@@ -19,11 +19,11 @@ where humanize reads them too.
 Values are read with `os.environ`; `hmz` changes its own environment in one case only
 (`TEXTUAL_DISABLE_KITTY_KEY`, below).
 
-## humanize's own
+## Humanize's own
 
 | Variable | Values | Default | Effect |
 | --- | --- | --- | --- |
-| <code id="humanize-home">HUMANIZE_HOME</code> | a path; empty is unset | `~/.hmz` | Root of humanize's home, which holds what it keeps but your own flows (`~/.hmz/flows`), its cache and this machine's own directory: see [Files](/reference/files). A `~/.humanize` from before is [moved there](/reference/files#moved-from-humanize). On an `ssh` machine the remote login shell's `${HUMANIZE_HOME:-$HOME/.hmz}` decides the directory there; a relative value there is taken under the remote `$HOME`. |
+| <code id="humanize-home">HUMANIZE_HOME</code> | a path; empty is unset | `~/.hmz` | Root of Humanize's home, which holds what it keeps but your own flows (`~/.hmz/flows`), its cache and this machine's own directory: see [Files](/reference/files). A `~/.humanize` from before is [moved there](/reference/files#moved-from-humanize). On an `ssh` machine the remote login shell's `${HUMANIZE_HOME:-$HOME/.hmz}` decides the directory there; a relative value there is taken under the remote `$HOME`. |
 | <code id="humanize-daemon">HUMANIZE_DAEMON</code> | `off`, `0`, `no` (trimmed, case-insensitive) mean off; anything else on | on | Off: plain `hmz`, and `hmz web`, hold runs in their own process instead of the [runs host](/reference/daemon). Not read by `hmz exec`. |
 | <code id="humanize-name">HUMANIZE_NAME</code> | any string; empty is unset | the login name (`getpass.getuser()`), else `somebody` | The name a frontend attaches under (`<name>@<kind>`, `#2`… on a clash). |
 | <code id="humanize-sentry">HUMANIZE_SENTRY</code> | `on`, `1`, `true`, `yes` → on; `off`, `0`, `false`, `no` → off (trimmed, case-insensitive); anything else ignored | the `enable_sentry` [setting](/reference/settings#enable-sentry) | Answers the error-report question for this process only, without writing anything. `/settings` shows that the variable overrides the setting. |
@@ -32,12 +32,12 @@ Values are read with `os.environ`; `hmz` changes its own environment in one case
 | <code id="humanize-prices">HUMANIZE_PRICES</code> | a URL (contains `://`) or a file path; `""`, `off`, `0`, `no`, `none` (case-insensitive) disable fetching | `https://openllmprices.com/data/prices.json` | Where the price table used for [budgets](/reference/flows#budget) and the [tally](/user/tally) is refreshed from (at most once per 24 h, by the interface and by every run), into `$TMPDIR/humanize-<uid>/prices.json`. |
 | <code id="humanize-releases">HUMANIZE_RELEASES</code> | a URL (contains `://`) or a file path; `""`, `off`, `0`, `no`, `none` (case-insensitive) disable asking | `https://pypi.org/pypi/hmz/json` | Where the newest release of `hmz` is asked for: by [`hmz update`](/reference/cli#hmz-update), and, at most once per 24 h, by the interfaces as they open, into `$TMPDIR/humanize-<uid>/releases.json`. |
 | <code id="humanize-shadows">HUMANIZE_SHADOWS</code> | a path (`~` expanded); empty is unset | `~/.cache/humanize/shadows` | Directory of mirror records (`<sha16>.json`) and journals (`<sha16>.journal`, `<sha16>.live`) for this process and its children. |
-| <code id="humanize-ssh-reuse">HUMANIZE_SSH_REUSE</code> | `off`, `0`, `no`, `false` (trimmed, case-insensitive) or set and empty turn it off; anything else on | on | On: every `ssh` humanize runs adds `-o ControlMaster=auto -o ControlPersist=120 -o ControlPath=<dir>/%C[-<digest>]`, `<dir>` being `$XDG_RUNTIME_DIR/humanize-ssh-<uid>` (or the temporary directory; `/tmp` where either is too long for a socket path, as a Mac's `$TMPDIR` is). Read once per process. |
+| <code id="humanize-ssh-reuse">HUMANIZE_SSH_REUSE</code> | `off`, `0`, `no`, `false` (trimmed, case-insensitive) or set and empty turn it off; anything else on | on | On: every `ssh` Humanize runs adds `-o ControlMaster=auto -o ControlPersist=120 -o ControlPath=<dir>/%C[-<digest>]`, `<dir>` being `$XDG_RUNTIME_DIR/humanize-ssh-<uid>` (or the temporary directory; `/tmp` where either is too long for a socket path, as a Mac's `$TMPDIR` is). Read once per process. |
 | <code id="humanize-rendezvous">HUMANIZE_RENDEZVOUS</code> | a host or address; empty is unset | the address this machine uses to reach the outside (UDP route to `192.0.2.1`), else `127.0.0.1` | Default of `hmz internal anchor --broker`, and the address an in-process rendezvous broker advertises. |
 | <code id="humanize-rendezvous-port">HUMANIZE_RENDEZVOUS_PORT</code> | an integer | `0` (any free port) | Port of the process's shared rendezvous broker (listening on `0.0.0.0`). A non-integer raises `ValueError`. |
-| <code id="humanize-target">HUMANIZE_TARGET</code> | `ssh://HOST`, `docker://CONTAINER[?OPTIONS][@ENDPOINT]`, `apple-container://CONTAINER`, `slurm://JOBID[?python=PATH]`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, `local[:DIR]` | `local` | Default of `hmz internal anchor --target`. Also set by humanize inside an anchored agent (below). |
+| <code id="humanize-target">HUMANIZE_TARGET</code> | `ssh://HOST`, `docker://CONTAINER[?OPTIONS][@ENDPOINT]`, `apple-container://CONTAINER`, `slurm://JOBID[?python=PATH]`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, `local[:DIR]` | `local` | Default of `hmz internal anchor --target`. Also set by Humanize inside an anchored agent (below). |
 | <code id="humanize-harness">HUMANIZE_HARNESS</code> | `local`, `same`, or a target spelling | `local` | Default of `hmz internal anchor --harness`. |
-| <code id="humanize-shadow">HUMANIZE_SHADOW</code> | a path | `--workspace` | Default of `hmz internal anchor --shadow`: the mirror directory on the machine the harness runs on. Set by humanize for a remote harness (below). |
+| <code id="humanize-shadow">HUMANIZE_SHADOW</code> | a path | `--workspace` | Default of `hmz internal anchor --shadow`: the mirror directory on the machine the harness runs on. Set by Humanize for a remote harness (below). |
 | <code id="humanize-token">HUMANIZE_TOKEN</code> | a string | none | Default of `--token` for `hmz internal anchor` (the secret a `tcp://` target expects) and `hmz internal anchor serve` (the secret clients must present; a mismatch is refused with `invalid token`). `serve --listen` on a non-loopback address without a token fails: `hmz: cannot listen on a non-loopback address without --token`. |
 | <code id="humanize-log">HUMANIZE_LOG</code> | `debug`, `info`, `warning`, `error` (trimmed, case-insensitive); empty is unset | `warning` for `anchor` and `anchor serve`; `info` for `anchor rendezvous` | Log level on stderr of those three commands, where `--log-level` is not given. Any other value is ignored: the command says `hmz: ignoring HUMANIZE_LOG='<value>', which is not one of debug, info, warning, error` on stderr and logs at its default. |
 
@@ -98,7 +98,7 @@ taken from that variable, then `.credentials.yaml`, then the project's `.env`, t
 
 ## Account variables
 
-A CLI reads its credentials and endpoint from the environment. humanize reads the same
+A CLI reads its credentials and endpoint from the environment. Humanize reads the same
 variables to decide which hosts a fenced session may reach, to list an account's models, and
 to keep a shell's credentials from overriding an [account's](/reference/providers).
 
@@ -162,11 +162,11 @@ Aliases hushed together: `CLAUDE_CODE_OAUTH_TOKEN`/`ANTHROPIC_OAUTH_TOKEN`,
 `QWEN_CODE_SYSTEM_DEFAULTS_PATH` are read from the turn's environment to know which files to
 watch, and never set.
 
-## Set for processes humanize starts
+## Set for processes Humanize starts
 
 | Variable | Set in | Value |
 | --- | --- | --- |
-| `HUMANIZE` | an anchored agent (supervised: its environment; native: an `env` prefix on the target command) | humanize's version |
+| `HUMANIZE` | an anchored agent (supervised: its environment; native: an `env` prefix on the target command) | Humanize's version |
 | `HUMANIZE_TARGET` | the same | the target, as `--target` spells it |
 | `HUMANIZE_WORKSPACE` | the same | the workspace as the target names it |
 | `PWD` | an anchored agent; every command run on a target | the working directory |
@@ -192,10 +192,10 @@ watch, and never set.
 | `PATH` | `docker` commands to an `ssh://` daemon with ssh options | `$TMPDIR/humanize-<uid>/docker-ssh/<sha16>:$PATH` (a shim that removes itself) |
 | `SSH_ASKPASS_REQUIRE` | the `ssh` that checks a runtime | `never` (fail rather than prompt) |
 | `HOME`, `NVIDIA_VISIBLE_DEVICES`, and the provider's `env` | containers of `docker` environments | `HOME=/tmp`; `NVIDIA_VISIBLE_DEVICES=void` unless GPUs are handed out |
-| the variables an ACP agent asks for | commands an `acp` agent asks humanize to run | as asked |
+| the variables an ACP agent asks for | commands an `acp` agent asks Humanize to run | as asked |
 | `TEXTUAL_DISABLE_KITTY_KEY` | `hmz`'s own environment, direct iTerm2 only | `1` if unset |
 
-A variable humanize removes: every hushed account variable not set by the account (see
+A variable Humanize removes: every hushed account variable not set by the account (see
 [Account variables](#account-variables)).
 
 **What crosses to a target.** A command run on another machine gets the caller's environment

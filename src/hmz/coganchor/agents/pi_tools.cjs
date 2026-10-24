@@ -11,7 +11,7 @@
 // running in the flow's own process.
 //
 // The bridge's argv is in `HMZ_PI_TOOLS`, as JSON. Where it is not set this registers
-// nothing, so a pi that finds this file without humanize behind it is the pi it was.
+// nothing, so a pi that finds this file without Humanize behind it is the pi it was.
 //
 // CommonJS so that it needs nothing from pi to load: pi's loader takes a module whose export
 // is the factory, and waits for one that is asynchronous, which is what lets the tools be
@@ -46,7 +46,7 @@ module.exports = async function humanizeTools(pi) {
   };
   bridge.on("error", gone);
   bridge.stdin.on("error", gone);
-  bridge.on("exit", () => gone(new Error("the humanize tool bridge exited")));
+  bridge.on("exit", () => gone(new Error("the Humanize tool bridge exited")));
   readline.createInterface({ input: bridge.stdout }).on("line", (line) => {
     let said;
     try {
@@ -82,7 +82,7 @@ module.exports = async function humanizeTools(pi) {
     // pi carries on past an extension that failed to load, which here would be a turn with
     // none of what the flow offered in front of the model: so pi is ended instead, and the
     // turn fails saying why.
-    process.stderr.write(`humanize: the flow's tools could not be reached: ${why.message}\n`);
+    process.stderr.write(`Humanize: the flow's tools could not be reached: ${why.message}\n`);
     process.exit(1);
   }
   for (const tool of tools) {

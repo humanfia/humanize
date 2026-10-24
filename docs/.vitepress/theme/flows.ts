@@ -20,7 +20,7 @@
 /** What a role is, which is what colour and shape it is drawn in. A `maker` does the work and
  *  a `partner` is a second one taking turns with it; a `checker` reads and judges; a `steward`
  *  shapes the work -- plans the lanes, cleans the tree -- without doing or judging it. `human`
- *  is you, and `program` is humanize or your script: a step with no model in it. */
+ *  is you, and `program` is Humanize or your script: a step with no model in it. */
 export type RoleKind = 'maker' | 'partner' | 'checker' | 'steward' | 'human' | 'program'
 
 /** What a turn does, drawn as the glyph in its box. */
@@ -216,7 +216,7 @@ export const SCENES: Record<string, Scene> = {
     roles: [
       { id: 'agent', name: 'agent', note: 'a new session a turn', kind: 'maker', env: 'repo' },
       { id: 'cleaner', name: 'cleaner', note: 'a new session an epoch', kind: 'steward', env: 'repo' },
-      { id: 'epoch', name: 'the epoch', note: 'humanize, no model', kind: 'program', env: 'repo' },
+      { id: 'epoch', name: 'the epoch', note: 'Humanize, no model', kind: 'program', env: 'repo' },
     ],
     turns: [
       { id: 't1', role: 'agent', at: 0, label: 'a turn', session: 'new', pass: tree('the tree', 't2') },
@@ -244,7 +244,7 @@ export const SCENES: Record<string, Scene> = {
     loop: { from: 't4', to: 't2', said: 'an epoch every cleanup_turns turns' },
     ends: [BUDGET, { is: 'fail', said: '3 turns in a row come to nothing' }],
     caption:
-      'Every few turns the cleaner keeps the work under work_paths, deletes what strayed and writes NEXT.md; humanize checks the result and the history becomes one commit. An empty or failed turn is taken again.',
+      'Every few turns the cleaner keeps the work under work_paths, deletes what strayed and writes NEXT.md; Humanize checks the result and the history becomes one commit. An empty or failed turn is taken again.',
   },
 
   flame_chase_agent_cleanup: {
@@ -255,7 +255,7 @@ export const SCENES: Record<string, Scene> = {
       { id: 'one', name: 'first_chaser', note: 'a new session a turn', kind: 'maker', env: 'repo' },
       { id: 'two', name: 'second_chaser', note: 'a new session a turn', kind: 'partner', env: 'repo' },
       { id: 'cleaner', name: 'cleaner', note: 'a new session an epoch', kind: 'steward', env: 'repo' },
-      { id: 'epoch', name: 'the epoch', note: 'humanize, no model', kind: 'program', env: 'repo' },
+      { id: 'epoch', name: 'the epoch', note: 'Humanize, no model', kind: 'program', env: 'repo' },
     ],
     turns: [
       { id: 'f1', role: 'one', at: 0, label: 'turn 1', session: 'new', pass: tree('the tree', 'f2') },
@@ -405,7 +405,7 @@ export const SCENES: Record<string, Scene> = {
     roles: [
       { id: 'you', name: 'you', note: 'asked only when you are there', kind: 'human' },
       { id: 'builder', name: 'builder', note: 'one session, the loop', kind: 'maker', env: 'repo' },
-      { id: 'gates', name: 'the gates', note: 'humanize, no model', kind: 'program', env: 'repo' },
+      { id: 'gates', name: 'the gates', note: 'Humanize, no model', kind: 'program', env: 'repo' },
       { id: 'reviewer', name: 'reviewer', note: 'a new session a review', kind: 'checker', env: 'repo' },
     ],
     turns: [
@@ -453,7 +453,7 @@ export const SCENES: Record<string, Scene> = {
     roles: [
       { id: 'writer', name: 'writer', note: 'one session throughout', kind: 'maker', env: 'scratch' },
       { id: 'critic', name: 'critic', note: 'a new session, reads only', kind: 'checker', env: 'scratch' },
-      { id: 'gates', name: 'the gates', note: 'humanize, no model', kind: 'program', env: 'fakes' },
+      { id: 'gates', name: 'the gates', note: 'Humanize, no model', kind: 'program', env: 'fakes' },
     ],
     turns: [
       { id: 'w1', role: 'writer', at: 0, label: 'draws up a spec', session: 'new', does: 'plan' },
@@ -501,7 +501,7 @@ export const SCENES: Record<string, Scene> = {
       BUDGET,
     ],
     caption:
-      'A draft lands only once humanize has loaded it, it has ended on its own in three fake worlds, and a critic that never saw it written approves it.',
+      'A draft lands only once Humanize has loaded it, it has ended on its own in three fake worlds, and a critic that never saw it written approves it.',
   },
 
   parallel_flame_chase: {
@@ -581,7 +581,7 @@ export const SCENES: Record<string, Scene> = {
       { id: 'l2b', name: 'lane_2_actor_b', note: 'in its clone', kind: 'partner', env: 'l2' },
       { id: 'l3a', name: 'lane_3_actor_a', note: 'in its clone', kind: 'maker', env: 'l3' },
       { id: 'l3b', name: 'lane_3_actor_b', note: 'in its clone', kind: 'partner', env: 'l3' },
-      { id: 'main', name: 'main', note: 'humanize, no model', kind: 'program', env: 'main' },
+      { id: 'main', name: 'main', note: 'Humanize, no model', kind: 'program', env: 'main' },
     ],
     turns: [
       {

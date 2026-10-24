@@ -217,7 +217,7 @@ def answering(*roles: str) -> Generator[list[subprocess.Popen[str]]]:
 
 @contextlib.contextmanager
 def standing(at: Path, said: dict[str, Any]) -> Generator[None]:
-    """A daemon of another humanize at `at`: a note saying `said`, and a socket that closes.
+    """A daemon of another Humanize at `at`: a note saying `said`, and a socket that closes.
 
     In this process, and gone again once the block ends.
     """

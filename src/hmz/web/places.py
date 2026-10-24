@@ -2,7 +2,7 @@
 
 The terminal interface is about the directory it is opened in; the web interface is about the
 machine, as the daemon is. It offers every workspace an epic was run in or that was set up or
-written down here, and holds, per workspace, humanize for it and -- only while a page follows
+written down here, and holds, per workspace, Humanize for it and -- only while a page follows
 its runs or acts on them -- a link to each host holding them: the workspace's own, and each
 chat's beside it. A link nobody has used for a while,
 whose runs are idle, is let go of, so that a host with nothing to do and nobody reading goes as
@@ -48,7 +48,7 @@ class Place:
 
     Attributes:
       workspace: Its directory, resolved.
-      hmz: humanize, for it.
+      hmz: Humanize, for it.
       held: Each of its hosts' runs as this interface follows them, while it does.
       used: When a page last asked anything of each, on the monotonic clock.
       streams: How many pages follow each now.
@@ -224,7 +224,7 @@ class Places:
           order given -- epics' first, then those only written down.
         """
         seen: dict[str, None] = {str(self.here): None}
-        # Read afresh: another workspace's humanize, or another interface, may have written one.
+        # Read afresh: another workspace's Humanize, or another interface, may have written one.
         written = self._daemon.Hmz(self.here).settings.workspaces()
         running = [one["workspace"] for one in self.running()]
         for one in (*running, *epics, *written):

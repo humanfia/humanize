@@ -36,8 +36,8 @@ def parser() -> ArgumentParser:
         # Wrapped by hand: the raw formatter below keeps the epilog's own line breaks,
         # and pays for that by not re-wrapping the description either.
         description="Run a coding agent on this machine that acts on another one.\n"
-        "humanize renders this line for remote turns; do not type it by hand.",
-        epilog="What humanize renders looks like this:\n"
+        "Humanize renders this line for remote turns; do not type it by hand.",
+        epilog="What Humanize renders looks like this:\n"
         "  hmz internal anchor --target ssh://build-box claude --model opus",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -273,7 +273,7 @@ def settings(args: Namespace) -> AnchorConfig:
 def render(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
     """Writes the settings back out as the `hmz internal anchor` line that would read as them.
 
-    The interpreter is named explicitly, so the child is the one humanize is installed in
+    The interpreter is named explicitly, so the child is the one Humanize is installed in
     whether or not the console script is on PATH.
 
     Args:
@@ -291,7 +291,7 @@ def options(config: AnchorConfig) -> list[str]:
 
     The half of :func:`render` that says nothing about *where* the line runs, which is what a
     harness on another machine needs: the same options reach it, in front of the same
-    subcommand, behind whatever that machine runs humanize as.
+    subcommand, behind whatever that machine runs Humanize as.
 
     Args:
       config: The settings to write out.

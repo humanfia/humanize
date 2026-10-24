@@ -136,7 +136,7 @@ const LAYERS: Layer[] = [
   {
     id: 'sdk',
     dotted: 'hmz.sdk',
-    here: 'The Python API a tool outside humanize calls: `from hmz.sdk import Hmz`.',
+    here: 'The Python API a tool outside Humanize calls: `from hmz.sdk import Hmz`.',
     note: 'Nothing imports it: it is the way in from outside.',
     spec: 'api/sdk.md',
     ref: '/reference/sdk',
@@ -158,7 +158,7 @@ const LAYERS: Layer[] = [
   {
     id: 'doing',
     dotted: 'hmz.runtime.doing',
-    here: 'humanize as one object, `Hmz`. Anything `cli`, `tui` and `daemon` would each write goes here once.',
+    here: 'Humanize as one object, `Hmz`. Anything `cli`, `tui` and `daemon` would each write goes here once.',
     spec: 'api/sdk.md',
     ref: '/reference/sdk',
   },
@@ -180,7 +180,7 @@ const LAYERS: Layer[] = [
     id: 'flows',
     dotted: 'hmz.flows',
     here: 'The flow API: the types a flow imports. Each is a promise to somebody else\'s repository.',
-    note: 'Names `flowing` only inside `flow`, `load` and `Outworlder.new`, never at import. Importing `hmz.flows` loads nothing else of humanize.',
+    note: 'Names `flowing` only inside `flow`, `load` and `Outworlder.new`, never at import. Importing `hmz.flows` loads nothing else of Humanize.',
     spec: 'api/flows.md',
     ref: '/reference/flows',
   },
@@ -233,7 +233,7 @@ const LAYERS: Layer[] = [
   {
     id: 'telemetry',
     dotted: 'hmz.runtime.telemetry',
-    here: 'What humanize reports about itself, and whether it does.',
+    here: 'What Humanize reports about itself, and whether it does.',
     spec: 'features/telemetry.md',
   },
   {
@@ -477,7 +477,7 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
           </button>
           <code v-for="n in outside" :key="n" class="tag outside">{{ n }}</code>
           <span v-if="!named.length && !inside.length && !outside.length" class="none">
-            nothing else of humanize
+            nothing else of Humanize
           </span>
         </p>
 

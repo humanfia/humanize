@@ -1,7 +1,7 @@
-// What humanize remembers, as ChatGPT keeps its settings: a dialog over the page with its pages
+// What Humanize remembers, as ChatGPT keeps its settings: a dialog over the page with its pages
 // down the side, in two groups. The app's own -- how this page is drawn, which daemons it
 // reaches and what it tells you of them -- are this browser's, or this machine's, whichever
-// daemon is on screen. The daemon's -- what is true wherever humanize runs, who its agents are
+// daemon is on screen. The daemon's -- what is true wherever Humanize runs, who its agents are
 // and what takes over when one fails, where their work goes, where epics are backed up, one
 // directory, and last what the runs there spent -- are read from and written to the daemon
 // picked above them, the one on screen unless another is, and each page that saves can copy

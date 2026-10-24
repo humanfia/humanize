@@ -17,7 +17,7 @@ small budget, before you rely on it.
 ::: info Before you start
 - A flow of your own: [Your first flow](/weaver/writing-a-flow).
 - [pytest](https://docs.pytest.org/) and [`uv`](https://docs.astral.sh/uv/). The commands
-  below bring pytest, humanize and
+  below bring pytest, Humanize and
   [pytest-asyncio](https://pytest-asyncio.readthedocs.io/) along, and add nothing to your
   project.
 :::
@@ -130,7 +130,7 @@ uvx --with hmz \
 4. **`builder.prompts`** is every prompt the flow sent, in order. The assertion is the flow's
    whole contract: the task first, the review second.
 
-`uvx` runs pytest in a throwaway environment with humanize beside it. To keep the setup in the
+`uvx` runs pytest in a throwaway environment with Humanize beside it. To keep the setup in the
 repository instead, see [Run the tests in CI](#run-the-tests-in-ci).
 
 ## Example: test a flow with two roles
@@ -694,7 +694,7 @@ jobs:
 
 :::
 
-- **`[dependency-groups] dev`** is what `uv run` installs before it runs anything: humanize,
+- **`[dependency-groups] dev`** is what `uv run` installs before it runs anything: Humanize,
   pytest and pytest-asyncio. Nothing is published, and nothing is added to a package.
 - **`asyncio_mode = "auto"`** is the `-o asyncio_mode=auto` from the commands above.
 - **`testpaths`** names both places tests are kept, since pytest does not look inside a

@@ -261,7 +261,7 @@ class Profiler:
         Returns:
           The descendants of the process the run is happening in, which is every program an
           agent of it started -- and the agents themselves, which are started the same way.
-          The root is not among them: it is humanize, which is what the trace is of rather
+          The root is not among them: it is Humanize, which is what the trace is of rather
           than something in it.
         """
         try:

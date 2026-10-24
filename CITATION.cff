@@ -1,15 +1,15 @@
-# How to cite humanize. GitHub reads this file for the "Cite this repository" button, which
+# How to cite Humanize. GitHub reads this file for the "Cite this repository" button, which
 # offers `preferred-citation`, the paper, over the software described above it.
 # Validate a change with `uvx cffconvert --validate`.
 cff-version: 1.2.0
-message: If you use humanize in your research, please cite the paper below.
+message: If you use Humanize in your research, please cite the paper below.
 type: software
-title: humanize
+title: Humanize
 abstract: The agent flow system for token maxxing.
 authors:
   - given-names: Zijian
     family-names: Zhang
-  - name: The humanize contributors
+  - name: The Humanize contributors
     website: https://github.com/humanfia/humanize/graphs/contributors
 repository-code: https://github.com/humanfia/humanize
 url: https://docs.humanfia.ai/humanize/

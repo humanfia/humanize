@@ -1,13 +1,13 @@
-# humanize _(hmz)_
+# Humanize _(hmz)_
 
-![humanize](https://socialify.git.ci/humanfia/humanize/image?description=1&font=Raleway&forks=1&issues=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fhumanfia%2Fhumanize%2Frefs%2Fheads%2Fmain%2Fdocs%2Fpublic%2Flogo.svg&name=1&owner=1&pattern=Circuit+Board&pulls=1&stargazers=1&theme=Auto)
+![Humanize](https://socialify.git.ci/humanfia/humanize/image?description=1&font=Raleway&forks=1&issues=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fhumanfia%2Fhumanize%2Frefs%2Fheads%2Fmain%2Fdocs%2Fpublic%2Flogo.svg&name=1&owner=1&pattern=Circuit+Board&pulls=1&stargazers=1&theme=Auto)
 
 The agent flow system for token maxxing.
 
 ## Install
 
-Needs Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), and a coding agent CLI you are
-signed in to, such as Claude Code or Codex.
+Humanize CLI needs Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), and a coding agent
+CLI you are signed in to, such as Claude Code or Codex.
 
 ```sh
 uv tool install hmz
@@ -30,11 +30,11 @@ uvx hmz@latest
 uvx --from 'hmz[all]' hmz web
 ```
 
-### Desktop app
+### Humanize Desktop
 
 On macOS, `humanize-<version>-macos-universal.dmg` from the
 [latest release](https://github.com/humanfia/humanize/releases/latest) puts `hmz web` in a
-window of its own: drag humanize to Applications. It runs the `hmz` installed above. The
+window of its own: drag Humanize Desktop to Applications. It runs the `hmz` installed above. The
 [guide](https://docs.humanfia.ai/humanize/user/desktop) says how to open it the first time.
 
 ## Usage

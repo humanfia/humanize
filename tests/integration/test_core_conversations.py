@@ -3,7 +3,7 @@
 Each run is a real `python -m hmz exec` driving the stand-in `claude`, which resumes a
 conversation only from where Claude keeps one for the directory it is started in, and copies
 the whole of it into a fork. So the later run's session answers from the conversation as it
-stood when the state kept it only where humanize copied it out then, brought the copy in
+stood when the state kept it only where Humanize copied it out then, brought the copy in
 where the later run keeps its sessions, and carried it to the directory that turn works in.
 Where a run keeps no sessions of its own (`HUMANIZE_SESSIONS=off`), that is the CLI's home, whose
 conversation is never put back to a copy of it.

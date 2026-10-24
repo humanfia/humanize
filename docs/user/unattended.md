@@ -28,10 +28,10 @@ a command. What each agent may touch is set by the flow. See [Permissions](/user
 
 ## Before you start
 
-- **humanize installed**, so `hmz` is on your `PATH`. See [Installation](/user/installation).
+- **Humanize installed**, so `hmz` is on your `PATH`. See [Installation](/user/installation).
 - **A coding agent CLI, installed and signed in** on this machine. `hmz exec` runs it as it is
   signed in, unless you name an [account](/user/settings#accounts).
-- **The flow within reach.** `ralph_loop` ships with humanize. A flow you install from a
+- **The flow within reach.** `ralph_loop` ships with Humanize. A flow you install from a
   [flowverse](/weaver/flowverses) is there once it is installed; on a machine where it is not,
   name the flow by its repository instead, as [in CI](/user/ci#a-flow-from-a-flowverse).
 - **A task**, as text. Keeping it in a file such as `TASK.md` lets the line stay short and the
@@ -72,7 +72,7 @@ this directory: the line is the whole setup.
   `/settings`](/user/settings#accounts).
 - **@account** runs the turns as an [account](/user/settings#accounts) you made. Leave it off
   to run the CLI as this machine is signed in.
-- **model** goes to the CLI as written. humanize does not check it against a list.
+- **model** goes to the CLI as written. Humanize does not check it against a list.
 - **effort** must be on that CLI's [ladder](/user/efforts); a CLI you added takes any word.
   Leave it off, or write `auto`, for none. A `:` in the model stays the model's unless a word
   follows it, so `mcode/custom_provider:gateway/m` needs no effort; a model whose name ends in
@@ -85,7 +85,7 @@ Type one below, or pick an example:
 
 <SpecReader />
 
-You never name the person or the working directory. humanize fills those roles itself.
+You never name the person or the working directory. Humanize fills those roles itself.
 
 ### Set the budget {#say-what-the-run-may-spend}
 
@@ -106,7 +106,7 @@ A flow that calls another shares the budget with it. See [Every run has a
 budget](/features/allowances).
 
 ::: tip A cost limit needs a priced model
-`cost` can only stop a model humanize has a price for. For any other, `hmz exec` says so before
+`cost` can only stop a model Humanize has a price for. For any other, `hmz exec` says so before
 the first turn, and runs anyway:
 
 ```text
@@ -200,7 +200,7 @@ The run goes to **stderr**. What each turn answered, and whatever the flow print
 
 ```sh
 hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
-    "Summarise in one line: humanize runs coding agents in loops." \
+    "Summarise in one line: Humanize runs coding agents in loops." \
     > summary.txt 2> run.log
 ```
 
@@ -296,7 +296,7 @@ Every object carries every key. `kind` is one of:
 | `subagent`, `subagent-ends` | starts an agent of its own, which later finishes |
 | `asks` | stops to ask a question |
 | `took` | has a line steered into the turn in front of it, and says which |
-| `notice` | is waiting out a rate limit, moved to another account, or cut off (humanize says this, not the agent) |
+| `notice` | is waiting out a rate limit, moved to another account, or cut off (Humanize says this, not the agent) |
 | `failed` | failed the turn |
 | `result` | gives the answer the turn ends on. Only this one carries `tokens` (by model) and `spent` (by kind of token). |
 
@@ -380,7 +380,7 @@ More in [Troubleshooting](/user/troubleshooting).
 
 ## Next steps
 
-- [humanize in CI](/user/ci): the same line in a scheduled job that opens a pull request
+- [Humanize in CI](/user/ci): the same line in a scheduled job that opens a pull request
 - [Picking a run up](/user/resuming): `--resume`, and what carries over
 - [Tracing a run](/user/tracing): what the run did, as a timeline
 - [Remote execution](/user/remote-execution): `-e`, and where the agent runs

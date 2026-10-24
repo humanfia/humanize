@@ -1,10 +1,10 @@
-"""humanize's one settings file: everything `/settings` can set, in `settings.yaml`.
+"""Humanize's one settings file: everything `/settings` can set, in `settings.yaml`.
 
-One file under humanize's own home, keyed by what each part of it is: what each workspace was
+One file under Humanize's own home, keyed by what each part of it is: what each workspace was
 set up to run, the handful of settings that are this machine's, the chains a failed turn falls
 back along (`fallbacks`), the CLIs somebody added by hand (`clis`) and the machines an
 environment may be put on (`runtimes`). One file rather than one per setting, because a person
-reading what humanize was told is reading one thing, and a file per part was a directory of
+reading what Humanize was told is reading one thing, and a file per part was a directory of
 them to find it in -- and because whoever writes one part has to leave every other part as it
 was, which is one lock and one file to keep it on.
 
@@ -84,7 +84,7 @@ def changes(change: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
     there afterwards.
 
     The lock is a `flock` on a file beside it, which the kernel lets go of however the
-    process ends. Whole and then moved into place, as every other file humanize writes is:
+    process ends. Whole and then moved into place, as every other file Humanize writes is:
     one read while it is being written is the old one or the new one and never half of each.
     A new file is this user's alone, and one already there keeps the mode it has.
 

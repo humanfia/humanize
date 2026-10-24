@@ -207,7 +207,7 @@ export function draw(holder) {
 
   read()
     .catch((error) => {
-      if (error.status === 404) return fill(holder, empty('Unavailable', 'This humanize does not keep daemons.'))
+      if (error.status === 404) return fill(holder, empty('Unavailable', 'This Humanize does not keep daemons.'))
       fill(listing, h('h2', {}, 'Daemons'), problem(error))
     })
     .then(() => {

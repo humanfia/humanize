@@ -158,10 +158,10 @@ def collect(
             the profile of it an epic holds or the samples themselves, drawn
             as one more process: a track of nested frames, the way a sampling
             profiler draws its samples.
-        kept: Where humanize kept the sessions it ran, each holding a
+        kept: Where Humanize kept the sessions it ran, each holding a
             directory per CLI laid out as that CLI's home is -- an epic's
             `sessions/` -- read beside every CLI's own home, which holds the
-            sessions nobody ran through humanize. None for those homes alone.
+            sessions nobody ran through Humanize. None for those homes alone.
 
     Returns:
         The Chrome trace document, also written to output when one is given.
@@ -272,7 +272,7 @@ def _gathered(
         # opencode and mimocode keep theirs in SQLite and are read with a query.
         if reader is None:
             continue
-        # The CLI's own home, and every place humanize kept a session of it: a directory
+        # The CLI's own home, and every place Humanize kept a session of it: a directory
         # laid out as that home is, so the one reader reads both.
         for home in (each.directory(), *(one / each.name for one in places)):
             if home.is_dir():

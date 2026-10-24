@@ -18,7 +18,7 @@ Out of scope:
 
 ## 2. Definitions
 
-**2.1** The **app** is the macOS application named `humanize`, with the bundle identifier
+**2.1** The **app** is the macOS application named `Humanize Desktop`, with the bundle identifier
 `ai.humanfia.humanize`.
 
 **2.2** The **app's version** is the release of hmz the app was built for.
@@ -87,8 +87,8 @@ refuse it unless its checksum is the one pinned, and MUST keep it in its own dat
 
 **4.9** The app MUST leave no uv and no hmz half written, however it ends.
 
-**4.10** While it installs, the splash MUST show `Installing humanize` where no hmz was there and
-`Updating humanize` where it replaces one, with the step -- `Getting uv`, `Getting Python` or
+**4.10** While it installs, the splash MUST show `Installing Humanize CLI` where no hmz was there and
+`Updating Humanize CLI` where it replaces one, with the step -- `Getting uv`, `Getting Python` or
 `Installing hmz` -- and the last line uv said.
 
 **4.11** The app MUST NOT replace an hmz while this machine's daemon is running. While it runs, the
@@ -112,7 +112,7 @@ then in `~/.local/bin`, `$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin
 
 ## 5. Starting `hmz web`
 
-**5.1** The app MUST open its window on the splash at once, drawn in humanize's colours, light or
+**5.1** The app MUST open its window on the splash at once, drawn in Humanize's colours, light or
 dark as the system is, and MUST draw the window in the page's background colour before any page is
 drawn.
 
@@ -141,7 +141,7 @@ defaults, whatever the app was started with.
 
 ## 6. The splash and errors
 
-**6.1** The splash MUST show the humanize mark and `Starting` while the server starts.
+**6.1** The splash MUST show the Humanize mark and `Starting` while the server starts.
 
 **6.2** Where the server exits before it listens, the splash MUST show `Failed` with what it said on
 standard error, and `Retry`.
@@ -183,7 +183,7 @@ that the page draws its top row around the window controls from its first frame.
 
 **7.8** The app MUST keep the window's size and position from one launch to the next.
 
-**7.9** The app MUST have the menus of a Mac app: the app menu, with `About humanize` and `Check for
+**7.9** The app MUST have the menus of a Mac app: the app menu, with `About Humanize Desktop` and `Check for
 Updates…`; `Edit`, with undo, redo, cut, copy, paste and select all; `View`, with `Reload`, `Actual
 Size`, `Zoom In`, `Zoom Out` and full screen; `Window`; and `Help`, with the documentation.
 

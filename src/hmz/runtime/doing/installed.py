@@ -48,7 +48,7 @@ _EXTRAS = {
 }
 
 #: What each backend behind an extra is missing when it is missing, and the packages of that
-#: extra: the line for a humanize installed from a repository or a checkout, which an index
+#: extra: the line for a Humanize installed from a repository or a checkout, which an index
 #: has no `hmz[...]` of.
 _LINES = {
     "dsh": ("DeepSeek Harness is not installed", f"'{DSH_SDK}' 'python-dotenv>=1.2.3'"),
@@ -82,7 +82,7 @@ def installed(accounts: Accounts) -> dict[str, tuple[Model, ...]]:
 
 
 def installable(accounts: Accounts) -> dict[str, tuple[Model, ...]]:
-    """Optional backends that can be added to this humanize installation.
+    """Optional backends that can be added to this Humanize installation.
 
     These are kept apart from :func:`installed`: they belong in the agent picker so that
     somebody can discover and install them, but they must not make an unopened prompt look
@@ -115,13 +115,13 @@ def adding(backend: str) -> str:
 
     Returns:
       What is missing, and the command that adds it: the extra of the release running, for a
-      humanize from an index, and its packages for one installed from anywhere else.
+      Humanize from an index, and its packages for one installed from anywhere else.
     """
     if (extra := _LINES.get(backend)) is None:
-        return f"install {backend}, then reopen humanize"
+        return f"install {backend}, then reopen Humanize"
     missing, requirement = extra
-    # A humanize from an index has no `direct_url.json` (PEP 610), and that index has its
-    # extra, pinned to the version running so that nothing else of humanize is installed.
+    # A Humanize from an index has no `direct_url.json` (PEP 610), and that index has its
+    # extra, pinned to the version running so that nothing else of Humanize is installed.
     # And one that is no distribution at all -- a checkout on `PYTHONPATH` -- is anywhere else.
     try:
         hmz = importlib.metadata.distribution("hmz")
@@ -156,7 +156,7 @@ def _is_here(backend: str) -> bool:
     # A CLI somebody added is started by the command they gave rather than by its own name.
     if (added := speaking().get(backend)) is not None:
         return bool(added) and program(added[0]) is not None
-    # And one humanize drives is started by the command it is installed as, which is its own
+    # And one Humanize drives is started by the command it is installed as, which is its own
     # name.
     profile = named(backend)
     return program(profile.name if profile is not None else backend) is not None

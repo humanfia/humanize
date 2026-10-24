@@ -1,4 +1,4 @@
-"""Everything humanize does to a flow: finding one, loading one, running one, and the drivers.
+"""Everything Humanize does to a flow: finding one, loading one, running one, and the drivers.
 
 A flow is content -- somebody else's repository, forked and edited -- and the whole of what it
 imports is :mod:`hmz.flows`: the protocols its agents and environments answer to, the

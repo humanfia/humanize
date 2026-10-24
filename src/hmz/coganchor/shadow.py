@@ -717,7 +717,7 @@ def prepare_shadow_root(path: str, *, force: bool = False, target: str = "") -> 
     if previous is not None and previous != target and not force:
         raise FileExistsError(
             errno.EEXIST,
-            f"{path} mirrors {previous}, not {target}. humanize replaces this "
+            f"{path} mirrors {previous}, not {target}. Humanize replaces this "
             "directory with the new target's contents and would delete "
             "everything only the old one has. Use a different directory, or "
             "pass --force.",
@@ -730,8 +730,8 @@ def prepare_shadow_root(path: str, *, force: bool = False, target: str = "") -> 
     elif not force and previous is None and any(os.scandir(path)):
         raise FileExistsError(
             errno.EEXIST,
-            f"{path} already contains files and is not an humanize mirror. "
-            "humanize replaces this directory with the target's contents and "
+            f"{path} already contains files and is not a Humanize mirror. "
+            "Humanize replaces this directory with the target's contents and "
             "would delete them. Use an empty directory, or pass --force.",
             path,
         )

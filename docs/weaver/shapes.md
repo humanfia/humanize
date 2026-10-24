@@ -13,7 +13,7 @@ round again, which of two paths to take, what to pass on to the next agent.
 
 ::: info Before you start
 - A flow of your own running: [Your first flow](/weaver/writing-a-flow).
-- [pydantic](https://docs.pydantic.dev/) models. `pydantic` is installed with humanize.
+- [pydantic](https://docs.pydantic.dev/) models. `pydantic` is installed with Humanize.
 - Two roles in one flow: [Build under test](/weaver/tutorials/build-under-test) is the gentle
   way in.
 :::

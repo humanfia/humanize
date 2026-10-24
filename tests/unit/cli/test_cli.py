@@ -263,9 +263,9 @@ def test_a_daemon_of_an_older_humanize_is_said_and_not_opened(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    terminal.side_effect = hmz.daemon.Older("held by an older humanize")
+    terminal.side_effect = hmz.daemon.Older("held by an older Humanize")
     assert _opened(monkeypatch) == 1
-    assert capsys.readouterr().err == "hmz: held by an older humanize\n"
+    assert capsys.readouterr().err == "hmz: held by an older Humanize\n"
     assert app.made == []
 
 

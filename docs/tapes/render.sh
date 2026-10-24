@@ -61,6 +61,6 @@ done
 
 echo
 echo "Play what you recorded before committing it (pnpm dev, then the page it is on). A demo"
-echo "must show humanize and nothing about the machine it was recorded on."
+echo "must show Humanize and nothing about the machine it was recorded on."
 
 exit "$failed"

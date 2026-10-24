@@ -3797,7 +3797,7 @@ class Acts(Picks):
 
 
 def _hmz() -> Hmz:
-    """humanize, as the one object every sheet reaches a store through.
+    """Humanize, as the one object every sheet reaches a store through.
 
     Made where it is wanted rather than held: it costs nothing until something is asked of
     it, and a sheet that reads a store twice reads the same store both times.
@@ -4589,7 +4589,7 @@ class Leaves(Popup):
         ]
 
 
-#: The two answers to the question humanize asks about itself on a first start.
+#: The two answers to the question Humanize asks about itself on a first start.
 _REPORTS, _QUIET = "on", "off"
 
 #: The pages of `/settings`, in the order they are listed on its first screen: from the
@@ -4625,7 +4625,7 @@ def _shortly(said: str) -> str:
 
 
 class Reports(Popup):
-    """Whether humanize reports its own failures, asked once, on a first start.
+    """Whether Humanize reports its own failures, asked once, on a first start.
 
     Asked rather than assumed either way. Assumed on, it would be a tool that started sending
     things about somebody's machine before they had heard of it; assumed off, it would be a
@@ -4640,7 +4640,7 @@ class Reports(Popup):
 
     CSS = _popup("Reports")
 
-    asked = "Report errors to humanize?"
+    asked = "Report errors to Humanize?"
 
     ESC: ClassVar = "ask again next time"
 
@@ -4827,7 +4827,7 @@ class Agent(Drafts[Runs]):
         # own and one drops its values under it, and a reader who has to press a key to find
         # out which is a reader the row did not tell.
         moves = _DROPS if self.drops(held) else "" if held in _DROPPED else _OPENS
-        # Called what the rest of humanize calls it -- an account -- whatever it is kept
+        # Called what the rest of Humanize calls it -- an account -- whatever it is kept
         # under.
         said = "account" if held == _ACCOUNT else held
         chip = _chip(value, moves, here=here, toggles=held == _SWARM)
@@ -6456,7 +6456,7 @@ class Account(Picks):
         ]
 
     def actions(self) -> list[Action]:
-        """Taking it away, or taking back taking it away, for any account humanize made."""
+        """Taking it away, or taking back taking it away, for any account Humanize made."""
         if not self._name:
             return []
         return [
@@ -6475,14 +6475,14 @@ class Account(Picks):
         """Why none of them is here.
 
         Returns:
-          The line, or "" for any account humanize made. Why the rows are not here is said
+          The line, or "" for any account Humanize made. Why the rows are not here is said
           rather than left to be noticed: a row somebody went looking for and did not find is
           a menu that has not answered them.
         """
         if self._name:
             return ""
         return (
-            f"this is {escape(self._cli)} as local: humanize keeps no "
+            f"this is {escape(self._cli)} as local: Humanize keeps no "
             "credentials for it, so you cannot edit, sign in, or remove it"
         )
 
@@ -6641,12 +6641,12 @@ class Providers(Pages):
           doing: What was asked for.
 
         Returns:
-          The line to say under the list. humanize did not make that account and keeps no
+          The line to say under the list. Humanize did not make that account and keeps no
           credentials for it -- it is the CLI as whoever is at this machine runs it -- so
           there is nothing here to do to it.
         """
         return (
-            f"cannot {doing} {escape(cli)} as local: humanize keeps no credentials "
+            f"cannot {doing} {escape(cli)} as local: Humanize keeps no credentials "
             "for it"
         )
 
@@ -10534,7 +10534,7 @@ class Adjusted(NamedTuple):
     """What the settings menu answers with: what was changed, and what happened.
 
     Attributes:
-      enable_sentry: Whether humanize reports its own failures from now on, or None where
+      enable_sentry: Whether Humanize reports its own failures from now on, or None where
         that was not touched.
       details: Whether the working of each turn is shown, or None where that was not touched.
       forget: Whether to forget what this workspace was set up to run.

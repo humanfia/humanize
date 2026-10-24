@@ -1088,7 +1088,7 @@ it has not exited after `seconds`, MUST leave the daemon and every other host ru
 return whether the process exited.
 
 **17.9** For a `Daemon` of another protocol version, the text describing it MUST be `the runs in
-<workspace> are held by an older humanize (pid <pid>); stop it with that version`, with `on this
+<workspace> are held by an older Humanize (pid <pid>); stop it with that version`, with `on this
 machine` in place of `in <workspace>` where `workspace` is `""`.
 
 **17.10** `Daemon.asked(said)` MUST send one control request with `workspace` and, where not

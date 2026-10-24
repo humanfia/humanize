@@ -2,7 +2,7 @@
 
 `hmz web` opens every epic on this machine in a browser on it -- of every directory, as the
 [daemon](/features/daemon) holds every directory's runs: each epic going as it happens, every
-epic written down, starting one in any directory, what they spent, and what humanize remembers.
+epic written down, starting one in any directory, what they spent, and what Humanize remembers.
 It is one more window onto the runs `hmz` shows, not a copy of them. Start an epic in the
 terminal and answer it in the browser, or the other way round. The same page reaches the epics of
 [other machines](#daemons) over ssh, one at a time, and [tells you](#notifications) when an epic
@@ -13,7 +13,7 @@ on any of them ends or asks you something.
   an ssh host, read an epic written down, see what they spent, and be told when one needs you.
 - **Use it when** a picture of a run reads better than a transcript: its agents and who handed
   to whom, each session's turns laid out over time, a week's spend by flow.
-- **You need** humanize installed as in [Installation](/user/installation), and a browser on the
+- **You need** Humanize installed as in [Installation](/user/installation), and a browser on the
   machine `hmz` runs on, or an ssh tunnel to it.
 :::
 
@@ -66,12 +66,12 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
 | **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
-| **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
+| **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar is the [daemon bar](#daemon-bar): it names the daemon the page shows,
 its host and whether it is reached, and says how many epics are going on it. Its menu holds
 **Daemon**, which opens a list of the daemons beside it to switch to, then **Settings** and
-**Usage**. Where a newer humanize is out, the bar is marked ↑ and its menu offers
+**Usage**. Where a newer Humanize is out, the bar is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. The bell at the top of the sidebar
 opens your [notifications](#notifications). <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
@@ -167,7 +167,7 @@ between turns folds away; say something in it and it carries on, in the same epi
 was said before still above and an agent that remembers it. A turn that could not be taken
 says so in the conversation, with why, and the chat waits for your next line. Where the
 conversation itself cannot be carried on, the chat says why and answers what you said in a
-new one. A chat that kept nothing to carry on from -- one an earlier humanize wrote down --
+new one. A chat that kept nothing to carry on from -- one an earlier Humanize wrote down --
 says it cannot be continued here, and offers no box.
 
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
@@ -321,7 +321,7 @@ offered as `(at a terminal)` and made from `/settings` in `hmz`.
 
 ### Themes {#themes}
 
-The page is drawn in a theme. humanize comes with **presets**, each a pair of a light theme and a
+The page is drawn in a theme. Humanize comes with **presets**, each a pair of a light theme and a
 dark one: its own, **Humanize Green**, and **Temperate Gold**, **Concordant Scarlet**,
 **Restrained Crimson**, **Critical Teal**, **Desirous Indigo**, **Peaceful Lilac**,
 **Hateful Silver**, **Devoted Pink**, **Self-Negating Plum**, **Dominant Azure**,
@@ -421,7 +421,7 @@ how many epics are going on it. Click it for its menu:
 - **Daemon**, which opens beside it every daemon, with whether it is reached; pick one to switch
   to it. An ssh host is connected to when you pick it. **Connect** on one that failed tries it
   again, and **Manage** opens **Settings → Daemons**.
-- **Settings** and **Usage**, and **Update** where a newer humanize is out.
+- **Settings** and **Usage**, and **Update** where a newer Humanize is out.
 
 A daemon is in one of these states:
 
@@ -456,7 +456,7 @@ port here to the one it printed with `ssh -N -L`, and passes the page's calls fo
 through Local's `hmz web` to it. Nothing on the host listens beyond its own loopback, and your
 browser only ever talks to Local.
 
-- **It brings the host the same humanize.** Before it starts `hmz web` there, it asks the host's
+- **It brings the host the same Humanize.** Before it starts `hmz web` there, it asks the host's
   `hmz --version`, through a login shell with `~/.local/bin` on its `PATH`. Where there is none,
   or one of another version, it runs `uv tool install --force --python '>=3.12' 'hmz==<version>'`
   on the host, at this machine's version, installing uv there first where the host has none.
@@ -577,9 +577,9 @@ running `hmz web` printed, key and all.
 Something already listens on that port: another `hmz web`, perhaps. Pick another `--port`, or
 leave it out.
 
-### `the runs … are held by an older humanize`
+### `the runs … are held by an older Humanize`
 
-An older humanize holds that directory's runs, or this machine's: the page says so where it
+An older Humanize holds that directory's runs, or this machine's: the page says so where it
 asks for them, and serves every other directory. Stop them with that version, as the message
 says.
 

@@ -2,7 +2,7 @@
 
 The stand-in speaks what `claude --print --input-format stream-json` speaks -- one process
 held open per session, a JSON line per thing said each way -- and keeps each conversation
-where the real one does, under `$CLAUDE_CONFIG_DIR/projects/`, so that humanize drives it as
+where the real one does, under `$CLAUDE_CONFIG_DIR/projects/`, so that Humanize drives it as
 it drives the real CLI. It answers a prompt as a model would be asked to:
 
 - `fail: <words>` fails the turn saying the words;
@@ -22,7 +22,7 @@ it drives the real CLI. It answers a prompt as a model would be asked to:
 Every turn reports 10 input and 7 output tokens. Each start is written as one JSON line to
 `standin.log` in its home -- the user's own, which `$CLAUDE_CONFIG_DIR` names a virtual copy
 of (:mod:`hmz.coganchor.homes`) -- its argv, its working directory and the
-session it opened -- since that is where the fence humanize runs a CLI in lets it write.
+session it opened -- since that is where the fence Humanize runs a CLI in lets it write.
 """
 
 from __future__ import annotations

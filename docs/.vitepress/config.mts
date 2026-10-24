@@ -131,7 +131,7 @@ const wayTo = (to: string) => (/^https?:\/\//.test(to) ? to : `${BASE}${to}`)
 
 export default defineConfig({
   base: BASE,
-  title: 'humanize',
+  title: 'Humanize',
   description: 'Orchestrate, execute, and observe agent flows',
   lang: 'en-US',
   cleanUrls: true,
@@ -156,13 +156,13 @@ export default defineConfig({
     // A fixed pair rather than `logo.svg`, which follows the viewer's preference: the nav
     // follows the site's own light/dark switch instead. `logo.svg` is for everywhere else --
     // the README's banner links it.
-    logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: 'humanize' },
+    logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: 'Humanize' },
 
     // Five sections, in the order a reader comes to need them. The home page's quickstart ends
     // on a first run, and what that reader wants next is the guide to running flows; after
     // that, writing one of their own. Features explains how it all works, for whoever wants to
     // know why; reference spells every part of it out; and contributing is for the few working
-    // on humanize itself. The flows there are to run are humanfia's, at humanfia.ai/flows.
+    // on Humanize itself. The flows there are to run are humanfia's, at humanfia.ai/flows.
     nav: [
       { text: 'User Guide', link: '/user/', activeMatch: '/user/' },
       { text: 'Weaver Guide', link: '/weaver/', activeMatch: '/weaver/' },
@@ -323,7 +323,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'Run it unattended', link: '/user/unattended' },
-            { text: 'humanize in CI', link: '/user/ci' },
+            { text: 'Humanize in CI', link: '/user/ci' },
           ],
         },
         {
@@ -481,7 +481,7 @@ export default defineConfig({
             '<meta name="robots" content="noindex">',
             `<meta http-equiv="refresh" content="0; url=${way}">`,
             `<link rel="canonical" href="${new URL(way, 'https://docs.humanfia.ai').href}">`,
-            '<title>humanize</title>',
+            '<title>Humanize</title>',
             '</head>',
             `<body>This page moved to <a href="${way}">${way}</a>.</body>`,
             '</html>',

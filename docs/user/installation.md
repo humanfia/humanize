@@ -4,13 +4,13 @@ import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
 
 # Installation
 
-Install humanize, sign in to one coding agent CLI, and check that humanize can see it. It takes
+Install Humanize, sign in to one coding agent CLI, and check that Humanize can see it. It takes
 a few minutes, most of it the CLI's own sign-in.
 
 ::: info At a glance
 - **You will** have the `hmz` command on your `PATH`, and at least one coding agent it can
   drive.
-- **Use it when** you are setting humanize up on a machine for the first time, or adding a
+- **Use it when** you are setting Humanize up on a machine for the first time, or adding a
   backend to one that has it.
 - **You need** **Python 3.12 or newer**, and `npm` for most of the coding agent CLIs.
 :::
@@ -30,22 +30,22 @@ backend's sign-in.
 
 ## How it works
 
-humanize does not talk to a model itself. It drives **coding agent CLIs** that you already use,
+Humanize does not talk to a model itself. It drives **coding agent CLIs** that you already use,
 such as Claude Code or Codex, the way a person would: it starts them, gives them a task, and
-reads what they do. Each CLI humanize can drive is a **backend**.
+reads what they do. Each CLI Humanize can drive is a **backend**.
 
 So there are two installs, and they are independent:
 
 | You install | Who signs it in | What it gives you |
 | --- | --- | --- |
-| humanize, once | nobody: it holds no account of its own | the `hmz` command |
+| Humanize, once | nobody: it holds no account of its own | the `hmz` command |
 | one or more coding agent CLIs | you, with the CLI's own login | the agents a flow runs |
 
-humanize runs each CLI **as you signed it in**. The agent menu calls that `as local`. Nothing
+Humanize runs each CLI **as you signed it in**. The agent menu calls that `as local`. Nothing
 is copied: your login stays where the CLI keeps it. To run a CLI as another account, see
 [Accounts](/user/settings#accounts).
 
-## 1. Install humanize
+## 1. Install Humanize
 
 ::: code-group
 
@@ -92,7 +92,7 @@ update` does not apply here: `uvx hmz@latest` is how this way moves to a new rel
 ### Three backends need an extra {#the-two-backends-that-are-extras}
 
 Skip this unless you want DeepSeek Harness, Kimi Code or litellm. Each needs a Python package in
-humanize's own environment:
+Humanize's own environment:
 
 | Extra | For |
 | --- | --- |
@@ -117,12 +117,12 @@ pip install 'hmz[all]'
 
 :::
 
-You can add one later without reinstalling humanize. The agent menu lists a backend that is
+You can add one later without reinstalling Humanize. The agent menu lists a backend that is
 missing its extra, with the install command on its row.
 
 ## 2. Sign in to a coding agent {#signing-each-backend-in}
 
-humanize drives a coding agent CLI that you install and sign in to yourself. One is enough.
+Humanize drives a coding agent CLI that you install and sign in to yourself. One is enough.
 Pick yours:
 
 ::: code-group
@@ -220,7 +220,7 @@ hmz
 
 ## Example: the first time `hmz` opens
 
-The first time, humanize asks each CLI it found which models it runs. That can take a minute.
+The first time, Humanize asks each CLI it found which models it runs. That can take a minute.
 It then asks one question of its own. Here it is on a machine with Claude Code, Codex and
 Qwen Code signed in:
 
@@ -228,9 +228,9 @@ Qwen Code signed in:
 
 <pre>  <span class="p">╭────────────────────────────────────────────────────────────────╮</span>
   <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">│</span>  <span class="p b">Report errors to humanize?</span>                                    <span class="p">│</span> <span class="n">1</span>
+  <span class="p">│</span>  <span class="p b">Report errors to Humanize?</span>                                    <span class="p">│</span> <span class="n">1</span>
   <span class="p">│</span>  <span class="m">Send error reports to help fix bugs. Sent: the error and</span>      <span class="p">│</span>
-  <span class="p">│</span>  <span class="m">where in humanize it occurred; … Never sent: nothing you</span>      <span class="p">│</span>
+  <span class="p">│</span>  <span class="m">where in Humanize it occurred; … Never sent: nothing you</span>      <span class="p">│</span>
   <span class="p">│</span>  <span class="m">typed: no task, prompt, or command; … You can change this</span>     <span class="p">│</span>
   <span class="p">│</span>  <span class="m">later in /settings.</span>                                           <span class="p">│</span>
   <span class="p">│</span>                                                                <span class="p">│</span>
@@ -255,10 +255,10 @@ What to look at, by number:
    <kbd>enter</kbd> says yes, and <kbd>→</kbd> moves to **No**. Answer either way:
    `/settings` changes it later, and <kbd>esc</kbd> asks again next time. See
    [Reporting](/user/reporting).
-2. **The line above the prompt** names the agent humanize would start:
+2. **The line above the prompt** names the agent Humanize would start:
    `role · cli/model:effort`. Here the role is `assistant`, and the CLI is the first one
-   humanize found that could say what it runs. Seeing a CLI and a model here is the proof that
-   humanize can drive it.
+   Humanize found that could say what it runs. Seeing a CLI and a model here is the proof that
+   Humanize can drive it.
 3. **The status line** says which [flow](/user/concepts#flow) is chosen, `chat`, and the
    directory. On the right are the keys that work right now.
 
@@ -287,7 +287,7 @@ Give it a key in any one of these ways:
   `gemini-gateway` (Gemini's API, URL ending in `/v1beta`). A gateway runs at the endpoint's
   own effort, and an agent that may search there can fetch pages but not search.
 
-Until it has a key, humanize lists `dsh` but does not pick it for you. Its models are
+Until it has a key, Humanize lists `dsh` but does not pick it for you. Its models are
 `deepseek-v4-flash` and `deepseek-v4-pro`, at the efforts `max`, `high`, `low` and `off`:
 
 ```sh
@@ -295,7 +295,7 @@ hmz exec -f chat -a assistant=dsh/deepseek-v4-flash:high "say hello"
 ```
 
 `chat` and the six loops [FlowBench scores](https://humanfia.ai/flows/) ship with
-humanize. A flow from a flowverse, such as `flame_chasoid:parallel_git_pr`, runs once you install it
+Humanize. A flow from a flowverse, such as `flame_chasoid:parallel_git_pr`, runs once you install it
 from `/flow`; `hmz exec` installs nothing.
 
 A `dsh` agent works with full access whatever its flow declares. See
@@ -307,15 +307,15 @@ Add it on the Accounts page of [`/settings`](/user/settings#accounts), and it is
 the thirteen above. See [Many backends, one agent](/features/backends).
 :::
 
-## Where humanize keeps things
+## Where Humanize keeps things
 
-Everything humanize remembers is under `~/.hmz/`: your runs, what each directory was set
+Everything Humanize remembers is under `~/.hmz/`: your runs, what each directory was set
 up to run, your accounts, the flowverses it fetched and the flows you installed. Set
 `HUMANIZE_HOME` to keep it somewhere else. A project's own flows, and the runs you export from it, are in `.hmz/` in
 that project. The full list is in the [CLI reference](/reference/cli).
 
 Older versions used `~/.humanize/` and `.humanize/`. You don't have to do anything about
-them: humanize renames each one to `.hmz` the first time it looks there. If both are there,
+them: Humanize renames each one to `.hmz` the first time it looks there. If both are there,
 it uses `.hmz` and leaves the old one alone. With `HUMANIZE_HOME` set, `~/.humanize` is left
 where it is, so move any flows of your own in `~/.humanize/flows` to `~/.hmz/flows` yourself.
 See [Files](/reference/files#moved-from-humanize).
@@ -324,10 +324,10 @@ See [Files](/reference/files#moved-from-humanize).
 
 ### The line above the prompt reads only `assistant`
 
-No CLI has answered: humanize found none, or the one it found is not signed in and cannot say
+No CLI has answered: Humanize found none, or the one it found is not signed in and cannot say
 what it runs. Typing a task then says `hmz: no coding agent is installed`.
 
-humanize looks on your `PATH`, then in `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`,
+Humanize looks on your `PATH`, then in `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`,
 `/usr/bin` and `/bin`. See which ones a shell finds:
 
 ```sh
@@ -380,7 +380,7 @@ pip install --upgrade hmz
 
 :::
 
-Each moves humanize to the newest release. `uv tool upgrade` keeps the extras it was installed
+Each moves Humanize to the newest release. `uv tool upgrade` keeps the extras it was installed
 with; `pipx` and `pip` install again, so name an extra again: `pip install --upgrade 'hmz[all]'`.
 
 With [the macOS app](/user/desktop), update the app instead: it puts the `uv tool` `hmz` back at
@@ -410,7 +410,7 @@ pip uninstall hmz
 
 :::
 
-To also forget everything humanize remembered, your accounts included, remove `~/.hmz`,
+To also forget everything Humanize remembered, your accounts included, remove `~/.hmz`,
 or wherever `HUMANIZE_HOME` points:
 
 ```sh

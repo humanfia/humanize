@@ -6,7 +6,7 @@ pageClass: hmz-feature
 
 Reference for where an agent's turns and a flow's environments land: the machine settings of
 `hmz.coganchor.machines`, the environments a flow run is given with `-e`, the runtimes saved
-under humanize's home, docker endpoints, resources, capabilities and mirrors.
+under Humanize's home, docker endpoints, resources, capabilities and mirrors.
 How a turn reaches a machine once it is chosen (the anchor, the harness, the fence across
 machines) is [Remote execution](/reference/remote-execution).
 
@@ -76,7 +76,7 @@ workspace's owner.
 | `gpus` | `tuple[str, ...] \| "all"` | `()` (none) | GPU ids as `nvidia-smi` lists them, or `"all"`. |
 | `runtime` | `str \| None` | `None` (daemon default) | `--runtime`. |
 | `network` | `str \| None` | `None` (daemon default) | `--network`. |
-| `run_args` | `tuple[str, ...]` | `()` | Extra `docker run` arguments, placed before humanize's resource and GPU flags. |
+| `run_args` | `tuple[str, ...]` | `()` | Extra `docker run` arguments, placed before Humanize's resource and GPU flags. |
 | `env` | `Mapping[str, str]` | `{}` | Variables set in the container. Copied at construction. |
 | `labels` | `Mapping[str, str]` | `{}` | Extra labels. `humanize`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` are dropped from it. |
 
@@ -159,7 +159,7 @@ endpoint, since `container` reaches this Mac's containers only, and no GPU.
 | `name` | `str \| None` | `None` (`humanize-<random>`) | The container's name, which is its id, matching `[a-zA-Z0-9][a-zA-Z0-9_.-]+`. |
 | `cpus` | `int \| None` | `None` (`container`'s default, 4) | `--cpus`: whole CPUs of the virtual machine. |
 | `memory` | `int \| None` | `None` (`container`'s default, 1 GiB) | `--memory`, in bytes, rounded up to a whole MiB. |
-| `run_args` | `tuple[str, ...]` | `()` | Extra `container run` arguments, placed before humanize's resource flags. |
+| `run_args` | `tuple[str, ...]` | `()` | Extra `container run` arguments, placed before Humanize's resource flags. |
 | `env` | `Mapping[str, str]` | `{}` | Variables set in the container. |
 | `labels` | `Mapping[str, str]` | `{}` | Extra labels. `humanize`, `humanize.cpus`, `humanize.memory` are dropped from it. |
 
@@ -217,7 +217,7 @@ run as this user with the node's own tools, confined to the job's allocation.
 | `constraint` | `str` | `""` | `--constraint`: the node features the job needs. |
 | `python` | `str` | `""` (whatever the node has) | A Python >= 3.12 on the node, absolute or under `~/`, tried before any other: for nodes whose own Python is older. |
 | `via` | `str` | `"srun"` | How the node is reached once the job runs: `srun` or `tcp` (see below). |
-| `sbatch_args` | `tuple[str, ...]` | `()` | Extra `sbatch` arguments, placed before humanize's resource flags. |
+| `sbatch_args` | `tuple[str, ...]` | `()` | Extra `sbatch` arguments, placed before Humanize's resource flags. |
 | `labels` | `Mapping[str, str]` | `{}` | Extra labels, written in the job's comment. `humanize`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` are dropped from it. |
 | `placing` | `float \| None` | `None` (as long as it waits) | Seconds the job may wait for a node before `start()` gives up with `Unplaced`. |
 
@@ -399,7 +399,7 @@ shares that machine and its connection.
   stops the rest; of several refusals, the first role's in declaration order is raised.
 - Every command runs in its own process group with stdin closed; a timeout, cancellation or
   closing the driver kills the group.
-- Derived environments live under humanize's home on that machine:
+- Derived environments live under Humanize's home on that machine:
 
   ```text
   <state>/envs/<name>-<digest>/          one per workdir things are derived from
@@ -410,7 +410,7 @@ shares that machine and its connection.
 
   `<digest>` is 12 hex digits of BLAKE2b over the absolute path or id. A docker, swarm or
   Apple container environment's derived directories are inside its container and go with it;
-  a Slurm environment's are under humanize's home on its node, as an ssh host's are.
+  a Slurm environment's are under Humanize's home on its node, as an ssh host's are.
 
 | Error | Meaning |
 | --- | --- |
@@ -500,7 +500,7 @@ a container the daemon makes later still. Closing removes the container with `do
 for the next run to sweep once the process has gone.
 
 A run killed outright leaves its container; the next run on that runtime from the same user
-and host removes it. To remove humanize containers by hand:
+and host removes it. To remove Humanize containers by hand:
 
 ```sh
 docker rm -f $(docker ps -q --filter label=humanize=$(id -u))
@@ -513,7 +513,7 @@ by several machines the same uid can belong to different users.
 
 A docker runtime whose `container` names a container already running on its daemon puts every
 environment it is given in that container, instead of a container of its own. Whoever started
-the container keeps it: humanize only works in it.
+the container keeps it: Humanize only works in it.
 
 | Aspect | Rule |
 | --- | --- |
@@ -521,12 +521,12 @@ the container keeps it: humanize only works in it.
 | Not running, or no such container | `EnvUnavailable: docker@<p>: cannot work in the container <container>: <what docker said, or "it is not running">` |
 | Name, image, OCI runtime, arguments, labels | the container's own: the runtime may not set `image`, `runtime`, `run_args`, `name_prefix`, `cpus`, `memory`, `gpus`, `gpu_memory` or `max_containers`, a role's `_image` is not used, and no label is added |
 | Resources | what the probe in the container says, as for an ssh host: `nproc`, `MemTotal` of `/proc/meminfo` (the host's, whatever memory limit the container was started with) and the GPUs `nvidia-smi` lists. Nothing is handed out or counted; a role declaring more than that is refused as on any machine (`ResourceUnmet: … needs <n> CPUs, and the environment given has <m>`) |
-| Workdir | a path inside the container, as the container sees it; it is not mounted by humanize |
+| Workdir | a path inside the container, as the container sees it; it is not mounted by Humanize |
 | Agents | anchored to the container over `docker exec`, with the runtime's `exec_user`, `exec_env` and `exec_wrapper`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>-<8 hex>/<12 hex>`, one directory per environment (`local`), or native in the container (`env`), as the runtime's `harness` says |
 | Closing | removes that environment's mirror directory and nothing else; the container is left running |
 | Several runs or environments at once | each works in the container independently, with mirrors of its own |
 
-Two things humanize cannot do for a container it did not start:
+Two things Humanize cannot do for a container it did not start:
 
 - **Add a capability.** A harness a harness setting `docker:<name>` puts in a container of its own
   is started with `--cap-add SYS_PTRACE`, which its supervisor needs to borrow descriptors under
@@ -622,7 +622,7 @@ holding the runtime, by `docker service inspect <name>` (60 s), and the service 
 its id (`docker service rm`) only where its labels say this user, this host and this process,
 as for a [docker environment](#docker-environments).
 
-To remove humanize services by hand:
+To remove Humanize services by hand:
 
 ```sh
 docker service rm $(docker service ls -q --filter label=humanize=$(id -u))
@@ -649,7 +649,7 @@ run closes it. Everything else is as for a
 
 Allocation holds an exclusive `flock` on `$TMPDIR/humanize-<uid>/.apple-container.<name>.lock`
 until the container is up and labelled: `container system status` and `container list` (60 s
-each; humanize's containers are found by their labels, and each holds the size its virtual
+each; Humanize's containers are found by their labels, and each holds the size its virtual
 machine has, `container`'s default for one started with none), the removal of what a dead
 run of this user and host left (`container delete --force`), then what is left of the
 runtime's `cpus`, `memory` (each `0` meaning the Mac's CPUs, as `container system status`
@@ -676,7 +676,7 @@ The agent's CLI can only be supervised here on Linux, and a Mac is not: with the
 whose image has no CLI is refused. Keep `env` with an image that has the CLI, or set the
 harness to another runtime that can hold it. See [Containers › Apple containers](/user/containers#apple-containers).
 
-To remove humanize's Apple containers by hand: `container list` shows them as
+To remove Humanize's Apple containers by hand: `container list` shows them as
 `humanize-<provider>-<role>-<8 hex>`; `container delete --force <id>` removes one.
 
 <small>Defined in [`src/hmz/runtime/flowing/environing_apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_apple_container.py), [`src/hmz/coganchor/machines/apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/apple_container.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_apple_container_env`), [`specs/features/environments.md`](https://github.com/humanfia/humanize/blob/main/specs/features/environments.md) §9.</small>
@@ -705,7 +705,7 @@ mirrors, files, derived environments -- is as for an [ssh host](#environment-dri
 Allocation holds an exclusive `flock` on `$TMPDIR/humanize-<uid>/.slurm.<name>.lock` while
 what is free is worked out and the job is submitted, and not while the job waits in the queue:
 
-1. `squeue --me` (60 s) for this user's jobs of humanize's on this runtime, waiting or running,
+1. `squeue --me` (60 s) for this user's jobs of Humanize's on this runtime, waiting or running,
    read off their comments.
 2. Jobs labelled with this host whose `humanize.pid` no longer exists are cancelled
    (`scancel`), with their mirrors.
@@ -740,7 +740,7 @@ slurm@hpc: job 812345 was not given a node within 600s: it is pending for Resour
 These and the shortages above name a saved runtime `slurm@<p>`, and the cluster's defaults
 `slurm` alone.
 
-To cancel humanize's jobs by hand:
+To cancel Humanize's jobs by hand:
 
 ```sh
 squeue --me --noheader --format '%i %j' | awk '$2 ~ /^humanize-/ {print $1}' | xargs -r scancel
@@ -790,7 +790,7 @@ runtimes:
 | `host` | `str` | `""` | The machine. With `alias`, sent as `HostName`. |
 | `user` | `str` | `""` | The login. |
 | `port` | `int` | `0` (config's or 22) | 0–65535. |
-| `identity_file` | `str` | `""` | Sent as `IdentityFile`. Never read by humanize. |
+| `identity_file` | `str` | `""` | Sent as `IdentityFile`. Never read by Humanize. |
 | `proxy_jump` | `str` | `""` | Sent as `ProxyJump`. |
 | `options` | `Mapping[str, str]` | `{}` | Every other ssh option, sent as `-o KEY=VALUE`. |
 | `alias` | `str` | `""` | The `Host` of an ssh config it was imported from; the destination. |
@@ -798,11 +798,11 @@ runtimes:
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=ssh@NAME`: absolute, `~` or `~/…`. |
 | `fallback` | `tuple[str, ...]` | `()` | Saved runtimes, each `<backend>:<name>`, to move an environment to in order when this one cannot hold it: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | `typed` or `imported`. |
-| `harness` | `str` | `"env"` | Where the harness of an agent working on it runs, and nowhere else: `env` (the CLI on its own machine), `local` (here), or another saved runtime as `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`, `slurm:<name>`. An `affinity` list an earlier humanize saved is read as its first entry (`self` as `env`). See [Remote execution › The harness setting](/reference/remote-execution#harness-setting). |
+| `harness` | `str` | `"env"` | Where the harness of an agent working on it runs, and nowhere else: `env` (the CLI on its own machine), `local` (here), or another saved runtime as `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`, `slurm:<name>`. An `affinity` list an earlier Humanize saved is read as its first entry (`self` as `env`). See [Remote execution › The harness setting](/reference/remote-execution#harness-setting). |
 
 `target()` is `ssh://[user@]<alias or host>[:port][?F=…&HostName=…&IdentityFile=…&ProxyJump=…&<options>]`.
-These options come before humanize's own `ssh` options, and `ssh` keeps the first value it
-is given, so they override both humanize's and the user's config. An imported runtime keeps
+These options come before Humanize's own `ssh` options, and `ssh` keeps the first value it
+is given, so they override both Humanize's and the user's config. An imported runtime keeps
 the alias rather than what it resolved to.
 
 Two runtimes at one host with different options use different ssh master connections.
@@ -916,7 +916,7 @@ of the Mac they may have between them.
 ### A Slurm cluster {#a-slurm-cluster}
 
 `hmz.coganchor.machines.store.SlurmRuntime`: the Slurm cluster this machine's `sbatch` submits
-to -- there is no daemon to name -- and how a job of humanize's is asked for on it.
+to -- there is no daemon to name -- and how a job of Humanize's is asked for on it.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -1245,8 +1245,8 @@ or is not running; and `capacity(status)` the CPUs it counts and the Mac's memor
 `hmz.coganchor.machines.slurm` has the same for a Slurm cluster: `jobs(labels=None, *,
 seconds=None)` reads an `Allocation` (named by the job's id) off every job of this user's
 `squeue --me` lists, waiting or running, whose comment carries the `humanize` label, the rest
-of `labels` matched against the comment too; a comment that is not one of humanize's counts as
-no job of humanize's. It raises `OSError` where `squeue` could not be asked.
+of `labels` matched against the comment too; a comment that is not one of Humanize's counts as
+no job of Humanize's. It raises `OSError` where `squeue` could not be asked.
 
 ## Writing a machine of your own {#writing-a-machine-of-your-own}
 
@@ -1294,7 +1294,7 @@ class Podman(MachineBase):
 
 ## Environment variables
 
-Every variable humanize reads is listed in [Environment variables](/reference/environment).
+Every variable Humanize reads is listed in [Environment variables](/reference/environment).
 
 | Variable | Effect |
 | --- | --- |

@@ -92,7 +92,7 @@ class Journal(Protocol):
         ...
 
 
-#: What says, for one process, that humanize keeps no session of its own: `off`, `0` or `no`,
+#: What says, for one process, that Humanize keeps no session of its own: `off`, `0` or `no`,
 #: and every CLI keeps its sessions where it always has, with nothing supervised on their
 #: account. For a machine that will not hand a tracee over, and for a suite of stand-ins that
 #: must not need one.
@@ -1828,12 +1828,12 @@ class SessionBase(ABC):
     def _catalogue(self) -> str:
         """What a person does about a model the account was refused, which is a list to re-ask.
 
-        The list humanize offered that model out of is the list it kept the last time anybody
+        The list Humanize offered that model out of is the list it kept the last time anybody
         asked this account what it runs, and nothing asks again on its own: asking means
         starting a coding agent or reaching somebody's gateway, and neither is a thing to do
         while a sheet is being drawn or a turn is failing. So a catalogue a vendor has moved
         under is wrong for as long as nobody chooses `check again`, and every id in it is
-        refused the same way -- which is a wall of `403`s with no hint that humanize's own
+        refused the same way -- which is a wall of `403`s with no hint that Humanize's own
         list is the stale part. Found driving codex on a gateway whose catalogue had been
         taken from the CLI before the endpoint was ever asked: three ids it shipped with, none
         of them ones that gateway serves.
@@ -3636,7 +3636,7 @@ def _unscoped(config: type[AgentConfig]) -> dict[str, Any]:
 def identifying(config: type[AgentConfig], backend: str) -> dict[str, Any]:
     """What a config class has to be told before the agent built from it knows what it is.
 
-    Almost none has to be told anything. A backend humanize drives is one class apiece, so
+    Almost none has to be told anything. A backend Humanize drives is one class apiece, so
     the class is the answer: a `ClaudeCodeAgentConfig` could not be a config for anything but
     `claude`, and nothing beside it has to say so. One class is not one backend -- the one
     that drives every CLI somebody adds by hand, the Agent Client Protocol being the whole of
@@ -3861,7 +3861,7 @@ class AgentBase(ABC):
     service_tiers: ClassVar[tuple[str, ...]] = ("default",)
 
     #: Which rungs of :data:`hmz.coganchor.agents.config.PERMISSIONS` this backend can be held
-    #: to. Every one of them here, since a CLI humanize drives is one it can say something to
+    #: to. Every one of them here, since a CLI Humanize drives is one it can say something to
     #: about what its agent may do; a backend that cannot narrows this, and :meth:`_serves` is
     #: where the narrowing is enforced when a config actually arrives.
     #:
@@ -4314,7 +4314,7 @@ class AgentBase(ABC):
         The target's own answer, which it gives at the handshake: a Linux machine without
         Landlock -- a kernel before 5.13 or booted without it, a container whose seccomp
         profile refuses the calls -- or older than 6.7 where the network is to be cut, cannot,
-        nor can a Mac already inside a sandbox, and neither can one running a humanize from
+        nor can a Mac already inside a sandbox, and neither can one running a Humanize from
         before fences, which says nothing. A target
         that could is remembered for the life of this process; one that could not is asked
         again, being a machine somebody may yet fix.
@@ -4415,7 +4415,7 @@ class AgentBase(ABC):
         its model and sign-in are at -- read off the account it is on now, which a step down
         its chain changes -- and the skills it is given, to read. On a Mac, the login keychain
         to write besides, which is where a CLI there keeps its sign-in. With the scratch directory
-        its processes are given as their temporary directory. Not humanize's own home: its
+        its processes are given as their temporary directory. Not Humanize's own home: its
         settings, and every account's credentials, are no agent's to write.
 
         This is what a driver that enforces a fence natively builds its sandbox from, and what
@@ -4698,7 +4698,7 @@ class AgentBase(ABC):
         """The coding agent this drives, named as a command line names it.
 
         Asked of the one table that already says which class drives which backend, so that
-        the answer is a name the rest of humanize can look up -- it is what this agent's
+        the answer is a name the rest of Humanize can look up -- it is what this agent's
         accounts, its skills and its cost are all kept under. A class is never spelled like
         the command it drives by luck: `CursorAgent` drives `cursor-agent`, and the class
         keeps the product's own name while the backend is called what it is installed as.
@@ -5420,7 +5420,7 @@ class AgentBase(ABC):
         Every backend renders its own call and then comes here, so that what a turn is wrapped
         in is decided once: the provider's own arguments are added to the CLI's command line,
         and the whole of it is put under whatever has to supervise it -- which, on a machine
-        that can supervise one, is every turn whose sessions humanize keeps: the CLI's own
+        that can supervise one, is every turn whose sessions Humanize keeps: the CLI's own
         session paths are answered from :attr:`keeps`, and nothing else of its home is.
 
         A turn that is both anchored and run under a provider is supervised once, not twice: a
@@ -5617,7 +5617,7 @@ class AgentBase(ABC):
         is offering any: the socket it carries lines to is in *this* process, so the program
         that carries them has to run here. Everything a CLI spawns under an anchor goes to the
         target unless it is named, and a bridge started there would find no socket and no
-        humanize. So, once the flow has shelved any command lines, is the shelf: the scripts
+        Humanize. So, once the flow has shelved any command lines, is the shelf: the scripts
         on the agent's PATH, the socket beside them and the Python they start, all kept here.
 
         Under an anchor driving the target's own CLI it is three other things, each of which a
@@ -5657,7 +5657,7 @@ class AgentBase(ABC):
                 # another one: a turn taken anyway would be one whose model was never told
                 # about the flow's callbacks, which reads as a model that would not use them.
                 # A `local` target is the exception and not a special case -- the CLI runs
-                # here, so the bridge, the socket and humanize are all where they always were.
+                # here, so the bridge, the socket and Humanize are all where they always were.
                 # So is a backend whose callbacks come back over the pipe it is driven
                 # through (:attr:`pipes_tools`), which is no bridge at all.
                 offered = "callbacks or command lines" if bridged else "command lines"
@@ -5875,7 +5875,7 @@ class AgentBase(ABC):
         """Whether anything is being told what this agent's turns say.
 
         Whatever is watching owns the screen -- it is already drawing this agent's own lines
-        onto it -- so a line of humanize's own goes on the terminal only where nothing is.
+        onto it -- so a line of Humanize's own goes on the terminal only where nothing is.
         The drivers ask this of themselves when they step a rung down mid-turn; asked here
         as well so that whoever settled a flow onto this agent can ask it without reaching
         through the class to the list.

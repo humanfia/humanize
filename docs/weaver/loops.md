@@ -53,7 +53,7 @@ while True:
 | the run's budget | always there: the turn that finds it spent raises `BudgetExceeded` |
 
 **What a failed turn does.** `run` raises `HarnessError` when the CLI could not take the turn:
-it died mid-turn, the provider throttled it, the connection broke. humanize has retried it, or
+it died mid-turn, the provider throttled it, the connection broke. Humanize has retried it, or
 moved along its [fallback](/user/settings#fallback) chain, before it gets that far. Uncaught,
 that ends the run, as it does in the built-in loops. A loop of yours may catch it and carry on.
 
@@ -302,7 +302,7 @@ up, which tests what `ctx.state` keeps.
 
 ## Read a real one: `ralph_loop`
 
-This is `ralph_loop` as humanize ships it, trimmed of its module and class docstrings. The
+This is `ralph_loop` as Humanize ships it, trimmed of its module and class docstrings. The
 built-in loops are each the plainest form of their idea, meant to be read and copied: it has no
 finish line, no count and no state of its own, and runs until the budget is spent.
 

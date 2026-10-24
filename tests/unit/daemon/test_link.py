@@ -336,10 +336,10 @@ def test_reached_passes_messages_on_and_ends_with_gone(
 def test_reached_reads_a_daemon_of_another_protocol_as_gone(
     wires: list[Wire], tmp_path: Path
 ) -> None:
-    wire = Wire(_host(then=[frame(GONE, b"held by a newer humanize")]))
+    wire = Wire(_host(then=[frame(GONE, b"held by a newer Humanize")]))
     wires.append(wire)
     link = reached(tmp_path, "/w")
-    assert list(link) == [{"type": "gone", "why": "held by a newer humanize"}]
+    assert list(link) == [{"type": "gone", "why": "held by a newer Humanize"}]
 
 
 def test_reached_says_the_host_went_away_when_it_closes(

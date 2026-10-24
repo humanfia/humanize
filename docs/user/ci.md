@@ -2,7 +2,7 @@
 import NightlyJob from '../.vitepress/theme/components/user-ci/NightlyJob.vue'
 </script>
 
-# humanize in CI
+# Humanize in CI
 
 Run a flow from a scheduled job, open a pull request with what it changed, and keep a trace of
 what each agent did. By the end of this page you have a nightly GitHub Actions workflow that
@@ -51,7 +51,7 @@ A CI runner starts empty every time. That shapes the whole job:
 | --- | --- | --- |
 | `hmz` and the agent's CLI are installed | nothing is | installs both, every run |
 | the CLI is signed in | it is not | signs it in from a secret |
-| the flows you installed are there | only the built-in ones are | runs a flow humanize ships, or names any other by its repository |
+| the flows you installed are there | only the built-in ones are | runs a flow Humanize ships, or names any other by its repository |
 | `hmz` keeps a price list for `cost` | there is none | fetches it before the first turn |
 | `/epics` reads a run back | there is no prompt | traces the run from a script |
 | a stopped run can be picked up | nothing of a last run is kept | never uses `--resume` |
@@ -91,7 +91,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.0.1
 
       # For Kimi Code or DeepSeek Harness, install 'hmz[all]' instead.
-      - name: Install the agent's CLI and humanize   # ④
+      - name: Install the agent's CLI and Humanize   # ④
         run: |
           npm install -g @anthropic-ai/claude-code
           uv venv --python 3.12 "$RUNNER_TEMP/hmz"
@@ -133,10 +133,10 @@ jobs:
    workflow* button, which is how you try it the first time.
 2. **`permissions`** gives the job's token exactly what the last step needs: to push a branch
    and open a pull request. The agents can reach this token too, so give it nothing more.
-3. **`timeout-minutes: 60`** is GitHub's limit, not humanize's. Keep it well above the run's
+3. **`timeout-minutes: 60`** is GitHub's limit, not Humanize's. Keep it well above the run's
    `duration`: the installs count against it, and the turn under way when the budget runs out
    is let finish unless the budget says `graceful=false`.
-4. **Install the agent's CLI and humanize.** The CLI from npm, and humanize into an
+4. **Install the agent's CLI and Humanize.** The CLI from npm, and Humanize into an
    environment of its own whose `bin` is put on the `PATH`. Kimi Code and DeepSeek Harness
    also need the `hmz[all]` extra: see [Installation](/user/installation).
 5. **Run the loop.** The same `hmz exec` line you ran by hand, with the CLI signed in from a
@@ -182,7 +182,7 @@ and `hmz exec: error: …` naming why.
 
 ## Sign the agent's CLI in
 
-humanize holds no credentials. An agent with no `@account` runs its CLI as the runner has
+Humanize holds no credentials. An agent with no `@account` runs its CLI as the runner has
 signed it in, so sign it in the way that CLI supports without a browser:
 
 ::: code-group
@@ -212,7 +212,7 @@ Python with `Hmz().accounts` before the run. See the [SDK reference](/reference/
 
 ## A flow from a flowverse
 
-`ralph_loop` ships with humanize, as do `chat` and the other loops
+`ralph_loop` ships with Humanize, as do `chat` and the other loops
 [FlowBench scores](https://humanfia.ai/flows/), so `-f ralph_loop` runs on a fresh runner
 as it is. A flow you [install](/weaver/flowverses) from a flowverse is not there: a fresh runner
 has fetched no flowverse and installed nothing, so `-f flame_chasoid:parallel_git_pr` is refused with
@@ -230,7 +230,7 @@ night. A flow of your own needs none of this: commit it to `.hmz/flows/` and nam
 ## Keep a trace
 
 At a terminal you get a trace from [`/epics`](/user/tracing). A runner has no prompt, so the
-workflow calls the same thing from Python, with the Python humanize was installed with:
+workflow calls the same thing from Python, with the Python Humanize was installed with:
 
 ```python
 # ci/trace.py

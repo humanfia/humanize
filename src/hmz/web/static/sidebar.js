@@ -45,7 +45,7 @@ export function mountSidebar(root, context, where) {
       h(
         'div',
         { class: 'side-top' },
-        h('a', { class: 'brand', href: hash('/new'), 'aria-label': 'humanize, a new epic' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
+        h('a', { class: 'brand', href: hash('/new'), 'aria-label': 'Humanize, a new epic' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
         bell(where),
         iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
       ),
@@ -429,7 +429,7 @@ function daemonBar(context) {
     { class: 'side-account', type: 'button', 'data-hmz': 'daemon-bar' },
     avatar,
     h('span', { class: 'side-account-text' }, h('span', { class: 'side-daemon' }, title, host), state),
-    // A newer release of humanize, as PyPI said when it was last asked.
+    // A newer release of Humanize, as PyPI said when it was last asked.
     context.newer ? h('span', { class: 'side-badge', 'data-hmz': 'newer', title: `hmz ${context.newer} is out` }, '↑') : null,
   )
   const entry = () => daemons.find((one) => one.name === current()) || { name: current(), host: '', state: 'idle' }

@@ -1,6 +1,6 @@
 """Any CLI that speaks the Agent Client Protocol, driven as one of these.
 
-The protocol is the whole of what is known about such a backend: humanize is handed a command
+The protocol is the whole of what is known about such a backend: Humanize is handed a command
 to run and speaks JSON-RPC to it over its own stdin and stdout, one message a line. That is
 enough to hold a conversation -- `session/new` opens one, `session/prompt` takes a turn, and
 the agent says what it is doing in `session/update` notifications while the turn runs.
@@ -615,7 +615,7 @@ class AcpSession(SessionBase):
             # What this client is handing the agent on top of whatever the CLI is already
             # configured with, which is nothing unless the agent was made carrying some or the
             # flow is offering callbacks of its own. An
-            # empty list is the protocol's own default rather than humanize declining
+            # empty list is the protocol's own default rather than Humanize declining
             # anything: the servers the person who installed the CLI wrote down are the CLI's
             # own and are loaded whatever a client sends.
             "mcpServers": [one.sent() for one in self._servers()],
@@ -1262,7 +1262,7 @@ class AcpAgentConfig(AgentConfig):
       writes_files: Whether the agent may have this client write one.
       terminals: Whether the agent may have this client run a command and hold it: it starts
         one, reads what it says while it runs, waits for it, kills it and lets it go. The
-        command runs where humanize runs.
+        command runs where Humanize runs.
       mcp_servers: The MCP servers each conversation of this agent is opened with, on top of
         whatever the CLI is already configured with. Nothing at all by default, which is what
         a client hands over when it has none of its own to add.
@@ -1310,7 +1310,7 @@ class AcpAgent(AgentBase):
     #: base class lets it through: a config that settles no rung asks for nothing to be said
     #: about what the agent may do, and an added CLI doing what whoever installed it allowed
     #: it to do is exactly that. `bypass` is the flow saying it wants the same thing out loud.
-    #: Neither is humanize allowing anything, because there is nothing here to allow it with.
+    #: Neither is Humanize allowing anything, because there is nothing here to allow it with.
     #:
     #: Said here as well as refused there because this is the class's own answer to the
     #: question :attr:`~hmz.coganchor.agents.base.AgentBase.rungs` asks, and a subclass that
@@ -1363,7 +1363,7 @@ class AcpAgent(AgentBase):
         """The fence, with the state this CLI was declared to keep let be written.
 
         Nothing else knows where an added CLI keeps its state -- the protocol does not say,
-        and it has no home humanize can find -- so it is what whoever added it wrote down,
+        and it has no home Humanize can find -- so it is what whoever added it wrote down,
         and nothing where they wrote nothing: a CLI that then cannot write its state fails on
         its own terms, which is narrower than guessing a directory for it.
         """

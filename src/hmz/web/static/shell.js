@@ -7,7 +7,7 @@ import { h, icon, iconButton } from './dom.js'
 
 const app = () => document.querySelector('.app')
 const narrow = matchMedia('(max-width: 860px)')
-/** Whether the page is the macOS app's window, as theme.js found before the page was drawn. */
+/** Whether the page is Humanize Desktop's window, as theme.js found before the page was drawn. */
 export const inApp = document.documentElement.dataset.shell === 'macos'
 
 /** Reads a choice this browser keeps, or the default where it keeps none or cannot. */
@@ -51,7 +51,7 @@ export function settleSidebar() {
 }
 
 /**
- * A row along the top of the window, which in the macOS app's window moves it where it is
+ * A row along the top of the window, which in Humanize Desktop's window moves it where it is
  * dragged, and zooms it where it is double-clicked, by anything in it but what is clicked:
  * `deep` for all it holds, `''` for itself alone, `'false'` for none of what it holds. One that
  * is the top row only on a narrow window, or only on a wide one, says which in `when`, and moves

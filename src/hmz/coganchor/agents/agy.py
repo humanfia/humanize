@@ -85,7 +85,7 @@ _PERMITTED = {
     UNSAID: (),
 }
 
-#: The agent a turn at `read-only` is started as (`--agent`): one of humanize's own, whose
+#: The agent a turn at `read-only` is started as (`--agent`): one of Humanize's own, whose
 #: toolset is the reading tools alone and none of the CLI's built-in ones
 #: (`excludeDefaultComponents`), so that nothing it can reach for writes. Put where agy finds
 #: its own agents, `agents/` under its home (:func:`_agents`). An `--agent` agy cannot find is
@@ -116,7 +116,7 @@ _OFFLINE = "hmz-offline"
 #: The tools that reach the web: a page fetched, and a search.
 _WEB = "read_url_content, search_web"
 
-#: The tools that read this machine, which every agent of humanize's has.
+#: The tools that read this machine, which every agent of Humanize's has.
 _READS = "view_file, grep_search, find_by_name, list_dir"
 
 #: The rest of its default tools that stay this agent's own work: its commands, its edits, its
@@ -126,7 +126,7 @@ _WORKS = (
     "ask_question"
 )
 
-#: Each agent of humanize's, as the file agy reads it out of.
+#: Each agent of Humanize's, as the file agy reads it out of.
 _DEFINED = {
     _READER: f"""---
 name: {_READER}
@@ -167,7 +167,7 @@ You have no tool that reaches the web, and the commands you run cannot reach it 
 
 
 def _defined(config: AgentConfig) -> str | None:
-    """Which of humanize's agents a turn at this config is started as, if any.
+    """Which of Humanize's agents a turn at this config is started as, if any.
 
     Args:
       config: What the agent is configured with.
@@ -188,16 +188,16 @@ def _defined(config: AgentConfig) -> str | None:
 
 @merger
 def _agents(home: Path, said: None = None) -> None:
-    """Puts humanize's agents where agy finds them: in the virtual home a process starts in.
+    """Puts Humanize's agents where agy finds them: in the virtual home a process starts in.
 
     Under agy's own home, beside the skills a flow lodges there, rather than in a directory
     added to the turn with `--add-dir`: agy runs the agent's commands in the first of its
-    workspace roots by name, so a directory of humanize's added beside the session's took its
+    workspace roots by name, so a directory of Humanize's added beside the session's took its
     place whenever it sorted first -- checked against agy 1.2.12 on 2026-09-29, where `pwd`
     answered `~/.hmz/agy`. Its home is also the one place every fence already lets it read.
 
     The virtual home's `agents/` links to the user's own; it is made a directory of that home's
-    own instead, holding a link to each of the user's agents and humanize's beside them -- so
+    own instead, holding a link to each of the user's agents and Humanize's beside them -- so
     the user's own directory is never written, and goes on holding only what they put there.
 
     Args:
@@ -439,13 +439,13 @@ def _native(
     return snapshot(paths)
 
 
-#: Where a plugin of humanize's sits under the directory it is carried in: a customization root's
+#: Where a plugin of Humanize's sits under the directory it is carried in: a customization root's
 #: `plugins/<name>/`, which agy reads in every workspace directory it is given.
 _PLUGIN = Path(".agents", "plugins", "humanize")
 
 
 def _plug(root: Path, toolbox: Toolbox) -> None:
-    """Puts the flow's callbacks where agy finds an MCP server: a plugin of humanize's own.
+    """Puts the flow's callbacks where agy finds an MCP server: a plugin of Humanize's own.
 
     agy takes no MCP server on its command line, and the two files it does read one out of are
     the user's own -- `~/.gemini/config/mcp_config.json` and a workspace's `.agents/` -- which a
@@ -488,7 +488,7 @@ class AntigravityCLISession(StreamSessionBase):
     #: rather than being asked for in the prompt.
     shapes: ClassVar[bool] = True
 
-    #: The flow's callbacks reach it as a plugin of humanize's (:func:`_plug`).
+    #: The flow's callbacks reach it as a plugin of Humanize's (:func:`_plug`).
     takes_tools: ClassVar[bool] = True
 
     def __init__(
@@ -907,7 +907,7 @@ class AntigravityCLIAgentConfig(AgentConfig):
     project whose directory `add_workspace` exists to stop replacing the session's, so a field
     for them would be a field for undoing the one above it. `--agent` picks a custom agent
     definition, which is a system prompt and a toolset chosen behind the flow's back -- the one
-    humanize picks itself is the one that holds a `read-only` turn to reading. `--log-file`
+    Humanize picks itself is the one that holds a `read-only` turn to reading. `--log-file`
     moves the log a failed turn's real reason is read out of, and what reads it --
     :func:`hmz.coganchor.backends.journalled` -- finds the newest under this backend's home
     rather than being told a path per turn, so naming one would move the log away from the
@@ -986,7 +986,7 @@ class AntigravityCLIAgent(AgentBase):
             disabled` and goes on running, which is an agent that may write under a rung
             saying it may not -- and a rung that lies is worse than one that is refused. Only
             `plan`: the CLI names that mode alone, and `--mode accept-edits` is unaffected.
-            And a turn started as one of humanize's agents -- at `read-only`, or kept off the
+            And a turn started as one of Humanize's agents -- at `read-only`, or kept off the
             web -- on another machine, where that agent is not to be found and agy would run
             its default agent in its place.
         """
@@ -999,7 +999,7 @@ class AntigravityCLIAgent(AgentBase):
         if config.machine is not None and _defined(config) is not None:
             raise Unserved(
                 f"{_COMMAND} cannot run at read-only or off the web on another machine: "
-                "what holds it there is an agent of humanize's that is a file on this one"
+                "what holds it there is an agent of Humanize's that is a file on this one"
             )
 
     def virtual(
@@ -1007,7 +1007,7 @@ class AntigravityCLIAgent(AgentBase):
         skills: Iterable[Loaded] | None = None,
         merges: Iterable[tuple[str, str]] = (),
     ) -> Virtual | None:
-        """The virtual home a process of agy starts in, with humanize's agents in it.
+        """The virtual home a process of agy starts in, with Humanize's agents in it.
 
         As every CLI's (:meth:`AgentBase.virtual`), named to agy by `--app_data_dir` rather
         than by a variable, and with the agents a turn may be started as (:func:`_agents`)
@@ -1016,7 +1016,7 @@ class AntigravityCLIAgent(AgentBase):
 
         None for an account that names a home of its own with that flag, which is the home the
         process starts in, as it always was: one flag is all agy takes. Its turns run without
-        the flow's skills, and one that would be started as an agent of humanize's is refused,
+        the flow's skills, and one that would be started as an agent of Humanize's is refused,
         that agent being nowhere agy would look.
 
         Args:
@@ -1028,14 +1028,14 @@ class AntigravityCLIAgent(AgentBase):
 
         Raises:
           Unserved: If the account names a home of its own and the turn would be started as
-            an agent of humanize's.
+            an agent of Humanize's.
         """
         if any(one.partition("=")[0] == "--app_data_dir" for one in self.node().args):
             if _defined(_settled(self.config)) is not None:
                 raise Unserved(
                     f"{_COMMAND} cannot run at read-only or off the web under an account "
                     "naming its own --app_data_dir: what holds it there is an agent of "
-                    "humanize's, which is in a home of humanize's"
+                    "Humanize's, which is in a home of Humanize's"
                 )
             return None
         return super().virtual(skills, (*merges, merged(_agents)))

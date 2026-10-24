@@ -136,7 +136,7 @@ def test_a_reader_of_another_protocol_is_told_so(
     wire = Wire(arriving=[frame(b"Z", b"{}")])
     routed(wire)
     assert _answer(wire) == [(GONE, {})]
-    assert b"newer humanize" in wire.raw[0]
+    assert b"newer Humanize" in wire.raw[0]
 
 
 @pytest.mark.parametrize(

@@ -14,7 +14,7 @@ import { withBase } from 'vitepress'
 
 <div class="hmz-facts">
 
-- **The CLI's own feature.** humanize follows the goal across every turn and hands the flow the
+- **The CLI's own feature.** Humanize follows the goal across every turn and hands the flow the
   last answer.
 - **Refused up front.** A flow that needs a goal will not run on a CLI without one, not even
   its first turn.

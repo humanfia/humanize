@@ -35,7 +35,7 @@ def tools(argv: list[str]) -> int:
     """
     parser = argparse.ArgumentParser(
         prog="hmz internal tools",
-        description="Relay tool calls to the flow. humanize configures agents to run "
+        description="Relay tool calls to the flow. Humanize configures agents to run "
         "this; do not run it manually.",
     )
     parser.add_argument(

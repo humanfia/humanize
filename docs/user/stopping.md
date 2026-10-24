@@ -119,7 +119,7 @@ What to look at, by number:
    seconds and the next press is a first press again.
 3. **`— stopping the flow —`.** The second press. The flow has been told to stop, for
    everybody reading the run, not just this terminal.
-4. **The yellow `●` line.** humanize saying what it is doing about the turn: cutting it off.
+4. **The yellow `●` line.** Humanize saying what it is doing about the turn: cutting it off.
    It shows even with [details](/user/settings#details) off.
 5. **`ctrl+c force stop`.** The flow is winding down. A third press closes every agent still in
    a turn without waiting. You rarely need it.
@@ -201,7 +201,7 @@ running, it asks first:
 <kbd>←</kbd> <kbd>→</kbd> or <kbd>tab</kbd> move between the buttons, and <kbd>enter</kbd>
 presses the one with the focus. A click presses one too.
 
-When humanize cannot hold the run apart from the terminal (input or output is not a terminal,
+When Humanize cannot hold the run apart from the terminal (input or output is not a terminal,
 or `HUMANIZE_DAEMON=off` is set), the second button is **Cancel** instead, and the line under
 the question is not there.
 
