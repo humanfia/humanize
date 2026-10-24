@@ -57,7 +57,7 @@ _CACHED = ("read", "write")
 #: answers the ends of this table already give, so a rung written as `ask` would say nothing a
 #: rung written outright does not.
 #: The unsaid rung is a row with nothing in it, which is the whole of what there is to say
-#: about it: a turn whose config names no rung is one humanize has no business writing a
+#: about it: a turn whose config names no rung is one Humanize has no business writing a
 #: permission for. The row is read key by key and the table is built out of the keys it has, so
 #: an empty row leaves the table empty -- and an empty table is no variable at all, which is
 #: the turn running at whatever the person at this machine has configured, as a bare
@@ -95,7 +95,7 @@ def _tabled(config: AgentConfig) -> bool:
     Three answers go in it -- what the agent may do, whether it may read the web, and where
     its tools may reach under a fence -- and the variable is the only place this backend has
     to say any of them, so any of them said is a table to write. None said is nothing to put
-    in one, and a variable set to that would be humanize answering a question nobody put to
+    in one, and a variable set to that would be Humanize answering a question nobody put to
     it: the turn runs at whatever the person at this machine has configured, as a bare
     ``opencode run`` does.
 
@@ -353,7 +353,7 @@ class OpencodeSession(CommandSessionBase):
     def _unattended(self) -> list[str]:
         """What tells this backend that nobody is there to answer it.
 
-        A flow watches its agent rather than gating it, as humanize' own flows do, and a turn
+        A flow watches its agent rather than gating it, as Humanize's own flows do, and a turn
         waiting on an approval nobody is there to give is a flow that has stopped. It answers
         yes to everything that is not refused outright, which is why the rung below is said as
         refusals: what the agent may not do is denied, and the flag is what carries the rest.
@@ -393,7 +393,7 @@ class OpencodeSession(CommandSessionBase):
 
         A table with nothing in it is not written either, and nobody has to ask for that: a
         config that names no rung and states no web switch has nothing to put in one, and a
-        variable set to that would be humanize answering a question nobody put to it.
+        variable set to that would be Humanize answering a question nobody put to it.
 
         And, for a gateway account, which of the gateway's models its config lists: the one
         this turn names, in place of the one the account was made with.
@@ -415,7 +415,7 @@ class OpencodeSession(CommandSessionBase):
         # kimi do with theirs. Unreachable while the config validates what it carries, and
         # written this way for the day it is not: a fall-back to `bypass` would answer a rung
         # nobody here recognises with the loosest one there is, and the honest answer to a
-        # word humanize cannot read is to say nothing about it.
+        # word Humanize cannot read is to say nothing about it.
         rung = _PERMITTED.get(config.permission, _PERMITTED[UNSAID])
         # A rung that already withholds the web is not asked twice: it and `web_search` say
         # the same thing here, and either of them saying it is enough. An unsaid rung says

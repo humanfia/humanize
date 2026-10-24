@@ -21,7 +21,7 @@ Two supervisors cannot be nested -- a process has one tracer -- so a turn that i
 anchored is not wrapped in this: the anchor is told the same swaps and its own supervisor
 makes them. This is the case where the agent runs on this machine, which is most of them.
 
-The same supervisor keeps a CLI's sessions where humanize keeps them, which is the other half of
+The same supervisor keeps a CLI's sessions where Humanize keeps them, which is the other half of
 what a turn is pointed elsewhere for: the transcripts and the indexes of them, answered with a
 directory of the run's own, while the settings, the skills and the credentials stay the CLI's.
 Those are *kept* rather than swapped, and differ in one thing: a read of one is never answered

@@ -1,7 +1,7 @@
 """The daemons a frontend may switch between: this machine's, and each ssh host written down.
 
 `Local` is always there and never written down. Every other daemon is an ssh host, kept in
-humanize's one settings file under `daemons` with what `ssh` is told to reach it -- the same
+Humanize's one settings file under `daemons` with what `ssh` is told to reach it -- the same
 fields an ssh runtime has, checked as one is, but for its workdir and fallback -- typed in a
 part at a time or brought in from the ssh config. Every frontend that switches between them
 writes them, and reaches them, through here.
@@ -92,7 +92,7 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
     than its secret carried.
 
     Args:
-      hmz: The daemon's own humanize, whose settings are carried.
+      hmz: The daemon's own Humanize, whose settings are carried.
       pages: Which of :data:`CARRIED`.
 
     Returns:
@@ -398,7 +398,7 @@ class Daemons:
 
 
 #: The release of uv fetched onto a host that has none, through astral's installer for it:
-#: the one the desktop app pins.
+#: the one Humanize Desktop pins.
 UV = "0.12.24"
 
 #: What a daemon's state may be.
@@ -416,7 +416,7 @@ _PATH = 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"; '
 
 #: What is asked of a host before anything is started there: the version of its `hmz`, and
 #: whether its daemon is running -- by the process `daemon.json` names in `humanize-<uid>` of
-#: any temporary directory one may have been started with, as the desktop app tells --
+#: any temporary directory one may have been started with, as Humanize Desktop tells --
 #: `unknown` where that cannot be read.
 _PROBE = (
     _PATH
@@ -457,7 +457,7 @@ _SERVE = _PATH + "exec hmz web --no-open --attached --port 0"
 #: The line it says where it listens with.
 _ADDRESS = re.compile(r"hmz web: http://127\.0\.0\.1:(\d+)/\?key=(\S+)")
 
-#: What `ssh` is told for every command here before what the host's own settings and humanize's
+#: What `ssh` is told for every command here before what the host's own settings and Humanize's
 #: say beside them: nothing is asked of anybody, since nobody is at a terminal to answer.
 _UNASKED = ("-o", "BatchMode=yes", "-o", "ConnectTimeout=20")
 
@@ -491,7 +491,7 @@ class _Failed(Exception):  # noqa: N818 -- the sentence a daemon's state says
 
 
 def _here_version() -> str:
-    """This humanize's version, as PyPI has it."""
+    """This Humanize's version, as PyPI has it."""
     from importlib.metadata import version
 
     return version("hmz")
@@ -535,7 +535,7 @@ def road(said: dict[str, Any]) -> Road:
         "ssh", host=runtime.login(), port=runtime.port, options=runtime.settings()
     )
     road = Road.to(target)
-    # After what the host's own settings say, which win, and before what humanize assumes.
+    # After what the host's own settings say, which win, and before what Humanize assumes.
     own = 1 + len(ssh_flags(target.options))
     prefix = (*road.prefix[:own], *_UNASKED, *road.prefix[own:])
     return dataclasses.replace(road, prefix=prefix)

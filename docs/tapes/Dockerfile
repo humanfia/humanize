@@ -1,4 +1,4 @@
-# The world the demos are recorded in: humanize built out of this checkout, a stand-in for the
+# The world the demos are recorded in: Humanize built out of this checkout, a stand-in for the
 # coding agent CLIs, and `cast.py` to play a tape into a terminal.
 #
 # Nothing in here signs in to anything, and nothing in here is yours: the demos run in this
@@ -11,12 +11,12 @@ FROM python:3.13-slim
 
 RUN pip install --no-cache-dir uv
 
-# What `cast.py` drives a terminal with, kept apart from humanize's own environment.
+# What `cast.py` drives a terminal with, kept apart from Humanize's own environment.
 RUN uv venv /opt/cast \
     && uv pip install --python /opt/cast/bin/python pexpect pyte \
     && rm -rf /root/.cache
 
-# humanize out of this checkout rather than out of a release, so a demo is of the code beside
+# Humanize out of this checkout rather than out of a release, so a demo is of the code beside
 # it. Only what the build backend reads, so editing a tape does not rebuild the environment.
 COPY pyproject.toml README.md LICENSE /src/
 COPY src /src/src
@@ -33,5 +33,5 @@ ENV PATH=/opt/hmz/bin:/opt/standin:$PATH \
     CODEX_HOME=/root/.codex \
     TERM=xterm-256color
 
-# Staged at build time so a tape spends its time on humanize rather than on `mkdir`.
+# Staged at build time so a tape spends its time on Humanize rather than on `mkdir`.
 RUN /opt/hmz/bin/python /opt/stage.py

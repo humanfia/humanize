@@ -1,6 +1,6 @@
 // Reading an epic back in from a `.hmzepic`, exported here or on another machine: picked from
 // the disk, or dropped anywhere on the window, and opened once it is in. One already on this
-// machine, named by its path -- as the desktop app opens a file -- is `#/epics/import?path=`.
+// machine, named by its path -- as Humanize Desktop opens a file -- is `#/epics/import?path=`.
 
 import { daemon, hash, refresh, send } from './api.js'
 import { h, iconButton, problem } from './dom.js'

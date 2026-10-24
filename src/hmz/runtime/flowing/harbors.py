@@ -89,7 +89,7 @@ class Harbors:
 
         Opened the way an environment is, with no role -- a harness asks for nothing but
         somewhere to be -- and in the runtime's own workdir; one without, in the login's home
-        over ssh, and on a daemon here in an empty one in humanize's directory for this machine.
+        over ssh, and on a daemon here in an empty one in Humanize's directory for this machine.
 
         Args:
           entry: `<backend>:<name>`, as :func:`hmz.coganchor.machines.store.affine` reads.
@@ -143,7 +143,7 @@ def _opened(entry: str) -> EnvDriver:
 
     Raises:
       EnvUnavailable: If no runtime is saved under that name, or one is with no workdir and
-        nowhere humanize could keep one.
+        nowhere Humanize could keep one.
     """
     from hmz import machine
     from hmz.coganchor.machines import store

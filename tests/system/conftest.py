@@ -4,7 +4,7 @@ Never in CI and left out of a plain `uv run pytest`; run one by naming it, e.g.
 `uv run pytest tests/system/test_flows_ralph.py`. A test skips, saying why, where what it
 needs -- a CLI, its sign-in, docker, ssh -- is not on this machine.
 
-The root conftest still keeps each test's humanize home, daemon and temp dir its own; the
+The root conftest still keeps each test's Humanize home, daemon and temp dir its own; the
 CLIs' own sign-ins are used in place, never copied.
 """
 

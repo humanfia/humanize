@@ -1,10 +1,10 @@
 """``hmz internal cred`` -- run a program with some of its paths answered by others.
 
 What a turn under a provider is spawned as, what a login run for one is spawned as, and what
-every turn whose sessions humanize keeps is spawned as: the program runs here, unchanged and on
+every turn whose sessions Humanize keeps is spawned as: the program runs here, unchanged and on
 this terminal, and the handful of syscalls that name one of its credential files are handed a
 path inside the provider's directory instead -- and those naming its sessions, one inside the
-directory humanize keeps them in.
+directory Humanize keeps them in.
 
 Its own command rather than something the driver does in this process, for the reason
 `hmz internal anchor` is: the supervisor forks the program and takes the process's signal
@@ -31,7 +31,7 @@ def cred(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(
         prog="hmz internal cred",
-        description="Run an agent with an account's credentials. humanize runs this "
+        description="Run an agent with an account's credentials. Humanize runs this "
         "command for every turn taken as an account; do not run it manually.",
     )
     parser.add_argument(

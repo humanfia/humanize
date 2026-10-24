@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The first screenful of the site: what humanize is, the line that installs it, and the three
+// The first screenful of the site: what Humanize is, the line that installs it, and the three
 // people who arrive here. Each button lands on that reader's quickstart further down this same
 // page, so nobody has to guess which tab in the nav is theirs.
 //
@@ -23,7 +23,7 @@ const LINE = "uv tool install hmz"
 const ROLES = [
   { href: '#run-a-flow', n: '01', name: 'Run a flow', under: 'point coding agents at a repository' },
   { href: '#weave-a-flow', n: '02', name: 'Weave a flow', under: 'write your own, in Python' },
-  { href: '#work-on-humanize', n: '03', name: 'Contribute', under: 'work on humanize itself' },
+  { href: '#work-on-humanize', n: '03', name: 'Contribute', under: 'work on Humanize itself' },
 ]
 
 const copied = ref(false)
@@ -84,11 +84,11 @@ onUnmounted(() => {
         <p class="kicker"><span class="sq" aria-hidden="true"></span>flows for the coding agents you already use</p>
 
         <h1 class="wordmark">
-          <span class="letters">humanize</span><span class="cursor" aria-hidden="true"></span>
+          <span class="letters">Humanize</span><span class="cursor" aria-hidden="true"></span>
         </h1>
 
         <p class="define">
-          humanize runs <strong>flows</strong>: Python programs that drive the coding agents
+          Humanize runs <strong>flows</strong>: Python programs that drive the coding agents
           you already use — Claude Code, Codex and ten more — turn after turn, and
           record everything they did.
         </p>

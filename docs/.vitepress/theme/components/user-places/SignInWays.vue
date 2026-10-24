@@ -1129,7 +1129,7 @@ onBeforeUnmount(() => {
     </div>
 
     <p class="foot">
-      A lookup of what humanize offers, not a live screen. The Accounts page of <code>/settings</code>
+      A lookup of what Humanize offers, not a live screen. The Accounts page of <code>/settings</code>
       on your machine is the list to trust.
     </p>
   </div>

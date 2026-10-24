@@ -1,4 +1,4 @@
-"""The terminal interface: one prompt, over everything humanize does."""
+"""The terminal interface: one prompt, over everything Humanize does."""
 
 from __future__ import annotations
 

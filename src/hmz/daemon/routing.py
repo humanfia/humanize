@@ -206,12 +206,12 @@ class Router:
             elif kind in (MESSAGE, CONTROL):
                 kept = self._hands(one, kind, said)
             else:
-                # A reader speaking another protocol -- an older humanize's terminal -- told
+                # A reader speaking another protocol -- an older Humanize's terminal -- told
                 # so rather than left waiting.
                 one.sendall(
                     frame(
                         GONE,
-                        b"held for frontends by a newer humanize; `hmz` of it reads it",
+                        b"held for frontends by a newer Humanize; `hmz` of it reads it",
                     )
                 )
         except OSError:

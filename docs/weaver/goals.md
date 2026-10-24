@@ -23,7 +23,7 @@ can judge it, such as a failing test or an unticked box, reach for the
 
 <GoalRun />
 
-A prompt that starts with `/goal ` is not sent to the model as words. humanize hands the rest
+A prompt that starts with `/goal ` is not sent to the model as words. Humanize hands the rest
 of it to the CLI's own goal feature, and the CLI keeps taking turns against the objective
 until it says the objective is met. Your flow waits on one `run` the whole time, and `run`
 returns what the agent said last.
@@ -200,7 +200,7 @@ capability is in one table [on Flows](/reference/flows#what-each-harness-serves)
 ## When your code should decide instead
 
 A goal lets the model judge. When a function can judge, hang an `on_stop`
-[hook](/weaver/hooks) on the agent instead: an async function humanize calls each time a turn is
+[hook](/weaver/hooks) on the agent instead: an async function Humanize calls each time a turn is
 about to end. Answer `block=True` with a `reason`, and the agent keeps going, with that reason
 as its next prompt. `on_stop` is on every agent, so it needs no mixin and works on every CLI.
 

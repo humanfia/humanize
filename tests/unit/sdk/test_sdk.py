@@ -1,4 +1,4 @@
-"""`hmz.sdk`: what a tool outside humanize reaches it through, handed through as itself."""
+"""`hmz.sdk`: what a tool outside Humanize reaches it through, handed through as itself."""
 
 from __future__ import annotations
 

@@ -9,7 +9,7 @@ take turns on it for hours, while you check their progress against a number that
   the turn that mattered in a run's trace.
 - **You will end with** the three things in the table below.
 - **Time:** about an hour of your attention and a few hours of the machine's.
-- **You need** humanize and one signed-in coding agent CLI. Two different ones do better.
+- **You need** Humanize and one signed-in coding agent CLI. Two different ones do better.
 :::
 
 | You end with | Where |
@@ -20,7 +20,7 @@ take turns on it for hours, while you check their progress against a number that
 
 ## Before you start
 
-- **Install humanize and sign in to a coding agent CLI.** See
+- **Install Humanize and sign in to a coding agent CLI.** See
   [Installation](/user/installation). One signed-in backend is enough, since it can fill both
   roles.
 - **Make one run first.** [Your first run](/user/first-run), or the
@@ -306,7 +306,7 @@ process   second_chaser · gpt-5.6-sol · high · 6 sessions
 
 **What just happened.**
 
-1. **`/epics`** is every run humanize wrote down in this directory. An **epic** is one run of
+1. **`/epics`** is every run Humanize wrote down in this directory. An **epic** is one run of
    one flow.
 2. **`It stopped with 2 agents in 12 sessions`**: two chasers, and a fresh session for every
    turn. `stopped`, not finished, because you stopped it.
@@ -330,7 +330,7 @@ wins are gone; see [Efforts](/user/efforts).
 
 ### It stopped on its own after a failed turn
 
-A turn that fails ends `flame_chase` with that failure, which the run prints. humanize has
+A turn that fails ends `flame_chase` with that failure, which the run prints. Humanize has
 already retried it, or moved along its [fallback](/user/settings#fallback) chain, by then.
 It is often an account out of quota or signed out. See
 [Troubleshooting](/user/troubleshooting), then pick the run up as in

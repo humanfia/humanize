@@ -5,7 +5,7 @@ with the socket frontends reach it through and a note of what is running there. 
 what tells a daemon that is running from one whose machine went down without it -- a socket
 file outlives the process that bound it, and a stale one is a frontend that hangs.
 
-In the machine's temporary directory rather than under humanize's home, because a daemon is a
+In the machine's temporary directory rather than under Humanize's home, because a daemon is a
 process and a process is one machine's: a home directory many machines mount would have each
 of them read the others' notes, and check another kernel's pid against its own.
 """
@@ -65,7 +65,7 @@ LOCK = "daemon.lock"
 
 #: The longest a socket may be reached by its whole path. What a Unix socket address holds is
 #: about a hundred bytes -- 108 on Linux, 104 on macOS -- and the shorter of the two is what
-#: is measured against, so that a humanize which works here works there. A path longer than
+#: is measured against, so that a Humanize which works here works there. A path longer than
 #: this is reached by standing in its directory and naming the socket alone.
 _LONGEST = 100
 
@@ -73,7 +73,7 @@ _LONGEST = 100
 def at() -> Path:
     """The directory this machine's daemon keeps its socket in, made private where it is not yet.
 
-    This user's own directory in the machine's temporary directory, which nothing but humanize
+    This user's own directory in the machine's temporary directory, which nothing but Humanize
     names: one fixed place per machine and user, so that every frontend on the machine finds
     the one daemon, and short, so that its socket is an address whole.
 
@@ -88,7 +88,7 @@ def workspace(where: str | os.PathLike[str] | None = None) -> str:
     """A workspace as the daemon knows it by: the whole path, with every link followed.
 
     Args:
-      where: The project directory, or None for wherever humanize is being run.
+      where: The project directory, or None for wherever Humanize is being run.
 
     Returns:
       The path, which two spellings of one directory are one of.
@@ -254,7 +254,7 @@ def wrote(where: Path, said: dict[str, Any]) -> None:
     """Writes down what is running here, whole and then moved into place.
 
     Beside it under a name nothing else will pick rather than a fixed `.new`, as every file
-    humanize writes is, and on disk before it is moved: a frontend reading it finds the old
+    Humanize writes is, and on disk before it is moved: a frontend reading it finds the old
     note or the new one. `0600`, as everything else in the daemon's directory is.
 
     Args:

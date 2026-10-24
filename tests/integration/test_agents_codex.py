@@ -538,6 +538,6 @@ def test_a_command_line_named_unsandboxed_is_ruled_out_of_the_sandbox(
     # The rest of the read-only sandbox is untouched: the network stays cut.
     told = json.loads(said[-1].text)
     assert (told["policy"], told["rules"]) == (None, ruled)
-    # The user's own rules are read beside humanize's, and never written.
+    # The user's own rules are read beside Humanize's, and never written.
     assert "default.rules" in told["theirs"]
     assert sorted(one.name for one in theirs.iterdir()) == ["default.rules"]

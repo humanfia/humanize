@@ -42,7 +42,7 @@ it, although Codex is the one CLI here with a sandbox that speaks of writable ro
 restrictions and allowed domains. That sandbox is put around the commands the agent runs and
 around nothing else: not around Codex's own process, which reaches `ab.chatgpt.com` beside
 its model on every turn (seen refused by the fence's proxy on codex-cli 0.153.4, the turn
-going on without it), and not around the MCP servers and hooks it starts -- humanize's own
+going on without it), and not around the MCP servers and hooks it starts -- Humanize's own
 callbacks, and whatever the person at this machine's `config.toml` names -- which run as
 Codex runs. A fence claimed natively would be one those reach straight past, so
 :meth:`~hmz.coganchor.agents.AgentBase.natively` is left saying Codex enforces none of it. And
@@ -231,7 +231,7 @@ _PERMITTED = {
 #: filesystem sandbox and `on-request` -- and the first command out of the turn arrives here
 #: as `item/commandExecution/requestApproval`, reason `Allow writing the requested text to
 #: /tmp/...? The filesystem sandbox is read-only.` So the silence does reach this route, and
-#: granting it would be humanize saying yes for an agent nobody configured.
+#: granting it would be Humanize saying yes for an agent nobody configured.
 #:
 #: Refusing it is a legible turn and not a wedge, which is the thing that had to be checked
 #: rather than assumed: the same run answered `{"decision": "decline"}` completes the item
@@ -537,7 +537,7 @@ def unattended(permission: str, service_tier: str = "default") -> dict[str, Any]
 def _thinking(effort: str) -> dict[str, str]:
     """How hard to think, as a turn carries it -- or nothing at all, where there is no rung.
 
-    An agent at no rung is one humanize says nothing to Codex about, so the key is left out
+    An agent at no rung is one Humanize says nothing to Codex about, so the key is left out
     rather than sent empty: `effort: ""` is a value the app server reads as a rung it does not
     have, where an absent key is the model run at whatever its own default is. Which is what
     an agent asked for at `auto` means.
@@ -596,7 +596,7 @@ def _rung(params: Mapping[str, Any]) -> str | None:
             rung
             # The row that names nothing is skipped rather than read: `all` over no settings
             # is true of every call ever made, and the unset row is the absence of a rung
-            # rather than one of them. So a call humanize sent no sandbox with names no rung
+            # rather than one of them. So a call Humanize sent no sandbox with names no rung
             # to step down from, and a Codex refusing one is refusing something it was never
             # asked -- its own error to report, rather than ours to retry a rung quieter.
             for rung, settings in _PERMITTED.items()
@@ -1526,7 +1526,7 @@ class _AppServer:
         say no.
 
         At no rung the answer is no. Codex opened that thread at its own defaults and asks
-        over them, and humanize -- told nothing about this agent -- has nothing to say yes
+        over them, and Humanize -- told nothing about this agent -- has nothing to say yes
         with. The hook is still fired there, so a flow watching its agent sees the moment and
         can put its own words on the refusal; what it cannot do is turn one round, `Verdict`
         carrying a refusal and no yes at all. So the answer at that rung is no either way, in
@@ -2154,7 +2154,7 @@ class CodexSession(SessionBase):
             return answer
 
 
-#: The execpolicy file of humanize's in a virtual home's `rules/` (:func:`_ruled`).
+#: The execpolicy file of Humanize's in a virtual home's `rules/` (:func:`_ruled`).
 _RULES = "hmz.rules"
 
 
@@ -2166,7 +2166,7 @@ def _ruled(home: Path, names: list[str]) -> None:
     against codex-cli 0.160.0 on 2026-10-17, where under `--sandbox read-only` a script ruled
     `allow` reached a Unix socket and the same script under another name was refused it. The
     virtual home's `rules/` links to the user's own; it is made a directory of that home's own
-    instead, holding a link to each of the user's rule files and humanize's beside them, so
+    instead, holding a link to each of the user's rule files and Humanize's beside them, so
     the user's own directory is never written.
 
     Args:

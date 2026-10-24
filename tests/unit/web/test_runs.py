@@ -106,7 +106,7 @@ def test_the_run_going_is_the_epic_its_host_says_it_writes() -> None:
         ),
         ("an epic is already here, at /h/epics/-w/an epic", 409, "an epic"),
         ("a is already here, at /h/epics/-w/b", 400, None),
-        ("x.hmzepic is not a bundle humanize can read: not a gzip file", 400, None),
+        ("x.hmzepic is not a bundle Humanize can read: not a gzip file", 400, None),
         ("x.txt is not a .hmzepic file", 400, None),
     ],
 )

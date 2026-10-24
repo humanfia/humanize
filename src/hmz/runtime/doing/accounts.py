@@ -104,7 +104,7 @@ class Accounts:
           The directory.
 
         Raises:
-          ValueError: If the backend is not one humanize drives, or the name is not one an
+          ValueError: If the backend is not one Humanize drives, or the name is not one an
             account may be kept under -- which is what asks it of a name before it is made.
         """
         from hmz.coganchor import providers
@@ -241,7 +241,7 @@ class Accounts:
 
         Raises:
           ValueError: If it is the account this machine is already signed into, which
-            humanize did not make and keeps no credentials for.
+            Humanize did not make and keeps no credentials for.
         """
         from hmz.coganchor import providers
 

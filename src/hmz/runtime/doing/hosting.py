@@ -1500,7 +1500,7 @@ class Host:
     # ---------------------------------------------------------------- what opened
 
     def _noticed(self, current: _Run, said: str) -> None:
-        """Says humanize's own word about the run where every frontend reads it.
+        """Says Humanize's own word about the run where every frontend reads it.
 
         An environment moved off the runtime its `-e` named, as `hmz exec` says it on its
         stderr.

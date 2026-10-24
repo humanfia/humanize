@@ -3,7 +3,7 @@
 // location local in `specs/features/placements.md` and `reference/remote-execution`: the project's
 // files, the commands and whatever those commands reach are the target's; the agent's own link
 // to its model provider, its settings and its login stay here. The agent reads and writes a
-// local copy of the target's workspace, which humanize keeps in step with it.
+// local copy of the target's workspace, which Humanize keeps in step with it.
 //
 // Two drawings of the same thing: side by side where there is room, and one above the other on
 // a phone, where the side-by-side one would shrink its words out of legibility.
@@ -275,7 +275,7 @@ const scene = useScene({
         <path class="flow wire-flow" :d="L.toCommands" />
         <g class="hub" :transform="`translate(${L.hub.x} ${L.hub.y})`">
           <rect x="-40" y="-11" width="80" height="22" rx="11" />
-          <text y="4" text-anchor="middle">humanize</text>
+          <text y="4" text-anchor="middle">Humanize</text>
         </g>
 
         <!-- the target -->

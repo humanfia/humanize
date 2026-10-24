@@ -103,7 +103,7 @@ DRIVEN: dict[str, tuple[type[AgentBase], type[AgentConfig]]] = {
 
 
 def driver(backend: str) -> tuple[type[AgentBase], type[AgentConfig]]:
-    """What drives one backend, whether humanize wrote the driver or somebody added the CLI.
+    """What drives one backend, whether Humanize wrote the driver or somebody added the CLI.
 
     Args:
       backend: The backend, by the name a command line calls it.

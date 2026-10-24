@@ -53,7 +53,7 @@ __all__ = ["Watchdog", "held", "silence"]
 #: What every backend's own window can be overridden with, in seconds, for a machine where
 #: the defaults are wrong -- a container that suspends, a gateway that queues for an hour, a
 #: test that cannot wait a quarter of one. Zero or less turns the watchdog off entirely,
-#: which is what humanize did before there was one.
+#: which is what Humanize did before there was one.
 WATCHDOG = "HUMANIZE_WATCHDOG"
 
 #: How often the clock is looked at. The windows are quarter-hours, so this is a thread asleep

@@ -9,15 +9,15 @@ Nothing in this module is reached for it.
 
 **Both of them elsewhere.** The harness is put on the machine the work lands on and supervises
 a turn that never leaves it. What crosses the link is the agent's own three streams, the same
-frames a backend already speaks to a process humanize spawns, and nothing else: no file, no
+frames a backend already speaks to a process Humanize spawns, and nothing else: no file, no
 syscall, no round trip per `open`. A turn whose agent reads a thousand files reads them at
 that machine's disk rather than down a wire, which is most of what an anchored turn spends.
 
 **Each of them on a different machine elsewhere.** The harness on one, the work on another,
-and humanize on neither. This is the arrangement nothing above could express, because the two
-machines have no way to reach each other: humanize started both and can talk to both, and
+and Humanize on neither. This is the arrangement nothing above could express, because the two
+machines have no way to reach each other: Humanize started both and can talk to both, and
 that is all either of them has in common. :mod:`hmz.coganchor.rendezvous` is what it is built
-on -- humanize holds a meeting, tells each half what the other looks like from outside, and
+on -- Humanize holds a meeting, tells each half what the other looks like from outside, and
 carries the bytes itself if the two cannot be introduced.
 
 Which of the three a session is, is a setting: :attr:`~hmz.coganchor.anchor.AnchorConfig.harness`
@@ -63,7 +63,7 @@ __all__ = ["afar", "elsewhere", "harnessed"]
 log = logging.getLogger(__name__)
 
 #: What :attr:`~hmz.coganchor.anchor.AnchorConfig.harness` says for a harness on this machine,
-#: which is the arrangement humanize has always had and the one nothing here is reached for.
+#: which is the arrangement Humanize has always had and the one nothing here is reached for.
 HERE = "local"
 
 #: And for a harness on whichever machine the work lands on, whatever that turns out to be.
@@ -170,7 +170,7 @@ def afar(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
         # A mirror of its own on that machine, kept between turns. It is named for what it
         # mirrors rather than for this turn, which is the point: the second turn against a
         # workspace finds its files already there. `force` because the name was derived rather
-        # than chosen -- the guard on a mirror exists to stop humanize emptying a directory
+        # than chosen -- the guard on a mirror exists to stop Humanize emptying a directory
         # somebody else named, and nobody named this one.
         mirror = road.mirror(_named(config, work))
         setting.append(("HUMANIZE_SHADOW", mirror))

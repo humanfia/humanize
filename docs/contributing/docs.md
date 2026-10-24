@@ -8,7 +8,7 @@ request.
 
 ::: info Before you start
 Node and [pnpm](https://pnpm.io/). The site is [VitePress](https://vitepress.dev/) under
-`docs/`, and builds without humanize installed.
+`docs/`, and builds without Humanize installed.
 :::
 
 ## Run it
@@ -46,7 +46,7 @@ Each section answers one kind of question. A page that answers two is two pages.
 | **Features** | to understand | One feature, built around a diagram the reader can push. **No commands and no code**: a guide is one click away |
 | **User Guide** | to do something | One task for the person running flows, as a [guide page](#the-shape-of-a-guide-page). No Python |
 | **Weaver Guide** | to write a flow | The same, for whoever writes the flow. Every example a complete flow that runs |
-| **Contributing** | to change humanize | Setup, checks, the layers, and this, as guide pages too |
+| **Contributing** | to change Humanize | Setup, checks, the layers, and this, as guide pages too |
 | **Reference** | to look something up | Exact, complete and scannable: every flag, key, argument and return |
 
 The three guide sections open with a **Tutorials** group: taken in order, every command
@@ -130,7 +130,7 @@ code, and the pull request says so.
 **2. Stay at the reader's altitude.** Outside Reference:
 
 - Show no internal module paths. The only imports shown are the stable ones: `hmz.flows` for
-  writing flows, and `hmz.sdk` for driving humanize.
+  writing flows, and `hmz.sdk` for driving Humanize.
 - Describe no processes, protocols, file formats or storage layouts. Include a mechanism only
   when the reader needs it to decide something or to avoid a pitfall, as one sentence of
   consequence and a link to Reference.
@@ -305,8 +305,8 @@ has the rest.
 ## Other documentation
 
 - **`README.md`** follows [standard-readme](https://github.com/RichardLitt/standard-readme),
-  says what humanize does and how to use it, and links here.
-- **`specs/`** holds the contract of everything humanize shows to the outside. Do not edit a SPEC unless you were asked to.
+  says what Humanize does and how to use it, and links here.
+- **`specs/`** holds the contract of everything Humanize shows to the outside. Do not edit a SPEC unless you were asked to.
 - **Docstrings** are Google style, and `ruff` checks them.
 
 The site deploys to [docs.humanfia.ai/humanize](https://docs.humanfia.ai/humanize/) from

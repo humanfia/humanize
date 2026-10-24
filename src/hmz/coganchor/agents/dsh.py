@@ -45,7 +45,7 @@ _REQUEST_SECONDS = 180.0
 
 #: The profile the runtime is started under: the SDK's own, which is `dsh-base` -- the
 #: harness's whole default composition -- with the JSON-RPC server put in front of it. What
-#: humanize has to say over it is said in one patch file of its own (:func:`_composed`),
+#: Humanize has to say over it is said in one patch file of its own (:func:`_composed`),
 #: handed to the runtime after the profile's own layers, so that an agent which asks for
 #: nothing is started from exactly the composition a bare SDK session is.
 _PROFILE = "sdk"
@@ -61,7 +61,7 @@ _HOME_ENV = "DSH_HOME"
 
 #: How the JSONL session log is written, as `dsh-session-persistence-jsonl` spells it, and
 #: which of the two that plugin writes when nothing says. `zstd` is the SDK's own default;
-#: humanize asks for `none` so its running tally can read complete rows as they land, which
+#: Humanize asks for `none` so its running tally can read complete rows as they land, which
 #: is what :attr:`DshAgentConfig.session_compression` is for.
 _COMPRESSIONS = ("none", "zstd")
 _SDK_COMPRESSION = "zstd"
@@ -229,9 +229,9 @@ class _ObjectLoader(Protocol):
 class DshAgentConfig(AgentConfig):
     """The model and effort every DeepSeek Harness session runs at, and what it composes.
 
-    The two settings here are two of the places humanize's runtime composition may depart
+    The two settings here are two of the places Humanize's runtime composition may depart
     from the SDK's own `sdk` profile. An install that sets both to the SDK's values gets that
-    profile with nothing of humanize's over it but what an account or a flow says.
+    profile with nothing of Humanize's over it but what an account or a flow says.
 
     Attributes:
       compaction: Whether the runtime's own automatic compaction is mounted --
@@ -241,12 +241,12 @@ class DshAgentConfig(AgentConfig):
         length, which a loop that keeps talking to the same conversation never gets past.
       session_compression: How the durable JSONL session log is written, as one of
         :data:`_COMPRESSIONS`. `none`, though the plugin's own default is `zstd`, because
-        humanize reads that log itself -- what a turn spent comes off complete rows as they
+        Humanize reads that log itself -- what a turn spent comes off complete rows as they
         land.
 
         `zstd` is the smaller log and the one the SDK would have written, and what it costs
         is worth saying plainly rather than softly: the plugin keeps the same file name under
-        compression, so humanize goes on finding the log and reading it, and every row it
+        compression, so Humanize goes on finding the log and reading it, and every row it
         reads is a zstd frame rather than a line of JSON. Nothing is counted from it -- not
         late, not in whole frames, not at all -- and the interface is still told this
         backend's own reckoning is one it can show. So this is for a run whose cost nobody
@@ -670,7 +670,7 @@ class DshSession(SessionBase):
         written = self._cordis(composition, fence)
         harness: _Harness | None = None
         try:
-            # The bundled runtime under the SDK's own profile with humanize's patch over it,
+            # The bundled runtime under the SDK's own profile with Humanize's patch over it,
             # wrapped in whatever `spawned` puts in front of it and in `env -u` where
             # credentials have to be dropped. Resolved here rather than by the SDK, which
             # resolves a launch only as the bare runtime -- so the profile, the patch and the
@@ -709,7 +709,7 @@ class DshSession(SessionBase):
                 runtime_cwd=started,
                 env=environment,
                 _launch_args=tuple(launch),
-                # humanize's, not the SDK's: `request_timeout_seconds` defaults to None there,
+                # Humanize's, not the SDK's: `request_timeout_seconds` defaults to None there,
                 # which is every JSON-RPC request waiting for as long as it takes. It bounds the
                 # acknowledgement rather than the turn -- `session/prompt` answers with the
                 # message id as soon as the prompt is in the inbox -- so what it catches is a
@@ -926,7 +926,7 @@ def _composed(
 ) -> str:
     """What one agent's runtime is told over the SDK's own profile, as a patch.
 
-    Only what humanize has to say: a row of `dsh-base` addressed by its id, either switched
+    Only what Humanize has to say: a row of `dsh-base` addressed by its id, either switched
     off or given the whole of a `config` of its own -- a patch replaces a row's config rather
     than merging into it, so each one here restates every key it keeps. An agent whose
     settings are all the SDK's own is told nothing, and runs on exactly the profile a bare
@@ -1246,7 +1246,7 @@ def _receipt(
 
 
 def _usage(value: object) -> Usage:
-    """Maps dsh's disjoint token counts onto humanize's common names."""
+    """Maps dsh's disjoint token counts onto Humanize's common names."""
     raw = _mapping(value)
     kinds = {
         "input": _tokens(raw.get("inputTokens")),

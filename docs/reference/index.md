@@ -9,7 +9,7 @@ import RefAtlas from '../.vitepress/theme/components/ref-index/RefAtlas.vue'
 
 # Reference
 
-The complete technical specification of humanize as built: every command, option, grammar,
+The complete technical specification of Humanize as built: every command, option, grammar,
 key, screen, setting, protocol message, file, environment variable, Python symbol, default,
 limit and error. Each page states behaviour; tasks and explanations are in the
 [User Guide](/user/), [Weaver Guide](/weaver/) and [Features](/features/).
@@ -32,7 +32,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | [Remote execution](/reference/remote-execution) | `hmz internal anchor`: harness placement, targets, mirrors | `hmz.coganchor` |
 | [Tracing](/reference/tracing) | Epics, journals, traces, profiling, export | `hmz.runtime` |
 | [Files](/reference/files) | Everything under `$HUMANIZE_HOME` and a workspace's `.hmz/` | — |
-| [Environment variables](/reference/environment) | Every variable any part of humanize reads or sets | — |
+| [Environment variables](/reference/environment) | Every variable any part of Humanize reads or sets | — |
 | [Settings](/reference/settings) | Every key of `settings.yaml` and the other stores the interface writes | — |
 
 ## Lookup {#find-it}
@@ -69,7 +69,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | `~/.hmz` | `$HUMANIZE_HOME` where set and non-empty. |
 | `hmz: …` | Text as printed; a leading `hmz: ` or `hmz exec: error: ` is part of the message. |
 | Types | Python annotations as written in the source (`str \| None`, `tuple[str, ...]`). |
-| *as local* | A CLI running as this machine's own login, with no humanize account. |
+| *as local* | A CLI running as this machine's own login, with no Humanize account. |
 | workspace | The directory a run or an interface is started in (resolved path). |
 | run | One execution of one flow; recorded as one epic. |
 | role | A name a flow declares for an agent, an environment or an outworlder. |

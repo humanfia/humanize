@@ -387,7 +387,7 @@ case "$FAKE" in
     echo "hmz web: error: unrecognized arguments: --attached" >&2
     exit 2 ;;
   broken)
-    echo "hmz: these runs are held by an older humanize" >&2
+    echo "hmz: these runs are held by an older Humanize" >&2
     exit 1 ;;
   taken)
     if [ "$port" != 0 ]; then
@@ -476,7 +476,7 @@ exec cat > /dev/null
         assert!(!retries(
             8765,
             Some(1),
-            "hmz: these runs are held by an older humanize"
+            "hmz: these runs are held by an older Humanize"
         ));
         assert!(!retries(8765, Some(2), taken));
     }
@@ -549,7 +549,7 @@ exec cat > /dev/null
         assert_eq!(
             Fake::new("broken").start().err(),
             Some(Failure::Failed(
-                "hmz: these runs are held by an older humanize".into()
+                "hmz: these runs are held by an older Humanize".into()
             ))
         );
     }

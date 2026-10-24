@@ -110,7 +110,7 @@ class SwarmConfig(MachineConfig):
         does: `CAP_SYS_PTRACE`.
       run_args: What else `docker service create` is told, ahead of the image.
       env: Variables to set in it.
-      labels: Labels to put on the service beside humanize's own.
+      labels: Labels to put on the service beside Humanize's own.
       placing: How long, in seconds, the task may wait for a node with room before it is
         given up on.
       starting: How long, in seconds, it may take to be running once it has a node --
@@ -265,7 +265,7 @@ def services(
     *,
     seconds: float | None = None,
 ) -> list[Allocation]:
-    """What humanize's services on a swarm hold of it, whoever created them.
+    """What Humanize's services on a swarm hold of it, whoever created them.
 
     Args:
       endpoint: The manager, spelled as :attr:`SwarmConfig.endpoint` is.

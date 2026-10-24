@@ -14,7 +14,7 @@ and a container has taken its share of its runtime, before a flow's requirements
 against them. :func:`settle` is that probe for an environment an `-e` named, moving it down
 the fallback list of the runtime it named where that runtime cannot hold it.
 
-What a driver derives lives under `envs/` in humanize's home on its machine;
+What a driver derives lives under `envs/` in Humanize's home on its machine;
 :mod:`hmz.runtime.flowing.environing` says how, and why there.
 """
 

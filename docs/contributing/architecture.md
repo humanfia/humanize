@@ -41,7 +41,7 @@ same table, so an import that breaks it fails the run.
 | runs kept going after the terminal closes, and the socket frontends reach them over | `daemon/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
-| a flow humanize ships | `flows/builtin/`, for `chat` and the six loops FlowBench scores. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
+| a flow Humanize ships | `flows/builtin/`, for `chat` and the six loops FlowBench scores. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
 
 Nothing sits at the top of `src/hmz/` but `__init__.py` and `__main__.py`. Name a module for
 what it holds, in the words `hmz` and these docs use.
@@ -55,7 +55,7 @@ when:
   ones. `from hmz.runtime import telemetry` names `telemetry`, not the whole of `runtime`.
 - **Two layers name each other.** One pair may: `flows` calls into `runtime/flowing` from inside
   `flow`, `load` and `Outworlder.new`, and never at import. Importing `hmz.flows` must load
-  nothing else of humanize but `hmz.coganchor.faking`, which holds `FakeTool`, `FakeCli` and
+  nothing else of Humanize but `hmz.coganchor.faking`, which holds `FakeTool`, `FakeCli` and
   `FakeCommand`, and that is checked too.
 - **A top-level package is missing from the table.** `cli` is the one exemption.
 - **The anchor's target half loads more than it may.** `coganchor/serve/` runs on the target
@@ -71,7 +71,7 @@ this.
 
 ## Adding a backend
 
-A backend is one coding agent CLI humanize drives. Adding one touches most layers, so do it in
+A backend is one coding agent CLI Humanize drives. Adding one touches most layers, so do it in
 the order below, with a test run after each group. The walk-through follows how MiniMax Code,
 `mcode`, was added, in one commit: `git show --stat c3c1e6a` lists every file it touched.
 
@@ -198,7 +198,7 @@ uv run pytest -n0 tests/system/test_harness_task.py -k <name>
 
 1. **A module under `cli/`** if it takes a parser of its own, and a thin wrapper in
    `cli/__init__.py`.
-2. **An entry in `COMMANDS`.** A line humanize runs for itself, rather than one a person types,
+2. **An entry in `COMMANDS`.** A line Humanize runs for itself, rather than one a person types,
    goes in `INTERNAL` instead, which `hmz internal` routes.
 3. **Its output through `cli/output.py`** where the command has a `--json`, so a stray `print`
    never lands in the stream a program reads.
@@ -213,9 +213,9 @@ Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and wi
 
 ## SPECs
 
-`specs/` states everything humanize shows to the outside, in MUST, MUST NOT and MAY terms, and
+`specs/` states everything Humanize shows to the outside, in MUST, MUST NOT and MAY terms, and
 nothing about how it is built. `specs/api/` holds the interfaces: the flow API, the SDK, the
-daemon protocol, the HTTP API, the command line, `settings.yaml`, and every file humanize may
+daemon protocol, the HTTP API, the command line, `settings.yaml`, and every file Humanize may
 leave on disk. `specs/features/` holds one file per feature. `specs/README.md` holds the rules
 every SPEC is written by and the terms they share. Pick a layer in the diagram to open the SPEC
 that governs what it shows. Change the code to match the SPEC, and do not edit a SPEC unless you
@@ -227,18 +227,18 @@ another is this page's business, not a SPEC's.
 | --- | --- |
 | `specs/README.md` | How a SPEC is written, numbered and cited; the terms every SPEC shares |
 | `specs/api/flows.md` | The flow API: what a flow imports, declares and is handed |
-| `specs/api/sdk.md` | `hmz.sdk`: how a program that is not humanize drives it |
+| `specs/api/sdk.md` | `hmz.sdk`: how a program that is not Humanize drives it |
 | `specs/api/daemon.md` | The daemon's protocol, as a frontend sees it |
 | `specs/api/http.md` | Every HTTP endpoint `hmz web` serves |
 | `specs/api/cli.md` | Every command line |
 | `specs/api/settings.md` | Every key of `settings.yaml`, and every environment variable read |
 | `specs/api/files/home.md` | `~/.hmz` |
-| `specs/api/files/workspace.md` | What humanize may leave in a workspace, and what never |
+| `specs/api/files/workspace.md` | What Humanize may leave in a workspace, and what never |
 | `specs/api/files/epics.md` | An epic's directory, its records, and `.hmzepic` archives |
 | `specs/api/files/machine.md` | Per-user temporary and cache directories |
-| `specs/api/files/harness-homes.md` | What humanize keeps or builds for each CLI's home |
+| `specs/api/files/harness-homes.md` | What Humanize keeps or builds for each CLI's home |
 | `specs/api/files/desktop.md` | The macOS app's files |
-| `specs/api/files/targets.md` | What humanize may leave on another machine, container or job |
+| `specs/api/files/targets.md` | What Humanize may leave on another machine, container or job |
 | `specs/features/epics.md` | Starting, stopping, budgeting and picking up an epic |
 | `specs/features/agents.md` | Driving coding agent CLIs: configuration, permissions, faults |
 | `specs/features/accounts.md` | Which account an agent runs as |
@@ -253,7 +253,7 @@ another is this page's business, not a SPEC's.
 | `specs/features/daemons.md` | One daemon per machine, and remote daemons |
 | `specs/features/tui.md` | Every behaviour the terminal interface must have |
 | `specs/features/web.md` | Every behaviour the web interface must have |
-| `specs/features/desktop.md` | The macOS app in `desktop/`: a window on `hmz web` |
+| `specs/features/desktop.md` | Humanize Desktop, the macOS app in `desktop/`: a window on `hmz web` |
 :::
 
 ## Next steps

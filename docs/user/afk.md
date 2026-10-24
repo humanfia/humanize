@@ -72,7 +72,7 @@ const one = [
 
 # Being away — `/afk`
 
-`/afk on` tells humanize that nobody is at the prompt. A question an agent or the flow asks you
+`/afk on` tells Humanize that nobody is at the prompt. A question an agent or the flow asks you
 is answered at once with nothing, and the run carries on instead of waiting for you. Turn it on
 before you leave a long run alone.
 

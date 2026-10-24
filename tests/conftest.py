@@ -65,7 +65,7 @@ def _no_real_agents(_temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def hide_agents(temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Hides every coding agent installed here, so a test that forgot its stand-in fails.
 
-    humanize looks for a CLI on `PATH` and in `~/.local/bin`; both are narrowed to the
+    Humanize looks for a CLI on `PATH` and in `~/.local/bin`; both are narrowed to the
     system's own directories and this Python's.
     """
     monkeypatch.setenv("HOME", tempfile.mkdtemp(prefix="home-", dir=temporary))

@@ -22,7 +22,7 @@ hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
 hmz update                             update hmz to its newest release
 hmz backup <epic> [--to <target>]...   back epics up to git repositories, or download them
-hmz internal <command> [<args>...]     processes humanize spawns for itself
+hmz internal <command> [<args>...]     processes Humanize spawns for itself
 ```
 
 | Command | Function in `hmz.cli` | Summary as `hmz --help` prints it |
@@ -32,7 +32,7 @@ hmz internal <command> [<args>...]     processes humanize spawns for itself
 | [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
 | [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
 | [`backup`](#hmz-backup) | `_backup` | `back epics up to git repositories, or download them` |
-| [`internal`](#hmz-internal) | `_internal` | `internal commands used by humanize; do not run directly` |
+| [`internal`](#hmz-internal) | `_internal` | `internal commands used by Humanize; do not run directly` |
 
 `python -m hmz` is the same program. The console script is `hmz = "hmz.cli:main"`.
 
@@ -77,7 +77,7 @@ once, at start, in this order:
 | --- | --- | --- |
 | 1 | `HUMANIZE_DAEMON` stripped and lower-cased is `off`, `0` or `no` | holds the runs in this process. Nothing is said. |
 | 2 | stdin or stdout is not a TTY | holds the runs in this process. Nothing is said. |
-| 3 | this machine's daemon is found and its `protocol` is not `2`, or a host an older humanize left holds this directory | is not opened. See [Errors](#hmz-errors). |
+| 3 | this machine's daemon is found and its `protocol` is not `2`, or a host an older Humanize left holds this directory | is not opened. See [Errors](#hmz-errors). |
 | 4 | a host for this directory is found through the daemon | links to it as `kind="tui"`. |
 | 5 | no host is found | starts one, and the daemon where none is, with [`hmz.daemon.host()`](/reference/daemon#discovery), and links to it. |
 
@@ -100,7 +100,7 @@ Before Textual is imported, `hmz` sets `TEXTUAL_DISABLE_KITTY_KEY=1` in its own 
 | Condition | stderr | Exit |
 | --- | --- | --- |
 | The interface closed normally | — | `0` |
-| This machine's runs are held by an older humanize (daemon `protocol` not `2`), or this directory's by a host one left | `hmz: the runs on this machine are held by an older humanize (pid <n>); stop it with that version`, or `the runs in <dir> …` | `1` |
+| This machine's runs are held by an older Humanize (daemon `protocol` not `2`), or this directory's by a host one left | `hmz: the runs on this machine are held by an older Humanize (pid <n>); stop it with that version`, or `the runs in <dir> …` | `1` |
 | The host let go of the interface ([`gone`](/reference/daemon#gone)) | `hmz: <why>` (or `hmz: disconnected from the epics`), printed as the interface closes | `1` |
 | No host could be linked in 3 tries | `hmz: runs cannot be detached from the terminal (<OSError>), so they will run in this process instead` | the interface's |
 
@@ -316,7 +316,7 @@ Each limit at most once across every `-p`, among the flow's params or apart from
 | `graceful.duration`, `graceful.cost`, `graceful.output_tokens` | As `graceful`, for that limit alone, over what `graceful` says: `budget.cost=5,budget.output_tokens=200k,budget.graceful.output_tokens=false` cuts a turn off at its 200 000th token but lets one that reaches $5 finish. | `Graceful` |
 
 With no `budget.*`, `chat` runs under `Budget(cost=inf)`; any other flow is refused, the other
-flows humanize ships included.
+flows Humanize ships included.
 
 A run with a finite `cost` limit first brings the [price list](/reference/files#h-prices-json)
 up to date when the copy kept is missing or older than 24 h (at most 20 s; never with
@@ -498,7 +498,7 @@ key:
 | `subagent`, `subagent-ends` | A sub-agent the agent started, and its end. |
 | `asks` | The agent asking its user a question. |
 | `took` | A line put into the running turn is now in front of the model; `text` is that line. |
-| `notice` | humanize about the turn: a rate limit waited out, another account taking over, a turn cut off or ended for silence. |
+| `notice` | Humanize about the turn: a rate limit waited out, another account taking over, a turn cut off or ended for silence. |
 | `failed` | The turn failed; `text` is why. Closes the turn. |
 | `result` | The answer the turn ends on. Closes the turn. |
 
@@ -570,7 +570,7 @@ serves, refuses and answers is the [Web reference](/reference/web).
 | Condition | stderr | Exit |
 | --- | --- | --- |
 | Interrupted, terminated or hung up on, or, attached, standard input closed | — | `0` |
-| An older humanize holds the runs | `hmz: the runs in <dir> are held by an older humanize (pid <n>); stop it with that version` | `1` |
+| An older Humanize holds the runs | `hmz: the runs in <dir> are held by an older Humanize (pid <n>); stop it with that version` | `1` |
 | The runs could not be reached, or the port listened on | `hmz: the web interface cannot be served: <OSError>` | `1` |
 
 ## `hmz update` {#hmz-update}
@@ -641,7 +641,7 @@ Backs one epic of this directory -- by its name, or by its path -- up to
 hmz internal <command> [<args>...]
 ```
 
-The command lines humanize starts its own processes with. Each still runs when typed.
+The command lines Humanize starts its own processes with. Each still runs when typed.
 `hmz internal -h` prints the help below and exits `0`. `hmz internal` with no command, or an
 unknown one, prints the usage and an argparse error (`the following arguments are required:
 COMMAND`, `invalid choice: …`) and exits `2`.
@@ -650,7 +650,7 @@ COMMAND`, `invalid choice: …`) and exits `2`.
 | --- | --- | --- |
 | [`anchor`](#hmz-internal-anchor) | `run an agent turn on another machine` | every turn whose work lands on another machine |
 | [`cli`](#hmz-internal-cli) | `relay agent runs of a flow's command line to the flow` | a script on an agent's `PATH`, once per run of a flow's command line |
-| [`cred`](#hmz-internal-cred) | `run a program with credentials from an account` | every turn or login under an account, and every turn whose sessions humanize keeps |
+| [`cred`](#hmz-internal-cred) | `run a program with credentials from an account` | every turn or login under an account, and every turn whose sessions Humanize keeps |
 | [`fence`](#hmz-internal-fence) | `run a program held to what its flow permits` | every turn of an agent whose permission fences anything |
 | [`hook`](#hmz-internal-hook) | `relay agent hooks to a flow` | a CLI's hook table, once per hook call |
 | [`tools`](#hmz-internal-tools) | `relay agent tool calls to a flow` | a CLI's MCP configuration |
@@ -665,7 +665,7 @@ hmz internal anchor rendezvous …
 
 Runs a coding agent here whose work lands on another machine. A first word of `serve` or
 `rendezvous` selects the subcommand; otherwise every word after the options is the agent and
-its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
+its own arguments. Loads `coganchor` and nothing else of Humanize. Semantics:
 [Remote execution](/reference/remote-execution).
 
 | Option | Default | Meaning |
@@ -684,7 +684,7 @@ its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
 | `--net {local,remote}` | `local` | Where the agent's own TCP connections go. Commands always use the target's network. |
 | `--net-allow HOST[:PORT]` | — | With `--net remote`, keep connections to this host local. Repeatable. |
 | `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret a `tcp://` target expects. |
-| `--token-file FILE` | — | Read that secret from `FILE` instead. What humanize itself spawns is always given this, never `--token`: a command line is in every user's `ps`. The file is under `hmz.machine()/tokens/`, mode `0600`, named by the secret's SHA-256. |
+| `--token-file FILE` | — | Read that secret from `FILE` instead. What Humanize itself spawns is always given this, never `--token`: a command line is in every user's `ps`. The file is under `hmz.machine()/tokens/`, mode `0600`, named by the secret's SHA-256. |
 | `--force` | off | Use the mirror directory even if it holds unrelated files. |
 | `--native` | off | Run the CLI installed on the target instead of supervising one here. |
 | `--hush NAME` | — | With `--native`, unset this variable for the CLI on the target. Repeatable. |
@@ -762,7 +762,7 @@ hmz internal cred (--map FROM=TO | --keep FROM=TO)... [--] COMMAND [ARGS...]
 
 Runs `COMMAND` here with the syscalls naming certain paths answered from others: an account's
 credential files from its [provider directory](/reference/providers), and kept sessions from
-where humanize keeps them.
+where Humanize keeps them.
 
 | Option | Meaning |
 | --- | --- |
@@ -853,8 +853,8 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 | Status | Command | Meaning |
 | --- | --- | --- |
 | `0` | all | Success. For `hmz exec`, including a run its budget stopped. |
-| `1` | `hmz` | Runs held by an older humanize; or the host let go of the interface. |
-| `1` | `hmz web` | Runs held by an older humanize; or the runs or the port could not be had. |
+| `1` | `hmz` | Runs held by an older Humanize; or the host let go of the interface. |
+| `1` | `hmz web` | Runs held by an older Humanize; or the runs or the port could not be had. |
 | `1` | `hmz update` | Installed from a source, or no installer, PyPI or install that worked. |
 | `1` | `hmz exec` | The flow raised (traceback on stderr; the crash is reported where reporting is on). |
 | `1` | `internal …` | Could not connect, listen, supervise, or reach a socket. |
@@ -873,7 +873,7 @@ Variables these commands read. The complete list, with every layer's, is
 
 | Variable | Read by | Values | Effect |
 | --- | --- | --- | --- |
-| `HUMANIZE_HOME` | all | a path | Where humanize keeps what outlives a run. Default `~/.hmz`, which a `~/.humanize` is moved to. Empty is unset. Not created until written. |
+| `HUMANIZE_HOME` | all | a path | Where Humanize keeps what outlives a run. Default `~/.hmz`, which a `~/.humanize` is moved to. Empty is unset. Not created until written. |
 | `HUMANIZE_DAEMON` | `hmz`, `hmz web` | `off`, `0`, `no` (case-insensitive, stripped) | Hold runs in the interface's process. Anything else, empty included, holds them apart. |
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |

@@ -21,7 +21,7 @@ is waiting on `run`.
 ## How it works
 
 A **hook** is an async function you hang on one **moment** of an agent's sessions: a prompt
-about to go, a tool about to run, a turn about to end. humanize calls it with what it knows of
+about to go, a tool about to run, a turn about to end. Humanize calls it with what it knows of
 that moment, as a params object, and the CLI waits for its answer, a result object.
 
 Each moment has one method on the agent, named `on_` and the moment, and one params and result

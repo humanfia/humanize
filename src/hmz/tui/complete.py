@@ -1,7 +1,7 @@
 """What the editor offers to finish, which is the only way anything is typed here.
 
 A command line is typed, never filled in on a form: `/` offers the commands, `/settings`
-its pages, and `/flow` the flows there are -- the ones humanize ships, the ones installed out
+its pages, and `/flow` the flows there are -- the ones Humanize ships, the ones installed out
 of a flowverse, and this project's own and yours. Never a flow a flowverse only lists: that is
 one to install from `/flow` before there is anything to run. So does `$`, which is the flow
 said outright rather than chosen from a menu: the same list, under the sigil that starts one.

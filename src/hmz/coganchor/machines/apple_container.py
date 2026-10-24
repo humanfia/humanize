@@ -80,9 +80,9 @@ class AppleContainerConfig(MachineConfig):
       memory: How many bytes of memory, rounded up to a whole MiB, or None for `container`'s
         default.
       run_args: What else `container run` is told, ahead of the image. Said before
-        humanize's own resources, which a later flag outranks.
+        Humanize's own resources, which a later flag outranks.
       env: Variables to set in it.
-      labels: Labels to put on it beside humanize's own, which are never taken from here:
+      labels: Labels to put on it beside Humanize's own, which are never taken from here:
         what a container holds is read back off those, and they say only what it was given.
     """
 
@@ -151,11 +151,11 @@ class AppleContainerConfig(MachineConfig):
 def allocations(
     labels: Mapping[str, str] | None = None, *, seconds: float | None = None
 ) -> list[Allocation]:
-    """What humanize's running containers on this Mac hold of it.
+    """What Humanize's running containers on this Mac hold of it.
 
     Whoever started them: the Mac is shared out between everybody using it, and a container
     is holding its share whichever user's flow brought it up. `container` filters nothing, so
-    every running container is listed and those that are not humanize's, or do not carry
+    every running container is listed and those that are not Humanize's, or do not carry
     `labels`, are passed over here.
 
     Args:
@@ -466,7 +466,7 @@ class AppleContainer(MachineBase):
         """The labels: the caller's, then whose it is and what it holds of the Mac."""
         config = self._config
         # Whose it is, so that sweeping up after a flow that was killed outright cannot reach
-        # past this user; and none of humanize's own from the caller, as on a docker one.
+        # past this user; and none of Humanize's own from the caller, as on a docker one.
         said = {
             key: value
             for key, value in config.labels.items()

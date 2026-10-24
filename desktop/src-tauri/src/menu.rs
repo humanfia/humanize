@@ -54,10 +54,10 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         &[
             &Submenu::with_items(
                 app,
-                "humanize",
+                "Humanize Desktop",
                 true,
                 &[
-                    &PredefinedMenuItem::about(app, Some("About humanize"), Some(about))?,
+                    &PredefinedMenuItem::about(app, Some("About Humanize Desktop"), Some(about))?,
                     // Off in a development build, which is never updated.
                     &MenuItem::with_id(
                         app,

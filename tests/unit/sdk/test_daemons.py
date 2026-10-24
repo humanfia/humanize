@@ -49,6 +49,6 @@ def test_host_starts_or_finds_the_host_of_a_workspace(
 
 
 def test_host_raises_what_the_daemon_raises(daemon: mock.Mock) -> None:
-    daemon.host.side_effect = OSError("older humanize")
-    with pytest.raises(OSError, match="older humanize"):
+    daemon.host.side_effect = OSError("older Humanize")
+    with pytest.raises(OSError, match="older Humanize"):
         Daemons().host()
