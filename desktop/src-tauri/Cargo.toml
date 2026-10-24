@@ -20,7 +20,8 @@ tauri = { version = "2", default-features = false, features = ["wry"] }
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
-# Its own TLS and the system's proxy, without the zip only Windows installs from.
+# Its own TLS and the system's proxy, without the zip only Tauri 1's Windows updates came in:
+# Windows installs from the signed setup.exe itself.
 tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 tauri-plugin-window-state = "2"
 libc = "0.2"
