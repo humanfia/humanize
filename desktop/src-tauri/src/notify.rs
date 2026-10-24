@@ -26,9 +26,14 @@ use objc2_user_notifications::{
     UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationResponse,
     UNNotificationSound, UNUserNotificationCenter, UNUserNotificationCenterDelegate,
 };
-use tauri::AppHandle;
 #[cfg(windows)]
-use tauri_winrt_notification::Toast;
+use std::{fs, path::PathBuf};
+use tauri::AppHandle;
+
+#[cfg(windows)]
+use tauri::Manager;
+#[cfg(windows)]
+use tauri_winrt_notification::{IconCrop, Toast};
 use url::Url;
 
 use crate::{lock, on_main, reveal, show};
@@ -161,9 +166,11 @@ fn display(title: &str, body: &str, address: &str) {
         &app.config().identifier
     };
     let address = address.to_owned();
-    let shown = Toast::new(id)
-        .title(title)
-        .text1(body)
+    let mut toast = Toast::new(id).title(title).text1(body);
+    if let Some(logo) = logo(app) {
+        toast = toast.icon(&logo, IconCrop::Square, "");
+    }
+    let shown = toast
         .on_activated(move |_| {
             clicked(address.clone());
             Ok(())
@@ -172,6 +179,20 @@ fn display(title: &str, body: &str, address: &str) {
     if let Err(why) = shown {
         log::warn!("a notification could not be posted: {why}");
     }
+}
+
+/// The logo a toast shows beside what it says, as a file, which is all a toast takes: Windows
+/// draws an app's own icon in the toast's corner only where it has made out its shortcut, and
+/// not always then.
+#[cfg(windows)]
+fn logo(app: &AppHandle) -> Option<PathBuf> {
+    const LOGO: &[u8] = include_bytes!("../icons/128x128@2x.png");
+    let path = app.path().app_cache_dir().ok()?.join("logo.png");
+    if fs::read(&path).ok().as_deref() != Some(LOGO) {
+        fs::create_dir_all(path.parent()?).ok()?;
+        fs::write(&path, LOGO).ok()?;
+    }
+    Some(path)
 }
 
 /// Brings the window forward, on `hmz web`'s page at the address clicked where it is one: on
