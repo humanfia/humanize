@@ -379,7 +379,7 @@ _NAME = "humanize.name"
 
 
 def _named(one: Allocation) -> str:
-    """The name a job of humanize's was submitted under, which its mirrors are kept by."""
+    """The name a job of Humanize's was submitted under, which its mirrors are kept by."""
     return one.labels.get(_NAME, "") or one.name
 
 

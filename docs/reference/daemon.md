@@ -91,7 +91,7 @@ the one stopping, else the last.
 | `pid` | int | The daemon process. |
 | `started` | string | UTC, `%Y-%m-%dT%H:%M:%SZ`. |
 | `kind` | string | `"daemon"`. |
-| `protocol` | int | `2`. A `daemon.json` without it, or with another, is an older humanize's daemon, which nothing here reaches. |
+| `protocol` | int | `2`. A `daemon.json` without it, or with another, is an older Humanize's daemon, which nothing here reaches. |
 
 A workspace is known by `str(Path(workspace or cwd).resolve())`: two checkouts of one
 repository are two workspaces, and two spellings of one directory are one.
@@ -111,13 +111,13 @@ gone is cleaned with the rest.
 | `running(workspace=None)` | `Daemon \| None` | The host of that workspace, where the daemon's `daemon.json` parses as an object with an int `pid` of a live process (`kill(pid, 0)`; `EPERM` counts as alive), its socket accepts a connection within 1 s, its CONTROL [`list`](#routing) names the workspace, and that host's pid is alive. Where the daemon's `protocol` is not `2`: a `Daemon` for the daemon itself, with its `protocol` (`0` for none). Otherwise `None`. |
 | `daemons()` | `list[Daemon]` | Every host the daemon lists whose pid is alive, sorted by `started` (oldest first); the daemon itself where its `protocol` is not `2`; `[]` with no daemon. |
 | `host(workspace=None, *, seconds=10.0)` | `Daemon` | Starts the daemon where none is, then `running(workspace)`, else starts a host process; waits up to `seconds` for each. Tried twice, 0.1 s apart: a daemon that went as its host came up is started again. |
-| `older(daemon)` | `str` | `the runs in <workspace> are held by an older humanize (pid <pid>); stop it with that version`, or `on this machine` for a daemon. |
+| `older(daemon)` | `str` | `the runs in <workspace> are held by an older Humanize (pid <pid>); stop it with that version`, or `on this machine` for a daemon. |
 
 `host()` raises `OSError`:
 
 | Condition | `OSError` text |
 | --- | --- |
-| an older humanize's daemon (protocol not `2`), or a host it left holding the workspace | `[Errno <EADDRINUSE>] ` + `older(daemon)` (98 on Linux, 48 on macOS) |
+| an older Humanize's daemon (protocol not `2`), or a host it left holding the workspace | `[Errno <EADDRINUSE>] ` + `older(daemon)` (98 on Linux, 48 on macOS) |
 | the daemon or the new host reported a failure | the reported text, e.g. `the run could not be held: <why>` |
 | no daemon is listening after the wait | `this machine's daemon did not come up` |
 | no host is listed after both tries | `the runs in <workspace> did not come up` |
@@ -165,7 +165,7 @@ The daemon reads the first frame of each connection without taking it off the so
 | CONTROL without `workspace` | Answers it: `list` with `{"ok": true, "held": [{"pid", "workspace", "started", "slot"}, …]}` (registration order); anything else with `{"ok": false, "why": "no such request: <repr of do>"}`. |
 | MESSAGE or CONTROL whose `workspace` and `slot` (`""` without one) a host holds | Passes the socket to that host down its connection (`SCM_RIGHTS`, beside one byte `+`), and keeps its own descriptor until the host says it has it with one byte back. The host reads the frame itself. |
 | MESSAGE or CONTROL whose `workspace` and `slot` nobody holds | MESSAGE: a `reply` with `to` the request's `id`, `ok: false`, `why: no runs are held in <workspace>` (and ` for <slot>`). CONTROL: `{"ok": false, "why": …}`. Then closes. |
-| another kind | Answers with `GONE` (``held for frontends by a newer humanize; `hmz` of it reads it``) and closes. |
+| another kind | Answers with `GONE` (``held for frontends by a newer Humanize; `hmz` of it reads it``) and closes. |
 | a length no frame has, nothing within 10 s, or EOF | Closes. |
 
 The daemon closes once it has held no host for **2 s**, or **60 s** after it started where no
@@ -232,7 +232,7 @@ Both directions carry frames:
 | --- | --- |
 | Largest payload a reader accepts | 4 194 304 bytes (`1 << 22`). A larger length is a protocol error: the host drops the connection; a `Link` reads it as `gone` (`the host went away`). |
 | Largest frame the host sends | 4 194 303 bytes including the 5-byte header. A larger message is dropped and logged (`a <type> message was too long to carry`). Replies are not checked. |
-| Frame kind the daemon or host does not know | Answered with `GONE`: ``held for frontends by a newer humanize; `hmz` of it reads it``, then closed. |
+| Frame kind the daemon or host does not know | Answered with `GONE`: ``held for frontends by a newer Humanize; `hmz` of it reads it``, then closed. |
 | Text clipping | Every string longer than 262 144 characters in a history record or snapshot is cut to that length plus `… (<n> more characters)`. Not applied to `welcome`, `live`, `gone` or replies. |
 | JSON | `ensure_ascii=False`; values not JSON-native are `str()`-ed. |
 | `PROTOCOL` | `2`. |
@@ -384,7 +384,7 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | `unheld` | `agent`, `texts`: lines a turn ended without acknowledging; discarded |
 | `dropped` | `given` `[{agent, text, by, client}]`, `queued` `[{text, by, client, to}]`, `because` (`stopped` or `ended`); only where something was waiting |
 | `printed` | `text`: one line printed in the host |
-| `notice` | `text`: humanize's own note about the run, after `started` and before its first turn: `nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` where the run's `cost` limit cannot be enforced; `<backend>:<a> cannot hold '<role>': <why>; using <backend>:<b>` where an environment [fell back](/reference/machines#falling-back) to another runtime. The interface shows it as `hmz: <text>`, in yellow. |
+| `notice` | `text`: Humanize's own note about the run, after `started` and before its first turn: `nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` where the run's `cost` limit cannot be enforced; `<backend>:<a> cannot hold '<role>': <why>; using <backend>:<b>` where an environment [fell back](/reference/machines#falling-back) to another runtime. The interface shows it as `hmz: <text>`, in yellow. |
 | `stopping` | `by`, `client` |
 | `ended` | `how`, `why`, `mono` |
 
@@ -404,7 +404,7 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | --- | --- |
 | `""` | A person, or an agent working on this machine without an anchor. |
 | `local` | Harness here, work on another machine. |
-| `env` | Harness on the environment's machine (native CLI). `self`, written by an earlier humanize, means the same. |
+| `env` | Harness on the environment's machine (native CLI). `self`, written by an earlier Humanize, means the same. |
 | `<backend>:<name>` | Harness on the saved runtime of that name, which the harness setting of the runtime the work is on named (`docker:gpubox`). |
 
 `ended.how` and `why`:
@@ -445,7 +445,7 @@ The last message a frontend receives: `{"type": "gone", "why": …}`.
 | `the host was closed` | CONTROL `stop`, `quit`, `SIGTERM`, idle close |
 | `fell too far behind; open it again` | The host's queue for this frontend exceeded 64 MiB (cleared first) |
 | `too far behind; attach again` | The socket backlog exceeded 64 MiB (cut back to the frame in progress) |
-| ``held for frontends by a newer humanize; `hmz` of it reads it`` | A `GONE` frame, converted by `Link` |
+| ``held for frontends by a newer Humanize; `hmz` of it reads it`` | A `GONE` frame, converted by `Link` |
 | `the host went away` | Synthesised by `Link` on EOF, a socket error or a bad frame |
 
 After `gone` the host sends no more messages but still sends replies, and gives the socket up
@@ -504,7 +504,7 @@ def running(workspace=None, *, slot: str = "") -> Daemon | None: ...
 def daemons() -> list[Daemon]: ...                  # every host, chats' included
 def host(workspace=None, *, seconds: float = 10.0, slot: str = "") -> Daemon: ...
 def older(daemon: Daemon) -> str: ...
-class Older(RuntimeError): ...                      # the runs are held by an older humanize
+class Older(RuntimeError): ...                      # the runs are held by an older Humanize
 def attach(kind: str, name: str = "", *, workspace=None, slot: str = "") -> Link: ...
 def linked(host: Host, name: str = "", kind: str = "tui", *, replay: bool = True) -> Link: ...
 def reached(at: Path, workspace: str, name: str = "", kind: str = "sdk", *,

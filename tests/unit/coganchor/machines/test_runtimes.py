@@ -1,4 +1,4 @@
-"""The runtimes written down in humanize's settings: `hmz.coganchor.machines.store`."""
+"""The runtimes written down in Humanize's settings: `hmz.coganchor.machines.store`."""
 
 from __future__ import annotations
 

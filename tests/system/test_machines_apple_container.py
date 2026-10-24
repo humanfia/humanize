@@ -3,7 +3,7 @@
 The runtime is written down as one of the test's own. Skips, saying why, where Apple's
 `container` is not running or has not got `python:3.12-slim` pulled -- and so far on every
 Mac: an agent working in a container is supervised here, which takes Linux. It runs as soon
-as humanize can supervise one on a Mac.
+as Humanize can supervise one on a Mac.
 """
 
 from __future__ import annotations

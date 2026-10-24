@@ -1,7 +1,7 @@
 # User Guide
 
 For the person who runs flows: you give coding agents a task, a loop to work in and a budget,
-and humanize drives them until the work is done or the budget is spent. Nothing here asks you
+and Humanize drives them until the work is done or the budget is spent. Nothing here asks you
 to write Python; writing flows is the [Weaver Guide](/weaver/).
 
 ::: info How this guide is built
@@ -18,7 +18,7 @@ to write Python; writing flows is the [Weaver Guide](/weaver/).
 <div class="u7-path">
 
 1. **[Installation](/user/installation)**
-   humanize, and one coding agent CLI signed in. About five minutes.
+   Humanize, and one coding agent CLI signed in. About five minutes.
 2. **[Your first run](/user/first-run)**
    Choose a flow, give it an agent and a budget, watch it fix a bug, and stop it.
 3. **[Security](/user/security)**
@@ -94,7 +94,7 @@ step:
 **Without the interface**
 
 - [Run it unattended](/user/unattended)
-- [humanize in CI](/user/ci)
+- [Humanize in CI](/user/ci)
 
 </div>
 <div>

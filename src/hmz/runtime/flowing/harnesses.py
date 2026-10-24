@@ -191,7 +191,7 @@ _HAS: Final = 'command -v -- "$1" >/dev/null 2>&1 || command -v -- "$2" >/dev/nu
 #: Python to serve a turn -- a machine that could not be asked is not one without the CLI.
 _NOT_FOUND: Final = 69
 
-#: How long a machine is given to say whether it has a CLI: long enough to put humanize there
+#: How long a machine is given to say whether it has a CLI: long enough to put Humanize there
 #: the first time, which is most of what asking costs.
 _ASKING: Final = 300.0
 
@@ -1022,7 +1022,7 @@ def _afar(machine: MachineConfig | None) -> bool:
 def _apart(machine: MachineConfig | None) -> bool:
     """Whether a CLI whose turns land on `machine` runs here in a mirror apart from the work.
 
-    A mirror kept at a path of its own -- under humanize's home, named for the container or
+    A mirror kept at a path of its own -- under Humanize's home, named for the container or
     the job, as a docker, swarm, slurm or Apple container environment keeps it -- rather than
     at the work's own path. A CLI there finds a conversation by the mirror's path, which a
     later run's environment names anew.

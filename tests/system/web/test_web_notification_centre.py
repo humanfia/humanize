@@ -180,7 +180,7 @@ def test_a_notification_heard_is_a_card_that_opens_it(engine: str) -> None:
 
 def test_there_is_no_bell_where_the_server_has_no_notifications(engine: str) -> None:
     def older(page: Page) -> None:
-        # A server of an older humanize, which has none to give.
+        # A server of an older Humanize, which has none to give.
         page.route(
             re.compile(r".*/api/notifications(/.*|\?.*)?$"),
             lambda route: route.fulfill(status=404, json={"error": "Not found."}),

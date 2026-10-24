@@ -55,7 +55,7 @@ def spawner(monkeypatch: pytest.MonkeyPatch) -> Spawner:
 
 @pytest.fixture(autouse=True)
 def _catalogue(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The account's catalogue, as humanize last kept it."""
+    """The account's catalogue, as Humanize last kept it."""
     monkeypatch.setattr(
         models, "offered", offering(*(Model(name=one, efforts=()) for one in _ACCOUNT))
     )

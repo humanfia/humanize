@@ -1,6 +1,6 @@
 """What the machine's daemon says to whatever reaches its socket, and how it comes back.
 
-Bare sockets saying exactly what each test makes them, a daemon of an older humanize stood in
+Bare sockets saying exactly what each test makes them, a daemon of an older Humanize stood in
 by a socket of the test's own, and daemons and hosts that went away under their frontends.
 """
 
@@ -123,7 +123,7 @@ def test_a_reader_of_another_protocol_is_told_so_rather_than_left_waiting(
         ((kind, payload),) = _read(one)
 
     assert kind == GONE
-    assert b"newer humanize" in payload
+    assert b"newer Humanize" in payload
 
 
 def test_a_length_no_frame_has_is_closed_on_and_nobody_else_notices(
@@ -176,7 +176,7 @@ def test_runs_held_by_an_older_humanize_are_left_alone(workspace: Path) -> None:
         assert found is not None
         assert found.protocol == 0
         assert [(one.pid, one.protocol) for one in daemon.daemons()] == [(found.pid, 0)]
-        with pytest.raises(OSError, match="older humanize"):
+        with pytest.raises(OSError, match="older Humanize"):
             daemon.host()
         with pytest.raises(OSError, match="host"):
             found.link()

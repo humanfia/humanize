@@ -137,7 +137,7 @@ class Flowverses:
 
         Returns:
           One offer per flow installed out of it, or written into it for your own two: the
-          ones in the package as well for humanize's own. Never a flow its index only lists.
+          ones in the package as well for Humanize's own. Never a flow its index only lists.
         """
         with _within(self._workspace):
             from hmz.runtime.flowing import offers

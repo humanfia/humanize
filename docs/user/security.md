@@ -18,7 +18,7 @@ is what its flow declares, below.
   account every turn is billed to.
 - **Use it when** you are about to run a flow on a real repository, install a flow, or save
   an account.
-- **You need** humanize installed, and git for the repository the flow works in.
+- **You need** Humanize installed, and git for the repository the flow works in.
 :::
 
 ## Try it
@@ -142,7 +142,7 @@ What that comes to in practice:
   Codex's and Grok Build's `config.toml`; Qwen Code's `settings.json`; pi's `models.json` and
   `settings.json`), links to the rest of yours, so its login and sessions are your own, and the
   flow's skills beside yours (Oh My Pi gets that home for the skills alone). What it writes
-  into a copy, such as that it trusts the workspace, goes with it, and so does what humanize
+  into a copy, such as that it trusts the workspace, goes with it, and so does what Humanize
   adds there: Qwen Code's effort, hooks and tool server, a gateway account's model entry for
   Grok Build or provider for pi. Your system-wide settings and the project's own are read as
   the CLI always reads them.
@@ -156,7 +156,7 @@ What that comes to in practice:
   runs on that machine is held by that machine's own Landlock or Seatbelt, around its own
   working directory and home.
 - **A grant that cannot be held is refused, not widened.** On a Linux kernel without
-  Landlock, on a Mac where humanize already runs inside another sandbox, and for work on a
+  Landlock, on a Mac where Humanize already runs inside another sandbox, and for work on a
   machine like either, a role runs only with `ALL` in every scope.
 - **Some ways out remain.** Neither Landlock nor Seatbelt governs Unix sockets, so an agent
   can still talk to a socket another program listens on, a docker daemon's among them; on
@@ -169,14 +169,14 @@ to it.
 
 ## Listing a flow runs its Python
 
-A flow is a directory of Python, and humanize runs it to find out what it is. Opening `/flow`,
-or naming a flow after `$` at the prompt, runs every flow humanize lists: the ones built in,
+A flow is a directory of Python, and Humanize runs it to find out what it is. Opening `/flow`,
+or naming a flow after `$` at the prompt, runs every flow Humanize lists: the ones built in,
 the ones you installed, this project's and yours.
 
 Installing a flow from a [flowverse](/weaver/flowverses) therefore trusts the repository it
 comes from with this machine, the way installing a package does: install only the flows you
 would install as one. Adding a flowverse runs nothing: it is an index of releases, and holds no
-code. `official` is always there: it is humanize's own, at
+code. `official` is always there: it is Humanize's own, at
 [humanfia/flowverse](https://github.com/humanfia/flowverse), and its maintainers review every
 release it lists, which lowers the risk without removing it.
 
@@ -188,7 +188,7 @@ and the flow's name here runs the copy.
 
 ## Where your credentials are
 
-| An agent runs as | humanize keeps |
+| An agent runs as | Humanize keeps |
 | --- | --- |
 | `as local`, the default | nothing. The CLI reads its own login, where it always keeps it. |
 | a login made on the Accounts page of `/settings` | the files that CLI wrote when it signed in, under `~/.hmz/providers/<cli>/<name>/` |
@@ -206,7 +206,7 @@ reference](/reference/providers).
 
 ## Other things worth knowing
 
-- **Reporting.** humanize reports what goes wrong to its developers only if you said yes when
+- **Reporting.** Humanize reports what goes wrong to its developers only if you said yes when
   it first asked. A report carries more than a crash; [Reporting](/user/reporting) lists what
   is sent and what never is.
 - **A remote target served over TCP** is a shell on that machine for anyone who can reach the
@@ -218,7 +218,7 @@ reference](/reference/providers).
 - **A project's hooks run only on the project's own machine.** Project settings such as
   Claude Code's `hooks` or a `.mcp.json` stdio server start programs where the CLI runs. If
   a flow's agent runs on a different machine from its environment's work (harness `local`
-  with the work elsewhere, or a harness runtime other than the work's machine), humanize
+  with the work elsewhere, or a harness runtime other than the work's machine), Humanize
   refuses to open the session while the project has any such setting. Run the agent on that
   machine (harness `env`), or remove the setting. See
   [Remote execution](/reference/remote-execution#a-projects-own-programs).
@@ -227,7 +227,7 @@ reference](/reference/providers).
 
 ### A role is refused before the run starts
 
-Its grant cannot be held here: on a kernel without Landlock, on a Mac where humanize runs
+Its grant cannot be held here: on a kernel without Landlock, on a Mac where Humanize runs
 inside another sandbox, or on a machine like either, only a role with `ALL` in every scope
 runs. And a `cursor-agent` role with `online` of `NONE` is refused on every machine, because
 Cursor's web tools cannot be switched off. Run the flow on Linux with Landlock or on macOS

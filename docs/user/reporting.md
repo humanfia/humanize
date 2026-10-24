@@ -1,6 +1,6 @@
 # Reporting
 
-humanize can send its developers a report when it crashes, and when a run goes five minutes
+Humanize can send its developers a report when it crashes, and when a run goes five minutes
 without any sign of progress. Nothing else is sent. This page says exactly what such a report holds, what it never holds,
 and how to turn it on or off. Read it before you answer the question `hmz` asks the first time
 it opens, or when you need to tell somebody what leaves your machine.
@@ -12,17 +12,17 @@ The first time you open `hmz`, it asks. Nothing is sent until you say yes:
 ```text
 ╭────────────────────────────────────────────────────────────────╮
 │                                                                │
-│  Report errors to humanize?                                    │
+│  Report errors to Humanize?                                    │
 │  Send error reports to help fix bugs. Sent: the error and      │
-│  where in humanize it occurred; which flow was running, and    │
+│  where in Humanize it occurred; which flow was running, and    │
 │  what each agent was configured to run; which coding agents    │
 │  are installed, and account names; which skills and            │
 │  flowverses are active, by name; that a run went five minutes  │
-│  without any sign of progress; the version of humanize, of     │
+│  without any sign of progress; the version of Humanize, of     │
 │  Python, and the operating system and architecture. Never      │
 │  sent: nothing you typed: no task, prompt, or command; no      │
 │  agent output, and nothing from any transcript or session      │
-│  log; no files, directory names, or paths outside humanize     │
+│  log; no files, directory names, or paths outside Humanize     │
 │  itself; no keys, tokens, or account credentials -- not even   │
 │  environment variable names. You can change this later in      │
 │  /settings.                                                    │
@@ -42,7 +42,7 @@ To see or change your answer later, type `/settings` and open its first page, **
 
 ```text
   hmz › /settings › General
-  How humanize behaves on this machine, in every directory.
+  How Humanize behaves on this machine, in every directory.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ Display                                                                  │
@@ -55,7 +55,7 @@ To see or change your answer later, type `/settings` and open its first page, **
   │                                                                          │
   │ Privacy                                                                  │
   │ Error reports                                                    ○ off ▾ │  ①
-  │   send error reports to humanize                                         │
+  │   send error reports to Humanize                                         │
   │──────────────────────────────────────────────────────────────────────────│
   │ What is sent                                                           ▸ │  ②
   │   what error reports include and exclude                                 │
@@ -73,7 +73,7 @@ To see or change your answer later, type `/settings` and open its first page, **
 
 ## Before you start
 
-Nothing to install. Reporting is part of humanize, and it is off on a machine where nobody has
+Nothing to install. Reporting is part of Humanize, and it is off on a machine where nobody has
 answered the question.
 
 ## What is sent, and what never is
@@ -82,8 +82,8 @@ answered the question.
 <div class="report-list sent">
 <p class="report-head"><span aria-hidden="true">↑</span> Sent, once you say yes</p>
 <ul>
-<li><strong>The error, and where in humanize it occurred.</strong> Its type, its message, and
-each frame of the stack named by its place inside humanize or a library, such as
+<li><strong>The error, and where in Humanize it occurred.</strong> Its type, its message, and
+each frame of the stack named by its place inside Humanize or a library, such as
 <code>hmz/coganchor/agents/base.py</code>. A frame in your own code keeps its line number and
 nothing else.</li>
 <li><strong>Which flow was running, and what each agent was configured to run.</strong> The flow's
@@ -94,7 +94,7 @@ account was signed in.</li>
 <li><strong>Which skills and flowverses are active</strong>, by name.</li>
 <li><strong>That a run went five minutes without any sign of progress</strong>, as
 <a href="#when-a-report-is-sent">a halt report</a>.</li>
-<li><strong>The versions of humanize and Python, and the operating system and
+<li><strong>The versions of Humanize and Python, and the operating system and
 architecture.</strong></li>
 </ul>
 </div>
@@ -103,7 +103,7 @@ architecture.</strong></li>
 <ul>
 <li><strong>Nothing you typed.</strong> No task, prompt, or command.</li>
 <li><strong>No agent output.</strong> Nothing from any transcript or session log.</li>
-<li><strong>No files, directory names, or paths outside humanize itself.</strong></li>
+<li><strong>No files, directory names, or paths outside Humanize itself.</strong></li>
 <li><strong>No keys, tokens, or account credentials</strong>, not even the names of the
 environment variables an account sets.</li>
 </ul>
@@ -115,7 +115,7 @@ The machine's side, the installed agents, accounts, skills and flowverses, is de
 
 ## Example: what one report carries
 
-Say humanize crashes in the middle of a [Ralph loop](https://humanfia.ai/flows/ralph-loop) you started from
+Say Humanize crashes in the middle of a [Ralph loop](https://humanfia.ai/flows/ralph-loop) you started from
 `hmz`, on a machine whose answer is yes. The report is the error, and two short files that
 describe the run and the machine. The error, as it arrives:
 
@@ -123,7 +123,7 @@ describe the run and the machine. The error, as it arrives:
 KeyError: 'usage'                                                        ①
   hmz/coganchor/agents/claude.py, line 1204                              ②
   hmz/runtime/doing/hosting.py, line 958
-  <not humanize>, line 31                                                ③
+  <not Humanize>, line 31                                                ③
 tags: doing = a flow                                                     ④
 ```
 
@@ -144,7 +144,7 @@ flowverses:
 - {name: user, fetched: true}
 ```
 
-`flow.yaml`, in the shape humanize writes it:
+`flow.yaml`, in the shape Humanize writes it:
 
 ```yaml
 flow: ralph_loop:ralph_loop
@@ -162,18 +162,18 @@ agents:
   skills: []
 ```
 
-The error and `flow.yaml` are illustrative: nobody crashed humanize to write this page.
+The error and `flow.yaml` are illustrative: nobody crashed Humanize to write this page.
 
 ### What each part means
 
 1. **The error's type and message.** In the message, your home directory reads `~`, anything
    shaped like a key reads `…`, and a failed command's own command line reads `A command`,
    since that line could hold your task.
-2. **A frame inside humanize**, named by its path inside the package. This is what makes a
+2. **A frame inside Humanize**, named by its path inside the package. This is what makes a
    report fixable.
 3. **A frame in your own code**, such as a flow you wrote: its line number, and nothing else.
    Its file, module and function are named by you, so they are not sent.
-4. **What humanize was doing**: `a flow` for a run started from `hmz`, `hmz exec` for one
+4. **What Humanize was doing**: `a flow` for a run started from `hmz`, `hmz exec` for one
    started from the command line.
 5. **Which CLIs are installed**, by name. Not where, and not which version.
 6. **Accounts**: for each, its CLI, its name and how it was signed in. None on this machine.
@@ -212,7 +212,7 @@ fix:
 
 | Report | When | Carries |
 | --- | --- | --- |
-| crash | a run, or `hmz exec`, ends on an error inside humanize, or an error nothing in humanize catches | the error, and the description of the run above |
+| crash | a run, or `hmz exec`, ends on an error inside Humanize, or an error nothing in Humanize catches | the error, and the description of the run above |
 | halt | a run you are watching goes five minutes without a word from any of its agents; time spent waiting for your answer does not count | how many seconds it stood still, and the description of the run above |
 
 Each kind of crash, raised at the same place, is sent once per process, and a run is reported
@@ -221,7 +221,7 @@ about a key you pressed or a menu you closed.
 
 ## How the promise is kept
 
-Reports go to humanize's own [Sentry](https://sentry.io) project. The reporter is set up so
+Reports go to Humanize's own [Sentry](https://sentry.io) project. The reporter is set up so
 that the list above stays true:
 
 - `send_default_pii` is off: no IP address, no user, no machine name.
@@ -256,7 +256,7 @@ Credentials are still struck out of it.
 - [Exporting a run](/user/export): sending a whole run, on purpose
 - [Settings](/user/settings): everything else `/settings` keeps
 - [Security](/user/security): what agents may touch on this machine
-- [CLI reference](/reference/cli): `HUMANIZE_SENTRY` among humanize's environment variables
+- [CLI reference](/reference/cli): `HUMANIZE_SENTRY` among Humanize's environment variables
 
 <style scoped>
 .report-lists {

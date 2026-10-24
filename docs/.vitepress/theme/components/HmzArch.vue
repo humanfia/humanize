@@ -64,7 +64,7 @@ const BANDS: Band[] = [
     tone: 'var(--hmz-green)',
     groups: [
       {
-        label: 'in humanize',
+        label: 'in Humanize',
         chips: [
           { text: 'chat', href: `${FLOWS}chat` },
           { text: 'ralph_loop', href: `${FLOWS}ralph-loop` },
@@ -93,7 +93,7 @@ const BANDS: Band[] = [
     down: 'a flow, an agent for each of its roles, and a budget',
   },
   {
-    name: 'humanize',
+    name: 'Humanize',
     owns:
       'runs the flow: takes every turn, holds every conversation, keeps to the budget, ' +
       'and records the run',

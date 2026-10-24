@@ -19,7 +19,7 @@ import Allowances from '../.vitepress/theme/components/features/Allowances.vue'
   it stands. Each limit is graceful or not on its own.
 - **Nested.** Cost and tokens roll up through every flow a run calls. Duration is a deadline,
   not a sum.
-- **humanize holds it.** No flow and no hook can talk a spent budget into another turn.
+- **Humanize holds it.** No flow and no hook can talk a spent budget into another turn.
 - **One per run.** A [picked-up](/features/resuming) run brings its own. Only
   [`chat`](https://humanfia.ai/flows/chat) runs without one.
 - **Unpriced is free.** A model with no listed price costs $0, so pair cost with a time or

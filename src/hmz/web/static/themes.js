@@ -1,4 +1,4 @@
-// Themes, as an editor keeps them: those humanize comes with, a light and a dark of each pair,
+// Themes, as an editor keeps them: those Humanize comes with, a light and a dark of each pair,
 // and any made in this browser on Light or Dark, alone or as a pair of its own -- a name, the
 // colours it changes and a picture for any of the page's large planes, still or drawn moving --
 // chosen outright or under Auto, which follows the system with the theme picked for its light
@@ -6,7 +6,7 @@
 // is written out whole as a `.hmztheme` file, which is read back in here or in any other browser.
 //
 // What a theme changes is kept beside the choice, for theme.js to paint before the page is
-// drawn -- those humanize comes with as well, while they are chosen or paired; its pictures,
+// drawn -- those Humanize comes with as well, while they are chosen or paired; its pictures,
 // too large for that, are kept in the browser's database and painted after.
 
 import { OWN, PAIRS } from './presets.js'
@@ -41,7 +41,7 @@ export function label(one) {
   return `${one.name} · ${one.base === 'dark' ? 'Dark' : 'Light'}`
 }
 
-/** Every theme: those humanize comes with, then those made here. */
+/** Every theme: those Humanize comes with, then those made here. */
 export function themes() {
   return [...OWN, ...made()]
 }
@@ -81,7 +81,7 @@ export function pair(scheme, id) {
   paint()
 }
 
-/** Every pair: those humanize comes with, then those made here, each by its key and its name. */
+/** Every pair: those Humanize comes with, then those made here, each by its key and its name. */
 export function pairs() {
   const mine = new Map()
   for (const one of made()) if (one.pair && !mine.has(one.pair)) mine.set(one.pair, { key: one.pair, name: one.name, mine: true })
@@ -111,7 +111,7 @@ export function usePair(key) {
 }
 
 /**
- * Keeps those humanize comes with that are chosen or paired beside the themes made here, for
+ * Keeps those Humanize comes with that are chosen or paired beside the themes made here, for
  * theme.js, which cannot read this file before the page is drawn, to paint them.
  */
 function hand() {
@@ -130,7 +130,7 @@ export function save(one) {
   keep('hmz-themes', JSON.stringify(all))
 }
 
-/** Forgets a theme made here and its pictures; whatever showed it shows humanize's own instead. */
+/** Forgets a theme made here and its pictures; whatever showed it shows Humanize's own instead. */
 export async function remove(id) {
   keep('hmz-themes', JSON.stringify(made().filter((one) => one.id !== id)))
   if (chosen() === id) keep('hmz-theme', null)

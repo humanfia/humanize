@@ -39,7 +39,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let menu = Menu::with_items(
         app,
         &[
-            &item(SHOW, "Show humanize")?,
+            &item(SHOW, "Show Humanize Desktop")?,
             &check(app)?,
             &item("docs", "Documentation")?,
             &PredefinedMenuItem::separator(app)?,
@@ -47,7 +47,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         ],
     )?;
     let mut tray = TrayIconBuilder::with_id(crate::MAIN)
-        .tooltip("humanize")
+        .tooltip("Humanize Desktop")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
@@ -114,10 +114,10 @@ fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         &[
             &Submenu::with_items(
                 app,
-                "humanize",
+                "Humanize Desktop",
                 true,
                 &[
-                    &PredefinedMenuItem::about(app, Some("About humanize"), Some(about))?,
+                    &PredefinedMenuItem::about(app, Some("About Humanize Desktop"), Some(about))?,
                     &check(app)?,
                     &separator()?,
                     &PredefinedMenuItem::hide(app, None)?,

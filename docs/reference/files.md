@@ -1,6 +1,6 @@
 # Files
 
-Every file and directory humanize reads or writes: under its home, under a workspace's
+Every file and directory Humanize reads or writes: under its home, under a workspace's
 `.hmz/`, and elsewhere on this machine and on the machines environments run on.
 
 ## Roots
@@ -17,7 +17,7 @@ Every file and directory humanize reads or writes: under its home, under a works
 ### Moved from `.humanize`
 
 These directories were called `.humanize` before. Each old one is renamed to its new name
-the first time humanize looks for it, with no message:
+the first time Humanize looks for it, with no message:
 
 | Old | New | When |
 | --- | --- | --- |
@@ -226,8 +226,8 @@ by removing the flowverse. Imported where flows are listed and run.
 ### `~/.hmz/flows/` and `<workspace>/.hmz/flows/`
 
 Flowverses `user` and `local`: `<name>/__init__.py` or `<name>.py`
-([Where flows live](/reference/flows#where-flows-live)). humanize writes here only when a flow
-is copied here (to `.<name>.*`, then renamed). Never deleted by humanize.
+([Where flows live](/reference/flows#where-flows-live)). Humanize writes here only when a flow
+is copied here (to `.<name>.*`, then renamed). Never deleted by Humanize.
 
 ## Environments
 
@@ -254,7 +254,7 @@ file, then rename.
 
 **In your repository.** `snapshot` writes refs `refs/hmz/snapshots/<name>` (commits authored
 `humanize <humanize@localhost>`) using a temporary index `<index>.hmz-snapshot.<pid>`. Refs are
-never removed by humanize.
+never removed by Humanize.
 
 **Containers.** A `docker` environment's container is named
 `humanize-<provider>-<role>-<hex8>` and labelled `humanize=<uid>`, `humanize.provider`,
@@ -273,7 +273,7 @@ same path on a shared filesystem. A docker or swarm runtime that sets a
 An empty directory mounted as the workdir of a harness a harness setting puts on a docker runtime
 whose daemon is on this machine, or on an Apple container, saved without a workdir
 ([Harness placement](/reference/flows#harness-placement)): a container needs a directory of
-this user's on the host to mount. Created by the run; nothing is written into it by humanize.
+this user's on the host to mount. Created by the run; nothing is written into it by Humanize.
 
 ## Runs
 
@@ -294,7 +294,7 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | `sessions/<cli>/…` | by the CLI itself, redirected | the CLI's own layout |
 | `traces/*.trace.json` | on demand; plain write | [Chrome trace](/reference/tracing#document) |
 
-Epics are never deleted by humanize.
+Epics are never deleted by Humanize.
 
 ## Caches
 
@@ -306,7 +306,7 @@ Epics are never deleted by humanize.
 | `~/.cache/humanize/shadows/<sha256(path)[:16]>.json` | `{"shadow": "<abs path>", "target": "<target>"}` per mirror; moved by [`HUMANIZE_SHADOWS`](/reference/environment#humanize-shadows); never removed |
 | `~/.cache/humanize/shadows/<sha256(path)[:16]>.journal`, `….live` | what the turns working in a mirror know of it, one JSON change a line, and the lock each holds shared while it works there; `0600`; begun again by a turn starting alone; moved and kept as the record is |
 
-Every path in this section is safe to delete while humanize is not running.
+Every path in this section is safe to delete while Humanize is not running.
 
 ## Temporary
 
@@ -317,7 +317,7 @@ Every path in this section is safe to delete while humanize is not running.
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock`, `humanize-clis-*/cli.sock` (under `/tmp` instead where `$TMPDIR` is too long for the socket's path to fit in 103 bytes) | sockets a CLI reports hooks, tool calls and preload events on, and a flow's command lines are run through | with the session |
 | `$TMPDIR/hmz-dsh-*/humanize.patch.yml` | per-session CLI configuration | with the session |
 | `$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>/` | checkouts of [`git+` refs](/reference/flows#refs), and of the releases [installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`, checked out detached at `<sha>`, renamed into place; one per commit | never; cloned again when missing |
-| `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
+| `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the Humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
 | `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>/` | clones of skill repositories a role of a flow that was never installed names by URL ([Skills](/reference/flows#the-skills-a-flow-brings)), fetched again each run that names them | kept |
 | `$TMPDIR/humanize-<uid>/daemon.sock`, `daemon.json` (`0600`) | the [daemon](/reference/daemon#files) of this machine and user, which every workspace's runs are reached through: its socket, and `{"pid": int, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "daemon", "protocol": int}` via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename | when the daemon closes |
 | `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
@@ -332,7 +332,7 @@ Every path in this section is safe to delete while humanize is not running.
 
 | Path | Is |
 | --- | --- |
-| `$HOME/.cache/humanize/humanize-<digest>.pyz` | the humanize bundle on an `ssh` machine or a Slurm job's node (`/tmp/humanize/…` in a container, `/tmp/humanize-<UID>/…`, `0700`, for a docker target naming `user=UID`); checked against `<digest>` on arrival and when already there, written to `f.<pid>` and moved into place; every run line touches the one it runs; other `humanize-*.pyz*` untouched for 14 days are removed by the next install |
+| `$HOME/.cache/humanize/humanize-<digest>.pyz` | the Humanize bundle on an `ssh` machine or a Slurm job's node (`/tmp/humanize/…` in a container, `/tmp/humanize-<UID>/…`, `0700`, for a docker target naming `user=UID`); checked against `<digest>` on arrival and when already there, written to `f.<pid>` and moved into place; every run line touches the one it runs; other `humanize-*.pyz*` untouched for 14 days are removed by the next install |
 | `$HOME/.cache/humanize-mirrors/<sha256[:16]>/` on an `ssh` machine; `/tmp/humanize-mirrors/<sha256[:16]>/` in a container; `/tmp/humanize-mirrors-<UID>/<sha256[:16]>/` for a docker target naming `user=UID` | a remote harness's mirror of the workspace |
 | `${HUMANIZE_HOME:-$HOME/.hmz}/envs/` | as [above](#state-envs) |
 | `/tmp/humanize-slurm-<job>.out` on a Slurm job's node | what a `via: tcp` job's serving half says on its way up, which its port is read from; left to the node |
@@ -357,4 +357,4 @@ Nothing prunes `epics/`, worktrees under
 `envs/`, snapshot refs, `M/compiled/`, `M/docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
 Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the
-`$TMPDIR/humanize-<uid>.pyz` and `.stamp` an earlier humanize shared between checkouts.
+`$TMPDIR/humanize-<uid>.pyz` and `.stamp` an earlier Humanize shared between checkouts.

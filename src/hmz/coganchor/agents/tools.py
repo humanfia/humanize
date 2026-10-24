@@ -168,7 +168,7 @@ class Toolbox:
     def command(self) -> list[str]:
         """What a coding agent is told to run to reach these callbacks.
 
-        Both halves of it are this machine's: the program is the humanize installed here, and
+        Both halves of it are this machine's: the program is the Humanize installed here, and
         the socket is in this very process, inside a directory nothing off this machine can
         name. Which is the whole of why it works, and the whole of why a CLI driven on another
         machine cannot be given it -- that turn is refused where it is spawned rather than
@@ -342,7 +342,7 @@ def _answers(
             ]
         }
     if method != "tools/call":
-        raise _Refused(_NO_METHOD, f"{method} is not something humanize serves")
+        raise _Refused(_NO_METHOD, f"{method} is not something Humanize serves")
     named = str(given.get("name") or "")
     tool = next((one for one in offered() if one.name == named), None)
     if tool is None:

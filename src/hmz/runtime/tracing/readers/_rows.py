@@ -1,6 +1,6 @@
 """The session store opencode and mimocode share, read as sessions.
 
-Two of the CLIs humanize drives keep everything they record in one SQLite database
+Two of the CLIs Humanize drives keep everything they record in one SQLite database
 rather than a file per session, and they keep it in the same three tables, because
 one is a fork of the other: `session` is the conversation, `message` is a turn of
 it, and `part` is what a turn was made of, each holding its own JSON in a text

@@ -19,7 +19,7 @@ holds the engine's journal of a flow that can be picked up. What refuses a run b
 started is :class:`Refused`, which a command line reports as a line to correct.
 
 What a flow is, and everything it is handed, is :mod:`hmz.flows` and the engine behind it.
-Nothing a flow itself reaches for is here: a flow names one module of humanize's, and it is not
+Nothing a flow itself reaches for is here: a flow names one module of Humanize's, and it is not
 this one.
 """
 
@@ -720,7 +720,7 @@ class Runner:
             always away, which is what a command line is.
           opened: What is told of each session as it opens, or None.
           started: What is handed the epic the run is written into, once it is open.
-          noticed: What is told humanize's own word about the run, in a line: an
+          noticed: What is told Humanize's own word about the run, in a line: an
             environment moved off the runtime its `-e` named, and why.
 
         Returns:

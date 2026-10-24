@@ -53,7 +53,7 @@ _CONTINUATION_TOOLS = (
 #: whatever page it liked would be answering the same question the other way.
 #:
 #: Withheld where the answer is no and nowhere else. Silence is not a no: an agent nobody said
-#: anything about is one Claude ships these two to, so a rule written for it would be humanize
+#: anything about is one Claude ships these two to, so a rule written for it would be Humanize
 #: taking a tool away in the name of a question it was never asked.
 #:
 #: And withheld from an agent whose fence cuts the network, which is a no said another way --
@@ -71,7 +71,7 @@ _FLEET = ("Task", "Agent")
 
 #: What keeps a turn's work inside the turn. Claude sends a subagent or a command to the
 #: background when it likes and ends the turn at once, saying it will wait for them -- and the
-#: `result` that ends it is the turn humanize is holding over, so what the agent went on to
+#: `result` that ends it is the turn Humanize is holding over, so what the agent went on to
 #: find would land after its flow had read the answer and moved on. Set, the same subagents
 #: run, several to one message as before, and the turn ends when they have.
 _FOREGROUND = {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}
@@ -262,14 +262,14 @@ def _result_failure(said: dict[str, Any]) -> str | None:
 
 @dataclass(frozen=True, kw_only=True)
 class ClaudeCodeAgentConfig(AgentConfig):
-    """The common settings, plus what this CLI takes that humanize has no word for.
+    """The common settings, plus what this CLI takes that Humanize has no word for.
 
     Everything else on Claude's command line is left at what `claude` itself does when it is
     passed nothing, so an agent nobody has configured takes its turn as the bare CLI would
     take it. A few of those omissions are chosen rather than merely unwritten, and are worth
     saying so that nobody adds them back as an obvious improvement. `--fallback-model` would
     have the CLI answer quietly on another model when the one asked for is overloaded, and
-    humanize already falls back by naming the whole place a turn moves to -- both at once is
+    Humanize already falls back by naming the whole place a turn moves to -- both at once is
     a turn that ran somewhere `agent.spec` does not say. `--max-budget-usd` counts dollars
     over the process, and this driver ends the process and resumes the conversation whenever
     the effort, the hook table or the offered callbacks move, so a cap spelled that way would
@@ -293,7 +293,7 @@ class ClaudeCodeAgentConfig(AgentConfig):
         each reach once and whole, the way every backend with no such flag says it.
         `narrate` is the name a flow asks for it under before it is handed an agent.
       asks: Whether an agent at `bypass` asks before every tool that would change something,
-        for humanize to answer: yes, unless a hook hung on `PERMISSION_REQUEST` says no. Off,
+        for Humanize to answer: yes, unless a hook hung on `PERMISSION_REQUEST` says no. Off,
         `bypass` is Claude's `bypassPermissions`, which asks nothing, so such a hook would
         have nothing to refuse. None, the default, is on while such a hook is hung on the
         agent; a flow says which, since it hangs one on every agent it drives. Nothing at any
@@ -496,7 +496,7 @@ class ClaudeCodeSession(StreamSessionBase):
             *self._holding(),
             *(
                 # The mode the rung means, where there is a rung, said the way the effort
-                # below is. An agent at no rung at all is one humanize says nothing to Claude
+                # below is. An agent at no rung at all is one Humanize says nothing to Claude
                 # about, which leaves it at whatever mode `claude --print` would have run at
                 # on this account. The flag carrying "" would not be that -- it would be a
                 # mode named badly -- and Claude has no mode of its own meaning "whatever you
@@ -506,13 +506,13 @@ class ClaudeCodeSession(StreamSessionBase):
             ),
             *(
                 # `bypass` is the rung where nothing is asked and nothing is checked, so
-                # nobody is at a prompt to answer for it -- and what is still asked, humanize
+                # nobody is at a prompt to answer for it -- and what is still asked, Humanize
                 # answers: whatever Claude asks at `bypassPermissions` regardless (a question
                 # for its user), everything the account's own mode asks where it forbids that
                 # one, and everything while a hook is hung on `PERMISSION_REQUEST`. An agent
                 # at no rung at all is not that agent: what it stops to ask about is between
                 # it and the account it runs on, and taking the deciding for one would be
-                # humanize answering a question nobody put to it.
+                # Humanize answering a question nobody put to it.
                 #
                 # `stdio` routes every request to us: each one is read as a
                 # `control_request` and answered `allow`, yes to whatever the account leaves
@@ -539,7 +539,7 @@ class ClaudeCodeSession(StreamSessionBase):
             json.dumps(self._settings(), separators=(",", ":")),
             "--model",
             self._agent.config.model,
-            # The rung, where there is one. An agent at no rung is one humanize says nothing
+            # The rung, where there is one. An agent at no rung is one Humanize says nothing
             # to Claude about, which leaves the model at whatever effort the account gives it
             # -- a flag carrying nothing would be read as a rung named badly, and 2.1.x warns
             # about an effort it does not know and then runs at its default anyway, which is
@@ -553,7 +553,7 @@ class ClaudeCodeSession(StreamSessionBase):
         # A tool call is a tool call, and `--disallowedTools` is that call written as a rule.
         # Two things are said with it and the flag takes one list, so they are one list: an
         # agent whose goals were switched off is refused the tools that would carry work past
-        # the turn humanize is holding -- a subagent of its own, a wakeup, anything on the
+        # the turn Humanize is holding -- a subagent of its own, a wakeup, anything on the
         # scheduler -- and one told not to search the web is refused the two that reach it.
         # Everything else it may reach for is what its permission rung says it may.
         denied: list[str] = []
@@ -602,7 +602,7 @@ class ClaudeCodeSession(StreamSessionBase):
         stream this session is already reading, and read there a `PreToolUse` arrives after
         Claude has announced the tool and is about to run it: a flow refusing one would be
         describing what already happened. Claude's own table is the one place it stops and
-        waits to be told, so that is where humanize puts the moment -- pointed at
+        waits to be told, so that is where Humanize puts the moment -- pointed at
         `hmz internal hook --at <socket>`, which carries it back to the hooks hung on this agent.
 
         Said only where something is actually hung on that moment. A table is a program Claude
@@ -937,7 +937,7 @@ class ClaudeCodeSession(StreamSessionBase):
         """The permission mode a Claude started now is told, or "" for none.
 
         The rung's own (:data:`_PERMITTED`), except at `bypass`: :data:`_ASKING` while the
-        config asks for every request to be put to humanize, and :data:`_DECLINED` on an
+        config asks for every request to be put to Humanize, and :data:`_DECLINED` on an
         account already found to forbid `bypassPermissions`.
 
         Returns:
@@ -1286,7 +1286,7 @@ class ClaudeCodeSession(StreamSessionBase):
         Two kinds arrive here. The tool Claude uses to ask a person a question is put to the
         person. Everything else is a permission -- and under `bypass`, where Claude runs at
         `manual` and asks before every tool that would change something, every one of those
-        asks lands here, which is humanize taking the deciding rather than skipping it. A flow
+        asks lands here, which is Humanize taking the deciding rather than skipping it. A flow
         watches its agent rather than gating it, so those are allowed with the input they came
         with, unless something hung on `PermissionRequest` says otherwise -- a moment a refusal
         actually stops the agent at, because it is one the backend waits on. It is the second

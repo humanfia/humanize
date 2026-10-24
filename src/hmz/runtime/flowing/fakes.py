@@ -165,7 +165,7 @@ type Handler = (
 _AGAIN = 100
 
 #: What a snapshot leaves out and a rewind leaves alone at the top of a worktree, as git's
-#: do: humanize's own directory, under its name now and the one it had before.
+#: do: Humanize's own directory, under its name now and the one it had before.
 _UNTOUCHED = (".hmz", ".humanize")
 
 #: The harnesses whose CLI has no fork of its own, as coganchor's profiles say.

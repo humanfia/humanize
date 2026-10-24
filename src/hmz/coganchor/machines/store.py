@@ -7,7 +7,7 @@ each environment onto whichever of its nodes has room, this Mac's Apple containe
 share of it they may have, or the Slurm cluster this machine submits to, with the partition and
 account a job for each environment is submitted under. A flow's environment is put on one
 when an `-e` names it, and moved down the runtimes it falls back to where it cannot be held
-there. One entry per runtime, under `runtimes: <backend>: <name>:` in humanize's settings,
+there. One entry per runtime, under `runtimes: <backend>: <name>:` in Humanize's settings,
 beside everything else `/settings` sets.
 
 Nothing here reaches a machine. What one is when it is asked is
@@ -87,7 +87,7 @@ IMPORTED = "imported"
 #: reads as something else, which cannot climb out of the directory it names.
 _NAMED = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 
-#: Where in humanize's settings the runtimes are written down, by backend and then by name.
+#: Where in Humanize's settings the runtimes are written down, by backend and then by name.
 _HELD = "runtimes"
 
 #: A host, a login or an ssh config alias: a word `ssh` takes as one, never read as an option.
@@ -115,7 +115,7 @@ _PORT_MAX = 65535
 _MAPPINGS = ("options", "nodes")
 
 #: What the name of a container or a service a runtime brings up may start with in place of
-#: humanize's own: one word of letters, digits, dashes and underscores, from a letter or a
+#: Humanize's own: one word of letters, digits, dashes and underscores, from a letter or a
 #: digit to a letter or a digit -- which a swarm takes in a service's name, as docker does in
 #: a container's.
 _PREFIX = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?\Z")
@@ -822,7 +822,7 @@ _SLURM_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]*\Z")
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SlurmRuntime:
-    """The Slurm cluster this machine submits to, and how a job of humanize's is asked for.
+    """The Slurm cluster this machine submits to, and how a job of Humanize's is asked for.
 
     Every environment on it is a job of its own, submitted with `sbatch` from here and held
     while the environment is, which the cluster places on whichever node has what the role
@@ -1250,7 +1250,7 @@ def _read(backend: str, name: str, said: object) -> Runtime | None:
         for key, value in cast("dict[Any, Any]", said).items()
         if key not in ("backend", "name")
     }
-    # An earlier humanize wrote an ordered `affinity` instead, tried until one had room:
+    # An earlier Humanize wrote an ordered `affinity` instead, tried until one had room:
     # read as its first entry, which was where a harness went whenever it could.
     if "affinity" in fields:
         was = fields.pop("affinity")

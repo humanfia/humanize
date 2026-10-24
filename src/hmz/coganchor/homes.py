@@ -26,16 +26,16 @@ built on the machine the CLI runs on as it starts and taken away when it stops:
 Nothing above the user level is touched: the system's own settings are wherever the CLI reads
 them, and the project's are the workspace's, read as the CLI always reads them.
 
-What humanize itself manages for a CLI that takes it at its user level alone -- Qwen Code's
+What Humanize itself manages for a CLI that takes it at its user level alone -- Qwen Code's
 effort, a gateway's entry in Grok Build's `config.toml` -- is merged into those copies as the
 home is built (:attr:`Virtual.merges`), each by a function its driver names (:func:`merger`):
 said as data, so that a home built on another machine has them merged there too.
 
-Two builders, one for each place a CLI can be: :func:`build`, wherever humanize runs it -- here
+Two builders, one for each place a CLI can be: :func:`build`, wherever Humanize runs it -- here
 for a CLI this machine starts, and on a harness's own machine for one supervised there
 (:mod:`hmz.coganchor.elsewhere`) -- and :data:`SCRIPT`, a POSIX shell script that does the same
 on a target whose own CLI a native anchor drives (:func:`hmz.coganchor.anchor.drive`), where
-nothing of humanize runs and nothing is merged.
+nothing of Humanize runs and nothing is merged.
 """
 
 from __future__ import annotations
@@ -319,7 +319,7 @@ def _merging(name: str) -> Callable[[Path, Any], None]:
     """The merger of that name, its module imported first where none of it is here yet.
 
     Raises:
-      ValueError: If humanize has no merger of that name.
+      ValueError: If Humanize has no merger of that name.
     """
     module = name.partition(":")[0]
     if name not in _MERGERS and module.startswith("hmz."):
@@ -486,7 +486,7 @@ def build(
     Raises:
       OSError: If it could not be built, which is a turn that must not run: a CLI pointed at
         half a home is a CLI that has lost its settings.
-      ValueError: If one of its merges is none of humanize's. And whatever a merger raises,
+      ValueError: If one of its merges is none of Humanize's. And whatever a merger raises,
         for what it could not merge.
     """
     said = os.environ if environ is None else environ
@@ -703,8 +703,8 @@ def _back(entry: Path, whence: Path, answered: Callable[[str], str | None]) -> N
         log.warning("could not write %s back to %s: %s", entry, there, why)
 
 
-#: The same as :func:`build`, as a POSIX shell script for a target where nothing of humanize
-#: runs. Run as `sh -c SCRIPT humanize AT VARIABLE DEFAULT LODGES [WORD...]`, after anything
+#: The same as :func:`build`, as a POSIX shell script for a target where nothing of Humanize
+#: runs. Run as `sh -c SCRIPT Humanize AT VARIABLE DEFAULT LODGES [WORD...]`, after anything
 #: projected into `AT` has landed there, which this leaves as it is. Each word is one of
 #: `copy=PATH=OUTSIDE` (a rewrite, and where it is under `~` while the variable is unset, or
 #: nothing), `keep=GLOB` (private), `make=NAME` (made) and `skill=NAME` (a flow's own skill,
@@ -777,7 +777,7 @@ printf '%s\n' "$moved"
 
 
 #: :meth:`Home.drop`'s writing back, for a home :data:`SCRIPT` built: run as
-#: `sh -c BACK humanize AT` once the CLI is done, before `AT` is taken away. Each link listed in
+#: `sh -c BACK Humanize AT` once the CLI is done, before `AT` is taken away. Each link listed in
 #: `AT.links` that the CLI replaced is written back to the file it pointed at -- a directory a
 #: file at a time -- by a copy renamed over it, with the mode the one there had, and never over
 #: one that is as new or newer.

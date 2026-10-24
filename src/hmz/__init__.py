@@ -1,4 +1,4 @@
-"""humanize: flows of coding agents, and the runs of them."""
+"""Humanize: flows of coding agents, and the runs of them."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 __all__ = ["here", "home", "machine", "working_in"]
 
-#: What humanize's own directories are called, and what they were called before.
+#: What Humanize's own directories are called, and what they were called before.
 _NAME = ".hmz"
 _WAS = ".humanize"
 
@@ -27,7 +27,7 @@ _WORKING: contextvars.ContextVar[pathlib.Path | None] = contextvars.ContextVar(
 
 
 def home() -> pathlib.Path:
-    """Where humanize keeps what outlives one run of one flow.
+    """Where Humanize keeps what outlives one run of one flow.
 
     Under your home directory, unless `HUMANIZE_HOME` says otherwise -- which is what a test
     says, and what a machine holding more than one of these would. One kept under the name it
@@ -43,9 +43,9 @@ def home() -> pathlib.Path:
 
 
 def here() -> pathlib.Path:
-    """Where humanize keeps what is this project's own: its flows, and the runs exported here.
+    """Where Humanize keeps what is this project's own: its flows, and the runs exported here.
 
-    `.hmz` in the directory humanize is being run in. One kept under the name it had before is
+    `.hmz` in the directory Humanize is being run in. One kept under the name it had before is
     moved to it the first time it is asked for -- unless that is a home rather than this
     project's: `~/.humanize`, which :func:`home` moves or leaves by its own rules, or the
     directory `HUMANIZE_HOME` names.
@@ -64,7 +64,7 @@ def here() -> pathlib.Path:
 
 
 def machine() -> pathlib.Path:
-    """Where humanize keeps what is this machine's alone, made private where it is not yet.
+    """Where Humanize keeps what is this machine's alone, made private where it is not yet.
 
     A home directory is shared by every machine that mounts it, and what is this machine's --
     a process running here, an archive built here -- is nothing another machine can use: one
@@ -116,7 +116,7 @@ def _project(at: pathlib.Path, kept: pathlib.Path) -> None:
 
 @functools.cache
 def _moved(at: pathlib.Path) -> pathlib.Path:
-    """One of humanize's directories, with the one it was before moved to it where need be.
+    """One of Humanize's directories, with the one it was before moved to it where need be.
 
     Moved in one rename, and only while nothing is at the new place: where both are there the
     new one is the one in use, and the old one is left as it was rather than merged into it.
@@ -129,7 +129,7 @@ def _moved(at: pathlib.Path) -> pathlib.Path:
       `at`, whether or not anything was moved.
     """
     # Nothing to move, or nowhere it could go -- a parent nobody may write, another device:
-    # either way the old one is left out of use rather than humanize left unable to start.
+    # either way the old one is left out of use rather than Humanize left unable to start.
     with contextlib.suppress(OSError):
         if not at.exists():
             at.with_name(_WAS).rename(at)

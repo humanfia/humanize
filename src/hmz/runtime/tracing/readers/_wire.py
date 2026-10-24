@@ -1,6 +1,6 @@
 """Just enough of the protocol buffer wire format to read a field nobody named.
 
-One of the CLIs humanize drives keeps its trajectory as protobuf, and ships no
+One of the CLIs Humanize drives keeps its trajectory as protobuf, and ships no
 schema to read it back with: the `.proto` files are the vendor's, the messages
 are theirs, and what reaches this machine is the bytes. So the fields are reached
 by number, which is the half of protobuf that is self-describing -- every field

@@ -61,7 +61,7 @@ AFAR = "anchor:afar"
 #: pointed down one is what answers -- and so no place at all answers where an agent was
 #: pointed nowhere.
 #:
-#: Which is not a gap. A turn on this machine is a CLI humanize spawned here and traced here,
+#: Which is not a gap. A turn on this machine is a CLI Humanize spawned here and traced here,
 #: so both roads are travelled; but a road is how an anchor reaches a *machine*, there is no
 #: machine, and nothing declares it. That is the same answer `remote` gives a local place and
 #: for the same reason: what a place comes to is read off the settings of where its work

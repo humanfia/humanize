@@ -25,14 +25,14 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
 
 ## Before you start
 
-- humanize is [installed](/user/installation), with at least one coding agent CLI signed in.
+- Humanize is [installed](/user/installation), with at least one coding agent CLI signed in.
 - You know which CLI and model you want. The effort is the last thing you choose, because
   which efforts there are depends on both.
 
 ## What an effort is
 
 Each coding agent CLI has its own words for how long a model reasons: Claude Code says
-`ultracode` to `low`, Codex says `ultra` to `low`, pi goes down to `off`. humanize takes the
+`ultracode` to `low`, Codex says `ultra` to `low`, pi goes down to `off`. Humanize takes the
 CLI's own word and passes it on, so an effort always means what that CLI means by it. It does
 not translate one backend's `high` into another's.
 

@@ -32,7 +32,7 @@ __all__ = [
 ]
 
 #: What an agent may do without being asked, loosest last. Named the way these CLIs name them
-#: rather than in a vocabulary of humanize's own, so that a rung reads as the thing it is
+#: rather than in a vocabulary of Humanize's own, so that a rung reads as the thing it is
 #: wherever it is shown. Every backend has a ladder of its own and none of them has the same
 #: four rungs, so these are the question rather than any one CLI's answer, and each driver
 #: says which of its own settings it reaches for:
@@ -52,7 +52,7 @@ __all__ = [
 PERMISSIONS = ("read-only", "workspace-write", "auto", "bypass")
 
 
-#: The word for no rung at all: humanize says nothing to the CLI about what its agent may do,
+#: The word for no rung at all: Humanize says nothing to the CLI about what its agent may do,
 #: which leaves it wherever that CLI's own headless run leaves it. Outside :data:`PERMISSIONS`
 #: because it is not a rung on the ladder but the absence of one -- the same shape `effort`
 #: already has, where `AUTO` becomes "" and every driver knows to say nothing. Loosest of all,
@@ -228,10 +228,10 @@ class AgentConfig:
         credentials and its trajectory stay where a flow can reach them; what moves is the
         project it reads and the commands it runs.
       permission: What this agent may do without being asked, as one of :data:`PERMISSIONS`,
-        or :data:`UNSAID` -- not a rung at all, but humanize saying nothing to the CLI and
+        or :data:`UNSAID` -- not a rung at all, but Humanize saying nothing to the CLI and
         leaving it wherever that CLI's own headless run leaves it. :data:`UNSAID` is what an
-        agent comes at, because a run nobody configured is a run humanize has nothing to say
-        about: a rung is an answer, and an answer nobody gave is not humanize's to invent on
+        agent comes at, because a run nobody configured is a run Humanize has nothing to say
+        about: a rung is an answer, and an answer nobody gave is not Humanize's to invent on
         their behalf. What such a run does is what the same CLI does for whoever types it at a
         shell, out of the settings they already have -- which is the one behaviour a person
         can check for themselves. Every rung is the flow's choice, settled onto the agent from
@@ -252,7 +252,7 @@ class AgentConfig:
         at -- for one nobody has said either way about. Neither half of the switch goes on the
         command line then, so the CLI reads the internet, or does not, exactly as whoever
         installed it has it set up; the reason is the rung's reason, that a run nobody
-        configured is one humanize is not the one answering for. On and off are both the
+        configured is one Humanize is not the one answering for. On and off are both the
         flow's choice, read off the `online` of the permission it runs under -- on for work
         that wants the internet, off for a run that must read only this repository, one under a
         rate limit somebody is paying per query on, one whose answers have to be reproducible

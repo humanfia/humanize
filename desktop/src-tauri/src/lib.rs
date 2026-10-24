@@ -1,4 +1,5 @@
-//! humanize for macOS and Windows: one window on the page `hmz web` serves, started as the app's child.
+//! Humanize Desktop, for macOS and Windows: one window on the page `hmz web` serves, started as
+//! the app's child.
 //! The window opens on the app's own page at once -- a splash while `hmz` is installed and
 //! `hmz web` starts, and what went wrong where it cannot -- and goes on to `hmz web`'s once it
 //! says where it listens. A `.hmzepic` opened with the app, or dropped on its window, is
@@ -378,7 +379,7 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let version = app.package_info().version.to_string();
     let window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()));
     let window = chrome::dress(window, &version)
-        .title("humanize")
+        .title("Humanize Desktop")
         .inner_size(1280.0, 820.0)
         .min_inner_size(640.0, 480.0)
         .visible(false)
@@ -529,8 +530,8 @@ pub fn run() {
     let app = match app {
         Ok(app) => app,
         Err(why) => {
-            log::error!("humanize could not start: {why}");
-            eprintln!("humanize could not start: {why}");
+            log::error!("Humanize Desktop could not start: {why}");
+            eprintln!("Humanize Desktop could not start: {why}");
             std::process::exit(1);
         }
     };
@@ -616,7 +617,7 @@ mod tests {
                 epic(url.to_file_path()),
                 Some(PathBuf::from("/Users/me/My Epics/1T2.3Z-a.hmzepic"))
             );
-            let exe = "/Applications/humanize.app/Contents/MacOS/humanize";
+            let exe = "/Applications/Humanize Desktop.app/Contents/MacOS/humanize";
             assert_eq!(
                 argued([exe, "a.hmzepic"], Path::new("/Users/me")),
                 Some(PathBuf::from("/Users/me/a.hmzepic"))
@@ -626,7 +627,7 @@ mod tests {
         // was launched.
         #[cfg(windows)]
         {
-            let exe = r"C:\Program Files\humanize\humanize.exe";
+            let exe = r"C:\Program Files\Humanize Desktop\humanize.exe";
             let opened = r"C:\Users\me\My Epics\1T2.3Z-a.hmzepic";
             let from = Path::new(r"D:\work");
             assert_eq!(argued([exe, opened], from), Some(PathBuf::from(opened)));

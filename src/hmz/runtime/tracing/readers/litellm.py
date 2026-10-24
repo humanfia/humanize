@@ -1,6 +1,6 @@
-"""Collector for the conversations humanize keeps for litellm.
+"""Collector for the conversations Humanize keeps for litellm.
 
-One JSONL file a conversation, written by humanize's own driver: a `session` header naming
+One JSONL file a conversation, written by Humanize's own driver: a `session` header naming
 the conversation it was forked from, then one `message` row a message, an answer carrying the
 model and what its request spent.
 """

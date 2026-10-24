@@ -12,7 +12,7 @@ trace, or as one archive to send somewhere.
 
 :class:`Hmz` is the front door: one workspace and everything that can be done in it, composed
 out of the modules beside it in :mod:`hmz.runtime.doing`. A command line names it, and so does
-the daemon that holds a run apart from any terminal -- what humanize can do is one list rather
+the daemon that holds a run apart from any terminal -- what Humanize can do is one list rather
 than one per way in, and a thing that can be done one way can be done every way.
 
 Nothing here drives a coding agent. That is :mod:`hmz.coganchor`, which this is written

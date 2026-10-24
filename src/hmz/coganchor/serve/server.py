@@ -193,7 +193,7 @@ class Server:
                 frame,
                 OSError(
                     errno.EPROTO,
-                    f"client speaks protocol {version}, this humanize speaks {PROTOCOL_VERSION}",
+                    f"client speaks protocol {version}, this Humanize speaks {PROTOCOL_VERSION}",
                 ),
             )
             self._channel.close()

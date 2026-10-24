@@ -1,6 +1,6 @@
-"""humanize as one object, which is what a command line, an interface and a daemon all hold.
+"""Humanize as one object, which is what a command line, an interface and a daemon all hold.
 
-Everything humanize does is done to one workspace: what was set up to run there, the runs that
+Everything Humanize does is done to one workspace: what was set up to run there, the runs that
 have already happened there, and the flow that is running there now. The things that are not a
 workspace's -- the accounts agents run as, where flows come from -- are still reached from
 here, because there is one of each and one place to ask for it.
@@ -8,7 +8,7 @@ here, because there is one of each and one place to ask for it.
 The front door of :mod:`hmz.runtime` and reached by its name: a command line names the runtime
 and holds this, a daemon holding a run apart from a terminal holds it too and the interface it
 holds reaches it through that daemon, and :mod:`hmz.sdk` is the same object handed to whoever
-is calling humanize from outside. One list of what humanize can do rather than one per way in.
+is calling Humanize from outside. One list of what Humanize can do rather than one per way in.
 
 Each of them is fetched when it is asked for and not before. A command line that only lists the
 places flows come from must not load the tracer, the sandbox and every coding agent driver
@@ -48,13 +48,13 @@ _SLOT = re.compile(r"(?:chat:[0-9a-f]{1,32})?")
 
 
 class Hmz:
-    """One workspace, and everything humanize can be asked to do in it."""
+    """One workspace, and everything Humanize can be asked to do in it."""
 
     def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None:
         """Holds the workspace, and nothing else until something is asked of it.
 
         Args:
-          workspace: The project directory this is about, or None for wherever humanize is
+          workspace: The project directory this is about, or None for wherever Humanize is
             being run. Kept exactly as it was given: a workspace nobody named is one that
             follows a flow which changes directory, and one that was named is the directory
             it named, spelled the way it was named.
@@ -77,14 +77,14 @@ class Hmz:
 
     @property
     def home(self) -> Path:
-        """Where humanize keeps what outlives one run of one flow."""
+        """Where Humanize keeps what outlives one run of one flow."""
         from hmz import home
 
         return home()
 
     @property
     def settings(self) -> Settings:
-        """What humanize remembers: what was set up to run here, and what is true everywhere."""
+        """What Humanize remembers: what was set up to run here, and what is true everywhere."""
         if self._settings is None:
             from hmz.runtime.settings import Settings
 
@@ -174,7 +174,7 @@ class Hmz:
         return carried(self, pages)
 
     def backends(self) -> tuple[Profile, ...]:
-        """Every coding agent CLI humanize drives, whether or not it is installed here."""
+        """Every coding agent CLI Humanize drives, whether or not it is installed here."""
         from hmz.coganchor import backends
 
         return backends.profiles()
@@ -245,7 +245,7 @@ class Hmz:
         return installed.ready_to_open(backend, self.workspace)
 
     def reports(self) -> bool:
-        """Starts reporting humanize's own failures, where that has been answered yes.
+        """Starts reporting Humanize's own failures, where that has been answered yes.
 
         Returns:
           Whether anything is being reported. Nothing is by a machine nobody has been asked

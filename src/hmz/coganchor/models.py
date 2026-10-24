@@ -21,8 +21,8 @@ runs, where somebody chose something and is waiting on the answer -- and everyth
 reads what was kept. A catalogue that has never been asked for is empty rather than guessed
 at: a model nobody can run is worse than a list somebody has to fill.
 
-What is kept is a cache, and a cache is this machine's: it lives in humanize's directory for
-this machine, one file per backend and account, and is never kept in humanize's home. Taking an
+What is kept is a cache, and a cache is this machine's: it lives in Humanize's directory for
+this machine, one file per backend and account, and is never kept in Humanize's home. Taking an
 account away takes its catalogue with it, being the same fact. The account nobody chose -- the CLI
 as whoever is at this machine already runs it -- keeps its own beside them under a name no account
 can be made under.
@@ -64,7 +64,7 @@ WAITING = 180.0
 #: -- and every id in a list nobody asked again is offered as if it were not.
 STALE = datetime.timedelta(days=7)
 
-#: Where every catalogue is kept, under humanize's directory for this machine: one directory
+#: Where every catalogue is kept, under Humanize's directory for this machine: one directory
 #: per backend, and one file in it per account.
 _UNDER = "models"
 
@@ -158,7 +158,7 @@ def where(cli: str, provider: str = "") -> Path:
     Raises:
       ValueError: If the backend is not one there is, or the name is not one a provider could
         have been made under.
-      PermissionError: If humanize's directory for this machine is not this user's alone.
+      PermissionError: If Humanize's directory for this machine is not this user's alone.
     """
     profile = named(cli)
     if profile is None:
@@ -331,7 +331,7 @@ def _routed(profile: Profile, held: providers.Provider) -> list[Model]:
 
     ladder = () if profile.name in _UNLADDERED else profile.efforts
     litellm = named("litellm")
-    assert litellm is not None  # noqa: S101 -- one of humanize's own
+    assert litellm is not None  # noqa: S101 -- one of Humanize's own
     environ = dict(held.env)
     if _pointed(litellm, environ):
         served = _served(litellm, environ)

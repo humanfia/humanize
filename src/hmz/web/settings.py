@@ -1,8 +1,8 @@
-"""What humanize remembers, as a page reads it and changes it.
+"""What Humanize remembers, as a page reads it and changes it.
 
 The same settings the terminal interface's `/settings` reads and writes, through the same
 object: what a workspace was last set up to run, which agent a side question goes to,
-whether a turn's working is shown, whether humanize reports its own failures, and the git
+whether a turn's working is shown, whether Humanize reports its own failures, and the git
 repositories epics are backed up to -- each URL shown with nothing signed into it, and one sent
 back as it was shown kept as it is written.
 """
@@ -20,7 +20,7 @@ __all__ = ["ROUTES"]
 
 
 def general(hmz: Any) -> dict[str, Any]:
-    """What a page shows of humanize's own settings and of this workspace's."""
+    """What a page shows of Humanize's own settings and of this workspace's."""
     settings = hmz.settings
     return {
         "workspace": str(hmz.workspace),
@@ -46,7 +46,7 @@ def general(hmz: Any) -> dict[str, Any]:
 
 
 def _hmz(asked: Asked) -> Any:
-    """humanize, for the workspace a request names, or where the interface started."""
+    """Humanize, for the workspace a request names, or where the interface started."""
     said = asked.body.get("workspace") if "workspace" in asked.body else None
     workspace = said if isinstance(said, str) else asked.query.get("workspace", "")
     from hmz import daemon

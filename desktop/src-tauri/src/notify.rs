@@ -253,7 +253,9 @@ mod tests {
     #[test]
     fn posts_only_from_its_bundle() {
         let at = |path: &str| in_bundle(std::path::Path::new(path));
-        assert!(at("/Applications/humanize.app/Contents/MacOS/humanize"));
+        assert!(at(
+            "/Applications/Humanize Desktop.app/Contents/MacOS/humanize"
+        ));
         assert!(!at("/repo/desktop/src-tauri/target/debug/humanize"));
         assert!(!at("/x/Contents/MacOS/humanize"));
         assert!(!at("/x.app/MacOS/humanize"));

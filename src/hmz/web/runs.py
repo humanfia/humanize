@@ -58,7 +58,7 @@ class Runs:
     """The runs of every workspace, read off the disk and kept until they change there.
 
     Args:
-      places: Every workspace, for humanize in the one a run was run in.
+      places: Every workspace, for Humanize in the one a run was run in.
     """
 
     def __init__(self, places: Places) -> None:
@@ -151,7 +151,7 @@ class Runs:
         return not ran.how and going(ran.at)
 
     def hmz(self, ran: Ran) -> Any:
-        """humanize, for the workspace a run was run in -- there still or not."""
+        """Humanize, for the workspace a run was run in -- there still or not."""
         return self._places.of(ran.workspace or str(self._places.here), made=True).hmz
 
     def traced(self, ran: Ran) -> list[dict[str, Any]]:
@@ -237,9 +237,9 @@ class Runs:
         """One archive read back in as an epic, and whether it can be picked up here.
 
         Raises:
-          Refusal: If it is not an archive humanize can read, or its epic is here already.
+          Refusal: If it is not an archive Humanize can read, or its epic is here already.
         """
-        # Asked of this workspace's humanize, which reads the epic alone: the one it ran in
+        # Asked of this workspace's Humanize, which reads the epic alone: the one it ran in
         # may be nowhere here.
         epics = self._places.hmz.epics
         try:

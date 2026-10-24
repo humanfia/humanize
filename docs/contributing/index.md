@@ -4,7 +4,7 @@ import ChangePath from '../.vitepress/theme/components/contributing-index/Change
 
 # Contributing
 
-Pull requests are welcome. This page gets a checkout of humanize ready to change: installed,
+Pull requests are welcome. This page gets a checkout of Humanize ready to change: installed,
 checked the way CI checks it, and with the rules every change is held to. Bugs and feature
 requests go through the [issue forms](https://github.com/humanfia/humanize/issues/new/choose);
 for a large change, open a feature request first.
@@ -80,8 +80,8 @@ runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
 
 ## The macOS app
 
-`desktop/` is [the macOS app](/user/desktop): a window on `hmz web`'s page, in Rust with
-[Tauri](https://tauri.app/), held to
+`desktop/` is [Humanize Desktop](/user/desktop), the macOS app: a window on `hmz web`'s page, in
+Rust with [Tauri](https://tauri.app/), held to
 [its spec](https://github.com/humanfia/humanize/blob/main/specs/features/desktop.md). Working on it
 takes a Mac, [Rust](https://rustup.rs/), Node and pnpm. Built from `main`, its version is
 `0.0.0`, and it installs nothing: `pnpm dev` opens it against the `hmz` on your `PATH`, and
@@ -116,7 +116,7 @@ with a Developer ID leaves off; after changing it, `pnpm dmg-background` remakes
 
 ## Where a test goes
 
-A test goes in exactly one of three directories, by how much of humanize it puts together. Its
+A test goes in exactly one of three directories, by how much of Humanize it puts together. Its
 directory is what decides when it runs: no marker to write.
 
 | | Holds | Rules |

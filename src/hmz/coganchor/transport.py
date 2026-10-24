@@ -18,7 +18,7 @@ allocation, on the node it was given.
 Two of them *find* a serving half somebody else started. ``tcp://host:port`` dials one left
 listening. ``peer://TICKET@BROKER:PORT`` meets one through
 :mod:`hmz.coganchor.rendezvous`, which is the answer where the two halves are on two machines
-that cannot dial each other and only humanize can reach both.
+that cannot dial each other and only Humanize can reach both.
 
 What makes the far side cheap is that none of this is paid twice. The zipapp is built once per
 source tree and cached by its digest on both sides of the link; an `ssh` reaches a host once
@@ -91,7 +91,7 @@ SLURM = "slurm"
 #: Where a harness put on another machine keeps its mirror of the workspace. *Beside* the
 #: archive's cache rather than inside it, and that is not a matter of taste: `~/.cache/humanize`
 #: is one of the directories a supervised turn deliberately answers from the machine the agent
-#: runs on -- it is humanize's own state, and the whole point of naming it is that it does not
+#: runs on -- it is Humanize's own state, and the whole point of naming it is that it does not
 #: cross. A mirror underneath it would be a mirror no path was ever translated through, so the
 #: agent would find the workspace empty and every command it ran there would run in the wrong
 #: directory. `path_within` is what keeps the two apart, a sibling name not being a prefix.
@@ -139,7 +139,7 @@ _KEPT_FOR = 14 * 24 * 3600
 #: Installing that copy, for a target reached by piping it there, in the target's own Python
 #: because that is the one thing it is certain to have that can take a digest. What arrived is
 #: checked against the digest it was sent as, and a copy already there against the same digest
-#: before it is believed: a name is only a promise, and a copy a run cut short or a humanize of
+#: before it is believed: a name is only a promise, and a copy a run cut short or a Humanize of
 #: another checkout left under it would otherwise be the code every later session on that
 #: machine runs. A copy that answers is left where it is, touched so the sweep below counts it
 #: as used -- rewriting it would be rewriting a file a live session may still be importing
@@ -161,7 +161,7 @@ name, want, kept = sys.argv[1], sys.argv[2], float(sys.argv[3])
 path = os.path.join(cache, name)
 came = sys.stdin.buffer.read()
 if hashlib.sha256(came).hexdigest()[:{_DIGEST}] != want:
-    sys.exit(f"humanize: {{len(came)}} bytes arrived that are not {{name}}")
+    sys.exit(f"Humanize: {{len(came)}} bytes arrived that are not {{name}}")
 try:
     with open(path, "rb") as held:
         there = hashlib.file_digest(held, "sha256").hexdigest()[:{_DIGEST}]
@@ -245,7 +245,7 @@ _SSH_REUSE = ("-o", "ControlMaster=auto", "-o", "ControlPersist=120")
 _CONTROL = 40 + 9 + 17
 
 #: Finding an interpreter, in POSIX sh, because this runs on the target before anything of
-#: humanize exists there.  Each candidate is *run* rather than merely looked for: macOS's
+#: Humanize exists there.  Each candidate is *run* rather than merely looked for: macOS's
 #: ``/usr/bin/python3`` is a shim that is there whether or not an interpreter is behind it,
 #: and answers with a prompt to install Xcode when none is.  What it is asked is its version,
 #: so a target whose only Python is older than the bundle needs is passed over here rather
@@ -258,7 +258,7 @@ _FIND_PYTHON = (
     "|| continue; "
     "{run}; "
     "done; "
-    'echo "humanize: no python {version} or newer on this machine; '
+    'echo "Humanize: no python {version} or newer on this machine; '
     'looked for: {candidates}" >&2; '
     "exit 127"
 )
@@ -323,7 +323,7 @@ def python_command(
         script = (
             f'mkdir -p "{path}" && [ -d "{path}" ] && [ ! -L "{path}" ] && '
             f'[ -O "{path}" ] && chmod 700 "{path}" || '
-            f'{{ echo "humanize: {path} is not a directory this user owns" >&2; '
+            f'{{ echo "Humanize: {path} is not a directory this user owns" >&2; '
             "exit 1; }; " + script
         )
     # ``/bin/sh`` by its path rather than its name, since the ``PATH`` this is reaching past
@@ -480,7 +480,7 @@ def _ssh_shim(options: Sequence[tuple[str, str]]) -> str:
     Docker's own ssh transport runs whichever `ssh` is first on `PATH` and hands it the login,
     the port and the host alone, so what else a daemon's host needs -- a key, a jump host, a
     config of its own -- is said by one of these instead. One per set of options, named by
-    their digest under humanize's directory for this machine and this user's alone, written
+    their digest under Humanize's directory for this machine and this user's alone, written
     once and whole; it takes its own directory off `PATH` again before running the real one.
     That directory is a temporary one a cleaner may empty under a long-lived process, so one
     already written is touched each time it is used, and written again if it has gone.
@@ -698,7 +698,7 @@ def _ssh_options(query: str, spec: str) -> tuple[tuple[str, str], ...]:
 
 
 #: What a docker target's `user` may be: the numeric `UID[:GID]` docker's `-u` takes, numeric
-#: so that the directories humanize keeps there are named for whom they are without asking.
+#: so that the directories Humanize keeps there are named for whom they are without asking.
 _DOCKER_USER = re.compile(r"[0-9]+(?::[0-9]+)?\Z")
 
 #: What a variable a docker target's `env` sets may be called.
@@ -839,7 +839,7 @@ class Road:
         if target.scheme == "ssh":
             port = ("-p", str(target.port)) if target.port else ()
             # The target's own options first: ssh keeps the first value it is given for a
-            # setting, so what somebody wrote for this host wins over what humanize assumes.
+            # setting, so what somebody wrote for this host wins over what Humanize assumes.
             return cls(
                 target,
                 (
@@ -1022,7 +1022,7 @@ class Road:
             archive, digest = bundled()
         except OSError as failed:
             raise ConnectionError(
-                f"could not install humanize on {self.target.describe()}: {failed}"
+                f"could not install Humanize on {self.target.describe()}: {failed}"
             ) from failed
         name = f"humanize-{digest}.pyz"
         where = f"{self.cache}/{name}"
@@ -1047,7 +1047,7 @@ class Road:
         )
         if result.returncode != 0:
             raise ConnectionError(
-                f"could not install humanize on {self.target.describe()}: "
+                f"could not install Humanize on {self.target.describe()}: "
                 f"{result.stderr.decode(errors='replace').strip()}"
                 f"{self._said()}"
             )
@@ -1116,7 +1116,7 @@ def _machine(spelled: str) -> str:
 
 
 def _myself() -> list[str]:
-    """How this process starts another humanize on the machine it is already running on.
+    """How this process starts another Humanize on the machine it is already running on.
 
     Two answers, because there are two ways this code is ever running. Installed, it is a
     module and `-m` reaches it. Inside the archive a target was bootstrapped with, there is no
@@ -1257,7 +1257,7 @@ def _swept(home: Path, keeping: Path) -> None:
       keeping: The archive just built, which goes nowhere whatever its age says.
     """
     now = time.time()
-    # And what an earlier humanize kept beside it, one archive every checkout shared.
+    # And what an earlier Humanize kept beside it, one archive every checkout shared.
     legacy = home.with_name(f"{home.name}.pyz")
     for one in [*home.iterdir(), legacy, legacy.with_suffix(".stamp")]:
         # What a build made, and nothing else: this machine's daemon keeps its socket and the
@@ -1428,7 +1428,7 @@ def _spawn(command: list[str], token: str | None) -> Transport:
 
 #: What the target has no use for, left out of the bundle by name. This package is two
 #: things: the anchor -- the wire, the supervisor and the serving half, which is what a
-#: target runs -- and everything humanize knows about driving a coding agent CLI, which a
+#: target runs -- and everything Humanize knows about driving a coding agent CLI, which a
 #: target never does. The anchor half ships whole, ptrace layer and register maps included,
 #: because pruning *that* would be a list to keep in step and nothing is lost by carrying
 #: it: the target only ever runs ``anchor serve``, which reaches none of it. The driving
@@ -1580,7 +1580,7 @@ def _write_bundle(source: Path, destination: Path) -> None:
         )
         for depth in range(1, len(parts)):
             # A namespace of its own rather than the installed ``hmz/__init__.py``: the
-            # bundle stays pure stdlib however the rest of humanize grows, and a regular package
+            # bundle stays pure stdlib however the rest of Humanize grows, and a regular package
             # cannot be shadowed by an unrelated ``hmz`` already on the target's path.
             init = root.joinpath(*parts[:depth]) / "__init__.py"
             init.write_text(
@@ -1603,7 +1603,7 @@ def _write_bundle(source: Path, destination: Path) -> None:
             "from hmz.cli import main\n\nraise SystemExit(main())\n"
         )
         # And the version, as the metadata an installed `hmz` has, which is where
-        # `coganchor.__version__` is read from: a harness run from here says which humanize it
+        # `coganchor.__version__` is read from: a harness run from here says which Humanize it
         # is, and there is no install here to say it. It is found ahead of any `hmz` that
         # machine has of its own, because the archive is first on its interpreter's path.
         info = root / f"hmz-{coganchor.__version__}.dist-info"

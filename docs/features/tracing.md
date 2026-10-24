@@ -25,7 +25,7 @@ import { withBase } from 'vitepress'
 
 </div>
 
-The trace is drawn by **Exomyth**, humanize's visualizer: it reads each CLI's own session logs,
+The trace is drawn by **Exomyth**, Humanize's visualizer: it reads each CLI's own session logs,
 and the profile of the programs a run started, into one Chrome JSON trace
 (`hmz.runtime.tracing`), so a tool call and the programs it started sit on one timeline. More on
 [Deep Tech](https://humanfia.ai/research/deep-tech#exomyth), on humanfia.ai.

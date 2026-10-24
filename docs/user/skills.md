@@ -29,7 +29,7 @@ above changes.
 
 ## Yours and the flow's
 
-Neither set is a setting of the agent, and humanize never changes what you installed.
+Neither set is a setting of the agent, and Humanize never changes what you installed.
 
 | | Yours | The flow's |
 | --- | --- | --- |
@@ -119,8 +119,8 @@ Each directory holds one skill per subdirectory, as `<name>/SKILL.md`. A CLI's h
 its own variable, such as `CODEX_HOME`, `KIMI_CODE_HOME`, `GROK_HOME` or `MINIMAX_DATA_DIR`,
 and opencode's and MiMo Code's move with `XDG_CONFIG_HOME`.
 
-DeepSeek Harness loads no skills at all when humanize drives it. pi reads a project's own
-skills only in a project you have trusted in pi, and humanize does not trust one for you.
+DeepSeek Harness loads no skills at all when Humanize drives it. pi reads a project's own
+skills only in a project you have trusted in pi, and Humanize does not trust one for you.
 
 ## The flow's skills
 
@@ -129,7 +129,7 @@ a process at a time, in a home of their own -- copies of the settings they rewri
 links to the rest of yours -- whose user-level `skills/` holds links to yours with the flow's
 beside them. That home goes when the process stops; nothing of yours, and nothing of the
 project's, is written. opencode and MiMo Code are told where the flow's skills are, in the
-configuration humanize hands each run, and read them after their own. Nothing goes in your
+configuration Humanize hands each run, and read them after their own. Nothing goes in your
 workspace:
 
 | Backend | Put into |

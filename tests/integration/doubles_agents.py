@@ -192,7 +192,7 @@ def routing(
 ) -> None:
     """Makes `gw` an account of `cli`'s a local LiteLLM gateway holds, on `endpoint`.
 
-    Made by litellm's way for an OpenAI-compatible gateway, in a humanize home of the test's
+    Made by litellm's way for an OpenAI-compatible gateway, in a Humanize home of the test's
     own; the key it holds is in the environment as something else besides. Credential paths
     answered by another are the supervisor's, tested where it is written: an account that is
     variables alone is what is under test here.

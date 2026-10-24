@@ -245,9 +245,9 @@ def _under(path: str, root: str) -> bool:
 
 
 def _ours() -> tuple[str, ...]:
-    """Where the Python running humanize is, and humanize itself.
+    """Where the Python running Humanize is, and Humanize itself.
 
-    Read inside every fence, because humanize's own supervisors run inside it: a turn under a
+    Read inside every fence, because Humanize's own supervisors run inside it: a turn under a
     provider is `hmz internal cred` around the CLI, and a CLI given a flow's hooks or tools
     starts `hmz internal hook` and `hmz internal tools`. An interpreter uv installed lives
     under the user's home, and a checkout installed in place is wherever it was checked out.
@@ -352,7 +352,7 @@ class Fence:
         leaves it out. `local` at `all` writes :data:`TEMPORARY` as well, as a workspace
         Codex may write does; `user` at `all` writes whatever the user may change, which for
         anyone but root is the whole filesystem held by its own permissions. Then the minimum
-        is added, whatever the levels were: :data:`SYSTEM` and the Python humanize runs on to
+        is added, whatever the levels were: :data:`SYSTEM` and the Python Humanize runs on to
         read, :data:`DEVICES` and the GPUs' nodes to write.
 
         The scopes must nest, `local` at least `user` and `user` at least `system`, because
@@ -583,7 +583,7 @@ def wrapper(fence: Fence) -> list[str]:
     Returns:
       ``hmz internal fence --policy=... --``, run by the Python running this, to be followed
       by the program and its arguments. Run from the archive this process was loaded from,
-      where it was: a target humanize was bootstrapped onto has no installed `hmz` for `-m`
+      where it was: a target Humanize was bootstrapped onto has no installed `hmz` for `-m`
       to find, and it is there that the serving half fences the commands it runs. With `-P` beside
       `-m`: the wrapper is started in the workdir, before the wall is up, and a
       Python that looked in its working directory first would run an `hmz` the agent wrote

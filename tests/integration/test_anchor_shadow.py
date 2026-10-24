@@ -260,7 +260,7 @@ def test_a_root_holding_files_nobody_mirrored_is_refused(tmp_path: Path) -> None
     root.mkdir()
     (root / "important.txt").write_text("keep me")
 
-    with pytest.raises(FileExistsError, match="not an humanize mirror"):
+    with pytest.raises(FileExistsError, match="not a Humanize mirror"):
         prepare_shadow_root(str(root))
     assert (root / "important.txt").exists()
     prepare_shadow_root(str(root), force=True)
