@@ -15,8 +15,9 @@ name = "humanize_lib"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# No default features: the window, the menus and the webview, and nothing this app never asks.
-tauri = { version = "2", default-features = false, features = ["wry"] }
+# No default features: the window, the menus, the tray icon and the webview, and nothing this
+# app never asks.
+tauri = { version = "2", default-features = false, features = ["tray-icon", "wry"] }
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"

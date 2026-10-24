@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "page-caption",
+  "description": "On Windows, hmz web's page, as `page` names it: granted to minimize, maximize and close the window by the caption buttons the app draws over it.",
+  "windows": ["main"],
+  "platforms": ["windows"],
+  "remote": { "urls": ["http://127.0.0.1:*"] },
+  "permissions": ["core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-close"]
+}

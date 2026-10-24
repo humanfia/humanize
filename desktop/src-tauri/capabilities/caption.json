@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "caption",
+  "description": "On Windows, the app's own page: granted to minimize, maximize and close the window by the caption buttons the app draws over it.",
+  "windows": ["main"],
+  "platforms": ["windows"],
+  "permissions": ["core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-close"]
+}
