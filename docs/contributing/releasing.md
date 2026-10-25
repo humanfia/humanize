@@ -51,7 +51,7 @@ rules as `main`. Three workflows do it:
 `main` itself never says a released version: its `pyproject.toml` says `0.0.0`, and so does
 `tauri.conf.json`.
 
-The disk image is signed ad hoc, which is why [its guide](/user/desktop#the-first-time-it-opens)
+The disk image is signed ad hoc, which is why [its guide](/user/installation#the-first-time-it-opens)
 says how to open it the first time. Once the repository holds an Apple Developer ID in the
 secrets `APPLE_CERTIFICATE` (the `.p12`, in base64), `APPLE_CERTIFICATE_PASSWORD` and
 `APPLE_SIGNING_IDENTITY`, `publish.yml` signs it with that instead, and with `APPLE_ID`,

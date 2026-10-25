@@ -632,7 +632,7 @@ More, with what causes each, are in [Troubleshooting](/user/troubleshooting).
 
 ::: details `onbox`: build on the box, review here
 Save it as `.hmz/flows/onbox/__init__.py` in your project, and it is offered as
-`@local/onbox`. What each line means is the [Weaver Guide's](/weaver/writing-a-flow) to explain.
+`@local/onbox`. What each line means is the [Writing Flows guide's](/weaver/writing-a-flow) to explain.
 
 ```python
 """Build on the box, review here."""

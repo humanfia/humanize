@@ -251,7 +251,7 @@ An imported epic is read as any other. It is picked up only where the directory 
 here at the same path, holding the commit its archive says; otherwise it says why under it,
 `Imported · not resumable here: …`, and offers no **Resume**. A `.hmzepic` already on this
 machine is imported by its address too, `#/epics/import?path=<file>`, once you press **Import**
-under its path, and opens on its [Exomyth](#exomyth) -- as the [macOS app](/user/desktop#opening-a-hmzepic)
+under its path, and opens on its [Exomyth](#exomyth) -- as [Humanize Desktop](/user/desktop#opening-a-hmzepic)
 opens one you double-click. Where `hmz` runs in WSL, a Windows path, `C:\…` or `\\wsl$\…`, is
 read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
@@ -408,7 +408,7 @@ Start `hmz web` in a project, and open **New epic**:
 
 Each machine whose epics the page reaches is a **daemon**: the [daemon](/features/daemon) there
 holds its runs. **Local** is this machine, always there and never removed -- where `hmz` runs in
-WSL, as with the Windows app, the WSL distribution, its host shown as `Debian (WSL)`. Every other
+WSL, as with Humanize Desktop on Windows, the WSL distribution, its host shown as `Debian (WSL)`. Every other
 is an ssh host, reached the way `ssh` reaches it, with your keys and your ssh config.
 
 The page shows one daemon at a time: the sidebar's folders and epics, a new epic, search,
@@ -494,7 +494,7 @@ it ended.
 - **Toasts.** A new notification also shows as a card in the corner of the page for a few
   seconds.
 - **System notifications.** While the page is hidden or not focused, a notification is also
-  one of your system's: the browser's, or, in [the macOS app](/user/desktop#notifications), a
+  one of your system's: the browser's, or, in [Humanize Desktop](/user/desktop#notifications), a
   macOS one. Clicking it brings the page back on what it is about.
 - **Sidebar marks.** An epic with a notification unread has a square beside it in the
   sidebar, and so does its workspace while folded. Opening the epic reads them.
@@ -621,5 +621,5 @@ It runs the CLI's own sign-in, which needs a terminal. Make that account from `/
 
 - [Watching a run (the monitor)](/user/monitor): the same run, drawn in the terminal.
 - [Leaving it running](/user/leaving): how a run outlives every window onto it.
-- [The macOS app](/user/desktop): the same page in a window of its own.
+- [Humanize Desktop](/user/desktop): the same page in a window of its own, on macOS and Windows.
 - [Web reference](/reference/web): the command line, every route the page uses, and the stream.

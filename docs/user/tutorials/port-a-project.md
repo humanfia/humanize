@@ -24,8 +24,7 @@ round, until it is willing to say the port is done.
 
 - **Install Humanize and sign in to a coding agent CLI.** See
   [Installation](/user/installation).
-- **Make one run first.** [Your first run](/user/first-run), or the
-  [quickstart on the home page](/#run-a-flow), shows a flow working in a scratch repository.
+- **Make one run first.** [Your first run](/user/first-run) shows a flow working in a scratch repository.
 - **Have Python 3 with pytest, and git.** The port is checked with `python -m pytest`. You do
   not need .NET: nothing here builds the C#.
 

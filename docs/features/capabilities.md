@@ -102,7 +102,7 @@ CLI is in the [agents reference](/reference/agents).
     <span>Running flows: settings, watching, stopping, picking up.</span>
   </a>
   <a :href="withBase('/weaver/')">
-    <strong>Weaver Guide</strong>
+    <strong>Writing Flows</strong>
     <span>Writing flows of your own, in Python.</span>
   </a>
   <a :href="withBase('/reference/')">

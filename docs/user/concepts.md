@@ -161,7 +161,7 @@ turn](/user/steering).
 
 ## Weaver
 
-Whoever writes a flow. The [Weaver Guide](/weaver/) is for them; the User Guide never asks for
+Whoever writes a flow. [Writing Flows](/weaver/) is for them; the User Guide never asks for
 Python.
 
 ## Workspace

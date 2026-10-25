@@ -1,7 +1,6 @@
 <script setup lang="ts">
 // The first screenful of the site: what Humanize is, the line that installs it, and the three
-// people who arrive here. Each button lands on that reader's quickstart further down this same
-// page, so nobody has to guess which tab in the nav is theirs.
+// first steps -- install, run a flow, write one -- each a button to the page that takes it.
 //
 // Beside the words, `HeroScene` builds the mark from its planes. The words come in with it:
 // the name letter by letter up the same diagonal the drawing is set on, then the rest in order.
@@ -10,20 +9,19 @@
 // It is full-bleed. `VPHomeContent` holds the page in a 1280px column and sets `--vp-offset` to
 // the distance from that column's edge to the viewport's, which is the supported way for one
 // child to reach past it -- the default theme's own sponsor and team blocks do the same.
+import { withBase } from 'vitepress'
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 
 import { motion, SplitText } from '../motion/gsap'
 import HeroScene from './home/HeroScene.vue'
 
-// The same line README.md and the quickstart below install with.
+// The same line README.md and Installation install the CLI with.
 const LINE = "uv tool install hmz"
 
-// Same-page fragments, so no `withBase`: these resolve against whatever the page is served as,
-// which under `base: '/humanize/'` is the only spelling that stays right.
 const ROLES = [
-  { href: '#run-a-flow', n: '01', name: 'Run a flow', under: 'point coding agents at a repository' },
-  { href: '#weave-a-flow', n: '02', name: 'Weave a flow', under: 'write your own, in Python' },
-  { href: '#work-on-humanize', n: '03', name: 'Contribute', under: 'work on Humanize itself' },
+  { href: '/user/installation', n: '01', name: 'Install', under: 'the desktop app or the CLI' },
+  { href: '/user/first-run', n: '02', name: 'Run a flow', under: 'your first run, step by step' },
+  { href: '/weaver/writing-a-flow', n: '03', name: 'Write a flow', under: 'your own, in Python' },
 ]
 
 const copied = ref(false)
@@ -88,9 +86,8 @@ onUnmounted(() => {
         </h1>
 
         <p class="define">
-          Humanize runs <strong>flows</strong>: Python programs that drive the coding agents
-          you already use — Claude Code, Codex and ten more — turn after turn, and
-          record everything they did.
+          Humanize runs the coding agents you already use — Claude Code, Codex and eleven
+          more — in a proven loop until the task is done, and shows you every turn.
         </p>
 
         <button class="line" type="button" :aria-label="`Copy: ${LINE}`" @click="copy">
@@ -99,8 +96,8 @@ onUnmounted(() => {
           <span class="copy" :class="{ done: copied }">{{ copied ? 'copied' : 'copy' }}</span>
         </button>
 
-        <nav class="roles" aria-label="Quickstarts">
-          <a v-for="role in ROLES" :key="role.href" :href="role.href">
+        <nav class="roles" aria-label="First steps">
+          <a v-for="role in ROLES" :key="role.href" :href="withBase(role.href)">
             <span class="n" aria-hidden="true">{{ role.n }}</span>
             <strong>{{ role.name }}</strong>
             <em>{{ role.under }}</em>
@@ -108,7 +105,7 @@ onUnmounted(() => {
         </nav>
 
         <p class="under">
-          Python ≥ 3.12 · 13 agent backends, plus any CLI that speaks ACP · reuses your CLI logins
+          macOS, Windows and Linux · 13 coding agents, plus any that speaks ACP · your own logins
         </p>
       </div>
 
@@ -117,7 +114,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <a class="cue" href="#how-it-fits-together" aria-label="How it fits together">
+    <a class="cue" href="#what-you-get" aria-label="What you get">
       <span class="chev" aria-hidden="true"></span>
     </a>
   </section>

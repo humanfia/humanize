@@ -4,70 +4,62 @@ layout: home
 
 <script setup>
 import { withBase } from 'vitepress'
-import HmzRun from './.vitepress/theme/components/home/HmzRun.vue'
-import HmzTabs from './.vitepress/theme/components/home/HmzTabs.vue'
-import WhyFlows from './.vitepress/theme/components/home/WhyFlows.vue'
-
-const WAYS = [
-  { id: 'prompt', name: 'At the prompt', hint: 'hmz' },
-  { id: 'exec', name: 'From your shell', hint: 'hmz exec' },
-]
 </script>
 
 <HmzHero />
 
-## Why flows
+## What you get {#what-you-get}
 
-A coding agent works in a **session**: one conversation, turn after turn. Give it a goal and it
-keeps going until it says it is done. On a small task that is enough. On a big one, a session
-grows long, the agent loses its way, and nobody checks its word. A longer session does not fix
-that. What fixes it is a plan for the sessions: which agent is asked what, in which
-conversation, who checks the work, and when to stop. That plan is a **flow**.
+<div class="hmz-paths by-three">
+  <a :href="withBase('/features/backends')">
+    <strong>The agents you already have</strong>
+    <span>Claude Code, Codex and eleven more, under your own logins and subscriptions. Mix them
+    in one run.</span>
+  </a>
+  <a href="https://humanfia.ai/flows/">
+    <strong>A proven loop for every task</strong>
+    <span>Pick a flow that suits the work, or write your own in a few lines of Python.</span>
+  </a>
+  <a :href="withBase('/user/steering')">
+    <strong>Watch and steer as it works</strong>
+    <span>Every turn shows live. Talk to a running agent, or answer when a flow asks you.</span>
+  </a>
+  <a :href="withBase('/features/allowances')">
+    <strong>A budget on every run</strong>
+    <span>Cap time, tokens or dollars. A run stops when it is spent, never after.</span>
+  </a>
+  <a :href="withBase('/user/leaving')">
+    <strong>Close the laptop, keep the run</strong>
+    <span>Runs keep going in the background, on this machine or on your servers, and pick up
+    where they stopped.</span>
+  </a>
+  <a :href="withBase('/user/tracing')">
+    <strong>See everything it did</strong>
+    <span>Every agent, command and cost on one timeline you can replay, export and share.</span>
+  </a>
+</div>
 
-No one flow suits every task, because tasks are different kinds of problem:
+## Install
 
-- **Building a project is constraint satisfaction.** Every requested feature has to be there,
-  the tests have to pass and the lints have to be clean. Nobody cares which program does it, so
-  the first program that meets every check is enough. A loop that works and then has a fresh
-  agent review the work until nothing is left to fix finds one. That is RLCR, the loop of
-  [Humanize 1](https://humanfia.ai/flows/humanize1), and [`rlar`](https://humanfia.ai/flows/rlar)
-  ships with Humanize.
-- **A fast kernel is optimization.** Every candidate already runs, so passing is not the
-  question. The question is how fast the best one is. In our kernel runs, Codex tended to
-  fine-tune, climbing to the nearest optimum and staying there, while Claude Code tended to
-  rewrite in large steps, sometimes landing slower than it started.
-  [Flame-chase](https://humanfia.ai/flows/flame-chase) alternates two fresh agents on one
-  repository: a rewrite moves the work off one optimum, and fine-tuning climbs the next.
-- **Theorem proving, hyper-parameter tuning and the rest** are other kinds of problem again,
-  each with flows of its own, such as the
-  [recursive Lean prover](https://humanfia.ai/flows/recursive-lean-prover).
+**Humanize Desktop**, for macOS and Windows, sets everything up itself: download it from the
+[latest release](https://github.com/humanfia/humanize/releases/latest), or see
+[Installation](/user/installation#desktop). **Humanize CLI** is one command:
 
-<WhyFlows />
+::: code-group
 
-Flow-level ablations on benchmarks say the same: the flow that wins on one kind of task loses
-on another. Humanize lets you pick a flow for the task, configure one, or weave your own in
-Python. What the ablations found is on [Flow Science](https://humanfia.ai/research/flow-science#findings), on humanfia.ai.
+```sh [macOS and Linux]
+uv tool install hmz
+```
 
-<p class="hmz-vision">Where this is going: one flow framework that puts <b>a 100T model</b>,
-<b>1K tokens per second</b>, <b>1M agents</b>, <b>1M environments</b> and <b>1M minutes</b> on
-one big problem. A direction, not a measurement.</p>
+```powershell [Windows]
+wsl --install            # once, then in a WSL terminal:
+uv tool install hmz
+```
 
-## How it fits together
+:::
 
-A flow is a Python function that says which agents take turns, what each is asked, and when it
-stops. Here is one run of `rlar`, the review loop Humanize ships: one agent works, a fresh one
-reads what it did, and the review is the next prompt.
-
-<HmzRun />
-
-Under every run, the same four layers: the flow decides, Humanize carries each turn out and
-records it, a coding agent does the work, and the work lands in an environment.
-
-<HmzArch />
-
-## Run a flow
-
-Install Humanize, give it a scratch repository with a bug in it, and watch an agent fix it.
+Then sign in to a coding agent you use, such as `claude auth login`, and make
+[your first run](/user/first-run).
 
 ::: warning Agents here act without asking
 Every flow's agents run with approvals bypassed: they edit files, run commands and make commits
@@ -75,252 +67,21 @@ on their own. Use a scratch repository, and read [Security](/user/security) befo
 one at work you care about.
 :::
 
-<div class="hmz-steps">
-
-### Install Humanize
-
-You need Python 3.12 or newer, [uv](https://docs.astral.sh/uv/) or pip, and a coding agent
-CLI you have already signed in to: Claude Code, Codex, or [any of the
-others](/features/backends). Humanize drives it under that login.
-
-::: code-group
-
-```sh [uv]
-uv tool install hmz
-```
-
-```sh [pip]
-pip install hmz
-```
-
-```sh [for DeepSeek Harness or Kimi Code]
-uv tool install 'hmz[all]'
-```
-
-:::
-
-To try it without installing, type `uvx hmz` wherever this page says `hmz`
-([more](/user/installation#uvx)).
-
-### Make a scratch repository
-
-`calc.py` subtracts where it should add. That bug is the work.
-
-```sh
-mkdir -p ~/tmp/humanize-demo && cd ~/tmp/humanize-demo && git init -q
-printf 'def add(a, b):\n    return a - b\n' > calc.py
-git add -A && git commit -qm "a calculator with a bug in it" && git tag before
-```
-
-### Run a flow on it
-
-The flow is `ralph_loop`. It gives the agent the same task round after round, each time in a
-fresh conversation, and it does not stop when the work is done: its budget stops it, or you do.
-
-<HmzTabs :tabs="WAYS" label="Two ways to run a flow">
-<template #prompt>
-
-Open the terminal interface in the repository. Its first start asks once whether to report
-errors to Humanize; answer as you like.
-
-```sh
-hmz
-```
-
-Type `$`, the flow's name, and the task:
-
-<div class="hmz-term" data-title="hmz">
-
-```text
-$ralph_loop Fix the bug in calc.py.
-```
-
-</div>
-
-The first time, the flow's menu opens and holds your line. Pick the CLI, model and effort for
-its one role, `agent`, set a budget, and press its **Save** button: that
-saves the setup and starts the run. This directory remembers the setup: next time, the same line starts the run
-straight away.
-
-Or start from the menu: type `/flow`, pick `ralph_loop`, set it up, press **Save**, and then
-type the task at `❯`.
-
-<kbd>ctrl+c</kbd> twice stops the flow, `/` lists every command, and `/exit` leaves. To watch
-the same run in a browser, run `hmz web` in another terminal in the same directory: see
-[In a browser](/user/web).
-
-<HmzCast name="tui" alt="hmz opens, / lists its commands, /flow lists the flows installed here and → opens one's roles; esc steps back out through its first screen" />
-
-<p class="hmz-cast-caption">
-  <code>/</code> lists the commands and <code>/flow</code> the flows to set up. Recorded with
-  stand-in CLIs, so no agent takes a turn.
-</p>
-
-</template>
-<template #exec>
-
-The same run as one line. `ralph_loop` ships with Humanize, so nothing has to be installed
-first. Pick your CLI:
-
-::: code-group
-
-```sh [Claude Code]
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.duration=10m "Fix the bug in calc.py."
-```
-
-```sh [Codex]
-hmz exec -f ralph_loop -a agent=codex/gpt-5.6-sol:high -p budget.duration=10m "Fix the bug in calc.py."
-```
-
-```sh [Antigravity]
-hmz exec -f ralph_loop -a agent=agy/gemini-3.7-flash-high:high -p budget.duration=10m "Fix the bug in calc.py."
-```
-
-```sh [Qwen Code]
-hmz exec -f ralph_loop -a agent=qwen/qwen3-coder-plus:high -p budget.duration=10m "Fix the bug in calc.py."
-```
-
-```sh [Kimi Code]
-hmz exec -f ralph_loop -a agent=kimi/kimi-code/k3:high -p budget.duration=10m "Fix the bug in calc.py."
-```
-
-```sh [Grok Build]
-hmz exec -f ralph_loop -a agent=grok/grok-4.6:high -p budget.duration=10m "Fix the bug in calc.py."
-```
-
-:::
-
-- `-f` names the flow.
-- `-a agent=CLI/MODEL:EFFORT` fills its one role, `agent`: which CLI, which model, and how hard
-  the model thinks.
-- `-p budget.…` caps what the run may spend: a `duration`, a `cost` in dollars, or
-  `output_tokens`. It will not start without one.
-
-<kbd>ctrl+c</kbd> stops it. [The command line](/reference/cli) has every flag.
-
-</template>
-</HmzTabs>
-
-### See what it did
-
-```sh
-git diff before
-```
-
-```diff
- def add(a, b):
--    return a - b
-+    return a + b
-```
-
-</div>
-
-::: details If it does not start
-
-| If | Then |
-| --- | --- |
-| `hmz exec` says `not installed` | `ralph_loop` is built in; a flow from a [flowverse](/weaver/flowverses) runs once installed. Open `hmz`, type `/flow`, press **Install more…**, open `official` and install it. |
-| the model is refused | Model ids change with each CLI release, and your account decides which you may use. In `hmz`, type `/flow ralph_loop` and open the `agent` row: it lists the models your CLI offers. |
-| your CLI is not in the tabs | Every backend, and how to sign each one in, is on [Installation](/user/installation). |
-
-:::
-
-**Next.** The [User Guide](/user/) covers the interface, accounts and reading a run back, and
-its tutorials each take a real piece of work start to finish: [Beat a
-benchmark](/user/tutorials/take-home), [Port a project](/user/tutorials/port-a-project) and
-[Build a coding agent](/user/tutorials/build-an-agent). To run a flow with nobody at the
-keyboard, on every push or every night, see [Humanize in CI](/user/ci). [Flows](https://humanfia.ai/flows/), on
-humanfia.ai, lists what else there is to run.
-
-## Weave a flow
-
-A flow is an async Python function that declares the agents it drives. Save this one in the
-scratch repository as `.hmz/flows/twice/__init__.py`. It has an agent do the task, then
-review its own work in the same conversation. A conversation is only its history; each turn
-says where it runs, and one that names no environment runs in the directory you started in:
-
-::: code-group
-
-```python{6,19-23} [.hmz/flows/twice/__init__.py]
-from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
-from hmz.flows import LocalEnv, flow
-
-
-class Agents(AgentCollection):
-    builder: Agent  # a role: -a builder=… fills it
-
-
-class Envs(EnvCollection):
-    workspace: LocalEnv  # the directory you run it in
-
-
-@flow(agents=Agents, envs=Envs, params=FlowParams)
-async def twice(
-    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
-) -> None:
-    """Does the work, then reads it back and fixes what is wrong."""
-    builder = agents["builder"]
-    session = await builder.spawn()  # one conversation: only its history
-    await builder.run(task, session=session, env=envs["workspace"])
-    await builder.run(  # the same one, so it remembers; no env: the workspace again
-        "Now review what you just did, and fix anything that is wrong.", session=session
-    )
-```
-
-:::
-
-Run it like any other flow: by name from your shell, or as `$@local/twice` at the prompt.
-
-::: code-group
-
-```sh [hmz exec]
-hmz exec -f twice -a builder=claude/claude-opus-5:high -p budget.cost=5 "Add a subtract function to calc.py."
-```
-
-```text [at the prompt]
-$@local/twice Add a subtract function to calc.py.
-```
-
-:::
-
-**Next.** The [Weaver Guide](/weaver/) is everything a flow can ask of its agents: loops,
-params, goals, hooks and worktrees. [Build under test](/weaver/tutorials/build-under-test)
-writes a useful flow start to finish, and [Testing a flow](/weaver/testing-flows) runs one on
-stand-in agents before a real one takes a turn.
-
-## Contribute {#work-on-humanize}
-
-```sh
-git clone https://github.com/humanfia/humanize.git && cd humanize
-uv sync
-```
-
-Every change has to pass both of these:
-
-```sh
-uv run pre-commit run --all-files
-uv run pytest
-```
-
-[Contributing](/contributing/) says where a change goes, what those checks hold it to, and when
-to also run the tests that drive real CLIs. [Your first
-patch](/contributing/tutorials/first-patch) takes one change from a clone to a pull request.
-
 ## Where to go next
 
 <div class="hmz-paths by-three">
   <a :href="withBase('/user/')">
     <strong>User Guide</strong>
-    <span>Running flows: the interface, agents and accounts, where the work lands, and reading
-    a run back.</span>
+    <span>Running flows: the app, the terminal and the browser, agents and accounts, and
+    reading a run back.</span>
   </a>
   <a href="https://humanfia.ai/flows/">
     <strong>Flows</strong>
-    <span>Every flow Humanize ships or its official flowverse lists, each with its loop played, on humanfia.ai.</span>
+    <span>Every flow there is to run, each with its loop played, on humanfia.ai.</span>
   </a>
   <a :href="withBase('/weaver/')">
-    <strong>Weaver Guide</strong>
-    <span>Writing flows: what a flow may ask of an agent, and how to write and test one.</span>
+    <strong>Writing Flows</strong>
+    <span>Your own flow, in Python: loops, goals, hooks and worktrees, and how to test one.</span>
   </a>
   <a :href="withBase('/features/')">
     <strong>Features</strong>

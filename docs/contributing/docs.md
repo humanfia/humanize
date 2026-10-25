@@ -45,7 +45,7 @@ Each section answers one kind of question. A page that answers two is two pages.
 | --- | --- | --- |
 | **Features** | to understand | One feature, built around a diagram the reader can push. **No commands and no code**: a guide is one click away |
 | **User Guide** | to do something | One task for the person running flows, as a [guide page](#the-shape-of-a-guide-page). No Python |
-| **Weaver Guide** | to write a flow | The same, for whoever writes the flow. Every example a complete flow that runs |
+| **Writing Flows** | to write a flow | The same, for whoever writes the flow. Every example a complete flow that runs |
 | **Contributing** | to change Humanize | Setup, checks, the layers, and this, as guide pages too |
 | **Reference** | to look something up | Exact, complete and scannable: every flag, key, argument and return |
 
@@ -54,7 +54,7 @@ written out, nothing for the reader to choose.
 
 ### The shape of a guide page
 
-Every page in the User Guide, the Weaver Guide and Contributing is a guide: it gets one reader
+Every page in the User Guide, the Writing Flows guide and Contributing is a guide: it gets one reader
 to one result. It has these parts, in this order, and drops the ones it has nothing for:
 
 ````md
@@ -107,7 +107,7 @@ async def seen(params: PreToolUseHookParams) -> PreToolUseHookResult:  # ①
    prose with `…` and put scratch paths under `/home/you/`, and change nothing else. Then say
    how to read the output.
 7. **Check it worked.** How the reader proves it: a file to look at, a command whose output
-   says so, and, in the Weaver Guide, a test on the fake kit with its own callouts and its real
+   says so, and, in Writing Flows, a test on the fake kit with its own callouts and its real
    pytest output.
 8. **Variations and pitfalls.** The other ways to do it, and what goes wrong, each with the
    error it prints where there is one.

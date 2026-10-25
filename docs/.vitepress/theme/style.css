@@ -302,22 +302,6 @@
   color: var(--vp-c-text-1);
 }
 
-/* Where Humanize is going, set apart from what it does today: a rule down its side, the
-   figures in the green. */
-.vp-doc .hmz-vision {
-  margin: 24px 0;
-  padding: 4px 0 4px 16px;
-  border-left: 3px solid var(--hmz-green);
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--vp-c-text-2);
-}
-
-.vp-doc .hmz-vision b {
-  color: var(--vp-c-text-1);
-  font-weight: 700;
-}
-
 /* The shell every diagram on the site is drawn in. Two dozen components set it as their root
    class and then style their own insides, so the border, the radius and the fill live here
    once rather than two dozen times. */
@@ -805,96 +789,6 @@
   color: var(--vp-c-text-3);
   font-size: 13px;
   line-height: 1.55;
-}
-
-/* Numbered steps down a rail. Every `###` directly inside is a step, numbered in order:
-
-     <div class="hmz-steps">
-
-     ### Install
-     …
-
-     ### Run it
-     …
-
-     </div>
-*/
-.vp-doc .hmz-steps {
-  counter-reset: hmz-step;
-  position: relative;
-  margin: 24px 0 8px;
-  padding-left: 46px;
-}
-
-/* The rail the numbers sit on. */
-.vp-doc .hmz-steps::before {
-  content: '';
-  position: absolute;
-  top: 14px;
-  bottom: 12px;
-  left: 13px;
-  width: 2px;
-  border-radius: 1px;
-  background: linear-gradient(var(--vp-c-brand-soft), var(--hmz-panel-border));
-}
-
-.vp-doc .hmz-steps > h3 {
-  counter-increment: hmz-step;
-  position: relative;
-  margin-top: 36px;
-}
-
-.vp-doc .hmz-steps > h3:first-child {
-  margin-top: 0;
-}
-
-.vp-doc .hmz-steps > h3::before {
-  content: counter(hmz-step);
-  position: absolute;
-  top: -1px;
-  left: -46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--vp-c-brand-1);
-  border-radius: 999px;
-  background: var(--vp-c-bg);
-  color: var(--vp-c-brand-1);
-  font-family: var(--vp-font-family-mono);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-@media (max-width: 639px) {
-  /* No room for a rail: the number moves in front of the heading, and the code blocks go
-     back to the edge-to-edge the theme draws them at on a phone. */
-  .vp-doc .hmz-steps {
-    padding-left: 0;
-  }
-
-  .vp-doc .hmz-steps::before {
-    display: none;
-  }
-
-  .vp-doc .hmz-steps > h3::before {
-    position: static;
-    display: inline-flex;
-    width: 26px;
-    height: 26px;
-    margin-right: 10px;
-    vertical-align: 1px;
-  }
-}
-
-/* On the page at the site's root, prose inside the steps keeps the measure the rest of that
-   page's prose is held to. */
-.VPHome .vp-doc .hmz-steps > p,
-.VPHome .vp-doc .hmz-steps > ul,
-.VPHome .vp-doc .hmz-steps > ol,
-.VPHome .vp-doc .hmz-steps > .custom-block {
-  max-width: 46rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

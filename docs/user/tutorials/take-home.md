@@ -23,8 +23,7 @@ take turns on it for hours, while you check their progress against a number that
 - **Install Humanize and sign in to a coding agent CLI.** See
   [Installation](/user/installation). One signed-in backend is enough, since it can fill both
   roles.
-- **Make one run first.** [Your first run](/user/first-run), or the
-  [quickstart on the home page](/#run-a-flow), shows you a flow working in a scratch
+- **Make one run first.** [Your first run](/user/first-run) shows you a flow working in a scratch
   repository. This tutorial assumes you have seen that.
 - **Have Python 3 and git.** The benchmark is a Python script.
 - **Set aside a budget.** The command below allows up to eight hours and $100. Lower `cost=` if

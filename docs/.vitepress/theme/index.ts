@@ -1,4 +1,4 @@
-// The page at the site's root is a hero and an architecture diagram, the features landing is a
+// The page at the site's root is a hero and a few cards, the features landing is a
 // set of diagrams rather than a page of prose, each feature page is one diagram of its own, and
 // a tutorial plays the loop of the flow it runs -- so the theme exists to register them.
 // Everything else is VitePress's default theme untouched: the two role guides, contributing
@@ -8,7 +8,6 @@ import DefaultTheme from 'vitepress/theme'
 
 import HmzAccounts from './components/HmzAccounts.vue'
 import HmzAnchor from './components/HmzAnchor.vue'
-import HmzArch from './components/HmzArch.vue'
 import HmzBackends from './components/HmzBackends.vue'
 import HmzCast from './components/HmzCast.vue'
 import HmzDaemon from './components/HmzDaemon.vue'
@@ -36,7 +35,6 @@ export default {
   enhanceApp({ app }) {
     app.component('HmzAccounts', HmzAccounts)
     app.component('HmzAnchor', HmzAnchor)
-    app.component('HmzArch', HmzArch)
     app.component('HmzBackends', HmzBackends)
     app.component('HmzCast', HmzCast)
     app.component('HmzDaemon', HmzDaemon)

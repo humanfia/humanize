@@ -2,29 +2,31 @@
 
 For the person who runs flows: you give coding agents a task, a loop to work in and a budget,
 and Humanize drives them until the work is done or the budget is spent. Nothing here asks you
-to write Python; writing flows is the [Weaver Guide](/weaver/).
+to write Python; writing flows is the [Writing Flows guide](/weaver/).
 
 ::: info How this guide is built
-- **Start here** and the **Tutorials** are lessons: follow them in order, every command written
+- **Get started** and the **Tutorials** are lessons: follow them in order, every command written
   out, every step checked before the next.
 - **Everything else** is a guide to one task: what it is for and what you need, a *Try it*
   short enough to paste, how the thing works, a worked example with every part of it
   explained, how to check it worked, what to do when it does not, and where to go next.
-- **Look-up** pages, and the [Reference](/reference/), are for when you know what you want.
+- **Help** pages, and the [Reference](/reference/), are for when you know what you want.
 :::
 
-## Start here
+## Get started
 
 <div class="u7-path">
 
 1. **[Installation](/user/installation)**
-   Humanize, and one coding agent CLI signed in. About five minutes.
+   Humanize Desktop or the CLI, and one coding agent CLI signed in. About five minutes.
 2. **[Your first run](/user/first-run)**
    Choose a flow, give it an agent and a budget, watch it fix a bug, and stop it.
 3. **[Security](/user/security)**
    What to check before a flow touches work you care about.
 
 </div>
+
+New words on the way are in the [Glossary](/user/concepts).
 
 ## Tutorials
 
@@ -36,6 +38,15 @@ step:
 | [Beat a benchmark](/user/tutorials/take-home) | two agents taking turns, a task file, checking a result against cheating | an hour of you, hours of the machine |
 | [Port a project](/user/tutorials/port-a-project) | an actor and a reviewer, a run that ends itself | about an hour |
 | [Build a coding agent](/user/tutorials/build-an-agent) | three flows in a row: idea, plan, build | an afternoon |
+
+## Ways to use it
+
+| | Where | Best for |
+| --- | --- | --- |
+| [Humanize Desktop](/user/desktop) | an app on macOS or Windows | every epic in one window, with notifications |
+| [`hmz web`](/user/web) | a browser, on any machine | the same page, and your servers' epics beside yours |
+| [`hmz`](/reference/tui) | the terminal, in a repository | setting a flow up and talking to it at the prompt |
+| [`hmz exec`](/user/unattended) | a script, or [CI](/user/ci) | runs nobody watches |
 
 ## Everything else
 
@@ -49,31 +60,19 @@ step:
 - [Many conversations at once](/user/conversations)
 - [Showing the working](/user/settings#details)
 - [Watching a run (the monitor)](/user/monitor)
+- [The mission board](/user/board)
 - [Being away (/afk)](/user/afk)
 - [Stopping](/user/stopping)
 - [Leaving it running](/user/leaving)
-- [In a browser (hmz web)](/user/web)
-- [The mission board](/user/board)
-
-</div>
-<div>
-
-**At the prompt**
-
 - [Completion](/user/completion)
 - [History](/user/history)
-- [Settings (/settings)](/user/settings)
-
-**Where the work lands**
-
-- [Containers](/user/containers)
-- [Remote execution](/user/remote-execution)
 
 </div>
 <div>
 
 **Agents and accounts**
 
+- [Settings (/settings)](/user/settings)
 - [Accounts](/user/settings#accounts)
 - [Efforts](/user/efforts)
 - [Falling back](/user/settings#fallback)
@@ -85,25 +84,25 @@ step:
 </div>
 <div>
 
+**Where the work lands**
+
+- [Remote execution](/user/remote-execution)
+- [Containers](/user/containers)
+
 **After a run**
 
 - [Picking a run up](/user/resuming)
 - [Exporting a run](/user/export)
+- [Backing epics up](/user/backups)
 - [Tracing](/user/tracing)
-
-**Without the interface**
-
-- [Run it unattended](/user/unattended)
-- [Humanize in CI](/user/ci)
 
 </div>
 <div>
 
-**Look-up**
+**Help**
 
 - [Troubleshooting](/user/troubleshooting)
 - [Reporting](/user/reporting)
-- [Glossary](/user/concepts)
 - [CLI reference](/reference/cli)
 - [TUI reference](/reference/tui)
 - [Web reference](/reference/web)

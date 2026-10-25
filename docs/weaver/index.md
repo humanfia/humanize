@@ -3,7 +3,7 @@ import { withBase } from 'vitepress'
 import WeaverLoom from '../.vitepress/theme/components/weaver-index/WeaverLoom.vue'
 </script>
 
-# Weaver Guide
+# Writing Flows
 
 A **weaver** writes flows: the Python that says which agents are driven, what each is asked, in
 what order, and when to stop. You have run a flow; this is where you write one.

@@ -83,6 +83,8 @@ const MOVED_AGAIN: Record<string, string> = {
   'user/fallback': 'user/settings#fallback',
   'guide/details': 'user/settings#details',
   'user/details': 'user/settings#details',
+  // The two app pages are one, Humanize Desktop, and how to install it is on Installation.
+  'user/desktop-windows': 'user/installation#windows',
 }
 
 // Every flow had a page here, and has one at humanfia.ai now, under the same name: the flows
@@ -111,8 +113,8 @@ const MOVED: Record<string, string> = {
   ...Object.fromEntries(MOVED_TO_WEAVER.map((page) => [`guide/${page}`, `weaver/${page}`])),
   'guide/': 'user/',
   'tutorials/': 'user/',
-  // The quickstart is not a page any more. It is the first of the three the home page opens on.
-  'tutorials/quickstart': '#run-a-flow',
+  // The quickstart is Your first run, which the home page sends a new reader to.
+  'tutorials/quickstart': 'user/first-run',
   'tutorials/take-home': 'user/tutorials/take-home',
   'tutorials/port-a-project': 'user/tutorials/port-a-project',
   'tutorials/build-an-agent': 'user/tutorials/build-an-agent',
@@ -158,14 +160,14 @@ export default defineConfig({
     // the README's banner links it.
     logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: 'Humanize' },
 
-    // Five sections, in the order a reader comes to need them. The home page's quickstart ends
-    // on a first run, and what that reader wants next is the guide to running flows; after
-    // that, writing one of their own. Features explains how it all works, for whoever wants to
+    // The sections, in the order a reader comes to need them: getting it and running flows,
+    // then writing one of their own. Features explains how it all works, for whoever wants to
     // know why; reference spells every part of it out; and contributing is for the few working
     // on Humanize itself. The flows there are to run are humanfia's, at humanfia.ai/flows.
     nav: [
-      { text: 'User Guide', link: '/user/', activeMatch: '/user/' },
-      { text: 'Weaver Guide', link: '/weaver/', activeMatch: '/weaver/' },
+      { text: 'Get Started', link: '/user/installation', activeMatch: '^/user/(installation|first-run)' },
+      { text: 'User Guide', link: '/user/', activeMatch: '^/user/(?!installation|first-run)' },
+      { text: 'Writing Flows', link: '/weaver/', activeMatch: '/weaver/' },
       { text: 'Features', link: '/features/', activeMatch: '/features/' },
       { text: 'Reference', link: '/reference/', activeMatch: '/reference/' },
       {
@@ -236,20 +238,20 @@ export default defineConfig({
         },
       ],
 
-      // For the person who runs flows, in the order they need it: installing, a first run and
-      // what to check before real work, then the tutorials, then the rest grouped by when a
-      // reader reaches for it -- while a run goes, at the prompt, setting agents up, where the
-      // work lands, after a run, without the interface -- and look-up last, the glossary
-      // included.
+      // For the person who runs flows, in the order they need it: getting Humanize and a first
+      // run, then the tutorials, then the three ways to use it, then the rest grouped by when a
+      // reader reaches for it -- while a run goes, choosing agents, where the work lands, after a
+      // run, without anybody at it -- and help last.
       '/user/': [
         { text: 'User Guide', link: '/user/' },
         {
-          text: 'Start here',
+          text: 'Get started',
           collapsed: false,
           items: [
             { text: 'Installation', link: '/user/installation' },
             { text: 'Your first run', link: '/user/first-run' },
             { text: 'Security', link: '/user/security' },
+            { text: 'Glossary', link: '/user/concepts' },
           ],
         },
         {
@@ -262,35 +264,37 @@ export default defineConfig({
           ],
         },
         {
-          text: 'While it runs',
+          text: 'Ways to use it',
           collapsed: false,
+          items: [
+            { text: 'Humanize Desktop', link: '/user/desktop' },
+            { text: 'In a browser (hmz web)', link: '/user/web' },
+            { text: 'At the prompt (hmz)', link: '/reference/tui' },
+            { text: 'Run it unattended (hmz exec)', link: '/user/unattended' },
+            { text: 'Humanize in CI', link: '/user/ci' },
+          ],
+        },
+        {
+          text: 'While it runs',
+          collapsed: true,
           items: [
             { text: 'Talking to a running turn', link: '/user/steering' },
             { text: 'Side questions (/btw)', link: '/user/btw' },
             { text: 'Many conversations at once', link: '/user/conversations' },
             { text: 'Watching a run (the monitor)', link: '/user/monitor' },
+            { text: 'The mission board', link: '/user/board' },
             { text: 'Being away (/afk)', link: '/user/afk' },
             { text: 'Stopping', link: '/user/stopping' },
             { text: 'Leaving it running', link: '/user/leaving' },
-            { text: 'In a browser (hmz web)', link: '/user/web' },
-            { text: 'The macOS app', link: '/user/desktop' },
-            { text: 'The Windows app', link: '/user/desktop-windows' },
-            { text: 'The mission board', link: '/user/board' },
-          ],
-        },
-        {
-          text: 'At the prompt',
-          collapsed: false,
-          items: [
             { text: 'Completion', link: '/user/completion' },
             { text: 'History', link: '/user/history' },
-            { text: 'Settings (/settings)', link: '/user/settings' },
           ],
         },
         {
           text: 'Agents and accounts',
-          collapsed: false,
+          collapsed: true,
           items: [
+            { text: 'Settings (/settings)', link: '/user/settings' },
             { text: 'Accounts', link: '/user/settings#accounts' },
             { text: 'Efforts', link: '/user/efforts' },
             { text: 'Falling back', link: '/user/settings#fallback' },
@@ -302,7 +306,7 @@ export default defineConfig({
         },
         {
           text: 'Where the work lands',
-          collapsed: false,
+          collapsed: true,
           items: [
             { text: 'Remote execution', link: '/user/remote-execution' },
             { text: 'Where the agent runs (harness setting)', link: '/user/remote-execution#where-the-agent-runs' },
@@ -311,7 +315,7 @@ export default defineConfig({
         },
         {
           text: 'After a run',
-          collapsed: false,
+          collapsed: true,
           items: [
             { text: 'Picking a run up', link: '/user/resuming' },
             { text: 'Exporting a run', link: '/user/export' },
@@ -320,20 +324,11 @@ export default defineConfig({
           ],
         },
         {
-          text: 'Without the interface',
-          collapsed: false,
-          items: [
-            { text: 'Run it unattended', link: '/user/unattended' },
-            { text: 'Humanize in CI', link: '/user/ci' },
-          ],
-        },
-        {
-          text: 'Look-up',
+          text: 'Help',
           collapsed: false,
           items: [
             { text: 'Troubleshooting', link: '/user/troubleshooting' },
             { text: 'Reporting', link: '/user/reporting' },
-            { text: 'Glossary', link: '/user/concepts' },
           ],
         },
       ],
@@ -343,7 +338,7 @@ export default defineConfig({
       // need it in: a flow of their own running first, then what grows it, then what an agent
       // can be asked, and testing and publishing once there is something worth either.
       '/weaver/': [
-        { text: 'Weaver Guide', link: '/weaver/' },
+        { text: 'Writing Flows', link: '/weaver/' },
         {
           text: 'Start here',
           collapsed: false,

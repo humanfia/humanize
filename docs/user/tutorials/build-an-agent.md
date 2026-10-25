@@ -25,8 +25,7 @@ is a flow of its own, and each hands the next a file you can read and edit.
 
 - **Install Humanize and sign in to a coding agent CLI.** See
   [Installation](/user/installation).
-- **Make one run first.** [Your first run](/user/first-run), or the
-  [quickstart on the home page](/#run-a-flow), shows a flow working in a scratch repository.
+- **Make one run first.** [Your first run](/user/first-run) shows a flow working in a scratch repository.
 - **Install `humanize1`.** It is not built in: it comes from the official
   [flowverse](/weaver/flowverses). Open `hmz`, type `/flow`, press **Install more…**, open
   `official` and install `humanize1`. `hmz exec` installs nothing. Leave with `/exit`.
@@ -395,5 +394,5 @@ to step 4.
 - **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export epic** on
   any of them gives you its trace. See [Tracing](/user/tracing).
 - **Write a flow of your own.** You have now run three that somebody else wrote. Whoever writes
-  one is a **weaver**, and the [Weaver Guide](/weaver/) starts with [Build under
+  one is a **weaver**, and the [Writing Flows guide](/weaver/) starts with [Build under
   test](/weaver/tutorials/build-under-test).

@@ -4,49 +4,92 @@ import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
 
 # Installation
 
-Install Humanize, sign in to one coding agent CLI, and check that Humanize can see it. It takes
-a few minutes, most of it the CLI's own sign-in.
+Humanize comes two ways. **Humanize Desktop** is an app for macOS and Windows: download it,
+open it, and it sets up everything else itself. **Humanize CLI** is the `hmz` command, for
+macOS, Linux, and Windows through WSL: the terminal interface, `hmz web` and `hmz exec`. The app
+runs the CLI underneath, so with the app you get both.
+
+Either way, Humanize drives a coding agent CLI you already use, such as Claude Code or Codex,
+under your own login, so you also [sign in to one](#signing-each-backend-in).
 
 ::: info At a glance
-- **You will** have the `hmz` command on your `PATH`, and at least one coding agent it can
+- **You will** have Humanize Desktop or the `hmz` command, and at least one coding agent it can
   drive.
 - **Use it when** you are setting Humanize up on a machine for the first time, or adding a
   backend to one that has it.
-- **You need** **Python 3.12 or newer** on Linux or macOS -- on Windows, in
-  [WSL](/user/desktop-windows#before-you-start) -- and `npm` for most of the coding agent CLIs.
+- **You need** macOS 11 or newer, Windows 10 or 11 with WSL 2, or Linux; and `npm` for most of
+  the coding agent CLIs. The CLI on its own needs Python 3.12 or newer, which uv fetches for you.
 :::
 
-## Try it
-
-With Claude Code, the whole thing is:
-
-```sh
-uv tool install hmz
-npm i -g @anthropic-ai/claude-code && claude auth login
-hmz --version
-```
-
-The steps below say what each line does, give the other ways to install, and show every
-backend's sign-in.
-
-## How it works
-
-Humanize does not talk to a model itself. It drives **coding agent CLIs** that you already use,
-such as Claude Code or Codex, the way a person would: it starts them, gives them a task, and
-reads what they do. Each CLI Humanize can drive is a **backend**.
-
-So there are two installs, and they are independent:
-
-| You install | Who signs it in | What it gives you |
+| | Humanize Desktop | Humanize CLI |
 | --- | --- | --- |
-| Humanize, once | nobody: it holds no account of its own | the `hmz` command |
-| one or more coding agent CLIs | you, with the CLI's own login | the agents a flow runs |
+| **Platforms** | macOS, Windows (with WSL) | macOS, Linux, Windows (in WSL) |
+| **You get** | every epic in an app window, notifications, self-updates | `hmz`, `hmz web` and `hmz exec` in a terminal |
+| **Install** | [download the app](#desktop) | [`uv tool install hmz`](#cli) |
 
-Humanize runs each CLI **as you signed it in**. The agent menu calls that `as local`. Nothing
-is copied: your login stays where the CLI keeps it. To run a CLI as another account, see
-[Accounts](/user/settings#accounts).
+## Humanize Desktop {#desktop}
 
-## 1. Install Humanize
+Download the installer for your platform from the
+[latest release](https://github.com/humanfia/humanize/releases/latest), or from
+[humanfia.ai](https://humanfia.ai/projects/humanize#get-started), which picks it for you.
+
+### macOS {#macos}
+
+1. Download `humanize-<version>-macos-universal.dmg`. It runs on Apple silicon and Intel, on
+   macOS 11 or newer.
+2. Open it, and drag **Humanize Desktop** onto **Applications**.
+3. Open Humanize Desktop from Applications. The first time, macOS stops it: see
+   [The first time it opens](#the-first-time-it-opens).
+
+#### The first time it opens {#the-first-time-it-opens}
+
+Humanize Desktop is not yet signed with an Apple Developer ID, so the first time you open it,
+macOS says it cannot check it and offers only **Done** or **Move to Trash**. Choose **Done**,
+then either:
+
+- open **System Settings → Privacy & Security**, scroll to the message about Humanize Desktop,
+  and click **Open Anyway**; or
+- in a terminal, take the quarantine off the app:
+
+  ```sh
+  xattr -dr com.apple.quarantine "/Applications/Humanize Desktop.app"
+  ```
+
+Either is once: macOS remembers it, until you install the app again.
+
+### Windows {#windows}
+
+On Windows, Humanize runs in [WSL](https://learn.microsoft.com/windows/wsl/), and so do your
+repositories and coding agent CLIs. The app is the window onto it.
+
+1. Install WSL, if you have not. In PowerShell:
+
+   ```powershell
+   wsl --install
+   ```
+
+   This installs WSL 2 and Ubuntu; restart when it asks, and make your Linux user. Any
+   distribution will do, as long as it is the default one: `wsl --list --verbose` marks it with
+   `*` and shows its version as `2`. `wsl --set-default <distro>` changes it.
+2. Download `humanize-<version>-windows-x64-setup.exe` and run it. It installs Humanize Desktop
+   for you alone, so it asks for no administrator rights, and puts it in the Start menu.
+3. Open Humanize Desktop from the Start menu.
+4. Inside WSL, [sign in to a coding agent](#signing-each-backend-in), as on any Linux machine. A
+   CLI installed on Windows is not seen.
+
+### What the first launch does
+
+The first time, the app says **Installing Humanize CLI**, with each step, while it installs uv
+and `hmz` -- in WSL, on Windows. From then on it shows its mark while `hmz web` starts, then
+the page, with the sidebar of your epics. It keeps `hmz` at its own version, so with the app,
+update the app rather than `hmz`. What else it does is on [Humanize Desktop](/user/desktop).
+
+Now [sign in to a coding agent](#signing-each-backend-in), if you have not.
+
+## Humanize CLI {#cli}
+
+On macOS and Linux, in a terminal; on Windows, in a WSL terminal (`wsl --install` first, as
+[above](#windows)):
 
 ::: code-group
 
@@ -66,15 +109,9 @@ pip install hmz
 
 Each one gives you the `hmz` command, from [PyPI](https://pypi.org/project/hmz/). `uv tool` and
 `pipx` put it in an environment of its own, on your `PATH` from every directory. `pip` installs
-into whichever environment is active, so `hmz` is there only while that environment is.
-
-::: tip On a Mac or on Windows, the app installs it for you
-[The macOS app](/user/desktop) opens `hmz web` in a window of its own, from the Dock, and
-installs `hmz` itself with `uv tool`, downloading uv where you have none: open it, and there is
-nothing to run here. It keeps `hmz` at its own version, so with the app, update the app rather
-than `hmz`. [The Windows app](/user/desktop-windows) does the same inside WSL, where humanize
-runs on Windows.
-:::
+into whichever environment is active, so `hmz` is there only while that environment is. No uv
+yet? `curl -LsSf https://astral.sh/uv/install.sh | sh` installs it, and uv fetches the Python
+`hmz` needs.
 
 ### Or run it without installing {#uvx}
 
@@ -120,12 +157,14 @@ pip install 'hmz[all]'
 :::
 
 You can add one later without reinstalling Humanize. The agent menu lists a backend that is
-missing its extra, with the install command on its row.
+missing its extra, with the install command on its row. With Humanize Desktop, add an extra
+with `uv tool install` as above; the app keeps it when it updates `hmz`.
 
-## 2. Sign in to a coding agent {#signing-each-backend-in}
+## Sign in to a coding agent {#signing-each-backend-in}
 
-Humanize drives a coding agent CLI that you install and sign in to yourself. One is enough.
-Pick yours:
+Humanize does not talk to a model itself: it drives a coding agent CLI that you install and
+sign in to yourself, and runs it **as you signed it in** -- nothing is copied. One is enough.
+On Windows, do this in WSL. Pick yours:
 
 ::: code-group
 
@@ -204,7 +243,7 @@ can hold a login, an API key, or a gateway of your own, and one flow can run two
 the same CLI at once.
 :::
 
-## 3. Check it works {#check-what-you-have}
+## Check it works {#check-what-you-have}
 
 ```sh
 hmz --version
@@ -214,7 +253,8 @@ hmz --version
 hmz 0.1.0
 ```
 
-Then open the interface in any directory:
+With Humanize Desktop, the window opens on the sidebar of your epics instead. With the CLI,
+open the terminal interface in any directory:
 
 ```sh
 hmz
@@ -385,8 +425,7 @@ pip install --upgrade hmz
 Each moves Humanize to the newest release. `uv tool upgrade` keeps the extras it was installed
 with; `pipx` and `pip` install again, so name an extra again: `pip install --upgrade 'hmz[all]'`.
 
-With [the macOS app](/user/desktop) or [the Windows app](/user/desktop-windows), update the app
-instead: it puts the `uv tool` `hmz` back at its own version the next time it opens with no
+With [Humanize Desktop](/user/desktop), update the app instead: it puts the `uv tool` `hmz` back at its own version the next time it opens with no
 epics running, older or newer, keeping its extras.
 
 What changed is in each release's notes, on
@@ -394,7 +433,8 @@ What changed is in each release's notes, on
 
 ## Uninstall
 
-Stop any run you left running first: `hmz` in its directory, then `/exit`.
+Stop any run you left running first: `hmz` in its directory, then `/exit`. To remove Humanize
+Desktop, see [its page](/user/desktop#uninstall). For the CLI:
 
 ::: code-group
 

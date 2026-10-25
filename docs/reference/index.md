@@ -12,7 +12,7 @@ import RefAtlas from '../.vitepress/theme/components/ref-index/RefAtlas.vue'
 The complete technical specification of Humanize as built: every command, option, grammar,
 key, screen, setting, protocol message, file, environment variable, Python symbol, default,
 limit and error. Each page states behaviour; tasks and explanations are in the
-[User Guide](/user/), [Weaver Guide](/weaver/) and [Features](/features/).
+[User Guide](/user/), [Writing Flows](/weaver/) and [Features](/features/).
 
 <RefAtlas />
 

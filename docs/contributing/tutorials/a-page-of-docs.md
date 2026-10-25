@@ -27,7 +27,7 @@ A page answers one kind of question, and the question picks the section:
 | --- | --- |
 | to understand how something works | [Features](/features/) |
 | to do something with `hmz` | [User Guide](/user/) |
-| to write a flow | [Weaver Guide](/weaver/) |
+| to write a flow | [Writing Flows](/weaver/) |
 | to change Humanize itself | [Contributing](/contributing/) |
 | to look up a flag, key or signature | [Reference](/reference/) |
 
