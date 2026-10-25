@@ -11,6 +11,8 @@
   --line-strong: rgba(20, 26, 31, 0.28);
   --hover: rgba(31, 179, 199, 0.1);
   --green: #76b900;
+  --cyan: #1fb3c7;
+  --pink: #ec6fa3;
   --link: #0b7080;
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
@@ -26,6 +28,8 @@
     --on-ink: #0f1418;
     --line-strong: rgba(230, 239, 241, 0.3);
     --hover: rgba(79, 216, 234, 0.1);
+    --cyan: #4fd8ea;
+    --pink: #ff94c2;
     --link: #7fe4f1;
   }
 }
@@ -34,6 +38,29 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* Its scrollbar is style.css's: thin, square, cyan to take hold of and pink while held. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--pink);
 }
 
 html,

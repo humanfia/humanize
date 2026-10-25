@@ -132,6 +132,40 @@
   background: color-mix(in srgb, var(--pink) 30%, transparent);
 }
 
+/* A scrollbar is the page's own, the same in every browser and on every system: a thin square
+   bar cut in the strong line on a bare track, turned cyan when it can be taken hold of and pink
+   while it is held. It always shows, as an overlaid one does not until it is scrolled, so that a
+   column past the edge is seen to be there. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--pink);
+}
+
+/* Where there is no such bar to draw, the standard one, as near as it comes. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+}
+
 /* Hidden means hidden, whatever display a class gives the element. */
 [hidden] {
   display: none !important;
@@ -1767,16 +1801,6 @@ p + .panel {
 
 .table-wrap {
   overflow-x: auto;
-}
-
-/* A column past the edge is scrolled to on a bar that shows, as an overlaid one does not until
-   it is scrolled. */
-.table-wrap::-webkit-scrollbar {
-  height: 6px;
-}
-
-.table-wrap::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
 }
 
 table {
