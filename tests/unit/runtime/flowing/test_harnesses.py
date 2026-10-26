@@ -31,6 +31,7 @@ from hmz.flows import (
     HarnessNotInstalled,
     HarnessUnrecoverable,
     HookKind,
+    OutputSchemaError,
     OutputTokensExceeded,
     OutworlderAway,
     Permission,
@@ -166,6 +167,10 @@ class Hooks:
 
 def _echo(prompt: str) -> str:
     return f"re: {prompt}"
+
+
+class Structured(pydantic.BaseModel):
+    done: bool
 
 
 class CLI:
@@ -1021,6 +1026,56 @@ async def test_a_turn_with_time_to_spare_is_taken(
     )
 
     assert await session.turn(TurnRequest("x", limits=limits), Sink()) == "re: x"
+
+
+async def test_a_malformed_structured_answer_is_retried_once(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    answers = iter(['{"done": false,}', '{"done": true}'])
+
+    def reply(_prompt: str) -> str:
+        return next(answers)
+
+    coganchor.reply = staticmethod(reply)
+    session = await _session(open_agent(_spec()), tmp_path)
+
+    result = await session.turn(TurnRequest("x", output_schema=Structured), Sink())
+
+    assert result == Structured(done=True)
+    prompts = _cli(session).conversations[0].prompts
+    assert len(prompts) == 2
+    assert "schema validation" in prompts[1]
+    assert "valid JSON object" in prompts[1]
+
+
+async def test_a_second_malformed_structured_answer_still_fails(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    answers = iter(['{"done": false,}', '{"done": false,}'])
+
+    def reply(_prompt: str) -> str:
+        return next(answers)
+
+    coganchor.reply = staticmethod(reply)
+    session = await _session(open_agent(_spec()), tmp_path)
+
+    with pytest.raises(OutputSchemaError):
+        await session.turn(TurnRequest("x", output_schema=Structured), Sink())
+
+    assert len(_cli(session).conversations[0].prompts) == 2
+
+
+async def test_a_plain_text_turn_is_not_retried_for_schema(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    def reply(_prompt: str) -> str:
+        return "not JSON"
+
+    coganchor.reply = staticmethod(reply)
+    session = await _session(open_agent(_spec()), tmp_path)
+
+    assert await session.turn(TurnRequest("x"), Sink()) == "not JSON"
+    assert len(_cli(session).conversations[0].prompts) == 1
 
 
 async def test_a_cli_that_failed_is_the_harness_error_it_is_and_a_bug_stays_one(

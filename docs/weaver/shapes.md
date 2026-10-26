@@ -111,9 +111,10 @@ async def reviewed(
    of how it got there, so an earlier round cannot talk it into approving.
 5. **`output_schema=Review`** makes the turn answer with a `Review`. A type checker knows it,
    so `review.done` and `review.notes` are checked too.
-6. **`except HarnessError`** takes the round again when the turn failed. An answer that cannot
-   be read as the model raises `OutputSchemaError`, which is a `HarnessError`, so a malformed
-   review and a failed turn are handled alike.
+6. **`except HarnessError`** takes the round again when the turn failed. A malformed answer
+   gets one bounded retry with the validation error fed back; if that also fails, it raises
+   `OutputSchemaError`, which is a `HarnessError`, so a malformed review and a failed turn
+   are handled alike.
 7. **`review.done`** is a `bool`. The loop branches on a field, never on a search of a
    paragraph for the word "done".
 8. **`review.notes`** goes to the actor word for word, in the actor's own session, which
