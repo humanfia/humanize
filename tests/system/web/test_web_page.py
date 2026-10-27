@@ -23,7 +23,7 @@ from playwright.sync_api import expect
 import hmz.coganchor.models
 import hmz.web.places
 from hmz.runtime.doing import hosting
-from tests.integration.doubles_core import install
+from tests.integration.doubles_core import AGENT, hmz_exec, install
 from tests.integration.doubles_web import backed_up_elsewhere, elsewhere, served
 from tests.system.web.doubles_browser import ENGINES, go, opened, stop
 
@@ -390,6 +390,44 @@ def test_a_chat_that_kept_nothing_to_carry_on_says_it_cannot_be_continued(
         )
         expect(page.locator("[data-hmz=composer], [data-hmz=say]")).to_have_count(0)
         expect(page.get_by_role("link", name="Resume")).to_have_count(0)
+
+
+def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
+    project: Path, engine: str
+) -> None:
+    chasers = ["-a", f"first_chaser={AGENT}", "-a", f"second_chaser={AGENT}"]
+    ran = hmz_exec("-f", "flame_chase", *chasers, "-p", "budget.duration=2s", "work")
+    assert ran.returncode == 0, ran.stderr
+    (record,) = project.parent.glob("humanize-home/epics/*/*/epic.jsonl")
+    origin = record.parent.name
+    # As an earlier Humanize wrote a year down: in ISO 8601, in years.
+    began, *rest = record.read_text().splitlines()
+    year = {"duration": "P1Y", "cost": None, "output_tokens": None, "graceful": True}
+    record.write_text(
+        "\n".join([json.dumps(json.loads(began) | {"budget": year}), *rest]) + "\n"
+    )
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, f"/epics/{origin}")
+        page.get_by_role("link", name="Resume").first.click()
+        page.get_by_role("button", name="Options").click()
+        minutes = page.get_by_label("Longest it may take, in minutes")
+        expect(minutes).to_have_value("525600")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(rf".*#/epics/(?!{re.escape(origin)})[^/]+$"))
+        resumed = page.evaluate(
+            """async () => {
+              const name = decodeURIComponent(location.hash.match(/epics\\/([^/?]+)/)[1])
+              return (await fetch(`/api/runs/${encodeURIComponent(name)}`)).json()
+            }"""
+        )
+        assert resumed["picked_up"] == origin
+        assert resumed["budget"]["duration"] == 365 * 86400
+        stop(page)
+
+        # Kept for the flow as settings says a year, and a new epic of it opens on it.
+        go(page, "/new?flow=flame_chase")
+        page.get_by_role("button", name="Options").click()
+        expect(minutes).to_have_value("525600")
 
 
 def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:

@@ -777,9 +777,15 @@ class Runner:
             envs=[f"{role}={spec}" for role, spec in self._places.items()],
             used=[f"{role}={spec}" for role, spec in self._used.items()],
             # Through JSON text rather than `mode="json"`, which leaves an infinite cost a
-            # float: `Budget(cost=inf)` is written as the string it reads back from.
+            # float: `Budget(cost=inf)` is written as the string it reads back from. The
+            # record says a duration in seconds, where that JSON says it in ISO 8601.
             params=json.loads(self._params.model_dump_json()),
-            budget=json.loads(self._budget.model_dump_json()),
+            budget=json.loads(self._budget.model_dump_json())
+            | {
+                "duration": None
+                if self._budget.duration is None
+                else self._budget.duration.total_seconds()
+            },
             resumable=impl.resumable,
             picked_up=self._picked_up,
             # A chat carried on is the same conversation, and so the same epic.

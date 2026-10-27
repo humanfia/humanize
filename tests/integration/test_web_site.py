@@ -342,6 +342,24 @@ def test_the_backup_saved_for_a_flow_is_what_it_opens_on(project: Path) -> None:
         assert browser.get("/api/flow?name=chat").json()["remembered"]["backup"] == []
 
 
+def test_the_budget_saved_for_a_flow_says_its_duration_as_settings_does(
+    project: Path,
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        setup = {"flow": "chat", "agents": {"assistant": AGENT}}
+
+        # A page says a duration in seconds: a year and ten minutes of them.
+        saved = browser.post(
+            "/api/flows/setup", setup | {"budget": {"duration": 31536600}}
+        )
+
+        assert saved.status == 200, saved.body
+        written = {"duration": "P1YT10M", "cost": None, "output_tokens": None}
+        assert saved.json()["remembered"]["budget"] == written | {"graceful": True}
+
+
 def test_what_of_a_flow_is_profiled_is_saved_apart(project: Path) -> None:
     with served() as site:
         browser = Browser(site)

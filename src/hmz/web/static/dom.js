@@ -193,13 +193,16 @@ export function settled(act, ms = 200) {
   }
 }
 
-/** The seconds an ISO 8601 duration says, as a budget is written: `PT1H30M`, `P1DT2.5S`. */
+/**
+ * The seconds an ISO 8601 duration says, as a budget is written: `PT1H30M`, `P1DT2.5S`, and from
+ * a year on `P1Y2D` -- a year being the 365 days pydantic writes one as.
+ */
 export function secondsOf(duration) {
   if (typeof duration === 'number') return duration
-  const said = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?)?$/.exec(duration || '')
+  const said = /^P(?:(\d+)Y)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?)?$/.exec(duration || '')
   if (!said) return null
-  const [, days, hours, minutes, seconds] = said.map((one) => Number(one || 0))
-  return days * 86400 + hours * 3600 + minutes * 60 + seconds
+  const [, years, days, hours, minutes, seconds] = said.map((one) => Number(one || 0))
+  return (years * 365 + days) * 86400 + hours * 3600 + minutes * 60 + seconds
 }
 
 /** What a role lets the agent filling it touch, scope by scope. */

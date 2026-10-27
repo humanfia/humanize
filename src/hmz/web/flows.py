@@ -150,11 +150,39 @@ def remembered(hmz: Any, said: dict[str, Any]) -> None:
         agents,
         cast("dict[str, str]", envs) if isinstance(envs, dict) else None,
         cast("dict[str, Any]", params) if isinstance(params, dict) else None,
-        cast("dict[str, Any]", budget) if isinstance(budget, dict) else {},
+        _saved(budget),
         profile_flow=said.get("profile_flow") is True,
         profile_environment=said.get("profile_environment") is True,
         backup=cast("list[str] | None", backup),
     )
+
+
+def _saved(budget: object) -> dict[str, Any]:
+    """A budget a page sent, as settings writes one: every limit, the duration in ISO 8601.
+
+    Args:
+      budget: The budget, its duration in seconds as a page says one.
+
+    Returns:
+      The budget, and nothing at all for none, which erases the one kept. One whose duration
+      is not one is left as it was said, for a start with it to be refused by its host.
+    """
+    if not isinstance(budget, dict) or not budget:
+        return {}
+    import datetime
+
+    import pydantic
+
+    said = cast("dict[str, Any]", budget)
+    durations: pydantic.TypeAdapter[datetime.timedelta | None] = pydantic.TypeAdapter(
+        datetime.timedelta | None
+    )
+    try:
+        duration = durations.validate_python(said.get("duration"))
+    except pydantic.ValidationError:
+        return said
+    unset: dict[str, Any] = {"cost": None, "output_tokens": None, "graceful": True}
+    return unset | said | {"duration": durations.dump_python(duration, mode="json")}
 
 
 def daemon_settings(hmz: Any) -> Any:
