@@ -299,6 +299,27 @@ def test_a_name_prefix_is_kept_as_it_was_written(backend: str, prefix: str) -> N
     assert new(backend, "box", name_prefix="").held()["name_prefix"] == ""
 
 
+def test_a_swarm_resolves_its_image_unless_told_not_to() -> None:
+    assert SwarmRuntime(name="sw").resolve_image is True
+    assert "resolve_image" not in SwarmRuntime(name="sw").held()  # as written before
+    unresolved = new(SWARM, "sw", resolve_image=False)
+
+    assert isinstance(unresolved, SwarmRuntime)
+    assert unresolved.resolve_image is False
+    assert unresolved.held()["resolve_image"] is False
+    written = {
+        k: v for k, v in unresolved.held().items() if k not in ("backend", "name")
+    }
+    read_back = new(SWARM, "sw", **written)
+
+    assert isinstance(read_back, SwarmRuntime)
+    assert read_back.resolve_image is False  # read back as written
+    with pytest.raises(ValueError, match="resolve_image cannot be 0"):
+        new(SWARM, "sw", resolve_image=0)
+    with pytest.raises(ValueError, match="resolve_image cannot be 'no'"):
+        new(SWARM, "sw", resolve_image="no")
+
+
 def test_a_swarm_takes_constraints_and_nodes_it_can_reach() -> None:
     runtime = SwarmRuntime(
         name="sw",

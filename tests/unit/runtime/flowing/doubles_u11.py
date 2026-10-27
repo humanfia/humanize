@@ -467,6 +467,7 @@ class Runtime:
     exec_user: str = ""
     exec_env: tuple[str, ...] = ()
     exec_wrapper: tuple[str, ...] = ()
+    resolve_image: bool = True
 
     def exec_options(self) -> tuple[tuple[str, str], ...]:
         return (

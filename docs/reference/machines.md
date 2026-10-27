@@ -862,6 +862,7 @@ that order; every environment on the runtime is reached through a target carryin
 | `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | Always `typed`. |
 | `harness` | `str` | `"env"` | As for an ssh host. |
+| `resolve_image` | `bool` | `true` | Whether a service is created with its image's digest asked of the registry, as docker does; `false` passes `--no-resolve-image`: each node runs the image it holds under that name, pulling it only where it holds none. No registry round trip (about two seconds a service); for an image pinned by digest, or the same on every node. |
 
 `daemon()` returns the manager's [`Endpoint`](#endpoints), as a docker daemon's does.
 `store.node_of(via)` is how a `nodes` value is reached: `ssh:<name>` for a saved ssh runtime of
