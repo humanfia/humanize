@@ -236,7 +236,8 @@ def test_a_spent_duration_ends_a_loop_as_an_ordinary_stop(project: Path) -> None
     ran_as = epics.read(epic)
     assert ran_as is not None
     assert ran_as.budget is not None
-    assert ran_as.budget["duration"] is not None
+    # In seconds, as the epic record says a duration: `Budget`'s own JSON says `PT2S`.
+    assert ran_as.budget["duration"] == 2
 
 
 def test_a_run_stopped_mid_call_journals_all_its_flow_did_on_the_way_out(
