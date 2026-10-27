@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
+import hmz.coganchor.backends
 import hmz.coganchor.models
 import hmz.coganchor.transport
 import hmz.runtime.flowing.verses
@@ -65,8 +66,9 @@ def _no_real_agents(_temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def hide_agents(temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Hides every coding agent installed here, so a test that forgot its stand-in fails.
 
-    Humanize looks for a CLI on `PATH` and in `~/.local/bin`; both are narrowed to the
-    system's own directories and this Python's.
+    Humanize looks for a CLI on `PATH`, then where an installer puts one: `PATH` is narrowed
+    to the system's own directories and this Python's, and where an installer puts one to
+    those under the home, which is the test's own.
     """
     monkeypatch.setenv("HOME", tempfile.mkdtemp(prefix="home-", dir=temporary))
     searched = [
@@ -77,6 +79,12 @@ def hide_agents(temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "/sbin",
     ]
     monkeypatch.setenv("PATH", os.pathsep.join(searched))
+    installed = hmz.coganchor.backends._INSTALLED_AT  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setattr(
+        hmz.coganchor.backends,
+        "_INSTALLED_AT",
+        tuple(one for one in installed if one.startswith("~")),
+    )
 
 
 @pytest.fixture(scope="session")

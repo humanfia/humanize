@@ -46,7 +46,12 @@ _SYSTEM = "QWEN_CODE_SYSTEM_SETTINGS_PATH"
 def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A home of the test's own, so that no configuration of whoever runs it is read."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    for one in (_SYSTEM, "QWEN_CODE_SYSTEM_DEFAULTS_PATH", "QWEN_HOME"):
+    for one in (
+        _SYSTEM,
+        "QWEN_CODE_SYSTEM_DEFAULTS_PATH",
+        "QWEN_HOME",
+        "NODE_COMPILE_CACHE",
+    ):
         monkeypatch.delenv(one, raising=False)
 
 

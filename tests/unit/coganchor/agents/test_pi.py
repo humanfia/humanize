@@ -33,6 +33,7 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A home of the test's own, so that no `models.json` of whoever runs it is read."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("PI_CODING_AGENT_DIR", raising=False)
+    monkeypatch.delenv("NODE_COMPILE_CACHE", raising=False)
 
 
 def _agent(**said: Any) -> PiAgent:
