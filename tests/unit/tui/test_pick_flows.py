@@ -209,18 +209,28 @@ def test_budgeted_answers_with_each_limit_graceful_on_its_own() -> None:
 @pytest.mark.parametrize(
     "fields",
     [
-        {},
-        {"duration": "   "},
         {"duration": "soon"},
         {"cost": -1},
         {"output_tokens": -5},
     ],
 )
-def test_budgeted_refuses_a_budget_that_limits_nothing_or_misreads(
+def test_budgeted_refuses_a_budget_that_misreads(
     fields: dict[str, Any],
 ) -> None:
     with pytest.raises(pydantic.ValidationError):
         pick.Budgeted(**fields)
+
+
+def test_budgeted_empty_sheet_returns_infinite_cost() -> None:
+    assert pick.Budgeted().budget().cost == math.inf
+
+
+def test_budgeted_cost_is_preserved() -> None:
+    assert pick.Budgeted(cost=5).budget().cost == 5
+
+
+def test_budgeted_infinite_cost_round_trips() -> None:
+    assert pick.Budgeted.of(Budget(cost=math.inf)).budget().cost == math.inf
 
 
 @pytest.mark.parametrize(
