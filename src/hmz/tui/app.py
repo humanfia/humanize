@@ -54,6 +54,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.content import Content
 from textual.message import Message
+from textual.screen import ModalScreen
 from textual.theme import Theme
 from textual.widgets import OptionList, Static, TextArea
 from textual.widgets.option_list import Option
@@ -2299,6 +2300,20 @@ class Humanize(App[None]):
             id=offer,
         )
 
+    def _set_terminal_title(self, title: str) -> None:
+        """Sets the terminal window title via OSC 0 escape sequence."""
+        if getattr(self, "_last_terminal_title", None) == title:
+            return
+        self._last_terminal_title = title
+        seq = f"\x1b]0;{title}\x07"
+        if getattr(self, "_driver", None) is not None:
+            with contextlib.suppress(Exception):
+                self._driver.write(seq)
+        else:
+            with contextlib.suppress(Exception):
+                sys.stdout.write(seq)
+                sys.stdout.flush()
+
     def _draw(self) -> None:
         """Redraws the lines around the editor: what is above it, the rules, the status.
 
@@ -2358,6 +2373,28 @@ class Humanize(App[None]):
                 f"[$secondary]◉[/] {escape(self._flowing())}"
                 f"[$text-muted]{_DOT}{escape(_where())}[/]"
             )
+        # Update terminal title for external multiplexers / workspace managers (Herdr, etc.)
+        flow = self._flowing()
+        is_modal = len(getattr(self, "screen_stack", ())) > 1 or isinstance(
+            self.screen, ModalScreen
+        )
+        if waits:
+            self._set_terminal_title(f"Action Required | [{flow}] waiting for {waits}")
+        elif is_modal:
+            modal_title = getattr(self.screen, "title", None) or "Action Required"
+            self._set_terminal_title(f"Action Required | [{flow}] {modal_title}")
+        elif self._starting or self._run is not None or (working and not chat):
+            task = (
+                self._run.task.strip().splitlines()[0][:40]
+                if self._run and self._run.task
+                else ""
+            )
+            target = task or (
+                "running" if chat else ", ".join(short(who) for who in working) or flow
+            )
+            self._set_terminal_title(f"⠋ [{flow}] {target}…")
+        else:
+            self._set_terminal_title(f"[{flow}] {_where()}")
         # The modes this is in, ahead of everything else on the line. Both change what the
         # interface does without changing anything drawn on it, and a mode nobody can see
         # they are in is one they find out about from what did not happen -- an agent that
@@ -3506,6 +3543,7 @@ class Humanize(App[None]):
         runs a host holds are left to it and whoever else is reading them. Said to nobody
         rather than to the transcript, which has gone with everything else.
         """
+        self._set_terminal_title("")
         self._quitting = True
         self._close_btw()
         if self._notices is not None:

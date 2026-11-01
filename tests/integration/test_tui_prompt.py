@@ -166,3 +166,12 @@ async def test_a_newer_release_is_said_as_it_opens(
     monkeypatch.setattr(hmz.coganchor, "__version__", "0.1.0", raising=False)
     async with Humanize().run_test(size=SIZE) as pilot:
         await shows(pilot, "hmz 99.0.0 is out: run `hmz update` to update")
+
+
+async def test_it_updates_terminal_title_when_opened(workspace: Path) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await shows(pilot, RUNS)
+        title = getattr(app, "_last_terminal_title", None)
+        assert title is not None
+        assert "[chat]" in title
