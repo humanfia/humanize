@@ -520,10 +520,6 @@ code {
   color: var(--tone, var(--ink-3));
 }
 
-.side-run.held .side-mark {
-  animation: pulse 1.6s ease-in-out infinite;
-}
-
 .side-label {
   flex: 1;
   min-width: 0;
@@ -1717,17 +1713,21 @@ p + .panel {
   --tone: var(--fail);
 }
 
-.tone-stopped,
-.tone-budget {
+.tone-asking,
+.tone-waiting {
   --tone: var(--budget);
 }
 
+.tone-stopping,
+.tone-stopped,
 .tone-unfinished,
 .tone-idle {
   --tone: var(--ink-3);
 }
 
-.tone-running .glyph {
+/* What waits on a person who has not looked yet calls for them; nothing else moves. */
+.badge.tone-asking .glyph,
+.side-mark.tone-asking {
   animation: pulse 1.6s ease-in-out infinite;
 }
 

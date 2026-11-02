@@ -46,25 +46,29 @@ export function fill(el, ...kids) {
   return el
 }
 
-/** What a run ending each way is drawn with: a glyph, so nothing is said by colour alone. */
-const ENDINGS = {
-  running: ['●', 'running'],
-  stopping: ['◐', 'stopping'],
-  done: ['✔', 'done'],
-  failed: ['✕', 'failed'],
-  stopped: ['■', 'stopped'],
-  budget: ['■', 'budget'],
-  refused: ['✕', 'refused'],
-  crashed: ['✕', 'crashed'],
-  unfinished: ['○', 'unfinished'],
-  idle: ['○', 'idle'],
+/** What an epic standing each way is drawn with: a glyph, so nothing is said by colour alone. */
+export const MARKS = {
+  running: '●',
+  asking: '●',
+  waiting: '●',
+  stopping: '◐',
+  done: '✔',
+  failed: '✕',
+  refused: '✕',
+  crashed: '✕',
+  stopped: '■',
+  budget: '■',
+  unfinished: '?',
+}
+
+/** The colour each way is said in, where it is not its own. */
+export function tone(how) {
+  return { budget: 'stopped', refused: 'failed', crashed: 'failed' }[how] || how
 }
 
 /** A status: how a run ended, or that it is going. */
 export function badge(how) {
-  const [glyph, said] = ENDINGS[how] || ['·', how || 'unknown']
-  const tone = { stopping: 'running', budget: 'stopped', refused: 'failed', crashed: 'failed' }[how] || how
-  return h('span', { class: `badge tone-${tone}` }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, glyph), said)
+  return h('span', { class: `badge tone-${tone(how)}` }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, MARKS[how] || '·'), how || 'unknown')
 }
 
 /** A sentence the server refused with, said where it happened. */

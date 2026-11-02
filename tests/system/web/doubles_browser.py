@@ -148,7 +148,7 @@ def _drawn(page: Page) -> None:
 def stop(page: Page) -> None:
     """Stops the epic in front, as a script would -- a chat offers no Stop -- until it has ended.
 
-    An ended chat is done, as a chat app's conversation is: never stopped.
+    An ended chat is stopped, as an epic stopped is.
     """
     from playwright.sync_api import expect
 
@@ -163,6 +163,4 @@ def stop(page: Page) -> None:
           })
         }"""
     )
-    expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
-        re.compile("done|stopped")
-    )
+    expect(page.locator("[data-hmz=bar] .badge")).to_have_text(re.compile("stopped"))

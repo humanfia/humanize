@@ -8,9 +8,10 @@
 // `<agent>/<n>`, the n-th its agent opened; a run written down names its sessions the same
 // way, in the order they were opened, so an address to a session stays one as its run ends.
 
-import { get, poll } from './api.js'
+import { daemon, get, poll } from './api.js'
 import { flowName, lane, lasting } from './dom.js'
 import { current, follow, placed } from './held.js'
+import { keep, kept } from './shell.js'
 
 /**
  * Follows one epic, or -- named "" -- the one going on a host: what it wrote down, read again
@@ -94,12 +95,62 @@ export function chatting(epic) {
 }
 
 /**
- * How a chat stands, as a chat app says it: running while its agent answers, done otherwise --
- * by the turn said where it is, else by how the epic stands.
+ * How an epic is marked: as it stands, save that one going, asked something no person has
+ * looked at yet, is asking, and once every question has been looked at, waiting. A chat is
+ * marked as a chat app marks one: running while its agent answers, asking while its reply waits
+ * unseen, failed where it failed, and stopped otherwise -- by the turn said where it is, else by
+ * how the epic stands.
+ *
+ * @param {string} how How the epic stands.
+ * @param {{chat?: boolean, turn?: string, asked?: string[], epic?: string}} of Whether it is a chat, its turn, and the `<run>:<question>` keys it waits on a person for.
  */
-export function chatState(how, turn) {
-  return (turn || how) === 'running' ? 'running' : 'done'
+export function markOf(how, { chat = false, turn = '', asked = [], epic = '' } = {}) {
+  const unseen = asked.some((key) => !looked().has(lookedKey(epic, key)))
+  if (chat) return (turn || how) === 'running' ? 'running' : unseen ? 'asking' : ['failed', 'refused', 'crashed'].includes(how) ? how : 'stopped'
+  if (how !== 'running' || !asked.length) return how
+  return unseen ? 'asking' : 'waiting'
 }
+
+/** The questions a person has looked at, kept in this browser, and how many it keeps. */
+const LOOKED = 'hmz-seen'
+const LOOKS = 500
+let looks = null
+
+/** A question by the daemon and the epic it is asked in, as two hosts number theirs alike. */
+const lookedKey = (epic, key) => `${daemon()} ${epic} ${key}`
+
+function looked() {
+  if (!looks) {
+    try {
+      looks = new Set(JSON.parse(kept(LOOKED, '[]')))
+    } catch {
+      looks = new Set()
+    }
+  }
+  return looks
+}
+
+/** Marks the questions of an epic a person has looked at, and says so for the marks drawn of them. */
+export function lookedAt(epic, asked) {
+  const all = looked()
+  const keys = asked.map((key) => lookedKey(epic, key))
+  if (keys.every((key) => all.has(key))) return
+  // Those still waiting are kept newest, so that no number looked at since forgets them.
+  for (const key of keys) {
+    all.delete(key)
+    all.add(key)
+  }
+  looks = new Set([...all].slice(-LOOKS))
+  keep(LOOKED, JSON.stringify([...looks]))
+  window.dispatchEvent(new CustomEvent('hmz:seen'))
+}
+
+// What another tab looked at is looked at here too.
+window.addEventListener('storage', (event) => {
+  if (event.key !== LOOKED) return
+  looks = null
+  window.dispatchEvent(new CustomEvent('hmz:seen'))
+})
 
 /** The run in front of the held records, where they hold one, and how it stands. */
 export function going(held) {
