@@ -98,17 +98,55 @@ export function chatting(epic) {
  * How an epic is marked: as it stands, save that one going, asked something no person has
  * looked at yet, is asking, and once every question has been looked at, waiting. A chat is
  * marked as a chat app marks one: running while its agent answers, asking while its reply waits
- * unseen, failed where it failed, and stopped otherwise -- by the turn said where it is, else by
- * how the epic stands.
+ * unseen, even once it has folded away, failed where it failed, and stopped otherwise -- by the
+ * turn said where it is, else by how the epic stands.
  *
  * @param {string} how How the epic stands.
  * @param {{chat?: boolean, turn?: string, asked?: string[], epic?: string}} of Whether it is a chat, its turn, and the `<run>:<question>` keys it waits on a person for.
  */
 export function markOf(how, { chat = false, turn = '', asked = [], epic = '' } = {}) {
-  const unseen = asked.some((key) => !looked().has(lookedKey(epic, key)))
-  if (chat) return (turn || how) === 'running' ? 'running' : unseen ? 'asking' : ['failed', 'refused', 'crashed'].includes(how) ? how : 'stopped'
+  if (chat) {
+    // Only a turn its host says is open answers what it owed: one folding away is still said going.
+    if (turn === 'running') {
+      owe(epic, [])
+      return 'running'
+    }
+    if (asked.length) owe(epic, asked)
+    const waits = asked.length ? asked : owed()[owedKey(epic)] || []
+    if (waits.some((key) => !looked().has(lookedKey(epic, key)))) return 'asking'
+    return how === 'running' && !turn ? 'running' : ['failed', 'refused', 'crashed'].includes(how) ? how : 'stopped'
+  }
   if (how !== 'running' || !asked.length) return how
-  return unseen ? 'asking' : 'waiting'
+  return asked.some((key) => !looked().has(lookedKey(epic, key))) ? 'asking' : 'waiting'
+}
+
+/** What each chat last waited on a person for, kept in this browser so folding away hides none of it. */
+const OWED = 'hmz-owed'
+let owes = null
+
+const owedKey = (epic) => `${daemon()} ${epic}`
+
+function owed() {
+  if (!owes) {
+    try {
+      owes = JSON.parse(kept(OWED, '{}')) || {}
+    } catch {
+      owes = {}
+    }
+  }
+  return owes
+}
+
+/** Keeps what a chat waits on, or forgets it once a turn opens; what folds away keeps the last. */
+function owe(epic, asked) {
+  const all = owed()
+  const key = owedKey(epic)
+  if (!asked.length && !(key in all)) return
+  if (asked.length && String(all[key]) === String(asked)) return
+  delete all[key]
+  if (asked.length) all[key] = asked
+  owes = Object.fromEntries(Object.entries(all).slice(-LOOKS))
+  keep(OWED, JSON.stringify(owes))
 }
 
 /** The questions a person has looked at, kept in this browser, and how many it keeps. */
@@ -133,7 +171,8 @@ function looked() {
 /** Marks the questions of an epic a person has looked at, and says so for the marks drawn of them. */
 export function lookedAt(epic, asked) {
   const all = looked()
-  const keys = asked.map((key) => lookedKey(epic, key))
+  // A chat folded away waits on nothing any more, save what it last waited on.
+  const keys = [...new Set([...asked, ...(owed()[owedKey(epic)] || [])])].map((key) => lookedKey(epic, key))
   if (keys.every((key) => all.has(key))) return
   // Those still waiting are kept newest, so that no number looked at since forgets them.
   for (const key of keys) {
@@ -145,10 +184,11 @@ export function lookedAt(epic, asked) {
   window.dispatchEvent(new CustomEvent('hmz:seen'))
 }
 
-// What another tab looked at is looked at here too.
+// What another tab looked at, or saw a chat wait on, is so here too.
 window.addEventListener('storage', (event) => {
-  if (event.key !== LOOKED) return
+  if (event.key !== LOOKED && event.key !== OWED) return
   looks = null
+  owes = null
   window.dispatchEvent(new CustomEvent('hmz:seen'))
 })
 

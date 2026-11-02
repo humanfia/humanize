@@ -1651,6 +1651,46 @@ def _held(page: Page) -> dict[str, dict[str, object]]:
 
 
 @pytest.mark.usefixtures("talking")
+def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
+    engine: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hosting, "FOLD", 0.5)
+    monkeypatch.setattr(hmz.web.places, "_IDLE", 0.5)
+    monkeypatch.setattr(hmz.web.places, "_LOOKING", 0.2)
+    with served() as site, opened(site, engine=engine) as page:
+        _start_talk(page, "a flow beside")
+        # Not looked at, as a page behind another window is not, while the chat answers.
+        page.evaluate("document.hasFocus = () => false")
+        _start_chat(page, "remember teal")
+        badge = page.locator("[data-hmz=bar] .badge")
+        expect(badge).to_have_text(re.compile("asking"))
+
+        # Looked away from, it folds -- and still asks, as nobody has read what it said.
+        page.locator("[data-hmz=epic]", has_text="a flow beside").click()
+        expect(badge).to_have_text(re.compile("running|waiting|asking"))
+        page.evaluate("delete document.hasFocus")
+        # Folded for good: what folds says it goes a moment yet, and held a moment before.
+        folded, deadline = 0, time.monotonic() + 30
+        while folded < 5:
+            assert time.monotonic() < deadline, _held(page)
+            one = _held(page)["remember teal"]
+            folded = folded + 1 if not one["held"] and one["how"] == "stopped" else 0
+            page.wait_for_timeout(500)
+        # Opened afresh, so the list is read as it stands now.
+        page.reload()
+        row = page.locator("[data-hmz=epic]", has_text="remember teal")
+        mark = row.locator(".side-mark")
+        expect(mark).to_have_text("●")
+        expect(mark).to_have_class(re.compile("tone-asking"))
+
+        # Read, it is stopped.
+        row.click()
+        expect(mark).to_have_text("■")
+        expect(mark).to_have_class(re.compile("tone-stopped"))
+        expect(badge).to_have_text(re.compile("stopped"))
+
+
+@pytest.mark.usefixtures("talking")
 def test_chats_go_beside_each_other_and_a_flow_and_one_folded_is_carried_on(
     project: Path, engine: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -1,7 +1,7 @@
 """`hmz.coganchor.easytier`: the secret, the download, and what `easytier-core` is told.
 
-Never the network and never a process: `urllib.request.urlopen` answers with a zip made here,
-and `subprocess.Popen` is a recorder.
+Never the network and never a process: `urllib.request.urlopen` answers with a zip or a status
+page made here, and `subprocess.Popen` is a recorder.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import http.client
 import io
+import json
 import os
 import platform
 import stat
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
 
 SECRET = "correct horse battery staple"
 CORE = b"#!/bin/sh\necho easytier-core\n"
+PEERS = ("tcp://node.example:11010", "udp://other.example:11010")
 
 
 def _zipped(*members: tuple[str, bytes]) -> bytes:
@@ -237,11 +239,11 @@ def _common(started: _Started) -> None:
     assert started.env["ET_NETWORK_SECRET"] == hidden
     assert hidden not in started.argv
     assert SECRET not in " ".join(started.argv)
-    assert started.argv[started.argv.index("--peers") + 1 :] == list(easytier.PEERS)
+    assert started.argv[started.argv.index("--peers") + 1 :] == list(PEERS)
 
 
 def test_serving_lets_only_its_port_through(started: _Started) -> None:
-    easytier.serving(SECRET, 4321)
+    easytier.serving(SECRET, 4321, peers=PEERS)
     _common(started)
     assert started.argv[started.argv.index("--tcp-whitelist") + 1] == "4321"
     assert started.argv[started.argv.index("--udp-whitelist") + 1] == "0"
@@ -250,9 +252,9 @@ def test_serving_lets_only_its_port_through(started: _Started) -> None:
 
 
 def test_joining_forwards_a_local_port_to_the_served_one(started: _Started) -> None:
-    easytier.serving(SECRET)
+    easytier.serving(SECRET, peers=PEERS)
     served = started.argv[started.argv.index("--ipv4") + 1]
-    easytier.joining(SECRET, 5678)
+    easytier.joining(SECRET, 5678, peers=PEERS)
     _common(started)
     forward = started.argv[started.argv.index("--port-forward") + 1]
     assert forward == f"tcp://127.0.0.1:5678/{served}:{easytier.PORT}"
@@ -266,17 +268,207 @@ def test_no_easytier_variable_of_ours_is_passed_on(
 ) -> None:
     monkeypatch.setenv("ET_NO_TUN", "false")
     monkeypatch.setenv("ET_NETWORK_SECRET", "someone else's")
-    easytier.joining(SECRET, 5678)
+    easytier.joining(SECRET, 5678, peers=PEERS)
     assert "ET_NO_TUN" not in started.env
     assert started.env["ET_NETWORK_SECRET"] == easytier.network(SECRET)[1]
 
 
-def test_no_peers_are_none_told(started: _Started) -> None:
-    easytier.joining(SECRET, 5678, peers=())
-    assert "--peers" not in started.argv
+def test_no_node_starts_nothing(started: _Started) -> None:
+    assert easytier.PEERS == ()
+    for starting in (
+        lambda: easytier.serving(SECRET, peers=easytier.PEERS),
+        lambda: easytier.joining(SECRET, 5678, peers=()),
+    ):
+        with pytest.raises(
+            ValueError, match=r"An EasyTier daemon needs at least one node\."
+        ):
+            starting()
+    assert started.argv == []
+
+
+def test_a_node_is_a_url_of_a_protocol_easytier_reaches_it_over(
+    started: _Started,
+) -> None:
+    for url in (
+        "tcp://node.example:11010",
+        "udp://1.2.3.4:11010",
+        "ws://a.b:80",
+        "wss://a.b:443/path",
+        "quic://[::1]:11012",
+        "wg://a.b:11011",
+    ):
+        assert easytier.node(url) == url
+    for nope in (
+        "",
+        "node.example:11010",
+        "http://node.example:11010",
+        "tcp://node.example",
+        "tcp://:11010",
+        "tcp://node.example:99999",
+        " tcp://node.example:11010",
+        "--rpc-portal=0.0.0.0:15888",
+    ):
+        with pytest.raises(ValueError, match="is not an EasyTier node"):
+            easytier.node(nope)
+    with pytest.raises(ValueError, match="is not an EasyTier node"):
+        easytier.serving(SECRET, peers=[*PEERS, "--rpc-portal=0.0.0.0:15888"])
+    assert started.argv == []
 
 
 @pytest.mark.usefixtures("started")
 def test_a_short_secret_starts_nothing() -> None:
     with pytest.raises(ValueError, match="at least 16 bytes"):
-        easytier.serving("short")
+        easytier.serving("short", peers=PEERS)
+
+
+_PAGE: dict[str, Any] = {
+    "publicGroupList": [
+        {"name": "Services", "monitorList": []},
+        {
+            "name": "Shared",
+            "monitorList": [
+                {"id": 1, "name": "Guangzhou/Alice/v2.4.5/TCP/1.2.3.4:11010"},
+                {"id": 2, "name": "Shanghai/Bob/2.6.4/et.example.com:11010/UDP"},
+                {"id": 3, "name": "Tokyo/Carol/2.6.0/wss://w.example:443"},
+                {"id": 4, "name": "Nowhere/Dan/2.6.0"},
+                {"id": 5},
+                "not a monitor",
+                {"id": 6, "name": "Again/Alice/v2.4.5/1.2.3.4:11010"},
+                {"id": 7, "name": "Twice/Eve/WSS://W.Example:443"},
+                {"id": 8, "name": "Paris/Fay/5.6.7.8:11010/2.6.4"},
+            ],
+        },
+        "not a group",
+    ]
+}
+
+_BEATS = {
+    "heartbeatList": {
+        "1": [{"status": 0}, {"status": 1}],
+        "2": [{"status": 0}],
+        "3": [],
+    },
+    "uptimeList": {"1_24": 0.98, "2_24": 1.5, "3_24": "high"},
+}
+
+
+def _kuma(
+    monkeypatch: pytest.MonkeyPatch, answers: dict[str, bytes | Exception]
+) -> list[str]:
+    """`urlopen` answering each URL with its bytes or raising its error; what was asked."""
+    asked: list[str] = []
+
+    def urlopen(request: urllib.request.Request, timeout: float) -> _Answer:
+        del timeout
+        asked.append(request.full_url)
+        answer = answers[request.full_url]
+        if isinstance(answer, Exception):
+            raise answer
+        return _Answer(answer)
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    return asked
+
+
+def _answers(
+    base: str, page: bytes | Exception, beats: bytes | Exception
+) -> dict[str, bytes | Exception]:
+    return {
+        f"{base}/api/status-page/easytier": page,
+        f"{base}/api/status-page/heartbeat/easytier": beats,
+    }
+
+
+def test_the_community_nodes_are_read_from_the_status_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(easytier.NODES, "http://kuma.test/")
+    _kuma(
+        monkeypatch,
+        _answers(
+            "http://kuma.test",
+            json.dumps(_PAGE).encode(),
+            json.dumps(_BEATS).encode(),
+        ),
+    )
+
+    assert easytier.community() == [
+        easytier.Node(
+            "tcp://1.2.3.4:11010",
+            "Guangzhou/Alice/v2.4.5/TCP/1.2.3.4:11010",
+            "v2.4.5",
+            True,
+            0.98,
+        ),
+        easytier.Node(
+            "udp://et.example.com:11010",
+            "Shanghai/Bob/2.6.4/et.example.com:11010/UDP",
+            "2.6.4",
+            False,
+            1.0,
+        ),
+        easytier.Node(
+            "wss://w.example:443",
+            "Tokyo/Carol/2.6.0/wss://w.example:443",
+            "2.6.0",
+            None,
+            None,
+        ),
+        easytier.Node(
+            "tcp://5.6.7.8:11010", "Paris/Fay/5.6.7.8:11010/2.6.4", "2.6.4", None, None
+        ),
+    ]
+
+
+def test_nodes_whose_heartbeats_cannot_be_read_are_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(easytier.NODES, "http://kuma.test")
+    _kuma(
+        monkeypatch,
+        _answers(
+            "http://kuma.test",
+            json.dumps(_PAGE).encode(),
+            urllib.error.URLError("refused"),
+        ),
+    )
+
+    nodes = easytier.community()
+    assert [one.url for one in nodes][:1] == ["tcp://1.2.3.4:11010"]
+    assert {(one.up, one.uptime) for one in nodes} == {(None, None)}
+
+
+def test_the_status_page_is_easytiers_own_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(easytier.NODES, raising=False)
+    base = "https://easytier.gd.nkbpal.cn"
+    asked = _kuma(monkeypatch, _answers(base, b'{"publicGroupList": []}', b"{}"))
+    assert easytier.community() == []
+    assert asked == list(_answers(base, b"", b""))
+
+
+@pytest.mark.parametrize(
+    ("page", "said"),
+    [
+        (urllib.error.URLError("no such host"), "no such host"),
+        (http.client.IncompleteRead(b""), "cannot read"),
+        (b"<html>", "cannot read"),
+        (b'{"ok": true}', "has no status page easytier"),
+    ],
+)
+def test_a_page_that_cannot_be_read_says_why(
+    monkeypatch: pytest.MonkeyPatch, page: bytes | Exception, said: str
+) -> None:
+    monkeypatch.setenv(easytier.NODES, "http://kuma.test")
+    _kuma(monkeypatch, _answers("http://kuma.test", page, b"{}"))
+    with pytest.raises(OSError, match=said):
+        easytier.community()
+
+
+def test_only_an_http_status_page_is_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(easytier.NODES, "file:///etc")
+    asked = _kuma(monkeypatch, {})
+    with pytest.raises(OSError, match="is not an http URL"):
+        easytier.community()
+    assert asked == []
