@@ -60,7 +60,10 @@ class _Daemons:
         if path == "/api/daemons/hosts":
             said: Any = {"hosts": self.hosts}
         elif path == "/api/daemons/import":
-            self.daemons += [{"name": one, "host": one} for one in body["aliases"]]
+            self.daemons += [
+                {"name": one, "via": "ssh", "alias": one, "host": ""}
+                for one in body["aliases"]
+            ]
             self.hosts = [
                 one for one in self.hosts if one["alias"] not in body["aliases"]
             ]
@@ -96,9 +99,10 @@ def test_a_daemon_is_added_a_part_at_a_time(project: Path, engine: str) -> None:
         expect(rows.first.get_by_role("button")).to_have_count(0)
         form = page.locator("[data-hmz=write-daemon]")
         form.get_by_label("Name").fill("lab")
+        form.get_by_role("button", name="hmz-stored").click()
         form.get_by_label("Host").fill("lab.example")
         form.get_by_label("User").fill("ann")
-        form.get_by_label("Port").fill("2222")
+        form.get_by_label("Port", exact=True).fill("2222")
         form.locator("#daemon-identity").fill("~/.ssh/lab")
         form.get_by_label("Proxy jump").fill("me@jump")
         form.get_by_role("button", name="Add", exact=True).first.click()
@@ -114,6 +118,7 @@ def test_a_daemon_is_added_a_part_at_a_time(project: Path, engine: str) -> None:
             {
                 "name": "lab",
                 "fields": {
+                    "via": "ssh",
                     "host": "lab.example",
                     "user": "ann",
                     "port": 2222,
@@ -296,7 +301,9 @@ def test_what_is_being_read_says_so_until_it_is_answered(
         page.unroute("**/api/daemons", held)
 
         page.route("**/api/files?**", held)
-        page.locator("[data-hmz=write-daemon] [data-hmz=path-browse]").click()
+        form = page.locator("[data-hmz=write-daemon]")
+        form.get_by_role("button", name="hmz-stored").click()
+        form.locator("[data-hmz=path-browse]").click()
         panel = page.get_by_role("dialog", name="Choose Identity file")
         expect(panel.locator(".loading")).to_have_text("Reading…")
         held.go()

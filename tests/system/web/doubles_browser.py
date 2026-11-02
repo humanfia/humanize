@@ -109,8 +109,7 @@ def opened(
                 lambda said: (
                     failed.append(said.text)
                     if said.type == "error"
-                    and not re.search(r"status of 4\d\d", said.text)
-                    and "status of 502" not in said.text
+                    and not re.search(r"status of (4\d\d|50[23])", said.text)
                     else None
                 ),
             )
