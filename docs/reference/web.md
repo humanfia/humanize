@@ -294,13 +294,13 @@ Every `error` but the last is the runtime's own sentence, e.g.
 | `POST /api/runtimes/check` | `backend`, `name` | What it said: `reached`, `said`, `home`, `cpus`, `memory`, `gpus`, `usable`, `gpu_memory`, `runtimes`, `version`, `short`, `nodes` |
 | `GET /api/runtimes/hosts` | | `hosts` your ssh config names (`alias`, `host`, `user`, `port`, `identity_files`, `proxy_jump`, `saved`) |
 | `POST /api/runtimes/import` | `names`; `update` (bool) | As `GET /api/runtimes` |
-| `GET /api/daemons` | | `daemons`: `Local` first, then each ssh daemon (`name`, `label`, `host`, `user`, `port`, `identity_file`, `proxy_jump`, `options` as `[keyword, value]` pairs, `alias`, `config`) with `state`, `detail` and `version` |
-| `POST /api/daemons` | `name`, `fields`; `replace` (bool) | As `GET` |
+| `GET /api/daemons` | | `daemons`: `Local` first, then each daemon (`name`, `label`, `via`: `ssh` or `easytier`) with `state`, `detail` and `version`; an ssh one also `host`, `user`, `port`, `identity_file`, `proxy_jump`, `options` as `[keyword, value]` pairs, `alias`, `config`; an EasyTier one `secret: true` where one is set, never the secret itself |
+| `POST /api/daemons` | `name`, `fields`; `replace` (bool) | As `GET`. With `replace`, an EasyTier daemon's `fields` without `secret` keep the secret written |
 | `POST /api/daemons/remove` | `name` | As `GET` |
 | `GET /api/daemons/hosts` | | `hosts` your ssh config names that are not daemons yet (`alias`, `name`, `host`, `user`, `port`, `identity_files`, `proxy_jump`) |
 | `POST /api/daemons/import` | `aliases` | As `GET`, and `added`: the daemons made, skipping any already there |
 | `GET /api/daemons/{name}/state` | | `state` (`idle`, `connecting`, `installing`, `up` or `failed`), `detail` (what was said last, such as uv's last line) and `version` (its `hmz`'s) |
-| `POST /api/daemons/{name}/connect` | | As `GET …/state`, once it is being reached: its `hmz` installed at this version where none or another is and it holds no running epics, `hmz web --no-open --attached` started there over ssh, and a port of this machine forwarded to it |
+| `POST /api/daemons/{name}/connect` | | As `GET …/state`, once it is being reached. Over ssh: its `hmz` installed at this version where none or another is and it holds no running epics, `hmz web --no-open --attached` started there over ssh, and a port of this machine forwarded to it. Over EasyTier: `easytier-core` downloaded here where it is not yet (`installing`), the network of its secret joined, and the [server](/reference/cli#hmz-server)'s `hmz web` exposed on a port of this machine; nothing is installed there |
 | any `/d/{name}/api/…` | as `/api/…` there | What that daemon's own interface answers, passed through as it comes -- a stream included -- signed in with its key, which no page sees; `503` while it is not up, `404` for a daemon not written down |
 
 An account is listed by the names of the variables it sets (`sets`), never by a value.

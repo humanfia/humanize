@@ -691,6 +691,27 @@ something, with its state.
 **13.13** The page MUST NOT ask the user for a password or a host key; an SSH daemon that needs one
 MUST fail.
 
+**13.14** The `New daemon` form MUST offer two kinds, `SSH` and `P2P`, and under `SSH` two modes:
+`SSH Config`, which offers only a dropdown of the hosts of the ssh config and writes the daemon
+under its `Host` (§13.5), and `hmz-stored`, which is the form of §13.4.
+
+**13.15** `hmz-stored` MUST let the user import a host of the ssh config into its form, filling its
+fields from what the ssh config resolves for that host; the daemon MUST be written from those
+fields, not under the `Host`.
+
+**13.16** `P2P` MUST offer `EasyTier` alone, and MUST ask its name and its secret, the secret
+masked; a secret shorter than 16 bytes in UTF-8 MUST be refused with `A secret must be at least 16
+bytes.`
+
+**13.17** The page MUST NOT be given a secret once written; editing a P2P daemon with its secret
+left empty MUST keep the secret written.
+
+**13.18** Editing a daemon MUST open the form in the kind and mode the daemon is in.
+
+**13.19** Wherever the page names a remote daemon's kind, it MUST say `SSH` or `P2P`; §13.1 to
+§13.13 MUST hold of P2P daemons as of SSH daemons, but for the ssh config, a password and a
+host key.
+
 ## 14. Release notice
 
 **14.1** Where a newer release of hmz is out than the one serving the page, as `features/updates.md`

@@ -625,9 +625,10 @@ be refused 400.
 ### 14.1 The daemon list
 
 **14.1.1** `GET /api/daemons` MUST answer `daemons`: first `local` (label `Local`, state `up`,
-the server's version), then each ssh daemon written, each `name`, `label`, `host`, `user`,
-`port`, `identity_file`, `proxy_jump`, `options` (`[keyword, value]` pairs), `alias`, `config`,
-`state`, `detail` and `version`.
+the server's version), then each daemon written, each `name`, `label`, `via` (`ssh` or
+`easytier`), `state`, `detail` and `version`; an ssh daemon also `host`, `user`, `port`,
+`identity_file`, `proxy_jump`, `options` (`[keyword, value]` pairs), `alias` and `config`, and an
+EasyTier daemon `secret`, `true` where one is written.
 
 **14.1.2** `POST /api/daemons` MUST take `name`, `fields` and `replace` (boolean), and write the
 daemon as `api/sdk.md §14.3` does; a further field or an invalid daemon MUST be refused 400, a
@@ -647,6 +648,9 @@ alias the config lacks 404.
 **14.1.6** `POST /api/daemons` and `POST /api/daemons/remove` MUST answer as `GET /api/daemons`
 does.
 
+**14.1.7** No answer MUST hold a secret; `POST /api/daemons` with `replace` and `fields` of an
+EasyTier daemon without `secret` MUST keep the secret written.
+
 ### 14.2 Reaching a daemon
 
 **14.2.1** `GET /api/daemons/{name}/state` MUST answer `state` (`idle`, `connecting`,
@@ -664,7 +668,7 @@ reach nothing; it MUST be refused 404 for an unknown daemon and 503 while the se
 **14.3.2** A daemon name of characters other than letters, digits, `.`, `_` and `-`, or a path
 not continuing `/api/`, MUST be refused 404, `There is nothing here by that name.`
 
-**14.3.3** A request to `/d/<name>/api/<rest>` for an ssh daemon MUST be admitted as §4 states
+**14.3.3** A request to `/d/<name>/api/<rest>` for a remote daemon MUST be admitted as §4 states
 for API requests and writes, and MUST then be sent to that daemon's `hmz web` at `/api/<rest>`
 with its query, admitted there with that server's own key, and answered with that server's status,
 headers and body as they arrive, streams and file bodies included.
