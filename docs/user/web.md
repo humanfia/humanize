@@ -162,7 +162,7 @@ between turns it is your next turn, and while the agent asks something mid-turn 
 that, the answers it offers buttons at the end of the conversation. It has no graph, no agents
 or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and no
 **Stop**: it is `running` while its agent answers and `stopped` once the turn ends -- asking,
-blinking, until you have looked at it. Every chat is
+blinking, until you have looked at it, even once it has folded away. Every chat is
 its own, beside every other chat and flow of its directory: a new chat, or a new epic, leaves
 the last one going, as a chat app's new chat does. A chat nobody has looked at for a minute
 between turns folds away; say something in it and it carries on, in the same epic, with what

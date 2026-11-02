@@ -220,7 +220,9 @@ shown, visible and focused; the page MUST remember in this browser which questio
 
 **5.10** An epic that another process is going with, outside any host, MUST be marked as going and
 MUST NOT be marked `live`. A chat MUST be marked only `running` while a turn is open, `asking`,
-`failed`, or otherwise `stopped`, and MUST NOT be marked `live`.
+`failed`, or otherwise `stopped`, and MUST NOT be marked `live`. A chat that folds away while
+this browser has not seen what it last waited on MUST stay `asking` until that is seen, and the
+page MUST remember in this browser what each chat last waited on until a turn of it opens.
 
 **5.11** An epic other than a chat MUST be expandable into its agents, and each agent into the
 sessions it opened; a chat MUST NOT be expandable. The page MUST remember in this browser which
