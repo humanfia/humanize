@@ -294,8 +294,8 @@ Every `error` but the last is the runtime's own sentence, e.g.
 | `POST /api/runtimes/check` | `backend`, `name` | What it said: `reached`, `said`, `home`, `cpus`, `memory`, `gpus`, `usable`, `gpu_memory`, `runtimes`, `version`, `short`, `nodes` |
 | `GET /api/runtimes/hosts` | | `hosts` your ssh config names (`alias`, `host`, `user`, `port`, `identity_files`, `proxy_jump`, `saved`) |
 | `POST /api/runtimes/import` | `names`; `update` (bool) | As `GET /api/runtimes` |
-| `GET /api/daemons` | | `daemons`: `Local` first, then each daemon (`name`, `label`, `via`: `ssh` or `easytier`) with `state`, `detail` and `version`; an ssh one also `host`, `user`, `port`, `identity_file`, `proxy_jump`, `options` as `[keyword, value]` pairs, `alias`, `config`; an EasyTier one `secret: true` where one is set, never the secret itself |
-| `POST /api/daemons` | `name`, `fields`; `replace` (bool) | As `GET`. With `replace`, an EasyTier daemon's `fields` without `secret` keep the secret written |
+| `GET /api/daemons` | | `daemons`: `Local` first, then each daemon (`name`, `label`, `via`; over `ssh`: `host`, `user`, `port`, `identity_file`, `proxy_jump`, `options` as `[keyword, value]` pairs, `alias`, `config`; over `easytier`: `secret` as `true`, never the secret itself) with `state`, `detail` and `version` |
+| `POST /api/daemons` | `name`, `fields` (`via`: `ssh`, the default, or `easytier` with a `secret` of at least 16 bytes); `replace` (bool): an EasyTier daemon replaced with no `secret` (or `""`, or `true` as listed) keeps its own | As `GET` |
 | `POST /api/daemons/remove` | `name` | As `GET` |
 | `GET /api/daemons/hosts` | | `hosts` your ssh config names that are not daemons yet (`alias`, `name`, `host`, `user`, `port`, `identity_files`, `proxy_jump`) |
 | `POST /api/daemons/import` | `aliases` | As `GET`, and `added`: the daemons made, skipping any already there |

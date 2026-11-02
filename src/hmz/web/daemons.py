@@ -1,9 +1,10 @@
-"""The daemons a page may switch between: this machine's, and each ssh host written down.
+"""The daemons a page may switch between: this machine's, and each other one written down.
 
 What they are, how they are written down and how each is checked is the runtime's
 (`Hmz.daemons`), which the terminal interface switches between as well; this is that, as a
 page asks for it. How each stands is the remote reach's to say, where this site has one;
-without one, Local is up and every other daemon is idle.
+without one, Local is up and every other daemon is idle. An EasyTier daemon's secret never
+goes to a page: it is listed as set, and a write that says none keeps it.
 """
 
 from __future__ import annotations
@@ -33,17 +34,17 @@ def _daemons() -> Any:
 
 
 def saved() -> list[dict[str, Any]]:
-    """Every ssh daemon written down, in order; one that cannot be one is left out."""
+    """Every daemon written down, in order; one that cannot be one is left out."""
     return _daemons().all()
 
 
 def found(name: str) -> dict[str, Any] | None:
-    """The ssh daemon written down under a name, or None where there is none."""
+    """The daemon written down under a name, or None where there is none."""
     return _daemons().find(name)
 
 
 def listed(site: Any) -> dict[str, Any]:
-    """Local, then every ssh daemon, each with how it stands."""
+    """Local, then every daemon, each with how it stands: a secret as `true`, never itself."""
     from hmz.coganchor import __version__
 
     remotes = getattr(site, "remotes", None)
@@ -69,7 +70,8 @@ def listed(site: Any) -> dict[str, Any]:
             if remotes is not None
             else {"state": "idle", "detail": "", "version": ""}
         )
-        daemons.append(one | {"label": one["name"]} | stands)
+        shown = one | ({"secret": True} if one.get("secret") else {})
+        daemons.append(shown | {"label": one["name"]} | stands)
     return {"daemons": daemons}
 
 

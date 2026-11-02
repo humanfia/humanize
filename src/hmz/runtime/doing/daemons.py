@@ -1,10 +1,12 @@
-"""The daemons a frontend may switch between: this machine's, and each ssh host written down.
+"""The daemons a frontend may switch between: this machine's, and each other one written down.
 
-`Local` is always there and never written down. Every other daemon is an ssh host, kept in
-Humanize's one settings file under `daemons` with what `ssh` is told to reach it -- the same
-fields an ssh runtime has, checked as one is, but for its workdir and fallback -- typed in a
-part at a time or brought in from the ssh config. Every frontend that switches between them
-writes them, and reaches them, through here.
+`Local` is always there and never written down. Every other daemon is kept in Humanize's one
+settings file under `daemons`, with how it is reached: its `via`. Over `ssh`, the default, it
+holds what `ssh` is told to reach it -- the same fields an ssh runtime has, checked as one is,
+but for its workdir and fallback: a `Host` of the ssh config alone, or a host typed in a part
+at a time, or brought in from the ssh config. Over `easytier` it holds the secret its network
+is joined with, and nothing ssh is told. Every frontend that switches between them writes
+them, and reaches them, through here.
 
 What is reached there is that machine's own web interface: `hmz web --attached`, started over
 ssh and stopped by the ssh going, with a port of this machine's loopback forwarded on to it.
@@ -43,8 +45,10 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CARRIED",
+    "EASYTIER",
     "FAILED",
     "LOCAL",
+    "SSH",
     "UP",
     "Daemons",
     "Remotes",
@@ -65,7 +69,13 @@ _KEY = "daemons"
 #: What a daemon's name is spelled with: never starting with a dot, so never `.` or `..`.
 _NAMED = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
-#: What a daemon holds beside its name, as `ssh` is told it.
+#: How a daemon is reached: over ssh, the default, or over an EasyTier network.
+SSH, EASYTIER = "ssh", "easytier"
+
+#: The fewest bytes, in UTF-8, an EasyTier daemon's secret may be.
+_SECRET = 16
+
+#: What a daemon reached over ssh holds beside its name, as `ssh` is told it.
 _FIELDS = (
     "host",
     "user",
@@ -177,28 +187,41 @@ class Unreached(RuntimeError):  # noqa: N818 -- what it is, as `Refused` is name
 
 
 def _checked(name: str, fields: dict[str, Any]) -> dict[str, Any]:
-    """One daemon as it is written down, checked as an ssh runtime is.
+    """One daemon as it is written down, checked as how it is reached says.
+
+    Over ssh, as an ssh runtime is; over EasyTier, its secret alone, of at least 16 bytes.
 
     Args:
       name: What it is called.
-      fields: The rest of it, `options` as `[[KEYWORD, VALUE], ...]` or by keyword.
+      fields: The rest of it: `via`, ssh by default; then `options` as
+        `[[KEYWORD, VALUE], ...]` or by keyword, or the `secret`.
 
     Returns:
       It, `options` as pairs.
 
     Raises:
-      ValueError: If it cannot be one.
+      ValueError: If it cannot be one; never saying its secret.
     """
-    from hmz.coganchor.machines.store import SSH, SSHRuntime, new
+    from hmz.coganchor.machines.store import SSH as RUNTIME
+    from hmz.coganchor.machines.store import SSHRuntime, new
 
     if not _NAMED.fullmatch(name) or name.lower() == LOCAL:
         raise ValueError(
             f"A daemon cannot be called {name!r}: say a letter or digit, then letters, "
             f"digits, dots, dashes and underscores, and not {LOCAL}."
         )
-    if extra := sorted(set(fields) - set(_FIELDS)):
-        raise ValueError(f"A daemon takes no {', '.join(extra)}.")
     given = dict(fields)
+    via: object = given.pop("via", SSH)
+    if via not in (SSH, EASYTIER):
+        raise ValueError(f"Say via as {SSH} or {EASYTIER}.")
+    takes = {"secret"} if via == EASYTIER else set(_FIELDS)
+    if extra := sorted(set(given) - takes):
+        raise ValueError(f"A daemon reached over {via} takes no {', '.join(extra)}.")
+    if via == EASYTIER:
+        secret: object = given.get("secret")
+        if not isinstance(secret, str) or len(secret.encode()) < _SECRET:
+            raise ValueError("A secret must be at least 16 bytes.")
+        return {"name": name, "via": EASYTIER, "secret": secret}
     options: object = given.get("options", [])
     if isinstance(options, list):
         pairs = cast("list[object]", options)
@@ -210,16 +233,17 @@ def _checked(name: str, fields: dict[str, Any]) -> dict[str, Any]:
         given["options"] = {
             str(key): str(value) for key, value in cast("list[list[object]]", pairs)
         }
-    one = cast("SSHRuntime", new(SSH, name, **given))
+    one = cast("SSHRuntime", new(RUNTIME, name, **given))
     return {
         "name": one.name,
+        "via": SSH,
         **{field: getattr(one, field) for field in _FIELDS if field != "options"},
         "options": [[key, value] for key, value in one.options.items()],
     }
 
 
 def _valid(held: dict[str, Any]) -> list[dict[str, Any]]:
-    """Every ssh daemon a reading of the settings file holds, in order, each checked.
+    """Every daemon a reading of the settings file holds, in order, each checked.
 
     One that cannot be one -- written wrong by hand, or under a name taken before it -- is
     left out, and so is gone the next time the daemons are written.
@@ -262,25 +286,33 @@ def _named(alias: str) -> str:
 
 
 class Daemons:
-    """The ssh daemons written down, and reaching them: what every frontend switches between."""
+    """The daemons written down, and reaching them: what every frontend switches between."""
 
     #: What a batch apply carries to them, as :data:`CARRIED`.
     CARRIED: ClassVar = CARRIED
 
     def all(self) -> list[dict[str, Any]]:
-        """Every ssh daemon written down, in order; one that cannot be one is left out."""
+        """Every daemon written down, in order; one that cannot be one is left out.
+
+        Each as it is written, an EasyTier one's secret too: whatever lists them for anybody
+        to see says it is set, never what it is.
+        """
         from hmz.coganchor import settings
 
         return _valid(settings.read())
 
     def find(self, name: str) -> dict[str, Any] | None:
-        """The ssh daemon written down under a name, or None where there is none."""
+        """The daemon written down under a name, or None where there is none."""
         return next((one for one in self.all() if one["name"] == name), None)
 
     def write(
         self, name: str, fields: dict[str, Any], *, replace: bool = False
     ) -> dict[str, Any]:
         """Writes one daemon down, or over the one of its name where it is to `replace` it.
+
+        An EasyTier daemon replacing one, and saying no secret -- none, `""`, or `true` as it
+        is listed -- keeps the secret that one has, so that a page that is never told it can
+        still change the rest.
 
         Returns:
           It, as it is written.
@@ -290,10 +322,16 @@ class Daemons:
           FileExistsError: If one is called that already and it is not to be replaced.
           OSError: If the file cannot be written.
         """
-        entry = _checked(name, fields)
+        said: object = fields.get("secret")
+        unsaid = said is None or said is True or said == ""
+        keeps = replace and fields.get("via") == EASYTIER and unsaid
+        entry: dict[str, Any] = {}
 
         def change(daemons: list[dict[str, Any]]) -> None:
+            nonlocal entry
             at = next((i for i, one in enumerate(daemons) if one["name"] == name), -1)
+            was = daemons[at].get("secret") if keeps and at >= 0 else None
+            entry = _checked(name, fields if was is None else fields | {"secret": was})
             if at < 0:
                 daemons.append(entry)
             elif replace:
@@ -335,7 +373,7 @@ class Daemons:
 
         daemons = self.all()
         names = {one["name"] for one in daemons}
-        taken = {one["alias"] for one in daemons}
+        taken = {one.get("alias") for one in daemons}
         offered: dict[str, dict[str, Any]] = {}
         for alias in sshconfig.aliases():
             if alias in taken:
@@ -376,7 +414,7 @@ class Daemons:
 
         def change(daemons: list[dict[str, Any]]) -> None:
             names = {one["name"] for one in daemons}
-            taken = {one["alias"] for one in daemons}
+            taken = {one.get("alias") for one in daemons}
             for alias in dict.fromkeys(wanted):
                 one = _checked(_named(alias), {"alias": alias})
                 if alias not in taken and one["name"] not in names:
@@ -704,6 +742,8 @@ class _Remote:
         self.entry = _entry(self.name)
         if self.entry is None:
             raise _Failed(f"No daemon is called {self.name}.")
+        if self.entry["via"] == EASYTIER:
+            raise _Failed("EasyTier is not supported by this hmz yet.")
         try:
             on = road(self.entry)
         except ValueError as why:

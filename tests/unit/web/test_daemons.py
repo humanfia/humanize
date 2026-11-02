@@ -87,6 +87,7 @@ def test_a_daemon_is_written_with_its_options_as_pairs(held: dict[str, Any]) -> 
     assert held["daemons"] == [
         {
             "name": "gpu",
+            "via": "ssh",
             "host": "gpu.example",
             "user": "",
             "port": 2222,
@@ -217,3 +218,71 @@ def test_an_import_of_nothing_or_of_a_host_it_cannot_be_is_refused(
         _asks("POST", "/api/daemons/import", body)
 
     assert "daemons" not in held
+
+
+_SECRET = "sixteen-bytes-ok"
+
+
+def test_an_easytier_daemon_is_listed_with_its_secret_set_never_said(
+    held: dict[str, Any],
+) -> None:
+    said = _asks(
+        "POST",
+        "/api/daemons",
+        {"name": "et", "fields": {"via": "easytier", "secret": _SECRET}},
+    )
+
+    assert said["daemons"][1] == {
+        "name": "et",
+        "via": "easytier",
+        "secret": True,
+        "label": "et",
+        "state": "idle",
+        "detail": "",
+        "version": "",
+    }
+    assert _SECRET not in repr(listed(SimpleNamespace()))
+    assert held["daemons"] == [{"name": "et", "via": "easytier", "secret": _SECRET}]
+
+
+def test_a_secret_of_fewer_than_16_bytes_is_refused(held: dict[str, Any]) -> None:
+    with pytest.raises(Refusal, match="16 bytes") as refused:
+        _asks(
+            "POST",
+            "/api/daemons",
+            {"name": "et", "fields": {"via": "easytier", "secret": "fifteen-bytes!!"}},
+        )
+
+    assert refused.value.status == 400
+    assert "daemons" not in held
+
+
+def test_a_replacement_saying_no_secret_keeps_it(held: dict[str, Any]) -> None:
+    body = {"name": "et", "fields": {"via": "easytier", "secret": _SECRET}}
+    _asks("POST", "/api/daemons", body)
+
+    _asks(
+        "POST",
+        "/api/daemons",
+        {"name": "et", "fields": {"via": "easytier"}, "replace": True},
+    )
+
+    assert held["daemons"] == [{"name": "et", "via": "easytier", "secret": _SECRET}]
+
+
+def test_an_ssh_daemon_is_listed_as_reached_over_ssh(held: dict[str, Any]) -> None:
+    said = _asks("POST", "/api/daemons", {"name": "gpu", "fields": {"alias": "gpu"}})
+
+    assert (said["daemons"][1]["via"], said["daemons"][1]["alias"]) == ("ssh", "gpu")
+    assert "secret" not in said["daemons"][1]
+
+
+def test_an_import_beside_an_easytier_daemon_brings_in_the_hosts(
+    held: dict[str, Any], config: list[str]
+) -> None:
+    held["daemons"] = [{"name": "et", "via": "easytier", "secret": _SECRET}]
+
+    said = _asks("POST", "/api/daemons/import", {"aliases": ["gpu"]})
+
+    assert said["added"] == ["gpu"]
+    assert [one["name"] for one in saved()] == ["et", "gpu"]
