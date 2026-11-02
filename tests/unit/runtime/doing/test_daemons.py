@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import threading
 import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
@@ -203,13 +204,21 @@ def test_a_batch_carries_the_pages_asked_for_as_each_page_saves_them() -> None:
 
 _SECRET = "sixteen-bytes-ok"
 
+#: The EasyTier nodes a P2P daemon meets its server through.
+_PEERS = ["tcp://node.example:11010", "wss://[::1]:11012/"]
 
-def test_an_easytier_daemon_holds_its_secret_alone(held: dict[str, Any]) -> None:
+#: A P2P daemon as it is written.
+_P2P = {"via": EASYTIER, "secret": _SECRET, "peers": _PEERS}
+
+
+def test_an_easytier_daemon_holds_its_secret_and_its_nodes(
+    held: dict[str, Any],
+) -> None:
     daemons = Daemons()
 
-    written = daemons.write("et", {"via": EASYTIER, "secret": _SECRET})
+    written = daemons.write("et", _P2P)
 
-    assert written == {"name": "et", "via": EASYTIER, "secret": _SECRET}
+    assert written == {"name": "et", **_P2P}
     assert daemons.find("et") == written
     assert held["daemons"] == [written]
 
@@ -217,11 +226,12 @@ def test_an_easytier_daemon_holds_its_secret_alone(held: dict[str, Any]) -> None
 @pytest.mark.parametrize(
     "fields",
     [
-        {"via": EASYTIER, "secret": "fifteen-bytes!!"},
-        {"via": EASYTIER},
-        {"via": EASYTIER, "secret": 1234567890123456789},
-        {"via": EASYTIER, "secret": _SECRET, "host": "a"},
+        _P2P | {"secret": "fifteen-bytes!!"},
+        {"via": EASYTIER, "peers": _PEERS},
+        _P2P | {"secret": 1234567890123456789},
+        _P2P | {"host": "a"},
         {"via": SSH, "host": "a", "secret": _SECRET},
+        {"via": SSH, "host": "a", "peers": _PEERS},
         {"via": "p2p", "secret": _SECRET},
     ],
 )
@@ -235,30 +245,65 @@ def test_what_cannot_be_an_easytier_daemon_is_refused_never_saying_its_secret(
     assert "daemons" not in held
 
 
+@pytest.mark.parametrize("peers", [None, [], "tcp://node.example:11010"])
+def test_an_easytier_daemon_needs_a_node(held: dict[str, Any], peers: object) -> None:
+    with pytest.raises(ValueError, match="at least one node"):
+        Daemons().write("et", _P2P | {"peers": peers})
+
+    assert "daemons" not in held
+
+
+@pytest.mark.parametrize(
+    "node",
+    [
+        "http://node.example:11010",
+        "tcp://node.example",
+        "tcp://:11010",
+        "tcp://node.example:99999",
+        "tcp://node.example:11010/path",
+        "tcp://me@node.example:11010",
+        "tcp://:pw@node.example:11010",
+        "tcp://node.example:0",
+        "tcp://node example:11010",
+        "node.example:11010",
+        11010,
+    ],
+)
+def test_a_node_that_is_not_one_is_refused_by_name(
+    held: dict[str, Any], node: object
+) -> None:
+    with pytest.raises(ValueError, match="is not an EasyTier node") as refused:
+        Daemons().write("et", _P2P | {"peers": [_PEERS[0], node]})
+
+    assert repr(node) in str(refused.value)
+    assert "daemons" not in held
+
+
 def test_a_secret_is_counted_in_bytes(held: dict[str, Any]) -> None:
     # Five characters of three bytes each are fifteen bytes; six are eighteen.
     with pytest.raises(ValueError, match="at least 16 bytes"):
-        Daemons().write("et", {"via": EASYTIER, "secret": "€" * 5})
+        Daemons().write("et", _P2P | {"secret": "€" * 5})
 
-    assert Daemons().write("et", {"via": EASYTIER, "secret": "€" * 6})["secret"]
+    assert Daemons().write("et", _P2P | {"secret": "€" * 6})["secret"]
 
 
 def test_a_replacement_saying_no_secret_keeps_the_one_written(
     held: dict[str, Any],
 ) -> None:
     daemons = Daemons()
-    daemons.write("et", {"via": EASYTIER, "secret": _SECRET})
+    daemons.write("et", _P2P)
+    unsaid = {"via": EASYTIER, "peers": _PEERS[:1]}
 
-    daemons.write("et", {"via": EASYTIER}, replace=True)
-    daemons.write("et", {"via": EASYTIER, "secret": True}, replace=True)
-    daemons.write("et", {"via": EASYTIER, "secret": ""}, replace=True)
-    assert daemons.find("et") == {"name": "et", "via": EASYTIER, "secret": _SECRET}
+    daemons.write("et", unsaid, replace=True)
+    daemons.write("et", unsaid | {"secret": True}, replace=True)
+    daemons.write("et", unsaid | {"secret": ""}, replace=True)
+    assert daemons.find("et") == {"name": "et", **unsaid, "secret": _SECRET}
     with pytest.raises(ValueError, match="16 bytes"):
-        daemons.write("et", {"via": EASYTIER, "secret": False}, replace=True)
-    daemons.write("et", {"via": EASYTIER, "secret": "another-sixteen!"}, replace=True)
+        daemons.write("et", unsaid | {"secret": False}, replace=True)
+    daemons.write("et", unsaid | {"secret": "another-sixteen!"}, replace=True)
     assert held["daemons"][0]["secret"] == "another-sixteen!"
     with pytest.raises(ValueError, match="16 bytes"):
-        daemons.write("new", {"via": EASYTIER}, replace=True)
+        daemons.write("new", unsaid, replace=True)
 
 
 def test_an_ssh_daemon_is_a_host_of_the_ssh_config_or_one_typed_in(
@@ -268,6 +313,7 @@ def test_an_ssh_daemon_is_a_host_of_the_ssh_config_or_one_typed_in(
     held["daemons"] = [
         {"name": "old", "alias": "gpu", "host": "10.0.0.1"},
         {"name": "hand", "via": "nope", "host": "a"},
+        {"name": "bare", "via": EASYTIER, "secret": _SECRET},
     ]
 
     alias = daemons.write("gpu", {"alias": "gpu", "config": "~/.ssh/other"})
@@ -279,18 +325,48 @@ def test_an_ssh_daemon_is_a_host_of_the_ssh_config_or_one_typed_in(
     assert [one["name"] for one in daemons.all()] == ["old", "gpu", "box"]
 
 
-def test_an_easytier_daemon_is_not_reached_yet(held: dict[str, Any]) -> None:
-    Daemons().write("et", {"via": EASYTIER, "secret": _SECRET})
+def _stands(remotes: Remotes, name: str, state: str) -> dict[str, str]:
+    """How a daemon stands, once it stands so."""
+    ending = time.monotonic() + 5
+    while remotes.state(name)["state"] != state:
+        assert time.monotonic() < ending, remotes.state(name)
+        time.sleep(0.01)
+    return remotes.state(name)
+
+
+def test_an_easytier_daemon_is_installing_while_easytier_downloads(
+    held: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.coganchor import easytier
+
+    downloaded = threading.Event()
+
+    def binary(say: Callable[[str], object] | None = None) -> Any:
+        assert say is not None
+        say("Downloading EasyTier 9.9.9")
+        downloaded.wait(5)
+        raise OSError("cannot download EasyTier 9.9.9 for this machine")
+
+    monkeypatch.setattr(easytier, "binary", binary)
+    monkeypatch.setattr(easytier, "joining", _never)
+    Daemons().write("et", _P2P)
     remotes = Remotes(version="1.2.3")
     try:
         remotes.connect("et")
-        ending = time.monotonic() + 5
-        while remotes.state("et")["state"] != FAILED and time.monotonic() < ending:
-            time.sleep(0.01)
-        assert remotes.state("et") == {
-            "state": FAILED,
-            "detail": "EasyTier is not supported by this hmz yet.",
+        assert _stands(remotes, "et", "installing") == {
+            "state": "installing",
+            "detail": "Downloading EasyTier 9.9.9",
             "version": "",
         }
+        downloaded.set()
+        failed = _stands(remotes, "et", FAILED)
+        assert failed["detail"] == "cannot download EasyTier 9.9.9 for this machine"
+        assert _SECRET not in str(failed)
     finally:
         remotes.close()
+    assert remotes.state("et")["state"] == "idle"
+
+
+def _never(*_: object, **__: object) -> Any:
+    """`easytier.joining`, which nothing here may come to."""
+    raise AssertionError

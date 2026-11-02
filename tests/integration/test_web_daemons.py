@@ -124,24 +124,35 @@ def test_an_easytier_daemon_s_secret_is_written_kept_and_never_said(
     ssh_config: Path,
 ) -> None:
     secret = "sixteen-bytes-ok"
+    peers = ["tcp://node.example:11010"]
     with served() as site:
         browser = Browser(site)
         browser.signs_in()
 
         short = browser.post(
             "/api/daemons",
-            {"name": "p", "fields": {"via": "easytier", "secret": secret[:15]}},
+            {
+                "name": "p",
+                "fields": {"via": "easytier", "secret": secret[:15], "peers": peers},
+            },
         )
         assert short.status == 400
         assert short.json()["error"] == "A secret must be at least 16 bytes."
         added = browser.post(
             "/api/daemons",
-            {"name": "p", "fields": {"via": "easytier", "secret": secret}},
+            {
+                "name": "p",
+                "fields": {"via": "easytier", "secret": secret, "peers": peers},
+            },
         )
         assert added.status == 200, added.body
         kept = browser.post(
             "/api/daemons",
-            {"name": "p", "fields": {"via": "easytier"}, "replace": True},
+            {
+                "name": "p",
+                "fields": {"via": "easytier", "peers": peers},
+                "replace": True,
+            },
         )
         assert kept.status == 200, kept.body
         alias = browser.post("/api/daemons", {"name": "g", "fields": {"alias": "gpu"}})
@@ -149,15 +160,20 @@ def test_an_easytier_daemon_s_secret_is_written_kept_and_never_said(
 
         listed = browser.get("/api/daemons")
         assert [
-            (one["name"], one.get("via"), one.get("secret"))
+            (one["name"], one.get("via"), one.get("secret"), one.get("peers"))
             for one in listed.json()["daemons"]
-        ] == [("local", None, None), ("p", "easytier", True), ("g", "ssh", None)]
+        ] == [
+            ("local", None, None, None),
+            ("p", "easytier", True, peers),
+            ("g", "ssh", None, None),
+        ]
         assert secret.encode() not in listed.body
         assert secret.encode() not in browser.get("/api/daemons/p/state").body
         assert _settings()["daemons"][0] == {
             "name": "p",
             "via": "easytier",
             "secret": secret,
+            "peers": peers,
         }
 
 
