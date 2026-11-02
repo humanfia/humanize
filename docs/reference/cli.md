@@ -393,7 +393,8 @@ Stage 1–2 messages are preceded by the usage block.
 | unknown option | `unrecognized arguments: <args>` |
 | an `-a` item without `role=` | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>]` |
 | an `-a` role that is not an identifier | ``-a '<item>': '<role>' is not a place a flow could declare: what is written before `=` is a field of the tuple of agents the flow declares, so it is a Python identifier`` |
-| an `-a` with an unknown CLI, no `/` or no model | `-a '<item>': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
+| an `-a` with an unknown CLI | `-a '<item>': unknown CLI '<cli>'; see the [CLI reference](#writing-an-agent) for supported names` |
+| an `-a` with a known CLI but no `/` or no model | `-a '<item>': missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
 | `@` with no account | `-a '<item>': expected an account after @, as in claude@deepseek/MODEL:EFFORT` |
 | a role twice in `-a` | `-a: the role '<role>' is given twice` |
 | an `-e` that does not match | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]` |
