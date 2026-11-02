@@ -902,13 +902,14 @@ class Unreached(RuntimeError):
 **14.1** The registry MUST read and write the `daemons` list of `api/settings.md`; `local` MUST
 name this machine's own daemon, which is never written there.
 
-**14.2** `Registry.all()` MUST return every ssh daemon written, in order, leaving out an entry
-that cannot be one; `Registry.find(name)` MUST return one of them, or `None`.
+**14.2** `Registry.all()` MUST return every daemon written, ssh or EasyTier, in order, leaving out
+an entry that cannot be one; `Registry.find(name)` MUST return one of them, or `None`.
 
 **14.3** `Registry.write(name, fields, replace=...)` MUST write the daemon, or overwrite the one
 of that name where `replace`, and return it as written; it MUST raise `ValueError` where it
 cannot be one, `FileExistsError` where the name is taken and `replace` is false, and `OSError`
-where the write fails.
+where the write fails. Where `replace` and `fields` are of an EasyTier daemon without `secret`,
+it MUST keep the secret written; a secret shorter than 16 bytes MUST raise `ValueError`.
 
 **14.4** `Registry.remove(name)` MUST remove the daemon; it MUST raise `ValueError` for `local`,
 `LookupError` for an unknown name, and `OSError` where the write fails.
@@ -920,7 +921,7 @@ skipping those already written, and return their names. `Registry.imported` MUST
 does not name, and `OSError` where the config cannot be read or the file written.
 
 **14.6** `Registry.remotes(version)` MUST return a `Remotes` that reaches each daemon as it is
-first asked for, installing `hmz` at `version`, or at the calling process's version where
+first asked for, installing `hmz` at `version` over ssh, or at the calling process's version where
 `version` is `None`, as `features/daemons.md` defines reaching.
 
 **14.7** `Remotes.state(name)` MUST return `{state, detail, version}`, `state` being one of
@@ -931,8 +932,8 @@ process's version.
 it failed, and return its state; it MUST raise `LookupError` for an unknown name and `Unreached`
 where the `Remotes` is closing.
 
-**14.9** `Remotes.reached(name)` MUST return the port of this machine's loopback forwarded to
-the daemon's `hmz web` and that server's key, reaching it first where needed;
+**14.9** `Remotes.reached(name)` MUST return the port of this machine's loopback that leads to
+the daemon's `hmz web`, over ssh or EasyTier, and that server's key, reaching it first where needed;
 `Remotes.asks(name)` MUST return that port and the headers a request carries to be admitted.
 Both MUST raise `Unreached` where it is not up and `LookupError` for an unknown name.
 

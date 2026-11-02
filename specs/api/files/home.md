@@ -17,6 +17,7 @@ Out of scope:
 - The state directory of **hmz** on a **machine** other than **this machine**:
   `api/files/targets.md`.
 - The directory `<workspace>/.hmz/`: `api/files/workspace.md`.
+- The process of `hmz server`: `api/cli.md` §13 and `features/daemons.md` §8.5.
 
 ## 2. Definitions
 
@@ -82,7 +83,7 @@ MUST NOT read, modify, merge or remove `$HOME/.humanize`.
 **4.4** Where the rename of clause 4.2 fails, `hmz` MUST continue with `$HOME/.hmz` without
 reporting an error.
 
-**4.5** `hmz` MUST NOT create in `<home>` any entry other than those specified in §5 to §11.
+**4.5** `hmz` MUST NOT create in `<home>` any entry other than those specified in §5 to §13.
 
 **4.6** `hmz` MUST NOT remove `<home>`.
 
@@ -242,3 +243,28 @@ is `<ws>`; its content is specified in `api/files/epics.md`.
 
 **11.2** `hmz` MUST NOT remove `<home>/epics/` or any directory in it, except the staging
 directories specified in `api/files/epics.md` §11.4.
+
+## 12. The server
+
+**12.1** `<home>/server.json` MUST be a JSON object with exactly the keys `pid` (integer, the
+process identifier of the server), `mode` (the string `p2p`), `port` (integer, the port of its
+`hmz web` on the loopback) and `version` (string, the version of **hmz** it runs), with mode
+`0600`, written by atomic replacement; it MUST NOT hold the secret.
+
+**12.2** `hmz server start` MUST write `<home>/server.json` once the server has started, and
+`hmz server stop` MUST remove it once the server has gone.
+
+**12.3** A `<home>/server.json` whose `pid` is not running MUST be read as no server, and MAY be
+removed by `hmz`; the **user** MAY delete it while no server runs.
+
+## 13. EasyTier
+
+**13.1** `<home>/easytier/<version>/` MUST hold the binaries of the release `<version>` of
+EasyTier that **hmz** downloaded (`features/daemons.md` §8.5.6), each binary executable by the
+**user**.
+
+**13.2** `hmz` MUST NOT leave in `<home>/easytier/<version>/` a binary that has not passed its
+check, and MUST NOT download again a binary present there.
+
+**13.3** The **user** MAY delete `<home>/easytier/` or any directory in it while no process of
+**hmz** uses EasyTier; `hmz` downloads it again when next needed.

@@ -16,6 +16,8 @@ Out of scope:
   homes: `api/files/harness-homes.md`.
 - Files on a **machine** other than **this machine**: `api/files/targets.md`.
 - Files of the macOS app: `api/files/desktop.md`.
+- The record of `hmz server` and the EasyTier binaries, both in the **home**:
+  `api/files/home.md` §12 and §13.
 - The messages carried over the socket of the **daemon**: `api/daemon.md`.
 
 ## 2. Definitions

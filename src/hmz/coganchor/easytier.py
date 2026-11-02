@@ -158,11 +158,7 @@ def binary(say: Callable[[str], object] | None = None) -> Path:
         pinned.
     """
     said = os.environ.get(WHICH)
-    if said:
-        named = Path(said).expanduser()
-        if not named.is_file():
-            msg = f"{WHICH} names {said}, which is not a file"
-            raise OSError(msg)
+    if said and (named := Path(said).expanduser()).is_file():
         return named
     kept = home() / "easytier" / VERSION
     core = kept / ("easytier-core.exe" if sys.platform == "win32" else "easytier-core")

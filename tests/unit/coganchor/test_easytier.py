@@ -112,12 +112,12 @@ def test_a_named_binary_is_used(
     assert easytier.binary() == named
 
 
-def test_a_named_binary_that_is_not_there_is_an_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_a_named_binary_that_is_not_there_is_ignored(
+    release: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv(easytier.WHICH, str(tmp_path / "missing"))
-    with pytest.raises(OSError, match="missing"):
-        easytier.binary()
+    assert easytier.binary() == home() / "easytier" / easytier.VERSION / "easytier-core"
+    assert release
 
 
 def test_the_release_is_downloaded_once(release: list[str]) -> None:

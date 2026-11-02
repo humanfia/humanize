@@ -20,6 +20,8 @@ hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
+hmz server start --mode p2p --secret <s>  keep this machine reachable over EasyTier
+hmz server stop                        stop that server
 hmz update                             update hmz to its newest release
 hmz backup <epic> [--to <target>]...   back epics up to git repositories, or download them
 hmz internal <command> [<args>...]     processes Humanize spawns for itself
@@ -30,6 +32,7 @@ hmz internal <command> [<args>...]     processes Humanize spawns for itself
 | *(none)* | `opens` | Opens the [terminal interface](/reference/tui). |
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
 | [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
+| [`server`](#hmz-server) | `_server` | `keep this machine's daemon reachable from others until stopped` |
 | [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
 | [`backup`](#hmz-backup) | `_backup` | `back epics up to git repositories, or download them` |
 | [`internal`](#hmz-internal) | `_internal` | `internal commands used by Humanize; do not run directly` |
@@ -47,14 +50,14 @@ thirty words. This page is the full account of each.
 | --- | --- | --- |
 | empty | [Opens the interface](#hmz). | `0`, or `1` (see below) |
 | exactly `["--version"]` | Prints `hmz <version>` (from the installed distribution's metadata) to stdout. | `0` |
-| first word is `exec`, `web`, `update`, `backup` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
+| first word is `exec`, `web`, `server`, `update`, `backup` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
 | `-h` or `--help` first | Prints the top-level help. | `0` |
 | anything else | argparse usage error on stderr (below). | `2` |
 
 ```console
 $ hmz bogus
 usage: hmz [-h] COMMAND ...
-hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, web, update, backup, internal)
+hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, web, server, update, backup, internal)
 ```
 
 `hmz --version <anything>` is not the version form and fails the same way.
@@ -573,6 +576,36 @@ serves, refuses and answers is the [Web reference](/reference/web).
 | An older Humanize holds the runs | `hmz: the runs in <dir> are held by an older Humanize (pid <n>); stop it with that version` | `1` |
 | The runs could not be reached, or the port listened on | `hmz: the web interface cannot be served: <OSError>` | `1` |
 
+## `hmz server` {#hmz-server}
+
+```text
+hmz server start --mode p2p --secret <secret>
+hmz server stop
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--mode p2p` | **required** | How the server is reached. `p2p`, over [EasyTier](/user/web#over-easytier), is the only one. |
+| `--secret <secret>` | **required** | At least 16 bytes in UTF-8. The same secret goes into the P2P daemon added on the other machine. |
+
+`start` starts a server apart from the terminal and returns: an `hmz web` on this machine's
+loopback alone, at a fixed port, holding the runs through the [daemon](/reference/daemon), its
+key derived from the secret, and `easytier-core` making that port reachable on the EasyTier
+network the secret names, through EasyTier's public nodes. Neither the secret nor anything
+derived from it is put on a command line. EasyTier is downloaded first where it is not in
+`~/.hmz/easytier/<version>/` yet. Once up, it prints `hmz server: started (pid <n>)` and
+records itself in `~/.hmz/server.json`. It runs until `hmz server stop`, which sends it
+`SIGTERM`, waits, removes the record and prints `hmz server: stopped`. Stopping it stops its
+`hmz web` and EasyTier, never an epic.
+
+| Condition | stderr | Exit |
+| --- | --- | --- |
+| Started, or stopped | — | `0` |
+| `start` while a server runs | `hmz: a server is already running (pid <n>)` | `1` |
+| `start` could not start it, or download EasyTier | `hmz: <reason>` | `1` |
+| `stop` with no server | `hmz: no server is running` | `1` |
+| `--mode` or `--secret` missing, another mode, or a secret under 16 bytes | argparse usage error; `A secret must be at least 16 bytes.` for the last | `2` |
+
 ## `hmz update` {#hmz-update}
 
 ```text
@@ -855,6 +888,7 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 | `0` | all | Success. For `hmz exec`, including a run its budget stopped. |
 | `1` | `hmz` | Runs held by an older Humanize; or the host let go of the interface. |
 | `1` | `hmz web` | Runs held by an older Humanize; or the runs or the port could not be had. |
+| `1` | `hmz server` | A server already running on `start`, none on `stop`, or it could not be started. |
 | `1` | `hmz update` | Installed from a source, or no installer, PyPI or install that worked. |
 | `1` | `hmz exec` | The flow raised (traceback on stderr; the crash is reported where reporting is on). |
 | `1` | `internal …` | Could not connect, listen, supervise, or reach a socket. |
@@ -878,6 +912,7 @@ Variables these commands read. The complete list, with every layer's, is
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
 | `HUMANIZE_RELEASES` | `hmz`, `hmz web`, `hmz update` | a URL, a path, or `off`, `0`, `no`, `none`, empty | Where the newest release is read from (PyPI's JSON for `hmz` by default); off, nothing asks. |
+| `HUMANIZE_EASYTIER` | `hmz server`, `hmz web` | a path | An `easytier-core` to use in place of the one Humanize downloads; ignored where it does not exist. |
 | `NO_COLOR`, `TERM`, `FORCE_COLOR` | all | see [Colour](#colour) | Escapes. |
 | `TEXTUAL_THEME` | `hmz` | a Textual theme name | The interface's theme; unknown names are ignored. |
 | `TMUX`, `TERM_PROGRAM`, `LC_TERMINAL` | `hmz` | | Decide `TEXTUAL_DISABLE_KITTY_KEY` ([Terminal preparation](#terminal-preparation)). |
@@ -904,6 +939,8 @@ is [Files](/reference/files).
 | `epics/<workspace>/<datetime>-<hex>/host.log` | `hmz` | appended: what the [host process](/reference/daemon#files) wrote while it held that run. The daemon's socket, record, lock and log are in the machine's temporary directory, not here |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
 | `releases.json` (in the machine's directory) | `hmz`, `hmz web`, `hmz update` | the newest release, refreshed when older than a day by the interfaces as they open and by `hmz update` |
+| `server.json` | `hmz server` | written by `start`, removed by `stop`: the server's `pid`, `mode`, `port` and `version`, never the secret |
+| `easytier/<version>/` | `hmz server`, `hmz web` | written once: the `easytier-core` downloaded and checked, reused after |
 | `settings.yaml`, `providers/` | all | read when an agent or environment is opened |
 | `flowverses/`; `~/.hmz/flows/` and `./.hmz/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 
