@@ -7,14 +7,20 @@ The other machine is this one under a home of its own, reached by the stand-in `
 from __future__ import annotations
 
 import os
+import shutil
 import tarfile
 import threading
+from functools import partial
 from importlib.metadata import version
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
+import yaml
 from textual.widgets import OptionList
 
+from hmz import home
+from hmz.coganchor.machines import sshconfig
 from hmz.daemon import link
 from hmz.runtime import Hmz
 from hmz.runtime.epic import Epic
@@ -47,8 +53,6 @@ from tests.integration.doubles_tui import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from textual.pilot import Pilot
 
 
@@ -300,3 +304,133 @@ async def test_what_is_asked_of_another_daemon_is_said_while_it_is_under_way(
     finally:
         held.close()
         following.set()
+
+
+#: A secret an EasyTier daemon may be written with: 16 bytes and more.
+_SECRET = "a secret of sixteen bytes or more"
+
+
+@pytest.fixture
+def ssh_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> None:
+    """The stand-in `claude` here, and an ssh config in the test's own home naming two hosts."""
+    del asking
+    if shutil.which("ssh") is None:
+        pytest.skip("needs ssh -G")
+    stand_in(tmp_path, monkeypatch)
+    at = Path.home() / ".ssh" / "config"
+    at.parent.mkdir(parents=True, exist_ok=True)
+    at.write_text(
+        "Host gpu\n  HostName gpu.example\n  User me\n  Port 2222\n"
+        "Host box\n  HostName box.example\n"
+    )
+    # `ssh -G` reads the home of the account, not `HOME`: told the test's config instead.
+    monkeypatch.setattr(
+        sshconfig, "resolve", partial(sshconfig.resolve, flags=("-F", str(at)))
+    )
+
+
+def _written() -> dict[str, dict[str, Any]]:
+    """Each daemon as the settings file holds it, by name."""
+    held = yaml.safe_load((home() / "settings.yaml").read_text())
+    return {one.pop("name"): one for one in held["daemons"]}
+
+
+async def _adds(pilot: Pilot[None], name: str) -> None:
+    """Opens the form that adds a daemon, and names it."""
+    await pilot.click("#act-add")
+    await on(pilot, Daemoning)
+    await pilot.press(*name, "enter")
+
+
+async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) -> None:
+    del ssh_config
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/settings daemons")
+        await on(pilot, Adjusts)
+
+        # SSH, SSH Config: a Host of the ssh config, and nothing else.
+        await _adds(pilot, "cfg")
+        await picks(pilot, "mode", "SSH Config")
+        await shows(pilot, "a Host of your ssh config")
+        await picks(pilot, "alias", "gpu")
+        pilot.app.save_screenshot("daemon-ssh-config.svg", str(tmp_path))
+        await pilot.click("#act-done")
+        await on(pilot, Adjusts)
+        await shows(pilot, "cfg saved", "SSH Config · gpu")
+
+        # SSH, hmz-stored, its fields filled from a host of the ssh config.
+        await _adds(pilot, "kept")
+        await picks(pilot, "import", "gpu")
+        await shows(pilot, "gpu.example", "2222")
+        pilot.app.save_screenshot("daemon-hmz-stored.svg", str(tmp_path))
+        await pilot.click("#act-done")
+        await on(pilot, Adjusts)
+        await shows(pilot, "kept saved", "hmz-stored · me@gpu.example:2222")
+
+        # P2P, EasyTier: a secret too short is refused before it is written.
+        await _adds(pilot, "far")
+        await picks(pilot, "kind", "P2P")
+        await shows(pilot, "EasyTier", "shared EasyTier nodes")
+        await onto(pilot, "secret")
+        await pilot.press(*"too short", "enter")
+        await onto(pilot, "peers")
+        await pilot.press(
+            *"tcp://node.example:11010, udp://node.example:11010", "enter"
+        )
+        await pilot.click("#act-done")
+        await shows(pilot, "A secret must be at least 16 bytes.")
+        assert "too short" not in screen(pilot.app)
+        assert "far" not in _written()
+        await onto(pilot, "secret")
+        await pilot.press(*["backspace"] * len("too short"), *_SECRET, "enter")
+        assert _SECRET not in screen(pilot.app)
+        pilot.app.save_screenshot("daemon-easytier.svg", str(tmp_path))
+        await pilot.click("#act-done")
+        await on(pilot, Adjusts)
+        await shows(pilot, "far saved", "P2P · EasyTier")
+        pilot.app.save_screenshot("daemons-modes.svg", str(tmp_path))
+
+    written = _written()
+    assert written["cfg"]["alias"] == "gpu"
+    assert not written["cfg"]["host"]
+    assert written["kept"]["host"] == "gpu.example"
+    assert (written["kept"]["user"], written["kept"]["port"]) == ("me", 2222)
+    assert not written["kept"]["alias"]
+    assert written["far"]["via"] == "easytier"
+    assert written["far"]["secret"] == _SECRET
+    assert written["far"]["peers"] == [
+        "tcp://node.example:11010",
+        "udp://node.example:11010",
+    ]
+
+
+async def test_an_easytier_daemon_edited_keeps_its_secret(ssh_config: None) -> None:
+    del ssh_config
+    Hmz().daemons.write(
+        "far",
+        {"via": "easytier", "secret": _SECRET, "peers": ["tcp://node.example:11010"]},
+    )
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/settings daemons")
+        await on(pilot, Adjusts)
+        await shows(pilot, "P2P · EasyTier")
+
+        # Opened in its own mode, its secret never shown, and left blank.
+        await _menu(pilot, "far")
+        await onto(pilot, "edit")
+        await pilot.press("enter")
+        await on(pilot, Daemoning)
+        await shows(pilot, "EasyTier", "leave blank to keep current value")
+        assert _SECRET not in screen(pilot.app)
+        await onto(pilot, "peers")
+        await pilot.press(*", wss://other.example:443", "enter")
+        await pilot.click("#act-done")
+        await on(pilot, Adjusts)
+        await shows(pilot, "far saved")
+
+    far = _written()["far"]
+    assert far["via"] == "easytier"
+    assert far["secret"] == _SECRET
+    assert far["peers"] == ["tcp://node.example:11010", "wss://other.example:443"]

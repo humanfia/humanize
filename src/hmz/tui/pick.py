@@ -7474,8 +7474,8 @@ def _fallback_row() -> Question:
     )
 
 
-def _fallback(said: str) -> list[str]:
-    """A fallback list as its row has it written: entries apart by commas, in order."""
+def _listed(said: str) -> list[str]:
+    """A list as its row has it written -- a fallback list, EasyTier nodes: apart by commas."""
     return [one.strip() for one in said.split(",") if one.strip()]
 
 
@@ -7666,7 +7666,7 @@ class Hosting(Form["Runtime"]):
             "proxy_jump": typed.get(_JUMP, ""),
             "options": _options(typed.get(_OPTIONS, "")),
             "workdir": typed.get(_WORKDIR, ""),
-            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
+            "fallback": _listed(typed.get(_FALLEN_TO, "")),
             "harness": _harness(typed.get(_HARNESS, "")),
         }
         if self._one is not None:
@@ -8146,7 +8146,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             "cpus": _number(typed.get(_CPUS, ""), "cpus"),
             "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
             "workdir": typed.get(_WORKDIR, ""),
-            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
+            "fallback": _listed(typed.get(_FALLEN_TO, "")),
             "harness": _harness(typed.get(_HARNESS, "")),
             # Not on the form: what it was saved with, kept.
             "name_prefix": self._one.name_prefix if self._one is not None else "",
@@ -8575,7 +8575,7 @@ class Containing(Form["Runtime"]):
             "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
             "max_containers": _how_many(typed.get(_AT_ONCE, ""), "max containers"),
             "workdir": typed.get(_WORKDIR, ""),
-            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
+            "fallback": _listed(typed.get(_FALLEN_TO, "")),
             "harness": _harness(typed.get(_HARNESS, "")),
         }
 
@@ -8812,7 +8812,7 @@ class Slurming(Form["Runtime"]):
             "max_jobs": _how_many(typed.get(_JOBS, ""), "max jobs"),
             "max_wait": _how_many(typed.get(_WAIT, ""), "max wait"),
             "workdir": typed.get(_WORKDIR, ""),
-            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
+            "fallback": _listed(typed.get(_FALLEN_TO, "")),
             "harness": _harness(typed.get(_HARNESS, "")),
         }
 
@@ -9988,12 +9988,43 @@ class Machines(Pages):
         self._fill()
 
 
+#: The kinds of daemon a form adds, and the modes of each, as the web's New daemon names them:
+#: over ssh, fields hmz keeps or a `Host` of the ssh config; peer to peer, over EasyTier. A
+#: kind starts on its first mode.
+_SSH_KIND, _P2P_KIND = "SSH", "P2P"
+_SSH_CONFIG, _STORED, _EASYTIER = "SSH Config", "hmz-stored", "EasyTier"
+_MODES = {_SSH_KIND: (_STORED, _SSH_CONFIG), _P2P_KIND: (_EASYTIER,)}
+
+#: The rows of the daemon form besides those an ssh host is written on: its kind, its mode,
+#: a host of the ssh config its fields are filled from, its secret, and the nodes it meets at.
+_KIND, _MODE, _BRINGS, _SECRET, _PEERS = "kind", "mode", "import", "secret", "peers"
+
+#: What a daemon's secret is at least, in bytes of UTF-8, and what a shorter one is told.
+_FEWEST_BYTES = 16
+_TOO_SHORT = "A secret must be at least 16 bytes."
+
+
+def _mode(one: Mapping[str, Any]) -> str:
+    """Which mode a daemon is in, as it is written: derived from its fields, never stored."""
+    if one.get("via") == "easytier":
+        return _EASYTIER
+    fields = (_HOST, _USER, _PORT, _KEY, _JUMP, _OPTIONS)
+    return (
+        _SSH_CONFIG
+        if one.get(_ALIAS) and not any(one.get(each) for each in fields)
+        else _STORED
+    )
+
+
 class Daemoning(Form["dict[str, Any] | str"]):
     """One daemon of another machine, on one form: what it is called, and what reaches it.
 
-    What `ssh` is told on top of the user's own config, each blank for what that config says,
-    as an ssh runtime's form asks it; a host the config already knows is its `Host` alone.
-    Written as it is answered, as the daemons page writes everything.
+    Of a kind and a mode, as the web's New daemon: over ssh, a `Host` of the ssh config alone
+    or what `ssh` is told on top of it, each blank for what that config says -- typed in, or
+    filled from a host of it; or over EasyTier, its secret and the nodes it meets its server
+    at. Opened on a daemon, it is in the mode that daemon is in; its secret is never shown,
+    and kept where it is left blank. Written as it is answered, as the daemons page writes
+    everything.
     """
 
     def __init__(
@@ -10009,9 +10040,20 @@ class Daemoning(Form["dict[str, Any] | str"]):
         self._one = one
         self._taken = taken
         held = one or {}
+        mode = _mode(held) if one is not None else _STORED
+        #: The hosts of the ssh config, read once they are first asked for.
+        self._hosts: list[str] | None = None
+        #: The host of the ssh config being read to fill the fields from, while it is.
+        self._bringing = ""
         self._typed_in = {
             _CALLED: str(held.get("name", "")),
-            _HOST: str(held.get("host", "")),
+            _KIND: _P2P_KIND if mode == _EASYTIER else _SSH_KIND,
+            _MODE: mode,
+            # A `Host` told on top of, as an older form wrote it, is the host ssh is given:
+            # its block of the ssh config applies to it as to the alias.
+            _HOST: str(held.get("host") or held.get("alias", ""))
+            if mode == _STORED
+            else "",
             _USER: str(held.get("user", "")),
             _PORT: str(held.get("port") or ""),
             _KEY: str(held.get("identity_file", "")),
@@ -10019,14 +10061,21 @@ class Daemoning(Form["dict[str, Any] | str"]):
             _OPTIONS: ", ".join(
                 f"{key}={value}" for key, value in held.get("options", [])
             ),
-            _ALIAS: str(held.get("alias", "")),
+            _ALIAS: str(held.get("alias", "")) if mode == _SSH_CONFIG else "",
+            _BRINGS: "",
+            _SECRET: "",
+            _PEERS: ", ".join(held.get("peers", [])),
         }
 
+    def _keeps(self) -> bool:
+        """Whether a secret is written already, which one left blank keeps."""
+        return self._one is not None and _mode(self._one) == _EASYTIER
+
     def asked(self) -> list[Question]:
-        """Its name, where it is new, then what ssh is told to reach it."""
+        """Its name, where it is new, its kind and mode, then what that mode asks."""
         typed = self._typed_in
-        reached = bool(typed[_HOST].strip() or typed[_ALIAS].strip())
-        return [
+        mode = typed[_MODE]
+        rows = [
             *(
                 ()
                 if self._one is not None
@@ -10039,19 +10088,138 @@ class Daemoning(Form["dict[str, Any] | str"]):
                     ),
                 )
             ),
+            Question(_KIND, "kind", "SSH, or P2P", _STEPS),
+            Question(_MODE, "mode", self.means(_MODE, mode), _STEPS),
+        ]
+        if mode == _SSH_CONFIG:
+            return [
+                *rows,
+                Question(
+                    _ALIAS,
+                    "host",
+                    "a Host of your ssh config",
+                    _STEPS,
+                    needed=not typed[_ALIAS],
+                ),
+            ]
+        if mode == _EASYTIER:
+            keeps = self._keeps()
+            return [
+                *rows,
+                Question(
+                    _SECRET,
+                    "secret",
+                    "its server's; leave blank to keep current value"
+                    if keeps
+                    else "its server's, at least 16 bytes",
+                    secret=True,
+                    needed=not typed[_SECRET] and not keeps,
+                ),
+                Question(
+                    _PEERS,
+                    "nodes",
+                    "shared EasyTier nodes: tcp://host:port, …",
+                    needed=not typed[_PEERS].strip(),
+                ),
+            ]
+        return [
+            *rows,
+            Question(
+                _BRINGS,
+                "import",
+                f"reading {escape(self._bringing)}…"
+                if self._bringing
+                else "fills these from a host of your ssh config",
+                _STEPS,
+            ),
             Question(
                 _HOST,
                 "host",
-                "hostname or IP address; blank for the alias's",
-                needed=not reached,
+                "hostname or IP address",
+                needed=not typed[_HOST].strip(),
             ),
-            Question(_ALIAS, "alias", "the Host entry of your ssh config, if any"),
             Question(_USER, "user", "username; leave blank to use your ssh config"),
             Question(_PORT, "port", "leave blank to use your ssh config, or 22"),
             Question(_KEY, "identity file", "path to private key", path=True),
             Question(_JUMP, "proxy jump", "jump host to connect through, if any"),
             Question(_OPTIONS, "options", "additional ssh options: KEYWORD=VALUE, …"),
         ]
+
+    def choices(self, held: str) -> Sequence[str]:
+        """The kinds, the modes of the kind chosen, and the hosts of the ssh config."""
+        if held == _KIND:
+            return tuple(_MODES)
+        if held == _MODE:
+            return _MODES[self._typed_in[_KIND]]
+        if held in (_ALIAS, _BRINGS):
+            return self._read_hosts()
+        return ()
+
+    def means(self, held: str, value: str) -> str:
+        """What each mode is, on the list it is picked from."""
+        if held != _MODE:
+            return ""
+        return {
+            _SSH_CONFIG: "a Host of your ssh config, reached as it says",
+            _STORED: "what ssh is told, kept by hmz: typed in, or imported",
+            _EASYTIER: "an hmz server, met through shared nodes",
+        }[value]
+
+    def _read_hosts(self) -> list[str]:
+        """Every host of the ssh config, and this one's own where it no longer names it.
+
+        Read once, and none where the config cannot be read.
+        """
+        if self._hosts is None:
+            from hmz.coganchor.machines import sshconfig
+
+            mine = str((self._one or {}).get(_ALIAS, ""))
+            try:
+                every = sshconfig.aliases()
+            except OSError:
+                every = []
+            self._hosts = [*((mine,) if mine and mine not in every else ()), *every]
+        return self._hosts
+
+    def stepped(self, held: str) -> None:
+        """Moves the mode to the kind's first, or fills the fields from the host imported.
+
+        Args:
+          held: The row that moved.
+        """
+        if held == _KIND:
+            self._typed_in[_MODE] = _MODES[self._typed_in[_KIND]][0]
+        elif held == _BRINGS and self._typed_in[_BRINGS]:
+            self._brings(self._typed_in[_BRINGS])
+
+    @work(exclusive=True)
+    async def _brings(self, alias: str) -> None:
+        """Fills the fields from what `ssh -G` resolves a host of the ssh config to, off the loop.
+
+        Args:
+          alias: The host, by its `Host`.
+        """
+        import asyncio
+
+        from hmz.coganchor.machines import sshconfig
+
+        self._bringing = alias
+        self._fill()
+        try:
+            found = await asyncio.to_thread(sshconfig.resolve, alias)
+        except OSError as why:
+            self._wrong = str(why)
+        else:
+            self._typed_in |= {
+                _HOST: found.host,
+                _USER: found.user,
+                _PORT: str(found.port),
+                _KEY: next(iter(found.identity_files), ""),
+                _JUMP: found.proxy_jump,
+                _OPTIONS: "",
+            }
+        self._bringing = ""
+        self._fill()
 
     def beside(self) -> list[Action]:
         """Taking it away, for a daemon already written."""
@@ -10077,44 +10245,82 @@ class Daemoning(Form["dict[str, Any] | str"]):
             "Add daemon" if self._one is None else escape(self._typed_in[_CALLED])
         )
         self.query_one("#about", Label).update(
-            "Another machine's hmz, reached over ssh: its epics are listed with "
-            "/epics @<name>, and hmz is installed there where it is missing."
+            "Another machine's hmz, reached over ssh or EasyTier: its epics are listed "
+            "with /epics @<name>, and over ssh hmz is installed there where it is missing."
         )
         self._fill()
 
-    def action_done(self) -> None:
-        """Answers with the daemon, once it is named and reached somehow."""
-        typed = {key: value.strip() for key, value in self._typed_in.items()}
-        self._wrong = ""
+    def _checks(self, typed: dict[str, str]) -> str:
+        """What is wrong with what the mode chosen asks, or "" for nothing.
+
+        Args:
+          typed: What each row holds, stripped but for the secret.
+        """
+        mode = typed[_MODE]
+        if mode == _SSH_CONFIG:
+            return "" if typed[_ALIAS] else "host is required"
+        if mode == _EASYTIER:
+            if not typed[_SECRET] and not self._keeps():
+                return "secret is required"
+            if typed[_SECRET] and len(typed[_SECRET].encode()) < _FEWEST_BYTES:
+                return _TOO_SHORT
+            return "" if _listed(typed[_PEERS]) else "nodes are required"
+        if not typed[_HOST]:
+            return "host is required"
+        if typed[_PORT] and not typed[_PORT].isdigit():
+            return "port is a number"
         try:
-            options = _options(typed[_OPTIONS])
+            _options(typed[_OPTIONS])
         except ValueError as why:
-            self._wrong = str(why)
-            options = {}
+            return str(why)
+        return ""
+
+    def action_done(self) -> None:
+        """Answers with the daemon, once it is named and reached as its mode says."""
+        typed = {key: value.strip() for key, value in self._typed_in.items()}
+        # As it was typed: a space may be part of a secret.
+        typed[_SECRET] = self._typed_in[_SECRET]
         if not typed[_CALLED]:
             self._wrong = "name is required"
         elif self._one is None and typed[_CALLED] in self._taken:
             self._wrong = f"another daemon is named {typed[_CALLED]}"
-        elif not (typed[_HOST] or typed[_ALIAS]):
-            self._wrong = "host or alias is required"
-        elif typed[_PORT] and not typed[_PORT].isdigit():
-            self._wrong = "port is a number"
+        else:
+            self._wrong = self._checks(typed)
         if self._wrong:
             self._fill()
             return
-        self.dismiss(
-            {
-                "name": typed[_CALLED],
-                "host": typed[_HOST],
-                "user": typed[_USER],
-                "port": int(typed[_PORT] or 0),
-                "identity_file": typed[_KEY],
-                "proxy_jump": typed[_JUMP],
-                "options": [[key, value] for key, value in options.items()],
-                "alias": typed[_ALIAS],
-                "config": str((self._one or {}).get("config", "")),
-            }
-        )
+        mode, name = typed[_MODE], typed[_CALLED]
+        config = str((self._one or {}).get("config", ""))
+        if mode == _EASYTIER:
+            # A secret left blank is not said, which keeps the one written.
+            secret = {_SECRET: typed[_SECRET]} if typed[_SECRET] else {}
+            self.dismiss(
+                {
+                    "name": name,
+                    "via": "easytier",
+                    **secret,
+                    "peers": _listed(typed[_PEERS]),
+                }
+            )
+        elif mode == _SSH_CONFIG:
+            self.dismiss(
+                {"name": name, "via": "ssh", "alias": typed[_ALIAS], "config": config}
+            )
+        else:
+            options = _options(typed[_OPTIONS])
+            self.dismiss(
+                {
+                    "name": name,
+                    "via": "ssh",
+                    "host": typed[_HOST],
+                    "user": typed[_USER],
+                    "port": int(typed[_PORT] or 0),
+                    "identity_file": typed[_KEY],
+                    "proxy_jump": typed[_JUMP],
+                    "options": [[key, value] for key, value in options.items()],
+                    "config": config,
+                }
+            )
 
 
 class Bringing(Form[tuple[str, ...]]):
@@ -10240,7 +10446,7 @@ _CONNECTS, _EDITS = "connect", "edit"
 
 
 class Daemons(Pages):
-    """The daemons page of `/settings`: this machine's, and each reached over ssh.
+    """The daemons page of `/settings`: this machine's, and each reached over ssh or EasyTier.
 
     Written as each is changed rather than held until the menu is saved: what is written is
     a machine `/epics @<name>` reaches, and reaching one runs ssh. How each stands is asked
@@ -10249,8 +10455,8 @@ class Daemons(Pages):
 
     #: What the page says it is.
     DAEMONS_ABOUT = (
-        "This machine's daemon, and other machines' reached over ssh. /epics @<name> "
-        "lists the epics of one; m on one is its menu."
+        "This machine's daemon, and other machines' reached over ssh or EasyTier. "
+        "/epics @<name> lists the epics of one; m on one is its menu."
     )
 
     def __init__(self) -> None:
@@ -10291,7 +10497,7 @@ class Daemons(Pages):
             Action(
                 _ACT_ADD,
                 "add daemon",
-                "another machine, reached over ssh",
+                "another machine, reached over ssh or EasyTier",
                 lambda: self._writes_daemon(None),
             ),
             Action(
@@ -11814,20 +12020,26 @@ def _stands(said: dict[str, str]) -> str:
 
 
 def _reached_at(one: dict[str, Any]) -> str:
-    """Where a daemon is reached, as ssh is told it: its Host, or its login; or over EasyTier."""
-    if one.get("via") == "easytier":
-        return "EasyTier"
-    if one.get("alias") and not one.get("host"):
-        return str(one["alias"])
-    login = f"{one['user']}@{one['host']}" if one.get("user") else str(one["host"])
-    return f"{login}:{one['port']}" if one.get("port") else login
+    """How a daemon is reached: its mode, then its Host or its login, as ssh is told it."""
+    mode = _mode(one)
+    if mode == _EASYTIER:
+        return f"P2P{_DOT}{mode}"
+    if mode == _SSH_CONFIG:
+        return f"{mode}{_DOT}{one['alias']}"
+    host = str(one.get("host") or one.get("alias", ""))
+    login = f"{one['user']}@{host}" if one.get("user") else host
+    return (
+        f"{mode}{_DOT}{login}:{one['port']}"
+        if one.get("port")
+        else f"{mode}{_DOT}{login}"
+    )
 
 
 class Daemoned(Picks):
-    """Which daemon's epics `/epics` lists: this machine's, or one reached over ssh."""
+    """Which daemon's epics `/epics` lists: this machine's, or one reached over ssh or EasyTier."""
 
     asked = "Daemon"
-    about = "Whose epics to list: this machine's, or another's reached over ssh."
+    about = "Whose epics to list: this machine's, or another's reached over ssh or EasyTier."
     SEARCHES: ClassVar = False
 
     def rows(self) -> list[tuple[str, str, str]]:
