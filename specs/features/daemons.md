@@ -6,7 +6,7 @@ This document specifies the daemon as the user experiences it: one daemon per ma
 holding the epics of every workspace on that machine apart from any terminal; how it starts and
 goes; how frontends attach to and detach from the epics it holds; how epics outlive the frontend
 that started them; how a daemon of one release meets a frontend of another; and how a frontend
-reaches the daemon of another machine over ssh.
+reaches the daemon of another machine over ssh or over EasyTier.
 
 Out of scope:
 
@@ -17,6 +17,7 @@ Out of scope:
 - How the page of `hmz web` presents daemons: `features/web.md` §13.
 - How the terminal interface presents daemons and `/exit`: `features/tui.md`.
 - The release check and `hmz update`: `features/updates.md`.
+- The command line of `hmz server`: `api/cli.md` §13.
 
 ## 2. Definitions
 
@@ -35,11 +36,15 @@ stopping on it, and it keeps no ended epic for the next frontend under §5.5.
 **2.5** A daemon is **older** than a frontend when it speaks a protocol of an earlier release of
 hmz than the frontend, and **newer** when it speaks a protocol of a later one.
 
-**2.6** A **remote daemon** is the daemon of another machine, reached from this machine over ssh. A
-remote daemon is called an SSH daemon on the page of `hmz web`.
+**2.6** A **remote daemon** is the daemon of another machine, reached from this machine over ssh or
+over EasyTier. A remote daemon reached over ssh is an **SSH daemon**, and one reached over EasyTier
+a **P2P daemon**, as the page of `hmz web` names them.
 
 **2.7** **Local** is the daemon of this machine, as the frontends that switch between daemons name
 it.
+
+**2.8** **EasyTier** is the peer-to-peer virtual network of that name; a **server** is an `hmz
+server` that keeps the daemon of its machine reachable over it (§8.5).
 
 ## 3. One daemon per machine and user
 
@@ -190,7 +195,7 @@ specifies, and MUST be shared by every frontend of this machine that switches be
 **8.1.3** The name of a remote daemon MUST start with a letter or a digit, MUST consist of letters,
 digits, `.`, `_` and `-`, and MUST NOT be `local`.
 
-**8.1.4** A remote daemon MUST be reached as `ssh` reaches its host, with the user's keys and ssh
+**8.1.4** An SSH daemon MUST be reached as `ssh` reaches its host, with the user's keys and ssh
 config, from what the user set: host, user, port, identity file, proxy jump and ssh options, or a
 host of the ssh config resolved each time it is reached.
 
@@ -202,10 +207,10 @@ machine MUST stay as they are.
 **8.2.1** A remote daemon MUST be reached when a frontend first asks for it or the user asks to
 connect to it.
 
-**8.2.2** Reaching a remote daemon MUST start `hmz web` on its machine over ssh, listening on that
+**8.2.2** Reaching an SSH daemon MUST start `hmz web` on its machine over ssh, listening on that
 machine's loopback alone.
 
-**8.2.3** Reaching a remote daemon MUST forward a port of this machine's loopback to that `hmz web`.
+**8.2.3** Reaching an SSH daemon MUST forward a port of this machine's loopback to that `hmz web`.
 
 **8.2.4** hmz MUST NOT listen on the remote machine beyond its loopback.
 
@@ -218,8 +223,8 @@ page.
 | State | Meaning |
 | --- | --- |
 | `idle` | Not reached yet |
-| `connecting` | ssh is reaching the host and starting `hmz web` there |
-| `installing` | hmz is being installed on the host |
+| `connecting` | ssh is reaching the host and starting `hmz web` there, or EasyTier is joining |
+| `installing` | hmz is being installed on the host, or EasyTier on this machine |
 | `up` | Reached |
 | `failed` | Not reached, with the reason |
 
@@ -229,16 +234,17 @@ page.
 the wait doubling after each further failure up to at most 60 seconds, and starting again at
 1 second once the remote daemon is `up`.
 
-**8.2.9** The frontend that reached a remote daemon going MUST stop the `hmz web` and the ssh
-connections it started there; the epics on that machine MUST keep going, held by its daemon.
+**8.2.9** The frontend that reached a remote daemon going MUST stop the `hmz web`, the ssh
+connections and the EasyTier processes it started for it; the epics on that machine MUST keep going,
+held by its daemon.
 
-**8.2.10** Reaching a remote daemon MUST NOT ask the user for a password or to accept a host key; a
+**8.2.10** Reaching an SSH daemon MUST NOT ask the user for a password or to accept a host key; a
 host that needs either MUST fail with what ssh said.
 
 ### 8.3 The hmz on a remote machine
 
-**8.3.1** Before starting `hmz web` on a remote machine, the frontend MUST find the hmz there as a
-login shell finds it, with `~/.local/bin` included, and MUST learn its version.
+**8.3.1** Before starting `hmz web` on the machine of an SSH daemon, the frontend MUST find the hmz
+there as a login shell finds it, with `~/.local/bin` included, and MUST learn its version.
 
 **8.3.2** Where no hmz is there, or one of another release, the frontend MUST install hmz of its own
 release there as a uv tool, installing uv there first where none is, and MUST be `installing` while
@@ -268,3 +274,39 @@ attaches on Local, as `features/web.md` and `features/tui.md` specify.
 
 **8.4.3** A frontend MUST say a remote daemon that is not `up` is unavailable, with its state,
 wherever it asks it something.
+
+### 8.5 P2P daemons
+
+**8.5.1** A P2P daemon MUST be kept as its name and a secret of at least 16 bytes in UTF-8, the
+secret its server was started with; a shorter secret MUST be refused with `A secret must be at
+least 16 bytes.`
+
+**8.5.2** The name and the secret of the EasyTier network MUST be derived from the secret by
+SHA-256, and the key of the server's `hmz web` by HMAC-SHA256, each under a label of its own; the
+secret itself MUST NOT leave the machine it is set on, nor be passed on any command line.
+
+**8.5.3** A server MUST serve `hmz web` on its machine's loopback alone, at a port fixed by hmz,
+with the key derived from its secret, holding the epics through its machine's daemon, and MUST
+make that port reachable over the EasyTier network of its secret, through the public EasyTier
+nodes hmz names.
+
+**8.5.4** Reaching a P2P daemon MUST join the EasyTier network of its secret and expose that `hmz
+web` on a port of this machine's loopback, MUST wait until it answers, and MUST then ask it as
+§8.2.5 states, with the key derived from the secret.
+
+**8.5.5** EasyTier MUST run without root and without a virtual network device, on either side.
+
+**8.5.6** hmz MUST download the official release of EasyTier of the version it pins, for this
+machine's system and architecture, into its home, MUST check it against the SHA-256 it pins, and
+MUST reuse it once there; a P2P daemon MUST be `installing` while it downloads, saying
+`Downloading EasyTier <version>`, and `failed` with the reason where the download or the check
+fails. `HUMANIZE_EASYTIER` naming an existing binary MUST be used in its place.
+
+**8.5.7** Reaching a P2P daemon MUST install nothing on its machine; a server older than the
+frontend MUST be refused as §7.4 states.
+
+**8.5.8** A P2P daemon MUST be in the states of §8.2.6, with what was said last, and MUST be tried
+again as §8.2.8 states.
+
+**8.5.9** Stopping a server MUST stop its `hmz web` and EasyTier, and MUST NOT stop any epic its
+daemon holds.

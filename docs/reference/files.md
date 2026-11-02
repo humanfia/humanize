@@ -46,6 +46,8 @@ H/
 ├── settings.yaml                       everything /settings sets: workspaces, machine settings, fallbacks, added CLIs, runtimes
 ├── .settings.yaml.lock                 held by each writer of settings.yaml
 ├── history.jsonl                       lines typed at the TUI prompt
+├── server.json                         the running hmz server: pid, mode, port, version
+├── easytier/<version>/                 easytier-core, downloaded and checked once
 ├── providers/<cli>/<name>/             accounts
 │   ├── provider.json
 │   └── home/ user/ config/             credential files the CLI writes
@@ -89,6 +91,23 @@ M/
 | Unreadable, missing, not a mapping | read as empty; never an error |
 | Write failure, or unreadable at a write | not written over; ignored by `Settings`, `OSError` for a fallback, added CLI or runtime |
 | Removed | never; `forget` removes one workspace's entry |
+
+### `H/server.json` {#h-server-json}
+
+| Property | Value |
+| --- | --- |
+| Writer | [`hmz server start`](/reference/cli#hmz-server), once the server is up; removed by `hmz server stop` |
+| Content | `{"pid": <int>, "mode": "p2p", "port": <int>, "version": "<hmz version>"}`, mode `0600`, written by atomic replacement; never the secret |
+| Stale | a `pid` not running reads as no server |
+| Safe to delete | while no server runs |
+
+### `H/easytier/<version>/` {#h-easytier}
+
+| Property | Value |
+| --- | --- |
+| Writer | `hmz server`, and `hmz web` reaching a P2P daemon, when `easytier-core` is not there yet: the official GitHub release for this OS and architecture (macOS arm64 and x86_64, Linux x86_64 and aarch64, Windows x86_64), checked against the SHA-256 Humanize pins |
+| Read | every later start; [`HUMANIZE_EASYTIER`](/reference/environment#humanize-easytier) names one to use instead |
+| Safe to delete | while nothing uses EasyTier; downloaded again when next needed |
 
 ### `H/history.jsonl`
 

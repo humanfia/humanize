@@ -152,9 +152,10 @@ system to show each notice.
 ### 4.6 `daemons`
 
 **4.6.1** `daemons` MUST be a list of mappings, each naming the daemon of one other machine reached
-over ssh (`features/daemons.md`).
+over ssh or over EasyTier (`features/daemons.md`).
 
-**4.6.2** Each entry MUST have the key `name` and MAY have the keys `host`, `user`, `port`,
+**4.6.2** Each entry MUST have the key `name` and MAY have the key `via`, `ssh` or `easytier`, an
+entry without `via` being `ssh`. An `ssh` entry MAY have the keys `host`, `user`, `port`,
 `identity_file`, `proxy_jump`, `options`, `alias` and `config`, with the types and validation of
 the fields of the same names of an ssh runtime (§8.3), but for `options` (§4.6.4).
 
@@ -168,6 +169,17 @@ validation of §8.3.6 and §8.3.7.
 entry has MUST be ignored when read and MUST be removed at the next write of `daemons`.
 
 **4.6.6** The daemon of this machine MUST NOT be written in `daemons`.
+
+**4.6.7** An `ssh` entry with `alias` and none of `host`, `user`, `port`, `identity_file`,
+`proxy_jump` and `options` MUST be reached through the ssh configuration's host of that alias; any
+other `ssh` entry MUST be reached from the fields it holds. Which of the two an entry is MUST NOT
+be stored.
+
+**4.6.8** An `easytier` entry MUST have the key `secret` and MUST NOT have any other key but
+`name` and `via`; an `ssh` entry MUST NOT have `secret`.
+
+**4.6.9** `secret` MUST be a string of at least 16 bytes in UTF-8; a writer given a shorter one
+MUST refuse it with `A secret must be at least 16 bytes.`
 
 ### 4.7 `spelling`
 
@@ -584,6 +596,9 @@ hmz from sharing one ssh connection between the ssh commands it runs to one dest
 **11.2.12** `HUMANIZE_TARGET`, `HUMANIZE_HARNESS`, `HUMANIZE_SHADOW`, `HUMANIZE_TOKEN` and
 `HUMANIZE_LOG` MUST be the defaults of the options of `hmz internal anchor` that
 `api/cli.md §11.2.3` names.
+
+**11.2.13** `HUMANIZE_EASYTIER` MUST name an EasyTier binary for hmz to use in place of the one it
+downloads (`features/daemons.md` §8.5); one that does not exist MUST be ignored.
 
 ### 11.3 Other variables
 
