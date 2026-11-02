@@ -91,6 +91,7 @@ an epilog MUST each be at most thirty words long.
 ```text
 exec      run an agent flow in this directory
 web       open this machine's epics in a browser on it
+server    keep this machine's daemon reachable from others until stopped
 update    update hmz to its newest release
 backup    back epics up to git repositories, or download them
 internal  internal commands used by Humanize; do not run directly
@@ -100,8 +101,8 @@ internal  internal commands used by Humanize; do not run directly
 
 ### 4.1 Streams
 
-**4.1.1** A command MUST write to standard output only what a program reading it is to parse:
-help and version text (§3), the answers of turns, an NDJSON stream, the lines §8 to §10 name as
+**4.1.1** A command MUST write to standard output only what a program reading it is to parse: help
+and version text (§3), the answers of turns, an NDJSON stream, the lines §8 to §10 and §13 name as
 standard output, and what §11 relays or reports to standard output.
 
 **4.1.2** A command MUST write every diagnostic to standard error.
@@ -982,3 +983,52 @@ read standard input.
 meanings given there.
 
 **12.1.2** `hmz exec` MUST NOT read `HUMANIZE_DAEMON`.
+
+## 13. `hmz server`
+
+### 13.1 Synopsis
+
+```text
+hmz server start --mode p2p --secret <secret>
+hmz server stop
+```
+
+**13.1.1** `hmz server` MUST take a subcommand, `start` or `stop`; anything else MUST be a usage
+error.
+
+**13.1.2** `start` MUST take `--mode`, whose only value is `p2p`, and `--secret`; either missing,
+another mode, or a secret shorter than 16 bytes in UTF-8 MUST be a usage error, the last saying
+`A secret must be at least 16 bytes.`
+
+**13.1.3** `stop` MUST take no option.
+
+### 13.2 Behaviour
+
+**13.2.1** `hmz server start` MUST start, apart from the terminal, a server that keeps this
+machine's daemon reachable over EasyTier as `features/daemons.md` §8.5 specifies, until `hmz
+server stop` stops it; it MUST outlive the terminal as `features/daemons.md` §5.1 and §5.2 state.
+
+**13.2.2** The server MUST hold the epics through the daemon, and MUST be given the secret on
+neither its command line nor that of any process it starts.
+
+**13.2.3** Once the server has started, `hmz server start` MUST write its record
+(`api/files/home.md` §12) and `hmz server: started (pid <pid>)` and a line feed to standard output.
+
+**13.2.4** `hmz server stop` MUST send `SIGTERM` to the server, wait for it to go, remove its
+record, and write `hmz server: stopped` and a line feed to standard output.
+
+**13.2.5** The server MUST stop its `hmz web` and EasyTier on `SIGTERM`, and MUST NOT stop any
+epic the daemon holds.
+
+### 13.3 Exit
+
+**13.3.1** `hmz server start` MUST exit with status 0 once §13.2.3 is done.
+
+**13.3.2** Where a server is running, `hmz server start` MUST write `hmz: a server is already
+running (pid <pid>)` to standard error and exit with status 1.
+
+**13.3.3** Where the server cannot be started, EasyTier downloaded included, `hmz server start`
+MUST write a diagnostic beginning `hmz: ` and exit with status 1.
+
+**13.3.4** Where no server is running, `hmz server stop` MUST write `hmz: no server is running` to
+standard error and exit with status 1.

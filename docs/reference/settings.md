@@ -55,6 +55,11 @@ daemons:                           # this machine; Settings › Daemons in the w
   identity_file: ~/.ssh/id_ed25519
   proxy_jump: ""
   options: [[ServerAliveInterval, "30"]]
+- name: lab                        # an ssh config host, resolved each time
+  alias: lab
+- name: home                       # over EasyTier; see hmz server
+  via: easytier
+  secret: correct-horse-battery-staple
 notifications:                     # this machine; /settings notifications, and Settings › Notifications on the web
   kinds: {done: true, failed: true, stopped: true, asked: true, listening: true}
   system: true
@@ -88,7 +93,7 @@ backup:                            # this machine
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › General › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
 | `btw` | `str`: `cli[@account]/model:effort` | `""`: nobody answers The Epic | `/settings` › General › **/btw The Epic**; web **Settings › General › The Epic** | the TUI, the web page | the next side conversation of The Epic opened; the one agent that answers The Epic, for every epic: no epic keeps one of its own, and no agent of a run stands in |
 | `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
-| `daemons` | list of `{name, host, user, port, identity_file, proxy_jump, options: [[keyword, value]], alias, config}` | `[]`: Local alone | the web interface's Settings › Daemons, [`POST /api/daemons`](/reference/web#api-settings) and its `import` | `hmz web` | at once: a daemon added is reached the first time the page asks for it, one removed is let go of |
+| `daemons` | list of `{name, via: ssh, host, user, port, identity_file, proxy_jump, options: [[keyword, value]], alias, config}` or `{name, via: easytier, secret}`; no `via` is `ssh`; `alias` with none of `host`, `user`, `port`, `identity_file`, `proxy_jump`, `options` is reached through the ssh config, anything else from its own fields; `secret` at least 16 bytes in UTF-8, else `A secret must be at least 16 bytes.` | `[]`: Local alone | the web interface's Settings › Daemons, [`POST /api/daemons`](/reference/web#api-settings) and its `import` | `hmz web` | at once: a daemon added is reached the first time the page asks for it, one removed is let go of |
 | `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | [`/settings notifications`](/reference/tui#notifications-page), the web interface's Settings › Notifications, [`POST /api/notifications/settings`](/reference/web#api-notifications) | `hmz`, `hmz web` | immediately: the next notice of a kind is told or not |
 | <span id="spelling"></span>`spelling` | `int` | absent: written before `-e` wrote `@` only before a provider | every write of the file, as `2` | every process, as it reads the file | absent, `envs` are read as their old spelling meant and rewritten once; `2`, as written |
 
