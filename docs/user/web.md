@@ -441,19 +441,20 @@ A daemon is in one of these states:
 
 ### Adding one {#adding-a-daemon}
 
-**Settings → Daemons** lists Local and every remote daemon, each with its state. **New daemon**
-asks the **name** the page calls it -- letters, digits, `.`, `_` and `-`; `local` is Local's and
-cannot be taken -- and how to reach it:
+**Settings → Daemons** lists Local and every remote daemon, each with its kind and mode (`SSH ·
+SSH Config`, `SSH · hmz-stored` or `P2P · EasyTier`) and its state. **New daemon** asks you to
+pick a kind, **SSH** or **P2P**, and a mode under it; then the **name** the page calls it --
+letters, digits, `.`, `_` and `-`; `local` is Local's and cannot be taken -- and how to reach it:
 
 | Kind | Mode | What you give |
 | --- | --- | --- |
-| **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config`, picked from a list. It is resolved through your config every time, so editing the config edits the daemon. |
-| **SSH** | **hmz-stored** | The host, user, port, key, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import** fills them in from what your config says of one of its hosts; they are kept in Humanize, and the config is not read again. |
-| **P2P** | **EasyTier** | The secret the other machine's [`hmz server`](#over-easytier) was started with: at least 16 bytes, shown masked. |
+| **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config`, picked from a list; picking one fills in the name. It is resolved through your config every time, so editing the config edits the daemon. |
+| **SSH** | **hmz-stored** | The host, user, port, key, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import from SSH config**: pick one of its hosts and **Import** fills them in from what your config says of it; they are kept in Humanize, and the config is not read again. |
+| **P2P** | **EasyTier** | The secret the other machine's [`hmz server`](#over-easytier) was started with: at least 16 bytes in UTF-8, shown masked. And the **Nodes** both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. |
 
-**Import** at the top of the page reads your `~/.ssh/config` and lists every host in it not yet
-added, with a switch each: switch on the ones you want, and each is added as an **SSH Config**
-daemon. Nothing here writes to the config.
+**Read SSH config** at the foot of the page lists every host of your `~/.ssh/config` not yet
+added, with a switch each: switch on the ones you want, then **Import**, and each is added as an
+**SSH Config** daemon. Nothing here writes to the config.
 
 Edit a daemon, connect to it to check it, or remove it, which asks first. Editing opens the form
 in the daemon's own kind and mode; a P2P daemon's secret is never shown again, and leaving it
