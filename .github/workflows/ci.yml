@@ -89,8 +89,9 @@ jobs:
             integration-daemon:
               - *shared
               - *kernel
-              - src/hmz/{cli,daemon,sdk}/**
+              - src/hmz/{cli,daemon,sdk,web}/**
               - tests/integration/*_daemon*.py
+              - tests/integration/doubles_easytier.py
             integration-tui:
               - *shared
               - *kernel

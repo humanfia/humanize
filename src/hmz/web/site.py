@@ -160,13 +160,20 @@ class Site(_Bound):
       places: Every workspace on this machine, and the runs held for each as this follows them.
       runs: The runs written down, of every workspace.
       notices: What happened to the runs worth telling somebody about.
+      key: The key a browser is let in with, or None for one made up here, as `hmz web`'s is.
     """
 
     daemon_threads = True
     allow_reuse_address = True
 
     def __init__(
-        self, port: int, *, places: Places, runs: Runs, notices: Notices
+        self,
+        port: int,
+        *,
+        places: Places,
+        runs: Runs,
+        notices: Notices,
+        key: str | None = None,
     ) -> None:
         self._beside: _Beside | None = None
         for left in reversed(range(_PORTS)):
@@ -190,7 +197,7 @@ class Site(_Bound):
         self.notifications: Notifications | None = None
         #: Set as the server stops, which is what ends every stream it is sending.
         self.going = threading.Event()
-        self._key = secrets.token_urlsafe(32)
+        self._key = key or secrets.token_urlsafe(32)
 
     @property
     def site(self) -> Site:

@@ -395,6 +395,20 @@ def _web(argv: list[str]) -> int:
     return web(argv, apart=_apart_is_wanted())
 
 
+def _server(argv: list[str]) -> int:
+    """Starts this machine's server apart from the terminal, or stops the one running.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero once it has started or stopped; one where it could not be.
+    """
+    from .server import server
+
+    return server(argv)
+
+
 def _update(argv: list[str]) -> int:
     """Moves this install of Humanize to its newest release, with whatever installed it.
 
@@ -650,9 +664,10 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Four are for
-#: anybody: running a flow in a directory, serving the web interface, moving Humanize itself
-#: to its newest release, and backing an epic up from a script -- everything else Humanize
+#: Each command, as what carries it out and the line a listing shows it as. Five are for
+#: anybody: running a flow in a directory, serving the web interface, keeping this machine's
+#: daemon reachable from others, moving Humanize itself to its newest release, and backing an
+#: epic up from a script -- everything else Humanize
 #: keeps is walked at the prompt
 #: rather than typed, a run already held here included, which `hmz` with no command opens.
 #: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
@@ -661,6 +676,10 @@ INTERNAL = {
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
+    "server": (
+        _server,
+        "keep this machine's daemon reachable from others until stopped",
+    ),
     "update": (_update, "update hmz to its newest release"),
     "backup": (_backup, "back epics up to git repositories, or download them"),
     "internal": (_internal, "internal commands used by Humanize; do not run directly"),

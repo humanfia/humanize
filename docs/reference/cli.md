@@ -20,7 +20,7 @@ hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
-hmz server start --mode p2p --secret <s>  keep this machine reachable over EasyTier
+hmz server start --mode p2p --secret <s> --peer <url>...  keep this machine reachable
 hmz server stop                        stop that server
 hmz update                             update hmz to its newest release
 hmz backup <epic> [--to <target>]...   back epics up to git repositories, or download them
@@ -579,7 +579,7 @@ serves, refuses and answers is the [Web reference](/reference/web).
 ## `hmz server` {#hmz-server}
 
 ```text
-hmz server start --mode p2p --secret <secret>
+hmz server start --mode p2p --secret <secret> --peer <url> [--peer <url>]...
 hmz server stop
 ```
 
@@ -587,12 +587,15 @@ hmz server stop
 | --- | --- | --- |
 | `--mode p2p` | **required** | How the server is reached. `p2p`, over [EasyTier](/user/web#over-easytier), is the only one. |
 | `--secret <secret>` | **required** | At least 16 bytes in UTF-8. The same secret goes into the P2P daemon added on the other machine. |
+| `--peer <url>` | **required**, repeatable | An EasyTier node both machines meet through: `<scheme>://<host>:<port>`, the scheme one of `tcp`, `udp`, `ws`, `wss`, `quic`, `wg`. |
 
 `start` starts a server apart from the terminal and returns: an `hmz web` on this machine's
 loopback alone, at a fixed port, holding the runs through the [daemon](/reference/daemon), its
 key derived from the secret, and `easytier-core` making that port reachable on the EasyTier
-network the secret names, through EasyTier's public nodes. Neither the secret nor anything
-derived from it is put on a command line. EasyTier is downloaded first where it is not in
+network the secret names, through the nodes `--peer` names; `easytier-core` is started again a
+second after it goes. The secret is never put on a command line, nor is the key derived from it:
+the server, `python -m hmz.cli.server`, reads the secret from its standard input. EasyTier is
+downloaded first, saying `hmz: Downloading EasyTier <version>`, where it is not in
 `~/.hmz/easytier/<version>/` yet. Once up, it prints `hmz server: started (pid <n>)` and
 records itself in `~/.hmz/server.json`. It runs until `hmz server stop`, which sends it
 `SIGTERM`, waits, removes the record and prints `hmz server: stopped`. Stopping it stops its
@@ -602,9 +605,10 @@ records itself in `~/.hmz/server.json`. It runs until `hmz server stop`, which s
 | --- | --- | --- |
 | Started, or stopped | — | `0` |
 | `start` while a server runs | `hmz: a server is already running (pid <n>)` | `1` |
-| `start` could not start it, or download EasyTier | `hmz: <reason>` | `1` |
+| `start` could not start it, or download EasyTier | `hmz: the server cannot be started: <reason>` | `1` |
 | `stop` with no server | `hmz: no server is running` | `1` |
-| `--mode` or `--secret` missing, another mode, or a secret under 16 bytes | argparse usage error; `A secret must be at least 16 bytes.` for the last | `2` |
+| `stop` waited 30 seconds and the server is still there | `hmz: the server did not stop in 30 seconds (pid <n>)` | `1` |
+| `--mode`, `--secret` or `--peer` missing, another mode, a node that is not a URL as above, or a secret under 16 bytes | argparse usage error; `A secret must be at least 16 bytes.` for the last | `2` |
 
 ## `hmz update` {#hmz-update}
 
