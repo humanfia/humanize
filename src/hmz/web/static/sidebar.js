@@ -10,17 +10,14 @@ import { address, daemon, get, hash, poll, post, refresh, scoped } from './api.j
 import { ask } from './held.js'
 import { pick } from './importing.js'
 import { copy, menuOn, toast } from './ui.js'
-import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.js'
-import { chatState, chatting, sessionsOf } from './epic.js'
+import { MARKS, ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
+import { chatting, markOf, sessionsOf } from './epic.js'
 import { bell, unreadOn } from './notifications.js'
 import { nameOf } from './places.js'
 import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSidebar } from './shell.js'
 
 /** How many epics a page of the list holds. */
 const PAGE = 60
-
-/** What an epic ending each way is marked with in the list. */
-const MARKS = { running: '●', stopping: '◐', done: '✔', failed: '✕', stopped: '■', budget: '■', refused: '✕', crashed: '✕', unfinished: '○' }
 
 /**
  * @param {HTMLElement} root The sidebar.
@@ -197,12 +194,11 @@ export function mountSidebar(root, context, where) {
       // The list was drawn again: the toggle pressed is the one that keeps the focus.
       for (const one of list.querySelectorAll('.side-item')) if (one.dataset.epic === run.name) one.querySelector('.side-toggle').focus()
     })
-    const how = chat ? chatState(run.how, run.turn) : run.how
+    const how = markOf(run.how, { chat, turn: run.turn, asked: run.asking || [], epic: run.name })
     const at = run.name === here && (chat || !parts[2])
-    const live = chat ? how === 'running' : run.held
     const row = h(
       'div',
-      { class: ['side-run', at && 'current', live && 'held'] },
+      { class: ['side-run', at && 'current'] },
       toggle,
       h(
         'a',
@@ -314,6 +310,7 @@ export function mountSidebar(root, context, where) {
     if (data) draw()
   })
   window.addEventListener('hmz:notifications', () => data && draw())
+  window.addEventListener('hmz:seen', () => data && draw())
   // Another daemon's epics and workspaces: nothing of the last one's is drawn until they are read.
   window.addEventListener('hmz:daemon', () => {
     data = null
@@ -513,8 +510,4 @@ function forget(path) {
     refresh('/api/workspaces')
     toast('Forgotten')
   }, (error) => toast(error.message))
-}
-
-function tone(how) {
-  return { stopping: 'running', budget: 'stopped', refused: 'failed', crashed: 'failed' }[how] || how
 }

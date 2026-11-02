@@ -16,7 +16,7 @@ import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { ask } from '../held.js'
 import { composer as composed } from '../composer.js'
-import { chatState, chatting, live, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
+import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
 import { bar, dragged, keep, kept, sidePanel, tabbed } from '../shell.js'
 import { backedSaid, epicMenu, upload } from '../sidebar.js'
@@ -138,7 +138,12 @@ export function mount(root, { parts, query }) {
   function drawHead(detail, run, chat) {
     const going = Boolean(run && run.live)
     const turn = going && held().standing.run ? held().standing.run.turn : ''
-    const state = chat ? chatState(going ? 'running' : detail.how, turn) : run ? (run.ended ? run.ended.how : run.state === 'stopping' ? 'stopping' : run.live ? 'running' : detail.how) : detail.how
+    const pending = going ? (held().standing.pending && held().standing.pending.pending) || [] : []
+    const asked = pending.map((one) => `${one.run}:${one.question}`)
+    // A question is looked at once it is waiting while this page is looked at.
+    if (!document.hidden && document.hasFocus()) lookedAt(detail.name, asked)
+    const how = chat ? (going ? 'running' : detail.how) : run ? (run.ended ? run.ended.how : run.state === 'stopping' ? 'stopping' : run.live ? 'running' : detail.how) : detail.how
+    const state = markOf(how, { chat, turn, asked, epic: detail.name })
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
     const stopWaits = Date.now() - (stopsAsked.get(detail.name) || 0) < STOP_WAITS
     region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, stopWaits], () => {
@@ -590,11 +595,16 @@ export function mount(root, { parts, query }) {
   const ticking = setInterval(() => {
     if (seen && seen.going && seen.going.live) draw()
   }, 1000)
+  // Looked at again, the questions waiting are looked at.
+  addEventListener('focus', draw)
+  document.addEventListener('visibilitychange', draw)
 
   return {
     leave() {
       stop()
       clearInterval(ticking)
+      removeEventListener('focus', draw)
+      document.removeEventListener('visibilitychange', draw)
     },
     /** Moves to another part of the same run without drawing it all again. */
     moved({ parts: next }) {

@@ -198,6 +198,37 @@ def _comes_to(node: Locator, x: float, y: float) -> dict[str, float]:
     return at
 
 
+@pytest.mark.usefixtures("talking")
+def test_an_epic_asking_a_person_calls_until_one_looks(engine: str) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        # Not looked at, as a page behind another window is not.
+        page.evaluate("document.hasFocus = () => false")
+        _start_talk(page, "ask me")
+        badge = page.locator("[data-hmz=bar] .badge")
+        glyph = badge.locator(".glyph")
+        # Going on nobody's word, it is steady: only what calls for a person moves.
+        expect(badge.locator(".glyph")).to_have_text("●")
+        expect(badge).to_have_text(re.compile("running|asking"))
+        expect(page.locator("[data-hmz=waiting]")).to_be_visible()
+        expect(badge).to_have_text(re.compile("asking"))
+        expect(badge).to_have_class(re.compile("tone-asking"))
+        expect(glyph).to_have_css("animation-name", "pulse")
+
+        # Looked at, it waits, steady.
+        page.evaluate(
+            "delete document.hasFocus, window.dispatchEvent(new Event('focus'))"
+        )
+        expect(badge).to_have_text(re.compile("waiting"))
+        expect(glyph).to_have_css("animation-name", "none")
+        expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("●")
+        assert "hmz-seen" in page.evaluate("Object.keys(localStorage)")
+
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
+        expect(badge).to_have_text(re.compile("stopped"))
+        expect(badge).to_have_class(re.compile("tone-stopped"))
+
+
 def _near(at: dict[str, float], x: float, y: float) -> bool:
     """Whether a point is within a pixel or two of another."""
     return abs(at["x"] - x) < 2 and abs(at["y"] - y) < 2
@@ -321,16 +352,17 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(page.locator("[data-hmz=waiting]")).to_have_count(0)
 
         # Only the conversation, as a chat app draws one: no graph, nothing under its row,
-        # no Exomyth, and nothing to stop it by -- running while it answers, else done.
+        # no Exomyth, and nothing to stop it by -- running while it answers, its reply
+        # looked at here, else stopped.
         bar = page.locator("[data-hmz=bar]")
-        expect(bar.locator(".badge")).to_have_text(re.compile("running|done"))
+        expect(bar.locator(".badge")).to_have_text(re.compile("running|stopped"))
         expect(bar.locator(".crumbs")).to_have_count(0)
         expect(page.get_by_role("button", name="Stop")).to_have_count(0)
         expect(page.locator("[data-hmz=exomyth-open]")).to_have_count(0)
         expect(page.locator("[data-hmz=graph]")).to_have_count(0)
         row = page.locator("[data-hmz=sidebar] .side-item").first
         expect(row.locator(".side-toggle, .side-tree")).to_have_count(0)
-        expect(row.locator(".side-mark")).to_have_text(re.compile("[●✔]"))
+        expect(row.locator(".side-mark")).to_have_text(re.compile("[●■]"))
         expect(page.get_by_role("tab", name="People")).to_have_count(0)
         bar.locator(".bar-title").click(button="right")
         expect(page.get_by_role("menuitem", name="Open")).to_be_visible()
@@ -344,8 +376,8 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(thread).to_contain_text("did: and again")
 
         stop(page)
-        expect(bar.locator(".badge")).to_have_text(re.compile("done"))
-        expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("✔")
+        expect(bar.locator(".badge")).to_have_text(re.compile("stopped"))
+        expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("■")
 
 
 def test_a_chat_says_in_its_conversation_that_a_turn_could_not_be_taken(
@@ -1178,7 +1210,9 @@ def test_an_epic_backed_up_elsewhere_is_downloaded_and_opened(
         stored.get_by_role("button", name="Download").click()
 
         page.wait_for_url(re.compile(rf".*#/epics/{re.escape(name)}"))
-        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(re.compile("done"))
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("stopped")
+        )
         expect(page.locator("[data-hmz=epic]")).to_have_count(1)
 
         go(page, "/download")
