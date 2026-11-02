@@ -37,7 +37,9 @@ _FORWARD = (
 
 
 @contextlib.contextmanager
-def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
+def listening(
+    *, port: int = 0, apart: bool = True, key: str | None = None
+) -> Generator[Site]:
     """The web interface, listening on this machine's loopback for as long as the block runs.
 
     Listening is not answering: what answers is :meth:`Site.serve_forever`, on whichever
@@ -47,6 +49,8 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
       port: The port to listen on, or 0 for any free one.
       apart: Whether the runs are held apart from this process, by each workspace's host --
         which is what lets them outlive it -- or in it.
+      key: The key a browser is let in with: one `hmz server` derives from its secret, or
+        None for one made up as it starts, which is `hmz web`'s.
 
     Yields:
       The server. Leaving the block lets go of every workspace's runs it reached, and of the
@@ -70,7 +74,7 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
         places = Places(Path.cwd(), apart=apart)
         held_open.callback(places.close)
         notices = Notices(places.statuses)
-        site = Site(port, places=places, runs=Runs(places), notices=notices)
+        site = Site(port, places=places, runs=Runs(places), notices=notices, key=key)
         # What each index lists now, fetched once in the background as the interface starts.
         fetches(places.hmz)
         # And which release of Humanize is the newest, where what is kept has got old.

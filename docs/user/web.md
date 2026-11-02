@@ -485,10 +485,11 @@ browser only ever talks to Local.
 ### Over EasyTier (P2P) {#over-easytier}
 
 Where you cannot `ssh` to a machine -- it is behind a NAT, or you only reach it out -- start a
-server on it, with a secret of at least 16 bytes:
+server on it, with a secret of at least 16 bytes and the EasyTier node both machines are to
+meet through -- one of your own, or a public one:
 
 ```sh
-hmz server start --mode p2p --secret "$(cat ~/hmz-secret)" --peer tcp://<node>:11010
+hmz server start --mode p2p --secret "$(cat ~/hmz-secret)" --peer tcp://node.example:11010
 ```
 
 It prints `hmz server: started (pid <n>)` and returns; the server keeps going after the terminal
@@ -513,12 +514,13 @@ with the same secret and at least one of the same nodes.
   reuse it after. It runs without root and without a network device.
 - **The secret stays with you.** The EasyTier network's name and password, and the key of the
   server's `hmz web`, are each derived from the secret; the secret itself is never sent, nor
-  put on a command line. Anyone with the secret can reach the server's epics: keep it as you
+  put on a command line (the server is handed it on its standard input). Anyone with the secret can reach the server's epics: keep it as you
   keep a password.
 - **The same Humanize.** Nothing is installed on the server's machine from here. A server
   older than this machine's `hmz` is refused, as an older daemon is; update it there with
   `hmz update`, then `hmz server stop` and `start` again.
 - **The epics outlive it.** `hmz server stop` stops its `hmz web` and EasyTier, never an epic.
+  Where `easytier-core` goes while the server runs, the server starts it again a second later.
 
 ## Notifications {#notifications}
 
@@ -652,8 +654,8 @@ page -- then press **Connect**.
 
 EasyTier could not be downloaded here, or the server could not be reached on its network. Check
 that `hmz server start` is running on the other machine with the very same secret, and that
-both machines can reach the EasyTier nodes the daemon names; then press **Connect**. One that
-says it is served by an older Humanize is a server to update there.
+both machines can reach a node the daemon and the server's `--peer` both name; then press
+**Connect**. One that says it is served by an older Humanize is a server to update there.
 
 ### A daemon will not update its `hmz`
 
