@@ -162,7 +162,7 @@ between turns it is your next turn, and while the agent asks something mid-turn 
 that, the answers it offers buttons at the end of the conversation. It has no graph, no agents
 or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and no
 **Stop**: it is `running` while its agent answers and `stopped` once the turn ends -- asking,
-blinking, until you have looked at it. Every chat is
+blinking, until you have looked at it, even once it has folded away. Every chat is
 its own, beside every other chat and flow of its directory: a new chat, or a new epic, leaves
 the last one going, as a chat app's new chat does. A chat nobody has looked at for a minute
 between turns folds away; say something in it and it carries on, in the same epic, with what
@@ -450,7 +450,7 @@ letters, digits, `.`, `_` and `-`; `local` is Local's and cannot be taken -- and
 | --- | --- | --- |
 | **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config`, picked from a list; picking one fills in the name. It is resolved through your config every time, so editing the config edits the daemon. |
 | **SSH** | **hmz-stored** | The host, user, port, key, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import from SSH config**: pick one of its hosts and **Import** fills them in from what your config says of it; they are kept in Humanize, and the config is not read again. |
-| **P2P** | **EasyTier** | The secret the other machine's [`hmz server`](#over-easytier) was started with: at least 16 bytes in UTF-8, shown masked. And the **Nodes** both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. |
+| **P2P** | **EasyTier** | The secret the other machine's [`hmz server`](#over-easytier) was started with: at least 16 bytes in UTF-8, shown masked. And the [**Nodes**](#easytier-nodes) both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. |
 
 **Read SSH config** at the foot of the page lists every host of your `~/.ssh/config` not yet
 added, with a switch each: switch on the ones you want, then **Import**, and each is added as an
@@ -488,12 +488,22 @@ Where you cannot `ssh` to a machine -- it is behind a NAT, or you only reach it 
 server on it, with a secret of at least 16 bytes:
 
 ```sh
-hmz server start --mode p2p --secret "$(cat ~/hmz-secret)"
+hmz server start --mode p2p --secret "$(cat ~/hmz-secret)" --peer tcp://<node>:11010
 ```
 
 It prints `hmz server: started (pid <n>)` and returns; the server keeps going after the terminal
 closes, until `hmz server stop`. Then, on your own machine, add a **P2P** › **EasyTier** daemon
-with the same secret.
+with the same secret and at least one of the same nodes.
+
+- <span id="easytier-nodes"></span>**The two ends meet through a shared node.** EasyTier runs no public node
+  of its own, so you name one or more each side: a URL such as `tcp://host:11010` (or `udp`,
+  `ws`, `wss`, `quic`, `wg`). The form lists the nodes EasyTier's community shares, as the
+  status page EasyTier's own apps read says, each with whether it is up and how much of the last
+  day it was; check those you want and type any others. Where that list cannot be read from
+  your network, the form says so and takes typed nodes alone. The two ends reach each other
+  directly where they can, and are relayed by the node where they cannot; a node never learns
+  the secret. [`HUMANIZE_EASYTIER_NODES`](/reference/environment#humanize-easytier-nodes) reads
+  the list from another status page.
 
 - **Nothing to install there but Humanize.** Both sides download
   [EasyTier](https://easytier.cn)'s `easytier-core` from its GitHub release into

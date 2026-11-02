@@ -4,7 +4,9 @@ What they are, how they are written down and how each is checked is the runtime'
 (`Hmz.daemons`), which the terminal interface switches between as well; this is that, as a
 page asks for it. How each stands is the remote reach's to say, where this site has one;
 without one, Local is up and every other daemon is idle. An EasyTier daemon's secret never
-goes to a page: it is listed as set, and a write that says none keeps it.
+goes to a page: it is listed as set, and a write that says none keeps it. The shared EasyTier
+nodes a P2P daemon may meet its server through are the community's, as EasyTier's status page
+lists them, read afresh each time a page asks.
 """
 
 from __future__ import annotations
@@ -121,6 +123,15 @@ def _hosts(_asked: Asked) -> dict[str, Any]:
         raise Refusal(f"The ssh config could not be read: {why}", 503) from why
 
 
+def _nodes(_asked: Asked) -> dict[str, Any]:
+    from hmz.coganchor import easytier
+
+    try:
+        return {"nodes": [dataclasses.asdict(one) for one in easytier.community()]}
+    except OSError as why:
+        raise Refusal(f"The community nodes could not be read: {why}", 503) from why
+
+
 def _imports(asked: Asked) -> dict[str, Any]:
     if extra := sorted(set(asked.body) - {"aliases"}):
         raise Refusal(f"An import takes no {', '.join(extra)}.")
@@ -141,5 +152,6 @@ ROUTES = routes(
     ("POST", "/api/daemons", _write),
     ("POST", "/api/daemons/remove", _remove),
     ("GET", "/api/daemons/hosts", _hosts),
+    ("GET", "/api/daemons/easytier/nodes", _nodes),
     ("POST", "/api/daemons/import", _imports),
 )

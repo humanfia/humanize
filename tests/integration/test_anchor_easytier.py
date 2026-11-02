@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 SECRET = "correct horse battery staple"
+PEERS = ("tcp://node.example:11010",)
 PATIENCE = 20.0
 
 
@@ -112,10 +113,10 @@ def _served(core: Core) -> None:
 def test_a_joined_port_reaches_the_served_one(
     core: Core, web: int, running: list[subprocess.Popen[bytes]]
 ) -> None:
-    running.append(easytier.serving(SECRET, web, peers=()))
+    running.append(easytier.serving(SECRET, web, peers=PEERS))
     _served(core)
     local = _free()
-    running.append(easytier.joining(SECRET, local, port=web, peers=()))
+    running.append(easytier.joining(SECRET, local, port=web, peers=PEERS))
     assert _got(local) == b"hello from the server"
     name, hidden = easytier.network(SECRET)
     told = core.told()
@@ -130,11 +131,11 @@ def test_a_joined_port_reaches_the_served_one(
 def test_another_secret_reaches_nothing(
     core: Core, web: int, running: list[subprocess.Popen[bytes]]
 ) -> None:
-    running.append(easytier.serving(SECRET, web, peers=()))
+    running.append(easytier.serving(SECRET, web, peers=PEERS))
     _served(core)
     local = _free()
     running.append(
-        easytier.joining(SECRET.replace("horse", "mouse"), local, port=web, peers=())
+        easytier.joining(SECRET.replace("horse", "mouse"), local, port=web, peers=PEERS)
     )
     _joined(local)
     assert _got(local, 2.0) is None
@@ -143,9 +144,9 @@ def test_another_secret_reaches_nothing(
 def test_only_the_served_port_is_reached(
     core: Core, web: int, running: list[subprocess.Popen[bytes]]
 ) -> None:
-    running.append(easytier.serving(SECRET, _free(), peers=()))
+    running.append(easytier.serving(SECRET, _free(), peers=PEERS))
     _served(core)
     local = _free()
-    running.append(easytier.joining(SECRET, local, port=web, peers=()))
+    running.append(easytier.joining(SECRET, local, port=web, peers=PEERS))
     _joined(local)
     assert _got(local, 2.0) is None
