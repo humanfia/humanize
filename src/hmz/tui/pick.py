@@ -9992,7 +9992,7 @@ class Machines(Pages):
 #: over ssh, fields hmz keeps or a `Host` of the ssh config; peer to peer, over EasyTier. A
 #: kind starts on its first mode.
 _SSH_KIND, _P2P_KIND = "SSH", "P2P"
-_SSH_CONFIG, _STORED, _EASYTIER = "SSH Config", "hmz-stored", "EasyTier"
+_SSH_CONFIG, _STORED, _EASYTIER = "SSH Config", "Custom", "EasyTier"
 _MODES = {_SSH_KIND: (_STORED, _SSH_CONFIG), _P2P_KIND: (_EASYTIER,)}
 
 #: The rows of the daemon form besides those an ssh host is written on: its kind, its mode,

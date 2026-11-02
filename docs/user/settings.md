@@ -383,7 +383,7 @@ Every row is on until you turn it off. They are the
 Every other machine whose epics you want to read from here, each reached over ssh or over
 EasyTier: `Local`, this machine, is always first. A daemon is set up on one form, of a kind and
 a mode: **SSH › SSH Config**, a `Host` of your ssh config picked from a list; **SSH ›
-hmz-stored**, its host, user, port, identity file, proxy jump and ssh options typed in, or
+Custom**, its host, user, port, identity file, proxy jump and ssh options typed in, or
 filled from a host of your ssh config with its `import` row; or **P2P › EasyTier**, the secret
 its [`hmz server`](/reference/cli#hmz-server) was started with -- at least 16 bytes, never shown, and kept
 when left blank on an edit -- and the shared EasyTier nodes it meets that server at, a comma
