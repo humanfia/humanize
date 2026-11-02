@@ -74,6 +74,7 @@ def test_a_daemon_is_added_edited_and_removed(ssh_config: Path) -> None:
         assert _settings()["daemons"] == [
             {
                 "name": "lab",
+                "via": "ssh",
                 "host": "b",
                 "user": "",
                 "port": 0,
@@ -117,6 +118,47 @@ def test_hosts_of_the_ssh_config_are_offered_and_imported(ssh_config: Path) -> N
             == 404
         )
         assert [one["alias"] for one in _settings()["daemons"]] == ["gpu", "box"]
+
+
+def test_an_easytier_daemon_s_secret_is_written_kept_and_never_said(
+    ssh_config: Path,
+) -> None:
+    secret = "sixteen-bytes-ok"
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+
+        short = browser.post(
+            "/api/daemons",
+            {"name": "p", "fields": {"via": "easytier", "secret": secret[:15]}},
+        )
+        assert short.status == 400
+        assert short.json()["error"] == "A secret must be at least 16 bytes."
+        added = browser.post(
+            "/api/daemons",
+            {"name": "p", "fields": {"via": "easytier", "secret": secret}},
+        )
+        assert added.status == 200, added.body
+        kept = browser.post(
+            "/api/daemons",
+            {"name": "p", "fields": {"via": "easytier"}, "replace": True},
+        )
+        assert kept.status == 200, kept.body
+        alias = browser.post("/api/daemons", {"name": "g", "fields": {"alias": "gpu"}})
+        assert alias.status == 200, alias.body
+
+        listed = browser.get("/api/daemons")
+        assert [
+            (one["name"], one.get("via"), one.get("secret"))
+            for one in listed.json()["daemons"]
+        ] == [("local", None, None), ("p", "easytier", True), ("g", "ssh", None)]
+        assert secret.encode() not in listed.body
+        assert secret.encode() not in browser.get("/api/daemons/p/state").body
+        assert _settings()["daemons"][0] == {
+            "name": "p",
+            "via": "easytier",
+            "secret": secret,
+        }
 
 
 def test_a_stranger_is_told_nothing_of_the_daemons(ssh_config: Path) -> None:

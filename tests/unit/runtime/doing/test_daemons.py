@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
@@ -10,7 +11,10 @@ import pytest
 
 from hmz.runtime.doing.daemons import (
     CARRIED,
+    EASYTIER,
+    FAILED,
     LOCAL,
+    SSH,
     UP,
     Daemons,
     Remotes,
@@ -195,3 +199,98 @@ def test_a_batch_carries_the_pages_asked_for_as_each_page_saves_them() -> None:
         ),
     ]
     assert carried(hmz, ["general"]) == sent[:1]
+
+
+_SECRET = "sixteen-bytes-ok"
+
+
+def test_an_easytier_daemon_holds_its_secret_alone(held: dict[str, Any]) -> None:
+    daemons = Daemons()
+
+    written = daemons.write("et", {"via": EASYTIER, "secret": _SECRET})
+
+    assert written == {"name": "et", "via": EASYTIER, "secret": _SECRET}
+    assert daemons.find("et") == written
+    assert held["daemons"] == [written]
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"via": EASYTIER, "secret": "fifteen-bytes!!"},
+        {"via": EASYTIER},
+        {"via": EASYTIER, "secret": 1234567890123456789},
+        {"via": EASYTIER, "secret": _SECRET, "host": "a"},
+        {"via": SSH, "host": "a", "secret": _SECRET},
+        {"via": "p2p", "secret": _SECRET},
+    ],
+)
+def test_what_cannot_be_an_easytier_daemon_is_refused_never_saying_its_secret(
+    held: dict[str, Any], fields: dict[str, Any]
+) -> None:
+    with pytest.raises(ValueError, match=r"secret|takes no|via") as refused:
+        Daemons().write("et", fields)
+
+    assert _SECRET not in str(refused.value)
+    assert "daemons" not in held
+
+
+def test_a_secret_is_counted_in_bytes(held: dict[str, Any]) -> None:
+    # Five characters of three bytes each are fifteen bytes; six are eighteen.
+    with pytest.raises(ValueError, match="at least 16 bytes"):
+        Daemons().write("et", {"via": EASYTIER, "secret": "€" * 5})
+
+    assert Daemons().write("et", {"via": EASYTIER, "secret": "€" * 6})["secret"]
+
+
+def test_a_replacement_saying_no_secret_keeps_the_one_written(
+    held: dict[str, Any],
+) -> None:
+    daemons = Daemons()
+    daemons.write("et", {"via": EASYTIER, "secret": _SECRET})
+
+    daemons.write("et", {"via": EASYTIER}, replace=True)
+    daemons.write("et", {"via": EASYTIER, "secret": True}, replace=True)
+    daemons.write("et", {"via": EASYTIER, "secret": ""}, replace=True)
+    assert daemons.find("et") == {"name": "et", "via": EASYTIER, "secret": _SECRET}
+    with pytest.raises(ValueError, match="16 bytes"):
+        daemons.write("et", {"via": EASYTIER, "secret": False}, replace=True)
+    daemons.write("et", {"via": EASYTIER, "secret": "another-sixteen!"}, replace=True)
+    assert held["daemons"][0]["secret"] == "another-sixteen!"
+    with pytest.raises(ValueError, match="16 bytes"):
+        daemons.write("new", {"via": EASYTIER}, replace=True)
+
+
+def test_an_ssh_daemon_is_a_host_of_the_ssh_config_or_one_typed_in(
+    held: dict[str, Any],
+) -> None:
+    daemons = Daemons()
+    held["daemons"] = [
+        {"name": "old", "alias": "gpu", "host": "10.0.0.1"},
+        {"name": "hand", "via": "nope", "host": "a"},
+    ]
+
+    alias = daemons.write("gpu", {"alias": "gpu", "config": "~/.ssh/other"})
+    typed = daemons.write("box", {"via": SSH, "host": "box", "user": "me"})
+
+    assert (alias["via"], alias["alias"], alias["host"]) == (SSH, "gpu", "")
+    assert (typed["via"], typed["alias"], typed["host"]) == (SSH, "", "box")
+    # Written before there were ways, with both: still there; written wrong: left out.
+    assert [one["name"] for one in daemons.all()] == ["old", "gpu", "box"]
+
+
+def test_an_easytier_daemon_is_not_reached_yet(held: dict[str, Any]) -> None:
+    Daemons().write("et", {"via": EASYTIER, "secret": _SECRET})
+    remotes = Remotes(version="1.2.3")
+    try:
+        remotes.connect("et")
+        ending = time.monotonic() + 5
+        while remotes.state("et")["state"] != FAILED and time.monotonic() < ending:
+            time.sleep(0.01)
+        assert remotes.state("et") == {
+            "state": FAILED,
+            "detail": "EasyTier is not supported by this hmz yet.",
+            "version": "",
+        }
+    finally:
+        remotes.close()

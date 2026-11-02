@@ -11814,7 +11814,9 @@ def _stands(said: dict[str, str]) -> str:
 
 
 def _reached_at(one: dict[str, Any]) -> str:
-    """Where a daemon is reached, as ssh is told it: its Host, or its login."""
+    """Where a daemon is reached, as ssh is told it: its Host, or its login; or over EasyTier."""
+    if one.get("via") == "easytier":
+        return "EasyTier"
     if one.get("alias") and not one.get("host"):
         return str(one["alias"])
     login = f"{one['user']}@{one['host']}" if one.get("user") else str(one["host"])
