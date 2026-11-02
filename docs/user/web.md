@@ -494,6 +494,9 @@ It prints `hmz server: started (pid <n>)` and returns; the server keeps going af
 closes, until `hmz server stop`. Then, on your own machine, add a **P2P** › **EasyTier** daemon
 with the same secret and at least one of the same nodes.
 
+- **It waits for the server to answer.** Connecting joins the network, waits until the
+  server's `hmz web` answers through it, and then asks it every few seconds: a server that stops
+  answering is reached again, waiting longer each time.
 - <span id="easytier-nodes"></span>**The two ends meet through a shared node.** EasyTier runs no public node
   of its own, so you name one or more each side: a URL such as `tcp://host:11010` (or `udp`,
   `ws`, `wss`, `quic`, `wg`). The form lists the nodes EasyTier's community shares, as the
@@ -503,7 +506,6 @@ with the same secret and at least one of the same nodes.
   directly where they can, and are relayed by the node where they cannot; a node never learns
   the secret. [`HUMANIZE_EASYTIER_NODES`](/reference/environment#humanize-easytier-nodes) reads
   the list from another status page.
-
 - **Nothing to install there but Humanize.** Both sides download
   [EasyTier](https://easytier.cn)'s `easytier-core` from its GitHub release into
   `~/.hmz/easytier/<version>/` the first time, checked against the checksum Humanize pins, and
@@ -649,7 +651,8 @@ page -- then press **Connect**.
 
 EasyTier could not be downloaded here, or the server could not be reached on its network. Check
 that `hmz server start` is running on the other machine with the very same secret, and that
-both machines can reach the internet; then press **Connect**.
+both machines can reach the EasyTier nodes the daemon names; then press **Connect**. One that
+says it is served by an older Humanize is a server to update there.
 
 ### A daemon will not update its `hmz`
 
