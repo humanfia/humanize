@@ -701,9 +701,9 @@ under its `Host` (§13.5), and `hmz-stored`, which is the form of §13.4.
 fields from what the ssh config resolves for that host; the daemon MUST be written from those
 fields, not under the `Host`.
 
-**13.16** `P2P` MUST offer `EasyTier` alone, and MUST ask its name and its secret, the secret
-masked; a secret shorter than 16 bytes in UTF-8 MUST be refused with `A secret must be at least 16
-bytes.`
+**13.16** `P2P` MUST offer `EasyTier` alone, and MUST ask its name, its secret and its nodes, the
+secret masked; a secret shorter than 16 bytes in UTF-8 MUST be refused with `A secret must be at
+least 16 bytes.`
 
 **13.17** The page MUST NOT be given a secret once written; editing a P2P daemon with its secret
 left empty MUST keep the secret written.
@@ -713,6 +713,12 @@ left empty MUST keep the secret written.
 **13.19** Wherever the page names a remote daemon's kind, it MUST say `SSH` or `P2P`; §13.1 to
 §13.13 MUST hold of P2P daemons as of SSH daemons, but for the ssh config, a password and a
 host key.
+
+**13.20** `EasyTier` MUST offer the community's shared nodes (`features/daemons.md` §8.5.11) to be
+checked, each with its name, whether it is up and its uptime, and MUST let the user type further
+nodes; where that list cannot be read, the form MUST say so with the reason and take typed nodes
+alone. No node checked or typed MUST be refused with `An EasyTier daemon needs at least one
+node.`
 
 ## 14. Release notice
 

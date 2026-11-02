@@ -591,7 +591,7 @@ hmz server stop
 `start` starts a server apart from the terminal and returns: an `hmz web` on this machine's
 loopback alone, at a fixed port, holding the runs through the [daemon](/reference/daemon), its
 key derived from the secret, and `easytier-core` making that port reachable on the EasyTier
-network the secret names, through EasyTier's public nodes. Neither the secret nor anything
+network the secret names, through the shared nodes it is given. Neither the secret nor anything
 derived from it is put on a command line. EasyTier is downloaded first where it is not in
 `~/.hmz/easytier/<version>/` yet. Once up, it prints `hmz server: started (pid <n>)` and
 records itself in `~/.hmz/server.json`. It runs until `hmz server stop`, which sends it
@@ -913,6 +913,7 @@ Variables these commands read. The complete list, with every layer's, is
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
 | `HUMANIZE_RELEASES` | `hmz`, `hmz web`, `hmz update` | a URL, a path, or `off`, `0`, `no`, `none`, empty | Where the newest release is read from (PyPI's JSON for `hmz` by default); off, nothing asks. |
 | `HUMANIZE_EASYTIER` | `hmz server`, `hmz web` | a path | An `easytier-core` to use in place of the one Humanize downloads; ignored where it does not exist. |
+| `HUMANIZE_EASYTIER_NODES` | `hmz web` | a URL | The Uptime Kuma server whose status page `easytier` lists the community's shared EasyTier nodes. |
 | `NO_COLOR`, `TERM`, `FORCE_COLOR` | all | see [Colour](#colour) | Escapes. |
 | `TEXTUAL_THEME` | `hmz` | a Textual theme name | The interface's theme; unknown names are ignored. |
 | `TMUX`, `TERM_PROGRAM`, `LC_TERMINAL` | `hmz` | | Decide `TEXTUAL_DISABLE_KITTY_KEY` ([Terminal preparation](#terminal-preparation)). |
