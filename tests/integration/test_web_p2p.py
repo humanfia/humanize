@@ -83,7 +83,7 @@ class _Far:
 
     def serves(self) -> subprocess.Popen[bytes]:
         """Starts its end of the network."""
-        server = easytier.serving(SECRET, easytier.PORT, peers=())
+        server = easytier.serving(SECRET, easytier.PORT, peers=PEERS)
         self.started.append(server)
         return server
 

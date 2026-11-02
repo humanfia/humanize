@@ -175,11 +175,15 @@ entry has MUST be ignored when read and MUST be removed at the next write of `da
 other `ssh` entry MUST be reached from the fields it holds. Which of the two an entry is MUST NOT
 be stored.
 
-**4.6.8** An `easytier` entry MUST have the key `secret` and MUST NOT have any other key but
-`name` and `via`; an `ssh` entry MUST NOT have `secret`.
+**4.6.8** An `easytier` entry MUST have the keys `secret` and `peers` and MUST NOT have any other
+key but `name` and `via`; an `ssh` entry MUST NOT have `secret` or `peers`.
 
 **4.6.9** `secret` MUST be a string of at least 16 bytes in UTF-8; a writer given a shorter one
 MUST refuse it with `A secret must be at least 16 bytes.`
+
+**4.6.10** `peers` MUST be a non-empty list of strings, each the URL of a shared EasyTier node
+(`features/daemons.md` §8.5.10); a writer given none MUST refuse it with `An EasyTier daemon needs
+at least one node.`
 
 ### 4.7 `spelling`
 
@@ -599,6 +603,10 @@ hmz from sharing one ssh connection between the ssh commands it runs to one dest
 
 **11.2.13** `HUMANIZE_EASYTIER` MUST name an EasyTier binary for hmz to use in place of the one it
 downloads (`features/daemons.md` §8.5); one that does not exist MUST be ignored.
+
+**11.2.14** `HUMANIZE_EASYTIER_NODES` MUST name the Uptime Kuma server whose status page `easytier`
+hmz reads the community's shared EasyTier nodes from (`features/daemons.md` §8.5.11), in place of
+EasyTier's own.
 
 ### 11.3 Other variables
 

@@ -287,8 +287,8 @@ secret itself MUST NOT leave the machine it is set on, nor be passed on any comm
 
 **8.5.3** A server MUST serve `hmz web` on its machine's loopback alone, at a port fixed by hmz,
 with the key derived from its secret, holding the epics through its machine's daemon, and MUST
-make that port reachable over the EasyTier network of its secret, through the public EasyTier
-nodes hmz names.
+make that port reachable over the EasyTier network of its secret, through the shared EasyTier
+nodes it was started with (§8.5.10).
 
 **8.5.4** Reaching a P2P daemon MUST join the EasyTier network of its secret and expose that `hmz
 web` on a port of this machine's loopback, MUST wait until it answers, and MUST then ask it as
@@ -310,3 +310,14 @@ again as §8.2.8 states.
 
 **8.5.9** Stopping a server MUST stop its `hmz web` and EasyTier, and MUST NOT stop any epic its
 daemon holds.
+
+**8.5.10** A P2P daemon and a server MUST each name at least one shared EasyTier node, as a URL
+`<protocol>://<host>:<port>` with protocol `tcp`, `udp`, `ws`, `wss`, `quic` or `wg`, and MUST meet
+the other end only through the nodes they name; hmz MUST NOT name a node of its own, and a P2P
+daemon reaches its server only where both name a node in common. None MUST be refused with `An
+EasyTier daemon needs at least one node.`
+
+**8.5.11** hmz MUST offer the shared nodes of EasyTier's community, as the status page EasyTier's
+own apps read lists them, each with its URL, its name, its version, whether it is up and its
+uptime over the last 24 hours; a list that cannot be read MUST be said to be unreadable with the
+reason, and nodes the user types MUST be taken all the same.

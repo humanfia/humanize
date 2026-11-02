@@ -307,3 +307,43 @@ def test_an_import_beside_an_easytier_daemon_brings_in_the_hosts(
 
     assert said["added"] == ["gpu"]
     assert [one["name"] for one in saved()] == ["et", "gpu"]
+
+
+def test_the_community_nodes_are_listed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from hmz.coganchor import easytier
+
+    node = easytier.Node("tcp://a.example:11010", "Here/me/2.6.4", "2.6.4", True, 0.99)
+
+    def community(*_: object) -> list[easytier.Node]:
+        return [node]
+
+    monkeypatch.setattr(easytier, "community", community)
+
+    assert _asks("GET", "/api/daemons/easytier/nodes") == {
+        "nodes": [
+            {
+                "url": "tcp://a.example:11010",
+                "name": "Here/me/2.6.4",
+                "version": "2.6.4",
+                "up": True,
+                "uptime": 0.99,
+            }
+        ]
+    }
+
+
+def test_unreadable_community_nodes_are_refused_503(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.coganchor import easytier
+
+    def unreachable(*_: object) -> list[easytier.Node]:
+        msg = "no route"
+        raise OSError(msg)
+
+    monkeypatch.setattr(easytier, "community", unreachable)
+
+    with pytest.raises(Refusal) as refused:
+        _asks("GET", "/api/daemons/easytier/nodes")
+    assert refused.value.status == 503
+    assert str(refused.value) == "The community nodes could not be read: no route"

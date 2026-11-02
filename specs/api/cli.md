@@ -989,7 +989,7 @@ meanings given there.
 ### 13.1 Synopsis
 
 ```text
-hmz server start --mode p2p --secret <secret>
+hmz server start --mode p2p --secret <secret> --peer <url> [--peer <url>]...
 hmz server stop
 ```
 
@@ -1001,6 +1001,10 @@ another mode, or a secret shorter than 16 bytes in UTF-8 MUST be a usage error, 
 `A secret must be at least 16 bytes.`
 
 **13.1.3** `stop` MUST take no option.
+
+**13.1.4** `start` MUST take `--peer` one or more times, each the URL of a shared EasyTier node
+(`features/daemons.md` §8.5.10); none MUST be a usage error saying `An EasyTier daemon needs at
+least one node.`
 
 ### 13.2 Behaviour
 
