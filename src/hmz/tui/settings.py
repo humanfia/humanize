@@ -157,7 +157,7 @@ _PAGES = (
         "this machine: what epics show, who answers The Epic, error reports",
     ),
     _Page("Notifications", "♪", "which epics on this machine you are told of"),
-    _Page("Daemons", "⇄", "this machine's and other machines', reached over ssh"),
+    _Page("Daemons", "⇄", "this machine's and other machines', over ssh or EasyTier"),
     _Page("Accounts", "◉", "what agents sign in as, under each CLI"),
     _Page("Fallback", "↻", "where a turn goes when its agent fails"),
     _Page(

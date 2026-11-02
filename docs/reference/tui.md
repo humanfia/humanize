@@ -1197,7 +1197,7 @@ anything else is the file. `esc` goes back to the run.
 ### Another daemon's epics {#remote-epics}
 
 On a daemon of another machine, `/epics` reads that machine's own web interface, reached over
-ssh as the [Daemons page](#daemons-page) reaches it, off the screen.
+ssh or EasyTier as the [Daemons page](#daemons-page) reaches it, off the screen.
 
 | Element | Value |
 | --- | --- |
@@ -1357,7 +1357,7 @@ Storage keys are in [Settings](/reference/settings).
   │ ♪  Notifications                                5 of 5 kinds · system on │
   │    which epics on this machine you are told of                           │
   │ ⇄  Daemons                                                     2 daemons │
-  │    this machine's and other machines', reached over ssh                  │
+  │    this machine's and other machines', over ssh or EasyTier              │
   │──────────────────────────────────────────────────────────────────────────│
   │ ◉  Accounts                                        3 accounts  ● unsaved │
   │    what agents sign in as, under each CLI                                │
@@ -1504,28 +1504,39 @@ until opened there, for as long as `hmz` runs.
 
 ### Daemons page {#daemons-page}
 
-Intro: `This machine's daemon, and other machines' reached over ssh. /epics @<name> lists the
-epics of one; m on one is its menu.` Kept in this machine's [settings](/reference/settings) as
-`daemons`, the [web page](/user/web#settings) reading and writing the same list; every change
-is written at once.
+Intro: `This machine's daemon, and other machines' reached over ssh or EasyTier. /epics
+@<name> lists the epics of one; m on one is its menu.` Kept in this machine's
+[settings](/reference/settings) as `daemons`, the [web page](/user/web#settings) reading and
+writing the same list; every change is written at once.
 
 | Row | About |
 | --- | --- |
 | `Local` | `this machine`; `enter` says `Local is this machine's daemon, always there` |
-| `<name>` | `<user@host:port\|alias> · <not connected\|connecting\|installing\|up, hmz <version>\|failed>[: <detail>]`, drawn again as it changes |
+| `<name>` | `<mode> · <reached at> · <not connected\|connecting\|installing\|up, hmz <version>\|failed>[: <detail>]`, drawn again as it changes: `SSH Config · <alias>`, `hmz-stored · <user@host:port>` or `P2P · EasyTier` |
 
 `enter`, `m` or a click on a daemon opens its menu: **connect** (reaches it now, installing
 this `hmz` there where it is missing or another version, as the web page does), **edit…**,
-**remove** and **copy name**. **Add daemon** and **edit…** open one form: `name` (new only;
-`what /epics @<name> calls it`), `host`, `alias` (`the Host entry of your ssh config, if
-any`), `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options`
-(`KEYWORD=VALUE, …`); **Done** `saves this daemon`, **remove** on one already written. Errors:
-`name is required`, `another daemon is named <name>`, `host or alias is required`, `port is a
-number`, `options: '<one>' is not KEYWORD=VALUE`; what the store refuses is said under the
-list in red. **Import…** opens **Import daemons**, a switch per host of your ssh config not
-added yet (`as <name>`), or says `every host of your ssh config is added already`; **Done**
-`adds each host switched on as a daemon`. Each change is said under the list and, on close,
-in the transcript: `daemon <name> saved`, `daemon <name> removed`, `<n> daemon(s) imported`.
+**remove** and **copy name**. **Add daemon** and **edit…** open one form, the web page's New
+daemon: `name` (new only; `what /epics @<name> calls it`), then `kind` (▾ `SSH` `P2P`) and
+`mode` (▾ `hmz-stored` `SSH Config` under SSH, `EasyTier` under P2P; a new one starts on
+`hmz-stored`, an edited one on the mode it is in, which follows from its fields and is never
+written), then what the mode asks:
+
+| Mode | Rows | Written |
+| --- | --- | --- |
+| `SSH Config` | `host` (▾ every host of your ssh config) | its `alias` alone |
+| `hmz-stored` | `import` (▾ every host of your ssh config: fills the rows under it as `ssh -G` resolves it, options cleared, `reading <host>…` meanwhile), `host`, `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options` (`KEYWORD=VALUE, …`) | those fields, not the `Host` |
+| `EasyTier` | `secret` (bullets, never shown; `leave blank to keep current value` on one written), `nodes` (`shared EasyTier nodes: tcp://host:port, …`) | `via: easytier`, the secret, and the nodes as `peers` |
+
+**Done** `saves this daemon`, always with its `via`; **remove** on one already written.
+Errors: `name is required`, `another daemon is named <name>`, `host is required`, `port is a
+number`, `options: '<one>' is not KEYWORD=VALUE`, `secret is required`, `A secret must be at
+least 16 bytes.` (in bytes of UTF-8), `nodes are required`; what the store refuses is said
+under the list in red. **Import…** opens **Import daemons**, a switch per host of your ssh
+config not added yet (`as <name>`), each added as `SSH Config`, or says `every host of your ssh
+config is added already`; **Done** `adds each host switched on as a daemon`. Each change is said
+under the list and, on close, in the transcript: `daemon <name> saved`, `daemon <name>
+removed`, `<n> daemon(s) imported`.
 
 **Batch apply…** (with a daemon added) opens **Batch apply**: `This machine's settings, written
 to other daemons as each of their pages saves them. Accounts stay put: only a secret sets them.`

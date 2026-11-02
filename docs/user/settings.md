@@ -112,7 +112,7 @@ straight into the one named, and the word is offered as you type it:
 | --- | --- | --- |
 | [**General**](#general) | `general` | whether the screen [shows the working](#details), which agent `/btw` talks to, and whether Humanize reports what goes wrong |
 | [**Notifications**](#notifications) | `notifications` | which epics on this machine you are told of, and whether the terminal's bell and your system tell you too |
-| [**Daemons**](#daemons) | `daemons` | this machine's daemon and other machines', reached over ssh, and how each stands |
+| [**Daemons**](#daemons) | `daemons` | this machine's daemon and other machines', reached over ssh or EasyTier, and how each stands |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms, Apple containers and Slurm clusters |
@@ -380,13 +380,18 @@ Every row is on until you turn it off. They are the
 
 ## Daemons
 
-Every other machine whose epics you want to read from here, each reached over ssh: `Local`,
-this machine, is always first. A daemon is set up a part at a time on one form -- its name,
-host or the `Host` of your ssh config, user, port, identity file, proxy jump and ssh options --
-or brought in with **Import…** from your ssh config, those added already left out. It is
-written at once, to the same list the [web page](/user/web#settings) keeps.
+Every other machine whose epics you want to read from here, each reached over ssh or over
+EasyTier: `Local`, this machine, is always first. A daemon is set up on one form, of a kind and
+a mode: **SSH › SSH Config**, a `Host` of your ssh config picked from a list; **SSH ›
+hmz-stored**, its host, user, port, identity file, proxy jump and ssh options typed in, or
+filled from a host of your ssh config with its `import` row; or **P2P › EasyTier**, the secret
+its [`hmz server`](/reference/cli#hmz-server) was started with -- at least 16 bytes, never shown, and kept
+when left blank on an edit -- and the shared EasyTier nodes it meets that server at, a comma
+apart. Editing one opens it in the mode it is in. Hosts of your ssh config can also be brought
+in with **Import…**, those added already left out. It is written at once, to the same list the
+[web page](/user/web#settings) keeps.
 
-Each row says what reaches it and how it stands: `not connected` until it is asked for, then
+Each row says its mode, what reaches it and how it stands: `not connected` until it is asked for, then
 `connecting`, `installing` while this `hmz` is put there, `up, hmz <version>`, or `failed`
 with why. <kbd>m</kbd>, <kbd>enter</kbd> or a click on one is its menu: **connect**, **edit…**,
 **remove** and **copy name**.
