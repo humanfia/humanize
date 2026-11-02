@@ -105,6 +105,7 @@ jobs:
               - src/hmz/**
               - tests/integration/*_anchor*.py
               - tests/integration/doubles_core.py
+              - tests/integration/doubles_easytier.py
             integration-web:
               - *shared
               - src/hmz/**

@@ -55,6 +55,7 @@ H/
 ├── envs/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
 │   └── mirrors/<container, service or job>/<digest>/
+├── easytier/<version>/                 EasyTier's easytier-core, downloaded for a daemon reached over it
 └── epics/<ws>/<stamp>-<hex6>/          one run
 
 M/
