@@ -221,6 +221,7 @@ def test_an_import_of_nothing_or_of_a_host_it_cannot_be_is_refused(
 
 
 _SECRET = "sixteen-bytes-ok"
+_PEERS = ["tcp://node.example:11010"]
 
 
 def test_an_easytier_daemon_is_listed_with_its_secret_set_never_said(
@@ -229,20 +230,26 @@ def test_an_easytier_daemon_is_listed_with_its_secret_set_never_said(
     said = _asks(
         "POST",
         "/api/daemons",
-        {"name": "et", "fields": {"via": "easytier", "secret": _SECRET}},
+        {
+            "name": "et",
+            "fields": {"via": "easytier", "secret": _SECRET, "peers": _PEERS},
+        },
     )
 
     assert said["daemons"][1] == {
         "name": "et",
         "via": "easytier",
         "secret": True,
+        "peers": _PEERS,
         "label": "et",
         "state": "idle",
         "detail": "",
         "version": "",
     }
     assert _SECRET not in repr(listed(SimpleNamespace()))
-    assert held["daemons"] == [{"name": "et", "via": "easytier", "secret": _SECRET}]
+    assert held["daemons"] == [
+        {"name": "et", "via": "easytier", "secret": _SECRET, "peers": _PEERS}
+    ]
 
 
 def test_a_secret_of_fewer_than_16_bytes_is_refused(held: dict[str, Any]) -> None:
@@ -250,7 +257,14 @@ def test_a_secret_of_fewer_than_16_bytes_is_refused(held: dict[str, Any]) -> Non
         _asks(
             "POST",
             "/api/daemons",
-            {"name": "et", "fields": {"via": "easytier", "secret": "fifteen-bytes!!"}},
+            {
+                "name": "et",
+                "fields": {
+                    "via": "easytier",
+                    "secret": "fifteen-bytes!!",
+                    "peers": _PEERS,
+                },
+            },
         )
 
     assert refused.value.status == 400
@@ -258,16 +272,21 @@ def test_a_secret_of_fewer_than_16_bytes_is_refused(held: dict[str, Any]) -> Non
 
 
 def test_a_replacement_saying_no_secret_keeps_it(held: dict[str, Any]) -> None:
-    body = {"name": "et", "fields": {"via": "easytier", "secret": _SECRET}}
+    body = {
+        "name": "et",
+        "fields": {"via": "easytier", "secret": _SECRET, "peers": _PEERS},
+    }
     _asks("POST", "/api/daemons", body)
 
     _asks(
         "POST",
         "/api/daemons",
-        {"name": "et", "fields": {"via": "easytier"}, "replace": True},
+        {"name": "et", "fields": {"via": "easytier", "peers": _PEERS}, "replace": True},
     )
 
-    assert held["daemons"] == [{"name": "et", "via": "easytier", "secret": _SECRET}]
+    assert held["daemons"] == [
+        {"name": "et", "via": "easytier", "secret": _SECRET, "peers": _PEERS}
+    ]
 
 
 def test_an_ssh_daemon_is_listed_as_reached_over_ssh(held: dict[str, Any]) -> None:
@@ -280,9 +299,51 @@ def test_an_ssh_daemon_is_listed_as_reached_over_ssh(held: dict[str, Any]) -> No
 def test_an_import_beside_an_easytier_daemon_brings_in_the_hosts(
     held: dict[str, Any], config: list[str]
 ) -> None:
-    held["daemons"] = [{"name": "et", "via": "easytier", "secret": _SECRET}]
+    held["daemons"] = [
+        {"name": "et", "via": "easytier", "secret": _SECRET, "peers": _PEERS}
+    ]
 
     said = _asks("POST", "/api/daemons/import", {"aliases": ["gpu"]})
 
     assert said["added"] == ["gpu"]
     assert [one["name"] for one in saved()] == ["et", "gpu"]
+
+
+def test_the_community_nodes_are_listed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from hmz.coganchor import easytier
+
+    node = easytier.Node("tcp://a.example:11010", "Here/me/2.6.4", "2.6.4", True, 0.99)
+
+    def community(*_: object) -> list[easytier.Node]:
+        return [node]
+
+    monkeypatch.setattr(easytier, "community", community)
+
+    assert _asks("GET", "/api/daemons/easytier/nodes") == {
+        "nodes": [
+            {
+                "url": "tcp://a.example:11010",
+                "name": "Here/me/2.6.4",
+                "version": "2.6.4",
+                "up": True,
+                "uptime": 0.99,
+            }
+        ]
+    }
+
+
+def test_unreadable_community_nodes_are_refused_503(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.coganchor import easytier
+
+    def unreachable(*_: object) -> list[easytier.Node]:
+        msg = "no route"
+        raise OSError(msg)
+
+    monkeypatch.setattr(easytier, "community", unreachable)
+
+    with pytest.raises(Refusal) as refused:
+        _asks("GET", "/api/daemons/easytier/nodes")
+    assert refused.value.status == 503
+    assert str(refused.value) == "The community nodes could not be read: no route"

@@ -2,8 +2,14 @@
 
 `ssh` reaches a machine somebody can log in to. EasyTier reaches one that nobody can: two
 `easytier-core` that know one network name and one network secret find each other through a
-public node, punch through whatever NAT is between them, and fall back to being relayed by that
-node where they cannot. Humanize runs one on each end -- :func:`serving` beside `hmz server`,
+shared node, punch through whatever NAT is between them, and fall back to being relayed by that
+node where they cannot. EasyTier runs no such node of its own any more, so hmz names none: each
+end is told the nodes the user chose, and two ends meet only where they name one in common.
+:func:`community` reads the nodes the community shares, and how each has stood, from the Uptime
+Kuma status page EasyTier's own apps read (Astral, EasytierGame); `HUMANIZE_EASYTIER_NODES`
+names another Uptime Kuma server to read its page `easytier` from instead.
+
+Humanize runs one `easytier-core` on each end -- :func:`serving` beside `hmz server`,
 :func:`joining` beside whoever opens it -- and neither needs anything installed: :func:`binary`
 downloads the release pinned here from EasyTier's own GitHub releases, checks it against the
 SHA-256 pinned beside it, and keeps it under `~/.hmz/easytier/<VERSION>/`.
@@ -38,17 +44,21 @@ from __future__ import annotations
 import hashlib
 import hmac
 import http.client
+import json
 import os
 import platform
+import re
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 import urllib.request
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, cast
 
 from hmz import home
 
@@ -56,16 +66,20 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
 __all__ = [
+    "NODES",
     "PEERS",
     "PORT",
     "SHA256",
     "VERSION",
     "WHICH",
+    "Node",
     "binary",
     "checked",
+    "community",
     "joining",
     "key",
     "network",
+    "node",
     "serving",
 ]
 
@@ -78,8 +92,36 @@ WHICH = "HUMANIZE_EASYTIER"
 #: The port `hmz server` keeps its web on, on its loopback and so at the network's address.
 PORT = 41817
 
-#: The public nodes both ends meet through: EasyTier's own shared node.
-PEERS: tuple[str, ...] = ("tcp://public.easytier.top:11010",)
+#: The shared nodes hmz names of its own: none, so every caller names those the user chose.
+PEERS: tuple[str, ...] = ()
+
+#: The most of a status page that is read.
+_MOST = 4 * 1024 * 1024
+
+#: What names the Uptime Kuma server the community's shared nodes are read from.
+NODES = "HUMANIZE_EASYTIER_NODES"
+
+#: The Uptime Kuma server EasyTier's own apps read the community's shared nodes from.
+_KUMA = "https://easytier.gd.nkbpal.cn"
+
+#: Its status page that lists them.
+_PAGE = "easytier"
+
+#: The protocols a node may be reached over, as EasyTier names them in a URL.
+_PROTOCOLS = frozenset({"tcp", "udp", "ws", "wss", "quic", "wg"})
+
+#: A node's host and port, as a monitor's name says them: an IPv4 address or a domain.
+_HOST = r"(?:(?:\d{1,3}\.){3}\d{1,3}|[A-Za-z0-9][-A-Za-z0-9.]*\.[A-Za-z]+):\d{1,5}"
+_ADDRESS = re.compile(_HOST)
+
+#: A node's URL, as a monitor's name may say it whole.
+_LINK = re.compile(
+    rf"(?<![A-Za-z])({'|'.join(sorted(_PROTOCOLS))})://({_HOST})(?![-\w.:])",
+    re.IGNORECASE,
+)
+
+#: A version, as a monitor's name says one.
+_RELEASE = re.compile(r"v?\d+(?:\.\d+){1,3}(?:[-+][\w.-]+)?")
 
 #: The address the serving end has in the network; every joining end takes one by DHCP.
 _SERVER = "10.144.144.1"
@@ -115,6 +157,59 @@ _WAITING = 60.0
 _FEWEST = 16
 
 
+@dataclass(frozen=True)
+class Node:
+    """A shared EasyTier node of the community's, and how it has stood.
+
+    Attributes:
+      url: What EasyTier is told to reach it by, as `tcp://host:port`.
+      name: What its monitor is named: where it is, who runs it, its version and its address.
+      version: The EasyTier it runs, or empty where its name does not say.
+      up: Whether it answered last; None where that is unknown.
+      uptime: The share of the last 24 hours it was up, from 0 to 1; None where unknown.
+    """
+
+    url: str
+    name: str
+    version: str
+    up: bool | None
+    uptime: float | None
+
+
+def community(timeout: float = 10) -> list[Node]:
+    """The shared nodes of EasyTier's community, as its status page lists them.
+
+    A monitor whose name says no `host:port` is left out, and a node listed twice is listed
+    once. The page's heartbeats say how each has stood; where they cannot be read, every node
+    is listed with `up` and `uptime` None.
+
+    Args:
+      timeout: How long each of the two reads may take, in seconds.
+
+    Returns:
+      Each node, in the order the page lists them.
+
+    Raises:
+      OSError: If the page cannot be read or is not a status page.
+    """
+    base = (os.environ.get(NODES) or _KUMA).rstrip("/")
+    page = _read(f"{base}/api/status-page/{_PAGE}", timeout)
+    if not isinstance(_at(page, "publicGroupList"), list):
+        msg = f"{base} has no status page {_PAGE}"
+        raise OSError(msg)
+    try:
+        beats = _read(f"{base}/api/status-page/heartbeat/{_PAGE}", timeout)
+    except OSError:
+        beats = None
+    nodes: dict[str, Node] = {}
+    for group in _each(_at(page, "publicGroupList")):
+        for monitor in _each(_at(group, "monitorList")):
+            node = _node(monitor, beats)
+            if node is not None and node.url not in nodes:
+                nodes[node.url] = node
+    return list(nodes.values())
+
+
 def checked(secret: str) -> str:
     """A secret, where it is long enough to be one.
 
@@ -125,6 +220,27 @@ def checked(secret: str) -> str:
         msg = "A secret must be at least 16 bytes."
         raise ValueError(msg)
     return secret
+
+
+def node(url: str) -> str:
+    """A shared node's URL, where it is one: `<protocol>://<host>:<port>`.
+
+    Raises:
+      ValueError: If its protocol is not one EasyTier reaches a node over (`tcp`, `udp`, `ws`,
+        `wss`, `quic`, `wg`), or it says no host or no port.
+    """
+    try:
+        parts = urllib.parse.urlsplit(url)
+        port = parts.port
+    except ValueError:
+        port = None
+    else:
+        if parts.scheme not in _PROTOCOLS or not parts.hostname:
+            port = None
+    if port is None or url != url.strip():
+        msg = f"{url!r} is not an EasyTier node, as tcp://host:port."
+        raise ValueError(msg)
+    return url
 
 
 def network(secret: str) -> tuple[str, str]:
@@ -185,7 +301,7 @@ def serving(
     secret: str,
     port: int = PORT,
     *,
-    peers: Sequence[str] = PEERS,
+    peers: Sequence[str],
     out: int | IO[bytes] | None = subprocess.DEVNULL,
 ) -> subprocess.Popen[bytes]:
     """Starts the `easytier-core` that lets the network reach this machine's loopback port.
@@ -193,7 +309,7 @@ def serving(
     Args:
       secret: What the network is joined with.
       port: The port on this machine's loopback it reaches, and the only one.
-      peers: The nodes it meets the others through.
+      peers: The shared nodes it meets the others through, at least one.
       out: Where what it says goes.
 
     Returns:
@@ -201,7 +317,7 @@ def serving(
 
     Raises:
       OSError: If there is no `easytier-core` to start, as :func:`binary` says.
-      ValueError: If the secret is too short to be one.
+      ValueError: If the secret is too short to be one, or no node is named.
     """
     return _started(
         secret,
@@ -216,7 +332,7 @@ def joining(
     local: int,
     *,
     port: int = PORT,
-    peers: Sequence[str] = PEERS,
+    peers: Sequence[str],
     out: int | IO[bytes] | None = subprocess.DEVNULL,
 ) -> subprocess.Popen[bytes]:
     """Starts the `easytier-core` that puts the serving machine's port on this one's loopback.
@@ -225,7 +341,7 @@ def joining(
       secret: What the network is joined with.
       local: The port on this machine's loopback it is put on.
       port: The serving machine's port.
-      peers: The nodes it meets the others through.
+      peers: The shared nodes it meets the others through, at least one.
       out: Where what it says goes.
 
     Returns:
@@ -233,7 +349,7 @@ def joining(
 
     Raises:
       OSError: If there is no `easytier-core` to start, as :func:`binary` says.
-      ValueError: If the secret is too short to be one.
+      ValueError: If the secret is too short to be one, or no node is named.
     """
     return _started(
         secret,
@@ -260,6 +376,11 @@ def _started(
 ) -> subprocess.Popen[bytes]:
     """Starts `easytier-core` in the network a secret stands for, without a TUN device."""
     name, hidden = network(checked(secret))
+    if not peers:
+        msg = "An EasyTier daemon needs at least one node."
+        raise ValueError(msg)
+    for one in peers:
+        node(one)
     argv = [
         str(binary()),
         "--network-name",
@@ -272,9 +393,9 @@ def _started(
         "tcp://0.0.0.0:0",
         "udp://0.0.0.0:0",
         *told,
+        "--peers",
+        *peers,
     ]
-    if peers:
-        argv += ["--peers", *peers]
     return subprocess.Popen(
         argv,
         env={
@@ -289,6 +410,71 @@ def _started(
         stdout=out,
         stderr=out,
     )
+
+
+def _read(url: str, timeout: float) -> object:
+    """What an Uptime Kuma server answers at a URL, as JSON.
+
+    Raises:
+      OSError: If it is not an http one, cannot be read, or is not JSON.
+    """
+    if urllib.parse.urlsplit(url).scheme not in {"http", "https"}:
+        msg = f"{url} is not an http URL"
+        raise OSError(msg)
+    try:
+        asked = urllib.request.Request(url, headers={"User-Agent": "humanize"})  # noqa: S310
+        with urllib.request.urlopen(asked, timeout=timeout) as answer:  # noqa: S310
+            # One longer than the most is cut short, and so not JSON.
+            return json.loads(answer.read(_MOST))
+    except (OSError, http.client.HTTPException, ValueError) as why:
+        msg = f"cannot read {url}: {why}"
+        raise OSError(msg) from why
+
+
+def _node(monitor: object, beats: object) -> Node | None:
+    """The node a monitor of the status page watches, or None where its name says no address.
+
+    Its name is `/`-separated parts -- where it is, who runs it, its version, its address --
+    of which the address is a node's URL where the name says one whole, and else the part
+    that is `host:port`; a part that is a protocol says that is reached over it, and
+    otherwise it is reached over TCP.
+    """
+    named, ident = _at(monitor, "name"), _at(monitor, "id")
+    if not isinstance(named, str) or not isinstance(ident, (int, str)):
+        return None
+    parts = [part.strip() for part in named.split("/")]
+    if linked := _LINK.search(named):
+        url = f"{linked[1]}://{linked[2]}".lower()
+    else:
+        address = next((part for part in parts if _ADDRESS.fullmatch(part)), None)
+        if address is None:
+            return None
+        said = [part.lower() for part in parts if part.lower() in _PROTOCOLS]
+        url = f"{said[0] if said else 'tcp'}://{address.lower()}"
+    heard = _each(_at(_at(beats, "heartbeatList"), str(ident)))
+    status = _at(heard[-1], "status") if heard else None
+    uptime = _at(_at(beats, "uptimeList"), f"{ident}_24")
+    return Node(
+        url=url,
+        name=named.strip(),
+        version=next((part for part in parts if _RELEASE.fullmatch(part)), ""),
+        up={1: True, 0: False}.get(status) if type(status) is int else None,
+        uptime=(
+            min(max(float(uptime), 0.0), 1.0)
+            if isinstance(uptime, (int, float)) and not isinstance(uptime, bool)
+            else None
+        ),
+    )
+
+
+def _at(held: object, key: str) -> object:
+    """What a JSON object holds under a key; None where it is not an object or holds none."""
+    return cast("dict[str, object]", held).get(key) if isinstance(held, dict) else None
+
+
+def _each(held: object) -> list[object]:
+    """What a JSON array holds; nothing where it is not an array."""
+    return cast("list[object]", held) if isinstance(held, list) else []
 
 
 def _derived(label: str, secret: str) -> str:
