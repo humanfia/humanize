@@ -201,14 +201,26 @@ folders are folded in this browser.
 path, folding or opening it, its workspace settings, its usage, and, where no epic ran there,
 forgetting it.
 
-**5.8** Each epic in the sidebar MUST show a mark of how it ended or that it is going, its task's
-first line, and either `live`, where a host is going with it, or how long ago it began.
+**5.8** Each epic in the sidebar MUST show a mark of its state, its task's first line, and either
+`live`, where a host is going with it, or how long ago it began; the header of its own page MUST
+show the same mark. The mark MUST be the first of these that holds:
 
-**5.9** An epic that another process is going with, outside any host, MUST be marked as going and
-MUST NOT be marked `live`.
+1. `asking`, while its host waits on a question to a person that this browser has not seen;
+2. `waiting`, while its host waits on a question and this browser has seen every one, for an
+   epic other than a chat;
+3. `stopping`, while its host is stopping it;
+4. `running`, while it is going;
+5. `done`, `failed` (failed, refused or crashed) or `stopped` (stopped, or its budget spent), as
+   it ended;
+6. `unfinished`, where its process went before it ended.
 
-**5.10** A chat MUST be marked `running` while its agent answers and `done` otherwise, short of
-failing, and MUST NOT be marked `live`.
+**5.9** The `asking` mark MUST blink, and no other mark MUST. A question MUST be seen once, while
+it waits, the page of its epic, `#/epics/<name>`, or of its host, `#/live?workspace=…&slot=…`, is
+shown, visible and focused; the page MUST remember in this browser which questions were seen.
+
+**5.10** An epic that another process is going with, outside any host, MUST be marked as going and
+MUST NOT be marked `live`. A chat MUST be marked only `running` while a turn is open, `asking`,
+`failed`, or otherwise `stopped`, and MUST NOT be marked `live`.
 
 **5.11** An epic other than a chat MUST be expandable into its agents, and each agent into the
 sessions it opened; a chat MUST NOT be expandable. The page MUST remember in this browser which

@@ -73,7 +73,19 @@ def test_the_run_going_carries_where_a_chat_is_in_its_turn(turn: str) -> None:
 
     held = held_by(runs, [standing | {"workspace": "/work/one", "slot": "chat:1"}])
 
-    assert held == {"going": {"turn": turn, "slot": "chat:1"}}
+    assert held == {"going": {"turn": turn, "slot": "chat:1", "asking": []}}
+
+
+def test_the_run_going_carries_the_questions_its_host_waits_on() -> None:
+    runs = _runs(_Ran(flow="chat", at="going"))
+    standing = {"state": "running", "flow": "chat", "turn": "done"}
+
+    held = held_by(
+        runs,
+        [standing | {"workspace": "/work/one", "slot": "chat:1", "asking": ["3:q7"]}],
+    )
+
+    assert held == {"going": {"turn": "done", "slot": "chat:1", "asking": ["3:q7"]}}
 
 
 def test_the_run_going_is_the_epic_its_host_says_it_writes() -> None:
@@ -92,8 +104,8 @@ def test_the_run_going_is_the_epic_its_host_says_it_writes() -> None:
     )
 
     assert held == {
-        "first": {"turn": "", "slot": "chat:1"},
-        "second": {"turn": "", "slot": "chat:2"},
+        "first": {"turn": "", "slot": "chat:1", "asking": []},
+        "second": {"turn": "", "slot": "chat:2", "asking": []},
     }
 
 
@@ -166,16 +178,15 @@ def test_a_run_is_said_running_while_any_process_holds_it(
     [
         # The agent is answering.
         ("", True, True, "running", "running"),
-        # Between turns: the turn is done, though the chat goes on.
-        ("", True, True, "done", "done"),
+        # Between turns: the turn is done, though the chat goes on; it is stopped.
+        ("", True, True, "done", "stopped"),
         # Going where no host says where its turn is.
         ("", False, True, "", "running"),
-        # Over: however it was ended but failing, it is done.
-        ("", False, False, "", "done"),
-        ("stopped", False, False, "", "done"),
-        ("done", False, False, "", "done"),
+        # Over: however it was ended but failing, it is stopped, and never done.
+        ("", False, False, "", "stopped"),
+        ("stopped", False, False, "", "stopped"),
+        ("done", False, False, "", "stopped"),
         ("failed", False, False, "", "failed"),
-        ("crashed", False, False, "", "crashed"),
     ],
 )
 def test_a_chat_is_said_running_only_while_its_agent_answers(
@@ -184,6 +195,15 @@ def test_a_chat_is_said_running_only_while_its_agent_answers(
     ran = cast("Ran", _Row(flow="chat", how=how))
 
     assert row(ran, held=held, going=going, turn=turn)["how"] == said
+
+
+def test_a_row_says_the_questions_its_run_waits_on_and_none_by_default() -> None:
+    ran = cast("Ran", _Row(flow="chat"))
+
+    assert row(ran, held=True, going=True, turn="done", asking=("3:q7",))["asking"] == [
+        "3:q7"
+    ]
+    assert row(ran, held=False)["asking"] == []
 
 
 @dataclass(frozen=True)

@@ -217,7 +217,8 @@ version), `newer` (a newer release of `hmz`, as `features/updates.md` defines it
 
 **8.1.2** `running` MUST hold, for every host of this machine whose epic is going or stopping,
 its `run` snapshot (`api/daemon.md §9.3`) where the server follows it, else `state`, `run`,
-`flow`, `epic`, `task` and, of a chat, `turn` from its status; each with `workspace` and `slot`.
+`flow`, `epic`, `task` and, of a chat, `turn` from its status; each with `workspace`, `slot` and
+`asking` (the questions it waits on, each `<run>:<question>`).
 
 **8.1.3** `GET /api/held` MUST NOT start any host.
 
@@ -358,9 +359,11 @@ not whole numbers MUST be refused 400.
 
 **10.2.1** An epic row MUST hold `name`, `workspace`, `flow`, `task` (its first line, cut at 240
 characters with `…`), `began`, `ended`, `how` (its ending, `running` while going, `unfinished`
-where its process went before it ended), `agents` (`[{name, role, runs}]`), `sessions` (a
-count), `resumable`, `spent`, `held` (whether a host is going with it), `slot` (that host's),
-`backup` (the targets it was started with) and `backed` (`{target: {at, ok, error, why}}`).
+where its process went before it ended; of a chat, as `features/chat.md §5` says it), `agents`
+(`[{name, role, runs}]`), `sessions` (a count), `resumable`, `spent`, `held` (whether a host is
+going with it), `slot` (that host's), `asking` (the questions that host waits on, each
+`<run>:<question>`, `[]` where none waits or no host is going with it), `backup` (the targets it
+was started with) and `backed` (`{target: {at, ok, error, why}}`).
 
 ### 10.3 `GET /api/runs/{name}`
 

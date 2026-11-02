@@ -174,7 +174,7 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/held` | | `machine` (this machine's name), `wsl` (the WSL distribution `hmz` runs in, from `WSL_DISTRO_NAME`, or `null` outside WSL), `here` (where `hmz web` started), `version`, `newer` (a newer release of `hmz` PyPI lists, asked as `hmz web` starts and at most once a day, or `""`), `running` (`[run]`: the [`run` snapshot](/reference/daemon#snapshots) of each host whose epic is going, or what its `status` says of it, each with its `workspace` and `slot`) |
+| `GET /api/held` | | `machine` (this machine's name), `wsl` (the WSL distribution `hmz` runs in, from `WSL_DISTRO_NAME`, or `null` outside WSL), `here` (where `hmz web` started), `version`, `newer` (a newer release of `hmz` PyPI lists, asked as `hmz web` starts and at most once a day, or `""`), `running` (`[run]`: the [`run` snapshot](/reference/daemon#snapshots) of each host whose epic is going, or what its `status` says of it, each with its `workspace`, `slot` and `asking`: the questions it waits on, each `<run>:<question>`) |
 | `GET /api/held/stream` | `?workspace=&slot=`; `Last-Event-ID` header, or `?last=` | [The stream](#stream) of that host's runs, attaching to them; `409` for a chat's host that has gone, its chat folded away |
 | `POST /api/held/start` | `workspace`, `slot`; `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile_flow`, `profile_environment` (bool); `resume` (bool, or an epic); `backup` (target names, `[]` for none; `null`, the default, for the defaults) | The host's answer: `run`; and `slot`, the host it started on -- a `chat` started without `slot` is a new chat's, on a host of its own. A `chat` picked up (`resume` its epic) goes on in that epic |
 | `POST /api/held/say` | `text`; `to` (`""`, an agent, `<agent>/<n>`, or `outworlder:<role>`, routed as [`say` routes it](/reference/daemon#say-routing)) | The host's answer |
@@ -217,10 +217,12 @@ asks one, through the same side conversations: a second question to one still an
 
 A row is `name`, `flow`, `task` (its first line, cut at 240 characters), `began`, `ended`,
 `how` (as the run ended; `running` for a run going -- held by a host, or by another process such
-as `hmz exec` -- and `unfinished` for one whose process went before it said),
+as `hmz exec` -- and `unfinished` for one whose process went before it said; a `chat` is
+`running` while a turn is open, `failed` where it failed, and `stopped` otherwise, never `done`),
 `agents` (`[{role, runs}]`), `sessions` (a count), `resumable`, `held` (whether it is the run a
 host is going with -- the epic that host says it writes -- which the page follows live and can
-stop), `slot` (that host's, `""` for the workspace's own), `spent`: what its budget counted
+stop), `slot` (that host's, `""` for the workspace's own), `asking` (the questions that host
+waits on, each `<run>:<question>`, such as `3:q7`; `[]` where none waits), `spent`: what its budget counted
 across every time it was opened, or `null`, `backup` (the targets it was
 started with) and `backed` (`{target: {at, ok, error, why}}`: how its last backup to each
 went). A run of no such name is `404`.

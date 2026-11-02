@@ -75,10 +75,13 @@ def test_a_run_started_from_a_page_is_followed_answered_and_stopped(
             _, said = until(heard, _record("event", kind="text"), "what the agent said")
             assert said["text"] == "did: hello there"
             _, asked = until(heard, _record("asked", role="human"), "chat asking")
-            # Asking what to say next, the chat's turn is done, though it goes on.
+            # Asking what to say next, the chat's turn is done, though it goes on: stopped,
+            # and asking.
             until(heard, _turn("done"), "the turn done")
+            assert wait(lambda: browser.get("/api/runs").json()["runs"][0]["asking"])
             (going,) = browser.get("/api/runs").json()["runs"]
-            assert (going["held"], going["how"]) == (True, "done")
+            assert (going["held"], going["how"]) == (True, "stopped")
+            assert going["asking"] == [f"{asked['run']}:{asked['question']}"]
             refused = browser.post("/api/held/answer", {"question": "q0", "text": "x"})
             assert refused.status == 409
             assert refused.json()["error"]
@@ -92,13 +95,14 @@ def test_a_run_started_from_a_page_is_followed_answered_and_stopped(
             until(heard, _record("ended", how="stopped"), "the run ending")
 
         listed = browser.get("/api/runs").json()
-        # A chat left is done, however it was left.
-        assert listed["counts"] == {"done": 1}
+        # A chat left is stopped, however it was left, and asks nothing any more.
+        assert listed["counts"] == {"stopped": 1}
         (run,) = listed["runs"]
-        assert (run["flow"], run["task"], run["how"]) == (
+        assert (run["flow"], run["task"], run["how"], run["asking"]) == (
             "chat",
             "hello there",
-            "done",
+            "stopped",
+            [],
         )
         one = browser.get(f"/api/runs/{run['name']}").json()
         assert [agent["runs"] for agent in one["agents"]] == [f"{AGENT}:auto"]
@@ -304,7 +308,7 @@ def test_an_epic_another_process_goes_with_is_listed_as_running(project: Path) -
         browser = Browser(site)
         browser.signs_in()
         (ran,) = browser.get("/api/runs").json()["runs"]
-        assert ran["how"] == "done"
+        assert ran["how"] == "stopped"
 
 
 def test_an_epic_written_down_is_read_back_out_of_the_logs_it_kept(
@@ -612,9 +616,9 @@ def test_chats_are_each_their_own_beside_a_flow_and_one_left_is_carried_on(
             first["slot"],
             second["slot"],
         )
-        assert wait(lambda: rows()["first"]["how"] == "done")
+        assert wait(lambda: rows()["first"]["how"] == "stopped")
 
-        # Left, the first chat is done and held no more; said something, it goes on in
+        # Left, the first chat is stopped and held no more; said something, it goes on in
         # its own epic, on a host of its own again.
         assert browser.post("/api/held/stop", {"slot": first["slot"]}).status == 200
         assert wait(lambda: not rows()["first"]["held"])

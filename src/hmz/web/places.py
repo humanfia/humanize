@@ -194,7 +194,8 @@ class Places:
     def running(self) -> list[dict[str, Any]]:
         """What each host runs: the state, the run's number, its flow and its epic.
 
-        And of a chat, its turn; and of every one, its `workspace` and its `slot`. Out of the
+        And of a chat, its turn; and of every one, its `workspace`, its `slot` and the
+        questions it waits on, each `<run>:<question>`, as `asking`. Out of the
         links held here where there is one, and what the daemon last said of the rest; a host
         running nothing is left out.
         """
@@ -208,7 +209,13 @@ class Places:
         for workspace, slot, one in held:
             run = one.standing("run")
             if run is not None:
-                said[workspace, slot] = {**run, "workspace": workspace, "slot": slot}
+                pending = (one.standing("pending") or {}).get("pending")
+                said[workspace, slot] = {
+                    **run,
+                    "workspace": workspace,
+                    "slot": slot,
+                    "asking": _asking(pending, run.get("run")),
+                }
         return [
             run for run in said.values() if run.get("state") in ("running", "stopping")
         ]
@@ -334,11 +341,18 @@ class Places:
                 "workspace": status["workspace"],
                 "slot": status.get("slot") or "",
                 **({"turn": status["turn"]} if "turn" in status else {}),
+                "asking": _asking(status.get("pending"), status.get("run")),
             }
             for status in self.statuses().values()
         ]
         with self._lock:
             self._running = running
+
+
+def _asking(pending: Any, run: Any) -> list[str]:
+    """The questions a host waits on, each `<run>:<question>`: the run asking, else `run`."""
+    asked: list[dict[str, Any]] = pending or []
+    return [f"{ask.get('run') or run or 0}:{ask['question']}" for ask in asked]
 
 
 def _workspaces(asked: Asked) -> dict[str, Any]:
