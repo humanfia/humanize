@@ -5,18 +5,22 @@ settings file under `daemons`, with how it is reached: its `via`. Over `ssh`, th
 holds what `ssh` is told to reach it -- the same fields an ssh runtime has, checked as one is,
 but for its workdir and fallback: a `Host` of the ssh config alone, or a host typed in a part
 at a time, or brought in from the ssh config. Over `easytier` it holds the secret its network
-is joined with, and nothing ssh is told. Every frontend that switches between them writes
-them, and reaches them, through here.
+is joined with and the EasyTier nodes that network meets through, and nothing ssh is told.
+Every frontend that switches between them writes them, and reaches them, through here.
 
-What is reached there is that machine's own web interface: `hmz web --attached`, started over
-ssh and stopped by the ssh going, with a port of this machine's loopback forwarded on to it.
-Whoever reaches it asks it with its key: the remote interface keeps its own key, its own runs
-and its own refusals.
+What is reached there is that machine's own web interface. Over ssh, `hmz web --attached`,
+started over ssh and stopped by the ssh going, with a port of this machine's loopback forwarded
+on to it. Over EasyTier, the one its `hmz server` keeps, put on a port of this machine's
+loopback by an `easytier-core` joining its network -- downloaded first where there is none --
+and asked every few seconds whether it still answers, which nothing else would say. Whoever
+reaches it asks it with its key: the remote interface keeps its own key, its own runs and its
+own refusals.
 
 An `hmz` missing there, or of another version than this one, is installed at this version with
 `uv tool install`, uv itself fetched first where the host has none -- but never in place of one
 the host's daemon may be running epics under, which keep running the release they started
-with. A development build, `0.0.0`, installs nothing: it uses whatever `hmz` is there.
+with. A development build, `0.0.0`, installs nothing: it uses whatever `hmz` is there. Nothing is
+installed over EasyTier, where nothing can be: a server older than this one is refused.
 
 A daemon is reached when it is first asked for, or is told to connect, and reached again,
 waiting longer each time, whenever it is lost.
@@ -34,6 +38,7 @@ import socket
 import subprocess
 import threading
 import time
+import urllib.parse
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 if TYPE_CHECKING:
@@ -74,6 +79,9 @@ SSH, EASYTIER = "ssh", "easytier"
 
 #: The fewest bytes, in UTF-8, an EasyTier daemon's secret may be.
 _SECRET = 16
+
+#: How an EasyTier node may be reached, as its URL's scheme says.
+_NODES = ("tcp", "udp", "ws", "wss", "quic", "wg")
 
 #: What a daemon reached over ssh holds beside its name, as `ssh` is told it.
 _FIELDS = (
@@ -189,12 +197,13 @@ class Unreached(RuntimeError):  # noqa: N818 -- what it is, as `Refused` is name
 def _checked(name: str, fields: dict[str, Any]) -> dict[str, Any]:
     """One daemon as it is written down, checked as how it is reached says.
 
-    Over ssh, as an ssh runtime is; over EasyTier, its secret alone, of at least 16 bytes.
+    Over ssh, as an ssh runtime is; over EasyTier, its secret, of at least 16 bytes, and the
+    nodes its network meets through, at least one.
 
     Args:
       name: What it is called.
       fields: The rest of it: `via`, ssh by default; then `options` as
-        `[[KEYWORD, VALUE], ...]` or by keyword, or the `secret`.
+        `[[KEYWORD, VALUE], ...]` or by keyword, or the `secret` and `peers`.
 
     Returns:
       It, `options` as pairs.
@@ -214,14 +223,19 @@ def _checked(name: str, fields: dict[str, Any]) -> dict[str, Any]:
     via: object = given.pop("via", SSH)
     if via not in (SSH, EASYTIER):
         raise ValueError(f"Say via as {SSH} or {EASYTIER}.")
-    takes = {"secret"} if via == EASYTIER else set(_FIELDS)
+    takes = {"secret", "peers"} if via == EASYTIER else set(_FIELDS)
     if extra := sorted(set(given) - takes):
         raise ValueError(f"A daemon reached over {via} takes no {', '.join(extra)}.")
     if via == EASYTIER:
         secret: object = given.get("secret")
         if not isinstance(secret, str) or len(secret.encode()) < _SECRET:
             raise ValueError("A secret must be at least 16 bytes.")
-        return {"name": name, "via": EASYTIER, "secret": secret}
+        return {
+            "name": name,
+            "via": EASYTIER,
+            "secret": secret,
+            "peers": _peers(given.get("peers")),
+        }
     options: object = given.get("options", [])
     if isinstance(options, list):
         pairs = cast("list[object]", options)
@@ -240,6 +254,36 @@ def _checked(name: str, fields: dict[str, Any]) -> dict[str, Any]:
         **{field: getattr(one, field) for field in _FIELDS if field != "options"},
         "options": [[key, value] for key, value in one.options.items()],
     }
+
+
+def _peers(said: object) -> list[str]:
+    """The EasyTier nodes a P2P daemon's network meets through, each `scheme://host:port`.
+
+    Raises:
+      ValueError: For none, or for one that is not a node's URL, naming it.
+    """
+    if not isinstance(said, list) or not said:
+        raise ValueError("An EasyTier daemon needs at least one node.")
+    nodes = cast("list[object]", said)
+    for one in nodes:
+        try:
+            split = urllib.parse.urlsplit(one) if isinstance(one, str) else None
+            port = split.port if split else None
+        except ValueError:
+            split = port = None
+        if not (
+            split
+            and split.scheme in _NODES
+            and split.hostname
+            and port
+            and split.path in ("", "/")
+            and not (split.query or split.fragment or "@" in split.netloc)
+            and not any(letter.isspace() for letter in str(one))
+        ):
+            raise ValueError(
+                f"{one!r} is not an EasyTier node: say one as tcp://host:port."
+            )
+    return [str(one) for one in nodes]
 
 
 def _valid(held: dict[str, Any]) -> list[dict[str, Any]]:
@@ -523,6 +567,11 @@ _BACKOFF = (1.0, 60.0)
 #: How long a process is given to stop before it is killed.
 _STOPPING = 3.0
 
+#: How often a daemon reached over EasyTier is asked whether it still answers, how soon again
+#: once it did not, how long it may take to, and how many times running it may not before it
+#: is lost: its `easytier-core` keeps running whether or not the server does.
+_BEATING, _AGAIN, _HEARING, _MISSES = 5.0, 1.0, 5.0, 3
+
 
 class _Failed(Exception):  # noqa: N818 -- the sentence a daemon's state says
     """Reaching a daemon went wrong, as its state says it."""
@@ -660,7 +709,7 @@ class _Remote:
         self.entry: dict[str, Any] | None = None
         #: What is said of it while it is up: why its hmz is not this one's, where it is not.
         self._note = ""
-        self._children: set[subprocess.Popen[str]] = set()
+        self._children: set[subprocess.Popen[Any]] = set()
         self._closed = threading.Event()
         self._again = threading.Event()
         self._thread: threading.Thread | None = None
@@ -705,7 +754,7 @@ class _Remote:
             self._again.clear()
             self._says(CONNECTING)
             try:
-                web, forward = self._reaches()
+                held = self._reaches()
             except Exception as why:  # noqa: BLE001 -- whatever it was is what it says
                 self._ends()
                 if self._closed.is_set():
@@ -714,9 +763,7 @@ class _Remote:
             else:
                 self._says(UP, self._note)
                 wait = _BACKOFF[0]
-                while not self._again.wait(0.25):
-                    if web.poll() is not None or forward.poll() is not None:
-                        break
+                self._holds(held)
                 self._ends()
                 if self._closed.is_set():
                     break
@@ -727,14 +774,38 @@ class _Remote:
             wait = min(wait * 2, _BACKOFF[1])
         self._says(IDLE)
 
-    def _reaches(self) -> tuple[subprocess.Popen[str], subprocess.Popen[str]]:
+    def _holds(self, held: Sequence[subprocess.Popen[Any]]) -> None:
+        """Returns once it is lost, or is to be reached again.
+
+        Lost where a process it is held by goes; over EasyTier, too, where the server does not
+        answer a few times running, or answers as another version than it was reached at.
+        """
+        beats = self.entry is not None and self.entry["via"] == EASYTIER
+        asked, misses = time.monotonic(), 0
+        while not self._again.wait(0.25):
+            if any(one.poll() is not None for one in held):
+                return
+            if not beats or time.monotonic() - asked < (_AGAIN if misses else _BEATING):
+                continue
+            try:
+                there = self._answers()
+            except _Failed:
+                return
+            if there and there != self.there:
+                return
+            misses = 0 if there else misses + 1
+            if misses >= _MISSES:
+                return
+            asked = time.monotonic()
+
+    def _reaches(self) -> list[subprocess.Popen[Any]]:
         """Reaches it.
 
-        Probes the host, installs `hmz` there where it must, starts the interface there and
-        forwards a port to it.
+        Over ssh, probes the host, installs `hmz` there where it must, starts the interface
+        there and forwards a port to it; over EasyTier, joins its network, as `_joins` says.
 
         Returns:
-          The interface there, and the forward.
+          Every process it is held by, each of which going loses it.
 
         Raises:
           _Failed: Saying what went wrong.
@@ -743,7 +814,7 @@ class _Remote:
         if self.entry is None:
             raise _Failed(f"No daemon is called {self.name}.")
         if self.entry["via"] == EASYTIER:
-            raise _Failed("EasyTier is not supported by this hmz yet.")
+            return [self._joins(self.entry)]
         try:
             on = road(self.entry)
         except ValueError as why:
@@ -764,7 +835,99 @@ class _Remote:
             if self._closed.is_set() or time.monotonic() > ending:
                 raise _Failed("The port was not forwarded in time.")
             time.sleep(0.05)
-        return web, forward
+        return [web, forward]
+
+    def _joins(self, entry: dict[str, Any]) -> subprocess.Popen[Any]:
+        """Joins a P2P daemon's network, once it answers there at a version not older.
+
+        `easytier-core` is downloaded first where it must be, which is `installing`; then it
+        puts the server's interface on a port of this machine's loopback, which is waited on
+        until the server answers through it. Nothing ever said here holds the secret.
+
+        Returns:
+          The `easytier-core` joined.
+
+        Raises:
+          _Failed: Saying what went wrong.
+        """
+        from packaging.version import InvalidVersion, Version
+
+        from hmz.coganchor import easytier
+
+        self._note = ""
+        secret: str = entry["secret"]
+        try:
+            easytier.binary(lambda said: self._says(INSTALLING, said))
+        except OSError as why:
+            raise _Failed(str(why)) from why
+        self._says(CONNECTING)
+        self.remote, self.key = easytier.PORT, easytier.key(secret)
+        # Any port but the server's own, which this machine's `hmz server` would want.
+        self.port = _free(0)
+        with self._changed:
+            if self._closed.is_set():
+                raise _Failed("Closed.")
+            try:
+                joined = easytier.joining(
+                    secret, self.port, port=self.remote, peers=entry["peers"]
+                )
+            except (OSError, ValueError) as why:
+                raise _Failed(f"EasyTier could not be run: {why}") from why
+            self._children.add(joined)
+        ending = time.monotonic() + _STARTING
+        while not (there := self._answers()):
+            if joined.poll() is not None:
+                raise _Failed(f"EasyTier stopped, exiting {joined.returncode}.")
+            if self._closed.is_set() or time.monotonic() > ending:
+                raise _Failed(f"{self.name} did not answer over EasyTier in time.")
+            time.sleep(0.25)
+        self.there = there
+        try:
+            older = Version(there) < Version(self._version)
+        except InvalidVersion as why:
+            raise _Failed(f"{self.name} says it is hmz {there}.") from why
+        if older:
+            raise _Failed(
+                f"{self.name} is served by an older Humanize, hmz {there}; "
+                f"serve it with hmz {self._version}."
+            )
+        return joined
+
+    def _answers(self) -> str:
+        """The version of `hmz` the interface reached answers with, or "" where none answers.
+
+        Raises:
+          _Failed: If it answers, refusing.
+        """
+        connection = http.client.HTTPConnection(
+            "127.0.0.1", self.port, timeout=_HEARING
+        )
+        try:
+            connection.request(
+                "GET",
+                f"/api/daemons/{LOCAL}/state",
+                headers=headers(self.remote, self.key),
+            )
+            answer = connection.getresponse()
+            body = answer.read()
+        except (OSError, http.client.HTTPException):
+            return ""
+        finally:
+            connection.close()
+        if answer.status != 200:  # noqa: PLR2004 -- the one success it answers with
+            raise _Failed(f"{self.name} answered {answer.status} over EasyTier.")
+        try:
+            said: object = json.loads(body)
+        except ValueError:
+            said = None
+        version = (
+            cast("dict[str, Any]", said).get("version")
+            if isinstance(said, dict)
+            else None
+        )
+        if not isinstance(version, str) or not version:
+            raise _Failed(f"{self.name} answered what cannot be read over EasyTier.")
+        return version
 
     def _installed(self, on: Road) -> str:
         """The version of `hmz` there, once it is this one where it may be made so."""
@@ -917,13 +1080,13 @@ def _listened(port: int) -> bool:
         return trying.connect_ex(("127.0.0.1", port)) == 0
 
 
-def _stops(child: subprocess.Popen[str]) -> None:
+def _stops(child: subprocess.Popen[Any]) -> None:
     """Stops a process and reaps it: its standard input closed, then terminated, then killed."""
     if child.stdin is not None:
         with contextlib.suppress(OSError):
             child.stdin.close()
-    with contextlib.suppress(subprocess.TimeoutExpired):
-        child.wait(timeout=1.0)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            child.wait(timeout=1.0)
     if child.poll() is None:
         with contextlib.suppress(OSError):
             child.terminate()
