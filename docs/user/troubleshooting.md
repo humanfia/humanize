@@ -78,12 +78,12 @@ want the agents to work in.
 
 **Verify.** The usage line is gone.
 
-### `-a 'agent=claude:high': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`
+### `-a 'agent=claude/': missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`
 
 **Symptom.** `hmz exec` prints its usage, then this.
 
-**Cause.** A part is missing, or the CLI is not one Humanize knows. The CLI and the model are
-required; the effort may be left off, which asks for none.
+**Cause.** The model is missing. The CLI and the model are required; the effort may be left
+off, which asks for none.
 
 **Fix.** Write the CLI, a `/` and the model, and the effort after a `:` if you want one. `auto`
 is the effort that asks for none:
@@ -95,6 +95,18 @@ is the effort that asks for none:
 
 **Verify.** The usage line is gone. Try a spec in the reader on [Run it
 unattended](/user/unattended#name-an-agent-for-each-role) to see how it is read.
+
+### `-a 'agent=codxe/gpt-6.1-sol': unknown CLI 'codxe'; see the CLI reference for supported names`
+
+**Symptom.** `hmz exec` prints its usage, then this.
+
+**Cause.** The CLI name is not one of Humanize's built-in CLIs, aliases, or configured ACP
+CLIs.
+
+**Fix.** Use a name from the [CLI reference](/reference/cli#writing-an-agent), or add the CLI
+on the Accounts page before using it.
+
+**Verify.** The line is accepted when the CLI and model are valid.
 
 ### `ralph_loop requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` {#ralph-loop-a-run-is-given-a-budget-b-duration-cost-output-tokens-and-this-one-was-given-none}
 
