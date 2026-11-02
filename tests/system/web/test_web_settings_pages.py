@@ -59,15 +59,6 @@ class _Daemons:
             self.writes.append((path, body))
         if path == "/api/daemons/hosts":
             said: Any = {"hosts": self.hosts}
-        elif path == "/api/daemons/import":
-            self.daemons += [
-                {"name": one, "via": "ssh", "alias": one, "host": ""}
-                for one in body["aliases"]
-            ]
-            self.hosts = [
-                one for one in self.hosts if one["alias"] not in body["aliases"]
-            ]
-            said = self.listed()
         elif path == "/api/daemons/remove":
             self.daemons = [one for one in self.daemons if one["name"] != body["name"]]
             said = self.listed()
@@ -99,7 +90,7 @@ def test_a_daemon_is_added_a_part_at_a_time(project: Path, engine: str) -> None:
         expect(rows.first.get_by_role("button")).to_have_count(0)
         form = page.locator("[data-hmz=write-daemon]")
         form.get_by_label("Name").fill("lab")
-        form.get_by_role("button", name="hmz-stored").click()
+        form.get_by_role("button", name="Custom").click()
         form.get_by_label("Host").fill("lab.example")
         form.get_by_label("User").fill("ann")
         form.get_by_label("Port", exact=True).fill("2222")
@@ -129,18 +120,6 @@ def test_a_daemon_is_added_a_part_at_a_time(project: Path, engine: str) -> None:
                 "replace": False,
             },
         )
-
-
-def test_hosts_are_imported_from_the_ssh_config(project: Path, engine: str) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        fake = _daemons(page)
-        go(page, "/settings/daemons")
-        importing = page.locator("[data-hmz=import-daemons]")
-        importing.get_by_role("button", name="Read SSH config").click()
-        importing.locator("[data-alias=gpu]").check()
-        importing.get_by_role("button", name="Import").click()
-        expect(page.locator("[data-hmz=daemon][data-name=gpu]")).to_be_visible()
-        assert fake.writes[-1] == ("/api/daemons/import", {"aliases": ["gpu"]})
 
 
 def test_a_daemon_is_removed_once_confirmed(project: Path, engine: str) -> None:
@@ -302,7 +281,7 @@ def test_what_is_being_read_says_so_until_it_is_answered(
 
         page.route("**/api/files?**", held)
         form = page.locator("[data-hmz=write-daemon]")
-        form.get_by_role("button", name="hmz-stored").click()
+        form.get_by_role("button", name="Custom").click()
         form.locator("[data-hmz=path-browse]").click()
         panel = page.get_by_role("dialog", name="Choose Identity file")
         expect(panel.locator(".loading")).to_have_text("Reading…")

@@ -1512,20 +1512,20 @@ writing the same list; every change is written at once.
 | Row | About |
 | --- | --- |
 | `Local` | `this machine`; `enter` says `Local is this machine's daemon, always there` |
-| `<name>` | `<mode> · <reached at> · <not connected\|connecting\|installing\|up, hmz <version>\|failed>[: <detail>]`, drawn again as it changes: `SSH Config · <alias>`, `hmz-stored · <user@host:port>` or `P2P · EasyTier` |
+| `<name>` | `<mode> · <reached at> · <not connected\|connecting\|installing\|up, hmz <version>\|failed>[: <detail>]`, drawn again as it changes: `SSH Config · <alias>`, `Custom · <user@host:port>` or `P2P · EasyTier` |
 
 `enter`, `m` or a click on a daemon opens its menu: **connect** (reaches it now, installing
 this `hmz` there where it is missing or another version, as the web page does), **edit…**,
 **remove** and **copy name**. **Add daemon** and **edit…** open one form, the web page's New
 daemon: `name` (new only; `what /epics @<name> calls it`), then `kind` (▾ `SSH` `P2P`) and
-`mode` (▾ `hmz-stored` `SSH Config` under SSH, `EasyTier` under P2P; a new one starts on
-`hmz-stored`, an edited one on the mode it is in, which follows from its fields and is never
+`mode` (▾ `Custom` `SSH Config` under SSH, `EasyTier` under P2P; a new one starts on
+`Custom`, an edited one on the mode it is in, which follows from its fields and is never
 written), then what the mode asks:
 
 | Mode | Rows | Written |
 | --- | --- | --- |
 | `SSH Config` | `host` (▾ every host of your ssh config) | its `alias` alone |
-| `hmz-stored` | `import` (▾ every host of your ssh config: fills the rows under it as `ssh -G` resolves it, options cleared, `reading <host>…` meanwhile), `host`, `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options` (`KEYWORD=VALUE, …`) | those fields, not the `Host` |
+| `Custom` | `import` (▾ every host of your ssh config: fills the rows under it as `ssh -G` resolves it, options cleared, `reading <host>…` meanwhile), `host`, `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options` (`KEYWORD=VALUE, …`) | those fields, not the `Host` |
 | `EasyTier` | `secret` (bullets, never shown; `leave blank to keep current value` on one written), `nodes` (`shared EasyTier nodes: tcp://host:port, …`) | `via: easytier`, the secret, and the nodes as `peers` |
 
 **Done** `saves this daemon`, always with its `via`; **remove** on one already written.

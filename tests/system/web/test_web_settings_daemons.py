@@ -7,7 +7,7 @@ The daemons are the browser's to fake: the list of them is answered in the page'
 so is everything sent to the remote ones -- `gpu` mirrors what Local reads and takes whatever
 is written to it, and `lab` refuses everything, as a daemon that is not up does.
 
-Then the New daemon form, in each kind and mode: SSH Config and hmz-stored against the real
+Then the New daemon form, in each kind and mode: SSH Config and Custom against the real
 daemons, with an ssh config in the test's home; EasyTier against a registry and a community
 node list faked in the browser.
 """
@@ -256,7 +256,7 @@ def test_a_stored_daemon_is_filled_from_the_ssh_config(
         page.route("**/api/daemons/hosts", _resolved)
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
-        form.get_by_role("button", name="hmz-stored").click()
+        form.get_by_role("button", name="Custom").click()
         form.locator("#daemon-import").select_option("gpu")
         form.locator("[data-hmz=daemon-import]").click()
         expect(form.get_by_label("Name")).to_have_value("gpu")
@@ -271,11 +271,11 @@ def test_a_stored_daemon_is_filled_from_the_ssh_config(
         assert fields["via"] == "ssh"
         assert "alias" not in fields
         row = page.locator("[data-hmz=daemon][data-name=box]")
-        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("SSH · hmz-stored")
+        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("SSH · Custom")
         expect(row).to_contain_text("ann@gpu.example:2200")
 
         row.get_by_role("button", name="Edit").click()
-        expect(_pressed(form, "daemon-mode")).to_have_text("hmz-stored")
+        expect(_pressed(form, "daemon-mode")).to_have_text("Custom")
         expect(form.locator("#daemon-host")).to_have_value("gpu.example")
 
 

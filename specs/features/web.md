@@ -594,7 +594,7 @@ left out.
 **11.3.1** `Themes` MUST let the user choose a theme as §12 specifies.
 
 **11.3.2** `Daemons` MUST list Local and every SSH daemon with its state, and MUST let the user add,
-edit, import, connect and remove SSH daemons as §13 specifies.
+edit, connect and remove SSH daemons as §13 specifies.
 
 **11.3.3** `Notifications` MUST let the user switch each kind of notification on and off -- `Done`,
 `Failed`, `Stopped`, `Questions` and `Chat turns` -- and switch system notifications on and off.
@@ -664,9 +664,9 @@ digits, `.`, `_` and `-`.
 **13.4** The user MUST be able to add an SSH daemon a part at a time -- its name, host, user, port,
 identity file, proxy jump and ssh options -- as an ssh runtime is set up.
 
-**13.5** The user MUST be able to import hosts from the ssh config, each added under its `Host` and
-resolved through the ssh config each time it is reached; hosts already added MUST be skipped. The
-page MUST NOT write to the ssh config.
+**13.5** The user MUST be able to add a host of the ssh config under its `Host`, resolved through
+the ssh config each time it is reached; hosts already added MUST NOT be offered. The page MUST NOT
+write to the ssh config.
 
 **13.6** Removing an SSH daemon MUST ask for confirmation, and MUST forget only how to reach it,
 leaving everything on that machine as it is.
@@ -695,9 +695,9 @@ MUST fail.
 
 **13.14** The `New daemon` form MUST offer two kinds, `SSH` and `P2P`, and under `SSH` two modes:
 `SSH Config`, which offers only a dropdown of the hosts of the ssh config and writes the daemon
-under its `Host` (§13.5), and `hmz-stored`, which is the form of §13.4.
+under its `Host` (§13.5), and `Custom`, which is the form of §13.4.
 
-**13.15** `hmz-stored` MUST let the user import a host of the ssh config into its form, filling its
+**13.15** `Custom` MUST let the user import a host of the ssh config into its form, filling its
 fields from what the ssh config resolves for that host; the daemon MUST be written from those
 fields, not under the `Host`.
 

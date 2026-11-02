@@ -359,14 +359,14 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
         await on(pilot, Adjusts)
         await shows(pilot, "cfg saved", "SSH Config · gpu")
 
-        # SSH, hmz-stored, its fields filled from a host of the ssh config.
+        # SSH, Custom, its fields filled from a host of the ssh config.
         await _adds(pilot, "kept")
         await picks(pilot, "import", "gpu")
         await shows(pilot, "gpu.example", "2222")
-        pilot.app.save_screenshot("daemon-hmz-stored.svg", str(tmp_path))
+        pilot.app.save_screenshot("daemon-custom.svg", str(tmp_path))
         await pilot.click("#act-done")
         await on(pilot, Adjusts)
-        await shows(pilot, "kept saved", "hmz-stored · me@gpu.example:2222")
+        await shows(pilot, "kept saved", "Custom · me@gpu.example:2222")
 
         # P2P, EasyTier: a secret too short is refused before it is written.
         await _adds(pilot, "far")

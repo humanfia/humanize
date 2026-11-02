@@ -1,9 +1,9 @@
 // The daemons the page can show: Local, this machine's own, which is always there, and every
 // SSH or P2P daemon written down beside it -- each with its kind and how far reaching it has got.
 // A new one is of a kind and a mode: SSH › SSH Config, a Host of the ssh config picked; SSH ›
-// hmz-stored, written a part at a time as a runtime's SSH host is, or filled from the ssh config;
-// or P2P › EasyTier, a secret and the shared nodes its network meets on. Hosts are brought in
-// from the ssh config too; one is reached again, changed, or taken away, asked first.
+// Custom, written a part at a time as a runtime's SSH host is, or filled from the ssh config;
+// or P2P › EasyTier, a secret and the shared nodes its network meets on. One is reached again,
+// changed, or taken away, asked first.
 
 import { get, post } from '../../api.js'
 import { acting, confirming, empty, fill, h, icon, iconButton, problem } from '../../dom.js'
@@ -22,7 +22,7 @@ const STATES = {
 const KINDS = { ssh: 'SSH', p2p: 'P2P' }
 
 /** How a daemon is reached: its kind, and the mode's name under it. */
-const MODES = { config: ['ssh', 'SSH Config'], stored: ['ssh', 'hmz-stored'], easytier: ['p2p', 'EasyTier'] }
+const MODES = { config: ['ssh', 'SSH Config'], stored: ['ssh', 'Custom'], easytier: ['p2p', 'EasyTier'] }
 
 /** The fewest bytes, in UTF-8, a P2P daemon's secret may be. */
 const SECRET = 16
@@ -33,8 +33,7 @@ const NODE = /^(tcp|udp|ws|wss|quic|wg):\/\/\S+:(\d{1,5})$/
 export function draw(holder) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'daemons' }, h('p', { class: 'loading', role: 'status' }, 'Reading the daemons…'))
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-daemon' })
-  const importing = h('section', { class: 'panel', 'data-hmz': 'import-daemons' })
-  fill(holder, listing, writing, importing)
+  fill(holder, listing, writing)
   let daemons = []
   let editing = null
   let again = null
@@ -174,7 +173,7 @@ export function draw(holder) {
       }
     }
 
-    /** SSH › hmz-stored: a part at a time, or filled from what the ssh config says of a host. */
+    /** SSH › Custom: a part at a time, or filled from what the ssh config says of a host. */
     function drawStored() {
       const stored = modeOf(was) === 'stored' ? was : {}
       const host = text('daemon-host', stored.host, 'box.example')
@@ -327,55 +326,13 @@ export function draw(holder) {
     pick(editing ? modeOf(editing) : 'config')
   }
 
-  function drawImporting() {
-    const reading = acting(
-      'Read SSH config',
-      async () => {
-        const hosts = ((await get('/api/daemons/hosts')).hosts || []).map((one) => (typeof one === 'string' ? { alias: one } : one))
-        const boxes = hosts.map((one) => ({ one, box: h('input', { type: 'checkbox', 'data-alias': one.alias }) }))
-        fill(
-          importing,
-          h('h2', {}, 'SSH config'),
-          hosts.length
-            ? [
-                h(
-                  'div',
-                  { class: 'form' },
-                  boxes.map(({ one, box }) => h('label', { class: 'check' }, box, h('b', { class: 'mono' }, one.alias), one.host ? h('span', { class: 'dim' }, reached(one)) : null)),
-                ),
-                h(
-                  'p',
-                  { class: 'row' },
-                  acting(
-                    'Import',
-                    async () => {
-                      const aliases = boxes.filter(({ box }) => box.checked).map(({ one }) => one.alias)
-                      if (!aliases.length) return
-                      await post('/api/daemons/import', { aliases })
-                      await read()
-                      drawImporting()
-                      // A new daemon's form offers the hosts not added yet: those left.
-                      if (!editing) drawWriting()
-                    },
-                    { kind: 'btn primary', busy: 'Importing…' },
-                  ),
-                ),
-              ]
-            : h('p', { class: 'dim' }, 'Every host it names is added already.'),
-        )
-      },
-      { kind: 'btn', busy: 'Reading…' },
-    )
-    fill(importing, h('h2', {}, 'SSH config'), h('p', { class: 'dim' }, 'Import hosts from your SSH config as daemons.'), reading)
-  }
-
   read()
     .catch((error) => {
       if (error.status === 404) return fill(holder, empty('Unavailable', 'This Humanize does not keep daemons.'))
       fill(listing, h('h2', {}, 'Daemons'), problem(error))
     })
     .then(() => {
-      if (holder.contains(writing)) drawWriting(), drawImporting()
+      if (holder.contains(writing)) drawWriting()
     })
   return () => {
     gone = true
