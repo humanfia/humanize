@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, cast
 from .routing import Download, Made, Refusal, Route, routes
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from hmz.runtime.epic import Called, Ran
 
@@ -284,7 +284,7 @@ def refused(why: ValueError) -> Refusal:
 
 def held_by(
     runs: list[Ran], running: list[dict[str, Any]]
-) -> dict[Path, dict[str, str]]:
+) -> dict[Path, dict[str, Any]]:
     """Which of the runs written down are the runs the hosts are going with now.
 
     A host says which epic it writes, once it writes one. Before then it says what it started
@@ -297,10 +297,10 @@ def held_by(
       running: What each host says runs, with its `workspace` and its `slot`.
 
     Returns:
-      Each run going, by its epic: where it is in its turn where it is a chat, or "", and the
-      slot of the host going with it.
+      Each run going, by its epic: where it is in its turn where it is a chat, or "", the
+      slot of the host going with it, and the questions it waits on, as `asking`.
     """
-    held: dict[Path, dict[str, str]] = {}
+    held: dict[Path, dict[str, Any]] = {}
     for standing in running:
         workspace, epic = standing["workspace"], standing.get("epic")
         started = float(standing.get("at") or 0.0)
@@ -318,13 +318,20 @@ def held_by(
             held[ran.at] = {
                 "turn": str(standing.get("turn") or ""),
                 "slot": str(standing.get("slot") or ""),
+                "asking": list(standing.get("asking") or ()),
             }
             break
     return held
 
 
 def row(
-    ran: Ran, *, held: bool, going: bool = False, turn: str = "", slot: str = ""
+    ran: Ran,
+    *,
+    held: bool,
+    going: bool = False,
+    turn: str = "",
+    slot: str = "",
+    asking: Sequence[str] = (),
 ) -> dict[str, Any]:
     """One run as the list says it.
 
@@ -335,14 +342,17 @@ def row(
       turn: Of a chat a host is going with, where it is in its turn, or "" where unknown.
       slot: Of a run a host is going with, which of its workspace's hosts that is: "" for
         the workspace's own, `chat:<hex>` for a chat's.
+      asking: Of a run a host is going with, the questions it waits on, each
+        `<run>:<question>`.
     """
-    from hmz.runtime.epic import RUNNING, UNFINISHED, ending
+    from hmz.runtime.epic import RUNNING, ending
 
     first = ran.task.strip().splitlines()[0] if ran.task.strip() else ""
     how = ending(ran, going=held or going)
-    if ran.flow == CHAT and how in (RUNNING, UNFINISHED, "stopped"):
-        # A chat is going while its agent answers, and done between turns or once over.
-        how = RUNNING if how == RUNNING and turn != DONE else DONE
+    if ran.flow == CHAT and how != "failed":
+        # A chat is going while its agent answers, and stopped between turns or once over,
+        # short of failing.
+        how = RUNNING if how == RUNNING and turn != DONE else "stopped"
     return {
         "name": ran.name,
         "workspace": _resolved(ran.workspace),
@@ -360,6 +370,7 @@ def row(
         "spent": labelled(ran.spent),
         "held": held,
         "slot": slot,
+        "asking": list(asking),
         "backup": list(ran.backup),
         "backed": ran.backed,
     }
@@ -391,6 +402,7 @@ def detail(
     going: bool = False,
     turn: str = "",
     slot: str = "",
+    asking: Sequence[str] = (),
 ) -> dict[str, Any]:
     """One run, whole, as its own page says it.
 
@@ -402,8 +414,9 @@ def detail(
       foreign: Why one imported cannot be picked up here, or "".
       turn: Of a chat a host is going with, where it is in its turn, or "" where unknown.
       slot: Of a run a host is going with, which of its workspace's hosts that is.
+      asking: Of a run a host is going with, the questions it waits on.
     """
-    return row(ran, held=held, going=going, turn=turn, slot=slot) | {
+    return row(ran, held=held, going=going, turn=turn, slot=slot, asking=asking) | {
         "at": str(ran.at),
         "task": ran.task,
         "ref": ran.ref,

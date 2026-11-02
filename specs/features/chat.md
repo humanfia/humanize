@@ -89,9 +89,12 @@ not be taken and why, and MUST go on between turns.
 
 **5.1** A chat MUST be reported as `running` while a turn is open.
 
-**5.2** A chat MUST be reported as `done` while it is between turns.
+**5.2** A chat MUST be reported as `stopped` while it is between turns; the status line of the
+terminal interface says where its turn is instead (`features/tui.md` §11.4).
 
-**5.3** A chat that has ended MUST be reported as `done`, or as `failed` where §4.9 applies.
+**5.3** A chat that has ended MUST be reported as `stopped`, or as `failed` where §4.9 applies; a
+chat MUST NOT be reported as `done`. A frontend MAY mark a chat as asking, in place of `running` or
+`stopped`, while it waits on a question a person has not yet seen, as `features/web.md` §5.8 does.
 
 **5.4** A frontend MUST NOT offer a way to stop a chat or to force it to stop.
 
