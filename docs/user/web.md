@@ -449,7 +449,7 @@ cannot be taken -- and how to reach it:
 | --- | --- | --- |
 | **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config`, picked from a list. It is resolved through your config every time, so editing the config edits the daemon. |
 | **SSH** | **hmz-stored** | The host, user, port, key, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import** fills them in from what your config says of one of its hosts; they are kept in Humanize, and the config is not read again. |
-| **P2P** | **EasyTier** | The secret the other machine's [`hmz server`](#over-easytier) was started with: at least 16 bytes, shown masked. |
+| **P2P** | **EasyTier** | The secret the other machine's [`hmz server`](#over-easytier) was started with: at least 16 bytes, shown masked. And the [shared nodes](#easytier-nodes) to meet it through: at least one, which the server names too. |
 
 **Import** at the top of the page reads your `~/.ssh/config` and lists every host in it not yet
 added, with a switch each: switch on the ones you want, and each is added as an **SSH Config**
@@ -487,12 +487,22 @@ Where you cannot `ssh` to a machine -- it is behind a NAT, or you only reach it 
 server on it, with a secret of at least 16 bytes:
 
 ```sh
-hmz server start --mode p2p --secret "$(cat ~/hmz-secret)"
+hmz server start --mode p2p --secret "$(cat ~/hmz-secret)" --peer tcp://<node>:11010
 ```
 
 It prints `hmz server: started (pid <n>)` and returns; the server keeps going after the terminal
 closes, until `hmz server stop`. Then, on your own machine, add a **P2P** › **EasyTier** daemon
-with the same secret.
+with the same secret and at least one of the same nodes.
+
+- <span id="easytier-nodes"></span>**The two ends meet through a shared node.** EasyTier runs no public node
+  of its own, so you name one or more each side: a URL such as `tcp://host:11010` (or `udp`,
+  `ws`, `wss`, `quic`, `wg`). The form lists the nodes EasyTier's community shares, as the
+  status page EasyTier's own apps read says, each with whether it is up and how much of the last
+  day it was; check those you want and type any others. Where that list cannot be read from
+  your network, the form says so and takes typed nodes alone. The two ends reach each other
+  directly where they can, and are relayed by the node where they cannot; a node never learns
+  the secret. [`HUMANIZE_EASYTIER_NODES`](/reference/environment#humanize-easytier-nodes) reads
+  the list from another status page.
 
 - **Nothing to install there but Humanize.** Both sides download
   [EasyTier](https://easytier.cn)'s `easytier-core` from its GitHub release into

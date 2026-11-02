@@ -628,7 +628,7 @@ be refused 400.
 the server's version), then each daemon written, each `name`, `label`, `via` (`ssh` or
 `easytier`), `state`, `detail` and `version`; an ssh daemon also `host`, `user`, `port`,
 `identity_file`, `proxy_jump`, `options` (`[keyword, value]` pairs), `alias` and `config`, and an
-EasyTier daemon `secret`, `true` where one is written.
+EasyTier daemon `secret`, `true` where one is written, and `peers`.
 
 **14.1.2** `POST /api/daemons` MUST take `name`, `fields` and `replace` (boolean), and write the
 daemon as `api/sdk.md §14.3` does; a further field or an invalid daemon MUST be refused 400, a
@@ -650,6 +650,11 @@ does.
 
 **14.1.7** No answer MUST hold a secret; `POST /api/daemons` with `replace` and `fields` of an
 EasyTier daemon without `secret` MUST keep the secret written.
+
+**14.1.8** `GET /api/daemons/easytier/nodes` MUST answer `nodes`, the community's shared EasyTier
+nodes (`features/daemons.md` §8.5.11), each `url`, `name`, `version`, `up` (boolean, or null where
+unknown) and `uptime` (from 0 to 1 over 24 hours, or null where unknown); a list that cannot be
+read MUST be refused 503, `The community nodes could not be read: <why>`.
 
 ### 14.2 Reaching a daemon
 
