@@ -56,6 +56,11 @@ daemons:                           # this machine; Settings › Daemons in the w
   identity_file: ~/.ssh/id_ed25519
   proxy_jump: ""
   options: [[ServerAliveInterval, "30"]]
+- name: lab                        # an ssh config host, resolved each time
+  alias: lab
+- name: home                       # over EasyTier; see hmz server
+  via: easytier
+  secret: correct-horse-battery-staple
 notifications:                     # this machine; /settings notifications, and Settings › Notifications on the web
   kinds: {done: true, failed: true, stopped: true, asked: true, listening: true}
   system: true

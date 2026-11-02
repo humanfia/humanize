@@ -23,7 +23,8 @@ import { withBase } from 'vitepress'
   drive the same run, and each says who did what.
 - **Many machines, one page.** The page reaches the [daemons](/user/web#daemons) of your ssh
   hosts as it does this machine's, one at a time, and installs the same Humanize where one is
-  missing.
+  missing; a machine you cannot `ssh` to runs [`hmz server`](/user/web#over-easytier) and is
+  reached peer to peer over EasyTier.
 - **Told when it matters.** An epic ending, a question for you or a `chat` waiting, on any of
   them, is a [notification](/user/web#notifications): in the page, the browser or macOS.
 - **Settings become a form.** The terminal interface draws one from a flow's

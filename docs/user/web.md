@@ -296,7 +296,7 @@ daemon:
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
 | **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
-| **Daemons** | **Local**, always there, and every SSH daemon with its state (up, connecting, installing, failed or idle): add or **Edit** one a part at a time (name, host, user, port, identity file, proxy jump, SSH options), **Import** hosts from your SSH config, **Connect** or **Remove** one, asked first |
+| **Daemons** | **Local**, always there, and every SSH and P2P daemon with its state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Import** hosts from your SSH config, **Connect** or **Remove** one, asked first |
 | **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Chat turns**, and whether the **System** shows them too. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept on this machine, never per daemon |
 
 Above the **Daemon** pages, **Daemon** picks which daemon they read and write: the one on screen
@@ -409,7 +409,9 @@ Start `hmz web` in a project, and open **New epic**:
 Each machine whose epics the page reaches is a **daemon**: the [daemon](/features/daemon) there
 holds its runs. **Local** is this machine, always there and never removed -- where `hmz` runs in
 WSL, as with Humanize Desktop on Windows, the WSL distribution, its host shown as `Debian (WSL)`. Every other
-is an ssh host, reached the way `ssh` reaches it, with your keys and your ssh config.
+is an **SSH** daemon, an ssh host reached the way `ssh` reaches it, with your keys and your ssh
+config; or a **P2P** daemon, a machine running [`hmz server`](#over-easytier) reached over
+EasyTier with a secret you both know.
 
 The page shows one daemon at a time: the sidebar's folders and epics, a new epic, search,
 flows and the Daemon pages of Settings are all that daemon's. To see another's, switch to it.
@@ -422,7 +424,7 @@ The foot of the sidebar names the daemon showing, its host, a dot for whether it
 how many epics are going on it. Click it for its menu:
 
 - **Daemon**, which opens beside it every daemon, with whether it is reached; pick one to switch
-  to it. An ssh host is connected to when you pick it. **Connect** on one that failed tries it
+  to it. A remote daemon is connected to when you pick it. **Connect** on one that failed tries it
   again, and **Manage** opens **Settings → Daemons**.
 - **Settings** and **Usage**, and **Update** where a newer Humanize is out.
 
@@ -431,23 +433,30 @@ A daemon is in one of these states:
 | State | What it means |
 | --- | --- |
 | `idle` | Not connected to yet. |
-| `connecting` | `ssh` is reaching the host and starting `hmz web` there. |
-| `installing` | The host has no `hmz`, or another version, and it is being installed. See [What happens on connect](#on-connect). |
+| `connecting` | `ssh` is reaching the host and starting `hmz web` there; or EasyTier is joining the server's network. |
+| `installing` | The host has no `hmz`, or another version, and it is being installed (see [What happens on connect](#on-connect)); or, for a P2P daemon, `Downloading EasyTier <version>` here. |
 | `up` | Reached: its epics are on the page. |
 | `failed` | It could not be reached; the menu says why, and **Connect** tries again. |
 
 ### Adding one {#adding-a-daemon}
 
-**Settings → Daemons** lists Local and every ssh host, each with its state. **Add** opens a form,
-the same as an [ssh runtime's](/user/settings#an-ssh-host): the **name** the page calls it, then
-the host, user, port, key, proxy jump and options, a part at a time. A name is letters, digits,
-`.`, `_` and `-`; `local` is Local's and cannot be taken.
+**Settings → Daemons** lists Local and every remote daemon, each with its state. **New daemon**
+asks the **name** the page calls it -- letters, digits, `.`, `_` and `-`; `local` is Local's and
+cannot be taken -- and how to reach it:
 
-**Import** reads your `~/.ssh/config` and lists every host in it not yet added, with a switch
-each: switch on the ones you want, and each is added under its `Host`, resolved through your
-config every time, so editing the config edits the daemon. Nothing here writes to the config.
+| Kind | Mode | What you give |
+| --- | --- | --- |
+| **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config`, picked from a list. It is resolved through your config every time, so editing the config edits the daemon. |
+| **SSH** | **hmz-stored** | The host, user, port, key, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import** fills them in from what your config says of one of its hosts; they are kept in Humanize, and the config is not read again. |
+| **P2P** | **EasyTier** | The secret the other machine's [`hmz server`](#over-easytier) was started with: at least 16 bytes, shown masked. |
 
-Edit a daemon, connect to it to check it, or remove it, which asks first. Removing one forgets
+**Import** at the top of the page reads your `~/.ssh/config` and lists every host in it not yet
+added, with a switch each: switch on the ones you want, and each is added as an **SSH Config**
+daemon. Nothing here writes to the config.
+
+Edit a daemon, connect to it to check it, or remove it, which asks first. Editing opens the form
+in the daemon's own kind and mode; a P2P daemon's secret is never shown again, and leaving it
+empty keeps it. Removing one forgets
 how to reach it, and nothing on the host: its epics, and its `hmz`, stay there.
 
 The daemons are kept in this machine's `~/.hmz/settings.yaml`, under `daemons`.
@@ -470,6 +479,32 @@ browser only ever talks to Local.
 - **The epics outlive it.** Stopping `hmz web` here closes every ssh connection, and the
   `hmz web` on each host stops with it; the epics there keep going, held by that host's
   daemon. See [Leaving it running](/user/leaving).
+
+### Over EasyTier (P2P) {#over-easytier}
+
+Where you cannot `ssh` to a machine -- it is behind a NAT, or you only reach it out -- start a
+server on it, with a secret of at least 16 bytes:
+
+```sh
+hmz server start --mode p2p --secret "$(cat ~/hmz-secret)"
+```
+
+It prints `hmz server: started (pid <n>)` and returns; the server keeps going after the terminal
+closes, until `hmz server stop`. Then, on your own machine, add a **P2P** › **EasyTier** daemon
+with the same secret.
+
+- **Nothing to install there but Humanize.** Both sides download
+  [EasyTier](https://easytier.cn)'s `easytier-core` from its GitHub release into
+  `~/.hmz/easytier/<version>/` the first time, checked against the checksum Humanize pins, and
+  reuse it after. It runs without root and without a network device.
+- **The secret stays with you.** The EasyTier network's name and password, and the key of the
+  server's `hmz web`, are each derived from the secret; the secret itself is never sent, nor
+  put on a command line. Anyone with the secret can reach the server's epics: keep it as you
+  keep a password.
+- **The same Humanize.** Nothing is installed on the server's machine from here. A server
+  older than this machine's `hmz` is refused, as an older daemon is; update it there with
+  `hmz update`, then `hmz server stop` and `start` again.
+- **The epics outlive it.** `hmz server stop` stops its `hmz web` and EasyTier, never an epic.
 
 ## Notifications {#notifications}
 
@@ -598,6 +633,12 @@ says `idle` or how many are `live` again once it has.
 **Settings → Daemons**, say what it said. Check that `ssh <host>` works from a terminal here
 without asking for anything -- a password or a host key to accept cannot be answered from the
 page -- then press **Connect**.
+
+### A P2P daemon says `failed`
+
+EasyTier could not be downloaded here, or the server could not be reached on its network. Check
+that `hmz server start` is running on the other machine with the very same secret, and that
+both machines can reach the internet; then press **Connect**.
 
 ### A daemon will not update its `hmz`
 
