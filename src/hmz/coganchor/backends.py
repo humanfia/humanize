@@ -2098,10 +2098,9 @@ PROFILES = (
         sessions=("sessions",),
         told=True,
         efforts=_DSH,
-        # None yet. The SDK's `sdk` profile mounts `dsh-skill-filesystem` since 0.1.2, but
-        # Humanize hands every runtime a home of the run's own, so which of a user's skills a
-        # session would load -- and how one is chosen -- is still to be put to the runtime; a
-        # list here before then would be of skills nothing is known to load.
+        # No skill globs: the runtime finds skills its own way -- from the project's root, the
+        # project's before the user's -- which `agents/skills.py` reads it by instead, and the
+        # driver hands the runtime the user's own home's when it is given the epic's.
         # `DEEPSEEK_SEARCH_BASE_URL` beside the other two because the search provider mounted
         # for an agent that may search reads it, and reads it *instead of* `DEEPSEEK_BASE_URL`:
         # search speaks the Anthropic-compatible Messages API and chat completions do not, so

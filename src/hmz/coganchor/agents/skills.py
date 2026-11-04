@@ -20,6 +20,8 @@ into the workspace, which is the project's and holds nothing of Humanize's.
 from __future__ import annotations
 
 import contextlib
+import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -43,6 +45,17 @@ _FRONT = 4096
 #: What front matter is fenced with, and how little of a description a row has room for.
 _FENCE = "---"
 _ABOUT = 90
+
+#: What DeepSeek Harness takes a skill's name to be: kebab case, as `@deepseek-ai/dsh-skill`
+#: checks it. A file naming anything else, or nothing, is one it passes over.
+_KEBAB = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+
+#: The front matter that says who may invoke a DeepSeek Harness skill, and the older
+#: spellings of it that it refuses, passing the file over: each must be a boolean, `0` or `1`,
+#: or `true`, `yes`, `on`, `false`, `no` or `off` in any case.
+_INVOKED = ("disable-model-invocation", "user-invocable")
+_LEGACY = frozenset({"disableModelInvocation", "modelInvocable", "userInvocable"})
+_FLAGS = frozenset({"1", "0", "true", "yes", "on", "false", "no", "off"})
 
 #: The layout every one of these CLIs reads a skill in: a directory of skills, one directory
 #: apiece, each holding the file that is the skill. It is what a flow keeps its own in too, so
@@ -76,12 +89,15 @@ def skills(backend: str, where: Path | str | None = None) -> list[Skill]:
       where: The project whose own skills to include, defaulting to this directory.
 
     Returns:
-      One entry per skill, yours before the project's and each set in the order it is on disk.
-      Empty for a backend that is not known here, keeps none, or has none installed.
+      One entry per skill, yours before the project's and each set in the order it is on disk
+      -- but for dsh, which prefers the project's and is listed in its own order. Empty for
+      a backend that is not known here, keeps none, or has none installed.
     """
     profile = named(backend)
     if profile is None:
         return []
+    if profile.name == "dsh":
+        return _dsh(Path(where or Path.cwd()).absolute())
     found: list[Skill] = []
     seen: set[str] = set()
     for root, globs, whose in (
@@ -103,6 +119,131 @@ def skills(backend: str, where: Path | str | None = None) -> list[Skill]:
                     seen.add(skill.name)
                     found.append(skill)
     return found
+
+
+def _dsh(where: Path) -> list[Skill]:
+    """The skills DeepSeek Harness would load here, as its runtime finds them.
+
+    Read off `@deepseek-ai/dsh-skill-filesystem` as the SDK's runtime bundles it, rather than
+    off a profile's globs, since it finds them its own way: from the project's root -- the
+    nearest directory up from here holding a `.git`, or here where none does -- and in the
+    order it prefers them, the project's `.dsh` and `.agents` before the home's and then
+    `$DSH_AGENTS_HOME`'s. Each root holds a skill as `<name>/SKILL.md` or as `<name>.md`, and
+    a file it cannot read a kebab-case name and a description out of is one it passes over.
+
+    Args:
+      where: The directory a session would work in.
+
+    Returns:
+      One entry per name, the project's first, as the harness would list them.
+    """
+    project = next(
+        (one for one in (where, *where.parents) if (one / ".git").exists()), where
+    )
+    home = os.environ.get("DSH_HOME", "").strip() or "~/.dsh"
+    shared = os.environ.get("DSH_AGENTS_HOME") or "~/.agents"
+    found: dict[str, Skill] = {}
+    # Each with whether it passes over `.system`, where the harness keeps skills of its own --
+    # which its home's root does, and no other, wherever else that root happens to be.
+    for root, whose, system in (
+        (project / ".dsh" / SKILLS, "this project", False),
+        (project / ".agents" / SKILLS, "this project", False),
+        (Path(home).expanduser() / SKILLS, "yours", True),
+        (Path(shared).expanduser() / SKILLS, "yours", False),
+    ):
+        try:
+            entries = sorted(root.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if system and entry.name == ".system":
+                continue
+            card = entry / CARD if entry.is_dir() else entry
+            if card.suffix != ".md" or not card.is_file():
+                continue
+            skill = _native(card, whose)
+            if skill is not None and skill.name not in found:
+                found[skill.name] = skill
+    return list(found.values())
+
+
+def _native(path: Path, whose: str) -> Skill | None:
+    """One skill file, read as DeepSeek Harness reads it, or None where it passes it over.
+
+    Its front matter is everything between a first line of `---` and the next line that is
+    `---` and nothing else, and must be a mapping whose `name` is a kebab-case string and
+    whose `description` is a string with anything in it -- the whole of what the harness
+    asks of one, of any length. Read whole, as the harness reads it, rather than its head.
+
+    Args:
+      path: The file.
+      whose: Where it came from.
+
+    Returns:
+      The skill, or None for a file the harness would not list.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8").split("\n")
+    except (OSError, UnicodeError):
+        return None
+    fenced = [one.removesuffix("\r") == _FENCE for one in lines]
+    if not fenced[0] or True not in fenced[1:]:
+        return None
+    try:
+        front: Any = yaml.load(
+            "\n".join(lines[1 : fenced.index(True, 1)]),
+            Loader=_NativeLoader,  # noqa: S506 -- SafeLoader with different scalar rules
+        )
+    except yaml.YAMLError:
+        return None
+    said = cast("dict[str, Any]", front) if isinstance(front, dict) else {}
+    name, about = said.get("name"), said.get("description")
+    if not isinstance(name, str) or _KEBAB.fullmatch(name) is None:
+        return None
+    if not isinstance(about, str) or not about:
+        return None
+    # And who may invoke it, said in the words it reads and in no others.
+    if _LEGACY & said.keys() or any(
+        not _flag(said[key]) for key in _INVOKED if key in said
+    ):
+        return None
+    return Skill(name=name, about=_short(about), whose=whose)
+
+
+def _flag(value: object) -> bool:
+    """Whether DeepSeek Harness reads a value of its front matter as a boolean."""
+    if isinstance(value, (bool, int, float)):
+        return value in (0, 1)
+    return isinstance(value, str) and value.lower() in _FLAGS
+
+
+class _NativeLoader(yaml.SafeLoader):
+    """The runtime's YAML 1.2 strings, without changing other backends' YAML readers.
+
+    PyYAML's implicit YAML 1.1 booleans and timestamps turn valid skill names such as
+    `yes` and `2026-11-04` into other types. Only `true` and `false` are booleans in the
+    runtime's core schema; dates remain strings.
+    """
+
+
+_NativeLoader.yaml_implicit_resolvers = {
+    first: [
+        (tag, pattern)
+        for tag, pattern in resolvers
+        if tag not in {"tag:yaml.org,2002:bool", "tag:yaml.org,2002:timestamp"}
+    ]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+for _first in "tTfF":
+    _NativeLoader.yaml_implicit_resolvers.setdefault(_first, []).append(
+        ("tag:yaml.org,2002:bool", re.compile(r"^(?:true|false)$", re.IGNORECASE))
+    )
+
+
+def _short(about: str) -> str:
+    """A description, on one line and cut to what a row has room for."""
+    about = " ".join(about.split())
+    return about[:_ABOUT] + ("…" if len(about) > _ABOUT else "")
 
 
 def _skill(path: Path, whose: str) -> Skill | None:
@@ -130,11 +271,8 @@ def _skill(path: Path, whose: str) -> Skill | None:
     # The directory is the name where the front matter states none, which is the rule these
     # CLIs read a skill by -- the file is always `SKILL.md`.
     name = str(said.get("name") or path.parent.name).strip()
-    about = " ".join(str(said.get("description") or "").split())
     return Skill(
-        name=name,
-        about=about[:_ABOUT] + ("…" if len(about) > _ABOUT else ""),
-        whose=whose,
+        name=name, about=_short(str(said.get("description") or "")), whose=whose
     )
 
 

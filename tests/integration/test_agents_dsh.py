@@ -10,18 +10,22 @@ between the two.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from hmz.coganchor import providers
 from hmz.coganchor.agents import DshAgent, DshAgentConfig, Failed, Unrecoverable
+from hmz.coganchor.agents.skills import Loaded, skills
 from hmz.coganchor.gateway import gatewayable
 from tests.integration.doubles_agents import Endpoint, harnessed, kinds, serving
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
+
+    from hmz.coganchor.agents import DshSession
 
 CONFIG = DshAgentConfig(model="deepseek-stand-in", effort="high")
 
@@ -30,6 +34,7 @@ CONFIG = DshAgentConfig(model="deepseek-stand-in", effort="high")
 def endpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Endpoint]:
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("DSH_HOME", str(tmp_path / "dsh"))
+    monkeypatch.setenv("DSH_AGENTS_HOME", str(tmp_path / "agents"))
     monkeypatch.chdir(tmp_path)
     for held in serving():
         monkeypatch.setenv("DEEPSEEK_BASE_URL", held.url)
@@ -208,3 +213,182 @@ def test_a_fresh_session_takes_its_first_turn_at_a_new_effort(
     assert session("one") == "one"
     (asked,) = endpoint.asked
     assert asked["reasoning_effort"] == "low"
+
+
+def _skill(root: Path, name: str, body: str, *resources: str) -> Path:
+    """One skill, as `<root>/<name>/SKILL.md` with what else its directory holds."""
+    (root / name).mkdir(parents=True)
+    (root / name / "SKILL.md").write_text(
+        f"---\nname: {name}\ndescription: Unique {name} probe.\n---\n{body}\n",
+        encoding="utf-8",
+    )
+    for one in resources:
+        (root / name / one).write_text(one, encoding="utf-8")
+    return root / name
+
+
+def _loaded(session: DshSession, name: str) -> str:
+    """What the runtime's own `skill` tool answers the model asking for `name`."""
+    return session("use skill " + json.dumps({"name": name}))
+
+
+def _tree(root: Path) -> list[str]:
+    return sorted(str(one.relative_to(root)) for one in root.rglob("*"))
+
+
+def test_catalog_and_runtime_agree_on_yaml_string_skill_names(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    names = ("yes", "on", "no", "2026-11-04")
+    for name in names:
+        _skill(tmp_path / "dsh" / "skills", name, f"BODY-{name}")
+    assert {one.name for one in skills("dsh", tmp_path)} == set(names)
+    agent = DshAgent(CONFIG)
+    try:
+        session = agent.new()
+        for name in names:
+            assert f"BODY-{name}" in _loaded(session, name)
+    finally:
+        agent.stop()
+
+
+@pytest.mark.timeout(240)
+@pytest.mark.parametrize("kept", [False, True])
+def test_a_session_loads_the_users_the_projects_and_the_flows_skills(
+    endpoint: Endpoint, tmp_path: Path, kept: bool
+) -> None:
+    """Of one name, the project's before the flow's, and the flow's before the user's.
+
+    The same whether its sessions are kept in the epic -- its runtime handed the epic's home
+    -- or not: the user's home read as the harness reads it, passing over `.system`, and
+    before `$DSH_AGENTS_HOME`.
+    """
+    work = tmp_path / "repo" / "nested"
+    work.mkdir(parents=True)
+    (tmp_path / "repo" / ".git").mkdir()
+    user, shared = tmp_path / "dsh" / "skills", tmp_path / "agents" / "skills"
+    project = tmp_path / "repo" / ".dsh" / "skills"
+    flow = tmp_path / "flow" / "skills"
+    _skill(user, "mine", "BODY-mine")
+    _skill(user, "clash", "BODY-clash-user")
+    _skill(user, "flowed", "BODY-flowed-user")
+    _skill(user, "homes", "BODY-homes-dsh")
+    _skill(shared, "homes", "BODY-homes-shared")
+    (user / ".system").mkdir()
+    (user / ".system" / "SKILL.md").write_text(
+        "---\nname: system\ndescription: The harness's own.\n---\nBODY-system\n",
+        encoding="utf-8",
+    )
+    _skill(shared, "shared", "BODY-shared")
+    _skill(project, "clash", "BODY-clash-project")
+    _skill(tmp_path / "repo" / ".agents" / "skills", "agents", "BODY-agents")
+    brought = [
+        Loaded("clash", _skill(flow, "clash", "BODY-clash-flow"), "flow"),
+        Loaded(
+            "flowed", _skill(flow, "flowed", "BODY-flowed-flow", "notes.md"), "flow"
+        ),
+    ]
+    before = {one: _tree(one) for one in (user, shared, tmp_path / "repo")}
+    agent = DshAgent(CONFIG)
+    if kept:
+        agent.keeps = tmp_path / "epic" / "sessions"
+    agent.loads(brought)
+    session = agent.new(work)
+    try:
+        said = {
+            name: _loaded(session, name)
+            for name in (
+                *("mine", "shared", "agents", "clash", "flowed", "homes", "system"),
+                "nowhere",
+            )
+        }
+        # The flow's whole directory came with it, put where the session alone reads it.
+        based = Path(said["flowed"].split("skill: ")[1].split("\n")[0])
+        assert (based / "notes.md").read_text(encoding="utf-8") == "notes.md"
+    finally:
+        agent.stop()
+
+    assert [one.name for one in skills("dsh", work)] == [
+        "clash",
+        "agents",
+        "flowed",
+        "homes",
+        "mine",
+        "shared",
+    ]
+    assert "BODY-mine" in said["mine"]
+    assert "BODY-shared" in said["shared"]
+    assert "BODY-agents" in said["agents"]
+    assert "BODY-clash-project" in said["clash"]
+    assert "BODY-flowed-flow" in said["flowed"]
+    assert "BODY-homes-dsh" in said["homes"]
+    assert "unknown or no longer available" in said["system"]
+    assert "unknown or no longer available" in said["nowhere"]
+    assert not based.exists()
+    assert not based.is_relative_to(tmp_path / "repo")
+    assert (tmp_path / "epic" / "sessions" / "dsh").is_dir() is kept
+    assert {one: _tree(one) for one in before} == before
+
+
+@pytest.mark.timeout(240)
+def test_a_sessions_skills_changed_between_turns_change_in_the_same_conversation(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    """Told the runtime's catalog by the plugin humanize mounts, and by no file watcher."""
+    flow = tmp_path / "flow" / "skills"
+    agent = DshAgent(CONFIG)
+    agent.loads(
+        [
+            Loaded("first", _skill(flow, "first", "BODY-first"), "flow"),
+            Loaded("second", _skill(flow, "second", "BODY-second"), "flow"),
+        ]
+    )
+    session = agent.new()
+    session.loads(["first"])
+    try:
+        assert "BODY-first" in _loaded(session, "first")
+        session.loads(["second"])
+        took = _loaded(session, "first")
+        assert "unknown or no longer available" in took
+        assert "BODY-second" in _loaded(session, "second")
+    finally:
+        agent.stop()
+
+    assert agent.opened == [session.id]
+    catalogs = json.dumps(endpoint.asked[-1]["messages"]).split("<available_skills>")
+    assert len(catalogs) == 3
+    assert "The available skill catalog changed" in catalogs[1]
+    assert "second" in catalogs[-1]
+    assert "`first`" not in catalogs[-1]
+
+
+@pytest.mark.timeout(240)
+def test_two_sessions_carry_their_own_skills_and_leave_nothing_behind(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    flow = tmp_path / "flow" / "skills"
+    agent = DshAgent(CONFIG)
+    agent.loads(
+        [
+            Loaded("first", _skill(flow, "first", "BODY-first"), "flow"),
+            Loaded("second", _skill(flow, "second", "BODY-second"), "flow"),
+        ]
+    )
+    one, other = agent.new(), agent.new()
+    one.loads(["first"])
+    other.loads(["second"])
+    try:
+        mine = _loaded(one, "first")
+        theirs = _loaded(one, "second")
+        held = _loaded(other, "second")
+    finally:
+        agent.stop()
+
+    assert "BODY-first" in mine
+    assert "unknown or no longer available" in theirs
+    assert "BODY-second" in held
+    for said in (mine, held):
+        based = said.split("Base directory for this skill: ")[1].split("\n")[0]
+        assert not Path(based).exists()
+    assert _tree(flow) == ["first", "first/SKILL.md", "second", "second/SKILL.md"]
+    assert not (tmp_path / "dsh" / "skills").exists()
