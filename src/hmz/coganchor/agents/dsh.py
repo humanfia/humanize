@@ -27,6 +27,7 @@ from hmz.coganchor import backends
 
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
+from .dsh_skills import configuration as skill_configuration
 from .event import Event, Failed, Saying, Unrecoverable, Usage, say
 from .watchdog import Watchdog
 
@@ -94,21 +95,15 @@ _SEARCH = "web-search-deepseek"
 _JS_TAG = "tag:yaml.org,2002:js"
 _API_KEY_ENV = "DEEPSEEK_API_KEY"
 
-#: The skill provider `dsh-base` mounts as `skill-filesystem`, with no config of its own --
-#: neither `dsh-base` nor the `sdk` profile over it gives that row one, and the provider reads
-#: no section of `settings.yaml` -- so its whole config is the package's defaults. Which read
-#: the user's skills out of `$DSH_HOME/skills`: of a runtime handed the epic's home, out of
-#: that. Such a runtime's row is given `dshHome` and nothing else, the user's own, so that it
-#: goes on reading that home as it reads it anywhere -- at its own rank, passing over
-#: `.system` -- and every other root it reads is the one it read already.
+#: The stock provider, whose original user patch configuration must survive when session
+#: storage moves DSH_HOME into an epic. Only this plugin's settings cross that boundary.
 _STOCK = "skill-filesystem"
 
 #: The flow's skills this session carries, put in `skills` beside the patch, and read by the
 #: same provider package mounted once more under a name of humanize's own: no default root of
-#: its own, so nothing the stock one reads is read twice, and the one root at the rank that
-#: package gives a custom root -- below both of a project's, above both of a user's.
+#: its own, so nothing the stock one reads is read twice, and the one root at the rank of
+#: runtime registrations -- below the project's, above user roots including custom ones.
 _SKILLS = "skills"
-_PROVIDER = "@deepseek-ai/dsh-skill-filesystem"
 
 #: What tells that provider's catalog it changed, for a runtime already up when a flow says
 #: its session is to carry other skills: nothing on the SDK's JSON-RPC surface says so, and a
@@ -116,8 +111,8 @@ _PROVIDER = "@deepseek-ai/dsh-skill-filesystem"
 #: put beside the patch and mounted from it -- reads :data:`_GENERATION` at the start of every
 #: step, before `dsh-tool-skill` takes its catalog, and invalidates the registry's catalog
 #: where it has changed since the last step: the step that starts the next turn lists the
-#: skills afresh, and the model is shown the catalog that replaces the one it had. It
-#: registers a provider of no skills to have the registry's own way of being told.
+#: skills afresh, and the model is shown the catalog that replaces the one it had. The
+#: same plugin wraps the native filesystem provider to give flow skills runtime rank.
 _BRIDGE = "humanize-skills.mjs"
 _GENERATION = "skills.generation"
 _BRIDGING = """\
@@ -126,12 +121,33 @@ import { readFileSync } from "node:fs";
 export const name = "humanize-skills";
 export const inject = ["skills"];
 
-export function apply(ctx, config) {
+export async function apply(ctx, config) {
+  // Resolve through the runtime's loader: a temporary plugin has no node_modules of its own.
+  const { FileSystemSkillProvider } = await ctx.fiber.entry.parent.tree.import(
+    "@deepseek-ai/dsh-skill-filesystem"
+  );
   let control;
   let seen;
+  let provider;
   ctx.skills.registerProvider((given) => {
     control = given;
-    return { name: "humanize-generation", list: async () => [], get: async () => undefined };
+    provider = new FileSystemSkillProvider(ctx, given, config.provider);
+    return {
+      name: provider.name,
+      list: async (options) => {
+        const observed = await provider.list(options);
+        const rank = (items) => items.map((item) => ({ ...item, rank: 250 }));
+        return Array.isArray(observed) ? rank(observed)
+          : { ...observed, candidates: rank(observed.candidates) };
+      },
+      get: (candidate, options) => provider.get(candidate, options),
+    };
+  });
+  ctx.effect(() => () => provider.dispose());
+  ctx.on("fs/observed", (target, observation, actor) => {
+    if (actor?.name === "write" || actor?.name === "edit") {
+      provider.observeHostMutation(target.displayPath);
+    }
   });
   ctx.on("agent/pre-step", (event, next) => {
     let now = "";
@@ -838,15 +854,15 @@ class DshSession(SessionBase):
 
     def _skilled(
         self, written: tempfile.TemporaryDirectory[str] | None
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[dict[str, Any] | None, str | None]:
         """What the runtime is told about skills over its profile.
 
         Args:
           written: The directory the runtime's patch is in, or None before there is one.
 
         Returns:
-          The user's own dsh home, for a runtime handed another -- one whose sessions are kept
-          in the epic -- for the stock provider to go on reading (:data:`_STOCK`); and the
+          The user's stock provider row, for a runtime handed another home -- one whose
+          sessions are kept in the epic -- preserving its configuration and enablement; and the
           directory the flow's skills are put beside the patch in (:data:`_SKILLS`), for an
           agent the flow gave any. Each None where it is not so, and both for a runtime on
           another machine, where no path of this one's is: it runs as that machine's runs.
@@ -867,8 +883,16 @@ class DshSession(SessionBase):
         kept = self._agent.kept()
         moved = kept is None or kept.expanduser().absolute() != home
         lodged = self._agent.loaded and written is not None
+        row: dict[str, Any] | None = None
+        if moved:
+            configured = skill_configuration(home)
+            if configured is None:
+                row = {"id": _STOCK, "disabled": True}
+            else:
+                configured.setdefault("dshHome", str(home))
+                row = {"id": _STOCK, "config": configured}
         return (
-            str(home) if moved else None,
+            row,
             written.name if lodged and written is not None else None,
         )
 
@@ -1071,7 +1095,7 @@ def _composed(
     config: DshAgentConfig,
     way: str | None = None,
     bridge: list[str] | None = None,
-    home: str | None = None,
+    stock: dict[str, Any] | None = None,
     lodged: str | None = None,
 ) -> str:
     """What one agent's runtime is told over the SDK's own profile, as a patch.
@@ -1088,8 +1112,8 @@ def _composed(
       way: The way the account a turn runs under was made by, or None for no account.
       bridge: The command that reaches the flow's own callbacks, or None for an agent
         offered none.
-      home: The user's own dsh home for the stock skill provider to read (:data:`_STOCK`),
-        or None for a runtime whose home is that already.
+      stock: The original user's stock skill provider row, or None where the runtime reads
+        that user's configuration directly.
       lodged: The directory the flow's skills are put beside the patch in, for the
         provider and the plugin that read them (:data:`_SKILLS`, :data:`_BRIDGE`), or None
         for an agent the flow gave none.
@@ -1177,30 +1201,26 @@ def _composed(
             },
         }
         rows.append({"insert": [row]})
-    # The user's own skills, for a runtime whose home is not theirs: the stock row's whole
-    # config is the package's defaults (:data:`_STOCK`), so this restates every key it keeps.
-    if home is not None:
-        rows.append({"id": _STOCK, "config": {"dshHome": home}})
+    if stock is not None:
+        rows.append(stock)
     # The flow's, read by a provider of humanize's own and kept current by the plugin beside
     # it, rather than by the stock row's config restated: a patch would replace it whole.
     if lodged is not None:
         at = Path(lodged)
         provider = {
             "id": "humanize-skills",
-            "name": _PROVIDER,
+            "name": str(at / _BRIDGE),
             "config": {
-                "providerName": "humanize",
-                "includeDefaultRoots": False,
-                "customSkillDirs": [str(at / _SKILLS)],
-                "watch": False,
+                "generation": str(at / _GENERATION),
+                "provider": {
+                    "providerName": f"humanize-{at.name}",
+                    "includeDefaultRoots": False,
+                    "customSkillDirs": [str(at / _SKILLS)],
+                    "watch": False,
+                },
             },
         }
-        told = {
-            "id": "humanize-skills-generation",
-            "name": str(at / _BRIDGE),
-            "config": {"generation": str(at / _GENERATION)},
-        }
-        rows.append({"insert": [provider, told]})
+        rows.append({"insert": [provider]})
     return yaml.dump(
         rows, Dumper=_CordisDumper, sort_keys=False, default_flow_style=False
     )

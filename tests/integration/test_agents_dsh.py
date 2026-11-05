@@ -246,6 +246,8 @@ def test_catalog_and_runtime_agree_on_yaml_string_skill_names(
         ("number-name", "name: 1e3\ndescription: exponent"),
         ("number-description", "name: number-description\ndescription: 1e3"),
         ("octal-name", "name: 0o7\ndescription: octal"),
+        ("duplicate", "name: duplicate\ndescription: one\ndescription: two"),
+        ("merged", "<<: {name: merged, description: inherited}"),
     ):
         at = _skill(tmp_path / "dsh" / "skills", directory, "not a skill")
         (at / "SKILL.md").write_text(f"---\n{front}\n---\n", encoding="utf-8")
@@ -255,8 +257,29 @@ def test_catalog_and_runtime_agree_on_yaml_string_skill_names(
         session = agent.new()
         for name in names:
             assert f"BODY-{name}" in _loaded(session, name)
-        for name in ("1e3", "number-description", "0o7"):
+        for name in ("1e3", "number-description", "0o7", "duplicate", "merged"):
             assert "unknown or no longer available" in _loaded(session, name)
+    finally:
+        agent.stop()
+
+
+def test_same_directory_duplicates_do_not_claim_a_locale_dependent_winner(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    root = tmp_path / "dsh" / "skills"
+    for directory, about in (("B-upper", "upper-source"), ("a-lower", "lower-source")):
+        at = _skill(root, directory, "unused")
+        (at / "SKILL.md").write_text(
+            f"---\nname: shared\ndescription: {about}\n---\nBODY-{about}\n",
+            encoding="utf-8",
+        )
+    (listed,) = skills("dsh", tmp_path)
+    assert listed.name == "shared"
+    assert listed.about == "Multiple definitions in this directory; DSH selects one."
+    agent = DshAgent(CONFIG)
+    try:
+        said = _loaded(agent.new(), "shared")
+        assert "BODY-upper-source" in said or "BODY-lower-source" in said
     finally:
         agent.stop()
 

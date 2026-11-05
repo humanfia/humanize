@@ -1120,6 +1120,12 @@ The flow's skills are copied beside its runtime's patch and read by a separate f
 skill provider, after the project's skills and before the user's. Nothing is ever put in the
 workspace.
 
+For DSH, static settings of the stock `skill-filesystem` row are read from the original
+SDK-profile patch and then the home patch. Custom roots, home overrides and `disabled` are
+preserved; JavaScript expressions or structural changes to that provider are refused when
+the session's home moves to an epic. The catalog does not infer user skills from such a
+configuration. Other plugins' configuration is not copied into the epic.
+
 | Backend | Put at | Skill directories read (`Profile.works`, relative to the workspace) |
 | --- | --- | --- |
 | `claude` | `$CLAUDE_CONFIG_DIR/skills/` in its virtual home | `.claude/skills` |

@@ -153,6 +153,8 @@ def test_dsh_skills_default_to_the_users_own_homes(
         ("---\nname: octal\ndescription: x\nuser-invocable: 0o1\n---\n", True),
         ("---\nname: zeroes\ndescription: x\nuser-invocable: 0001\n---\n", True),
         ("---\nname: text\ndescription: 1_000\n---\n", True),
+        ("---\nname: duplicate\ndescription: a\ndescription: b\n---\n", False),
+        ("---\n<<: {name: merged, description: inherited}\n---\n", False),
         ("---\nname: numeric-flag\ndescription: x\nuser-invocable: 1.0\n---\n", True),
         ("---\r\nname: crlf\r\ndescription: x\r\n---\r\nbody", True),
         ("---\nname: closed\ndescription: x\n---", True),
@@ -180,6 +182,43 @@ def test_dsh_lists_a_skill_exactly_where_its_runtime_would(
     _card(tmp_path / "dsh" / "skills" / "one", card)
 
     assert bool(skills("dsh", tmp_path / "work")) is listed
+
+
+def test_dsh_catalog_respects_configured_roots_and_home_patch_precedence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, work = tmp_path / "dsh", tmp_path / "work"
+    monkeypatch.setenv("DSH_HOME", str(home))
+    _dsh_card(home / "skills" / "hidden", "hidden")
+    _dsh_card(work / "custom" / "visible", "visible")
+    profile = home / "profiles" / "sdk" / "cordis.patch.yml"
+    profile.parent.mkdir(parents=True)
+    profile.write_text("- id: skill-filesystem\n  disabled: true\n", encoding="utf-8")
+    patch = home / "cordis.patch.yml"
+    before = (
+        "- id: skill-filesystem\n  disabled: false\n  config:\n"
+        "    includeDefaultRoots: false\n    customSkillDirs: [custom]\n"
+    )
+    patch.write_text(before, encoding="utf-8")
+
+    assert [one.name for one in skills("dsh", work)] == ["visible"]
+    assert patch.read_text(encoding="utf-8") == before
+
+
+@pytest.mark.parametrize(
+    "setting",
+    ["disabled: true", "config: !!js '({includeDefaultRoots: false})'"],
+)
+def test_dsh_catalog_never_reenables_a_disabled_or_uninspectable_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, setting: str
+) -> None:
+    home = tmp_path / "dsh"
+    monkeypatch.setenv("DSH_HOME", str(home))
+    _dsh_card(home / "skills" / "hidden", "hidden")
+    (home / "cordis.patch.yml").write_text(
+        f"- id: skill-filesystem\n  {setting}\n", encoding="utf-8"
+    )
+    assert skills("dsh", tmp_path / "work") == []
 
 
 def test_only_the_dsh_homes_own_root_passes_over_its_system_skills(

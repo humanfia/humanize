@@ -30,6 +30,9 @@ import yaml
 
 from hmz.coganchor.backends import named
 
+from .dsh_skills import configuration
+from .dsh_yaml import CoreLoader
+
 __all__ = [
     "CARD",
     "SKILLS",
@@ -140,21 +143,61 @@ def _dsh(where: Path) -> list[Skill]:
     project = next(
         (one for one in (where, *where.parents) if (one / ".git").exists()), where
     )
-    home = os.environ.get("DSH_HOME", "").strip() or "~/.dsh"
-    shared = os.environ.get("DSH_AGENTS_HOME") or "~/.agents"
+    home = _dsh_home(None, "DSH_HOME", "~/.dsh", Path.cwd())
+    try:
+        configured = configuration(home)
+    except ValueError:
+        # A catalog cannot evaluate runtime expressions. Report no inferred skills rather
+        # than enabling default roots the user may have disabled or breaking the picker.
+        return []
+    if configured is None:
+        return []
+    defaults = configured.get("includeDefaultRoots", True)
+    roots: list[tuple[Path, str, bool]] = []
+    if defaults:
+        roots.extend(
+            (project / one / SKILLS, "this project", False)
+            for one in (".dsh", ".agents")
+        )
+    roots.extend(
+        (where / one, "yours", False) for one in configured.get("customSkillDirs", [])
+    )
+    if defaults:
+        roots.extend(
+            (
+                (
+                    _dsh_home(configured.get("dshHome"), "DSH_HOME", str(home), where)
+                    / SKILLS,
+                    "yours",
+                    True,
+                ),
+                (
+                    _dsh_home(
+                        configured.get("agentsHome"),
+                        "DSH_AGENTS_HOME",
+                        "~/.agents",
+                        where,
+                    )
+                    / SKILLS,
+                    "yours",
+                    False,
+                ),
+            )
+        )
+    bundled = configured.get("bundledSkillDir")
+    if bundled is None and defaults:
+        bundled = os.environ.get("DSH_BUNDLED_SKILL_DIR")
+    if bundled is not None:
+        roots.append((where / bundled, "bundled", False))
     found: dict[str, Skill] = {}
     # Each with whether it passes over `.system`, where the harness keeps skills of its own --
     # which its home's root does, and no other, wherever else that root happens to be.
-    for root, whose, system in (
-        (project / ".dsh" / SKILLS, "this project", False),
-        (project / ".agents" / SKILLS, "this project", False),
-        (Path(home).expanduser() / SKILLS, "yours", True),
-        (Path(shared).expanduser() / SKILLS, "yours", False),
-    ):
+    for root, whose, system in roots:
         try:
             entries = sorted(root.iterdir())
         except OSError:
             continue
+        local: dict[str, Skill] = {}
         for entry in entries:
             if system and entry.name == ".system":
                 continue
@@ -162,9 +205,30 @@ def _dsh(where: Path) -> list[Skill]:
             if card.suffix != ".md" or not card.is_file():
                 continue
             skill = _native(card, whose)
-            if skill is not None and skill.name not in found:
-                found[skill.name] = skill
+            if skill is not None:
+                if skill.name in local:
+                    # DSH breaks this tie with Node's locale-dependent collation. Do not
+                    # attribute one definition's description to a different winning body.
+                    skill = Skill(
+                        name=skill.name,
+                        about="Multiple definitions in this directory; DSH selects one.",
+                        whose=whose,
+                    )
+                local[skill.name] = skill
+        for name, skill in local.items():
+            found.setdefault(name, skill)
     return list(found.values())
+
+
+def _dsh_home(value: str | None, key: str, default: str, where: Path) -> Path:
+    """Resolve a DSH home override without expanding another user's tilde name."""
+    given = value if value is not None else os.environ.get(key)
+    given = given if given is not None and given.strip() else default
+    if given == "~":
+        return Path.home()
+    if given.startswith(("~/", "~\\")):
+        return Path.home() / given[2:]
+    return where / given
 
 
 def _native(path: Path, whose: str) -> Skill | None:
@@ -192,7 +256,7 @@ def _native(path: Path, whose: str) -> Skill | None:
     try:
         front: Any = yaml.load(
             "\n".join(lines[1 : fenced.index(True, 1)]),
-            Loader=_NativeLoader,  # noqa: S506 -- SafeLoader with different scalar rules
+            Loader=CoreLoader,  # noqa: S506 -- SafeLoader with different scalar rules
         )
     except (yaml.YAMLError, ValueError):
         return None
@@ -215,56 +279,6 @@ def _flag(value: object) -> bool:
     if isinstance(value, (bool, int, float)):
         return value in (0, 1)
     return isinstance(value, str) and value.lower() in _FLAGS
-
-
-class _NativeLoader(yaml.SafeLoader):
-    """The runtime's YAML 1.2 strings, without changing other backends' YAML readers.
-
-    The runtime's core schema keeps dates and YAML 1.1 booleans such as `yes` as strings.
-    Its numbers include `1e3` and `0o7`, but not binary or underscored YAML 1.1 integers.
-    """
-
-    def core_int(self, node: yaml.ScalarNode) -> int:
-        """Read decimal integers, including leading zeroes, and explicit octal or hex."""
-        value = self.construct_scalar(node)
-        base = 8 if value.startswith("0o") else 16 if value.startswith("0x") else 10
-        return int(value, base)
-
-    def core_float(self, node: yaml.ScalarNode) -> float:
-        """Read core-schema floats, including signed infinities and NaNs."""
-        value = self.construct_scalar(node).lower()
-        return float(value.replace(".inf", "inf").replace(".nan", "nan"))
-
-
-_NativeLoader.yaml_implicit_resolvers = {
-    first: [
-        (tag, pattern)
-        for tag, pattern in resolvers
-        if tag.rsplit(":", 1)[-1] not in {"bool", "timestamp", "int", "float"}
-    ]
-    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
-}
-_NativeLoader.add_implicit_resolver(
-    "tag:yaml.org,2002:bool",
-    re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"),
-    list("tTfF"),
-)
-_NativeLoader.add_implicit_resolver(
-    "tag:yaml.org,2002:int",
-    re.compile(r"^(?:[-+]?[0-9]+|0o[0-7]+|0x[0-9a-fA-F]+)$"),
-    list("-+0123456789"),
-)
-_NativeLoader.add_implicit_resolver(
-    "tag:yaml.org,2002:float",
-    re.compile(
-        r"^[-+]?(?:\.(?:inf|Inf|INF|nan|NaN|NAN)|"
-        r"(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)[eE][-+]?[0-9]+|"
-        r"\.[0-9]+|[0-9]+\.[0-9]*)$"
-    ),
-    list("-+.0123456789"),
-)
-_NativeLoader.add_constructor("tag:yaml.org,2002:int", _NativeLoader.core_int)
-_NativeLoader.add_constructor("tag:yaml.org,2002:float", _NativeLoader.core_float)
 
 
 def _short(about: str) -> str:

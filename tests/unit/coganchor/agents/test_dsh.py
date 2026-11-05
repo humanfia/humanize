@@ -22,6 +22,7 @@ from hmz.coganchor.agents import (
     driver,
 )
 from hmz.coganchor.agents.dsh import native_ready
+from hmz.coganchor.agents.dsh_skills import configuration
 from hmz.coganchor.agents.event import Unrecoverable
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.providers import Provider
@@ -680,8 +681,8 @@ def _provided(harness: _Harness) -> dict[str, Any] | None:
     row = _inserted(harness, "humanize-skills")
     if row is None:
         return None
-    assert row["name"] == "@deepseek-ai/dsh-skill-filesystem"
-    return row["config"]
+    assert Path(row["name"]).name == "humanize-skills.mjs"
+    return row["config"]["provider"]
 
 
 def _stock(harness: _Harness) -> list[dict[str, Any]]:
@@ -717,13 +718,13 @@ def test_flow_skills_are_a_provider_of_their_own_beside_the_stock_one(
     assert _stock(harness) == []
     beside = Path(_option(harness.launch, "--patch")).parent
     assert _provided(harness) == {
-        "providerName": "humanize",
+        "providerName": f"humanize-{beside.name}",
         "includeDefaultRoots": False,
         "customSkillDirs": [str(beside / "skills")],
         "watch": False,
     }
     # And what tells the catalog it changed, read before every step.
-    told = _inserted(harness, "humanize-skills-generation")
+    told = _inserted(harness, "humanize-skills")
     assert told is not None
     assert Path(told["name"]).parent == beside
     assert "agent/pre-step" in Path(told["name"]).read_text(encoding="utf-8")
@@ -832,7 +833,7 @@ def test_skills_changed_between_turns_reach_the_same_runtime(
 
     _turn(session)
     (harness,) = runtime.harnesses
-    told = _inserted(harness, "humanize-skills-generation")
+    told = _inserted(harness, "humanize-skills")
     assert told is not None
     generation = Path(told["config"]["generation"])
     said = [generation.read_text(encoding="utf-8")]
@@ -853,3 +854,103 @@ def test_skills_changed_between_turns_reach_the_same_runtime(
     assert not harness.closed
     assert len({asked for asked, _ in runtime.prompts}) == 1
     assert _lodged(harness) == {"review": ["SKILL.md"], "write": ["SKILL.md"]}
+
+
+def _user_patch(home: Path, text: str, *, profile: bool = False) -> Path:
+    at = home / "profiles" / "sdk" if profile else home
+    at.mkdir(parents=True, exist_ok=True)
+    path = at / "cordis.patch.yml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_skill_configuration_applies_profile_then_home_by_native_replacement(
+    dsh_home: Path,
+) -> None:
+    assert configuration(dsh_home) == {}
+    _user_patch(
+        dsh_home,
+        "- id: skill-filesystem\n  config:\n    watch: false\n    dshHome: old-home\n",
+        profile=True,
+    )
+    _user_patch(
+        dsh_home,
+        "- id: skill-filesystem\n  config:\n    includeDefaultRoots: false\n"
+        "    customSkillDirs: [relative, yes]\n"
+        "- id: skill-filesystem\n  name: other-package\n  disabled: true\n",
+    )
+    assert configuration(dsh_home) == {
+        "includeDefaultRoots": False,
+        "customSkillDirs": ["relative", "yes"],
+    }
+
+
+def test_a_user_can_disable_the_stock_skill_provider(
+    made: Callable[..., DshAgent],
+    runtime: _Runtime,
+    dsh_home: Path,
+    tmp_path: Path,
+) -> None:
+    _user_patch(dsh_home, "- id: skill-filesystem\n  disabled: true\n")
+    assert configuration(dsh_home) is None
+    agent = made()
+    agent.keeps = tmp_path / "epic"
+    agent.loads([_skill(tmp_path / "flow", "review")])
+    _turn(agent.new(tmp_path))
+    assert _stock(runtime.harnesses[0]) == [
+        {"id": "skill-filesystem", "disabled": True}
+    ]
+    assert _lodged(runtime.harnesses[0]) == {"review": ["SKILL.md"]}
+
+
+def test_a_later_layer_can_enable_the_stock_skill_provider(dsh_home: Path) -> None:
+    _user_patch(dsh_home, "- id: skill-filesystem\n  disabled: true\n", profile=True)
+    _user_patch(dsh_home, "- id: skill-filesystem\n  disabled: false\n")
+    assert configuration(dsh_home) == {}
+
+
+def test_only_skill_configuration_is_carried_to_an_epic(
+    made: Callable[..., DshAgent], runtime: _Runtime, dsh_home: Path, tmp_path: Path
+) -> None:
+    _user_patch(
+        dsh_home,
+        "- id: unrelated\n  config: !!js dangerous()\n"
+        "- id: skill-filesystem\n  config:\n    dshHome: configured-dsh\n"
+        "    agentsHome: configured-agents\n    watch: false\n"
+        "    customSkillDirs: [custom]\n    includeDefaultRoots: false\n",
+    )
+    agent = made()
+    agent.keeps = tmp_path / "epic"
+    _turn(agent.new(tmp_path))
+    assert _stock(runtime.harnesses[0]) == [
+        {"id": "skill-filesystem", "config": configuration(dsh_home)}
+    ]
+    assert all(row.get("id") != "unrelated" for row in runtime.harnesses[0].patch)
+
+
+@pytest.mark.parametrize(
+    "setting",
+    [
+        "disabled: !!js process.env.DISABLE_SKILLS",
+        "config: !!js chooseSkills()",
+        "config: {customSkillDirs: [!!js 'process.env.SKILLS']}",
+        "config: {includeDefaultRoots: no}",
+        "config: {customSkillDirs: {__jsExpr: chooseSkills()}}",
+        "intercept: {skills: custom}",
+        "group: true\n  config: []",
+        "remove: true",
+    ],
+)
+def test_unsupported_skill_configuration_is_refused_without_enabling_defaults(
+    made: Callable[..., DshAgent],
+    runtime: _Runtime,
+    dsh_home: Path,
+    tmp_path: Path,
+    setting: str,
+) -> None:
+    _user_patch(dsh_home, f"- id: skill-filesystem\n  {setting}\n")
+    agent = made()
+    agent.keeps = tmp_path / "epic"
+    with pytest.raises(ValueError, match="dsh skill provider"):
+        _turn(agent.new(tmp_path))
+    assert runtime.harnesses == []

@@ -128,6 +128,17 @@ and a `description`; it passes over any other, and over `.system/` in its home. 
 Humanize keeps in a run's epic is started with the epic's directory as its `DSH_HOME`, and
 is still told to read the skills in yours.
 
+Static `skill-filesystem` settings in your `profiles/sdk/cordis.patch.yml`, then your home's
+`cordis.patch.yml`, are preserved when the session uses an epic home. This includes custom
+skill directories, overridden homes and a disabled provider. Flow skills use a separate
+provider and take precedence over user custom directories as well as default user roots.
+Dynamic JavaScript expressions and structural plugin changes cannot be carried into an epic
+home: the turn reports an unsupported configuration, and the skill list shows no inferred
+user skills for a configuration it cannot inspect.
+
+If several files in one directory declare the same skill name, the list marks that name as
+having multiple definitions. DSH chooses the definition using its own locale-dependent order.
+
 pi reads a project's own skills only in a project you have trusted in pi, and Humanize does
 not trust one for you.
 
