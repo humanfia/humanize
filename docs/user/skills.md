@@ -204,7 +204,9 @@ and edit its skill.
   that replaces the one it had.
 - **A dsh flow skill cannot be copied.** It is omitted with a warning; the turn and the other
   skills continue, and the next turn tries that skill again. Resource symlinks are preserved
-  as links, including dangling links, rather than expanded while copying.
+  as links, including dangling links, rather than expanded while copying. Relative links
+  outside the skill directory may no longer resolve from the copy; keep needed resources
+  inside that directory. Only the private copy's directories are made writable for cleanup.
 - **A skill from a git repository cannot be fetched.** The run is refused before it starts,
   naming the skill. Check the network, or the repository's address in the flow.
 

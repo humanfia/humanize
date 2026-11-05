@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import stat
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -466,6 +468,75 @@ def test_flow_resource_symlinks_are_preserved_without_recursive_copying(
     finally:
         agent.stop()
     assert not based.exists()
+
+
+@pytest.mark.skipif(
+    os.geteuid() == 0, reason="root bypasses directory permission checks"
+)
+def test_read_only_skill_directories_can_be_loaded_deselected_and_cleaned(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    top = _skill(tmp_path / "flow", "top", "BODY-top")
+    nested = _skill(tmp_path / "flow", "nested", "BODY-nested")
+    resources = nested / "resources"
+    resources.mkdir()
+    (resources / "read-only.txt").write_text("resource", encoding="utf-8")
+    (resources / "read-only.txt").chmod(0o444)
+    top.chmod(0o555)
+    resources.chmod(0o555)
+    agent = DshAgent(CONFIG)
+    agent.loads([Loaded("top", top, "flow"), Loaded("nested", nested, "flow")])
+    session = agent.new()
+    copies: list[Path] = []
+    try:
+        for name in ("top", "nested"):
+            said = _loaded(session, name)
+            assert f"BODY-{name}" in said
+            copies.append(
+                Path(said.split("Base directory for this skill: ")[1].split("\n")[0])
+            )
+        (copies[0].parent / "scratch.txt").write_text("scratch", encoding="utf-8")
+        (copies[0].parent / "scratch-link").symlink_to(top)
+        session.loads([])
+        assert "unknown or no longer available" in _loaded(session, "top")
+        assert all(not at.exists() for at in copies)
+        session.loads(["nested"])
+        assert "BODY-nested" in _loaded(session, "nested")
+        assert stat.S_IMODE(top.stat().st_mode) == 0o555
+        assert stat.S_IMODE(resources.stat().st_mode) == 0o555
+    finally:
+        agent.stop()
+        top.chmod(0o755)
+        resources.chmod(0o755)
+    assert agent.opened == [session.id]
+    assert not copies[0].parent.exists()
+
+
+def test_replacing_the_private_skill_root_with_a_link_cannot_change_another_directory(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    at = _skill(tmp_path / "flow", "mine", "BODY-mine")
+    other = tmp_path / "other-project"
+    other.mkdir()
+    (other / "kept.txt").write_text("kept", encoding="utf-8")
+    other.chmod(0o555)
+    agent = DshAgent(CONFIG)
+    agent.loads([Loaded("mine", at, "flow")])
+    session = agent.new()
+    try:
+        said = _loaded(session, "mine")
+        based = Path(said.split("Base directory for this skill: ")[1].split("\n")[0])
+        root = based.parent
+        shutil.rmtree(root)
+        root.symlink_to(other, target_is_directory=True)
+        with pytest.raises(ValueError, match=r"skill directory.*symbolic link"):
+            _loaded(session, "mine")
+        assert stat.S_IMODE(other.stat().st_mode) == 0o555
+        assert sorted(one.name for one in other.iterdir()) == ["kept.txt"]
+        assert (other / "kept.txt").read_text(encoding="utf-8") == "kept"
+    finally:
+        agent.stop()
+        other.chmod(0o755)
 
 
 @pytest.mark.timeout(240)

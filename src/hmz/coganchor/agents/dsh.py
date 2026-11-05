@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -929,26 +930,43 @@ class DshSession(SessionBase):
             if name in ("", ".", "..") or Path(name).name != name or "\\" in name:
                 raise ValueError(f"unsupported skill name {name!r} for dsh")
         root = Path(lodged) / _SKILLS
+        if root.is_symlink():
+            raise ValueError("dsh skill directory was replaced by a symbolic link")
         root.mkdir(exist_ok=True)
+        root.chmod(root.stat().st_mode | stat.S_IRWXU)
         added = {name: at for name, at in wanted.items() if not (root / name).exists()}
         removed = [entry for entry in root.iterdir() if entry.name not in wanted]
         if added or removed:
             # A skill that cannot be delivered is omitted, never published half-copied;
             # it can be retried on the next turn without interrupting the conversation.
-            copied: list[str] = []
-            with tempfile.TemporaryDirectory(prefix="skills-", dir=lodged) as stage:
+            changed = False
+            with tempfile.TemporaryDirectory(
+                prefix="skills-", dir=lodged, ignore_cleanup_errors=True
+            ) as stage:
+                for entry in removed:
+                    if entry.is_symlink() or not entry.is_dir():
+                        entry.unlink()
+                    else:
+                        # Withdraw the whole skill before cleaning its resources. The temp
+                        # directory's cleanup can reset permissions on read-only children.
+                        entry.chmod(entry.stat().st_mode | stat.S_IRWXU)
+                        entry.replace(Path(stage) / entry.name)
+                    changed = True
                 for name, at in added.items():
                     try:
-                        shutil.copytree(at, Path(stage) / name, symlinks=True)
+                        copied = Path(stage) / name
+                        shutil.copytree(at, copied, symlinks=True)
+                        # copytree preserves source modes. Our private copy's directories
+                        # must allow publishing, later deselection and cleanup as this user.
+                        for directory, _, _ in os.walk(copied):
+                            here = Path(directory)
+                            here.chmod(here.stat().st_mode | stat.S_IRWXU)
+                        copied.replace(root / name)
                     except OSError as why:
                         log.warning("omitting dsh flow skill %r: %s", name, why)
                     else:
-                        copied.append(name)
-                for entry in removed:
-                    shutil.rmtree(entry)
-                for name in copied:
-                    (Path(stage) / name).replace(root / name)
-            if copied or removed:
+                        changed = True
+            if changed:
                 told = Path(lodged) / f".{_GENERATION}"
                 told.write_text(uuid.uuid4().hex, encoding="utf-8")
                 told.replace(Path(lodged) / _GENERATION)

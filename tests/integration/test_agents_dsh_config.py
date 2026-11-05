@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.agents import DshAgent, DshAgentConfig
+from hmz.coganchor.agents import DshAgent, DshAgentConfig, Failed
 from hmz.coganchor.agents.skills import Loaded, skills
 from tests.integration.doubles_agents import Endpoint, serving
 
@@ -189,5 +189,25 @@ def test_user_patch_edits_apply_to_new_runtimes_without_interrupting_a_conversat
         next_session = agent.new(tmp_path)
         assert "unknown or no longer available" in _load(next_session, "mine")
         assert "FLOW-second" in _load(next_session, "second")
+    finally:
+        agent.stop()
+
+
+@pytest.mark.parametrize("kept", [False, True])
+def test_a_comment_only_user_patch_is_refused_as_in_the_native_runtime(
+    endpoint: Endpoint, tmp_path: Path, kept: bool
+) -> None:
+    _skill(tmp_path / "dsh" / "skills", "mine", "EMPTY-PATCH")
+    _patch(tmp_path / "dsh", "# No overrides.\n")
+    agent = DshAgent(DshAgentConfig(model="deepseek-stand-in", effort="high"))
+    if kept:
+        agent.keeps = tmp_path / "epic"
+    try:
+        with pytest.raises(
+            ValueError if kept else Failed,
+            match=r"top-level YAML array|list of mappings",
+        ):
+            _load(agent.new(tmp_path), "mine")
+        assert skills("dsh", tmp_path) == []
     finally:
         agent.stop()

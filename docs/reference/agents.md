@@ -1125,11 +1125,14 @@ SDK-profile patch and then the home patch. Custom roots, home overrides and `dis
 preserved; JavaScript expressions or structural changes to that provider are refused when
 the session's home moves to an epic. The catalog does not infer user skills from such a
 configuration. Other plugins' configuration is not copied into the epic.
+Skill providers supplied by those other plugins are therefore not restored by this adapter.
 Settings are captured once per runtime launch, so edits to the user's patch take effect
 on the next launch without invalidating a running conversation. Flow resource symlinks stay
-as links. A skill that cannot be copied is omitted with a warning and retried next turn.
+as links, so relative references outside the copied directory may not resolve. Private copy
+directories are made writable for publishing and cleanup; source modes are preserved.
+A skill that cannot be copied or published is omitted with a warning and retried next turn.
 
-| Backend | Put at | Skill directories read (`Profile.works`, relative to the workspace) |
+| Backend | Put at | Skill directories read (relative to the workspace) |
 | --- | --- | --- |
 | `claude` | `$CLAUDE_CONFIG_DIR/skills/` in its virtual home | `.claude/skills` |
 | `codex` | `$CODEX_HOME/skills/` in its virtual home | `.agents/skills`, `.codex/skills` |
