@@ -222,8 +222,11 @@ def _dsh(where: Path) -> list[Skill]:
 
 def _dsh_home(value: str | None, key: str, default: str, where: Path) -> Path:
     """Resolve a DSH home override without expanding another user's tilde name."""
-    given = value if value is not None else os.environ.get(key)
-    given = given if given is not None and given.strip() else default
+    given = value
+    if given is None:
+        given = os.environ.get(key)
+        if given is None or not given.strip():
+            given = default
     if given == "~":
         return Path.home()
     if given.startswith(("~/", "~\\")):

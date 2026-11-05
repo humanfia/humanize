@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor.agents import DshAgent, DshAgentConfig
-from hmz.coganchor.agents.skills import Loaded
+from hmz.coganchor.agents.skills import Loaded, skills
 from tests.integration.doubles_agents import Endpoint, serving
 
 if TYPE_CHECKING:
@@ -76,6 +76,23 @@ def test_original_provider_roots_and_home_layer_precedence_survive_epic_storage(
     finally:
         agent.stop()
     assert {path: path.read_text(encoding="utf-8") for path in before} == before
+
+
+@pytest.mark.parametrize("key", ["dshHome", "agentsHome"])
+@pytest.mark.parametrize("kept", [False, True])
+def test_explicit_empty_home_uses_the_workspace_in_catalog_and_runtime(
+    endpoint: Endpoint, tmp_path: Path, key: str, kept: bool
+) -> None:
+    _skill(tmp_path / "skills", "at-cwd", "WORKSPACE-HOME")
+    _patch(tmp_path / "dsh", f'- id: skill-filesystem\n  config:\n    {key}: ""\n')
+    assert [one.name for one in skills("dsh", tmp_path)] == ["at-cwd"]
+    agent = DshAgent(DshAgentConfig(model="deepseek-stand-in", effort="high"))
+    if kept:
+        agent.keeps = tmp_path / "epic"
+    try:
+        assert "WORKSPACE-HOME" in _load(agent.new(tmp_path), "at-cwd")
+    finally:
+        agent.stop()
 
 
 @pytest.mark.parametrize("kept", [False, True])
