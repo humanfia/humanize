@@ -1157,7 +1157,8 @@ A skill that cannot be copied or published is omitted with a warning and retried
   its user level; pass further paths with `PiAgentConfig.skill_paths` (`--skill`).
 - `dsh` carries changes to a session's selected skills from its next turn without restarting
   its conversation. Its temporary copies go when its runtime closes. When its harness runs
-  on another machine, it receives no local skill paths and uses that machine's own skills.
+  on another machine, it receives no local skill paths; remote skill discovery is unchanged
+  by this adapter.
 - Under a native anchor, skills are written into the virtual home
   [built on the target](/reference/remote-execution#native-the-target-s-own-cli); under a
   supervised anchor a virtual home is built here, where the CLI runs; under a harness on

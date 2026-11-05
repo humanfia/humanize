@@ -198,7 +198,8 @@ and edit its skill.
 - **An agent ignores your skill.** Check it is in a directory that CLI reads (the table above),
   as `<name>/SKILL.md`, and that the CLI's home variable points where you think.
 - **`dsh` on another machine.** A dsh agent whose harness runs elsewhere gets neither the
-  flow's skills nor yours from this machine; it runs on that machine's own.
+  flow's skills nor yours from this machine. This adapter does not restore user skill roots
+  for a remote harness.
 - **`dsh` after its skills change.** A session told to carry other skills between two turns
   carries them from its next turn, in the same conversation: the model is shown a catalog
   that replaces the one it had.
