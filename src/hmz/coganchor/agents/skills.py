@@ -194,7 +194,7 @@ def _native(path: Path, whose: str) -> Skill | None:
             "\n".join(lines[1 : fenced.index(True, 1)]),
             Loader=_NativeLoader,  # noqa: S506 -- SafeLoader with different scalar rules
         )
-    except yaml.YAMLError:
+    except (yaml.YAMLError, ValueError):
         return None
     said = cast("dict[str, Any]", front) if isinstance(front, dict) else {}
     name, about = said.get("name"), said.get("description")
@@ -220,24 +220,51 @@ def _flag(value: object) -> bool:
 class _NativeLoader(yaml.SafeLoader):
     """The runtime's YAML 1.2 strings, without changing other backends' YAML readers.
 
-    PyYAML's implicit YAML 1.1 booleans and timestamps turn valid skill names such as
-    `yes` and `2026-11-04` into other types. Only `true` and `false` are booleans in the
-    runtime's core schema; dates remain strings.
+    The runtime's core schema keeps dates and YAML 1.1 booleans such as `yes` as strings.
+    Its numbers include `1e3` and `0o7`, but not binary or underscored YAML 1.1 integers.
     """
+
+    def core_int(self, node: yaml.ScalarNode) -> int:
+        """Read decimal integers, including leading zeroes, and explicit octal or hex."""
+        value = self.construct_scalar(node)
+        base = 8 if value.startswith("0o") else 16 if value.startswith("0x") else 10
+        return int(value, base)
+
+    def core_float(self, node: yaml.ScalarNode) -> float:
+        """Read core-schema floats, including signed infinities and NaNs."""
+        value = self.construct_scalar(node).lower()
+        return float(value.replace(".inf", "inf").replace(".nan", "nan"))
 
 
 _NativeLoader.yaml_implicit_resolvers = {
     first: [
         (tag, pattern)
         for tag, pattern in resolvers
-        if tag not in {"tag:yaml.org,2002:bool", "tag:yaml.org,2002:timestamp"}
+        if tag.rsplit(":", 1)[-1] not in {"bool", "timestamp", "int", "float"}
     ]
     for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
 }
-for _first in "tTfF":
-    _NativeLoader.yaml_implicit_resolvers.setdefault(_first, []).append(
-        ("tag:yaml.org,2002:bool", re.compile(r"^(?:true|false)$", re.IGNORECASE))
-    )
+_NativeLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:bool",
+    re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"),
+    list("tTfF"),
+)
+_NativeLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:int",
+    re.compile(r"^(?:[-+]?[0-9]+|0o[0-7]+|0x[0-9a-fA-F]+)$"),
+    list("-+0123456789"),
+)
+_NativeLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:float",
+    re.compile(
+        r"^[-+]?(?:\.(?:inf|Inf|INF|nan|NaN|NAN)|"
+        r"(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)[eE][-+]?[0-9]+|"
+        r"\.[0-9]+|[0-9]+\.[0-9]*)$"
+    ),
+    list("-+.0123456789"),
+)
+_NativeLoader.add_constructor("tag:yaml.org,2002:int", _NativeLoader.core_int)
+_NativeLoader.add_constructor("tag:yaml.org,2002:float", _NativeLoader.core_float)
 
 
 def _short(about: str) -> str:

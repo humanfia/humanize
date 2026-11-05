@@ -899,16 +899,20 @@ class DshSession(SessionBase):
                 raise ValueError(f"unsupported skill name {name!r} for dsh")
         root = Path(written.name) / _SKILLS
         root.mkdir(exist_ok=True)
-        changed = False
-        for entry in root.iterdir():
-            if entry.name not in wanted:
-                shutil.rmtree(entry)
-                changed = True
-        for name, at in wanted.items():
-            if not (root / name).exists():
-                shutil.copytree(at, root / name)
-                changed = True
-        if changed:
+        added = {name: at for name, at in wanted.items() if not (root / name).exists()}
+        removed = [entry for entry in root.iterdir() if entry.name not in wanted]
+        if added or removed:
+            # Finish every copy before changing the live catalog. A broken resource must
+            # leave no partial skill that the next turn mistakes for an installed one.
+            with tempfile.TemporaryDirectory(
+                prefix="skills-", dir=written.name
+            ) as stage:
+                for name, at in added.items():
+                    shutil.copytree(at, Path(stage) / name)
+                for entry in removed:
+                    shutil.rmtree(entry)
+                for name in added:
+                    (Path(stage) / name).replace(root / name)
             told = Path(written.name) / f".{_GENERATION}"
             told.write_text(uuid.uuid4().hex, encoding="utf-8")
             told.replace(Path(written.name) / _GENERATION)

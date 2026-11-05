@@ -239,15 +239,24 @@ def _tree(root: Path) -> list[str]:
 def test_catalog_and_runtime_agree_on_yaml_string_skill_names(
     endpoint: Endpoint, tmp_path: Path
 ) -> None:
-    names = ("yes", "on", "no", "2026-11-04")
+    names = ("yes", "on", "no", "2026-11-04", "0b1")
     for name in names:
         _skill(tmp_path / "dsh" / "skills", name, f"BODY-{name}")
+    for directory, front in (
+        ("number-name", "name: 1e3\ndescription: exponent"),
+        ("number-description", "name: number-description\ndescription: 1e3"),
+        ("octal-name", "name: 0o7\ndescription: octal"),
+    ):
+        at = _skill(tmp_path / "dsh" / "skills", directory, "not a skill")
+        (at / "SKILL.md").write_text(f"---\n{front}\n---\n", encoding="utf-8")
     assert {one.name for one in skills("dsh", tmp_path)} == set(names)
     agent = DshAgent(CONFIG)
     try:
         session = agent.new()
         for name in names:
             assert f"BODY-{name}" in _loaded(session, name)
+        for name in ("1e3", "number-description", "0o7"):
+            assert "unknown or no longer available" in _loaded(session, name)
     finally:
         agent.stop()
 
@@ -360,6 +369,38 @@ def test_a_sessions_skills_changed_between_turns_change_in_the_same_conversation
     assert "The available skill catalog changed" in catalogs[1]
     assert "second" in catalogs[-1]
     assert "`first`" not in catalogs[-1]
+
+
+@pytest.mark.timeout(240)
+def test_a_failed_skill_copy_can_be_retried_in_the_same_conversation(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    first = _skill(tmp_path / "flow", "first", "BODY-first")
+    second = _skill(tmp_path / "flow", "second", "BODY-second")
+    (second / "resource.txt").symlink_to(second / "missing.txt")
+    agent = DshAgent(CONFIG)
+    agent.loads([Loaded("first", first, "flow"), Loaded("second", second, "flow")])
+    session = agent.new()
+    session.loads(["first"])
+    try:
+        assert "BODY-first" in _loaded(session, "first")
+        session.loads(["second"])
+        with pytest.raises(Failed, match=r"resource\.txt"):
+            _loaded(session, "second")
+        # The failed copy left the existing catalog intact, including its resources.
+        session.loads(["first"])
+        assert "BODY-first" in _loaded(session, "first")
+        (second / "missing.txt").write_text("repaired", encoding="utf-8")
+        session.loads(["second"])
+        said = _loaded(session, "second")
+        assert "BODY-second" in said
+        based = Path(said.split("Base directory for this skill: ")[1].split("\n")[0])
+        assert (based / "resource.txt").read_text(encoding="utf-8") == "repaired"
+        assert "unknown or no longer available" in _loaded(session, "first")
+    finally:
+        agent.stop()
+    assert agent.opened == [session.id]
+    assert not based.exists()
 
 
 @pytest.mark.timeout(240)
