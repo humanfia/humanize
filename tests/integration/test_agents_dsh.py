@@ -11,6 +11,7 @@ between the two.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -284,6 +285,23 @@ def test_same_directory_duplicates_do_not_claim_a_locale_dependent_winner(
         agent.stop()
 
 
+def test_an_equals_sign_description_is_a_yaml_core_string(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    at = _skill(tmp_path / "dsh" / "skills", "equals", "BODY-equals")
+    (at / "SKILL.md").write_text(
+        "---\nname: equals\ndescription: =\n---\nBODY-equals\n", encoding="utf-8"
+    )
+    assert [(one.name, one.about) for one in skills("dsh", tmp_path)] == [
+        ("equals", "=")
+    ]
+    agent = DshAgent(CONFIG)
+    try:
+        assert "BODY-equals" in _loaded(agent.new(), "equals")
+    finally:
+        agent.stop()
+
+
 @pytest.mark.timeout(240)
 @pytest.mark.parametrize("kept", [False, True])
 def test_a_session_loads_the_users_the_projects_and_the_flows_skills(
@@ -395,25 +413,25 @@ def test_a_sessions_skills_changed_between_turns_change_in_the_same_conversation
 
 
 @pytest.mark.timeout(240)
-def test_a_failed_skill_copy_can_be_retried_in_the_same_conversation(
-    endpoint: Endpoint, tmp_path: Path
+def test_an_undeliverable_skill_is_omitted_and_retried_in_the_same_conversation(
+    endpoint: Endpoint, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     first = _skill(tmp_path / "flow", "first", "BODY-first")
     second = _skill(tmp_path / "flow", "second", "BODY-second")
-    (second / "resource.txt").symlink_to(second / "missing.txt")
+    os.mkfifo(second / "resource.txt")
     agent = DshAgent(CONFIG)
     agent.loads([Loaded("first", first, "flow"), Loaded("second", second, "flow")])
     session = agent.new()
     session.loads(["first"])
     try:
         assert "BODY-first" in _loaded(session, "first")
-        session.loads(["second"])
-        with pytest.raises(Failed, match=r"resource\.txt"):
-            _loaded(session, "second")
-        # The failed copy left the existing catalog intact, including its resources.
-        session.loads(["first"])
+        session.loads(["first", "second"])
+        assert "unknown or no longer available" in _loaded(session, "second")
+        assert "omitting dsh flow skill 'second'" in caplog.text
+        # The other skill and the conversation remain usable while the bad copy is absent.
         assert "BODY-first" in _loaded(session, "first")
-        (second / "missing.txt").write_text("repaired", encoding="utf-8")
+        (second / "resource.txt").unlink()
+        (second / "resource.txt").write_text("repaired", encoding="utf-8")
         session.loads(["second"])
         said = _loaded(session, "second")
         assert "BODY-second" in said
@@ -423,6 +441,30 @@ def test_a_failed_skill_copy_can_be_retried_in_the_same_conversation(
     finally:
         agent.stop()
     assert agent.opened == [session.id]
+    assert not based.exists()
+
+
+def test_flow_resource_symlinks_are_preserved_without_recursive_copying(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    at = _skill(tmp_path / "flow", "linked", "BODY-linked", "resource.txt")
+    (at / "alias.txt").symlink_to("resource.txt")
+    (at / "missing.txt").symlink_to("not-here.txt")
+    (at / "cycle").symlink_to(".", target_is_directory=True)
+    agent = DshAgent(CONFIG)
+    agent.loads([Loaded("linked", at, "flow")])
+    session = agent.new()
+    try:
+        said = _loaded(session, "linked")
+        assert "BODY-linked" in said
+        based = Path(said.split("Base directory for this skill: ")[1].split("\n")[0])
+        assert (based / "alias.txt").is_symlink()
+        assert (based / "alias.txt").read_text(encoding="utf-8") == "resource.txt"
+        assert (based / "missing.txt").is_symlink()
+        assert (based / "cycle").is_symlink()
+        assert (based / "cycle").readlink() == Path()
+    finally:
+        agent.stop()
     assert not based.exists()
 
 

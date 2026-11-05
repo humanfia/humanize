@@ -9,6 +9,7 @@ import contextlib
 import importlib
 import io
 import json
+import logging
 import os
 import re
 import shutil
@@ -41,6 +42,8 @@ if TYPE_CHECKING:
     from hmz.coganchor.providers import Provider
 
 __all__ = ["DshAgent", "DshAgentConfig", "DshSession", "native_ready"]
+
+log = logging.getLogger(__name__)
 
 _REQUEST_SECONDS = 180.0
 
@@ -409,6 +412,8 @@ class DshSession(SessionBase):
         #: The composition the live runtime was started from, so that an agent reconfigured
         #: mid-session is noticed as one whose runtime was built the old way.
         self._runtime_composition: str | None = None
+        # User configuration is read at launch, just as the native runtime reads it.
+        self._runtime_skilled: tuple[dict[str, Any] | None, str | None] = (None, None)
         #: The LiteLLM gateway the live runtime was pointed at, if any: one started again
         #: since is at another port, under another key, so the runtime is stale with it.
         self._runtime_through: Gateway | None = None
@@ -643,17 +648,17 @@ class DshSession(SessionBase):
         toolbox = self._agent.toolbox
         offered = toolbox.names()
 
-        def composed(written: tempfile.TemporaryDirectory[str] | None) -> str:
+        def composed(skilled: tuple[dict[str, Any] | None, str | None]) -> str:
             return _composed(
                 cast("DshAgentConfig", self._agent.config),
                 way,
                 toolbox.command() if offered else None,
-                *self._skilled(written),
+                *skilled,
             )
 
         # Composed against the live runtime's own directory, which is where its skills are:
         # the same agent is the same composition, whichever directory it was written in.
-        composition = composed(self._composition)
+        composition = composed(self._runtime_skilled)
         # The account and the composition as well as the effort. A runtime is started with
         # one account's environment and its credential paths, and with one composition read
         # once at boot, and none of the three changes under one already up -- so an agent
@@ -671,7 +676,7 @@ class DshSession(SessionBase):
         if self._harness is not None and not stale:
             # The skills this turn carries, which a flow may have changed since the last one,
             # put down where the runtime reads them before the turn's first step does.
-            self._lodge(self._composition)
+            self._lodge(self._runtime_skilled[1])
             return self._harness
         # Except that a conversation which has taken a turn does not survive it. A fresh
         # runtime knows only the sessions it opened itself, and `session/prompt` opens one by
@@ -747,12 +752,14 @@ class DshSession(SessionBase):
                 "env is required to isolate dsh provider credentials"
             )
         written = self._cordis(fence)
-        # Composed again now there is a directory to compose it around, and written there.
-        composition = composed(written)
         harness: _Harness | None = None
         try:
+            # Read the user's settings once per launch, with the same cleanup guarantee as
+            # the patch and runtime. Later edits belong to the next runtime, not this turn.
+            skilled = self._skilled(written)
+            composition = composed(skilled)
             (Path(written.name) / _PATCH).write_text(composition, encoding="utf-8")
-            if self._lodge(written):
+            if self._lodge(skilled[1]):
                 (Path(written.name) / _BRIDGE).write_text(_BRIDGING, encoding="utf-8")
             # The bundled runtime under the SDK's own profile with Humanize's patch over it,
             # wrapped in whatever `spawned` puts in front of it and in `env -u` where
@@ -820,6 +827,7 @@ class DshSession(SessionBase):
         self._harness, self._composition = harness, written
         self._runtime_effort = effort
         self._runtime_composition = composition
+        self._runtime_skilled = skilled
         self._runtime_offered = offered
         self._runtime_through = through
         self._as, self._pathed = self._agent.node().name, pathed
@@ -853,12 +861,12 @@ class DshSession(SessionBase):
         )
 
     def _skilled(
-        self, written: tempfile.TemporaryDirectory[str] | None
+        self, written: tempfile.TemporaryDirectory[str]
     ) -> tuple[dict[str, Any] | None, str | None]:
         """What the runtime is told about skills over its profile.
 
         Args:
-          written: The directory the runtime's patch is in, or None before there is one.
+          written: The directory the runtime's patch is in.
 
         Returns:
           The user's stock provider row, for a runtime handed another home -- one whose
@@ -882,7 +890,6 @@ class DshSession(SessionBase):
         home = profile.directory(environment).expanduser().absolute()
         kept = self._agent.kept()
         moved = kept is None or kept.expanduser().absolute() != home
-        lodged = self._agent.loaded and written is not None
         row: dict[str, Any] | None = None
         if moved:
             configured = skill_configuration(home)
@@ -893,20 +900,20 @@ class DshSession(SessionBase):
                 row = {"id": _STOCK, "config": configured}
         return (
             row,
-            written.name if lodged and written is not None else None,
+            written.name if self._agent.loaded else None,
         )
 
-    def _lodge(self, written: tempfile.TemporaryDirectory[str] | None) -> bool:
+    def _lodge(self, lodged: str | None) -> bool:
         """Puts exactly the flow's skills this session carries where its runtime reads them.
 
-        Copies, whole, each skill's directory with whatever it holds beside its `SKILL.md`, and
+        Copies each skill's directory, preserving resource symlinks without following them, and
         takes away any the session no longer carries -- then says it did, in
         :data:`_GENERATION`, which the runtime reads at its next step. Into the runtime's own
         directory, which is this session's alone and goes with the runtime: never the
         workspace, and never a home of anybody's.
 
         Args:
-          written: The directory the runtime's patch is in.
+          lodged: The runtime's skill-provider directory, or None if it has no flow provider.
 
         Returns:
           Whether the runtime reads the flow's skills from there at all.
@@ -915,31 +922,36 @@ class DshSession(SessionBase):
           ValueError: If a skill is named as anything but one directory's name, before anything
             is written or taken away.
         """
-        if written is None or self._skilled(written)[1] is None:
+        if lodged is None:
             return False
         wanted = {one.name: one.at for one in self._carrying()}
         for name in wanted:
             if name in ("", ".", "..") or Path(name).name != name or "\\" in name:
                 raise ValueError(f"unsupported skill name {name!r} for dsh")
-        root = Path(written.name) / _SKILLS
+        root = Path(lodged) / _SKILLS
         root.mkdir(exist_ok=True)
         added = {name: at for name, at in wanted.items() if not (root / name).exists()}
         removed = [entry for entry in root.iterdir() if entry.name not in wanted]
         if added or removed:
-            # Finish every copy before changing the live catalog. A broken resource must
-            # leave no partial skill that the next turn mistakes for an installed one.
-            with tempfile.TemporaryDirectory(
-                prefix="skills-", dir=written.name
-            ) as stage:
+            # A skill that cannot be delivered is omitted, never published half-copied;
+            # it can be retried on the next turn without interrupting the conversation.
+            copied: list[str] = []
+            with tempfile.TemporaryDirectory(prefix="skills-", dir=lodged) as stage:
                 for name, at in added.items():
-                    shutil.copytree(at, Path(stage) / name)
+                    try:
+                        shutil.copytree(at, Path(stage) / name, symlinks=True)
+                    except OSError as why:
+                        log.warning("omitting dsh flow skill %r: %s", name, why)
+                    else:
+                        copied.append(name)
                 for entry in removed:
                     shutil.rmtree(entry)
-                for name in added:
+                for name in copied:
                     (Path(stage) / name).replace(root / name)
-            told = Path(written.name) / f".{_GENERATION}"
-            told.write_text(uuid.uuid4().hex, encoding="utf-8")
-            told.replace(Path(written.name) / _GENERATION)
+            if copied or removed:
+                told = Path(lodged) / f".{_GENERATION}"
+                told.write_text(uuid.uuid4().hex, encoding="utf-8")
+                told.replace(Path(lodged) / _GENERATION)
         return True
 
     def _shut(self) -> None:
@@ -951,6 +963,7 @@ class DshSession(SessionBase):
         composition, self._composition = self._composition, None
         self._runtime_effort = None
         self._runtime_composition = None
+        self._runtime_skilled = (None, None)
         self._runtime_through = None
         if self._reaper is not None:
             self._reaper.detach()

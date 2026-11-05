@@ -1125,6 +1125,9 @@ SDK-profile patch and then the home patch. Custom roots, home overrides and `dis
 preserved; JavaScript expressions or structural changes to that provider are refused when
 the session's home moves to an epic. The catalog does not infer user skills from such a
 configuration. Other plugins' configuration is not copied into the epic.
+Settings are captured once per runtime launch, so edits to the user's patch take effect
+on the next launch without invalidating a running conversation. Flow resource symlinks stay
+as links. A skill that cannot be copied is omitted with a warning and retried next turn.
 
 | Backend | Put at | Skill directories read (`Profile.works`, relative to the workspace) |
 | --- | --- | --- |

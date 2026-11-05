@@ -915,6 +915,7 @@ def test_only_skill_configuration_is_carried_to_an_epic(
     _user_patch(
         dsh_home,
         "- id: unrelated\n  config: !!js dangerous()\n"
+        "- id: another\n  config: {separator: =}\n"
         "- id: skill-filesystem\n  config:\n    dshHome: configured-dsh\n"
         "    agentsHome: configured-agents\n    watch: false\n"
         "    customSkillDirs: [custom]\n    includeDefaultRoots: false\n",

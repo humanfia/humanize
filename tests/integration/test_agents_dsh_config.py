@@ -63,7 +63,8 @@ def test_original_provider_roots_and_home_layer_precedence_survive_epic_storage(
     home = _patch(
         tmp_path / "dsh",
         "- id: skill-filesystem\n  disabled: false\n  config:\n"
-        "    includeDefaultRoots: false\n    customSkillDirs: [custom]\n    watch: false\n",
+        "    includeDefaultRoots: false\n    customSkillDirs: [custom]\n    watch: false\n"
+        "- id: unrelated\n  config: {separator: =}\n",
     )
     before = {path: path.read_text(encoding="utf-8") for path in (profile, home)}
     agent = DshAgent(DshAgentConfig(model="deepseek-stand-in", effort="high"))
@@ -150,5 +151,43 @@ def test_disabled_user_provider_stays_absent_while_flow_skills_load(
         session = agent.new(tmp_path)
         assert "unknown or no longer available" in _load(session, "hidden")
         assert "FLOW" in _load(session, "brought")
+    finally:
+        agent.stop()
+
+
+def test_user_patch_edits_apply_to_new_runtimes_without_interrupting_a_conversation(
+    endpoint: Endpoint, tmp_path: Path
+) -> None:
+    home = tmp_path / "dsh"
+    _skill(home / "skills", "mine", "USER-SNAPSHOT")
+    patch = _patch(home, "- id: skill-filesystem\n  config: {watch: false}\n")
+    agent = DshAgent(DshAgentConfig(model="deepseek-stand-in", effort="high"))
+    agent.keeps = tmp_path / "epic"
+    agent.loads(
+        [
+            Loaded(name, _skill(tmp_path / "flow", name, f"FLOW-{name}"), "flow")
+            for name in ("first", "second")
+        ]
+    )
+    session = agent.new(tmp_path)
+    session.loads(["first"])
+    try:
+        assert "USER-SNAPSHOT" in _load(session, "mine")
+        assert "FLOW-first" in _load(session, "first")
+        for edit in (
+            "- id: skill-filesystem\n  disabled: true\n",
+            "- id: skill-filesystem\n  config: !!js chooseSkills()\n",
+            "[unfinished",
+        ):
+            patch.write_text(edit, encoding="utf-8")
+            session.loads(["second"])
+            assert "USER-SNAPSHOT" in _load(session, "mine")
+            assert "FLOW-second" in _load(session, "second")
+            assert "unknown or no longer available" in _load(session, "first")
+        assert agent.opened == [session.id]
+        patch.write_text("- id: skill-filesystem\n  disabled: true\n", encoding="utf-8")
+        next_session = agent.new(tmp_path)
+        assert "unknown or no longer available" in _load(next_session, "mine")
+        assert "FLOW-second" in _load(next_session, "second")
     finally:
         agent.stop()

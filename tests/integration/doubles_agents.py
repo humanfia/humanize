@@ -238,9 +238,9 @@ def harnessed(message: dict[str, Any]) -> bool:
     of skills after the prompt as a message of its own, and again when that catalog changes.
     """
     parts = _parts(message.get("content"))
-    return any(
-        one.startswith((RUNTIME_CONTEXT, OPERATOR_NOTE)) for one in parts
-    ) or all(one.startswith(REMINDER) for one in parts)
+    return any(one.startswith((RUNTIME_CONTEXT, OPERATOR_NOTE)) for one in parts) or (
+        bool(parts) and all(one.startswith(REMINDER) for one in parts)
+    )
 
 
 @dataclass

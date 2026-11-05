@@ -33,7 +33,8 @@ CoreLoader.yaml_implicit_resolvers = {
     first: [
         (tag, pattern)
         for tag, pattern in resolvers
-        if tag.rsplit(":", 1)[-1] not in {"bool", "timestamp", "int", "float", "merge"}
+        if tag.rsplit(":", 1)[-1]
+        not in {"bool", "timestamp", "int", "float", "merge", "value"}
     ]
     for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
 }

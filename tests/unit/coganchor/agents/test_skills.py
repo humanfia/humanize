@@ -141,6 +141,7 @@ def test_dsh_skills_default_to_the_users_own_homes(
     [
         ("---\nname: " + "a-" * 60 + "z\ndescription: long\n---\n", True),
         ("---\nname: blank\ndescription: '   '\n---\n", True),
+        ("---\nname: equals\ndescription: =\n---\n", True),
         ("---\nname: yes\ndescription: on\n---\n", True),
         ("---\nname: no\ndescription: 2026-11-04\n---\n", True),
         ("---\nname: 2026-11-04\ndescription: date\n---\n", True),

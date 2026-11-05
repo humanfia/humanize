@@ -135,6 +135,8 @@ provider and take precedence over user custom directories as well as default use
 Dynamic JavaScript expressions and structural plugin changes cannot be carried into an epic
 home: the turn reports an unsupported configuration, and the skill list shows no inferred
 user skills for a configuration it cannot inspect.
+These settings are read when the runtime starts. Editing them while a conversation runs
+does not interrupt it; the next runtime reads the new settings.
 
 If several files in one directory declare the same skill name, the list marks that name as
 having multiple definitions. DSH chooses the definition using its own locale-dependent order.
@@ -200,6 +202,9 @@ and edit its skill.
 - **`dsh` after its skills change.** A session told to carry other skills between two turns
   carries them from its next turn, in the same conversation: the model is shown a catalog
   that replaces the one it had.
+- **A dsh flow skill cannot be copied.** It is omitted with a warning; the turn and the other
+  skills continue, and the next turn tries that skill again. Resource symlinks are preserved
+  as links, including dangling links, rather than expanded while copying.
 - **A skill from a git repository cannot be fetched.** The run is refused before it starts,
   naming the skill. Check the network, or the repository's address in the flow.
 
