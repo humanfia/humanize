@@ -2037,14 +2037,15 @@ class CodexSession(SessionBase):
             # Taken once and held for the whole turn: asking the agent for a server again may
             # be starting another one, and the thread this turn is on is the first one's.
             server = self._agent._taken(self._on)
+            if self._cut:
+                # Cut off while a server was being found or started for it: a cut that came
+                # before there was a server to put down ends the turn here, before anything of
+                # it is sent, as one that came later ends it at the server.
+                server.give()
+                raise Failed(
+                    1, server._argv, "", f"cut off before it began: {self._cut}"
+                )
             try:
-                if self._cut:
-                    # Cut off while a server was being found or started for it: a cut that
-                    # came before there was a server to put down ends the turn here, before
-                    # anything of it is sent, as one that came later ends it at the server.
-                    raise Failed(
-                        1, server._argv, "", f"cut off before it began: {self._cut}"
-                    )
                 self._on = server
                 # Cleared first, so that a thread kept from a failed go that cannot be picked
                 # back up is let go of like one whose turn was never taken.
