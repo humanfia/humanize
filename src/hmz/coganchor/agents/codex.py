@@ -79,15 +79,15 @@ import subprocess
 import sys
 import threading
 import weakref
-from collections import Counter
-from dataclasses import dataclass
+from collections import Counter, deque
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor.homes import merged, merger
 
 from .base import AgentBase, SessionBase
 from .config import PERMISSIONS, UNSAID, AgentConfig
-from .event import Event, Failed, Question, Usage, say
+from .event import Event, Failed, Question, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, SUBAGENTS, Moment, Occasion
 from .watchdog import Watchdog
 
@@ -169,6 +169,11 @@ class _Running:
 
     thread: str | None = None
     turn: str | None = None
+    #: Whether `turn/start` has been sent and not yet answered: until it is, nothing the
+    #: stream says of the thread can be told apart as this turn's or a turn Codex started of
+    #: its own, so it is held back here and routed once the answer names the turn.
+    starting: bool = False
+    pending: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     #: The server this turn is being taken on, bound where the turn starts rather than asked
     #: for again when there is a word to put in. The agent's server is let go of and started
     #: again whenever what it was started knowing has moved -- another account, another list
@@ -629,6 +634,10 @@ def _tighter(permission: str) -> str | None:
 _STOP_SECONDS = 5.0
 _QUIET_SECONDS = 60.0
 
+#: How many turns that have ended are remembered per thread, so that what the stream says of
+#: one late is neither read into the next turn nor taken for a turn Codex started of its own.
+_RECENT_TURNS = 16
+
 #: The items that are the agent talking rather than the agent doing something. They are shown
 #: as they complete, there being no words in one before that; everything else is shown as it
 #: starts, since watching a thing run is the point of showing it at all.
@@ -757,6 +766,11 @@ class _AppServer:
         #: the turn asks of us is answered on a thread of its own, and a hook answering it
         #: may put a word into that turn before its reader has woken to hear it began.
         self._turning: dict[str, _Running] = {}
+        #: The turns of each thread that have ended, most recent last, and the conversation
+        #: each thread is, held weakly: what a thread spends with no turn of ours reading it
+        #: -- a turn Codex started by itself, or a late total -- is still that conversation's.
+        self._ended: dict[str, deque[str]] = {}
+        self._owners: dict[str, weakref.ref[SessionBase]] = {}
         self._routing = threading.Lock()  # those books, and whether it has stopped
         self._gone = False
         #: How many turns are running here, counted under `_routing`. A conversation belongs
@@ -851,14 +865,19 @@ class _AppServer:
         """
         return self._holding.get(thread) == dict(rung)
 
-    def holding(self, thread: str, rung: Mapping[str, Any]) -> None:
-        """Remembers that this server has that thread open at that rung.
+    def holding(
+        self, thread: str, rung: Mapping[str, Any], session: SessionBase
+    ) -> None:
+        """Remembers that this server has that thread open at that rung, for that session.
 
         Args:
           thread: The thread just started or picked back up here.
           rung: What it was started or picked up under.
+          session: The conversation the thread is, whether a turn or a goal opened it: what
+            the thread spends while none of its turns is reading it is charged there.
         """
         self._holding[thread] = dict(rung)
+        self._owners[thread] = weakref.ref(session)
 
     def permitted(self, permission: str, service_tier: str) -> dict[str, Any]:
         """What a call of this server is told an agent at that rung may do.
@@ -963,7 +982,13 @@ class _AppServer:
             )
             while (message := self._take(mailbox)) is None:
                 pass  # a read with no deadline ends in a message or in the server stopping
-            return self._answer(message, "")
+            answered = self._answer(message, "")
+            if method == "thread/start":
+                # A thread started here has spent nothing, so its first total is all a rise:
+                # one picked up elsewhere is what `_rose` reads `last` for.
+                with self._routing:
+                    self._counted.setdefault(str(answered["thread"]["id"]), Counter())
+            return answered
 
     def pursue(
         self,
@@ -1156,10 +1181,16 @@ class _AppServer:
     def turn(self, params: dict[str, Any], running: _Running) -> Iterator[Event]:
         """Runs one turn on a thread and says what the agent says as it says it.
 
+        The turn is the one `turn/start` answers with, and nothing else on the thread is: a
+        turn Codex starts by itself -- before that answer, during this turn or after it -- and
+        what the stream says late of a turn already over are neither shown nor answered with,
+        and what they spend is the session's but not this turn's.
+
         Args:
           params: What to start the turn with, naming the thread it is on.
-          running: Told the turn's own id as the server names it, and told again when the turn
-            is over -- which is what lets a word put in mid-turn say which turn it is for.
+          running: Told the turn's own id as the start answers with it, and told again when
+            the turn is over -- which is what lets a word put in mid-turn say which turn it is
+            for.
 
         Yields:
           What the agent said, and the answer it ended on.
@@ -1181,21 +1212,23 @@ class _AppServer:
             )
             said = ""
             failed: str | None = None
-            before = Counter(self._counted.get(thread) or Counter())
             costing = Usage()
             started: set[Any] = set()  # the items this turn has already shown
             try:
                 while (message := self._take(mailbox)) is not None:
                     if message.get("id") == ident and "method" not in message:
-                        self._answer(message, said)
+                        if not _turn_id(self._answer(message, said)):
+                            # Nothing on the stream could then be told apart as this turn's.
+                            raise Unrecoverable(
+                                1, self._argv, "", "codex: turn/start named no turn"
+                            )
+                        continue
                     # Whose a message is was settled where it was read: one that names a
-                    # thread reached this turn only if it named this one, and one that names
-                    # none reached it only because it is the single turn this server is
-                    # running -- so everything read here is this turn's to act on.
+                    # turn reached this turn only if it named this one, one that names only
+                    # a thread only if it named this one, and one that names neither only
+                    # because it is the single turn this server is running -- so everything
+                    # read here is this turn's to act on.
                     told: dict[str, Any] = message.get("params") or {}
-                    named_turn: dict[str, Any] = told.get("turn") or {}
-                    if turn := told.get("turnId") or named_turn.get("id"):
-                        running.turn = str(turn)
                     match message.get("method"):
                         case "item/started" | "item/completed":
                             for event in self._shown(
@@ -1205,7 +1238,9 @@ class _AppServer:
                                     said = event.text
                                 yield event
                         case "thread/tokenUsage/updated":
-                            if (risen := self._rose(thread, told)) is not None:
+                            # Read off the thread's running total where the stream is read,
+                            # in the order it was said, whosever turn it was.
+                            if (risen := message.get("_usage")) is not None:
                                 costing = costing + risen
                                 if running.spends is not None:
                                     # As the turn spends it rather than once it is over: a
@@ -1232,18 +1267,29 @@ class _AppServer:
                             pass
             finally:
                 # Both at once, so that nothing the stream says of this turn after it has
-                # ended can tell it that it is running again.
+                # ended can tell it that it is running again: it is remembered as over.
                 with self._routing:
-                    running.turn = None
+                    if running.turn is not None:
+                        self._ended.setdefault(
+                            thread, deque(maxlen=_RECENT_TURNS)
+                        ).append(running.turn)
+                    held, running.pending = running.pending, []
+                    running.turn, running.starting = None, False
                     if self._turning.get(thread) is running:
                         del self._turning[thread]
+                # A turn left before its start was answered leaves nobody to answer what Codex
+                # asked of it meanwhile, and a request left unanswered stalls its thread.
+                for asked in held:
+                    if "id" in asked and "method" in asked:
+                        with contextlib.suppress(
+                            Failed
+                        ):  # a server gone asks nothing more
+                            self._refuse(asked)
             if failed is not None:
                 raise Failed(1, self._argv, said, failed)
-            # What the turn cost is the rise across it, charged to the model it ran on: the
-            # server counts the thread, and a thread is every turn this session has taken.
-            spent = sum((self._counted.get(thread) or Counter()).values()) - sum(
-                before.values()
-            )
+            # What the turn cost is what its own requests cost, charged to the model it ran
+            # on -- not the rise across it, which is every turn the thread ran meanwhile.
+            spent = int(costing.total)
             yield Event(
                 kind="result",
                 text=said.strip(),
@@ -1274,6 +1320,8 @@ class _AppServer:
         if not sum(held.values()):
             return None
         before = self._counted.get(thread)
+        if before is not None:
+            held |= before  # a total said late is an older one, and cannot wind it back
         self._counted[thread] = held
         if before is None:
             # The first word of a thread this server did not start: one picked back up after
@@ -1283,13 +1331,14 @@ class _AppServer:
             # is read from.
             last: dict[str, Any] = counted.get("last") or {}
             return Usage({kind: float(tokens) for kind, tokens in _kinds(last).items()})
-        return Usage(
+        risen = Usage(
             {
                 kind: tokens
                 for kind in set(held) | set(before)
                 if (tokens := held[kind] - before[kind]) > 0
             }
         )
+        return risen if risen.total else None  # a total said again, or said late
 
     def steer(self, thread: str, turn: str, text: str, ticket: str) -> None:
         """Says something to a turn that is already running.
@@ -1397,6 +1446,7 @@ class _AppServer:
             if thread is not None:
                 self._listening[thread] = mailbox
                 if running is not None:
+                    running.starting = True  # until `turn/start` is answered
                     self._turning[thread] = running
         try:
             yield mailbox
@@ -1414,12 +1464,22 @@ class _AppServer:
     def _route(self, message: dict[str, Any]) -> None:
         """Hands one message to whoever it belongs to.
 
-        An answer goes to the call that asked for it, and a notification to the turn of the
-        thread it names. A message naming no thread -- a warning about the installation, a
-        rate limit nothing did -- goes to the one turn reading where there is one, which is
-        what a stream held alone would have handed it. Where more than one turn is reading it
-        goes nowhere: there is nothing in such a message saying whose it is, and a turn ended
-        or failed by another conversation's word is worse than one that never heard it.
+        An answer goes to the call that asked for it. A notification goes to the turn of the
+        thread it names, and only if it names that turn, or no turn at all: a thread runs turns
+        of its own too, and what one of them says is not the answer to anybody's prompt. A
+        goal's reader takes all of its thread, since every turn of a goal is the goal's. Until
+        a turn's start is answered nothing of its thread can be told apart, so it waits on
+        the turn and is routed again, in the order it came, once the answer names the turn.
+
+        A message naming no thread -- a warning about the installation, a rate limit nothing
+        did -- goes to the one turn reading where there is one, which is what a stream held
+        alone would have handed it. Where more than one turn is reading it goes nowhere:
+        there is nothing in such a message saying whose it is, and a turn ended or failed by
+        another conversation's word is worse than one that never heard it.
+
+        What a thread spends is read here, on the one reader of the stream, so that a running
+        total is read in the order it was said: a turn is charged what its own requests cost,
+        and whatever no turn of ours is reading is charged to the thread's session alone.
 
         An answer nobody is waiting for is dropped too: a steer is answered the moment the
         server binds it, and what says the model has it is the item the turn plays back.
@@ -1428,28 +1488,66 @@ class _AppServer:
           message: The message read.
         """
         told: dict[str, Any] = message.get("params") or {}
-        thread = told.get("threadId")
+        thread = str(told.get("threadId") or "")
+        named: dict[str, Any] = told.get("turn") or {}
+        turn = str(told.get("turnId") or named.get("id") or "")
+        held: list[dict[str, Any]] = []
+        charged: Usage | None = None
+        late = False
         with self._routing:
             if (ident := message.get("id")) is not None:
-                if (answering := self._waiting.get(int(ident))) is not None:
-                    answering.put(message)
-                return
-            if thread is not None:
-                running = self._listening.get(str(thread))
-                reading = [running] if running is not None else []
+                answering = self._waiting.get(int(ident))
+                if answering is None:
+                    return
+                for name, mailbox in self._listening.items():
+                    active = self._turning.get(name)
+                    if mailbox is answering and active is not None:
+                        active.starting = False
+                        active.turn = _turn_id(message.get("result")) or None
+                        held, active.pending = active.pending, []
+                        break
+                reading = [answering]
+            elif thread:
+                mailbox = self._listening.get(thread)
+                active = self._turning.get(thread)
+                if active is not None and active.starting:
+                    active.pending.append(message)
+                    return
+                goal = mailbox is not None and active is None
+                ours = goal or not turn or (active is not None and active.turn == turn)
+                late = turn in self._ended.get(thread, ())
+                if not ours and not late and message.get("method") == "turn/completed":
+                    self._ended.setdefault(thread, deque(maxlen=_RECENT_TURNS)).append(
+                        turn
+                    )
+                reading = [mailbox] if ours and mailbox is not None else []
+                if not goal and message.get("method") == "thread/tokenUsage/updated":
+                    risen = self._rose(thread, told)
+                    if reading:
+                        message["_usage"] = risen
+                    else:
+                        charged = risen
             elif len(self._listening) == 1:
                 reading = list(self._listening.values())
             else:
                 reading = []
+        # What was held back is routed before the answer that released it is handed over,
+        # so a turn refused at its start has had what Codex ran meanwhile charged by then.
+        for waited in held:
+            self._dispatch(waited)
+        if charged is not None:
+            owner = self._owners.get(thread)
+            if (session := owner() if owner is not None else None) is not None:
+                # On the meters alone, which a budget reads at the turn's next response:
+                # cutting a turn off from here would be doing it on the stream's one reader.
+                # A late total settles what was counted, rather than being another request.
+                session._meter.spend(charged, turn=not late)
+                session._agent._meter.spend(charged, turn=not late)
         for mailbox in reading:
             mailbox.put(message)
 
     def _pump(self) -> None:
         """Reads the server's whole stream, handing each message on to whoever it is for.
-
-        Answering what the server asks of us on threads of their own: what nobody may wait on
-        here is this loop, which is the one reader of a stream every turn of this server is
-        being told things over.
 
         The pieces of a message are not teed on the way past. The server sends each of them
         twice over -- once as an `item/agentMessage/delta` while it writes, and once as the
@@ -1460,61 +1558,70 @@ class _AppServer:
         """
         assert self._proc.stdout is not None  # noqa: S101
         for line in self._proc.stdout:
-            message: dict[str, Any] = json.loads(line)
-            self._begun(message)
-            if "id" in message and "method" in message:
-                # Something asked of us. A request left unanswered stalls the turn holding the
-                # stream -- and with it every session of the agent -- so every one of them is
-                # answered. The turn asking its user something is put to that user; the rest
-                # are approvals, and refusing is not the answer they wanted but is an answer.
-                if message["method"] == _ASKS:
-                    # On a thread of its own: asking waits on a person, and this one has the
-                    # whole server's stream to keep reading meanwhile.
-                    threading.Thread(
-                        target=self._ask, args=(message,), daemon=True
-                    ).start()
-                    continue
-                if message["method"] in _APPROVALS:
-                    # On a thread of its own too: a hook is the flow's own code, and one that
-                    # takes its time must not stop the stream every session is read from.
-                    threading.Thread(
-                        target=self._approve, args=(message,), daemon=True
-                    ).start()
-                    continue
-                self._write(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": message["id"],
-                        "error": {"code": -32601, "message": "a flow answers nothing"},
-                    }
-                )
-                continue
-            self._route(message)
+            self._dispatch(json.loads(line))
         with self._routing:
             self._gone = True
             everyone = [*self._waiting.values(), *self._listening.values()]
         for mailbox in everyone:
             mailbox.put(None)  # it has stopped, and nothing more is coming
 
-    def _begun(self, message: dict[str, Any]) -> None:
-        """Tells the turn reading a thread which turn the stream says is under way on it.
+    def _dispatch(self, message: dict[str, Any]) -> None:
+        """Answers what the server asks of us, and routes everything else.
 
-        Here, on the one reader of the stream, rather than only where the turn's own reader
-        gets to the message: an approval is answered on a thread of its own the moment it is
-        read, and a hook refusing it puts its reason into the turn -- which a turn whose reader
-        has not yet woken to `turn/started` would otherwise not know it is running.
+        Answering on threads of their own: what nobody may wait on here is the stream's one
+        reader, which every turn of this server is being told things over. A request left
+        unanswered stalls the turn holding the stream -- and with it every session of the
+        agent -- so every one of them is answered. The turn asking its user something is put
+        to that user; the rest are approvals, and refusing is not the answer they wanted but
+        is an answer.
+
+        An approval or a question is put to hooks and people only for the turn under way on
+        its thread, or the goal being read there. One asked before that turn's start is
+        answered waits for the answer to name it; one of a turn Codex started by itself, or
+        of a thread nobody is reading, is refused as an error -- a hook steering its reason
+        into the turn under way would be steering it into somebody else's.
 
         Args:
           message: The message read.
         """
-        told: dict[str, Any] = message.get("params") or {}
-        named: dict[str, Any] = told.get("turn") or {}
-        thread, turn = told.get("threadId"), told.get("turnId") or named.get("id")
-        if thread is None or not turn:
+        if "id" not in message or "method" not in message:
+            self._route(message)
             return
-        with self._routing:
-            if (running := self._turning.get(str(thread))) is not None:
-                running.turn = str(turn)
+        method = message["method"]
+        if method in (*_APPROVALS, _ASKS):
+            told: dict[str, Any] = message.get("params") or {}
+            thread = str(told.get("threadId") or "")
+            with self._routing:
+                active = self._turning.get(thread)
+                if active is not None and active.starting:
+                    active.pending.append(message)
+                    return
+                theirs = (
+                    active.turn != str(told.get("turnId") or "")
+                    if active is not None
+                    else thread not in self._listening
+                )
+            if not theirs:
+                # On a thread of its own: asking waits on a person, and a hook is the flow's
+                # own code, and neither may stop the stream every session is read from.
+                answering = self._ask if method == _ASKS else self._approve
+                threading.Thread(target=answering, args=(message,), daemon=True).start()
+                return
+        self._refuse(message)
+
+    def _refuse(self, message: dict[str, Any]) -> None:
+        """Answers something the server asked with an error, which is still an answer.
+
+        Args:
+          message: The request, as read.
+        """
+        self._write(
+            {
+                "jsonrpc": "2.0",
+                "id": message["id"],
+                "error": {"code": -32601, "message": "a flow answers nothing"},
+            }
+        )
 
     def _approve(self, message: dict[str, Any]) -> None:
         """Answers something the agent asked to be allowed to do, as its rung says.
@@ -1665,6 +1772,23 @@ class _AppServer:
         if (refused := message.get("error")) is not None:
             raise Failed(1, self._argv, said, json.dumps(refused))
         return message.get("result")
+
+
+def _turn_id(result: object) -> str:
+    """The turn a `turn/start` answer names, or "" for an answer naming none.
+
+    Args:
+      result: The answer's result.
+
+    Returns:
+      The turn's id.
+    """
+    if not isinstance(result, dict):
+        return ""
+    turn: object = cast("dict[str, Any]", result).get("turn")
+    if not isinstance(turn, dict):
+        return ""
+    return str(cast("dict[str, Any]", turn).get("id") or "")
 
 
 def _overrides(given: Sequence[tuple[str, str]]) -> tuple[tuple[str, str], ...]:
@@ -2077,7 +2201,7 @@ class CodexSession(SessionBase):
                 if self._forked_from is not None
                 else server.call("thread/start", opened)["thread"]["id"]
             )
-            server.holding(started, rung)
+            server.holding(started, rung, self)
             return started
         if server.holds(thread, rung):
             # Already open here, at exactly the rung this turn asks for -- which is the whole
@@ -2088,7 +2212,7 @@ class CodexSession(SessionBase):
         # Said again on the way back in: a thread picked up is picked up under the settings it
         # was left with, and this session's rung is what its agent is configured for now.
         server.call("thread/resume", {"threadId": thread, **rung})
-        server.holding(thread, rung)
+        server.holding(thread, rung, self)
         return thread
 
     def _lets_go(self) -> None:

@@ -50,6 +50,11 @@ def _flag(argv: list[str], name: str) -> str:
     return argv[argv.index(name) + 1]
 
 
+def _text(said: Any) -> str:
+    """The words of a user message written to Claude."""
+    return str(said["message"]["content"][0]["text"])
+
+
 class _Claude:
     """What the scripted `claude` says: an answer per message, from a queue of answers."""
 
@@ -60,7 +65,7 @@ class _Claude:
         spawner.replying(self._heard)
 
     def _heard(self, proc: Process, said: Any) -> None:
-        if said.get("type") != "user" or "uuid" in said:
+        if said.get("type") != "user" or _text(said) == "also this":
             return
         session = (
             _flag(proc.args, "--session-id")
@@ -577,7 +582,7 @@ def test_a_word_put_in_mid_turn_is_heard_and_answered_with_the_turn(
     spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:
     def steered(proc: Process, said: Any) -> None:
-        if said.get("type") == "user" and "uuid" in said:
+        if said.get("type") == "user" and _text(said) == "also this":
             proc.say(
                 {
                     "type": "command_lifecycle",
