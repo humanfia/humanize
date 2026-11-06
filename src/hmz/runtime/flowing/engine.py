@@ -1372,6 +1372,14 @@ class LiveCall:
     resumable: bool = False
 
 
+class Interruptible(Protocol):
+    """A turn under way, as its run sees it: something it can cut short as it ends."""
+
+    def interrupt(self) -> None:
+        """Cuts it short, from the run's loop. Idempotent."""
+        ...
+
+
 def running() -> tuple[LiveCall, ...]:
     """Every flow call going now, in every run of this process, oldest first."""
     calls = [node.record() for run in tuple(_RUNS) for node in tuple(run.live)]
@@ -1463,7 +1471,7 @@ class Run:
         self.tasks: set[asyncio.Task[Any]] = set()
         #: Every turn under way, by the session taking it: what the run interrupts as it ends,
         #: whatever has become of the task waiting on it.
-        self.turns: dict[int, SessionHandle] = {}
+        self.turns: dict[int, Interruptible] = {}
 
     def joined(self) -> None:
         """Counts the task running now among the flow's, until it ends.
@@ -1976,7 +1984,33 @@ async def run_flow(
             if top.clock is not None:
                 top.clock.stop()
     finally:
-        await run.close()
+        await _closed(run)
+
+
+async def _closed(run: Run) -> None:
+    """Closes a run, in a task of its own waited for to its end, whatever cancels the waiting.
+
+    A stop arriving as the run settles -- a signal, :meth:`hmz.sdk.Run.stop` -- would
+    otherwise cut the settling short and close the journal under the flow's tasks still
+    ending, whose writes on their way out it is there to keep: the close goes on, and the stop
+    is raised once it is over. The task waiting is no task of the flow's to settle.
+
+    Raises:
+      asyncio.CancelledError: Once the run is closed, where the waiting was cancelled.
+    """
+    me = asyncio.current_task()
+    if me is not None:
+        run.tasks.discard(me)
+    closing = asyncio.ensure_future(run.close())
+    stopped = False
+    while not closing.done():
+        try:
+            await asyncio.shield(closing)
+        except asyncio.CancelledError:
+            stopped = True
+    closing.result()
+    if stopped:
+        raise asyncio.CancelledError
 
 
 def _given(

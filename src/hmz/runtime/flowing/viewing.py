@@ -101,7 +101,7 @@ from .journaling import SESSION
 from .spi import HookTable, Kept, Limits, TurnRequest, default_result
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Mapping
+    from collections.abc import Awaitable, Callable, Coroutine, Mapping
     from pathlib import PurePosixPath
     from types import FrameType
 
@@ -1372,6 +1372,39 @@ class Source:
         return self.driver is None or self.driver.away_for(role)
 
 
+class _Asked:
+    """An outworlder's answer being waited for, which its run interrupts as it ends.
+
+    In a task of its own, cancelled however the task asking was cancelled before.
+    """
+
+    __slots__ = ("_waiting",)
+
+    def __init__(self, waiting: asyncio.Future[Any]) -> None:
+        self._waiting = waiting
+
+    def interrupt(self) -> None:
+        self._waiting.cancel()
+
+
+async def _asked[T](node: Call | None, asking: Coroutine[Any, Any, T]) -> T:
+    """Waits for an outworlder's answer, as a turn its call's run can interrupt as it ends.
+
+    In a task of its own, which the run cancels as it ends whatever became of the task
+    waiting on it (:attr:`Run.turns`); outside any call, waited for as it is.
+    """
+    if node is None:
+        return await asking
+    waiting = asyncio.ensure_future(asking)
+    asked = _Asked(waiting)
+    turns = node.run.turns
+    turns[id(asked)] = asked
+    try:
+        return await waiting
+    finally:
+        turns.pop(id(asked), None)
+
+
 class _Person:
     """The session handle of an outworlder, who has no CLI to hold one of."""
 
@@ -1490,9 +1523,19 @@ class OutworlderView:
         return self
 
     async def spawn(self) -> SessionView:
-        if self._node is not None:
-            self._node.check()
+        node = self._asking()
+        if node is not None:
+            node.check()
         return SessionView(self, _Person(self._source))
+
+    def _asking(self) -> Call | None:
+        """The call whose turn this is, or None outside any.
+
+        The one the view was handed to, or, for one a flow made with `Outworlder.new()` and
+        uses itself, the call using it.
+        """
+        node = self._node
+        return node if node is not None else CALLING.get()
 
     async def fork(self, session: Session) -> SessionView:
         del session
@@ -1539,7 +1582,7 @@ class OutworlderView:
             raise SessionError(
                 f"{self._role}: {session!r} is not one of this outworlder's"
             )
-        node = self._node
+        node = self._asking()
         if node is not None:
             node.limits(budget)  # refuses a turn under a spent budget
         if source.made:
@@ -1549,13 +1592,16 @@ class OutworlderView:
             owner = source.node or node
             token = CALLING.set(owner)
             try:
-                answered = await hook(
-                    OutworlderRunHookParams(
-                        ctx=owner,  # pyright: ignore[reportArgumentType]
-                        session=session,
-                        prompt=prompt,
-                        output_schema=output_schema,
-                    )
+                answered = await _asked(
+                    node,
+                    hook(
+                        OutworlderRunHookParams(
+                            ctx=owner,  # pyright: ignore[reportArgumentType]
+                            session=session,
+                            prompt=prompt,
+                            output_schema=output_schema,
+                        )
+                    ),
                 )
             finally:
                 CALLING.reset(token)
@@ -1567,7 +1613,7 @@ class OutworlderView:
             return away_answer(output_schema)
         away = False
         try:
-            said = await driver.run(prompt, output_schema, self._asker)
+            said = await _asked(node, driver.run(prompt, output_schema, self._asker))
         except OutworlderAway:
             said, away = None, True
         # An answer -- being away included -- once the call or the run is over reaches nobody.

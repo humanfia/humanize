@@ -34,6 +34,7 @@ from hmz.flows import (
     HarnessMismatch,
     MissingRole,
     Outworlder,
+    OutworlderRunHookResult,
     ParamsError,
     RequirementError,
     ResourceUnmet,
@@ -948,3 +949,190 @@ async def test_a_task_waiting_on_a_repository_flow_ends_with_the_run(
     # Ended with the run while the repository was fetched, its way out journaled.
     assert ended
     assert '"wound"' in journal.read_text()
+
+
+async def test_a_stop_as_the_run_ends_does_not_cut_its_tasks_way_out_short(
+    tmp_path: Path,
+) -> None:
+    started, settling = asyncio.Event(), asyncio.Event()
+    going: list[asyncio.Future[None]] = []
+
+    @flow(agents=AgentCollection, envs=NoEnvs, params=Nothing, resumable=True)
+    async def leaves(
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, agents, envs, params
+
+        async def worker() -> None:
+            try:
+                started.set()
+                await lingers("held", agents={}, envs={}, params=Nothing())
+            finally:
+                settling.set()
+                await asyncio.sleep(0.2)  # its way out takes a while
+                state = ctx.state
+                assert state is not None
+                state["accepted"] = True
+
+        going.append(asyncio.ensure_future(worker()))
+        await started.wait()
+
+    journal = tmp_path / "run.jsonl"
+    running = asyncio.ensure_future(
+        run_flow(
+            leaves,
+            "leave",
+            agents={},
+            envs={},
+            params={},
+            budget=UNLIMITED,
+            journal=journal,
+            local=FakeEnvDriver(),
+        )
+    )
+    await settling.wait()
+    running.cancel()  # a stop, arriving as the run settles
+
+    with pytest.raises(asyncio.CancelledError):
+        await running
+    await asyncio.gather(*going, return_exceptions=True)
+    # The stop waited for the run to close, which waited for the task's way out.
+    assert '"accepted"' in journal.read_text()
+
+
+async def test_a_turn_of_an_outworlder_the_flow_made_answers_nothing_once_the_run_ends(
+    tmp_path: Path,
+) -> None:
+    asked, released = asyncio.Event(), asyncio.Event()
+    heard: list[str] = []
+    going: list[asyncio.Future[None]] = []
+
+    async def answer(_: object) -> OutworlderRunHookResult:
+        asked.set()
+        await released.wait()
+        return OutworlderRunHookResult(output="accepted")
+
+    @flow(agents=AgentCollection, envs=NoEnvs, params=Nothing, resumable=True)
+    async def asks(
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, agents, envs, params
+        person = Outworlder.new()
+        person.on_outworlder_run(answer)
+        session = await person.spawn()
+
+        async def review() -> None:
+            try:
+                said = await person.run("review", session=session)
+            except BaseException as why:
+                heard.append(type(why).__name__)
+                raise
+            heard.append(said)
+            state = ctx.state
+            assert state is not None
+            state["verdict"] = said
+
+        going.append(
+            asyncio.ensure_future(lingers("held", agents={}, envs={}, params=Nothing()))
+        )
+        going.append(asyncio.ensure_future(review()))
+        await asked.wait()
+
+    journal = tmp_path / "run.jsonl"
+    await run_flow(
+        asks,
+        "ask",
+        agents={},
+        envs={},
+        params={},
+        budget=UNLIMITED,
+        journal=journal,
+        local=FakeEnvDriver(),
+    )
+    ended = [one.done() for one in going]
+    released.set()
+    await asyncio.gather(*going, return_exceptions=True)
+
+    assert ended == [True, True]
+    assert "accepted" not in heard
+    assert "verdict" not in journal.read_text()
+
+
+async def test_an_outworlders_turn_after_a_cancel_was_caught_is_cut_as_the_run_ends(
+    tmp_path: Path,
+) -> None:
+    asked, waiting = asyncio.Event(), asyncio.Event()
+    heard: list[str] = []
+    going: list[asyncio.Future[None]] = []
+
+    async def never(prompt: str, **_: object) -> str:
+        del prompt
+        asked.set()
+        await asyncio.Event().wait()  # nobody answers: only the run's end ends it
+        return "accepted"
+
+    @flow(agents=WithPerson, envs=NoEnvs, params=Nothing, resumable=True, hidden=True)
+    async def stubborn(
+        task: str,
+        *,
+        agents: WithPerson,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, envs, params, ctx
+        waiting.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            heard.append("caught")  # and goes on, its task still counted as cancelled
+        person = agents["person"]
+        heard.append(await person.run("review", session=await person.spawn()))
+
+    @flow(agents=WithPerson, envs=NoEnvs, params=Nothing, resumable=True)
+    async def calls(
+        task: str,
+        *,
+        agents: WithPerson,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, envs, params, ctx
+        going.append(
+            asyncio.ensure_future(
+                stubborn("it", agents=agents, envs={}, params=Nothing())
+            )
+        )
+        await waiting.wait()
+        going[0].cancel()
+        await asked.wait()
+
+    # Well within the 30 s the run would otherwise wait for it.
+    await asyncio.wait_for(
+        run_flow(
+            calls,
+            "ask",
+            agents={},
+            envs={},
+            params={},
+            budget=UNLIMITED,
+            journal=tmp_path / "run.jsonl",
+            local=FakeEnvDriver(),
+            outworlder=FakeOutworlder(reply=never),
+        ),
+        10,
+    )
+    await asyncio.gather(*going, return_exceptions=True)
+
+    assert heard == ["caught"]

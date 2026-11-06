@@ -2017,7 +2017,9 @@ turn under way is interrupted. What such a task writes to `ctx.state` on its way
 and a turn whose answer lands after the run ended raises `FlowCancelled` instead of answering.
 Other work the flow started -- a task that only waits and writes `ctx.state`, a thread -- is not
 the run's to end, nor is a task that will not end within those 30 s: they go on, and once the
-journal is closed, their writes to `ctx.state` raise `FlowCancelled`.
+journal is closed, their writes to `ctx.state` raise `FlowCancelled`. A stop that arrives while
+the run is ending this way -- <kbd>ctrl+c</kbd>, a signal, `Run.stop()` -- waits for it to finish
+rather than cutting it short, and the run then ends as stopped.
 
 ## Errors {#when-something-goes-wrong}
 
