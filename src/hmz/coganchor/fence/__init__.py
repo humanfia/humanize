@@ -34,10 +34,13 @@ inside may listen on every address, though it still connects to nothing but the 
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
+import errno
 import importlib
 import json
 import os
+import stat
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -219,6 +222,49 @@ def _users() -> tuple[str, ...]:
     if (uid := os.geteuid()) != 0:
         return (os.sep,)
     return (*_temporary(), f"/run/user/{uid}")
+
+
+#: How a directory on the way to a path a fence writes is opened: to search it, never to read
+#: it, where this machine can tell the two apart.
+_SEARCH: Final = (
+    getattr(os, "O_PATH", getattr(os, "O_SEARCH", os.O_RDONLY)) | os.O_CLOEXEC
+)
+
+#: How many links one path may lead through, as Linux counts them (`MAXSYMLINKS`).
+_LINKS: Final = 40
+
+#: Why a path a fence writes is granted nothing rather than refused, as Landlock leaves out a
+#: path it cannot reach.
+_UNREACHED: Final = frozenset({errno.ENOENT, errno.ENOTDIR, errno.EACCES, errno.ELOOP})
+
+
+def _identity(held: os.stat_result) -> tuple[int, int]:
+    return held.st_dev, held.st_ino
+
+
+def _names(path: str) -> list[str]:
+    """The names a path is looked up by, in order, `..` kept as the kernel keeps it."""
+    return [one for one in Path(path).parts if one != os.sep]
+
+
+def _swapped(was: int, now: int) -> int:
+    os.close(was)
+    return now
+
+
+def _held(name: str, directory: int, seen: os.stat_result) -> int | None:
+    """A descriptor holding what was looked at, where this machine opens one to grant.
+
+    Opened without following a link: one swapped in since it was looked at is not what was
+    looked at, and is refused.
+    """
+    if not hasattr(os, "O_PATH"):
+        return None
+    fd = os.open(name, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
+    if _identity(os.fstat(fd)) != _identity(seen):
+        os.close(fd)
+        raise OSError(errno.ELOOP, "it was replaced while it was reached", name)
+    return fd
 
 
 def _rank(level: str) -> int:
@@ -479,6 +525,139 @@ class Fence:
         (held,) = _normal((path,))
         roots = self.write if write else (*self.write, *self.read)
         return any(_under(held, root) for root in roots)
+
+    def ready(self) -> dict[str, int | None]:
+        """Makes the scratch where it is missing, and reaches everything this fence writes.
+
+        What is put up where the fence is, just before the program is walled in: each path
+        in :attr:`write` and the scratch, reached as :meth:`reach` reaches it, so that what
+        is granted is what was checked and never a name an earlier turn put a link at. A
+        fence that writes `/` writes whatever any link leads to, and is reached as `/`.
+
+        Returns:
+          Each path as it was reached, every link on the way already followed, with a
+          descriptor holding it where this machine opens one to grant (`O_PATH`, Linux);
+          None where it does not, or where it is not there yet. A path that cannot be
+          reached is left out, and so granted nothing.
+
+        Raises:
+          ValueError: If a path leads through a link a fenced program could have made.
+          OSError: If the scratch cannot be made or reached.
+        """
+        roots = (os.sep,) if os.sep in self.write else self.write
+        reached: dict[str, int | None] = {}
+        try:
+            for path in (*roots, *((self.tmp,) if self.tmp else ())):
+                try:
+                    fd, at = self.reach(path, make=path == self.tmp)
+                except OSError as why:
+                    if path == self.tmp or why.errno not in _UNREACHED:
+                        raise
+                    continue
+                if (was := reached.get(at)) is not None:
+                    os.close(was)
+                reached[at] = fd
+        except BaseException:
+            for fd in reached.values():
+                if fd is not None:
+                    os.close(fd)
+            raise
+        return reached
+
+    def reach(self, path: str, *, make: bool = False) -> tuple[int | None, str]:
+        """Reaches a path this fence writes from `/`, one name at a time, as checked.
+
+        A symbolic link is followed only where no fenced program could have made it: in a
+        directory that neither this fence writes, nor holds one it writes, nor is
+        :data:`TEMPORARY`, `$TMPDIR` or the scratch -- told by device and inode, however it
+        is spelled. So `~/.claude` kept elsewhere through a link in a home the fence does not
+        write is followed, while a scratch or a state directory an earlier turn replaced with
+        a link out of the wall is refused. A fence that writes `/` follows every link.
+
+        Args:
+          path: The absolute path.
+          make: Whether to make what is missing on the way, `0700`.
+
+        Returns:
+          A descriptor holding what was reached (`O_PATH`, on Linux only), or None where this
+          machine has no `O_PATH` or the last name is not there; and the path it was reached
+          at, links followed -- or would be, where it is not there yet and this machine
+          grants a name (a Mac).
+
+        Raises:
+          ValueError: If it leads through a link a fenced program could have made.
+          OSError: If it cannot be reached: missing short of the last name, not made, where
+            this machine grants only what is there (Linux); past a file; or not searchable.
+        """
+        todo = _names(path)
+        at: list[str] = []
+        fd = os.open(os.sep, _SEARCH)
+        chain = [_identity(os.fstat(fd))]
+        links = 0
+        try:
+            while todo:
+                name = todo.pop(0)
+                if name == "..":
+                    if at:
+                        fd = _swapped(fd, os.open("..", _SEARCH, dir_fd=fd))
+                        at.pop()
+                        chain.pop()
+                    continue
+                try:
+                    held = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                except FileNotFoundError:
+                    if not make:
+                        # Landlock grants only what is there; Seatbelt, a name to be made.
+                        if todo and hasattr(os, "O_PATH"):
+                            raise
+                        return None, os.path.normpath(Path(os.sep, *at, name, *todo))
+                    with contextlib.suppress(FileExistsError):
+                        os.mkdir(name, 0o700, dir_fd=fd)
+                    todo.insert(0, name)
+                    continue
+                if stat.S_ISLNK(held.st_mode):
+                    if os.sep not in self.write and self._written(chain):
+                        through = (
+                            "it is a link"
+                            if not todo and not links
+                            else f"it leads through {Path(os.sep, *at, name)}, a link"
+                        )
+                        raise ValueError(
+                            f"{path}: {through} where a fenced program could have made "
+                            "one, which no fence follows to write"
+                        )
+                    links += 1
+                    if links > _LINKS:
+                        raise OSError(errno.ELOOP, os.strerror(errno.ELOOP), path)
+                    led = os.readlink(name, dir_fd=fd)
+                    if led.startswith(os.sep):
+                        fd = _swapped(fd, os.open(os.sep, _SEARCH))
+                        at, chain = [], chain[:1]
+                    todo[:0] = _names(led)
+                    continue
+                if not todo:
+                    return _held(name, fd, held), str(Path(os.sep, *at, name))
+                # Not following a link swapped in since it was looked at: that fails here.
+                fd = _swapped(
+                    fd,
+                    os.open(name, _SEARCH | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd),
+                )
+                at.append(name)
+                chain.append(_identity(os.fstat(fd)))
+            return _held(".", fd, os.fstat(fd)), str(Path(os.sep, *at))
+        finally:
+            os.close(fd)
+
+    def _written(self, chain: Iterable[tuple[int, int]]) -> bool:
+        """Whether a fenced program could change a directory, given it and those above it.
+
+        The directories it writes looked up as they stand now, a root made since included.
+        """
+        written: set[tuple[int, int]] = set()
+        for root in (*self.write, *_temporary(), *((self.tmp,) if self.tmp else ())):
+            with contextlib.suppress(OSError):
+                written.add(_identity(Path(root).stat()))
+        return any(one in written for one in chain)
 
     def dumps(self) -> str:
         """This fence as JSON, which is what ``hmz internal fence --policy`` takes."""

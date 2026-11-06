@@ -837,7 +837,7 @@ hosts; `TMPDIR` set to the fence's scratch directory.
 | --- | --- |
 | the program's | it ran |
 | `2` | no `--policy`; no program (`no program given; try `hmz internal fence --policy=... -- claude``) |
-| `126` | the fence cannot be put up here (no Landlock, or no way to cut TCP; on macOS, a process already inside a sandbox); the program never ran (`hmz internal fence: <why>`) |
+| `126` | the fence cannot be put up here (no Landlock, or no way to cut TCP; on macOS, a process already inside a sandbox; a path it writes leads through a link a fenced program could have made); the program never ran (`hmz internal fence: <why>`) |
 
 ### `hmz internal hook` {#hmz-internal-hook}
 

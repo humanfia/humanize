@@ -183,7 +183,8 @@ def ready(fence: Fence, home: str) -> None:
     -- so the state a CLI keeps under its home is made before it is walled in, or a CLI that
     has never run on this machine could not make it on its first turn. Only directories, read
     off the name as the machine the turn was started from reads them: `~/.cli` is one,
-    `~/.cli.json` is a file.
+    `~/.cli.json` is a file. Made as the fence reaches them where it is put up, through no
+    link a fenced program could have made (:meth:`Fence.reach`).
 
     Args:
       fence: The fence, as :func:`drawn` drew it.
@@ -192,9 +193,11 @@ def ready(fence: Fence, home: str) -> None:
     root = os.path.normpath(home).rstrip(os.sep) + os.sep
     for one in fence.write:
         name = Path(one).name.lstrip(".")
-        if one.startswith(root) and "." not in name and not Path(one).exists():
-            with contextlib.suppress(OSError):
-                Path(one).mkdir(mode=0o700, parents=True, exist_ok=True)
+        if one.startswith(root) and "." not in name and not os.path.lexists(one):
+            with contextlib.suppress(OSError, ValueError):
+                held, _ = fence.reach(one, make=True)
+                if held is not None:
+                    os.close(held)
 
 
 def installed(program: str, path: str | None = None) -> list[str]:

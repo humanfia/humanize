@@ -539,6 +539,22 @@ the turn:
 | Seatbelt (macOS) | paths (as given and as resolved, `/tmp` being `/private/tmp`); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
 | proxy on loopback | with `online=False`, the only way out: handed to the CLI as `HTTPS_PROXY` and related variables, passing only `hosts` (ports 443 and 80 for a host without a port) |
 
+What a fence writes (`write`) and its scratch (`tmp`) are reached where the fence is put up
+(`Fence.ready`), by `hmz internal fence` and by an anchor's supervisor as it forks the agent:
+each from `/` one name at a time (`Fence.reach`), the scratch made `0700` where it is missing,
+and a symbolic link followed only in a directory that the fence does not write, that is not
+beneath one it writes, and that is not `/tmp`, `/var/tmp`, `$TMPDIR` or the scratch -- told by
+device and inode, however it is spelled. Landlock grants what was reached as the descriptors
+opened; Seatbelt, the paths they were reached at. So `~/.claude` kept elsewhere through a link
+in a home the fence does not write is followed, while a link where a fenced program could have
+put one (a scratch, or a state directory, that an earlier turn replaced with a link out of the
+wall) refuses the turn, exit 126: `hmz internal fence: <path>: it is a link where a fenced
+program could have made one, which no fence follows to write` (or `it leads through <link>, a
+link ...`). A fence that writes `/` follows every link. A path that cannot be reached (missing,
+past a file, not searchable) is granted nothing, as before; on a Mac, a path not there yet
+is granted by the path it would be reached at. The agent makes the directories its CLI keeps
+its state in the same way before the turn, through no such link.
+
 The minimum granted whatever the scopes is `LINUX_SYSTEM` and `LINUX_DEVICES` on Linux, and
 `DARWIN_SYSTEM` (`/usr`, `/bin`, `/sbin`, `/System`, `/private/var/select`,
 `/private/var/db/timezone` and the handful of files under `/etc` a program reads to start) and

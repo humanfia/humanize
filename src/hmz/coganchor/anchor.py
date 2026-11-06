@@ -807,6 +807,8 @@ class _Walls:
 
     Raises:
       PermissionError: If this machine cannot put the wall up.
+      ValueError: If a path it writes, or its scratch, leads through a link a fenced program
+        could have made (:meth:`~hmz.coganchor.fence.Fence.reach`).
     """
 
     def __init__(self, fence: Fence, mirror: str) -> None:
@@ -826,13 +828,15 @@ class _Walls:
         )
         self._made = not fence.tmp
         self.tmp = fence.tmp or tempfile.mkdtemp(prefix="hmz-fence-")
-        os.makedirs(self.tmp, mode=0o700, exist_ok=True)
         # With the scratch the agent is given, for the target to keep its own at the same
         # path: the agent names it in the commands it sends there.
         self.told = abroad.told(
             replace(fence, tmp=self.tmp), home=os.path.expanduser("~"), native=False
         )
         self._proxy = None if fence.online else Proxy(fence.hosts)
+        # Made and opened here, before the agent is forked, and granted as the very files
+        # opened: never a link an earlier turn put at one of their names.
+        self._held = replace(self.fence, tmp=self.tmp).ready()
 
     def around(self, launch: Launch) -> Launch:
         """The launch, walled in, with the environment a fenced program runs with."""
@@ -845,7 +849,7 @@ class _Walls:
             env=environ(self.fence, launch.env, tmp=self.tmp, port=port),
             walled=landlock.Ruleset(
                 read=self.fence.read,
-                write=(*self.fence.write, self.tmp),
+                held=[fd for fd in self._held.values() if fd is not None],
                 connect_ports=() if port is None else (port,),
                 # As `hmz internal fence` has them: a port the kernel picks, and the ones the
                 # fence names; each held to loopback by the supervisor (see `Launch`).
@@ -864,6 +868,10 @@ class _Walls:
         """Stops the proxy, and takes away the scratch this made."""
         import shutil
 
+        for fd in self._held.values():
+            if fd is not None:
+                os.close(fd)
+        self._held = {}
         if self._proxy is not None:
             self._proxy.stop()
         if self._made:

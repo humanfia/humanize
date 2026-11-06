@@ -207,6 +207,9 @@ class Ruleset:
       read: Paths that may be read, listed and executed.
       write: Paths that may be read and changed in every way: created, written,
         truncated, renamed, removed.
+      held: Files and directories that may be changed as `write` ones may, given as
+        descriptors the caller opened and checked: granted as the very files they are,
+        never looked up again by a name something could have put a link at since.
       connect_ports: TCP ports that may be connected to, on any address.
       bind_ports: TCP ports that may be bound.
       net: Whether TCP is governed at all.  Without it every connect and bind is left
@@ -215,6 +218,7 @@ class Ruleset:
 
     read: Iterable[str | os.PathLike[str]] = ()
     write: Iterable[str | os.PathLike[str]] = ()
+    held: Iterable[int] = ()
     connect_ports: Iterable[int] = ()
     bind_ports: Iterable[int] = ()
     net: bool = False
@@ -263,6 +267,8 @@ class Ruleset:
             for paths, write in ((self.read, False), (self.write, True)):
                 for path in paths:
                     _add_path(ruleset, path, version, write=write)
+            for fd in self.held:
+                _add_held(ruleset, fd, version, write=True)
             for ports, right in ((connect, _NET_CONNECT_TCP), (bind, _NET_BIND_TCP)):
                 for port in ports:
                     _add_rule(ruleset, _RULE_NET_PORT, struct.pack("<QQ", right, port))
@@ -312,8 +318,13 @@ def _add_path(
             return
         raise
     try:
-        directory = stat.S_ISDIR(os.fstat(fd).st_mode)
-        rights = fs_rights(version, write=write, directory=directory)
-        _add_rule(ruleset, _RULE_PATH_BENEATH, struct.pack("<Qi", rights, fd))
+        _add_held(ruleset, fd, version, write=write)
     finally:
         os.close(fd)
+
+
+def _add_held(ruleset: int, fd: int, version: int, *, write: bool) -> None:
+    """Grant the file or directory a descriptor holds, as it is."""
+    directory = stat.S_ISDIR(os.fstat(fd).st_mode)
+    rights = fs_rights(version, write=write, directory=directory)
+    _add_rule(ruleset, _RULE_PATH_BENEATH, struct.pack("<Qi", rights, fd))
