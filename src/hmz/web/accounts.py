@@ -171,7 +171,7 @@ def _remove(asked: Asked) -> dict[str, Any]:
     try:
         if not hmz.accounts.remove(cli, name):
             raise Refusal(f"{cli} has no account called {name}.", 404)
-    except ValueError as why:
+    except (ValueError, OSError) as why:
         raise Refusal(str(why)) from why
     return listed(hmz)
 

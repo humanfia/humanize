@@ -487,6 +487,7 @@ def remove(cli: str, name: str) -> bool:
 
     Raises:
       ValueError: If the backend or the name is not one that may be used.
+      OSError: If its directory cannot be removed.
     """
     from hmz.coganchor import models
 

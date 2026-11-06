@@ -1546,7 +1546,9 @@ my_loop/
         └── SKILL.md
 ```
 
-Names starting with `_`, and directories without `__init__.py`, are not flows.
+Names starting with `_`, and directories without `__init__.py`, are not flows. An `__init__.py`
+that is a symbolic link still makes its directory the flow, with its `skills/` and the files
+beside it, whatever the file it leads to is called.
 
 **Resolution of a bare `-f <name>` (and a bare `load` with no flow asking)**, first match
 wins:

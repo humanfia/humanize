@@ -61,6 +61,7 @@ from hmz.flows import (
 
 from .declaring import NAME
 from .engine import FlowImpl, current
+from .finding import ENTRY, placed
 from .verses import AT, INSTALLED, pathed, split, under
 
 if TYPE_CHECKING:
@@ -81,9 +82,6 @@ __all__ = [
     "parse",
     "pick",
 ]
-
-#: What a flow's directory is entered by.
-ENTRY = "__init__.py"
 
 #: How long one git command is given.
 _PATIENCE = 120.0
@@ -252,7 +250,7 @@ class FlowModule:
         for value in list(vars(self.module).values()):
             if type(value) is not FlowImpl:
                 continue
-            made = os.path.realpath(value.fn.__code__.co_filename)
+            made = str(placed(value.fn.__code__.co_filename))
             if made != root and not made.startswith(root + os.sep):
                 continue
             other = found.get(value.name)
@@ -323,7 +321,7 @@ def module_of(entry: Path, run: Run | None) -> FlowModule:
       FlowLoadConflict: If another run uses a module under a name this one needs.
       FlowDefinitionError: If the module could not be imported.
     """
-    entry = Path(os.path.realpath(entry))
+    entry = placed(entry)
     at = entry.parent if entry.name == ENTRY else entry
     with _LOCK:
         held = _MODULES.get(str(at))
@@ -404,7 +402,7 @@ def _from(module: object, at: Path) -> bool:
     said = getattr(module, "__file__", None)
     if not said:
         return False
-    real = os.path.realpath(said)
+    real = str(placed(said))
     root = str(at)
     return real == root or real.startswith(root + os.sep)
 
@@ -422,9 +420,7 @@ def _named(at: Path, entry: Path) -> str:
                 spec = importlib.util.find_spec(stem)
             except (ImportError, ValueError):
                 spec = None
-            if spec is None or (
-                spec.origin and os.path.realpath(spec.origin) == str(entry)
-            ):
+            if spec is None or (spec.origin and placed(spec.origin) == entry):
                 return stem
     safe = re.sub(r"\W", "_", stem)
     return f"_hmz_flow_{safe}_{hashlib.blake2b(str(at).encode(), digest_size=4).hexdigest()}"
@@ -640,7 +636,7 @@ class _Scope:
         self.globals = globals_
         self.locals = locals_
         said = globals_.get("__file__")
-        at = Path(os.path.realpath(said)) if isinstance(said, str) else None
+        at = placed(said) if isinstance(said, str) else None
         self.root = at.parent if at is not None and at.name == ENTRY else None
 
     @property
@@ -659,7 +655,7 @@ class _Scope:
                     continue
                 if value.globals is self.globals or (
                     root is not None
-                    and os.path.realpath(value.fn.__code__.co_filename).startswith(
+                    and str(placed(value.fn.__code__.co_filename)).startswith(
                         root + os.sep
                     )
                 ):
@@ -676,7 +672,7 @@ def _asking(caller_globals: Mapping[str, Any], node: Any) -> FlowModule | _Scope
     """
     said = caller_globals.get("__file__")
     if isinstance(said, str):
-        held = _within(Path(os.path.realpath(said)))
+        held = _within(placed(said))
         if held is not None:
             return held
     if node is not None and node.impl is not None:
@@ -719,7 +715,7 @@ def _sub(asking: FlowModule | _Scope, sub: str, ref: str) -> FlowImpl:
 
 def home_of(flow: FlowImpl) -> FlowModule | None:
     """The flow module a flow was defined in, if it was imported as one."""
-    return _within(Path(os.path.realpath(flow.fn.__code__.co_filename)))
+    return _within(placed(flow.fn.__code__.co_filename))
 
 
 # ------------------------------------------------------------------------- flowverses
