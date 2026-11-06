@@ -215,6 +215,30 @@ def test_a_run_picked_up_is_handed_a_copy_of_the_journal(workspace: Path) -> Non
     assert _lines(second.journal)[0]["picked_up"] == first.path.name
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads any file")
+def test_a_journal_that_cannot_be_copied_leaves_no_run_picked_up(
+    workspace: Path,
+) -> None:
+    with Epic("f", "t", workspace, resumable=True) as first:
+        _journal(first.resume, {"t": "call", "id": 1, "parent": 0})
+    first.resume.chmod(0)
+
+    # Refused, saying why, and leaving no epic behind that says it picked the first one up
+    # while going on from nothing.
+    with pytest.raises(epic.Uncarried, match="could not be copied") as refused:
+        Epic("f", "t", workspace, resumable=True, picked_up=first.path)
+    assert isinstance(refused.value.__cause__, PermissionError)
+    assert [one for one in epic.under(workspace).iterdir() if one.is_dir()] == [
+        first.path
+    ]
+
+    # So the first is still there to be picked up, and is, from all it kept.
+    first.resume.chmod(0o600)
+    assert epic.picks_up(first.path)
+    with Epic("f", "t", workspace, resumable=True, picked_up=first.path) as second:
+        assert second.resume.read_text() == first.resume.read_text()
+
+
 def test_a_run_reopened_goes_on_in_the_epic_it_picks_up(workspace: Path) -> None:
     with Epic("chat", "hi", workspace, resumable=True) as first:
         first.write("usage", cost=1.0, output_tokens=7, seconds=2.0)

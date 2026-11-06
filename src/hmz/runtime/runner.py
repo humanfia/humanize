@@ -744,7 +744,7 @@ class Runner:
         from hmz.runtime.flowing import local_env, open_outworlder, privileged, run_flow
 
         from .backing import Keeping
-        from .epic import Epic
+        from .epic import Epic, Uncarried
 
         local: EnvDriver | None = None
         try:
@@ -765,29 +765,35 @@ class Runner:
                 raise Refused(str(why)) from why
             raise
         impl = self._impl
-        epic = Epic(
-            self._named,
-            task,
-            self._workspace,
-            ref=impl.ref,
-            agents=[
-                _drove(role, spec, self._agents[role].name)
-                for role, spec in self._specs.items()
-            ],
-            envs=[f"{role}={spec}" for role, spec in self._places.items()],
-            used=[f"{role}={spec}" for role, spec in self._used.items()],
-            # Through JSON text rather than `mode="json"`, which leaves an infinite cost a
-            # float: `Budget(cost=inf)` is written as the string it reads back from.
-            params=json.loads(self._params.model_dump_json()),
-            budget=json.loads(self._budget.model_dump_json()),
-            resumable=impl.resumable,
-            picked_up=self._picked_up,
-            # A chat carried on is the same conversation, and so the same epic.
-            reopened=privileged(impl),
-            profile_flow=self._profile_flow,
-            profile_environment=self._profile_environment,
-            backup=self._backup,
-        )
+        try:
+            epic = Epic(
+                self._named,
+                task,
+                self._workspace,
+                ref=impl.ref,
+                agents=[
+                    _drove(role, spec, self._agents[role].name)
+                    for role, spec in self._specs.items()
+                ],
+                envs=[f"{role}={spec}" for role, spec in self._places.items()],
+                used=[f"{role}={spec}" for role, spec in self._used.items()],
+                # Through JSON text rather than `mode="json"`, which leaves an infinite cost a
+                # float: `Budget(cost=inf)` is written as the string it reads back from.
+                params=json.loads(self._params.model_dump_json()),
+                budget=json.loads(self._budget.model_dump_json()),
+                resumable=impl.resumable,
+                picked_up=self._picked_up,
+                # A chat carried on is the same conversation, and so the same epic.
+                reopened=privileged(impl),
+                profile_flow=self._profile_flow,
+                profile_environment=self._profile_environment,
+                backup=self._backup,
+            )
+        except Uncarried as why:
+            # Nothing of it ran: what it was given goes, and the epic it would have picked
+            # up is there to be picked up again.
+            await asyncio.shield(self._closed(local))
+            raise Refused(str(why)) from why.__cause__
         # Backed up as its targets' policies say, each on a thread of its own: as a session
         # closes, every so often while it runs, and once it has ended.
         keeping = Keeping(epic.path, self._backup)
