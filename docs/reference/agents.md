@@ -440,7 +440,10 @@ Under a flow the rung is derived from the role's `Permission` by
   sent `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`. On macOS, where Codex's
   own Seatbelt sandbox cannot start inside the fence's, each `read-only` or `workspace-write`
   turn under a fence is sent `sandboxPolicy: {"type": "externalSandbox", "networkAccess":
-  "enabled"|"restricted"}` instead, the fence holding the rung.
+  "enabled"|"restricted"}` instead, the fence holding the rung. On Linux, where Codex's own
+  sandbox cannot start inside Landlock either, so is each such turn whose fence is at least as
+  narrow as the rung: nothing of the workdir, home or system written at `read-only`, nothing of
+  the home or system at `workspace-write`.
 - `online` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
 
 <small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `prompting`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
@@ -530,7 +533,7 @@ the turn:
 
 | Mechanism | Holds |
 | --- | --- |
-| Landlock (Linux) | paths, and TCP `connect`/`bind` by port (ABI >= 4 where the network is cut) |
+| Landlock (Linux) | paths; TCP `connect`/`bind` by port (ABI >= 4 where the network is cut); signals and connections to abstract Unix sockets kept inside the fenced process tree (ABI >= 6) |
 | seccomp filter (Linux) | every non-TCP socket family refused |
 | seccomp user notification + `pidfd_getfd` (Linux) | with `online=False`, every `bind` and `listen` stops for the wrapper, which allows loopback only (`EACCES` otherwise) |
 | Seatbelt (macOS) | paths (as given and as resolved, `/tmp` being `/private/tmp`); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
@@ -582,8 +585,9 @@ Under a flow, `Unfenced` becomes `HarnessSandboxed`. An ACP CLI with `online` `N
 declared hosts is refused `HarnessSandboxed`, naming what to declare. For anchored agents, what
 each machine holds is in [Remote execution › A fence on both machines](/reference/remote-execution#a-fence-on-both-machines).
 
-Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket (on
-macOS, nor asking a system service over Mach); on Linux with the network cut the proxy's port
+Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket by its
+path (on macOS, nor asking a system service over Mach); on Linux before Landlock ABI 6, signals
+and abstract Unix sockets reach outside the fence too; on Linux with the network cut the proxy's port
 is reachable on any address, by number; and on macOS with the network cut a program may listen
 on any address and port, Seatbelt telling neither apart.
 

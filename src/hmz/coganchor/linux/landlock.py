@@ -47,6 +47,10 @@ _RULE_NET_PORT: Final = 2
 
 _PR_SET_NO_NEW_PRIVS: Final = 38
 
+#: ``O_PATH``: some Python builds leave ``os.O_PATH`` out, and the kernel takes it all the
+#: same, at the value <asm-generic/fcntl.h> gives it on x86-64 and aarch64.
+_O_PATH: Final = getattr(os, "O_PATH", 0o10000000)
+
 # ``LANDLOCK_ACCESS_FS_*``, from <linux/landlock.h>.
 _FS_EXECUTE: Final = 1 << 0
 _FS_WRITE_FILE: Final = 1 << 1
@@ -74,6 +78,11 @@ _NET_CONNECT_TCP: Final = 1 << 1
 
 #: The first ABI that can govern TCP at all.
 NET_ABI: Final = 4
+
+# ``LANDLOCK_SCOPE_*``, ABI 6: what may not reach a process outside the ruleset.
+_SCOPE_ABSTRACT_UNIX_SOCKET: Final = 1 << 0
+_SCOPE_SIGNAL: Final = 1 << 1
+_SCOPE_ABI: Final = 6
 
 #: Why a path is left out of a ruleset rather than failing it: what cannot be reached
 #: needs no grant, and leaving a grant out only ever denies more.
@@ -188,10 +197,11 @@ class Ruleset:
     run, and with ``net`` a TCP port outside ``connect_ports`` cannot be connected to and
     one outside ``bind_ports`` cannot be bound.  UDP and every other protocol are not
     Landlock's to govern; :func:`~hmz.coganchor.linux.seccomp.install_socket_filter` is
-    what shuts them.  Nor is connecting to a Unix socket, which is a way to ask a
-    process outside the ruleset -- a container daemon, a session bus -- to act on this
-    one's behalf: a caller that must shut that too has to keep such sockets out of every
-    path it grants.
+    what shuts them.  On ABI 6 and later a signal, and a connection to an abstract Unix
+    socket, cannot reach a process outside the ruleset.  Connecting to a Unix socket by its
+    path is not Landlock's to govern, and it is a way to ask a process outside the ruleset
+    -- a container daemon, a session bus -- to act on this one's behalf: a caller that must
+    shut that too has to keep such sockets out of every path it grants.
 
     Attributes:
       read: Paths that may be read, listed and executed.
@@ -237,8 +247,11 @@ class Ruleset:
                 f"this kernel speaks Landlock ABI {version}; needs {needs}"
             )
         handled_net = _NET_BIND_TCP | _NET_CONNECT_TCP if self.net else 0
-        attr = struct.pack("<QQ", handled_fs(version), handled_net)
-        size = len(attr) if self.net else 8
+        scoped = (
+            _SCOPE_ABSTRACT_UNIX_SOCKET | _SCOPE_SIGNAL if version >= _SCOPE_ABI else 0
+        )
+        attr = struct.pack("<QQQ", handled_fs(version), handled_net, scoped)
+        size = 24 if scoped else 16 if self.net else 8
         ruleset = _call(
             _NR_CREATE_RULESET,
             ctypes.c_char_p(attr),
@@ -293,7 +306,7 @@ def _add_path(
       OSError: If the path exists and still could not be granted.
     """
     try:
-        fd = os.open(path, os.O_PATH | os.O_CLOEXEC)
+        fd = os.open(path, _O_PATH | os.O_CLOEXEC)
     except OSError as why:
         if why.errno in _UNREACHABLE:
             return
