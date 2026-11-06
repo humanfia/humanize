@@ -251,6 +251,9 @@ class Watchdog:
             that already knows better; everything else takes the backend's own.
         """
         self._session = session
+        # The turn it watches, which is all it may cut off or mark: a rung held up past the
+        # turn's end -- in a watcher told of it, say -- reaches nothing of the next one.
+        self._nth_turn = session._nth_turn
         self._riding = riding
         self._profile = _profiled(session._agent.backend)
         self._silence = window if window is not None else _window(self._profile)
@@ -474,9 +477,9 @@ class Watchdog:
         # turn's own thread may be out of it and reading why it stopped before this line
         # would otherwise have run -- and a turn that finds itself cut off by nobody in
         # particular answers with what a cut-off leaves, which here is nothing at all.
-        self._session._wedged = True
+        self._session._wedges(self._nth_turn)
         try:
-            self._session.interrupt(why=why)
+            self._session._interrupts(why, turn=self._nth_turn)
         except NotImplementedError:
             self._says("cannot be interrupted, so its transport goes instead")
             return self._dropped()
@@ -652,7 +655,7 @@ class Watchdog:
         # And said on the session, where the turn's own reader is: what a turn cut off by a
         # budget or by a person answers with is what the agent had said, and this turn's
         # backend had stopped saying anything. So this one fails rather than answering.
-        self._session._wedged = True
+        self._session._wedges(self._nth_turn)
 
     def _says(self, what: str) -> None:
         """Puts one step of the ladder on the stream this turn is being read from.

@@ -368,6 +368,7 @@ the epic it `picked_up`. Without `--resume` every run starts from the top.
 | --- | --- |
 | the flow is not resumable | `<flow> does not support resuming, so there is no run to resume` |
 | no epic of it here has a journal entry | `<flow> has no run to resume here: none saved any progress` |
+| its `resume.jsonl` cannot be copied into the new epic (no epic is left of the request, and the one picked up is left to pick up again) | `<epic> cannot be resumed: its saved progress could not be copied (<reason>)` |
 
 ### Processing order {#processing-order}
 
@@ -376,7 +377,7 @@ the epic it `picked_up`. Without `--resume` every run starts from the top.
 | 1. argparse | Options, `-f` and `task` present. | Usage on stderr, `hmz exec: error: <why>`, exit `2`. |
 | 2. Spec parsing (`Hmz.read`) | Every `-a`, `-e`, `-p` against its grammar, and every `-e` provider against the runtimes saved; duplicate roles and keys. | Same as 1. |
 | 3. Loading (`Hmz.run` → `Runner`) | Flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`. | `hmz exec: error: <why>` (no usage), exit `2`. |
-| 4. Opening (`Run.run`, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's harness setting puts it, and the runtimes it goes to reached; skills fetched. | `hmz exec: error: <why>`, exit `2`. |
+| 4. Opening (`Run.run`, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's harness setting puts it, and the runtimes it goes to reached; skills fetched; with `--resume`, the journal picked up copied into the new epic. | `hmz exec: error: <why>`, exit `2`. |
 | 5. The flow | — | See [Exit statuses](#exit-statuses). |
 
 Nothing of an agent has started before stage 5. What a flow module does when imported (stage

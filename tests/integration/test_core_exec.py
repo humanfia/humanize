@@ -12,6 +12,10 @@ an epic. A line that is wrong is refused with exit status 2 before anything is s
 from __future__ import annotations
 
 import json
+import signal
+import subprocess
+import sys
+import time
 from typing import TYPE_CHECKING
 
 import pytest
@@ -125,6 +129,44 @@ async def triaged(task, *, agents, envs, params, ctx):
 """
 
 
+#: A flow stopped while three calls of it wait: two in a `gather`, one in a task it started and
+#: never waited for. Each writes down that it was stopped on its way out, and says so in a
+#: file -- the one of the gather a few steps of the loop later than its sibling, by when the
+#: gather has given up on it.
+STOPPED = """
+import asyncio
+import pathlib
+
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, flow, load
+
+
+@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams, resumable=True, hidden=True)
+async def waits(task, *, agents, envs, params, ctx):
+    pathlib.Path(f"{task}.waiting").touch()
+    await asyncio.sleep(3600)
+
+
+@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams, resumable=True)
+async def stopped(task, *, agents, envs, params, ctx):
+    waiting = load(":waits")
+
+    async def waited(name, steps):
+        try:
+            await waiting(name, agents={}, envs={}, params={})
+        finally:
+            for _ in range(steps):
+                await asyncio.sleep(0)
+            ctx.state[name] = "stopped"
+            pathlib.Path(name).write_text("stopped")
+
+    asyncio.ensure_future(waited("watched", 0))
+    await asyncio.gather(waited("drafted", 0), waited("reviewed", 5))
+"""
+
+#: What each call of :data:`STOPPED` is named.
+CALLS = ("drafted", "reviewed", "watched")
+
+
 @pytest.fixture(autouse=True)
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return install(tmp_path, monkeypatch)
@@ -195,6 +237,43 @@ def test_a_spent_duration_ends_a_loop_as_an_ordinary_stop(project: Path) -> None
     assert ran_as is not None
     assert ran_as.budget is not None
     assert ran_as.budget["duration"] is not None
+
+
+def test_a_run_stopped_mid_call_journals_all_its_flow_did_on_the_way_out(
+    project: Path,
+) -> None:
+    write_flow(project / ".hmz" / "flows", "stopping", STOPPED)
+    going = subprocess.Popen(
+        [
+            sys.executable,
+            *("-m", "hmz", "exec", "-f", "stopping:stopped", "-p", "budget.cost=1"),
+            "work",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        until = time.monotonic() + 60
+        while not all((project / f"{one}.waiting").exists() for one in CALLS):
+            assert going.poll() is None, going.communicate()
+            assert time.monotonic() < until
+            time.sleep(0.05)
+        going.send_signal(signal.SIGTERM)
+        _, said = going.communicate(timeout=120)
+    finally:
+        going.kill()
+
+    assert going.returncode == 128 + signal.SIGTERM, said
+    # Whatever the flow did as it was stopped -- here, a file each call wrote -- its journal
+    # says too: no task of it went on past the journal, nor wrote into it unheard.
+    assert {one: (project / one).read_text() for one in CALLS} == dict.fromkeys(
+        CALLS, "stopped"
+    )
+    epics = Hmz(project).epics
+    (epic,) = epics.all()
+    assert epics.state(epic) == dict.fromkeys(CALLS, "stopped")
 
 
 def test_output_tokens_spent_cut_off_the_turn_that_spends_them(tmp_path: Path) -> None:

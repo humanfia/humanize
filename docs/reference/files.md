@@ -306,7 +306,7 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | --- | --- | --- |
 | `epic.jsonl` | appended per event, open/write/close under a thread lock; no fsync | [events](/reference/tracing#epic-jsonl) |
 | `epic.<flow>_<hex6>.jsonl` | one per flow call | [records](/reference/tracing#records-of-called-flows) |
-| `resume.jsonl` | resumable runs only; compacted via `.resume.jsonl.<random>.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
+| `resume.jsonl` | resumable runs only; a run picked up starts from a copy of its origin's, made before its `began` is written -- a copy that fails leaves no epic, and the origin to be picked up again; compacted via `.resume.jsonl.<random>.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
 | `profile.jsonl` | runs whose environment was profiled | [profile](/reference/tracing#profile-jsonl) |
 | `flow-profile.jsonl` | runs whose flow was profiled | [flow profile](/reference/tracing#flow-profile-jsonl) |
 | `host.log` | runs held by a [host process](/reference/daemon#files) only; appended (`0600`), never rotated | that process's descriptors 1 and 2 while the run is the one it holds: output of the CLIs the run started, and the carrier's failures |

@@ -853,7 +853,7 @@ exited. Each kind gets its own answer:
 | **No such model**: 404, a retired model | never | next place |
 | **CLI not installed** | never | next place |
 | **Sandbox would not start**: `bwrap: setting up uid map: Permission denied` | never | next place |
-| **Its own store was busy**: opencode's `database is locked` | at least 3 times, 1 s apart | next place |
+| **Its own store was busy**: opencode's `database is locked`, codex's `failed to initialize sqlite state runtime` | at least 3 times, 1 s apart | next place |
 | **Lost the connection**: `ECONNRESET`, 502, 503, a timeout | at least once, in the same conversation | next place |
 | **Killed**: out of memory, `SIGKILL` | at least once, after 1 s | next place |
 | **Anything else** | as the rule says | next place |

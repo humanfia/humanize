@@ -639,8 +639,12 @@ session(prompt)                     # opens the conversation, then resumes it
 ### Failures {#failures}
 
 A failed turn raises `Failed` (a `subprocess.CalledProcessError`) and leaves the session
-unopened, so the next call retries rather than resuming something that may not exist. The
-message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
+unopened, so the next call retries rather than resuming something that may not exist. Codex
+keeps the thread it opened for a failed opening turn, a fork's child included, and the next
+attempt takes the turn again on it; a thread whose `turn/start` the app server refused or never
+answered, or that cannot be picked back up, is let go, and the next attempt opens another. A
+Codex app server that stops carries the last lines of its stderr in the failure. The message ends with what the CLI said and, where
+classified, `(<fault>: <fix>)`.
 
 | Attribute | Meaning |
 | --- | --- |
@@ -649,7 +653,7 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 
 | Fault | Meaning |
 | --- | --- |
-| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`), or a `claude` prompt taken into a turn of the CLI's own |
+| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`, and Codex's `failed to initialize sqlite state runtime` from an app server that lost the race to create the state database a run's servers share), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`), or a `claude` prompt taken into a turn of the CLI's own |
 | `spent` | a quota or balance used up, said in so many words (`quota`, `insufficient balance`, `credit balance is too low`, `billing`); read ahead of `throttled`, since it comes as the same `429` |
 | `throttled` | too many requests (`429`, `529`, `rate limit`, `resource exhausted`, `overloaded`, `usage limit`, …) |
 | `refused` | the credential (`401`, `403`, `unauthorized`, `invalid api key`, `not logged in`, `token expired`, `token was revoked`, `forbidden`, …) |
@@ -664,7 +668,8 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 
 Classification (`backends.trouble`) reads the last 4096 characters of each stream, the
 backend's own `Profile.signs` first, then the shared `backends.SIGNS` in order; the first match
-wins. Backend-specific signs: `dsh` `needs a DeepSeek API key` → `refused`; `grok`
+wins. Backend-specific signs: `codex` `failed to initialize sqlite state runtime` → `contended`;
+`dsh` `needs a DeepSeek API key` → `refused`; `grok`
 `couldn't set model.*unknown model id` → `throttled`; `mcode` `sign in to minimax` and `oauth
 bearer is not synced` → `refused`. For `agy`, whose streams say nothing useful, the newest of
 `cli.log` / `log/cli-*.log` written within the turn's duration (at most 300 s, last 64 KiB) is
@@ -791,14 +796,27 @@ sessions without running a turn.
 | `codex` | `outputSchema` on the turn |
 | every other | the schema is put in the prompt; the answer is validated after |
 
-`grok` and `mcode` close every object (`additionalProperties: false`, every property required,
-no defaults), as Codex requires. An answer that does not validate raises `ValueError`;
+`codex`, `grok` and `mcode` get the schema as Codex requires it: every model's object closed
+(`additionalProperties: false`, every property required), no defaults, and no keyword beside a
+`$ref`. A `dict[str, …]` field stays open. Where a field with a description has an enum or model
+type, that type's definition is written out at the field with the field's description; a field
+inside its own type's definition, where writing it out would never end, keeps a bare `$ref` and
+loses its description. Examples and other values in the schema are left as written. Each
+described field of model type carries a copy of its type, so nesting them multiplies the
+schema's size: keep answer models shallow. An answer that does not validate raises `ValueError`;
 `suppress=True` returns `None`.
 
 ### Events {#watching-a-turn-as-it-happens}
 
 `session.stream(prompt, *, schema=None)` yields `Event(kind, text, whose="", tokens={},
-spent=Usage())`.
+spent=Usage())`. Closing it before its `result` ends the turn there: `close()` does, and so does
+the last reference to it going, as on a `break` out of `for event in session.stream(...)`. A
+caller that keeps the iterator calls `close()` itself. On a backend that runs a command per
+turn, the close ends the command and every process it has started, where it is still running,
+as a cut-off does, then waits at most `DRAIN_SECONDS` (5 s, in `hmz.coganchor.agents.base`) for
+the turn's output to be let go of: a process that left the command's tree, or one started by a
+command that had already exited, is not ended. What such a process says after the close is
+drained but not heard: it reaches neither the closed turn nor the session's next one.
 
 | `kind` | Meaning |
 | --- | --- |
@@ -1530,6 +1548,9 @@ claude --print --input-format stream-json --output-format stream-json --verbose
 
 - Every turn runs with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, so background subagents and
   commands finish inside the turn.
+- Every turn runs with `CLAUDE_CODE_NO_MODEL_FALLBACK=1`, overriding an inherited value, so
+  the provider cannot silently answer a refused turn on another model; the refusal follows
+  the normal failure and retry policy for the requested model.
 - `--settings` carries `fastMode` (fast tier) and the `PreToolUse` hook table only when needed.
 - `--json-schema`, a hook table change, an effort change, a change of `asks`, or a change of
   offered tools restarts the process and resumes the conversation.
@@ -2030,6 +2051,7 @@ Set by drivers on a turn:
 | Variable | Backend | Value |
 | --- | --- | --- |
 | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` | `claude` | `1` |
+| `CLAUDE_CODE_NO_MODEL_FALLBACK` | `claude` | `1`, overriding an inherited value |
 | `NODE_OPTIONS`, `HMZ_PRELOAD_AT`, `HMZ_PRELOAD_IN` | `kimi`, `pi`, `qwen`, `mimo` | the runtime-report preload, only while a `PRE_TOOL_USE` hook is hung |
 | `NODE_COMPILE_CACHE` | `pi`, `qwen` | `$TMPDIR/humanize-<uid>/compiled/<cli>`, unless already set |
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`, `mimo` | the permission table |

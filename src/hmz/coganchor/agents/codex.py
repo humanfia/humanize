@@ -68,6 +68,7 @@ started again, as :meth:`CodexAgent._knowing` says.
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import functools
 import itertools
@@ -174,6 +175,10 @@ class _Running:
     #: its own, so it is held back here and routed once the answer names the turn.
     starting: bool = False
     pending: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    #: Whether the server has taken this turn's `turn/start`: a thread opened for a turn it
+    #: refused, or went down before answering, is one it may never have kept, and not one to
+    #: pick back up.
+    answered: bool = False
     #: The server this turn is being taken on, bound where the turn starts rather than asked
     #: for again when there is a word to put in. The agent's server is let go of and started
     #: again whenever what it was started knowing has moved -- another account, another list
@@ -470,7 +475,35 @@ def _kinds(stated: Mapping[str, Any]) -> dict[str, int]:
 
 
 #: The keywords of a JSON Schema whose value maps names to schemas, rather than being one.
-_NAMED_SCHEMAS = ("properties", "$defs", "definitions", "patternProperties")
+_NAMED_SCHEMAS = (
+    "properties",
+    "$defs",
+    "definitions",
+    "patternProperties",
+    "dependentSchemas",
+)
+#: The keywords of a JSON Schema whose value is a schema, or a list of them.
+_SCHEMA_VALUED = frozenset(
+    {
+        "items",
+        "prefixItems",
+        "contains",
+        "additionalProperties",
+        "propertyNames",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+        "allOf",
+        "anyOf",
+        "oneOf",
+        "not",
+        "if",
+        "then",
+        "else",
+        "contentSchema",
+    }
+)
+#: Where pydantic keeps the definitions its references name.
+_DEFINED = "#/$defs/"
 
 
 def strict(schema: Mapping[str, Any]) -> dict[str, Any]:
@@ -483,7 +516,15 @@ def strict(schema: Mapping[str, Any]) -> dict[str, Any]:
     property it names required, and defaults are dropped: the model writes every field, and
     what it writes is read back through the pydantic model the schema came from, defaults
     and all. An object that names no properties -- a mapping of whatever keys -- is left as
-    it is, having nothing to require.
+    it is, having nothing to require. Only schemas are rewritten: the data a schema holds,
+    an example or a discriminator's mapping, is left as written.
+
+    They also refuse a `$ref` with any keyword beside it -- `$ref cannot have keywords
+    {'description'}` -- which is how pydantic writes a field that has a description and an
+    enum or model type. Such a reference is replaced by the `$defs` definition it names, with
+    its keywords over the definition's own. Where it names no definition under `$defs`, or
+    stands inside the expansion of the definition it names, where writing that out again
+    would never end, it keeps only its `$ref` and its keywords are lost.
 
     Args:
       schema: The schema, as `model_json_schema()` writes it.
@@ -491,31 +532,46 @@ def strict(schema: Mapping[str, Any]) -> dict[str, Any]:
     Returns:
       The same schema, held to that.
     """
+    defined = cast("dict[str, Any]", schema.get("$defs", {}))
 
-    def held(node: object) -> object:
-        if isinstance(node, list):
-            return [held(one) for one in cast("list[Any]", node)]
+    def held(node: object, within: frozenset[str]) -> object:
         if not isinstance(node, dict):
-            return node
+            return node  # a schema that is `true` or `false`
+        given = {
+            key: value
+            for key, value in cast("dict[str, Any]", node).items()
+            if key != "default"
+        }
+        ref = given.pop("$ref", None)
+        if ref is not None:
+            name = ref.removeprefix(_DEFINED)
+            if given and name in defined and name not in within:
+                return held({**defined[name], **given}, within | {name})
+            return {"$ref": ref}
         said: dict[str, Any] = {}
-        for key, value in cast("dict[str, Any]", node).items():
-            if key == "default":
-                continue
+        for key, value in given.items():
             if key in _NAMED_SCHEMAS and isinstance(value, dict):
                 # Names mapped to schemas, where a name may be spelled like a keyword.
+                # `within` names only definitions a reference can name: each of the root
+                # `$defs` is inside itself alone, and every other schema is inside all that
+                # encloses it, so `within` only grows below the root and expansion ends.
                 said[key] = {
-                    name: held(one)
+                    name: held(one, frozenset({name}) if value is defined else within)
                     for name, one in cast("dict[str, Any]", value).items()
                 }
+            elif key in _SCHEMA_VALUED and isinstance(value, list):
+                said[key] = [held(one, within) for one in cast("list[Any]", value)]
+            elif key in _SCHEMA_VALUED:
+                said[key] = held(value, within)
             else:
-                said[key] = held(value)
+                said[key] = value
         named = said.get("properties")
         if isinstance(named, dict):
             said["required"] = list(cast("dict[str, Any]", named))
             said["additionalProperties"] = False
         return said
 
-    return cast("dict[str, Any]", held(schema))
+    return cast("dict[str, Any]", held(schema, frozenset()))
 
 
 def unattended(permission: str, service_tier: str = "default") -> dict[str, Any]:
@@ -638,6 +694,11 @@ _QUIET_SECONDS = 60.0
 #: one late is neither read into the next turn nor taken for a turn Codex started of its own.
 _RECENT_TURNS = 16
 
+#: How many of a server's last lines of stderr are kept, and how long a server that stopped is
+#: given to finish saying them.
+_STDERR_LINES = 32
+_STDERR_SECONDS = 0.2
+
 #: The items that are the agent talking rather than the agent doing something. They are shown
 #: as they complete, there being no words in one before that; everything else is shown as it
 #: starts, since watching a thing run is the point of showing it at all.
@@ -737,12 +798,19 @@ class _AppServer:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             # Its log is nobody's: what a flow watches is the agent, which comes over stdout.
-            stderr=subprocess.DEVNULL,
+            # Only its last lines are kept, for what a server that stopped said as it went.
+            stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
             env=dict(env) if env else None,
             start_new_session=os.name != "nt",
         )
+        #: The last lines of its stderr, which a server that stopped carries as the failure's
+        #: own: codex says why it would not start there and nowhere else -- one that lost the
+        #: race to create its run's state database, say, which is a turn to take again.
+        self._said: collections.deque[str] = collections.deque(maxlen=_STDERR_LINES)
+        self._draining = threading.Thread(target=self._drain, daemon=True)
+        self._draining.start()
         self._pending = itertools.count(1)
         self._writing = threading.Lock()  # a line is written whole or not at all
         #: What each rung asked for actually runs at here, which is itself until this machine's
@@ -1217,7 +1285,9 @@ class _AppServer:
             try:
                 while (message := self._take(mailbox)) is not None:
                     if message.get("id") == ident and "method" not in message:
-                        if not _turn_id(self._answer(message, said)):
+                        self._answer(message, said)
+                        running.answered = True
+                        if not _turn_id(message.get("result")):
                             # Nothing on the stream could then be told apart as this turn's.
                             raise Unrecoverable(
                                 1, self._argv, "", "codex: turn/start named no turn"
@@ -1415,7 +1485,32 @@ class _AppServer:
                 self._proc.stdin.write(json.dumps(message) + "\n")
                 self._proc.stdin.flush()
         except OSError as gone:
-            raise Failed(1, self._argv, "", str(gone)) from gone
+            raise Failed(1, self._argv, "", self._stopped_saying(str(gone))) from gone
+
+    def _drain(self) -> None:
+        """Reads the server's stderr for as long as it is open, keeping its last lines.
+
+        Read whether or not anyone asks for them: a pipe nobody drains fills, and a server
+        that cannot write its log stops answering.
+        """
+        assert self._proc.stderr is not None  # noqa: S101
+        with contextlib.suppress(OSError, ValueError):  # closed under us: it has gone
+            for line in self._proc.stderr:
+                self._said.append(line)
+
+    def _stopped_saying(self, why: str = "app server stopped mid-turn") -> str:
+        """Why a server stopped, followed by what it said last on stderr.
+
+        Args:
+          why: What this side saw of it stopping.
+
+        Returns:
+          The text a failure of it carries as what the server said.
+        """
+        # Its stderr ends as it does, a moment after its stdout; or later, where something it
+        # started still holds it open -- which is not worth waiting out.
+        self._draining.join(_STDERR_SECONDS)
+        return "\n".join((why, "".join(self._said.copy()))).strip()
 
     @contextlib.contextmanager
     def _mailbox(
@@ -1751,9 +1846,7 @@ class _AppServer:
             return None
         if message is None:
             mailbox.put(None)  # so that every later read finds it stopped too
-            raise Failed(
-                self._proc.wait(), self._argv, "", "app server stopped mid-turn"
-            )
+            raise Failed(self._proc.wait(), self._argv, "", self._stopped_saying())
         return message
 
     def _answer(self, message: dict[str, Any], said: str) -> Any:
@@ -2033,6 +2126,9 @@ class CodexSession(SessionBase):
             server = self._agent._taken(self._on)
             try:
                 self._on = server
+                # Cleared first, so that a thread kept from a failed go that cannot be picked
+                # back up is let go of like one whose turn was never taken.
+                self._running.answered = False
                 thread = self._thread(server)
                 # Known before the turn starts, so a word put in has a thread to name even
                 # though the session is only opened once the turn has landed. The book goes
@@ -2082,6 +2178,13 @@ class CodexSession(SessionBase):
                             watch.held()
                         ):  # a reader that pauses is not the server's silence
                             yield event
+            except BaseException:
+                # An opening turn the server never took: the thread opened for it may hold
+                # nothing the server kept, so the next go opens another rather than picking it
+                # up. One it did take stays this session's, for the next go to take again.
+                if self._id is None and not self._running.answered:
+                    self._running.thread = None
+                raise
             finally:
                 # Back for the next turn that wants one, whether this one ended or was
                 # abandoned: a server nobody hands back is one the agent starts another beside.
@@ -2184,7 +2287,10 @@ class CodexSession(SessionBase):
           The thread's id, which is also the session's.
         """
         rung = self._permitted(server)
-        if (thread := self._id) is None:
+        # A thread opened for a turn that failed is still this conversation, though no turn
+        # has landed on it yet: taken again on it rather than on another -- a fork's child
+        # rather than another child -- so that what that turn did is still in it.
+        if (thread := self._id or self._running.thread) is None:
             opened = {
                 "cwd": self._workspace(),
                 "model": self._agent.config.model,

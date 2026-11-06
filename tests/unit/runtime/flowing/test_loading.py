@@ -284,6 +284,21 @@ def test_a_one_file_flow_is_its_own_module(mine: Path) -> None:
     assert pick(held, "", "zz_single").name == "zz_single"
 
 
+def test_a_flow_whose_entry_point_is_a_link_is_still_its_directory(mine: Path) -> None:
+    # Its `__init__.py` kept somewhere else under another name, and linked in.
+    kept = flow_file(mine.parent / "elsewhere", "zz_kept", source("zz_linked"))
+    at = mine / "zz_linked"
+    (at / "skills").mkdir(parents=True)
+    (at / "__init__.py").symlink_to(kept)
+    flow = loaded("zz_linked")
+    assert flow.ref == "zz_linked:zz_linked"
+    assert flow.home is not None
+    assert (flow.home.at, flow.home.entry) == (
+        at.resolve(),
+        at.resolve() / "__init__.py",
+    )
+
+
 def test_a_module_owns_only_the_flows_defined_inside_it(mine: Path) -> None:
     flow_dir(mine, "zz_lender")
     entry = flow_dir(
