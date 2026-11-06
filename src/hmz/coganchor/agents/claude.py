@@ -11,7 +11,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from .base import AgentBase, StreamSessionBase
+from .base import DRAIN_SECONDS, AgentBase, StreamSessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Question, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
@@ -1047,7 +1047,7 @@ class ClaudeCodeSession(StreamSessionBase):
                 yield event
         except Failed as failed:
             if self._draining is not None:
-                self._draining.join(timeout=5)
+                self._draining.join(timeout=DRAIN_SECONDS)
             said = f"{failed.stderr or ''}{''.join(self._complaints)}"
             if began or self._launching != _PERMITTED["bypass"] or _ROOT not in said:
                 raise
