@@ -324,6 +324,27 @@ def test_a_service_of_one_task_is_created_and_reached_where_it_landed(
     assert handshake.asked == [anchor]
 
 
+def test_a_service_asks_the_registry_for_its_image_unless_told_not_to(
+    runs: Runs, handshake: Handshake
+) -> None:
+    a_swarm(runs, task("running"), task("running"))
+
+    SwarmConfig(workspace="/w", user="5:5").create().start()
+    SwarmConfig(workspace="/w", user="5:5", resolve_image=False).create().start()
+
+    resolved, unresolved = runs.called("service", "create")
+    assert "--no-resolve-image" not in resolved
+    assert unresolved.count("--no-resolve-image") == 1
+    assert unresolved.index("--no-resolve-image") < unresolved.index("python:3.12")
+
+    def unnamed(argv: list[str]) -> list[str]:  # each service has a name of its own
+        at = argv.index("--name")
+        return [*argv[:at], *argv[at + 2 :]]
+
+    without = [one for one in unresolved if one != "--no-resolve-image"]
+    assert unnamed(without) == unnamed(resolved)
+
+
 def test_a_task_with_no_gpus_is_handed_none_by_the_runtime(
     runs: Runs, handshake: Handshake
 ) -> None:

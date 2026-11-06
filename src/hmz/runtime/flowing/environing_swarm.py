@@ -296,6 +296,7 @@ class SwarmMachine(SSHMachine):
                     nodes=_nodes(stored),
                     traced=self.traced,
                     run_args=stored.run_args if stored is not None else (),
+                    resolve_image=stored.resolve_image if stored is not None else True,
                     labels={
                         PROVIDER: self.provider,
                         ROLE: self.role,
