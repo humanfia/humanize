@@ -54,8 +54,9 @@ has connected. A fence that cuts the network turns both off, whatever `web_searc
 ``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``. And at
 `read-only` a fence that grants it is not cut by Codex instead: that sandbox cuts a command's
 network with its writes, so a `read-only` turn whose fence grants the network is sent that
-sandbox with the network left on (:data:`_REACHING`). `workspace-write` needs no such thing
-inside a fence, where it is not held at all: see :data:`_LANDLOCK`.
+sandbox with the network left on (:data:`_REACHING`). On Linux and macOS a rung that a fence
+around Codex already holds is left to that fence (:func:`_abroad`): Codex's own sandbox cannot
+start inside it.
 
 What the app server is started with -- the web search, the fence, the features, the overrides
 -- it reads once, so an agent set up as something else there runs its next turn on a server
@@ -314,7 +315,8 @@ _REACHING = {"type": "readOnly", "networkAccess": True}
 #: `read-only` thread under a supervised anchor answered `bwrap: setting up uid map:
 #: Permission denied` and never ran. The anchor holds the fence on both machines instead
 #: (:meth:`~hmz.coganchor.agents.AgentBase._abroad`), and :func:`_abroad` says where that holds
-#: the rung. `networkAccess` is filled in from the fence.
+#: the rung -- and where a fence around Codex here does, Codex's own sandbox being one that
+#: cannot start inside it. `networkAccess` is filled in from the fence.
 _EXTERNAL = {"type": "externalSandbox"}
 
 #: What an app server knows and cannot be told again: the account it was started as, the
@@ -334,11 +336,15 @@ _SANDBOXED = ("read-only", "workspace-write")
 def _abroad(config: AgentConfig, sandbox: object) -> bool:
     """Whether a rung's sandbox is held by the fence rather than by Codex.
 
-    Where the agent's turns land on another machine and its fence -- held there by the
-    anchor, on both machines -- is at least as narrow as the rung: nothing of the workdir,
-    the home or the system written at `read-only`, nothing of the home or the system at
-    `workspace-write`. A fence wider than the rung, or none, leaves the rung to Codex's own
-    sandbox, which is what it always was.
+    Where the agent's turns land on another machine, or on this one where it is Linux, and its
+    fence -- held there by the anchor, on both machines, or here around Codex -- is at least as
+    narrow as the rung: nothing of the workdir, the home or the system written at `read-only`,
+    nothing of the home or the system at `workspace-write`. A fence wider than the rung, or
+    none, leaves the rung to Codex's own sandbox, which is what it always was. Inside a fence
+    here Codex's sandbox cannot start at all: Landlock forbids the mounts bubblewrap makes
+    (`bwrap: Failed to make / slave: Operation not permitted`), and codex-cli 0.163.0 with
+    :data:`_LANDLOCK` on panics with `filesystem-restricted execution requires bubblewrap`,
+    so every command of a sandboxed turn failed.
 
     And on a Mac wherever a fence is held around Codex here, at a rung with a sandbox: the
     fence is Seatbelt, and Codex's own sandbox is Seatbelt too, which cannot be applied inside
@@ -361,7 +367,7 @@ def _abroad(config: AgentConfig, sandbox: object) -> bool:
     fence = config.fence
     if fence is None or fence.open or sandbox not in _SANDBOXED:
         return False
-    if config.machine is None:
+    if config.machine is None and sys.platform != "linux":
         return sys.platform == "darwin"
     if len(fence.scopes) != 3:  # noqa: PLR2004
         return False
@@ -759,7 +765,7 @@ class _AppServer:
         env: Mapping[str, str] | None = None,
         home: Home | None = None,
     ) -> None:
-        """Starts the server and introduces this flow to it.
+        """Starts the server, which its owner holds before :meth:`initialize` waits on it.
 
         Args:
           argv: The command that starts it, already wrapped for wherever its work is to land.
@@ -770,8 +776,7 @@ class _AppServer:
             one started in the user's own.
 
         Raises:
-          subprocess.CalledProcessError: If it will not be introduced to, which is every turn
-            it would have been asked for failing at the first one instead.
+          OSError: If the process cannot be started.
         """
         self._argv = argv
         #: The account this server was started as, the names of the flow's own callbacks it
@@ -850,11 +855,31 @@ class _AppServer:
         # Read from a thread of its own, so that a turn can wait on the server for a while
         # rather than only for as long as it takes.
         threading.Thread(target=self._pump, daemon=True).start()
-        # What this client calls itself on the wire, which the server records against every
-        # session it opens. The project's own name, so that a thread found in Codex's logs
-        # says what drove it rather than what the layer driving it was once called.
-        self.call("initialize", {"clientInfo": {"name": "humanize", "version": "0"}})
-        self._write({"jsonrpc": "2.0", "method": "initialized", "params": {}})
+
+    def initialize(self) -> None:
+        """Introduces this flow to the server, taking it down where it is not introduced to.
+
+        Called once its agent holds it: the introduction waits on the server for as long as it
+        takes to answer, and a stop meanwhile has to find it to take it down.
+
+        Raises:
+          subprocess.CalledProcessError: If it will not be introduced to, which is every turn
+            it would have been asked for failing at the first one instead.
+        """
+        try:
+            # What this client calls itself on the wire, which the server records against
+            # every session it opens. The project's own name, so that a thread found in
+            # Codex's logs says what drove it rather than what the layer driving it was once
+            # called.
+            self.call(
+                "initialize", {"clientInfo": {"name": "humanize", "version": "0"}}
+            )
+            self._write({"jsonrpc": "2.0", "method": "initialized", "params": {}})
+        except BaseException:
+            # Reaped before its home is dropped, rather than the home pulled out from under a
+            # process that is still up.
+            self.stop()
+            raise
 
     @property
     def _agents(self) -> list[AgentBase]:
@@ -1438,11 +1463,14 @@ class _AppServer:
         )
 
     def stop(self) -> None:
-        """Takes the server and its children down, leaving its threads on disk."""
+        """Takes the server and its children down, leaving its threads on disk.
+
+        Said to have stopped only once it is down and its home dropped: one still going down
+        is one its agent's own stop waits for rather than forgets.
+        """
         with self._stopping:
             if self._stopped:
                 return
-            self._stopped = True
             if os.name == "nt":
                 if self._proc.poll() is None:
                     self._proc.terminate()
@@ -1450,25 +1478,26 @@ class _AppServer:
                         self._proc.wait(timeout=_STOP_SECONDS)
                     except subprocess.TimeoutExpired:
                         self._proc.kill()
-                # Reaped rather than left: a flow that runs agent after agent would otherwise
-                # gather a zombie for each one it let go of.
-                self._proc.wait()
+            else:
+                # Provider wrappers and Codex share this dedicated group. Taking down the group
+                # prevents a stopped flow from leaving either wrapper or server behind. A group
+                # already gone is refused on macOS as EPERM rather than ESRCH.
+                with contextlib.suppress(ProcessLookupError, PermissionError):
+                    os.killpg(self._proc.pid, signal.SIGTERM)
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    self._proc.wait(timeout=_STOP_SECONDS)
+                with contextlib.suppress(ProcessLookupError, PermissionError):
+                    os.killpg(self._proc.pid, signal.SIGKILL)
+            # Reaped rather than left: a flow that runs agent after agent would otherwise
+            # gather a zombie for each one it let go of.
+            self._proc.wait()
+            try:
                 if self.home is not None:
                     self.home.drop()
-                return
-
-            # Provider wrappers and Codex share this dedicated group. Taking down the group
-            # prevents a stopped flow from leaving either wrapper or server behind. A group
-            # already gone is refused on macOS as EPERM rather than ESRCH.
-            with contextlib.suppress(ProcessLookupError, PermissionError):
-                os.killpg(self._proc.pid, signal.SIGTERM)
-            with contextlib.suppress(subprocess.TimeoutExpired):
-                self._proc.wait(timeout=_STOP_SECONDS)
-            with contextlib.suppress(ProcessLookupError, PermissionError):
-                os.killpg(self._proc.pid, signal.SIGKILL)
-            self._proc.wait()
-            if self.home is not None:
-                self.home.drop()
+            finally:
+                # Down whether or not its home would go: a group signalled again once reaped
+                # could be somebody else's by then.
+                self._stopped = True
 
     def _write(self, message: dict[str, Any]) -> None:
         """Puts one JSON-RPC message on the server's stdin.
@@ -1650,15 +1679,31 @@ class _AppServer:
         the same paragraph there twice, the second run-on from the first for want of a
         newline. What is watched is the message, said whole where every other backend says
         one.
+
+        However the reading ends, everyone waiting is told it has: a reader that went without
+        saying so would leave a turn waiting for a message that is never coming.
         """
+        try:
+            self._read()
+        finally:
+            with self._routing:
+                self._gone = True
+                everyone = [*self._waiting.values(), *self._listening.values()]
+            for mailbox in everyone:
+                mailbox.put(None)  # it has stopped, and nothing more is coming
+
+    def _read(self) -> None:
+        """Reads the stream to its end for :meth:`_pump`, a message at a time."""
         assert self._proc.stdout is not None  # noqa: S101
         for line in self._proc.stdout:
-            self._dispatch(json.loads(line))
-        with self._routing:
-            self._gone = True
-            everyone = [*self._waiting.values(), *self._listening.values()]
-        for mailbox in everyone:
-            mailbox.put(None)  # it has stopped, and nothing more is coming
+            try:
+                message: dict[str, Any] = json.loads(line)
+            except json.JSONDecodeError:
+                # Passed over rather than ending the reading: what a stop leaves of a message
+                # the server was still writing, cut off where it went down, with the end of
+                # the stream right after it.
+                continue
+            self._dispatch(message)
 
     def _dispatch(self, message: dict[str, Any]) -> None:
         """Answers what the server asks of us, and routes everything else.
@@ -2124,6 +2169,14 @@ class CodexSession(SessionBase):
             # Taken once and held for the whole turn: asking the agent for a server again may
             # be starting another one, and the thread this turn is on is the first one's.
             server = self._agent._taken(self._on)
+            if self._cut:
+                # Cut off while a server was being found or started for it: a cut that came
+                # before there was a server to put down ends the turn here, before anything of
+                # it is sent, as one that came later ends it at the server.
+                server.give()
+                raise Failed(
+                    1, server._argv, "", f"cut off before it began: {self._cut}"
+                )
             try:
                 self._on = server
                 # Cleared first, so that a thread kept from a failed go that cannot be picked
@@ -2246,9 +2299,9 @@ class CodexSession(SessionBase):
         """What a turn of this session tells the server the agent may do.
 
         The rung's settings less those only a thread takes (:func:`turning`), and one more
-        where the turn lands on another machine whose fence holds the rung, or on a Mac where
-        a fence is held around Codex at all -- the sandbox left to that fence
-        (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
+        where the turn lands on another machine, or on this Linux one, whose fence holds the
+        rung, or on a Mac where a fence is held around Codex at all -- the sandbox left to
+        that fence (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
         fence it is held to grants the network. Codex's
         `read-only` sandbox cuts a command's network as well as its writes, which is narrower
         than a permission that reads its workdir and reaches the web: so such a turn is sent
@@ -2388,6 +2441,12 @@ class CodexSession(SessionBase):
 _RULES = "hmz.rules"
 
 
+def _stop_all(servers: list[_AppServer]) -> None:
+    """Takes down every server of a list, which is what an agent's finalizer holds."""
+    for server in list(servers):
+        server.stop()
+
+
 @merger
 def _ruled(home: Path, names: list[str]) -> None:
     """Lets Codex run the fake command lines named outside its sandbox, and nothing else.
@@ -2456,9 +2515,16 @@ class CodexAgent(AgentBase):
         #: nothing is running on, so a flow taking its turns one after another has exactly one
         #: however many sessions it opens and drops.
         self._servers: list[_AppServer] = []
-        #: The servers retired with a turn still running on them (:meth:`_knowing`), which go
-        #: down as that turn ends -- or with the rest, where the agent is taken down first.
-        self._retiring: list[_AppServer] = []
+        #: Every server this agent has started and not yet seen down, whatever the account or
+        #: settings it is on now: one let go of from dispatch, one retired with a turn still
+        #: running on it (:meth:`_knowing`) or one still being introduced to is this agent's
+        #: to take down all the same. Pruned in place, so a server once down is not held on to.
+        self._owned: list[_AppServer] = []
+        #: What takes them down when the agent is collected, and at exit for one held to the
+        #: end: holding the list rather than the agent. Made with the first server, so it runs
+        #: before the sweep of the directory their homes are in, which is made with the first
+        #: home.
+        self._reaping: weakref.finalize[..., Any] | None = None
         #: Whether this agent has ever started one, which a server let go of is not enough to
         #: say: what goals cannot be disabled after is a server having run with them on, and
         #: one dropped for an account that moved is still up and still holding conversations.
@@ -2577,8 +2643,9 @@ class CodexAgent(AgentBase):
           caller is to stop once it has let go of the lock. A server started as an account
           this agent has since left, or knowing a list of callbacks that is not the list it is
           offering now, is let go of rather than taken down: a turn on another thread may
-          still be talking to it, and it is stopped by its own finalizer when the agent is
-          collected either way. One started with settings the agent has since been moved off
+          still be talking to it. The agent still owns it, and it goes down when the agent
+          stops, a cut or the watchdog takes its servers down (:meth:`_down`), or the agent
+          is collected. One started with settings the agent has since been moved off
           is retired (:meth:`_AppServer.retire`): among those returned where no turn is
           running on it, and taken down by the last turn that is where one is.
         """
@@ -2594,7 +2661,7 @@ class CodexAgent(AgentBase):
             self.shelf.where(),
             tuple(one.name for one in self.loaded),
         )
-        self._retiring = [one for one in self._retiring if not one._stopped]
+        self._forget_stopped()
         # The LiteLLM gateway every server of an account it holds was pointed at, gone: they
         # are pointed at nothing, and the next is pointed at the one started in its place.
         # Read as it was left rather than asked for, which would start one under the lock.
@@ -2609,17 +2676,19 @@ class CodexAgent(AgentBase):
                 going.append(one)
             elif one.knows == knows:
                 kept.append(one)
-            elif one.knows[2:] != knows[2:]:
-                (going if one.retire() else self._retiring).append(one)
+            elif one.knows[2:] != knows[2:] and one.retire():
+                going.append(one)
         self._servers = kept
         return knows, going
 
     def _start(self, knows: _Knows, *, taking: bool = False) -> _AppServer:
         """Starts one more app server for this agent and remembers it.
 
-        Called with :attr:`_serving` let go of: a server takes a moment to answer for the
-        first time, and a fleet opening its sessions at once would otherwise start them in a
-        queue, each session waiting out every start before its own.
+        Called with :attr:`_serving` let go of. Its process is started and owned under it, so
+        a stop cannot return with one still being started that it never saw; it is introduced
+        to outside it, since a server takes a moment to answer for the first time and a fleet
+        opening its sessions at once would otherwise start them in a queue, each session
+        waiting out every start before its own.
 
         Args:
           knows: The account to start it as, the callbacks to tell it about and the command
@@ -2632,6 +2701,10 @@ class CodexAgent(AgentBase):
 
         Returns:
           The server, taken for one turn where `taking` says so and by no turn otherwise.
+
+        Raises:
+          subprocess.CalledProcessError: If it will not be introduced to, or the agent was
+            stopped while it started.
         """
         # In a virtual home of its own, carrying every skill this agent was given: what the
         # server writes of its `config.toml` -- the trust of each workspace it opens a thread
@@ -2639,25 +2712,40 @@ class CodexAgent(AgentBase):
         home = self.homed()
         try:
             environ = self._environ()
-            server = _AppServer(
-                self.spawned(list(knows[2]), home=home),
-                environ if home is None else home.environ(environ),
-                home,
-            )
+            argv = self.spawned(list(knows[2]), home=home)
+            with self._serving:
+                server = None
+                if not self.stopped:
+                    server = _AppServer(
+                        argv, environ if home is None else home.environ(environ), home
+                    )
+                    self._forget_stopped()
+                    if self._reaping is None:
+                        self._reaping = weakref.finalize(self, _stop_all, self._owned)
+                    self._owned.append(server)
         except BaseException:
             if home is not None:
                 home.drop()
             raise
+        if server is None:
+            if home is not None:
+                home.drop()
+            raise Failed(1, argv, "", "agent stopped while app server started")
         server.knows = knows
-        if taking:
-            server.share()
-        with self._serving:
-            self._servers.append(server)
-            self._ever = True
         server._held.append(weakref.ref(self))
-        # Held by the finalizer alone, which is what takes the server down: when the
-        # agent is collected, and at exit for one held to the end.
-        weakref.finalize(self, server.stop)
+        server.initialize()
+        with self._serving:
+            # Put down while it was introduced to -- by the agent stopping, or by a cut or the
+            # watchdog taking every server down -- it is no server to hand a turn.
+            stopped = self.stopped or server._gone or server._proc.poll() is not None
+            if not stopped:
+                if taking:
+                    server.share()
+                self._servers.append(server)
+                self._ever = True
+        if stopped:
+            server.stop()
+            raise Failed(1, argv, "", "app server stopped while it started")
         return server
 
     def _native(self) -> bool:
@@ -2799,18 +2887,29 @@ class CodexAgent(AgentBase):
         self._down()
 
     def _down(self) -> None:
-        """Takes down every server this agent holds.
+        """Takes down every server this agent owns, one let go of from dispatch included.
+
+        A server an account or a list of callbacks has since moved the agent off may still be
+        carrying a turn (:meth:`_knowing`), and a cut or the watchdog putting the transport
+        down means that turn as much as one on a server dispatch would hand out now.
 
         Taken under the lock they are started under and stopped outside it: a session on
         another thread may be starting one while this runs, and a list read twice would either
         stop that one or leave it running with nothing holding it.
         """
         with self._serving:
-            servers, self._servers = self._servers, []
-            servers += self._retiring
-            self._retiring = []
-        for server in servers:
-            server.stop()
+            servers = list(self._owned)
+            self._servers = []
+        _stop_all(servers)
+        with self._serving:
+            self._forget_stopped()
+
+    def _forget_stopped(self) -> None:
+        """Lets go of the servers seen down, held with :attr:`_serving`.
+
+        Pruned in place: the list is the one the finalizer holds.
+        """
+        self._owned[:] = [one for one in self._owned if not one._stopped]
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> CodexSession:
         """Opens a new Codex session, in the directory it is given or in this one."""

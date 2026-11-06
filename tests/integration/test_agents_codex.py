@@ -29,9 +29,11 @@ from hmz.coganchor.agents import (
     Verdict,
 )
 from hmz.coganchor.faking import FakeCli, FakeCommand
+from hmz.coganchor.fence import ALL, READ, Fence
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
 from tests.integration.doubles_agents import (
+    CODEX,
     Endpoint,
     Standins,
     kinds,
@@ -44,156 +46,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 CONFIG = CodexAgentConfig(model="gpt-stand-in", effort="high")
-
-CODEX = r"""
-import itertools, threading, time
-
-note()
-busy = pathlib.Path(sys.argv[0]).with_name("busy")
-if busy.exists() and int(busy.read_text()):
-    # A server that lost the race to create the run's state database, as codex-cli 0.166
-    # says it and exits, before it has answered anything.
-    busy.write_text(str(int(busy.read_text()) - 1))
-    print("Error: failed to initialize sqlite state runtime under /run/codex: failed to"
-          " initialize state runtime at /run/codex", file=sys.stderr, flush=True)
-    sys.exit(1)
-threads = itertools.count(1)
-total = [0]
-writing = threading.Lock()
-
-
-def send(message):
-    with writing:
-        out(message)
-
-
-def notify(method, **params):
-    send({"method": method, "params": params})
-
-
-def item(state, thread, **said):
-    notify("item/" + state, threadId=thread, turnId="turn-1", item=said)
-
-
-def spend(thread, output):
-    total[0] += 10 + output
-    notify("thread/tokenUsage/updated", threadId=thread, turnId="turn-1", tokenUsage={
-        "last": {"inputTokens": 10, "outputTokens": output, "totalTokens": 10 + output},
-        "total": {"inputTokens": total[0] - output, "cachedInputTokens": 0,
-                  "outputTokens": output, "reasoningOutputTokens": 0,
-                  "totalTokens": total[0]}})
-
-
-def done(thread, status="completed", error=None):
-    turn = {"id": "turn-1", "status": status}
-    if error:
-        turn["error"] = error
-    notify("turn/completed", threadId=thread, turn=turn)
-    notify("thread/status/changed", threadId=thread, status={"type": "idle"})
-
-
-def turn(thread, said, asked):
-    notify("turn/started", threadId=thread, turnId="turn-1")
-    if said == "hang":
-        time.sleep(600)
-    if said == "crash":
-        print("codex: something broke", file=sys.stderr, flush=True)
-        os._exit(3)
-    if said == "unfinished":
-        done(thread, status="failed", error={"message": "it could not finish"})
-        return
-    drops = pathlib.Path(sys.argv[0]).with_name("drops")
-    if said == "drop" and drops.exists() and int(drops.read_text()):
-        # The response stream broken as codex reports it: retrying by itself, then giving up.
-        drops.write_text(str(int(drops.read_text()) - 1))
-        lost = {"responseStreamDisconnected": {"httpStatusCode": None}}
-        notify("error", threadId=thread, turnId="turn-1", willRetry=True,
-               error={"message": "Reconnecting... 5/5", "codexErrorInfo": lost})
-        done(thread, status="failed", error={
-            "message": "stream disconnected before completion: error decoding response body",
-            "codexErrorInfo": lost})
-        return
-    if said == "rules":
-        ruled = pathlib.Path(os.environ["CODEX_HOME"], "rules", "hmz.rules")
-        item("completed", thread, id="m-0", type="agentMessage",
-             text=json.dumps({"policy": asked.get("sandboxPolicy"),
-                              "rules": ruled.read_text() if ruled.exists() else None,
-                              "theirs": sorted(one.name for one in ruled.parent.iterdir())}))
-        done(thread)
-        return
-    if said == "log":
-        # Logged where the real one logs a thread: its rollout, under its home's `sessions`.
-        rollout = pathlib.Path(os.environ["CODEX_HOME"], "sessions", "rollout-" + thread + ".jsonl")
-        rollout.write_text(json.dumps({"thread": thread}) + "\n")
-    if said == "approve":
-        send({"id": "ok-1", "method": "item/commandExecution/requestApproval",
-              "params": {"itemId": "i-0", "threadId": thread, "turnId": "turn-1",
-                         "command": "rm -rf /"}})
-        return
-    if said == "ask":
-        send({"id": "ask-1", "method": "item/tool/requestUserInput", "params": {
-            "itemId": "i-0", "threadId": thread, "turnId": "turn-1",
-            "questions": [{"id": "which", "header": "Way", "question": "Which way?",
-                           "options": [{"label": "left"}, {"label": "right"}]}]}})
-        return
-    if said == "long":
-        item("completed", thread, id="m-0", type="agentMessage", text="busy")
-        return
-    item("started", thread, id="c-1", type="commandExecution", status="inProgress",
-         command="echo " + said)
-    item("completed", thread, id="c-1", type="commandExecution", status="completed",
-         command="echo " + said, exitCode=0)
-    item("completed", thread, id="r-1", type="reasoning", summary=[],
-         content=["thinking about " + said])
-    spend(thread, 7)
-    answer = json.dumps({"value": said}) if asked.get("outputSchema") else said
-    item("completed", thread, id="m-1", type="agentMessage", text=answer)
-    done(thread)
-    if said == "then-exit":
-        os._exit(0)
-
-
-for line in sys.stdin:
-    call = json.loads(line)
-    method = call.get("method")
-    if method is None:
-        # An answer to something this server asked: the turn it held goes on with it.
-        note("answered " + json.dumps(call.get("result")))
-        item("completed", "t-1", id="m-2", type="agentMessage",
-             text=json.dumps(call.get("result")))
-        done("t-1")
-        continue
-    params = call.get("params") or {}
-    if method == "turn/start":
-        note(params["input"][0]["text"])
-        vanishes = pathlib.Path(sys.argv[0]).with_name("vanishes")
-        if vanishes.exists() and int(vanishes.read_text()):
-            # Gone before it answered: whether it kept the turn, nobody can say.
-            vanishes.write_text(str(int(vanishes.read_text()) - 1))
-            os._exit(1)
-    elif method in ("thread/start", "thread/resume", "thread/fork", "turn/steer"):
-        note(method + " " + json.dumps(params, sort_keys=True))
-    if "id" not in call:
-        continue
-    result = {}
-    if method in ("thread/start", "thread/fork"):
-        result = {"thread": {"id": "t-%d" % next(threads)}}
-    elif method == "thread/resume":
-        result = {"thread": {"id": params["threadId"]}}
-    elif method == "turn/start":
-        result = {"turn": {"id": "turn-1"}}
-    send({"jsonrpc": "2.0", "id": call["id"], "result": result})
-    if method in ("thread/start", "thread/fork"):
-        notify("thread/status/changed", threadId=result["thread"]["id"],
-               status={"type": "idle"})
-    if method == "turn/start":
-        threading.Thread(target=turn, args=(params["threadId"],
-                         params["input"][0]["text"], params), daemon=True).start()
-    if method == "turn/steer":
-        item("completed", params["threadId"], id="m-3", type="agentMessage",
-             text="heard " + params["input"][0]["text"])
-        done(params["threadId"])
-"""
 
 
 @pytest.fixture
@@ -607,3 +459,50 @@ def test_a_command_line_named_unsandboxed_is_ruled_out_of_the_sandbox(
     # The user's own rules are read beside Humanize's, and never written.
     assert "default.rules" in told["theirs"]
     assert sorted(one.name for one in theirs.iterdir()) == ["default.rules"]
+
+
+@pytest.mark.parametrize(
+    ("permission", "local"), [("read-only", READ), ("workspace-write", ALL)]
+)
+def test_a_fence_that_holds_the_rung_holds_it_in_place_of_codex(
+    codex: Standins,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    permission: str,
+    local: str,
+) -> None:
+    """Codex's own sandbox cannot start inside the fence, on Linux as on a Mac.
+
+    Inside Landlock bubblewrap may not mount, and with `use_legacy_landlock` codex-cli 0.163.0
+    panics: every command of the turn would fail. The fence itself is not put up here, only
+    what Codex is told inside it.
+    """
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    # Where the stand-in looks for rules beside Humanize's, for it to say what it was told.
+    (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
+    fence = Fence.of(
+        local=local,
+        user=READ,
+        system=READ,
+        online=True,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    agent = CodexAgent(dataclasses.replace(CONFIG, permission=permission, fence=fence))
+    try:
+        said = list(agent.new(tmp_path).stream("rules"))
+    finally:
+        agent.stop()
+
+    told = json.loads(said[-1].text)
+    assert told["policy"] == {"type": "externalSandbox", "networkAccess": "enabled"}

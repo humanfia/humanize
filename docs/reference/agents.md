@@ -440,7 +440,10 @@ Under a flow the rung is derived from the role's `Permission` by
   sent `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`. On macOS, where Codex's
   own Seatbelt sandbox cannot start inside the fence's, each `read-only` or `workspace-write`
   turn under a fence is sent `sandboxPolicy: {"type": "externalSandbox", "networkAccess":
-  "enabled"|"restricted"}` instead, the fence holding the rung.
+  "enabled"|"restricted"}` instead, the fence holding the rung. On Linux, where Codex's own
+  sandbox cannot start inside Landlock either, so is each such turn whose fence is at least as
+  narrow as the rung: nothing of the workdir, home or system written at `read-only`, nothing of
+  the home or system at `workspace-write`.
 - `online` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
 
 <small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `prompting`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
@@ -530,7 +533,7 @@ the turn:
 
 | Mechanism | Holds |
 | --- | --- |
-| Landlock (Linux) | paths, and TCP `connect`/`bind` by port (ABI >= 4 where the network is cut) |
+| Landlock (Linux) | paths; TCP `connect`/`bind` by port (ABI >= 4 where the network is cut); signals and connections to abstract Unix sockets kept inside the fenced process tree (ABI >= 6) |
 | seccomp filter (Linux) | every non-TCP socket family refused |
 | seccomp user notification + `pidfd_getfd` (Linux) | with `online=False`, every `bind` and `listen` stops for the wrapper, which allows loopback only (`EACCES` otherwise) |
 | Seatbelt (macOS) | paths (as given and as resolved, `/tmp` being `/private/tmp`); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
@@ -582,8 +585,9 @@ Under a flow, `Unfenced` becomes `HarnessSandboxed`. An ACP CLI with `online` `N
 declared hosts is refused `HarnessSandboxed`, naming what to declare. For anchored agents, what
 each machine holds is in [Remote execution › A fence on both machines](/reference/remote-execution#a-fence-on-both-machines).
 
-Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket (on
-macOS, nor asking a system service over Mach); on Linux with the network cut the proxy's port
+Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket by its
+path (on macOS, nor asking a system service over Mach); on Linux before Landlock ABI 6, signals
+and abstract Unix sockets reach outside the fence too; on Linux with the network cut the proxy's port
 is reachable on any address, by number; and on macOS with the network cut a program may listen
 on any address and port, Seatbelt telling neither apart.
 
@@ -1425,7 +1429,9 @@ rule of its own place. Each stand-in is retried as its own place's rule says. Th
 in a new session at the other place, by an agent configured as this one (effort, rung, skills);
 settings that were measurements of the old model (`of_model` fields, e.g. Codex `overrides`) are
 dropped when the model changes. An account names no fallback of its own: another account of the
-same CLI is a place on the chain.
+same CLI is a place on the chain. A turn taken at another place is interrupted and cut there:
+`interrupt` reaches the stand-in's turn, and `cut` also puts the stand-in's transport down. A cut
+turn that lands goes on in the stand-in's conversation, as far as it got.
 
 <small>Defined in [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py), [`src/hmz/coganchor/standin.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/standin.py).</small>
 
@@ -1599,6 +1605,14 @@ fall `idle` first, which ends nothing.
 - The server reads `overrides`, `features`, `strict_config`, `web_search`, the account and the
   fence once at start; a change starts a new server for the next turn and each conversation is
   resumed there by id. Model, effort, rung and `approvals` are per call.
+- The agent owns every app server it starts until that server is down, including one still
+  being introduced to, one an account or callback change let go of while a turn runs on it,
+  and one retiring that is still writing its home back. Stopping the agent, a cut and the
+  watchdog putting the server down reach all of them and wait for each; a server whose start
+  finishes after the agent stopped is reaped and refused. A refused introduction reaps the
+  process before its home is dropped. A stop that cuts a message off partway still ends the
+  turns reading that server, and a cut or interrupt that lands before a turn has a server ends
+  that turn before anything of it is sent.
 - `-p/--profile` and `--add-dir` are not offered; `codex app-server` does not take them.
 - Each app server runs in a [virtual home](#virtual-homes) (`CODEX_HOME`), so the trust Codex
   writes into `config.toml` for each workspace it opens a writing thread in is dropped with it.

@@ -158,9 +158,11 @@ What that comes to in practice:
 - **A grant that cannot be held is refused, not widened.** On a Linux kernel without
   Landlock, on a Mac where Humanize already runs inside another sandbox, and for work on a
   machine like either, a role runs only with `ALL` in every scope.
-- **Some ways out remain.** Neither Landlock nor Seatbelt governs Unix sockets, so an agent
-  can still talk to a socket another program listens on, a docker daemon's among them; on
-  macOS a system service reached over Mach is the same. With `online` of `NONE` on macOS, a
+- **Some ways out remain.** Neither Landlock nor Seatbelt governs a Unix socket reached by its
+  path, so an agent can still talk to a socket another program listens on, a docker daemon's
+  among them; on macOS a system service reached over Mach is the same. On a Linux kernel
+  older than 6.12 (Landlock ABI 6), an agent can also signal processes outside its fence and
+  reach their abstract Unix sockets. With `online` of `NONE` on macOS, a
   program the agent runs may serve on any address, not only loopback. And whatever an agent
   can write, a later run can read.
 
