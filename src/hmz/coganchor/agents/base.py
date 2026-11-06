@@ -115,14 +115,27 @@ KEPT = ".kept"
 _NOTHING_TO_RUN = 127
 
 
+#: How long whatever reads a process's pipes is waited on once the process has gone. Its pipes
+#: end with it, so the wait is the moment it takes to read what it said on its way out -- the
+#: diagnostic -- and runs this long only where something outside it still holds one open.
+DRAIN_SECONDS = 5.0
+
+
+#: What a turn's pumps hand it: each line as written, with whether it came from stderr; and
+#: None, once apiece, when a pump is done.
+type _Said = tuple[str, bool] | None
+
+
 def _tee(
     source: IO[str],
     sink: IO[str] | None,
     captured: list[str],
-    said: queue.Queue[Event | None] | None = None,
-    reads: Callable[[str], Iterable[Event]] | None = None,
+    said: queue.Queue[_Said] | None = None,
+    *,
+    error: bool = False,
+    gone: threading.Event | None = None,
 ) -> None:
-    """Copies `source` into `sink` line by line, keeping every line and announcing it.
+    """Copies `source` into `sink` line by line, keeping every line and handing it on.
 
     A sink that has gone away stops the copying but not the reading: a pipe nobody drains
     blocks the agent writing to it, and the turn would then be waiting on an agent that is
@@ -130,15 +143,21 @@ def _tee(
     one carrying a protocol rather than the agent talking -- and is read and kept just the
     same. The None at the end is how a turn reading `said` knows this stream is spent; a
     stream nobody is reading events from is drained and kept all the same.
+
+    Each line goes on `said` as it was written, with whether it came from stderr (`error`),
+    for the turn to read into events on its own thread: what reads a line into the session
+    is never a pump the turn may have to leave behind, so a pump that outlives its turn --
+    sitting in a pipe something outside the command still holds -- has nothing of the session
+    to reach. Once the turn has let go of it (`gone`), a line is drained and kept but not
+    copied to the sink.
     """
     with contextlib.suppress(OSError, ValueError):
         # A source closed under us is a process that has ended, which is not a failure here.
         for line in source:
             captured.append(line)
-            if said is not None and reads is not None:
-                for event in reads(line):
-                    said.put(event)
-            if sink is not None:
+            if said is not None:
+                said.put((line, error))
+            if sink is not None and (gone is None or not gone.is_set()):
                 say(line, sink, end="")
     with contextlib.suppress(OSError, ValueError):
         source.close()  # the reader closes what it read, whoever else has finished with it
@@ -199,6 +218,49 @@ def _ended(proc: subprocess.Popen[str]) -> None:
     for one in alive:
         with contextlib.suppress(psutil.Error):
             one.kill()
+
+
+def _let_go(
+    proc: subprocess.Popen[str],
+    pumps: Mapping[threading.Thread, IO[str]],
+    gone: threading.Event,
+) -> None:
+    """Ends a turn's command and everything pumping it, whichever way the turn is leaving.
+
+    One way out for all of them -- answered, failed, cut off, or let go of by whoever was
+    reading it: a `close()`, a `break` out of the only loop holding it, a ctrl+c. Left to
+    `Popen` on its way out, that last would leave the command running a turn nobody reads,
+    and close its pipes under the pumps still sitting in them -- a stream closed under a
+    thread blocked in it waits on that thread, which waits on the command.
+
+    So the tree goes first, as a cut-off ends it (:func:`_ended`, which leaves one that has
+    exited alone), and its going is what ends the pumps: a reader finds the end of its stream.
+    Every pump started is then waited on, but only for so long between them -- something that
+    slipped out of the tree before it could be named may hold a pipe still, a child of a
+    command that had already exited among them, and neither a turn nor an interpreter on its
+    way out is to wait on that, which is why they are daemons. A pump still sitting in its
+    stream is left it, to close once it is done (:func:`_tee`); every other stream is closed
+    here, a pump's that never started among them. What such a pump reads from here on reaches
+    nothing of the session: lines are read into events by the turn, which has gone, and the
+    pump copies none to our own streams once `gone` is set -- which is once the command has
+    gone, so that what it said on its way out is still put where a person reads it.
+
+    Args:
+      proc: The command, which may already have ended.
+      pumps: Every pump made for it, started or not, with the stream it sits in.
+      gone: What tells the pumps the turn has let go of them.
+    """
+    _ended(proc)
+    gone.set()
+    until = time.monotonic() + DRAIN_SECONDS
+    for pump in pumps:
+        if pump.ident is not None:  # started: one that never was has nothing to wait on
+            pump.join(timeout=max(until - time.monotonic(), 0.0))
+    sitting = {stream for pump, stream in pumps.items() if pump.is_alive()}
+    for stream in (proc.stdin, proc.stdout, proc.stderr):
+        if stream is not None and stream not in sitting:
+            with contextlib.suppress(OSError, ValueError):
+                stream.close()
 
 
 @contextlib.contextmanager
@@ -697,6 +759,13 @@ class SessionBase(ABC):
         #: reaches and so is called from another thread while a turn is under way: it does not
         #: wait for the turn's logs to be copied.
         self._working = False
+        #: Which turn of this session is running or ran last, counted as each opens, and what
+        #: a cut-off raised from another thread is bound to: a watchdog or a budget clock may
+        #: be held up -- in a watcher, say -- until its turn is over and the next one is
+        #: running, and what it was raised for is not the next turn's to suffer. Read and
+        #: written under :attr:`_turn_guard`, with what a turn opens and closes on.
+        self._nth_turn = 0
+        self._turn_guard = threading.RLock()
         #: What each turn of this conversation may spend, where it has been told something
         #: other than what its agent was configured with, and None where it has not.
         self._budget: Budget | None = None
@@ -1008,18 +1077,43 @@ class SessionBase(ABC):
           why: What to say it was cut off for, which is what whoever is watching reads and
             what a turn that fails for it says.
         """
-        if not self._working:
-            # Nothing is running, so there is nothing to cut off -- and a reason left standing
-            # would end the next turn before it had said anything. A turn that has not started
-            # is prevented by stopping the agent, which is a different thing.
-            return
-        # Said once, however often it is asked: an interface asks again until the turn has
-        # ended, and a turn that takes a while to let go read as twenty cut-offs.
-        again = bool(self._cut)
-        self._cut = why or "interrupted"
+        self._interrupts(why, turn=None)
+
+    def _interrupts(self, why: str, *, turn: int | None) -> None:
+        """:meth:`interrupt`, bound to the turn it was raised for.
+
+        A cut-off raised from another thread -- a watchdog, a budget clock -- can be held up,
+        in a watcher told of it among other things, until its turn is over and the next is
+        running. What it was raised for is then not the next turn's to suffer: it is checked
+        against the turn running both before anything is said and after, and does nothing
+        where that turn is another.
+
+        Checked, and then acted on outside the guard: ending what holds a turn can wait on the
+        backend -- a write to its input, an abort it is given time to answer -- and nothing
+        that waits is done under the guard a turn opens and closes under.
+
+        Args:
+          why: What to say it was cut off for.
+          turn: The turn it was raised for (:attr:`_nth_turn`), or None for whichever is running.
+        """
+        with self._turn_guard:
+            if not self._working or turn not in (None, self._nth_turn):
+                # Nothing is running, or not the turn this was for, so there is nothing to
+                # cut off -- and a reason left standing would end the next turn before it had
+                # said anything. A turn that has not started is prevented by stopping the
+                # agent, which is a different thing.
+                return
+            turn = self._nth_turn
+            # Said once, however often it is asked: an interface asks again until the turn has
+            # ended, and a turn that takes a while to let go read as twenty cut-offs.
+            again = bool(self._cut)
+            cut = self._cut = why or "interrupted"
         if not again:
-            self._heard(Event(kind="notice", text=f"cutting the turn off: {self._cut}"))
-        self._waking.set()
+            self._heard(Event(kind="notice", text=f"cutting the turn off: {cut}"))
+        with self._turn_guard:
+            if not self._working or turn != self._nth_turn:
+                return  # over while whoever was told was being told
+            self._waking.set()
         self._cuts()
         if self._moved_to is not None:
             # And the conversation this one moved to, since the turn being cut off may be
@@ -1050,7 +1144,7 @@ class SessionBase(ABC):
         if proc is not None:
             _ended(proc)
 
-    def _checks(self, *, landed: bool = False) -> None:
+    def _checks(self, *, landed: bool = False, turn: int | None = None) -> None:
         """Sees whether the turn now running has spent what it was given, and acts if it has.
 
         Called from wherever a reading moves: the thread taking the turn, as each request to
@@ -1066,28 +1160,56 @@ class SessionBase(ABC):
             an answer lets that answer finish, and the next one to land is where the turn
             stops. A budget that ran out of tokens ran out *on* a response landing, so it is
             already at that moment and stops there.
+          turn: The turn a clock was set for (:attr:`_nth_turn`), or None for the one running.
+            A clock fires from a thread of its own, and is held to its turn for as long as it
+            reads and writes what that turn is held to; the thread reading the turn is the
+            turn, and is not held, since a backend's own reader may be what a cut-off waits on.
         """
-        budget = self._capped
-        if budget is None or not self._working:
-            return
-        if not self._over:
-            over = budget.over(
-                output=self._meter.spent().output - self._paid,
-                seconds=time.monotonic() - self._since,
-            )
-            if not over:
+        with self._turn_guard if turn is not None else contextlib.nullcontext():
+            budget = self._capped
+            if (
+                budget is None
+                or not self._working
+                or turn not in (None, self._nth_turn)
+            ):
                 return
-            self._over = over
-            if not landed and budget.when != "immediately":
-                # Out of clock in the middle of an answer, which is what `next-response`
-                # waits for. Not forever, though: a backend that says what a turn cost only
-                # when the turn is over never lands anything to wait on, and a turn that has
-                # gone quiet is the one a clock was set for. So the wait has an end, and what
-                # is at the end of it is the cut-off.
-                self._waits(_LANDING, landed=True)
+            turn = self._nth_turn
+            if not self._over:
+                over = budget.over(
+                    output=self._meter.spent().output - self._paid,
+                    seconds=time.monotonic() - self._since,
+                )
+                if not over:
+                    return
+                self._over = over
+                if not landed and budget.when != "immediately":
+                    # Out of clock in the middle of an answer, which is what `next-response`
+                    # waits for. Not forever, though: a backend that says what a turn cost
+                    # only when the turn is over never lands anything to wait on, and a turn
+                    # that has gone quiet is the one a clock was set for. So the wait has an
+                    # end, and what is at the end of it is the cut-off.
+                    self._waits(_LANDING, landed=True)
+                    return
+            if self._cut or self._capped is None:
                 return
-        if not self._cut and self._capped is not None and self._working:
-            self.interrupt(why=f"{self._over} spent")
+        self._interrupts(f"{self._over} spent", turn=turn)
+
+    def _wedges(self, turn: int) -> None:
+        """Marks a turn as one the watchdog stopped (:attr:`_wedged`), if it is still running.
+
+        And always for a session standing in for another (:meth:`_instead`): its turns are
+        taken outside :meth:`stream`, so none of them is ever running by that count, and a
+        stand-in the watchdog gave up on must still fail rather than answer with what a
+        cut-off leaves, which is nothing.
+
+        Args:
+          turn: The turn the watchdog was watching (:attr:`_nth_turn`).
+        """
+        with self._turn_guard:
+            if self._standing_for is not None or (
+                self._working and turn == self._nth_turn
+            ):
+                self._wedged = True
 
     def _budgeting(self) -> None:
         """Opens a turn's budget: the one it is held to, what it starts from, and its clock.
@@ -1118,7 +1240,9 @@ class SessionBase(ABC):
             clock.cancel()
         # A daemon, because it is the turn's rather than the run's: an interpreter on its way
         # out must not wait on the clock of a turn nobody is reading any more.
-        self._clock = threading.Timer(after, self._checks, kwargs={"landed": landed})
+        self._clock = threading.Timer(
+            after, self._checks, kwargs={"landed": landed, "turn": self._nth_turn}
+        )
         self._clock.daemon = True
         self._clock.start()
 
@@ -1394,15 +1518,18 @@ class SessionBase(ABC):
             # moments a turn fires before the backend is spoken to can each take seconds, and
             # a reason set in that window and cleared afterwards is a cut-off that quietly
             # never happened.
-            self._over = self._cut = ""
-            self._waking.clear()
-            self._wedged = False
-            self._sofar = []
-            self._working = True
+            with self._turn_guard:
+                self._nth_turn += 1
+                self._over = self._cut = ""
+                self._waking.clear()
+                self._wedged = False
+                self._sofar = []
+                self._working = True
             try:
                 yield from self._turning(prompt, schema=schema)
             finally:
-                self._working = False
+                with self._turn_guard:
+                    self._working = False
 
     def _turning(
         self, prompt: str, *, schema: type[BaseModel] | None = None
@@ -2951,9 +3078,12 @@ class CommandSessionBase(SessionBase):
         conversation rather than interleaving two. Both of the agent's streams are teed to ours
         as they arrive, so a long turn stays watchable. A failed turn leaves the session
         unopened, so the next call retries the turn the same way rather than resuming a session
-        that may not exist. An anchored agent is run through coganchor, which is what puts the
-        turn's files and commands on another machine while the conversation stays here, and an
-        isolated one is the same thing against a machine the agent started for itself.
+        that may not exist. However a turn ends -- answered, failed, cut off, or let go of by
+        whoever was reading it -- its command, what that started and what was pumping it go
+        with it (:func:`_let_go`). An anchored agent is run through coganchor, which is what
+        puts the turn's files and commands on another machine while the conversation stays
+        here, and an isolated one is the same thing against a machine the agent started for
+        itself.
 
         Args:
           prompt: The input prompt for this turn.
@@ -2982,10 +3112,18 @@ class CommandSessionBase(SessionBase):
             argv, environ, home = self._spawning(argv)
             out: list[str] = []
             err: list[str] = []
-            said: queue.Queue[Event | None] = queue.Queue()
-            with (
-                _dropped(home),
-                subprocess.Popen(
+            said: queue.Queue[_Said] = queue.Queue()
+            # Each pump with the stream it sits in, which nothing but that pump may close while
+            # it is still sitting there (:func:`_let_go`) -- put there as it is made, so that a
+            # turn let go of while still being set up is let go of whole too; and what tells
+            # them the turn has let go. Both made before the command is, so that nothing stands
+            # between the command starting and what lets go of it.
+            pumps: dict[threading.Thread, IO[str]] = {}
+            gone = threading.Event()
+            with _dropped(home):
+                # Not held as a `with`: what `Popen` closes on its way out is the pipes, under
+                # the pumps sitting in them, and what lets go of this one is :func:`_let_go`.
+                proc = subprocess.Popen(
                     argv,
                     # No prompt on stdin means no stdin at all: inheriting ours would let the agent
                     # read the terminal a flow is being watched from.
@@ -3003,78 +3141,89 @@ class CommandSessionBase(SessionBase):
                     # The directory the session was opened at, which is this one unless it was
                     # opened at another; an anchored turn is put there by the anchor instead.
                     cwd=None if self._agent.anchor is not None else where,
-                ) as proc,
-            ):
-                assert proc.stdout is not None  # noqa: S101
-                assert proc.stderr is not None  # noqa: S101
-                # Where a stop or a cut-off reaches it. Written before a line has been read,
-                # because the turns worth ending are the ones that have not said anything.
-                self._underway = proc
-                if self._cutting():
-                    # Cut off while this was still starting, when there was nothing yet to
-                    # end. A turn told to stop before it had said a word must not go on to
-                    # say one, so what arrived a moment early is acted on a moment late.
-                    self._cuts()
-                # Every pipe drains from the moment the agent starts: it puts its progress on
-                # stderr and only the final message on stdout, and a prompt larger than the pipe
-                # buffer would deadlock against an agent that prints before reading all of it.
-                pumps = [
-                    threading.Thread(
+                )
+                try:
+                    assert proc.stdout is not None  # noqa: S101
+                    assert proc.stderr is not None  # noqa: S101
+                    # Where a stop or a cut-off reaches it. Written before a line has been read,
+                    # because the turns worth ending are the ones that have not said anything.
+                    self._underway = proc
+                    if self._cutting():
+                        # Cut off while this was still starting, when there was nothing yet to
+                        # end. A turn told to stop before it had said a word must not go on to
+                        # say one, so what arrived a moment early is acted on a moment late.
+                        self._cuts()
+                    # Every pipe drains from the moment the agent starts: it puts its progress
+                    # on stderr and only the final message on stdout, and a prompt larger than
+                    # the pipe buffer would deadlock against an agent that prints before
+                    # reading all of it.
+                    reading = threading.Thread(
                         target=_tee,
                         args=(
                             proc.stdout,
                             None if type(self).protocol else sys.stdout,
                             out,
                             said,
-                            functools.partial(self._reads, error=False),
                         ),
-                    ),
-                    threading.Thread(
+                        kwargs={"gone": gone},
+                        daemon=True,
+                    )
+                    pumps[reading] = proc.stdout
+                    hearing = threading.Thread(
                         target=_tee,
-                        args=(
-                            proc.stderr,
-                            sys.stderr,
-                            err,
-                            said,
-                            functools.partial(self._reads, error=True),
-                        ),
-                    ),
-                ]
-                for pump in pumps:
-                    pump.start()
-                if stdin is not None:
-                    assert proc.stdin is not None  # noqa: S101
-                    # An agent that exits before reading the prompt is a failed turn, reported
-                    # by its exit status rather than as a broken pipe here.
-                    with contextlib.suppress(BrokenPipeError):
-                        try:
-                            proc.stdin.write(stdin)
-                        finally:
-                            proc.stdin.close()
-                # Said as it arrives, from whichever stream got there first, until both have
-                # ended -- one None apiece, which is the only thing that ends this turn. Under
-                # a clock, since that is the one thing this loop cannot see for itself: a
-                # command that neither writes nor exits owes this queue a None it will never
-                # put there, and the watchdog is what ends the process and so the wait.
-                with Watchdog(self, riding=lambda: proc) as watch:
-                    for _ in pumps:
-                        while (event := said.get()) is not None:
-                            watch.saw()
-                            if type(self).protocol and not self._agent._watchers:
-                                # On stderr, where a backend that writes for a person puts its
-                                # progress: its own stdout is the protocol here, and a turn
-                                # nobody can watch reads as hung for as long as it takes.
-                                say(event.text, sys.stderr)
-                            # The clock stops while whoever is reading this has it: what a
-                            # watcher or a hook does with an event is not the backend's
-                            # silence, and a reader that pauses must not cost the CLI its
-                            # life.
-                            with watch.held():
-                                yield event
+                        args=(proc.stderr, sys.stderr, err, said),
+                        kwargs={"error": True, "gone": gone},
+                        daemon=True,
+                    )
+                    pumps[hearing] = proc.stderr
                     for pump in pumps:
-                        pump.join()
-                    status = proc.wait()
-                    self._underway = None  # it has ended; there is nothing left to end
+                        pump.start()
+                    if stdin is not None:
+                        assert proc.stdin is not None  # noqa: S101
+                        # An agent that exits before reading the prompt is a failed turn,
+                        # reported by its exit status rather than as a broken pipe here.
+                        with contextlib.suppress(BrokenPipeError):
+                            try:
+                                proc.stdin.write(stdin)
+                            finally:
+                                proc.stdin.close()
+                    # Said as it arrives, from whichever stream got there first, until both
+                    # have ended -- one None apiece, which is the only thing that ends this
+                    # turn. Under a clock, since that is the one thing this loop cannot see for
+                    # itself: a command that neither writes nor exits owes this queue a None it
+                    # will never put there, and the watchdog is what ends the process and so
+                    # the wait.
+                    with Watchdog(self, riding=lambda: proc) as watch:
+                        for _ in pumps:
+                            while (got := said.get()) is not None:
+                                line, error = got
+                                # Any line at all: liveness rather than progress, and a line
+                                # that turns into no event is still a CLI that is awake.
+                                watch.saw()
+                                # Read into events here, on the turn's own thread, which is
+                                # the only thing that may read a line into the session. Off
+                                # the clock, as an event held by its reader is: writing down
+                                # what a line says is not the backend's silence, and what a
+                                # watcher or a hook does with an event is not either -- a
+                                # reader that pauses must not cost the CLI its life.
+                                with watch.held():
+                                    for event in self._reads(line, error=error):
+                                        if (
+                                            type(self).protocol
+                                            and not self._agent._watchers
+                                        ):
+                                            # On stderr, where a backend that writes for a
+                                            # person puts its progress: its own stdout is the
+                                            # protocol here, and a turn nobody can watch reads
+                                            # as hung for as long as it takes.
+                                            say(event.text, sys.stderr)
+                                        yield event
+                        status = proc.wait()
+                finally:
+                    # However the turn is leaving, the reader having let go of it included:
+                    # nothing of it is left running, and there is nothing left to cut off.
+                    self._underway = None
+                    _let_go(proc, pumps, gone)
 
             stdout = "".join(out)
             if status != 0:
@@ -3235,7 +3384,7 @@ class StreamSessionBase(SessionBase):
                             if self._draining is not None:
                                 # Waited on: what the agent said on its way out is the diagnostic,
                                 # and it may not have been read yet.
-                                self._draining.join(timeout=5)
+                                self._draining.join(timeout=DRAIN_SECONDS)
                             complained = "".join(self._complaints)
                             raise Failed(status, argv, event.text, complained)
                         if event.kind == "result":
@@ -3277,7 +3426,7 @@ class StreamSessionBase(SessionBase):
                     if self._draining is not None:
                         # Waited on, because a process that wrote its one explanation and left
                         # may not have had it read yet -- and that explanation is the diagnostic.
-                        self._draining.join(timeout=5)
+                        self._draining.join(timeout=DRAIN_SECONDS)
                     complained = "".join(self._complaints)
                     self._shut()
                     raise Failed(status or 1, argv, said, complained)

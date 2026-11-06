@@ -13,6 +13,8 @@ spends it.
 from __future__ import annotations
 
 import asyncio
+import errno
+import shutil
 import time
 from typing import TYPE_CHECKING
 
@@ -196,6 +198,45 @@ def test_rlar_picked_up_hands_a_fresh_actor_the_last_review(project: Path) -> No
     ran = hmz.epics.read(second)
     assert ran is not None
     assert ran.picked_up == first.name
+
+
+def test_rlar_whose_progress_cannot_be_copied_is_refused_and_left_to_pick_up(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hmz = Hmz(project)
+    not_yet = {"done": False, "notes": "the tests are missing"}
+    with pytest.raises(CostExceeded):
+        hmz.run(
+            "rlar",
+            "the task",
+            agents={"actor": _agent(cost=0.3), "reviewer": _agent(not_yet, cost=0.0)},
+            budget=BUDGET,
+        ).run()
+    (first,) = hmz.epics.all()
+
+    def full(*_: object) -> None:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    with monkeypatch.context() as patched:
+        patched.setattr(shutil, "copyfile", full)
+        actor = _agent(cost=0.0)
+        with pytest.raises(Refused, match="could not be copied") as refused:
+            hmz.run(
+                "rlar",
+                "the task",
+                agents={
+                    "actor": actor,
+                    "reviewer": _agent({"done": True, "notes": "done"}, cost=0.0),
+                },
+                budget={"cost": 1},
+                resume=True,
+            ).run()
+
+    # Before the flow was called, and with no run left behind going on from nothing.
+    assert isinstance(refused.value.__cause__, OSError)
+    assert actor.prompts == []
+    assert hmz.epics.all() == [first]
+    assert hmz.epics.resumed("rlar") == first
 
 
 def test_a_cost_spent_gracefully_lets_the_turn_finish(project: Path) -> None:

@@ -99,7 +99,13 @@ then over `<kept>/<cli>` for every `kept` directory. Homes are resolved as in
 | `acp` | | no logs Humanize can find | | | |
 
 Token counts are read as each CLI records them; where a CLI records cached input beside
-input (pi, omp, opencode, mimo, mcode, agy), both are counted.
+input (pi, omp, opencode, mimo, mcode, agy), both are counted. Codex says what a request to
+the model spent once the request is over, after its tool calls are answered: that usage goes
+on the request's first model call (`think`, else `generate`) with the model its turn ran on,
+or on its own message where the request wrote nothing else -- never on a message another
+agent sent the thread, which the request read -- and a usage said again unmoved is read
+once. A tool call left unanswered, as one cut off with its turn is, does not keep a later
+request from its own `generate`.
 
 ## The document {#document}
 

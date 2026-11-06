@@ -95,6 +95,7 @@ __all__ = [
     "Ran",
     "Session",
     "Sub",
+    "Uncarried",
     "called",
     "ending",
     "epics",
@@ -731,6 +732,14 @@ def resumed(flow: str, workspace: Path | str | None = None) -> Path | None:
     return None
 
 
+class Uncarried(Exception):  # noqa: N818 -- named for what happened, as Refused is
+    """The journal of the epic a run picks up could not be copied into the run's own.
+
+    Nothing is left of the run that asked: its directory is gone again, and the epic it
+    would have picked up is as it was, to be picked up again.
+    """
+
+
 class Epic:
     """One run of one flow: the directory it is written to, and what has happened to it."""
 
@@ -783,6 +792,9 @@ class Epic:
           reopened: Whether the run goes on in the epic it is picked up from rather than a
             new one -- a chat carried on, which is one conversation and so one epic -- saying
             it was opened again where it said it began.
+
+        Raises:
+          Uncarried: Where the journal of the epic picked up is there and cannot be copied.
         """
         reopened = reopened and picked_up is not None
         self._begin(
@@ -805,9 +817,22 @@ class Epic:
         self._held = _hold(self._at / _HELD)
         if picked_up is not None and not reopened:
             # A copy rather than the file itself: the run it came from is closed, and the
-            # engine compacts what it picks up before it appends to it.
-            with contextlib.suppress(OSError):
+            # engine compacts what it picks up before it appends to it. Copied before this
+            # epic says it picked that one up: a run with less than that one kept would go
+            # on from less, as the run it says it goes on from.
+            try:
                 shutil.copyfile(picked_up / RESUME, self._at / RESUME)
+            except FileNotFoundError:
+                pass
+            except OSError as why:
+                if self._held is not None:
+                    os.close(self._held)
+                    self._held = None
+                shutil.rmtree(self._at, ignore_errors=True)
+                raise Uncarried(
+                    f"{picked_up.name} cannot be resumed: its saved progress could not be "
+                    f"copied ({why.strerror or why})"
+                ) from why
         #: The programs this run starts, sampled while it runs, or None for a run nobody
         #: asked to profile them -- which is every run not started with
         #: `--profile-environment`.

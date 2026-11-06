@@ -63,8 +63,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 import dataclasses
 import datetime
+import functools
 import math
 import os
 import threading
@@ -1975,7 +1977,17 @@ class HarnessSession:
                 await self._fire(HookKind.SESSION_END)
         self._bridge.close()
         self._asking.close()
-        await asyncio.to_thread(self._shut)
+        # As `asyncio.to_thread` would, in this context, on the loop's threads.
+        shut = functools.partial(contextvars.copy_context().run, self._shut)
+        try:
+            stopping = asyncio.get_running_loop().run_in_executor(None, shut)
+        except RuntimeError:
+            # The loop's threads are gone: the run is being torn down around this session,
+            # an interrupted one after its main task ended. The CLIs are stopped here instead,
+            # holding the loop for as long as that takes, rather than left running.
+            shut()
+            return
+        await stopping
 
     def _shut(self) -> None:
         """Lets go of the conversations and of the CLIs serving them, on a thread."""

@@ -64,6 +64,7 @@ from hmz.flows import (
     FakeCli,
     FakeTool,
     FilesEnvMixin,
+    FlowCancelled,
     GitEnvMixin,
     GitWorktreeEnvMixin,
     GoalCommandAgentMixin,
@@ -101,7 +102,7 @@ from .journaling import SESSION
 from .spi import HookTable, Kept, Limits, TurnRequest, default_result
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Mapping
+    from collections.abc import Awaitable, Callable, Coroutine, Mapping
     from pathlib import PurePosixPath
     from types import FrameType
 
@@ -547,6 +548,8 @@ class AgentView:
             raise
         taken._turns += 1
         node.turning(1)
+        turns = node.run.turns
+        turns[id(handle)] = (handle, asyncio.current_task())
         cut = None if hard is None else _Cut(node.run.loop, handle, hard)
         try:
             said = await handle.turn(
@@ -567,6 +570,7 @@ class AgentView:
                 raise cut.exceeded(self._role) from error
             raise
         finally:
+            turns.pop(id(handle), None)
             taken._busy = False
             node.turning(-1)
             if cut is not None:
@@ -580,6 +584,9 @@ class AgentView:
         if failed is not None:
             taken._error = None
             raise failed
+        # An answer that lands once the call or the run is over reaches no flow code: the
+        # run interrupted the turn as it ended, and nothing journals what came of it.
+        node.check()
         if output_schema is not None and not isinstance(said, output_schema):
             raise OutputSchemaError(
                 f"{self._role} answered {type(said).__name__}, not {output_schema.__name__}"
@@ -1381,6 +1388,49 @@ class Source:
         return self.driver is None or self.driver.away_for(role)
 
 
+class _Asked:
+    """An outworlder's answer being waited for, which its run interrupts as it ends.
+
+    In a task of its own, cancelled however the task asking was cancelled before -- but not
+    again once it is being cancelled: one cancelled through the task asking is already on its
+    way out, and its way out -- a hook's cleanup, writing what came of it -- is not to be cut
+    short.
+    """
+
+    __slots__ = ("_waiting",)
+
+    def __init__(self, waiting: asyncio.Task[Any]) -> None:
+        self._waiting = waiting
+
+    def interrupt(self) -> None:
+        if not self._waiting.cancelling():
+            self._waiting.cancel()
+
+
+async def _asked[T](node: Call | None, asking: Coroutine[Any, Any, T]) -> T:
+    """Waits for an outworlder's answer, as a turn its call's run can interrupt as it ends.
+
+    In a task of its own, which the run cancels as it ends whatever became of the task
+    waiting on it (:attr:`Run.turns`); outside any call, waited for as it is.
+    """
+    if node is None:
+        return await asking
+    waiting = asyncio.get_running_loop().create_task(asking)
+    asked = _Asked(waiting)
+    turns = node.run.turns
+    me = asyncio.current_task()
+    turns[id(asked)] = (asked, me)
+    try:
+        return await waiting
+    except asyncio.CancelledError:
+        if waiting.cancelled() and (me is None or not me.cancelling()):
+            # Cut by the run as it ended, the task asking not cancelled itself.
+            raise FlowCancelled(f"{node.ref}: the run has ended") from None
+        raise
+    finally:
+        turns.pop(id(asked), None)
+
+
 class _Person:
     """The session handle of an outworlder, who has no CLI to hold one of."""
 
@@ -1499,9 +1549,19 @@ class OutworlderView:
         return self
 
     async def spawn(self) -> SessionView:
-        if self._node is not None:
-            self._node.check()
+        node = self._asking()
+        if node is not None:
+            node.check()
         return SessionView(self, _Person(self._source))
+
+    def _asking(self) -> Call | None:
+        """The call whose turn this is, or None outside any.
+
+        The one the view was handed to, or, for one a flow made with `Outworlder.new()` and
+        uses itself, the call using it.
+        """
+        node = self._node
+        return node if node is not None else CALLING.get()
 
     async def fork(self, session: Session) -> SessionView:
         del session
@@ -1548,7 +1608,7 @@ class OutworlderView:
             raise SessionError(
                 f"{self._role}: {session!r} is not one of this outworlder's"
             )
-        node = self._node
+        node = self._asking()
         if node is not None:
             node.limits(budget)  # refuses a turn under a spent budget
         if source.made:
@@ -1558,23 +1618,34 @@ class OutworlderView:
             owner = source.node or node
             token = CALLING.set(owner)
             try:
-                answered = await hook(
-                    OutworlderRunHookParams(
-                        ctx=owner,  # pyright: ignore[reportArgumentType]
-                        session=session,
-                        prompt=prompt,
-                        output_schema=output_schema,
-                    )
+                answered = await _asked(
+                    node,
+                    hook(
+                        OutworlderRunHookParams(
+                            ctx=owner,  # pyright: ignore[reportArgumentType]
+                            session=session,
+                            prompt=prompt,
+                            output_schema=output_schema,
+                        )
+                    ),
                 )
             finally:
                 CALLING.reset(token)
+            if node is not None:
+                node.check()  # an answer once the call or the run is over reaches nobody
             return _answered(answered.output, output_schema, self._role or "outworlder")
         driver = source.driver
         if driver is None or driver.away_for(self._asker):
             return away_answer(output_schema)
+        away = False
         try:
-            said = await driver.run(prompt, output_schema, self._asker)
+            said = await _asked(node, driver.run(prompt, output_schema, self._asker))
         except OutworlderAway:
+            said, away = None, True
+        # An answer -- being away included -- once the call or the run is over reaches nobody.
+        if node is not None:
+            node.check()
+        if away:
             return away_answer(output_schema)
         return _answered(said, output_schema, self._role or "outworlder")
 

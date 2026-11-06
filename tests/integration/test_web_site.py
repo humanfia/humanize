@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz import home
+from hmz.coganchor import providers
 from hmz.runtime import backing
 from tests.integration.doubles_core import AGENT, hmz_exec, install
 from tests.integration.doubles_web import Browser, backed_up_elsewhere, served
@@ -245,6 +246,34 @@ def test_an_account_is_corrected_without_its_values_being_shown(project: Path) -
             "/api/accounts/correct", {"cli": "claude", "name": "nobody", "answers": {}}
         )
         assert missing.status == 404
+
+
+def test_an_account_that_cannot_be_removed_is_refused_not_failed(
+    project: Path,
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        ways = browser.get("/api/accounts").json()["backends"]
+        claude = next(one for one in ways if one["cli"] == "claude")
+        way = next(one for one in claude["ways"] if not one["terminal"] and one["asks"])
+        asks = {one["env"]: "key" for one in way["asks"] if not one["fixed"]}
+        made = browser.post(
+            "/api/accounts",
+            {"cli": "claude", "name": "work", "way": way["name"], "answers": asks},
+        )
+        assert made.status == 200, made.body
+        # Its directory kept from being emptied, as one another user owns would be.
+        kept = providers.where("claude", "work")
+        kept.chmod(0o500)
+        try:
+            removed = browser.post(
+                "/api/accounts/remove", {"cli": "claude", "name": "work"}
+            )
+        finally:
+            kept.chmod(0o700)
+        assert removed.status == 400, removed.body
+        assert "error" in removed.json()
 
 
 def test_backup_targets_are_written_and_read_with_nothing_signed_into_them(

@@ -11,7 +11,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from .base import AgentBase, StreamSessionBase
+from .base import DRAIN_SECONDS, AgentBase, StreamSessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Question, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
@@ -73,8 +73,13 @@ _FLEET = ("Task", "Agent")
 #: background when it likes and ends the turn at once, saying it will wait for them -- and the
 #: `result` that ends it is the turn Humanize is holding over, so what the agent went on to
 #: find would land after its flow had read the answer and moved on. Set, the same subagents
-#: run, several to one message as before, and the turn ends when they have.
-_FOREGROUND = {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}
+#: run, several to one message as before, and the turn ends when they have. And a turn the
+#: provider refuses stays refused on the model asked for, rather than Claude answering it
+#: quietly on another: Humanize falls back only where `agent.spec` says a turn may move to.
+_TURN_ENV = {
+    "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1",
+    "CLAUDE_CODE_NO_MODEL_FALLBACK": "1",
+}
 
 #: The models Claude Code reaches for on its own, beside the one a turn names: the small one
 #: it summarises a page or names a session with, and whichever a subagent asks for by family.
@@ -446,12 +451,12 @@ class ClaudeCodeSession(StreamSessionBase):
         return ["--session-id", str(uuid.uuid4())]
 
     def _environment(self) -> dict[str, str]:
-        """What the turn runs with, plus :data:`_FOREGROUND`, which nothing else outranks.
+        """What the turn runs with, plus :data:`_TURN_ENV`, which nothing else outranks.
 
         And, through a LiteLLM gateway, every model of :data:`_FAMILIES` as the one this agent
         runs.
         """
-        held = {**super()._environment(), **_FOREGROUND}
+        held = {**super()._environment(), **_TURN_ENV}
         if self._agent.gateway is not None:
             held |= dict.fromkeys(_FAMILIES, self._agent.config.model)
         return held
@@ -1037,7 +1042,7 @@ class ClaudeCodeSession(StreamSessionBase):
                 yield event
         except Failed as failed:
             if self._draining is not None:
-                self._draining.join(timeout=5)
+                self._draining.join(timeout=DRAIN_SECONDS)
             said = f"{failed.stderr or ''}{''.join(self._complaints)}"
             if began or self._launching != _PERMITTED["bypass"] or _ROOT not in said:
                 raise

@@ -178,6 +178,7 @@ watch, and never set.
 | the account's `env` | every turn, sign-in and model listing under an account | from `providers/<cli>/<name>/provider.json` ([Files](/reference/files)); includes fixed values a sign-in way sets (e.g. `CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION=us-east-1`) |
 | a CLI's home variable and `XDG_CONFIG_HOME` | a native turn on another machine under an account whose credential files live in the CLI's home | a per-session `mktemp -d` directory on the target holding copies of those files, removed after the turn |
 | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` | every `claude` turn | `1` |
+| `CLAUDE_CODE_NO_MODEL_FALLBACK` | every `claude` turn, overriding an inherited value | `1`: a refused turn stays on the requested model |
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`/`mimo` turns with a rung, web switch or fence to express | a JSON permission table |
 | `MIMOCODE_DISABLE_CLAUDE_CODE` | `mimo` turns whose fence does not allow reading `~/.claude.json` | `1` |
 | `MIMO_GATEWAY_MODEL` | `mimo` turns under a gateway account | the turn's model, without a leading `humanize/` |

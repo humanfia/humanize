@@ -7,6 +7,7 @@ import contextlib
 import datetime
 import json
 import math
+import threading
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -35,9 +36,11 @@ from hmz.flows import (
     HarnessMismatch,
     MissingRole,
     Outworlder,
+    OutworlderRunHookResult,
     ParamsError,
     RequirementError,
     ResourceUnmet,
+    SessionEndHookResult,
     SessionError,
     flow,
     load,
@@ -729,3 +732,521 @@ def test_a_flows_own_outworlder_is_away_until_a_hook_answers() -> None:
     made = new_outworlder()
     assert made.away is True
     assert made.role == ""
+
+
+# ------------------------------------------------------------------ the run's end
+#
+# As the top call ends, the run ends every task of the flow still going and interrupts every
+# turn under way before its journal closes -- and leaves the engine's own cleanup alone.
+
+
+@flow(agents=AgentCollection, envs=NoEnvs, params=Nothing, resumable=True, hidden=True)
+async def lingers(
+    task: str,
+    *,
+    agents: AgentCollection,
+    envs: NoEnvs,
+    params: Nothing,
+    ctx: FlowContext,
+) -> None:
+    """Keeps its caller's call, and what that call opened, going until the run ends."""
+    del task, agents, envs, params, ctx
+    await asyncio.Event().wait()
+
+
+def _held(reply: str) -> tuple[asyncio.Event, asyncio.Event, Any]:
+    """A reply held until it is released, and what says it was asked and releases it.
+
+    It answers "warm" at once, and `reply` to anything else once released.
+    """
+    asked, released = asyncio.Event(), asyncio.Event()
+
+    async def answers(prompt: str, **_: object) -> str:
+        if prompt == "warm":
+            return "warm"
+        asked.set()
+        await released.wait()
+        return reply
+
+    return asked, released, answers
+
+
+@pytest.mark.parametrize("who", ["coder", "person"])
+async def test_a_turn_a_task_of_the_flow_has_under_way_answers_nothing_once_the_run_ends(
+    who: str, tmp_path: Path
+) -> None:
+    asked, released, answers = _held("accepted")
+    heard: list[str] = []
+    going: list[asyncio.Future[None]] = []
+
+    @flow(
+        agents=WithPerson if who == "person" else Solo,
+        envs=NoEnvs,
+        params=Nothing,
+        resumable=True,
+    )
+    async def reviews(
+        task: str, *, agents: Any, envs: NoEnvs, params: Nothing, ctx: FlowContext
+    ) -> None:
+        del task, envs, params
+        one = agents[who]
+        session = await one.spawn()
+        if who == "coder":
+            await one.run("warm", session=session)  # a session open before the turn
+
+        async def review() -> None:
+            try:
+                said = await one.run("review", session=session)
+            except BaseException as why:
+                heard.append(type(why).__name__)
+                raise
+            heard.append(said)
+            state = ctx.state
+            assert state is not None
+            state["verdict"] = said
+
+        going.append(
+            asyncio.ensure_future(lingers("held", agents={}, envs={}, params=Nothing()))
+        )
+        going.append(asyncio.ensure_future(review()))
+        await asked.wait()
+
+    journal = tmp_path / "run.jsonl"
+    await run_flow(
+        reviews,
+        "review",
+        agents={} if who == "person" else {"coder": FakeAgentDriver(reply=answers)},
+        envs={},
+        params={},
+        budget=UNLIMITED,
+        journal=journal,
+        local=FakeEnvDriver(),
+        outworlder=FakeOutworlder(reply=answers) if who == "person" else None,
+    )
+    ended = [one.done() for one in going]
+    released.set()
+    await asyncio.gather(*going, return_exceptions=True)
+
+    # Ended with the run, before its journal closed, having answered nothing.
+    assert ended == [True, True]
+    assert "accepted" not in heard
+    assert "verdict" not in journal.read_text()
+
+
+async def test_a_turn_taken_after_a_cancel_was_caught_answers_nothing_once_the_run_ends(
+    tmp_path: Path,
+) -> None:
+    asked, released, answers = _held("accepted")
+    waiting = asyncio.Event()
+    heard: list[str] = []
+    going: list[asyncio.Future[None]] = []
+
+    @flow(agents=Solo, envs=NoEnvs, params=Nothing, resumable=True, hidden=True)
+    async def stubborn(
+        task: str, *, agents: Solo, envs: NoEnvs, params: Nothing, ctx: FlowContext
+    ) -> None:
+        del task, envs, params
+        waiting.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            heard.append("caught")  # and goes on, its task still counted as cancelled
+        said = await ask(agents["coder"], "review")
+        heard.append(said)
+        state = ctx.state
+        assert state is not None
+        state["verdict"] = said
+
+    @flow(agents=Solo, envs=NoEnvs, params=Nothing, resumable=True)
+    async def calls(
+        task: str, *, agents: Solo, envs: NoEnvs, params: Nothing, ctx: FlowContext
+    ) -> None:
+        del task, envs, params, ctx
+        going.append(
+            asyncio.ensure_future(
+                stubborn("it", agents=agents, envs={}, params=Nothing())
+            )
+        )
+        await waiting.wait()
+        going[0].cancel()
+        await asked.wait()
+        asyncio.get_running_loop().call_later(0.05, released.set)
+
+    journal = tmp_path / "run.jsonl"
+    await run_flow(
+        calls,
+        "review",
+        agents={"coder": FakeAgentDriver(reply=answers)},
+        envs={},
+        params={},
+        budget=UNLIMITED,
+        journal=journal,
+        local=FakeEnvDriver(),
+    )
+    released.set()
+    await asyncio.gather(*going, return_exceptions=True)
+
+    assert heard == ["caught"]
+    assert "verdict" not in journal.read_text()
+
+
+async def test_a_session_the_engine_closes_is_closed_whole_though_a_hook_of_the_flow_runs_in_it(
+    tmp_path: Path,
+) -> None:
+    started, released = asyncio.Event(), asyncio.Event()
+    heard: list[str] = []
+    holding: list[asyncio.Future[None]] = []
+
+    @flow(agents=Solo, envs=WantsFiles, params=Nothing, resumable=True)
+    async def closes(
+        task: str, *, agents: Solo, envs: WantsFiles, params: Nothing, ctx: FlowContext
+    ) -> None:
+        del task, params, ctx
+
+        async def ending(_: object) -> SessionEndHookResult:
+            await envs["repo"].read("notes")  # an operation of the flow's, in the close
+            started.set()
+            try:
+                await released.wait()
+            except asyncio.CancelledError:
+                heard.append("cut short")
+                raise
+            heard.append("closed")
+            return SessionEndHookResult()
+
+        coder = agents["coder"]
+        coder.on_session_end(ending)
+        session = await coder.spawn()
+        await coder.run("warm", session=session)
+        del session  # its view gone: closed by the engine, in a task of its own
+        holding.append(
+            asyncio.ensure_future(lingers("held", agents={}, envs={}, params=Nothing()))
+        )
+        await started.wait()
+        asyncio.get_running_loop().call_later(0.05, released.set)
+
+    await run_flow(
+        closes,
+        "close",
+        agents={"coder": FakeAgentDriver()},
+        envs={"repo": FakeEnvDriver({"notes": b"kept"})},
+        params={},
+        budget=UNLIMITED,
+        journal=tmp_path / "run.jsonl",
+        local=FakeEnvDriver(),
+    )
+
+    assert heard == ["closed"]
+
+
+async def test_a_task_waiting_on_a_repository_flow_ends_with_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    loop = asyncio.get_running_loop()
+    asked, fetched = asyncio.Event(), threading.Event()
+    checkout = tmp_path / "far"
+    checkout.mkdir()
+    (checkout / "__init__.py").write_text(
+        "from hmz.flows import AgentCollection, EnvCollection, FlowParams, flow\n"
+        "@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams)\n"
+        "async def far(task, *, agents, envs, params, ctx):\n"
+        "    return task\n"
+    )
+
+    def pinned(url: str, rev: str | None) -> Path:
+        del url, rev
+        loop.call_soon_threadsafe(asked.set)
+        fetched.wait(timeout=60)
+        return checkout
+
+    monkeypatch.setattr(loading, "pinned", pinned)
+    going: list[asyncio.Future[None]] = []
+
+    @flow(agents=AgentCollection, envs=NoEnvs, params=Nothing, resumable=True)
+    async def calls(
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, agents, envs, params
+        remote = load("git+file:///far@main")
+
+        async def call() -> None:
+            try:
+                await remote("far", agents={}, envs={}, params=FlowParams())
+            finally:
+                state = ctx.state
+                assert state is not None
+                state["wound"] = "up"
+
+        going.append(asyncio.ensure_future(call()))
+        await asked.wait()
+
+    journal = tmp_path / "run.jsonl"
+    try:
+        await run_flow(
+            calls,
+            "call",
+            agents={},
+            envs={},
+            params={},
+            budget=UNLIMITED,
+            journal=journal,
+            local=FakeEnvDriver(),
+        )
+        ended = going[0].done()
+    finally:
+        fetched.set()
+        await asyncio.gather(*going, return_exceptions=True)
+
+    # Ended with the run while the repository was fetched, its way out journaled.
+    assert ended
+    assert '"wound"' in journal.read_text()
+
+
+async def test_a_stop_as_the_run_ends_does_not_cut_its_tasks_way_out_short(
+    tmp_path: Path,
+) -> None:
+    started, settling = asyncio.Event(), asyncio.Event()
+    going: list[asyncio.Future[None]] = []
+
+    @flow(agents=AgentCollection, envs=NoEnvs, params=Nothing, resumable=True)
+    async def leaves(
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, agents, envs, params
+
+        async def worker() -> None:
+            try:
+                started.set()
+                await lingers("held", agents={}, envs={}, params=Nothing())
+            finally:
+                settling.set()
+                await asyncio.sleep(0.2)  # its way out takes a while
+                state = ctx.state
+                assert state is not None
+                state["accepted"] = True
+
+        going.append(asyncio.ensure_future(worker()))
+        await started.wait()
+
+    journal = tmp_path / "run.jsonl"
+    running = asyncio.ensure_future(
+        run_flow(
+            leaves,
+            "leave",
+            agents={},
+            envs={},
+            params={},
+            budget=UNLIMITED,
+            journal=journal,
+            local=FakeEnvDriver(),
+        )
+    )
+    await settling.wait()
+    running.cancel()  # a stop, arriving as the run settles
+
+    with pytest.raises(asyncio.CancelledError):
+        await running
+    await asyncio.gather(*going, return_exceptions=True)
+    # The stop waited for the run to close, which waited for the task's way out.
+    assert '"accepted"' in journal.read_text()
+
+
+async def test_a_turn_of_an_outworlder_the_flow_made_answers_nothing_once_the_run_ends(
+    tmp_path: Path,
+) -> None:
+    asked, released = asyncio.Event(), asyncio.Event()
+    heard: list[str] = []
+    going: list[asyncio.Future[None]] = []
+
+    async def answer(_: object) -> OutworlderRunHookResult:
+        asked.set()
+        await released.wait()
+        return OutworlderRunHookResult(output="accepted")
+
+    @flow(agents=AgentCollection, envs=NoEnvs, params=Nothing, resumable=True)
+    async def asks(
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, agents, envs, params
+        person = Outworlder.new()
+        person.on_outworlder_run(answer)
+        session = await person.spawn()
+
+        async def review() -> None:
+            try:
+                said = await person.run("review", session=session)
+            except BaseException as why:
+                heard.append(type(why).__name__)
+                raise
+            heard.append(said)
+            state = ctx.state
+            assert state is not None
+            state["verdict"] = said
+
+        going.append(
+            asyncio.ensure_future(lingers("held", agents={}, envs={}, params=Nothing()))
+        )
+        going.append(asyncio.ensure_future(review()))
+        await asked.wait()
+
+    journal = tmp_path / "run.jsonl"
+    await run_flow(
+        asks,
+        "ask",
+        agents={},
+        envs={},
+        params={},
+        budget=UNLIMITED,
+        journal=journal,
+        local=FakeEnvDriver(),
+    )
+    ended = [one.done() for one in going]
+    released.set()
+    await asyncio.gather(*going, return_exceptions=True)
+
+    assert ended == [True, True]
+    assert "accepted" not in heard
+    assert "verdict" not in journal.read_text()
+
+
+async def test_an_outworlders_turn_after_a_cancel_was_caught_is_cut_as_the_run_ends(
+    tmp_path: Path,
+) -> None:
+    asked, waiting = asyncio.Event(), asyncio.Event()
+    heard: list[str] = []
+    going: list[asyncio.Future[None]] = []
+
+    async def never(prompt: str, **_: object) -> str:
+        del prompt
+        asked.set()
+        await asyncio.Event().wait()  # nobody answers: only the run's end ends it
+        return "accepted"
+
+    @flow(agents=WithPerson, envs=NoEnvs, params=Nothing, resumable=True, hidden=True)
+    async def stubborn(
+        task: str,
+        *,
+        agents: WithPerson,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, envs, params, ctx
+        waiting.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            heard.append("caught")  # and goes on, its task still counted as cancelled
+        person = agents["person"]
+        heard.append(await person.run("review", session=await person.spawn()))
+
+    @flow(agents=WithPerson, envs=NoEnvs, params=Nothing, resumable=True)
+    async def calls(
+        task: str,
+        *,
+        agents: WithPerson,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, envs, params, ctx
+        going.append(
+            asyncio.ensure_future(
+                stubborn("it", agents=agents, envs={}, params=Nothing())
+            )
+        )
+        await waiting.wait()
+        going[0].cancel()
+        await asked.wait()
+
+    # Well within the 30 s the run would otherwise wait for it.
+    await asyncio.wait_for(
+        run_flow(
+            calls,
+            "ask",
+            agents={},
+            envs={},
+            params={},
+            budget=UNLIMITED,
+            journal=tmp_path / "run.jsonl",
+            local=FakeEnvDriver(),
+            outworlder=FakeOutworlder(reply=never),
+        ),
+        10,
+    )
+    await asyncio.gather(*going, return_exceptions=True)
+
+    assert heard == ["caught"]
+
+
+async def test_an_outworlders_hook_cancelled_with_its_asker_ends_its_way_out_as_the_run_ends(
+    tmp_path: Path,
+) -> None:
+    entered, cleaning = asyncio.Event(), asyncio.Event()
+    heard: list[str] = []
+    going: list[asyncio.Future[Any]] = []
+
+    @flow(agents=AgentCollection, envs=NoEnvs, params=Nothing, resumable=True)
+    async def asks(
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, agents, envs, params, ctx
+        person = Outworlder.new()
+
+        async def answer(asked: Any) -> OutworlderRunHookResult:
+            try:
+                entered.set()
+                await asyncio.Event().wait()
+                return OutworlderRunHookResult(output="never")
+            finally:
+                cleaning.set()
+                try:
+                    await asyncio.sleep(0.1)  # its way out takes a while
+                except asyncio.CancelledError:
+                    heard.append("cut short")
+                    raise
+                asked.ctx.state["accepted"] = True
+
+        person.on_outworlder_run(answer)
+        session = await person.spawn()
+        going.append(asyncio.ensure_future(person.run("ask", session=session)))
+        await entered.wait()
+        going[0].cancel()  # the asker is cancelled, and its hook with it
+        await cleaning.wait()
+
+    journal = tmp_path / "run.jsonl"
+    await run_flow(
+        asks,
+        "ask",
+        agents={},
+        envs={},
+        params={},
+        budget=UNLIMITED,
+        journal=journal,
+        local=FakeEnvDriver(),
+    )
+    await asyncio.gather(*going, return_exceptions=True)
+
+    # Already on its way out, it was not cancelled again as the run ended.
+    assert heard == []
+    assert '"accepted"' in journal.read_text()
