@@ -1037,6 +1037,9 @@ class Call:
           FlowCancelled: If the call's caller, or the run, is over.
           BudgetExceeded: The leaf for a budget over it that is spent.
         """
+        # Asked before every turn, of a session new or old, an agent's or an outworlder's: the
+        # task taking it is the flow's from here on (`Run.joined`).
+        self.run.joined()
         # Each limit is the least any budget over the turn leaves, and is hard -- stops the
         # turn mid-turn when reached -- where the budget that leaves it is not graceful for
         # it, each limit on its own: a hard limit stays hard under a graceful one, and the
@@ -1408,6 +1411,7 @@ class Run:
         "specs",
         "tasks",
         "thread",
+        "turns",
     )
 
     def __init__(
@@ -1457,6 +1461,9 @@ class Run:
         #: of one of its agents or environments: the flow's, which the run ends before it
         #: lets go of its journal.
         self.tasks: set[asyncio.Task[Any]] = set()
+        #: Every turn under way, by the session taking it: what the run interrupts as it ends,
+        #: whatever has become of the task waiting on it.
+        self.turns: set[SessionHandle] = set()
 
     def joined(self) -> None:
         """Counts the task running now among the flow's, until it ends.
@@ -1592,8 +1599,9 @@ class Run:
     async def close(self) -> None:
         """Lets go of everything the run made, however it ended.
 
-        The flow's own tasks first (:meth:`_settled`): nothing of the flow runs once the
-        journal is closed, and nothing it writes before then goes unjournaled.
+        The flow's own tasks first (:meth:`_settled`): none of them goes on once the journal
+        is closed -- but one that would not end in `REAP` -- and nothing one writes before
+        then goes unjournaled.
         """
         from .loading import unpin
 
@@ -1645,17 +1653,31 @@ class Run:
 
         One the flow started and never waited for, and one a `gather` stopped waiting for as
         it unwound: each is cancelled -- but for one being cancelled already, whose way out
-        is not to be cut short -- and waited for, up to `REAP`. So what one writes into the
-        flow's state on its way out is journaled, and a turn under way in one is interrupted
-        and answers nothing: no answer reaches flow code that the journal never hears of.
+        is not to be cut short -- and waited for, up to `REAP`. Every turn under way is
+        interrupted besides, in a task cancelled before as much as in any other, and what it
+        answers reaches no flow code (:meth:`Call.check`). So what a task writes into the
+        flow's state on its way out is journaled, and no answer reaches flow code that the
+        journal never hears of.
+
+        Not a task of the engine's own -- a session being closed, what a call made being
+        let go of -- though a hook of the flow in it ran an operation of the flow's: that is
+        the engine's cleanup, which :meth:`close` waits out, and which cancelled would leave
+        a session half closed.
         """
         me = asyncio.current_task()
-        going = [one for one in self.tasks if one is not me and not one.done()]
+        engines = self.closing | self.reapers
+        going = [
+            one
+            for one in self.tasks
+            if one is not me and not one.done() and one not in engines
+        ]
         if not going:
             return
         for one in going:
             if not one.cancelling():
                 one.cancel()
+        for handle in list(self.turns):
+            handle.interrupt()
         _, late = await asyncio.wait(going, timeout=REAP)
         if late:
             log.warning(

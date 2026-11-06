@@ -1301,8 +1301,9 @@ behave as anywhere.
 - Turns of one session are sequential; a second `run` while one is under way raises
   `SessionError`.
 - Cancelling a task in a turn interrupts that CLI.
-- A task the flow starts is cancelled as the run ends, awaited or not, and waited for up to
-  30 s: see [Stopping](#stopping).
+- A task the flow starts that calls a flow, or uses an agent or an environment, is cancelled as
+  the run ends, awaited or not, and waited for up to 30 s; other work it starts is not: see
+  [Stopping](#stopping).
 - A called flow's exception reaches `except*` with its own class.
 - Concurrent calls form a tree of contexts, each with its own usage.
 
@@ -2009,11 +2010,14 @@ blocks run, `TaskGroup`s cancel their children. On the way out every session is 
 every copy and scratch directory removed (kept, with the journal, for a resumable run). The
 epic records `ended.how` = `stopped` for a stop from outside or a spent budget.
 
-However the run ends, a task of the flow still going -- one a `gather` stopped waiting for as
-it unwound, or one the flow started and never awaited -- is cancelled and waited for, up to
-30 s, before the journal closes. What it writes to `ctx.state` on its way out is kept; a turn
-under way in it is interrupted, and its answer reaches nobody. Once the journal is closed,
-writing `ctx.state` raises `FlowCancelled`.
+However the run ends, every task still going that called a flow, or used an agent or an
+environment -- one a `gather` stopped waiting for as it unwound, or one the flow started and
+never awaited -- is cancelled and waited for, up to 30 s, before the journal closes, and every
+turn under way is interrupted. What such a task writes to `ctx.state` on its way out is kept,
+and a turn whose answer lands after the run ended raises `FlowCancelled` instead of answering.
+Other work the flow started -- a task that only waits and writes `ctx.state`, a thread -- is not
+the run's to end, nor is a task that will not end within those 30 s: they go on, and once the
+journal is closed, their writes to `ctx.state` raise `FlowCancelled`.
 
 ## Errors {#when-something-goes-wrong}
 

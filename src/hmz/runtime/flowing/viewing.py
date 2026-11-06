@@ -542,6 +542,8 @@ class AgentView:
             raise
         taken._turns += 1
         node.turning(1)
+        turns = node.run.turns
+        turns.add(handle)
         cut = None if hard is None else _Cut(node.run.loop, handle, hard)
         try:
             said = await handle.turn(
@@ -562,6 +564,7 @@ class AgentView:
                 raise cut.exceeded(self._role) from error
             raise
         finally:
+            turns.discard(handle)
             taken._busy = False
             node.turning(-1)
             if cut is not None:
@@ -575,6 +578,9 @@ class AgentView:
         if failed is not None:
             taken._error = None
             raise failed
+        # An answer that lands once the call or the run is over reaches no flow code: the
+        # run interrupted the turn as it ended, and nothing journals what came of it.
+        node.check()
         if output_schema is not None and not isinstance(said, output_schema):
             raise OutputSchemaError(
                 f"{self._role} answered {type(said).__name__}, not {output_schema.__name__}"
@@ -1553,6 +1559,8 @@ class OutworlderView:
                 )
             finally:
                 CALLING.reset(token)
+            if node is not None:
+                node.check()  # an answer once the call or the run is over reaches nobody
             return _answered(answered.output, output_schema, self._role or "outworlder")
         driver = source.driver
         if driver is None or driver.away_for(self._asker):
@@ -1561,6 +1569,8 @@ class OutworlderView:
             said = await driver.run(prompt, output_schema, self._asker)
         except OutworlderAway:
             return away_answer(output_schema)
+        if node is not None:
+            node.check()  # an answer once the call or the run is over reaches nobody
         return _answered(said, output_schema, self._role or "outworlder")
 
     def on_outworlder_run(
