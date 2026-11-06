@@ -750,9 +750,12 @@ setting the harness of the runtime the work is on to `env`. See [The path is tak
 
 ### `(contended: two turns of it are sharing one database)`
 
-**Symptom.** A turn of opencode or mimocode fails with this bracket.
+**Symptom.** A turn of opencode, mimocode or codex fails with this bracket.
 
 **Cause.** Two turns wrote to the CLI's one database at once and got `database is locked`.
+On codex, every app server of a run shares one state database, and servers started at the
+same moment on a new run race to create it: the ones that lose say `failed to initialize
+sqlite state runtime`, and a second later find it made.
 Humanize retries three times, a second apart, which nearly always clears it. A turn of any CLI
 whose account is a login that renews itself can end here too, when another turn holds it the
 other way round: see

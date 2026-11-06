@@ -632,8 +632,12 @@ session(prompt)                     # opens the conversation, then resumes it
 ### Failures {#failures}
 
 A failed turn raises `Failed` (a `subprocess.CalledProcessError`) and leaves the session
-unopened, so the next call retries rather than resuming something that may not exist. The
-message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
+unopened, so the next call retries rather than resuming something that may not exist. Codex
+keeps the thread it opened for a failed opening turn, a fork's child included, and the next
+attempt takes the turn again on it; a thread whose `turn/start` the app server never answered
+is let go, and the next attempt opens another. A Codex app server that stops carries the last
+lines of its stderr as the failure's. The message ends with what the CLI said and, where
+classified, `(<fault>: <fix>)`.
 
 | Attribute | Meaning |
 | --- | --- |
@@ -642,7 +646,7 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 
 | Fault | Meaning |
 | --- | --- |
-| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`) |
+| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`, and Codex's `failed to initialize sqlite state runtime` from an app server that lost the race to create the state database a run's servers share), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`) |
 | `spent` | a quota or balance used up, said in so many words (`quota`, `insufficient balance`, `credit balance is too low`, `billing`); read ahead of `throttled`, since it comes as the same `429` |
 | `throttled` | too many requests (`429`, `529`, `rate limit`, `resource exhausted`, `overloaded`, `usage limit`, …) |
 | `refused` | the credential (`401`, `403`, `unauthorized`, `invalid api key`, `not logged in`, `token expired`, `token was revoked`, `forbidden`, …) |
@@ -657,7 +661,8 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 
 Classification (`backends.trouble`) reads the last 4096 characters of each stream, the
 backend's own `Profile.signs` first, then the shared `backends.SIGNS` in order; the first match
-wins. Backend-specific signs: `dsh` `needs a DeepSeek API key` → `refused`; `grok`
+wins. Backend-specific signs: `codex` `failed to initialize sqlite state runtime` → `contended`;
+`dsh` `needs a DeepSeek API key` → `refused`; `grok`
 `couldn't set model.*unknown model id` → `throttled`; `mcode` `sign in to minimax` and `oauth
 bearer is not synced` → `refused`. For `agy`, whose streams say nothing useful, the newest of
 `cli.log` / `log/cli-*.log` written within the turn's duration (at most 300 s, last 64 KiB) is

@@ -68,6 +68,7 @@ started again, as :meth:`CodexAgent._knowing` says.
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import functools
 import itertools
@@ -85,7 +86,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor.homes import merged, merger
 
-from .base import AgentBase, SessionBase
+from .base import AgentBase, SessionBase, _tee
 from .config import PERMISSIONS, UNSAID, AgentConfig
 from .event import Event, Failed, Question, Usage, say
 from .hooks import EVERYWHERE, SUBAGENTS, Moment, Occasion
@@ -169,6 +170,10 @@ class _Running:
 
     thread: str | None = None
     turn: str | None = None
+    #: Whether the server has answered this turn's `turn/start`, taking the input or refusing
+    #: it: a thread opened for a turn the server went down before answering is one it may
+    #: never have kept, and not one to pick back up.
+    answered: bool = False
     #: The server this turn is being taken on, bound where the turn starts rather than asked
     #: for again when there is a word to put in. The agent's server is let go of and started
     #: again whenever what it was started knowing has moved -- another account, another list
@@ -629,6 +634,11 @@ def _tighter(permission: str) -> str | None:
 _STOP_SECONDS = 5.0
 _QUIET_SECONDS = 60.0
 
+#: How many of a server's last lines of stderr are kept, and how long a server that stopped is
+#: given to finish saying them.
+_STDERR_LINES = 32
+_STDERR_SECONDS = 0.2
+
 #: The items that are the agent talking rather than the agent doing something. They are shown
 #: as they complete, there being no words in one before that; everything else is shown as it
 #: starts, since watching a thing run is the point of showing it at all.
@@ -728,12 +738,22 @@ class _AppServer:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             # Its log is nobody's: what a flow watches is the agent, which comes over stdout.
-            stderr=subprocess.DEVNULL,
+            # Only its last lines are kept, for what a server that stopped said as it went.
+            stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
             env=dict(env) if env else None,
             start_new_session=os.name != "nt",
         )
+        #: The last lines of its stderr, which a server that stopped carries as the failure's
+        #: own: codex says why it would not start there and nowhere else -- one that lost the
+        #: race to create its run's state database, say, which is a turn to take again.
+        self._said: collections.deque[str] = collections.deque(maxlen=_STDERR_LINES)
+        assert self._proc.stderr is not None  # noqa: S101
+        self._draining = threading.Thread(
+            target=_tee, args=(self._proc.stderr, None, self._said), daemon=True
+        )
+        self._draining.start()
         self._pending = itertools.count(1)
         self._writing = threading.Lock()  # a line is written whole or not at all
         #: What each rung asked for actually runs at here, which is itself until this machine's
@@ -1187,6 +1207,7 @@ class _AppServer:
             try:
                 while (message := self._take(mailbox)) is not None:
                     if message.get("id") == ident and "method" not in message:
+                        running.answered = True
                         self._answer(message, said)
                     # Whose a message is was settled where it was read: one that names a
                     # thread reached this turn only if it named this one, and one that names
@@ -1366,7 +1387,16 @@ class _AppServer:
                 self._proc.stdin.write(json.dumps(message) + "\n")
                 self._proc.stdin.flush()
         except OSError as gone:
-            raise Failed(1, self._argv, "", str(gone)) from gone
+            raise Failed(
+                1, self._argv, "", f"{gone}\n{self._stopped_saying()}"
+            ) from gone
+
+    def _stopped_saying(self) -> str:
+        """What a server that stopped said last on stderr, as a failure of it carries it."""
+        # Its stderr ends as it does, a moment after its stdout; or later, where something it
+        # started still holds it open -- which is not worth waiting out.
+        self._draining.join(_STDERR_SECONDS)
+        return "".join(self._said).strip() or "app server stopped mid-turn"
 
     @contextlib.contextmanager
     def _mailbox(
@@ -1644,9 +1674,7 @@ class _AppServer:
             return None
         if message is None:
             mailbox.put(None)  # so that every later read finds it stopped too
-            raise Failed(
-                self._proc.wait(), self._argv, "", "app server stopped mid-turn"
-            )
+            raise Failed(self._proc.wait(), self._argv, "", self._stopped_saying())
         return message
 
     def _answer(self, message: dict[str, Any], said: str) -> Any:
@@ -1917,6 +1945,7 @@ class CodexSession(SessionBase):
                 # rather than to whichever the agent hands out by the time somebody types.
                 self._running.on = server
                 self._running.thread = thread
+                self._running.answered = False
                 self._running.took = self.took
                 self._running.spends = self._spends
                 said = ""
@@ -1958,6 +1987,13 @@ class CodexSession(SessionBase):
                             watch.held()
                         ):  # a reader that pauses is not the server's silence
                             yield event
+            except BaseException:
+                # An opening turn the server never answered: the thread opened for it may hold
+                # nothing the server kept, so the next go opens another rather than picking it
+                # up. One it did answer stays this session's, for the next go to take again.
+                if self._id is None and not self._running.answered:
+                    self._running.thread = None
+                raise
             finally:
                 # Back for the next turn that wants one, whether this one ended or was
                 # abandoned: a server nobody hands back is one the agent starts another beside.
@@ -2060,7 +2096,10 @@ class CodexSession(SessionBase):
           The thread's id, which is also the session's.
         """
         rung = self._permitted(server)
-        if (thread := self._id) is None:
+        # A thread opened for a turn that failed is still this conversation, though no turn
+        # has landed on it yet: taken again on it rather than on another -- a fork's child
+        # rather than another child -- so that what that turn did is still in it.
+        if (thread := self._id or self._running.thread) is None:
             opened = {
                 "cwd": self._workspace(),
                 "model": self._agent.config.model,
