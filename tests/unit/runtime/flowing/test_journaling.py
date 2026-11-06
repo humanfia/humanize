@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.coganchor import atomic
-from hmz.flows import StateNotSerializable
+from hmz.flows import FlowCancelled, StateNotSerializable
 from hmz.runtime.flowing import journaling
 from hmz.runtime.flowing.journaling import (
     SESSION,
@@ -240,7 +240,9 @@ def test_state_refuses_a_key_that_is_not_text() -> None:
         state[1] = "x"  # pyright: ignore[reportArgumentType]
 
 
-async def test_state_writes_land_in_the_journal(tmp_path: Path) -> None:
+async def test_state_writes_land_in_the_journal_and_none_once_it_is_closed(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "run.jsonl"
     journal, _ = Journal.opened(path, asyncio.get_running_loop(), resume=False)
     state = FlowStateImpl({}, journal, 5)
@@ -248,6 +250,15 @@ async def test_state_writes_land_in_the_journal(tmp_path: Path) -> None:
     state["note"] = "é"
     del state["round"]
     journal.close()
+
+    # Refused rather than lost, changing nothing: the run that kept it is over.
+    with pytest.raises(FlowCancelled):
+        state["late"] = 1
+    with pytest.raises(FlowCancelled):
+        del state["note"]
+    with pytest.raises(FlowCancelled):
+        journal.note({"t": "session", "id": 5})
+    assert {key: state[key] for key in state} == {"note": "é"}
     assert lines(path)[1:] == [
         {"t": "set", "id": 5, "key": "round", "value": 2},
         {"t": "set", "id": 5, "key": "note", "value": "é"},

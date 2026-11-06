@@ -827,7 +827,14 @@ class Remote:
         params: Any,
         budget: Budget | None = None,
     ) -> Any:
-        flow = self.flow or await self.fetched()
+        flow = self.flow
+        if flow is None:
+            # The flow's from here on, while the repository is fetched -- and refused where
+            # its run is over. The fetch itself is nobody's to cancel: other calls wait on it.
+            caller = current()
+            if caller is not None:
+                caller.check()
+            flow = await self.fetched()
         return await flow(task, agents=agents, envs=envs, params=params, budget=budget)
 
 

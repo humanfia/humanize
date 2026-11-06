@@ -1301,6 +1301,9 @@ behave as anywhere.
 - Turns of one session are sequential; a second `run` while one is under way raises
   `SessionError`.
 - Cancelling a task in a turn interrupts that CLI.
+- A task the flow starts that calls a flow, or uses an agent or an environment, is cancelled as
+  the run ends, awaited or not, and waited for up to 30 s; other work it starts is not: see
+  [Stopping](#stopping).
 - A called flow's exception reaches `except*` with its own class.
 - Concurrent calls form a tree of contexts, each with its own usage.
 
@@ -2008,6 +2011,17 @@ A stop cancels the flow at its current `await`: the turn under way is interrupte
 blocks run, `TaskGroup`s cancel their children. On the way out every session is closed and
 every copy and scratch directory removed (kept, with the journal, for a resumable run). The
 epic records `ended.how` = `stopped` for a stop from outside or a spent budget.
+
+However the run ends, every task still going that called a flow, or used an agent or an
+environment -- one a `gather` stopped waiting for as it unwound, or one the flow started and
+never awaited -- is cancelled and waited for, up to 30 s, before the journal closes, and every
+turn under way is interrupted. What such a task writes to `ctx.state` on its way out is kept,
+and a turn whose answer lands after the run ended raises `FlowCancelled` instead of answering.
+Other work the flow started -- a task that only waits and writes `ctx.state`, a thread -- is not
+the run's to end, nor is a task that will not end within those 30 s: they go on, and once the
+journal is closed, their writes to `ctx.state` raise `FlowCancelled`. A stop that arrives while
+the run is ending this way -- <kbd>ctrl+c</kbd>, a signal, `Run.stop()` -- waits for it to finish
+rather than cutting it short, and the run then ends as stopped.
 
 ## Errors {#when-something-goes-wrong}
 
