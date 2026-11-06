@@ -86,7 +86,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor.homes import merged, merger
 
-from .base import AgentBase, SessionBase, _tee
+from .base import AgentBase, SessionBase
 from .config import PERMISSIONS, UNSAID, AgentConfig
 from .event import Event, Failed, Question, Usage, say
 from .hooks import EVERYWHERE, SUBAGENTS, Moment, Occasion
@@ -170,9 +170,9 @@ class _Running:
 
     thread: str | None = None
     turn: str | None = None
-    #: Whether the server has answered this turn's `turn/start`, taking the input or refusing
-    #: it: a thread opened for a turn the server went down before answering is one it may
-    #: never have kept, and not one to pick back up.
+    #: Whether the server has taken this turn's `turn/start`: a thread opened for a turn it
+    #: refused, or went down before answering, is one it may never have kept, and not one to
+    #: pick back up.
     answered: bool = False
     #: The server this turn is being taken on, bound where the turn starts rather than asked
     #: for again when there is a word to put in. The agent's server is let go of and started
@@ -749,10 +749,7 @@ class _AppServer:
         #: own: codex says why it would not start there and nowhere else -- one that lost the
         #: race to create its run's state database, say, which is a turn to take again.
         self._said: collections.deque[str] = collections.deque(maxlen=_STDERR_LINES)
-        assert self._proc.stderr is not None  # noqa: S101
-        self._draining = threading.Thread(
-            target=_tee, args=(self._proc.stderr, None, self._said), daemon=True
-        )
+        self._draining = threading.Thread(target=self._drain, daemon=True)
         self._draining.start()
         self._pending = itertools.count(1)
         self._writing = threading.Lock()  # a line is written whole or not at all
@@ -1207,8 +1204,8 @@ class _AppServer:
             try:
                 while (message := self._take(mailbox)) is not None:
                     if message.get("id") == ident and "method" not in message:
-                        running.answered = True
                         self._answer(message, said)
+                        running.answered = True
                     # Whose a message is was settled where it was read: one that names a
                     # thread reached this turn only if it named this one, and one that names
                     # none reached it only because it is the single turn this server is
@@ -1387,16 +1384,32 @@ class _AppServer:
                 self._proc.stdin.write(json.dumps(message) + "\n")
                 self._proc.stdin.flush()
         except OSError as gone:
-            raise Failed(
-                1, self._argv, "", f"{gone}\n{self._stopped_saying()}"
-            ) from gone
+            raise Failed(1, self._argv, "", self._stopped_saying(str(gone))) from gone
 
-    def _stopped_saying(self) -> str:
-        """What a server that stopped said last on stderr, as a failure of it carries it."""
+    def _drain(self) -> None:
+        """Reads the server's stderr for as long as it is open, keeping its last lines.
+
+        Read whether or not anyone asks for them: a pipe nobody drains fills, and a server
+        that cannot write its log stops answering.
+        """
+        assert self._proc.stderr is not None  # noqa: S101
+        with contextlib.suppress(OSError, ValueError):  # closed under us: it has gone
+            for line in self._proc.stderr:
+                self._said.append(line)
+
+    def _stopped_saying(self, why: str = "app server stopped mid-turn") -> str:
+        """Why a server stopped, followed by what it said last on stderr.
+
+        Args:
+          why: What this side saw of it stopping.
+
+        Returns:
+          The text a failure of it carries as what the server said.
+        """
         # Its stderr ends as it does, a moment after its stdout; or later, where something it
         # started still holds it open -- which is not worth waiting out.
         self._draining.join(_STDERR_SECONDS)
-        return "".join(self._said).strip() or "app server stopped mid-turn"
+        return "\n".join((why, "".join(self._said.copy()))).strip()
 
     @contextlib.contextmanager
     def _mailbox(
@@ -1937,6 +1950,9 @@ class CodexSession(SessionBase):
             server = self._agent._taken(self._on)
             try:
                 self._on = server
+                # Cleared first, so that a thread kept from a failed go that cannot be picked
+                # back up is let go of like one whose turn was never taken.
+                self._running.answered = False
                 thread = self._thread(server)
                 # Known before the turn starts, so a word put in has a thread to name even
                 # though the session is only opened once the turn has landed. The book goes
@@ -1945,7 +1961,6 @@ class CodexSession(SessionBase):
                 # rather than to whichever the agent hands out by the time somebody types.
                 self._running.on = server
                 self._running.thread = thread
-                self._running.answered = False
                 self._running.took = self.took
                 self._running.spends = self._spends
                 said = ""
@@ -1988,9 +2003,9 @@ class CodexSession(SessionBase):
                         ):  # a reader that pauses is not the server's silence
                             yield event
             except BaseException:
-                # An opening turn the server never answered: the thread opened for it may hold
+                # An opening turn the server never took: the thread opened for it may hold
                 # nothing the server kept, so the next go opens another rather than picking it
-                # up. One it did answer stays this session's, for the next go to take again.
+                # up. One it did take stays this session's, for the next go to take again.
                 if self._id is None and not self._running.answered:
                     self._running.thread = None
                 raise

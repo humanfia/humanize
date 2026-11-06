@@ -634,9 +634,9 @@ session(prompt)                     # opens the conversation, then resumes it
 A failed turn raises `Failed` (a `subprocess.CalledProcessError`) and leaves the session
 unopened, so the next call retries rather than resuming something that may not exist. Codex
 keeps the thread it opened for a failed opening turn, a fork's child included, and the next
-attempt takes the turn again on it; a thread whose `turn/start` the app server never answered
-is let go, and the next attempt opens another. A Codex app server that stops carries the last
-lines of its stderr as the failure's. The message ends with what the CLI said and, where
+attempt takes the turn again on it; a thread whose `turn/start` the app server refused or never
+answered, or that cannot be picked back up, is let go, and the next attempt opens another. A
+Codex app server that stops carries the last lines of its stderr in the failure. The message ends with what the CLI said and, where
 classified, `(<fault>: <fix>)`.
 
 | Attribute | Meaning |
