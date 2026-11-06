@@ -54,8 +54,9 @@ has connected. A fence that cuts the network turns both off, whatever `web_searc
 ``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``. And at
 `read-only` a fence that grants it is not cut by Codex instead: that sandbox cuts a command's
 network with its writes, so a `read-only` turn whose fence grants the network is sent that
-sandbox with the network left on (:data:`_REACHING`). `workspace-write` needs no such thing
-inside a fence, where it is not held at all: see :data:`_LANDLOCK`.
+sandbox with the network left on (:data:`_REACHING`). On Linux and macOS a rung that a fence
+around Codex already holds is left to that fence (:func:`_abroad`): Codex's own sandbox cannot
+start inside it.
 
 What the app server is started with -- the web search, the fence, the features, the overrides
 -- it reads once, so an agent set up as something else there runs its next turn on a server
@@ -309,7 +310,8 @@ _REACHING = {"type": "readOnly", "networkAccess": True}
 #: `read-only` thread under a supervised anchor answered `bwrap: setting up uid map:
 #: Permission denied` and never ran. The anchor holds the fence on both machines instead
 #: (:meth:`~hmz.coganchor.agents.AgentBase._abroad`), and :func:`_abroad` says where that holds
-#: the rung. `networkAccess` is filled in from the fence.
+#: the rung -- and where a fence around Codex here does, Codex's own sandbox being one that
+#: cannot start inside it. `networkAccess` is filled in from the fence.
 _EXTERNAL = {"type": "externalSandbox"}
 
 #: What an app server knows and cannot be told again: the account it was started as, the
@@ -329,11 +331,15 @@ _SANDBOXED = ("read-only", "workspace-write")
 def _abroad(config: AgentConfig, sandbox: object) -> bool:
     """Whether a rung's sandbox is held by the fence rather than by Codex.
 
-    Where the agent's turns land on another machine and its fence -- held there by the
-    anchor, on both machines -- is at least as narrow as the rung: nothing of the workdir,
-    the home or the system written at `read-only`, nothing of the home or the system at
-    `workspace-write`. A fence wider than the rung, or none, leaves the rung to Codex's own
-    sandbox, which is what it always was.
+    Where the agent's turns land on another machine, or on this one where it is Linux, and its
+    fence -- held there by the anchor, on both machines, or here around Codex -- is at least as
+    narrow as the rung: nothing of the workdir, the home or the system written at `read-only`,
+    nothing of the home or the system at `workspace-write`. A fence wider than the rung, or
+    none, leaves the rung to Codex's own sandbox, which is what it always was. Inside a fence
+    here Codex's sandbox cannot start at all: Landlock forbids the mounts bubblewrap makes
+    (`bwrap: Failed to make / slave: Operation not permitted`), and codex-cli 0.163.0 with
+    :data:`_LANDLOCK` on panics with `filesystem-restricted execution requires bubblewrap`,
+    so every command of a sandboxed turn failed.
 
     And on a Mac wherever a fence is held around Codex here, at a rung with a sandbox: the
     fence is Seatbelt, and Codex's own sandbox is Seatbelt too, which cannot be applied inside
@@ -356,7 +362,7 @@ def _abroad(config: AgentConfig, sandbox: object) -> bool:
     fence = config.fence
     if fence is None or fence.open or sandbox not in _SANDBOXED:
         return False
-    if config.machine is None:
+    if config.machine is None and sys.platform != "linux":
         return sys.platform == "darwin"
     if len(fence.scopes) != 3:  # noqa: PLR2004
         return False
@@ -2167,9 +2173,9 @@ class CodexSession(SessionBase):
         """What a turn of this session tells the server the agent may do.
 
         The rung's settings less those only a thread takes (:func:`turning`), and one more
-        where the turn lands on another machine whose fence holds the rung, or on a Mac where
-        a fence is held around Codex at all -- the sandbox left to that fence
-        (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
+        where the turn lands on another machine, or on this Linux one, whose fence holds the
+        rung, or on a Mac where a fence is held around Codex at all -- the sandbox left to
+        that fence (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
         fence it is held to grants the network. Codex's
         `read-only` sandbox cuts a command's network as well as its writes, which is narrower
         than a permission that reads its workdir and reaches the web: so such a turn is sent
