@@ -1375,16 +1375,20 @@ class Source:
 class _Asked:
     """An outworlder's answer being waited for, which its run interrupts as it ends.
 
-    In a task of its own, cancelled however the task asking was cancelled before.
+    In a task of its own, cancelled however the task asking was cancelled before -- but not
+    again once it is being cancelled: one cancelled through the task asking is already on its
+    way out, and its way out -- a hook's cleanup, writing what came of it -- is not to be cut
+    short.
     """
 
     __slots__ = ("_waiting",)
 
-    def __init__(self, waiting: asyncio.Future[Any]) -> None:
+    def __init__(self, waiting: asyncio.Task[Any]) -> None:
         self._waiting = waiting
 
     def interrupt(self) -> None:
-        self._waiting.cancel()
+        if not self._waiting.cancelling():
+            self._waiting.cancel()
 
 
 async def _asked[T](node: Call | None, asking: Coroutine[Any, Any, T]) -> T:
@@ -1395,7 +1399,7 @@ async def _asked[T](node: Call | None, asking: Coroutine[Any, Any, T]) -> T:
     """
     if node is None:
         return await asking
-    waiting = asyncio.ensure_future(asking)
+    waiting = asyncio.get_running_loop().create_task(asking)
     asked = _Asked(waiting)
     turns = node.run.turns
     turns[id(asked)] = asked

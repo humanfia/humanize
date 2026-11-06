@@ -1136,3 +1136,61 @@ async def test_an_outworlders_turn_after_a_cancel_was_caught_is_cut_as_the_run_e
     await asyncio.gather(*going, return_exceptions=True)
 
     assert heard == ["caught"]
+
+
+async def test_an_outworlders_hook_cancelled_with_its_asker_ends_its_way_out_as_the_run_ends(
+    tmp_path: Path,
+) -> None:
+    entered, cleaning = asyncio.Event(), asyncio.Event()
+    heard: list[str] = []
+    going: list[asyncio.Future[Any]] = []
+
+    @flow(agents=AgentCollection, envs=NoEnvs, params=Nothing, resumable=True)
+    async def asks(
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: NoEnvs,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        del task, agents, envs, params, ctx
+        person = Outworlder.new()
+
+        async def answer(asked: Any) -> OutworlderRunHookResult:
+            try:
+                entered.set()
+                await asyncio.Event().wait()
+                return OutworlderRunHookResult(output="never")
+            finally:
+                cleaning.set()
+                try:
+                    await asyncio.sleep(0.1)  # its way out takes a while
+                except asyncio.CancelledError:
+                    heard.append("cut short")
+                    raise
+                asked.ctx.state["accepted"] = True
+
+        person.on_outworlder_run(answer)
+        session = await person.spawn()
+        going.append(asyncio.ensure_future(person.run("ask", session=session)))
+        await entered.wait()
+        going[0].cancel()  # the asker is cancelled, and its hook with it
+        await cleaning.wait()
+
+    journal = tmp_path / "run.jsonl"
+    await run_flow(
+        asks,
+        "ask",
+        agents={},
+        envs={},
+        params={},
+        budget=UNLIMITED,
+        journal=journal,
+        local=FakeEnvDriver(),
+    )
+    await asyncio.gather(*going, return_exceptions=True)
+
+    # Already on its way out, it was not cancelled again as the run ended.
+    assert heard == []
+    assert '"accepted"' in journal.read_text()
