@@ -682,6 +682,17 @@ class SessionBase(ABC):
         #: Where this conversation works, as it was given, or None for wherever the flow is.
         self._cwd = os.fspath(cwd) if cwd is not None else None
         self._id: str | None = None
+        #: The backend's name for this conversation that the run was told of, once it has been:
+        #: as the backend says it, which is before the turn naming it lands.
+        self._recorded_as: str | None = None
+        #: What the attempt now opening this conversation, or the last one, goes by: the name
+        #: its backend gave it. Nothing for an attempt yet to be given one -- each attempt at
+        #: a conversation not opened opens one of its own.
+        self._named_as: str | None = None
+        #: Held while the run is told of it. The line naming a session is read on the turn's
+        #: own thread or, for a turn that is one command, on the one reading its output, and
+        #: either may be the one that names it: the run is told once all the same.
+        self._recording = threading.Lock()
         #: The backend's id for the conversation this one was forked from, or None for one
         #: that started from nothing -- which is every session but a fork. Read by the
         #: driver as its first turn opens: that turn is the one that says fork this rather
@@ -950,10 +961,14 @@ class SessionBase(ABC):
         the backend names it when the turn starts. Between those two is the whole of the first
         turn -- the minutes of it, and the log the backend is writing all the while.
 
+        The name the run was told (:meth:`_tells`), by whichever backend: one an attempt went
+        by stays its name once the attempt has failed, until the next attempt starts, so that
+        what it spent is still its own.
+
         Returns:
           The backend's id, or None before the backend has said one.
         """
-        return self._id
+        return self._id or self._named_as
 
     def spent(self) -> Usage:
         """What this conversation has cost so far, by the kind of token it went on.
@@ -1798,6 +1813,10 @@ class SessionBase(ABC):
                 if self._sits(waiting) and self._cut and last is not None:
                     raise last
             started = time.time()
+            if self._id is None:
+                # An attempt at a conversation not yet opened opens one of its own, and goes
+                # by no name until its backend gives it one.
+                self._named_as = None
             try:
                 yield from self._stream(self._shaped_ask(prompt, schema), schema=schema)
             except Unrecoverable:
@@ -2604,6 +2623,10 @@ class SessionBase(ABC):
         its id becomes known is the moment the agent takes note of it. A turn that failed
         never gets here, which is what leaves the session unopened for the next one to retry.
 
+        Written into the run before it is taken: a session the run could not write down is
+        one no later turn goes on in, since the run would never hear of anything said there.
+        It is left unopened instead, as a failed turn's is, and the next turn opens another.
+
         Args:
           session_id: The backend's id for this session.
 
@@ -2613,6 +2636,7 @@ class SessionBase(ABC):
             would make this session a second handle on the one conversation -- which is the
             failure `fork` exists to refuse, arriving where nothing downstream could explain
             it. Loud here rather than silent for the rest of the run.
+          Unrecoverable: If the run could not write it down.
         """
         if self._id is None:  # an id is fixed for the life of the session it names
             if session_id and session_id == self._forked_from:
@@ -2620,20 +2644,60 @@ class SessionBase(ABC):
                     f"{self._agent.backend}: the fork landed back in {session_id}, "
                     "which is the conversation this one was cut from"
                 )
+            self._tells(session_id, strictly=True)
             self._id = session_id
             self._agent._opens(session_id)
             if self._agent._tail is not None:
                 # And let go of, for a session nobody closes, rather than copied for ever.
                 weakref.finalize(self, self._agent._closes, session_id, wait=False)
-            if self._agent.epic is not None:
-                # The run is the only thing that knows this session was one of its own: the
-                # backend logs it under this id and never says whose it was. Nor which
-                # conversation it was cut from, for one that was cut from another: a fork
-                # reads as a session that began knowing things, and where it got them is a
-                # fact about the run rather than one the backend keeps.
-                self._agent.epic.opened(
-                    self._agent, session_id, self._forked_from or ""
-                )
+
+    def _tells(self, session_id: str, *, strictly: bool = False) -> None:
+        """Writes this session into the run it is one of, once, as soon as the backend names it.
+
+        The run is the only thing that knows this session was one of its own: the backend
+        logs it under this id and never says whose it was. Nor which conversation it was cut
+        from, for one that was cut from another: a fork reads as a session that began knowing
+        things, and where it got them is a fact about the run rather than one the backend
+        keeps. So it is written down as the backend first says the id -- as the first turn
+        goes, rather than when that turn lands, which a turn running for hours, or killed or
+        failed partway, has not -- and what the turn logs before it ends is the run's as well.
+        Not for a fork that came back naming the conversation it was cut from, which
+        :meth:`_adopt` refuses: that id is the parent's, written down already.
+
+        Taken from then as what this conversation goes by (:attr:`named`), and as told only
+        once the run has written it down. A write that fails as the backend names the session
+        -- which may be on a thread reading a command's output, that has to go on reading it
+        -- is tried again as a turn lands in it, which fails on it rather than opening a
+        session the run will never be told of. Fails it as unrecoverable: a record the run
+        cannot write is no failure of the backend's, nor one another try would get past, and
+        a missing or unwritable one is not to be read as a CLI that is not there.
+
+        Args:
+          session_id: The backend's id for this session.
+          strictly: Whether a write that fails is raised rather than left to be tried again.
+
+        Raises:
+          Unrecoverable: If the run could not write it down, and `strictly` is set.
+        """
+        if session_id == self._forked_from:
+            return
+        epic = self._agent.epic
+        with self._recording:
+            self._named_as = session_id
+            if epic is None or session_id == self._recorded_as:
+                return
+            try:
+                epic.opened(self._agent, session_id, self._forked_from or "")
+            except OSError as why:
+                if strictly:
+                    raise Unrecoverable(
+                        1,
+                        [self._agent.backend],
+                        "",
+                        f"session {session_id} could not be written into the run: {why}",
+                    ) from why
+                return
+            self._recorded_as = session_id
 
     @property
     def forks(self) -> bool:
@@ -2965,6 +3029,8 @@ class SessionBase(ABC):
         # backend takes: it opens a session that has none and moves one that has.
         if self._id is None:
             self._at_the_boundary()
+            # And names one of its own, as an attempt at a turn does.
+            self._named_as = None
         self._turns += 1
         try:
             return self._pursue(objective)

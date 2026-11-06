@@ -194,34 +194,36 @@ class _Sink:
 
 
 class _Naming(_Sink):
-    """A turn's sink for a session the run is still waiting on its CLI to name.
+    """A turn's sink for a session whose name the run is waiting on its CLI for.
 
     A CLI names a session as its first turn starts, and that turn may run for hours: the first
     thing the turn is reported to have spent after that has the session written down then,
     on the run's loop, rather than when the turn ends -- which a run killed mid-turn never
-    reaches.
+    reaches. And again for a name it goes by after that, which a try at opening it that
+    failed leaves to the next try to give: each is a conversation the CLI logged.
     """
 
     __slots__ = ("_session",)
 
     def __init__(self, node: Call, session: SessionView) -> None:
         super().__init__(node)
-        self._session: SessionView | None = session
+        self._session = session
 
     def add(self, *, cost: float, output_tokens: int, duration: float) -> None:
         super().add(cost=cost, output_tokens=output_tokens, duration=duration)
-        with self._lock:
-            session = self._session
-            if session is None or session._handle is None or session._handle.id is None:
-                return
-            self._session = None
+        session = self._session
+        handle = session._handle
+        if handle is None or (ident := handle.id) is None or ident == session._noted_as:
+            return
         run = self._node.run
         if threading.get_ident() == run.thread:
-            session._named()
+            session._named(ident)
             return
-        # A loop that is closed is a run that is over, which there is nothing left to tell.
+        # The name as it was seen, which a try that fails and the next one named may have
+        # moved on from by the time the loop gets to it. A loop that is closed is a run that
+        # is over, which there is nothing left to tell.
         with contextlib.suppress(RuntimeError):
-            run.loop.call_soon_threadsafe(session._named)
+            run.loop.call_soon_threadsafe(session._named, ident)
 
 
 class _Cut:
@@ -419,7 +421,9 @@ class AgentView:
         handle = session._handle
         if handle is not None:
             if await handle.move(placement):
-                session._unnamed = run.spawned(node, self._role, handle, self._driver)
+                waiting = run.spawned(node, self._role, handle, self._driver)
+                session._naming = waiting or session._naming
+                session._noted_as = handle.id
             return handle
         parent = session._parent
         if parent is not None:
@@ -463,7 +467,8 @@ class AgentView:
         opened = Opened(session, self, handle)
         line.sessions[id(handle)] = opened
         node.hold(opened)
-        session._unnamed = run.spawned(node, self._role, handle, self._driver)
+        session._naming = run.spawned(node, self._role, handle, self._driver)
+        session._noted_as = handle.id
         return handle
 
     def _fresh(self, session: SessionView, parent: SessionView) -> None:
@@ -549,7 +554,7 @@ class AgentView:
         try:
             said = await handle.turn(
                 TurnRequest(prompt, output_schema, limits),
-                _Naming(node, taken) if taken._unnamed else _Sink(node),
+                _Naming(node, taken) if taken._naming else _Sink(node),
             )
         except asyncio.CancelledError:
             handle.interrupt()
@@ -570,7 +575,7 @@ class AgentView:
             node.turning(-1)
             if cut is not None:
                 cut.stop()
-            if taken._unnamed and handle.id is not None:
+            if taken._naming and handle.id is not None:
                 # Named by its CLI as this turn went, and nothing it spent said so sooner.
                 taken._named()
         # A fork is cut by now, and the session it was cut from may go.
@@ -805,9 +810,10 @@ class SessionView:
         "_forked_at",
         "_handle",
         "_line",
+        "_naming",
+        "_noted_as",
         "_parent",
         "_turns",
-        "_unnamed",
     )
 
     def __init__(
@@ -830,8 +836,10 @@ class SessionView:
         #: had been when it was forked -- which is where its first turn cuts it.
         self._turns = 0
         self._forked_at = 0
-        #: Whether the run's journal or recorder is still waiting on its CLI to name it.
-        self._unnamed = False
+        #: Whether the run's journal or recorder takes the names its CLI gives it, which it
+        #: was opened without, and the one written down last.
+        self._naming = False
+        self._noted_as: str | None = None
 
     def __repr__(self) -> str:
         return f"<session of {self._agent.role}>"
@@ -851,22 +859,29 @@ class SessionView:
         handle = self._handle
         return None if handle is None else handle.id
 
-    def _named(self) -> None:
-        """Its CLI has named it: written down and told, against the call that opened it.
+    def _named(self, ident: str | None = None) -> None:
+        """Its CLI has named it, or named it anew: written down and told, against the call.
 
-        Once, however many times it is asked, and never raising: a journal that cannot be
-        written to is a run that can no longer be picked up, not a turn that failed.
+        Once a name, however many times it is asked, and never raising: a journal that cannot
+        be written to is a run that can no longer be picked up, not a turn that failed. A name
+        it goes by after another is written down as well: the try that failed went by the
+        first, and spent under it.
+
+        Args:
+          ident: The name as it was seen, or None for the one it goes by now.
         """
-        if not self._unnamed:
+        handle = self._handle
+        if not self._naming or handle is None:
             return
-        self._unnamed = False
+        if ident is None:
+            ident = handle.id
+        if ident is None or ident == self._noted_as:
+            return
+        self._noted_as = ident
         opener: AgentView = self._agent  # pyright: ignore[reportAssignmentType]
         node = opener._node
-        handle = self._handle
-        if handle is None:
-            return
         try:
-            node.run.named(node, opener._role, handle, opener._driver)
+            node.run.named(node, opener._role, handle, opener._driver, ident)
         except Exception:
             log.exception("writing down the session of %s failed", opener._role)
 

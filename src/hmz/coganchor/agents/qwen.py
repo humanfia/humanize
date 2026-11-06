@@ -796,6 +796,10 @@ class QwenCodeSession(StreamSessionBase):
 
     def _record(self, said: dict[str, Any]) -> Iterator[Event]:
         """Maps the records shared by the finite and persistent protocols."""
+        if self._id is None and (named := said.get("session_id")):
+            # Named on every record it writes: the run's from the first of them, whose log it
+            # is whether or not the turn lands.
+            self._tells(str(named))
         kind = str(said.get("type") or "")
         if kind == "assistant":
             yield from self._message(cast("dict[str, Any]", said.get("message") or {}))

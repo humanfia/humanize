@@ -15,6 +15,7 @@ import pytest
 
 from hmz.coganchor import fence, models
 from hmz.coganchor.agents import (
+    KEEPING,
     CursorAgent,
     CursorAgentConfig,
     CursorSession,
@@ -26,6 +27,7 @@ from hmz.coganchor.agents.cursor import spelled
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.backends import Model
 from hmz.coganchor.fence import Fence
+from tests.unit.coganchor.agents.doubles_core import Run
 from tests.unit.coganchor.agents.doubles_u4 import Spawner, fenceable, offering
 
 if TYPE_CHECKING:
@@ -402,10 +404,32 @@ def test_a_failed_turn_raises_and_leaves_the_session_unopened(
     with pytest.raises(Failed, match=match) as failed:
         session("go")
     assert failed.value.returncode != 0
-    assert session.named is None or session.named == "c"
+    # Going by whatever its first line named it, if anything did, and not opened.
+    said = next((one["session_id"] for one in lines if one["type"] == "system"), None)
+    assert session.named == said
     with pytest.raises(RuntimeError, match="has not run a turn"):
         _ = session.id
     assert session("go", suppress=True) == ""
+
+
+def test_a_chat_cursor_names_is_the_runs_though_its_turn_fails(
+    spawner: Spawner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv(KEEPING, "off")
+    spawner.answering([{"type": "system", "session_id": "c"}], err="no credit", code=1)
+    agent = _cursor()
+    agent.epic = run = Run(tmp_path)
+    session = agent.new(tmp_path)
+
+    with pytest.raises(Failed):
+        session("go")
+
+    # Named on its first line, read on a thread of its own while the turn waits on what
+    # comes next, which is nothing: the run's all the same, and what the session goes by,
+    # though it is not opened.
+    assert run.said == [("c", "")]
+    assert agent.opened == []
+    assert session.named == "c"
 
 
 def test_a_turn_naming_no_chat_is_refused(spawner: Spawner, tmp_path: Path) -> None:

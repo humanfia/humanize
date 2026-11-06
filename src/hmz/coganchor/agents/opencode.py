@@ -564,6 +564,10 @@ class OpencodeSession(CommandSessionBase):
             return  # not ours: the odd plain line among the JSON
         part: dict[str, Any] = said.get("part") or {}
         kind = str(said.get("type") or "")
+        if self._id is None and (named := said.get("sessionID")):
+            # Named on every line it writes: the run's from the first of them, whose log it
+            # is whether or not the turn lands.
+            self._tells(str(named))
         if kind == "error":
             failed: dict[str, Any] = said.get("error") or {}
             self._failed = json.dumps(failed) if failed else "the turn failed"

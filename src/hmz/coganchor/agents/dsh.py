@@ -335,7 +335,6 @@ class DshSession(SessionBase):
         #: The names of the callbacks the live runtime was offered. Its MCP client lists them
         #: once, as the runtime boots, so a flow offering others is a runtime started again.
         self._runtime_offered: tuple[str, ...] = ()
-        self._attempt_id: str | None = None
         self._reaper: weakref.finalize[..., Any] | None = None
         #: The composition the live runtime was started from, so that an agent reconfigured
         #: mid-session is noticed as one whose runtime was built the old way.
@@ -348,18 +347,12 @@ class DshSession(SessionBase):
         #: without ever being shut.
         self._composition: tempfile.TemporaryDirectory[str] | None = None
 
-    @property
-    def named(self) -> str | None:
-        """The durable id, including the one whose opening turn is still running."""
-        return super().named or self._attempt_id
-
     def _stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
     ) -> Iterator[Event]:
         """Runs one SDK turn and maps its session notifications as they arrive."""
         del schema  # SessionBase has already put unsupported shapes in the prompt.
         session_id = self._id or f"session-{uuid.uuid4().hex}"
-        self._attempt_id = session_id
         answer = ""
         costing = Usage()
         reason: Mapping[str, Any] | None = None
@@ -380,6 +373,10 @@ class DshSession(SessionBase):
                     [{"type": "text", "text": prompt}],
                     notification_subscription=subscribed,
                 )
+                if self._id is None:
+                    # Taken by the runtime into the session it names: the run's from here,
+                    # whether or not the turn lands.
+                    self._tells(session_id)
                 received = False
                 # Under a clock: `next` blocks on the SDK's own subscription, and a
                 # runtime that has stopped publishing without stopping never wakes it.
@@ -493,7 +490,6 @@ class DshSession(SessionBase):
             yield self._shows(Event(kind="failed", text=_diagnostic(refused)))
             raise refused from why
         finally:
-            self._attempt_id = None
             if anchored:
                 # Coganchor reconciles the mirror when the supervised process exits.
                 self._shut()

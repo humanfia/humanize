@@ -970,6 +970,10 @@ class GrokBuildSession(StreamSessionBase):
         said = _parsed(line)
         if said is None:
             return
+        if self._id is None and (named := said.get("sessionId")):
+            # Named on the line a run ends on, and on no earlier one: the run's from there,
+            # whether or not the turn lands.
+            self._tells(str(named))
         kind = str(said.get("type") or "")
         if kind == "error":
             self._failed = str(said.get("message") or "") or json.dumps(said)

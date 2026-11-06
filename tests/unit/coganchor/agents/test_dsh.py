@@ -25,6 +25,7 @@ from hmz.coganchor.agents.dsh import native_ready
 from hmz.coganchor.agents.event import Unrecoverable
 from hmz.coganchor.providers import Provider
 
+from .doubles_core import Run
 from .doubles_u5 import configured, gatewayed, heard
 
 if TYPE_CHECKING:
@@ -484,6 +485,41 @@ def test_a_turn_that_does_not_complete_fails_saying_why(
     assert ("failed", str(failed.value.stderr)) in [
         (one.kind, one.text) for one in told
     ]
+
+
+@pytest.mark.parametrize("goal", [False, True])
+@pytest.mark.parametrize("taken", [False, True])
+def test_a_session_is_the_runs_once_its_runtime_has_taken_the_prompt_and_not_before(
+    made: Callable[..., DshAgent],
+    runtime: _Runtime,
+    tmp_path: Path,
+    goal: bool,
+    taken: bool,
+) -> None:
+    if taken:
+        runtime.turn = lambda session: [
+            _event(session, "turn/end", reason={"kind": "failed"})
+        ]
+    else:
+        runtime.refuses = RuntimeError("the runtime would not take it")
+    agent = made()
+    agent.epic = run = Run(tmp_path)
+    session = agent.new(tmp_path)
+    asked = (
+        (lambda: session.pursue("the objective"))
+        if goal
+        else (lambda: session("the prompt"))
+    )
+
+    for _ in range(2):
+        with pytest.raises(Failed):
+            asked()
+
+    # Each session a runtime took a prompt into is the run's, though no turn landed in it, and
+    # none that a runtime never took is: there is no such session to be anybody's.
+    assert run.said == [(one, "") for one, _ in runtime.prompts]
+    assert len(run.said) == (2 if taken else 0)
+    assert agent.opened == []
 
 
 def test_a_runtime_that_refuses_the_prompt_fails_the_turn(

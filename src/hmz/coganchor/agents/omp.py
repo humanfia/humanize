@@ -224,6 +224,9 @@ class OhMyPiSession(PiSession):
                     named := cast("dict[str, Any]", data).get("sessionId")
                 ):
                     self._named = str(named)
+                    if self._id is None:
+                        # The run's from here, whether or not the turn lands.
+                        self._tells(self._named)
             case "agent_end":
                 # Terminal unless it says it is not: retrying, compacting or answering a
                 # reminder of its own is omp still at work on the turn, and `yielded` -- which

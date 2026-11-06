@@ -1581,15 +1581,33 @@ class Run:
         return self.journal is not None or recorder is not None
 
     def named(
-        self, node: Call, role: str, handle: SessionHandle, driver: AgentDriver
+        self,
+        node: Call,
+        role: str,
+        handle: SessionHandle,
+        driver: AgentDriver,
+        ident: str | None = None,
     ) -> None:
-        """A session the call `node` opened has been named by its CLI: written down, and told."""
-        self._noted(node, role, handle, driver)
+        """A session the call `node` opened has been named by its CLI: written down, and told.
+
+        Args:
+          node: The call that opened it.
+          role: The role its agent fills.
+          handle: The session.
+          driver: Its agent's driver.
+          ident: The name to write down, as it was seen, or None for the one it has now.
+        """
+        self._noted(node, role, handle, driver, ident)
         if self.recorder is not None:
             self.recorder.named(node.record(), role, handle, driver)
 
     def _noted(
-        self, node: Call, role: str, handle: SessionHandle, driver: AgentDriver
+        self,
+        node: Call,
+        role: str,
+        handle: SessionHandle,
+        driver: AgentDriver,
+        ident: str | None = None,
     ) -> None:
         """Writes a named session into the journal, for a run that keeps one."""
         if self.journal is not None:
@@ -1600,7 +1618,7 @@ class Run:
                     "role": role,
                     "harness": str(driver.harness),
                     "model": driver.model,
-                    "session": handle.id,
+                    "session": handle.id if ident is None else ident,
                 }
             )
 

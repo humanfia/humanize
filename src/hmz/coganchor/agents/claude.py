@@ -429,11 +429,6 @@ class ClaudeCodeSession(StreamSessionBase):
         #: whole of one arriving a moment later as part of a message is not a second row.
         self._announced: set[str] = set()
 
-    @property
-    def named(self) -> str | None:
-        """What Claude called this session, which it says on the first line it writes."""
-        return self._id or self._named
-
     def _holding(self) -> list[str]:
         """Which conversation this process is to be holding: this one, or a fork of another.
 
@@ -1107,8 +1102,11 @@ class ClaudeCodeSession(StreamSessionBase):
                     yield Event(kind="took", text=words)
         elif said.get("type") == "system" and said.get("session_id"):
             # Noted, not taken: this is the first line out, said before anything can go
-            # wrong, and a session is only opened by a turn that lands in it.
+            # wrong, and a session is only opened by a turn that lands in it. But the run's
+            # from here, whose log this is from its first line whether or not the turn lands.
             self._named = str(said["session_id"])
+            if self._id is None:
+                self._tells(self._named)
             if said.get("subtype") == "init" and (
                 instead := self._running(str(said.get("model") or ""))
             ):
