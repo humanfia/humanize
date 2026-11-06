@@ -242,6 +242,7 @@ class Accounts:
         Raises:
           ValueError: If it is the account this machine is already signed into, which
             Humanize did not make and keeps no credentials for.
+          OSError: If what is kept for it cannot be removed.
         """
         from hmz.coganchor import providers
 

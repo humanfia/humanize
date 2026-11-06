@@ -6970,7 +6970,9 @@ class Providers(Pages):
             cli, _, name = taken.partition("/")
             try:
                 gone = accounts.remove(cli, name)
-            except ValueError as why:  # a name nothing could ever have been kept under
+            except (OSError, ValueError) as why:
+                # A name nothing could ever have been kept under, or credentials that would
+                # not go: said, like an edit that could not be written.
                 told.append(f"hmz: {escape(str(why))}")
                 continue
             told.append(

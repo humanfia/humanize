@@ -144,6 +144,30 @@ async def test_the_accounts_and_runtimes_pages_start_empty(workspace: Path) -> N
         await shows(pilot, "no accounts yet", "Add an account")
 
 
+async def test_an_account_that_cannot_be_removed_is_said_on_saving(
+    workspace: Path,
+) -> None:
+    from hmz.coganchor import providers
+
+    providers.add("claude", "work", env={"ANTHROPIC_API_KEY": "key"})
+    # Its directory kept from being emptied, as one another user owns would be.
+    held = providers.where("claude", "work")
+    (held / "credentials").write_text("{}")
+    held.chmod(0o500)
+    try:
+        async with Humanize().run_test(size=SIZE) as pilot:
+            await into_settings(pilot, "accounts")
+            await opens(pilot, "claude/work")
+            await pilot.click("#act-remove")
+            await shows(pilot, "will be removed when this menu is saved")
+            await leaves(pilot)
+
+            await shows(pilot, "Permission denied")
+    finally:
+        held.chmod(0o700)
+    assert held.is_dir()
+
+
 @pytest.mark.parametrize("gatewayable", [True, False])
 async def test_the_ways_through_the_gateway_are_dropped_under_one_heading(
     workspace: Path, monkeypatch: pytest.MonkeyPatch, *, gatewayable: bool
