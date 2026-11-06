@@ -28,7 +28,7 @@ from hmz.coganchor.agents import (
     Unserved,
     Verdict,
 )
-from hmz.coganchor.agents.base import KEEPING
+from hmz.coganchor.agents.base import KEEPING, AgentBase
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
@@ -425,6 +425,36 @@ def test_a_process_that_goes_away_fails_the_turn_with_what_it_said(
     with pytest.raises(Failed, match="signed out") as failed:
         _agent().new(tmp_path)("go")
     assert failed.value.returncode == 2
+
+
+def test_a_session_claude_names_is_the_runs_even_where_the_process_goes_away(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    said: list[str] = []
+
+    class Run:
+        @property
+        def keeps(self) -> Path:
+            return tmp_path
+
+        def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
+            del agent, parent
+            said.append(session)
+
+    def leaves(proc: Process, session: str) -> None:
+        del session
+        proc.exit(2)
+
+    claude.answers = [leaves]
+    agent = _agent()
+    agent.epic = Run()
+    session = agent.new(tmp_path)
+    with pytest.raises(Failed):
+        session("go")
+    # Named on its first line, which is all it said: written down, and not opened.
+    (named,) = said
+    assert session.named == named
+    assert agent.opened == []
 
 
 def test_a_model_it_does_not_know_is_said_once(

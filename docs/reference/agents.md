@@ -622,9 +622,10 @@ session(prompt)                     # opens the conversation, then resumes it
 
 - Both calls return the answer, stripped (or the schema model, with `schema=`).
 - `session.id` raises `RuntimeError: session has not run a turn yet` until a turn has landed;
-  `session.named` is `None` instead. On `claude`, `codex`, `dsh`, `kimi`, `omp` and `pi` it is
-  set as soon as the backend names the session, during the first turn; elsewhere when that turn
-  lands.
+  `session.named` is `None` instead until the backend names the session. From then it is the
+  id the run's `opened` event was written with, on every backend: most name the session as
+  the first turn starts, and `litellm` as that turn lands. A first turn that fails keeps its
+  name until the next turn starts, which opens a session of its own.
 - A session runs one turn at a time; concurrent callers of one session are serialised.
 - An agent holds its sessions weakly; dropping a session closes it.
 - `session.close()` ends whatever holds the conversation open.

@@ -199,9 +199,6 @@ class MiniMaxCodeSession(CommandSessionBase):
           cwd: The directory this conversation works in, as for `SessionBase`.
         """
         super().__init__(agent, cwd)
-        #: The id the turn now opening this session was given, stated on the first line it
-        #: writes and taken as the session's own once that turn has landed.
-        self._named: str | None = None
         #: What the agent has said so far in the turn now running, and what went wrong with it
         #: if anything did. Each message is stated whole once it is done.
         self._said: list[str] = []
@@ -220,11 +217,6 @@ class MiniMaxCodeSession(CommandSessionBase):
         #: Whether the turn now running asked for its model as a provider a LiteLLM gateway
         #: was added as, whose name is the gateway's port rather than anything of the model's.
         self._through = False
-
-    @property
-    def named(self) -> str | None:
-        """What MiniMax Code calls this session, which the first line of its first turn says."""
-        return self._id or self._named
 
     def _turn(self, prompt: str) -> tuple[list[str], str | None]:
         """Builds the `mcode exec` one turn is.
@@ -302,8 +294,10 @@ class MiniMaxCodeSession(CommandSessionBase):
         kind = str(said.get("type") or "")
         if kind == "exec.started" and said.get("sessionId"):
             # Noted, not taken: this is the first line out, said before anything can go
-            # wrong, and a session is only opened by a turn that lands in it.
-            self._named = str(said["sessionId"])
+            # wrong, and a session is only opened by a turn that lands in it. But the run's
+            # from here, whose log this is from its first line whether or not the turn lands.
+            if self._id is None:
+                self._tells(str(said["sessionId"]))
         elif kind in ("item.started", "item.updated", "item.completed"):
             item = cast("dict[str, Any]", said.get("item") or {})
             yield from self._item(item, done=kind == "item.completed")

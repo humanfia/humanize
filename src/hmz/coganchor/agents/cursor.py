@@ -405,8 +405,10 @@ class CursorSession(CommandSessionBase):
         kind = str(said.get("type") or "")
         if kind == "system" and said.get("session_id"):
             # Noted, not taken: this is the first line out, said before anything can go
-            # wrong, and a chat is only opened by a turn that lands in it.
-            self._named = str(said["session_id"])
+            # wrong, and a chat is only opened by a turn that lands in it. But the run's from
+            # here, whose log this is from its first line whether or not the turn lands.
+            if self._id is None:
+                self._tells(str(said["session_id"]))
         elif kind == "assistant":
             message = cast("dict[str, Any]", said.get("message") or {})
             for raw in cast("list[Any]", message.get("content") or []):

@@ -736,6 +736,10 @@ class AntigravityCLISession(StreamSessionBase):
 
     def _record(self, said: dict[str, Any]) -> Iterator[Event]:
         """Shares native event parsing between persistent and finite transports."""
+        if self._id is None and (named := said.get("conversation_id")):
+            # Named on the events it writes as the turn goes: the run's from the first of
+            # them, whose log it is whether or not the turn lands.
+            self._tells(str(named))
         kind = str(said.get("event") or "")
         # The payload sits under a key of the event's own name rather than beside it.
         told = cast("dict[str, Any]", said.get(kind) or {})

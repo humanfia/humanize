@@ -1882,11 +1882,6 @@ class CodexSession(SessionBase):
         #: turn wants a server: a thread taken to another one is read back off the disk there.
         self._on: _AppServer | None = None
 
-    @property
-    def named(self) -> str | None:
-        """The thread this session is, which the server names before the turn starts."""
-        return self._id or self._running.thread
-
     def _stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
     ) -> Iterator[Event]:
@@ -1917,6 +1912,9 @@ class CodexSession(SessionBase):
                 # rather than to whichever the agent hands out by the time somebody types.
                 self._running.on = server
                 self._running.thread = thread
+                if self._id is None:
+                    # The run's from here, as its rollout is, whether or not the turn lands.
+                    self._tells(thread)
                 self._running.took = self.took
                 self._running.spends = self._spends
                 said = ""
@@ -2121,6 +2119,9 @@ class CodexSession(SessionBase):
                 self._on = server
                 config = self._agent.config
                 thread = self._thread(server)
+                if self._id is None:
+                    # The run's from here, as for a turn: the goal may fail before it lands.
+                    self._tells(thread)
                 server.call(
                     "thread/goal/set", {"threadId": thread, "objective": objective}
                 )

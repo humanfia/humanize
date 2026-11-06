@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 from typing import TYPE_CHECKING, Any
 
@@ -230,6 +231,44 @@ def test_a_prompt_pi_refuses_fails_the_turn(
         _turn(agent.new(tmp_path))
 
     assert failed.value.output == "no model by that name"
+
+
+@pytest.mark.parametrize("refused", ["launch", "prompt", ""])
+def test_a_session_is_named_only_once_pi_has_taken_a_prompt_into_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, refused: str
+) -> None:
+    no = {"type": "response", "command": "prompt", "success": False, "error": "no"}
+    taken = {"type": "response", "command": "prompt", "success": True}
+    answers = (
+        _rpc(line(no))
+        if refused == "prompt"
+        else _rpc(line(taken), _ended(errorMessage="cut short"), _SETTLED)
+    )
+    spawned = spawning(monkeypatch, answers=answers)
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+    launching: list[str | None] = []
+    if refused == "launch":
+
+        def refuse(*_: object) -> list[str]:
+            launching.append(session.named)
+            raise FileNotFoundError(errno.ENOENT, "no pi here")
+
+        monkeypatch.setattr(agent, "spawned", refuse)
+
+    with pytest.raises(Failed):
+        _turn(session)
+
+    # The id a process is asked to open is no name of pi's until pi has taken a prompt into
+    # it: not while it is starting, and not once a turn it never took has failed. One it took
+    # is named, though the turn failed after it.
+    assert launching == ([None] if refused == "launch" else [])
+    if refused:
+        assert session.named is None
+    else:
+        (process,) = spawned
+        assert session.named == option(process.args, "--session-id")
 
 
 def test_a_turn_that_errs_without_saying_anything_fails(

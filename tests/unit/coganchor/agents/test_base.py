@@ -1346,6 +1346,81 @@ def test_a_journal_is_told_every_session_opened(tmp_path: Path) -> None:
     assert journal.said == [("s-1", ""), ("s-2", "s-1")]
 
 
+class _Naming(Turns):
+    """A conversation its backend names as a turn starts, as every driver here has it named."""
+
+    def calls(self, session: str) -> None:
+        """Has the backend name this conversation, as a driver does on the line saying so."""
+        self._tells(session)
+
+
+def test_a_session_is_written_into_its_run_as_soon_as_its_backend_names_it(
+    tmp_path: Path,
+) -> None:
+    said: list[tuple[str, str]] = []
+
+    class Journal:
+        @property
+        def keeps(self) -> Path:
+            return tmp_path
+
+        def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
+            del agent
+            said.append((session, parent))
+
+    def script(session: Turns, prompt: str) -> Iterable[Event]:
+        del prompt
+        assert isinstance(session, _Naming)
+        assert session.named is None
+        session.calls("s-1")
+        yield Event(kind="text", text="working on it")
+        # Written down while the turn goes, which it never lands, and named so from then.
+        assert said == [("s-1", "")]
+        assert session.named == "s-1"
+        raise Failed(1, ["double"], "", "the turn fell over")
+
+    agent = Scripted(script=script, session=_Naming)
+    agent.epic = Journal()
+    session = agent.new()
+    with pytest.raises(Failed):
+        session("one")
+    assert said == [("s-1", "")]
+    assert agent.opened == []
+    # Still what the failed turn went by, so that what it spent is its own: it is not opened.
+    assert session.named == "s-1"
+
+
+def test_a_turn_whose_session_the_run_cannot_write_down_fails_unopened(
+    tmp_path: Path,
+) -> None:
+    class Full:
+        @property
+        def keeps(self) -> Path:
+            return tmp_path
+
+        def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
+            del agent, session, parent
+            raise OSError(28, "No space left on device")
+
+    def script(session: Turns, prompt: str) -> Iterable[Event]:
+        del prompt
+        assert isinstance(session, _Naming)
+        # Named as the turn goes, on what may be a thread reading the backend: not raised
+        # there, but tried again as the turn lands.
+        session.calls("s-1")
+        session.names("s-1")
+        return [Event(kind="result", text="done")]
+
+    agent = Scripted(script=script, session=_Naming)
+    agent.epic = Full()
+    session = agent.new()
+    with pytest.raises(Unrecoverable, match="could not be written"):
+        session("one")
+    assert agent.opened == []
+    with pytest.raises(RuntimeError, match="has not run a turn"):
+        _ = session.id
+
+
 # -- asking the person -----------------------------------------------------------------
 
 

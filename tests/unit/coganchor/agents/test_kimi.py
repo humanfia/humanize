@@ -6,6 +6,7 @@ import io
 import json
 import os
 import signal
+import subprocess
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,6 +16,7 @@ import pytest
 import websockets.sync.client
 
 from hmz.coganchor.agents import (
+    KEEPING,
     Failed,
     KimiCodeCLIAgent,
     KimiCodeCLIAgentConfig,
@@ -27,6 +29,7 @@ from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.providers import Provider
 
+from .doubles_core import Run
 from .doubles_u5 import UNREAL_PID, Process, configured, gatewayed, heard, spawning
 
 if TYPE_CHECKING:
@@ -70,6 +73,8 @@ class _Daemon:
     )
     sent: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     headers: list[str] = field(default_factory=list[str])
+    #: The routes it refuses, as the daemon refuses one: inside a 200, with a code.
+    refused: set[str] = field(default_factory=set[str])
 
     def answer(self, method: str, path: str) -> Any:
         route = path.removeprefix("/api/v1")
@@ -84,6 +89,7 @@ class _Daemon:
             f"{at}/messages?after_id=u1": {"items": self.messages},
             f"{at}/questions?status=pending": {"items": self.questions},
             f"{at}/approvals?status=pending": {"items": self.approvals},
+            f"{at}/goal": {"status": "completed"},
         }
         return (posts if method == "POST" else gets).get(route, {})
 
@@ -96,7 +102,10 @@ class _Daemon:
         body = json.loads(data) if isinstance(data, bytes) else None
         method = request.get_method()
         path = url.removeprefix("http://127.0.0.1:5494")
-        self.calls.append((method, path.removeprefix("/api/v1"), body))
+        route = path.removeprefix("/api/v1")
+        self.calls.append((method, route, body))
+        if route in self.refused:
+            return io.BytesIO(json.dumps({"code": 40000, "msg": "refused"}).encode())
         return io.BytesIO(
             json.dumps({"code": 0, "data": self.answer(method, path)}).encode()
         )
@@ -490,6 +499,80 @@ def test_a_turn_the_server_says_failed_fails(
 
     assert failed.value.stderr == "the model fell over"
     assert failed.value.output == "done"
+
+
+def test_a_session_the_daemon_made_is_the_runs_though_it_is_refused_its_settings(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    del server
+    monkeypatch.setenv(KEEPING, "off")
+    daemon.refused = {f"/sessions/{_SESSION}/profile"}
+    agent = made()
+    agent.epic = run = Run(tmp_path)
+
+    with pytest.raises(Failed):
+        _turn(agent.new(tmp_path))
+
+    # Named by the daemon before anything else was asked of it: the run's, and not opened.
+    assert run.said == [(_SESSION, "")]
+    assert agent.opened == []
+
+
+def test_a_fork_kimi_names_is_the_runs_though_the_fork_fails(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    del daemon, server
+    monkeypatch.setenv(KEEPING, "off")
+    agent = made()
+    agent.epic = run = Run(tmp_path)
+    session = agent.new(tmp_path)
+    _turn(session)
+    child = session.fork()
+    assert isinstance(child, KimiCodeCLISession)
+
+    def forking(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(argv, 1, "Forked to k-2\n", "then fell over")
+
+    monkeypatch.setattr(subprocess, "run", forking)
+    with pytest.raises(Failed):
+        _turn(child)
+
+    # Named on the line the fork printed before it failed: the run's, and not opened.
+    assert run.said == [(_SESSION, ""), ("k-2", _SESSION)]
+    assert agent.opened == [_SESSION]
+    assert child.named == "k-2"
+
+
+def test_a_goal_that_fails_after_working_is_the_runs(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    del server
+    monkeypatch.setenv(KEEPING, "off")
+    daemon.ended = {"reason": "failed", "error": {"message": "the model fell over"}}
+    agent = made()
+    agent.epic = run = Run(tmp_path)
+
+    with pytest.raises(Failed) as failed:
+        agent.new(tmp_path).pursue("work until it is done")
+
+    # It said something and spent on it before it fell over, and none of it went through a
+    # turn: what it spent is the run's session's all the same.
+    assert failed.value.output == "done"
+    assert agent.spent().output > 0
+    assert run.said == [(_SESSION, "")]
+    assert agent.opened == []
 
 
 def test_a_server_that_never_says_where_it_listens_fails_the_turn(

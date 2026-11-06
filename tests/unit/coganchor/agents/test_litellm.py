@@ -26,6 +26,7 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.agents.litellm import LOCAL_MAP
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.providers import Provider
+from tests.unit.coganchor.agents.doubles_core import Run
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -190,7 +191,9 @@ def test_a_failed_call_is_a_failed_turn_that_opens_nothing(
     litellm: _LiteLLM, tmp_path: Path
 ) -> None:
     litellm.raising = RuntimeError("boom")
-    session = _agent(tmp_path).new(tmp_path)
+    agent = _agent(tmp_path)
+    agent.epic = run = Run(tmp_path)
+    session = agent.new(tmp_path)
     with pytest.raises(RuntimeError, match="boom"):
         session("hi")
     litellm.raising = KeyError("the model refused")
@@ -199,6 +202,8 @@ def test_a_failed_call_is_a_failed_turn_that_opens_nothing(
     assert not isinstance(failed.value, Unrecoverable)
     assert session.named is None
     assert session("hi", suppress=True) == ""
+    # Nor does the run hear of it: no answer was kept, so there was no session to be the run's.
+    assert run.said == []
 
 
 def test_a_conversation_too_long_for_the_model_is_unrecoverable(
