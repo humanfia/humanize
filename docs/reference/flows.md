@@ -777,13 +777,17 @@ another machine. A refused turn leaves the session where it was, ready for a tur
    empty `reason` does not block.
 7. Steers that arrived during the CLI's turn are joined with blank lines and sent as the next
    prompt of the same turn.
-8. With `output_schema`, the final text is parsed (below).
+8. With `output_schema`, the final text is parsed (below). If validation fails, the turn
+   makes one bounded retry with the validation error fed back and an instruction to return
+   only schema-valid JSON. If that retry also fails, it raises `OutputSchemaError`.
 
 **Reading `output_schema`.** The model is validated with `model_validate_json` against, in
 order: the whole answer stripped; each Markdown fenced code block, regardless of its info
 string (including `JSON`, `jsonc` and tilde fences);
 the span from the first `{` to the last `}`. The first that validates is returned. If none
 does: `OutputSchemaError: the answer is not a <Model>: <first 200 chars, JSON-quoted>`.
+The raw answer is already in the session event log; no malformed answer is silently repaired
+or accepted.
 
 | Condition | Raises |
 | --- | --- |

@@ -1509,6 +1509,8 @@ class HarnessSession:
                 if submitted.context:
                     body = f"{body}\n\n{submitted.context}"
             again = 0
+            schema_retries = 0
+            shaped: pydantic.BaseModel | None = None
             while True:
                 said = await self._taken(body, request.output_schema, goal=goal)
                 if self._over is not None:
@@ -1529,6 +1531,19 @@ class HarnessSession:
                 if steered:
                     body, goal = "\n\n".join(steered), False
                     continue
+                if request.output_schema is not None:
+                    try:
+                        shaped = harnessing.read_shape(said, request.output_schema)
+                    except harnessing.OutputSchemaError as error:
+                        if schema_retries >= 1:
+                            raise
+                        schema_retries += 1
+                        body = (
+                            f"{body}\n\nThe previous answer failed schema validation: "
+                            f"{error}\nReturn only one valid JSON object matching "
+                            "the requested schema."
+                        )
+                        continue
                 break
         finally:
             self._end()
@@ -1538,6 +1553,8 @@ class HarnessSession:
             # Interrupted between two of the CLI's turns -- while a STOP hook was deciding --
             # which is the turn interrupted all the same.
             raise SessionError("the turn was interrupted")
+        if shaped is not None:
+            return shaped
         if request.output_schema is not None:
             return harnessing.read_shape(said, request.output_schema)
         return said
