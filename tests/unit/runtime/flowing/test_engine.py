@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime
+import json
 import math
 from typing import TYPE_CHECKING, Any
 
@@ -36,10 +38,11 @@ from hmz.flows import (
     ParamsError,
     RequirementError,
     ResourceUnmet,
+    SessionError,
     flow,
     load,
 )
-from hmz.runtime.flowing import loading
+from hmz.runtime.flowing import fakes, loading
 from hmz.runtime.flowing.engine import (
     DEPTH,
     Call,
@@ -57,12 +60,15 @@ from hmz.runtime.flowing.fakes import (
     FakeAgentDriver,
     FakeEnvDriver,
     FakeOutworlder,
+    FakeSession,
     run_fake,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
     from pathlib import Path
+
+    from hmz.runtime.flowing.spi import TurnRequest, UsageSink
 
 UNLIMITED = Budget(cost=math.inf)
 
@@ -573,6 +579,56 @@ async def test_a_resumed_run_picks_up_the_state_it_left(tmp_path: Path) -> None:
         await run_fake(keeps, "fail", journal=journal)
     assert await run_fake(keeps, "go", journal=journal, resume=True) == (True, 2)
     assert await run_fake(keeps, "go", journal=journal) == (False, 1)
+
+
+class _Retried(FakeSession):
+    """A session each try at opening goes by a name of its own, as a real CLI's does.
+
+    The first try is named, spends and fails; the second is named anew and lands.
+    """
+
+    _try: str | None = None
+
+    @property
+    def id(self) -> str | None:
+        return self._try
+
+    async def turn(self, request: TurnRequest, sink: UsageSink) -> Any:
+        del request
+        self.turns += 1
+        self._try = f"try-{self.turns}"
+        sink.add(cost=0.5, output_tokens=5, duration=1.0)
+        if self.turns == 1:
+            raise SessionError("the first try fell over")
+        return "done"
+
+
+@flow(agents=Solo, envs=EnvCollection, params=Nothing, resumable=True)
+async def retries(
+    task: str, *, agents: Solo, envs: EnvCollection, params: Nothing, ctx: FlowContext
+) -> object:
+    coder = agents["coder"]
+    session = await coder.spawn()
+    with contextlib.suppress(SessionError):
+        await coder.run("first", session=session)
+    return await coder.run("second", session=session)
+
+
+async def test_a_session_is_journaled_by_each_name_it_goes_by(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fakes, "FakeSession", _Retried)
+    journal = tmp_path / "run.jsonl"
+    driver = FakeAgentDriver(names_late=True)
+
+    assert await run_fake(retries, agents={"coder": driver}, journal=journal) == "done"
+
+    # The try that failed by the name it spent under, and the one that landed by its own.
+    said = [json.loads(one) for one in journal.read_text().splitlines()]
+    assert [one["session"] for one in said if one["t"] == "session"] == [
+        "try-1",
+        "try-2",
+    ]
 
 
 async def test_a_resumable_flow_without_a_journal_keeps_state_in_memory() -> None:
