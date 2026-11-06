@@ -185,6 +185,19 @@ def test_a_session_is_one_process_started_as_print_over_stream_json(
     assert session.id == _flag(argv, "--session-id")
 
 
+def test_a_turn_never_lets_claude_fall_back_to_another_model(
+    spawner: Spawner,
+    claude: _Claude,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("CLAUDE_CODE_NO_MODEL_FALLBACK", "0")
+
+    _agent().new(tmp_path)("hi")
+
+    assert spawner.last.environ["CLAUDE_CODE_NO_MODEL_FALLBACK"] == "1"
+
+
 @pytest.mark.parametrize(
     ("permission", "mode"),
     [
