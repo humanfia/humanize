@@ -1422,7 +1422,9 @@ rule of its own place. Each stand-in is retried as its own place's rule says. Th
 in a new session at the other place, by an agent configured as this one (effort, rung, skills);
 settings that were measurements of the old model (`of_model` fields, e.g. Codex `overrides`) are
 dropped when the model changes. An account names no fallback of its own: another account of the
-same CLI is a place on the chain.
+same CLI is a place on the chain. A turn taken at another place is interrupted and cut there:
+`interrupt` reaches the stand-in's turn, and `cut` also puts the stand-in's transport down. A cut
+turn that lands goes on in the stand-in's conversation, as far as it got.
 
 <small>Defined in [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py), [`src/hmz/coganchor/standin.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/standin.py).</small>
 

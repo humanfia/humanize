@@ -8,12 +8,15 @@ file `fails` beside it says before it answers, and a `claude` that is either abs
 
 from __future__ import annotations
 
+import json
+import threading
 from typing import TYPE_CHECKING
 
 import pytest
 
 from hmz.coganchor import fallbacks
 from hmz.coganchor.agents import (
+    AgentBase,
     Budget,
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
@@ -21,9 +24,16 @@ from hmz.coganchor.agents import (
     Failed,
     OpencodeAgent,
     OpencodeAgentConfig,
+    SessionBase,
     Unrecoverable,
 )
-from tests.integration.doubles_agents import Standins, kinds, serving, standins
+from tests.integration.doubles_agents import (
+    CODEX,
+    Standins,
+    kinds,
+    serving,
+    standins,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -47,6 +57,8 @@ if said == "hang":
 session = flags.get("--session", "ses_stand_in")
 out({"type": "text", "sessionID": session, "part": {"id": "p1", "type": "text",
                                                     "text": "from opencode: " + said}})
+if said == "busy":
+    time.sleep(600)
 out({"type": "step_finish", "sessionID": session,
      "part": {"id": "p2", "type": "step-finish", "reason": "stop",
               "tokens": {"total": 3, "input": 2, "output": 1, "reasoning": 0,
@@ -117,9 +129,9 @@ def test_a_place_with_no_chain_fails_as_a_turn_always_has(places: Standins) -> N
 def test_a_place_fallen_back_to_that_the_watchdog_gives_up_on_fails_the_turn(
     places: Standins, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # The turn is taken in a session of the place fallen back to, outside that session's own
-    # count of turns: the watchdog over it gives up on an endpoint gone silent as it would
-    # on its own, and the turn fails, rather than answering with what a cut-off leaves,
+    # The turn is taken in a session of the place fallen back to, as a turn of that session's
+    # own: the watchdog over it gives up on an endpoint gone silent as it would on its own,
+    # and the turn fails, rather than answering with what a cut-off leaves,
     # which is nothing.
     places.install("claude", CLAUDE_CRASHING)
     fallbacks.points("claude/claude-stand-in", ["litellm/openai/stand-in"])
@@ -130,6 +142,85 @@ def test_a_place_fallen_back_to_that_the_watchdog_gives_up_on_fails_the_turn(
         monkeypatch.setenv("OPENAI_API_KEY", "sk-stand-in")
         with pytest.raises(Failed, match="the watchdog stopped this turn"):
             ClaudeCodeAgent(CLAUDE).new()("hang")
+
+
+def _cut_after_first_words(session: SessionBase, prompt: str) -> list[str]:
+    """Takes a turn on a thread, cuts it off once the agent has said anything, and waits."""
+    speaking = threading.Event()
+    said: list[str] = []
+
+    def taking() -> None:
+        for event in session.stream(prompt):
+            if event.kind == "text":
+                speaking.set()
+            elif event.kind == "result":
+                said.append(event.text)
+
+    turn = threading.Thread(target=taking, daemon=True)
+    turn.start()
+    assert speaking.wait(15)
+    session.cut(why="the flow cut the conversation off")
+    turn.join(15)
+    assert not turn.is_alive()
+    return said
+
+
+def test_a_cut_ends_the_turn_where_it_was_moved_on_what_it_had_said(
+    places: Standins,
+) -> None:
+    # Claude is not installed, so the turn is taken by Codex, on an app server that hears an
+    # interrupt only at its next answer -- and the turn sends none after its first words.
+    places.install("codex", CODEX)
+    fallbacks.points("claude/claude-stand-in", ["codex/gpt-stand-in"])
+    agent = ClaudeCodeAgent(CLAUDE)
+    session = agent.new()
+    try:
+        assert _cut_after_first_words(session, "long") == ["busy"]
+        # And the thread the cut turn was taking is the one the next turn goes on in.
+        assert session("again") == "again"
+        assert [
+            json.loads(said.removeprefix("thread/resume "))["threadId"]
+            for said in places.said("codex")
+            if said.startswith("thread/resume ")
+        ] == ["t-1"]
+    finally:
+        agent.stop()
+
+
+def test_a_turn_failed_where_it_was_moved_leaves_no_conversation_open_there(
+    places: Standins,
+) -> None:
+    # The budget is the turn's own, and failing it fails the turn wherever the turn went: the
+    # conversation opencode named is not one the next turn goes on in.
+    fallbacks.points("claude/claude-stand-in", ["opencode/opencode/stand-in"])
+    session = ClaudeCodeAgent(CLAUDE).new()
+    session.budget = Budget(seconds=3, when="immediately", then="fail")
+
+    with pytest.raises(Unrecoverable):
+        session("busy")
+    session.budget = None
+
+    assert session("again") == "from opencode: again"
+    assert places.calls("opencode")[-1].flag("--session") is None
+
+
+def test_a_cut_as_the_turn_moves_ends_it_before_the_next_place_is_asked(
+    places: Standins,
+) -> None:
+    fallbacks.points("claude/claude-stand-in", ["opencode/opencode/stand-in"])
+    agent = ClaudeCodeAgent(CLAUDE)
+    session = agent.new()
+
+    def cutting(_agent: AgentBase, whose: SessionBase | None, event: Event) -> None:
+        if whose is session and "carrying on as" in event.text:
+            session.cut(why="the flow cut the conversation off")
+
+    agent.watch(cutting)
+    try:
+        assert session("hello") == ""
+        assert places.said("opencode") == []
+    finally:
+        agent.stop()
 
 
 def test_a_place_told_to_try_again_does_so_before_falling_back(
