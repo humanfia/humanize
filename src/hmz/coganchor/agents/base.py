@@ -3752,12 +3752,16 @@ def _ready(fence: Fence) -> None:
     A grant of a path that is not there yet is no grant at all -- Landlock can hold only what
     exists -- so the directories a CLI keeps its state in, and the one its sessions are kept
     in, are made before it is spawned into a fence that would stop it making them itself on
-    its first run.
+    its first run. Made as the fence reaches them where it is put up, through no link a fenced
+    program could have made; one that leads through such a link is left for the fence to
+    refuse.
     """
     for path in fence.write:
         if not os.path.lexists(path) and _directory(path):
-            with contextlib.suppress(OSError):
-                os.makedirs(path, mode=0o700, exist_ok=True)  # noqa: PTH103
+            with contextlib.suppress(OSError, ValueError):
+                held, _ = fence.reach(path, make=True)
+                if held is not None:
+                    os.close(held)
 
 
 def _directory(path: str) -> bool:

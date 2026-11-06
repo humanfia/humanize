@@ -17,7 +17,6 @@ flow allows.
 
 from __future__ import annotations
 
-import contextlib
 import dataclasses
 import errno
 import os
@@ -28,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from hmz.coganchor.fence import Fence
     from hmz.coganchor.serve.exports import ExportTable
 
 __all__ = ["able", "fenced"]
@@ -99,12 +99,12 @@ def fenced(
     )
     if said.get("write"):
         abroad.ready(held, home)
-    if held.tmp and not _scratch(held.tmp):
+    if held.tmp and not _scratch(held):
         held = dataclasses.replace(held, tmp="")
     return [*fence.wrapper(held), run, *argv[1:]]
 
 
-def _scratch(path: str) -> bool:
+def _scratch(fence: Fence) -> bool:
     """Makes the scratch a supervised agent names in its commands, at the path it names.
 
     The agent was given it as its temporary directory on the machine it runs on, and writes
@@ -113,23 +113,26 @@ def _scratch(path: str) -> bool:
     cannot be written ends with a status of 1 whatever it did. So it is made here too, at
     the same path, for every command of the agent to share -- and left, as a CLI run with no
     fence leaves what it writes under `/tmp`. Made once and never taken over: a path that is
-    there already is used only where it is a directory of this user's own, and not through a
-    link.
+    there already is used only where it is a directory of this user's own, and reached
+    through no link a fenced command could have made (:meth:`Fence.reach`).
 
     Args:
-      path: The path, as the agent's machine names it.
+      fence: The fence the command runs in, whose `tmp` is the path as the agent's machine
+        names it.
 
     Returns:
       Whether it is there to be used. Where it is not, the command is given a scratch of its
       own for the one run, as a command was before its agent's was known here.
     """
-    with contextlib.suppress(OSError):
-        os.makedirs(path, mode=0o700)
     try:
-        held = os.lstat(path)
-    except OSError:
+        # Nothing made at the far end of a link that is there already.
+        held, _ = fence.reach(fence.tmp, make=not os.path.lexists(fence.tmp))
+        if held is not None:
+            os.close(held)
+        seen = os.lstat(fence.tmp)
+    except (OSError, ValueError):
         return False
-    return stat.S_ISDIR(held.st_mode) and held.st_uid == os.geteuid()
+    return stat.S_ISDIR(seen.st_mode) and seen.st_uid == os.geteuid()
 
 
 def _named(argv: list[str]) -> str:

@@ -31,12 +31,6 @@ def test_the_handshake_says_what_can_be_fenced(
 
 
 @dataclass
-class Drawn:
-    tmp: str = ""
-    said: dict[str, Any] = field(default_factory=dict[str, Any])
-
-
-@dataclass
 class Fake:
     """The fence and its drawing abroad, recording what they were asked."""
 
@@ -47,6 +41,8 @@ class Fake:
     )
     readied: list[str] = field(default_factory=list[str])
     tmp: str = ""
+    write: tuple[str, ...] = ()
+    wrapped: list[fence.Fence] = field(default_factory=list[fence.Fence])
 
 
 @pytest.fixture
@@ -59,11 +55,11 @@ def fake(monkeypatch: pytest.MonkeyPatch) -> Fake:
         workdirs: Sequence[str],
         home: str,
         read: Sequence[str],
-    ) -> Drawn:
+    ) -> fence.Fence:
         held.drawn.append(
             {"workdirs": list(workdirs), "home": home, "read": list(read)}
         )
-        return Drawn(tmp=held.tmp, said=dict(said))
+        return fence.Fence(write=held.write, tmp=held.tmp)
 
     def installed(program: str, path: str | None = None) -> list[str]:
         held.looked_up.append((program, path))
@@ -72,7 +68,8 @@ def fake(monkeypatch: pytest.MonkeyPatch) -> Fake:
     def enforceable(*, net: bool) -> bool:
         return held.able
 
-    def wrapper(fenced: object) -> list[str]:
+    def wrapper(fenced: fence.Fence) -> list[str]:
+        held.wrapped.append(fenced)
         return ["hmz", "internal", "fence", "--"]
 
     def ready(fenced: object, home: str) -> None:
@@ -146,3 +143,18 @@ def test_a_scratch_directory_is_made_where_it_is_named(
     fake.tmp = str(tmp_path / "scratch")
     fencing.fenced({}, table, ["ls"], None, {})
     assert (tmp_path / "scratch").is_dir()
+
+
+def test_a_scratch_reached_through_a_link_a_command_could_have_made_is_not_used(
+    fake: Fake, table: ExportTable, tmp_path: Path
+) -> None:
+    written, elsewhere = tmp_path / "written", tmp_path / "elsewhere"
+    written.mkdir()
+    elsewhere.mkdir()
+    (written / "scratch").symlink_to(elsewhere)
+    fake.write, fake.tmp = (str(written),), str(written / "scratch")
+
+    fencing.fenced({}, table, ["ls"], None, {})
+
+    assert fake.wrapped[0].tmp == ""
+    assert list(elsewhere.iterdir()) == []

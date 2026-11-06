@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import os
+import stat
 import sys
 import types
 from pathlib import Path
@@ -458,3 +460,103 @@ def test_enforceable_elsewhere_is_landlock(
     monkeypatch.setattr(fencing, "landlocked", landlocked)
 
     assert enforceable(net=net) is net
+
+
+@pytest.fixture
+def reachable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A directory no temporary directory holds, as a home would be."""
+    monkeypatch.setattr(fencing, "TEMPORARY", ())
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "elsewhere"))
+    return tmp_path.resolve()
+
+
+def _closed(reached: tuple[int | None, str]) -> str:
+    fd, at = reached
+    if fd is not None:
+        os.close(fd)
+    return at
+
+
+def test_reach_refuses_a_link_where_a_fenced_program_could_have_made_it(
+    reachable: Path,
+) -> None:
+    state, home = reachable / "state", reachable / "home"
+    state.mkdir()
+    home.mkdir()
+    (state / "scratch").symlink_to(home)
+    fence = dataclasses.replace(Fence(write=(str(state),)), tmp=str(state / "scratch"))
+
+    with pytest.raises(ValueError, match="it is a link where a fenced program could"):
+        fence.reach(str(state / "scratch"), make=True)
+    with pytest.raises(ValueError, match="a link where a fenced program could"):
+        fence.ready()
+
+
+def test_reach_refuses_a_link_on_the_way_in_a_written_directory(
+    reachable: Path,
+) -> None:
+    work, home = reachable / "work", reachable / "home"
+    work.mkdir()
+    home.mkdir()
+    (work / "state").symlink_to(home)
+    fence = Fence(write=(str(work), str(work / "state" / "own")))
+
+    with pytest.raises(ValueError, match=r"it leads through .*/work/state, a link"):
+        fence.reach(str(work / "state" / "own"), make=True)
+    assert not (home / "own").exists()
+
+
+def test_reach_follows_a_link_in_a_directory_no_fence_writes(reachable: Path) -> None:
+    home, kept = reachable / "home", reachable / "kept"
+    home.mkdir()
+    kept.mkdir()
+    (home / ".claude").symlink_to(kept)
+
+    at = _closed(Fence(write=(str(home / ".claude"),)).reach(str(home / ".claude")))
+
+    assert at == str(kept)
+
+
+def test_reach_follows_every_link_for_a_fence_that_writes_everything(
+    reachable: Path,
+) -> None:
+    (reachable / "kept").mkdir()
+    (reachable / "link").symlink_to(reachable / "kept")
+
+    at = _closed(Fence(write=(os.sep, str(reachable))).reach(str(reachable / "link")))
+
+    assert at == str(reachable / "kept")
+
+
+def test_reach_makes_what_is_missing_as_the_users_own(reachable: Path) -> None:
+    made = reachable / "a" / "b"
+
+    at = _closed(Fence().reach(str(made), make=True))
+
+    assert at == str(made)
+    assert made.is_dir()
+    assert stat.S_IMODE(made.stat().st_mode) == 0o700
+
+
+def test_ready_grants_nothing_past_what_is_not_there(reachable: Path) -> None:
+    there, file = reachable / "there", reachable / "file"
+    there.mkdir()
+    file.write_text("")
+    fence = Fence(
+        write=(
+            str(there),
+            str(there / "new.json"),
+            str(file / "under"),
+            str(reachable / "x" / "y"),
+        )
+    )
+
+    reached = fence.ready()
+    for fd in reached.values():
+        if fd is not None:
+            os.close(fd)
+
+    # Seatbelt grants a name to be made, where Landlock grants only what is there.
+    named = () if hasattr(os, "O_PATH") else (str(reachable / "x" / "y"),)
+    assert set(reached) == {str(there), str(there / "new.json"), *named}
+    assert reached[str(there / "new.json")] is None

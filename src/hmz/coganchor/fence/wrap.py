@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import dataclasses
 import errno
 import importlib
 import os
@@ -133,7 +134,9 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
       not be put up and the program never ran.
 
     Raises:
-      ValueError: If there is no program to run.
+      ValueError: If there is no program to run, or a path the fence writes, or its
+        scratch, leads through a link a fenced program could have made (:meth:`Fence.reach`).
+      OSError: If the scratch cannot be made or reached.
       RuntimeError: If this host cannot enforce the fence, said before anything is started.
     """
     from hmz.coganchor.fence import enforceable
@@ -157,10 +160,13 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
     libc = ctypes.CDLL(None, use_errno=True)
     made = not fence.tmp
     tmp = fence.tmp or tempfile.mkdtemp(prefix="hmz-fence-")
-    Path(tmp).mkdir(mode=0o700, parents=True, exist_ok=True)
     proxy = None if fence.online else Proxy(fence.hosts)
     supervisor: Supervisor | None = None
+    held: dict[str, int | None] = {}
     try:
+        # Made and opened here, where it is put up, and handed down open: what the child
+        # grants is what was checked, never a link put at one of its names since.
+        held = dataclasses.replace(fence, tmp=tmp).ready()
         if proxy is not None:
             proxy.start()
             if libc.prctl(_PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0:
@@ -172,7 +178,7 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
         ours, theirs = socket.socketpair() if proxy is not None else (None, None)
         pid = os.fork()
         if not pid:
-            _become(fence, argv, env, tmp, (port, theirs), (parent, libc))
+            _become(fence, held, argv, env, (port, theirs), (parent, libc))
         if ours is not None and theirs is not None:
             theirs.close()
             with ours:
@@ -186,6 +192,9 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
                 supervisor.start()
         return _status(_waited(pid))
     finally:
+        for fd in held.values():
+            if fd is not None:
+                os.close(fd)
         if supervisor is not None:
             supervisor.stop()
         if proxy is not None:
@@ -205,9 +214,11 @@ def _seatbelted(fence: Fence, argv: Sequence[str]) -> int:
 
     made = not fence.tmp
     tmp = fence.tmp or tempfile.mkdtemp(prefix="hmz-fence-")
-    Path(tmp).mkdir(mode=0o700, parents=True, exist_ok=True)
     proxy = None if fence.online else Proxy(fence.hosts)
     try:
+        # Granted as the paths they were reached at, every link on the way followed where
+        # it may be: a link put at one of them since leads nowhere granted.
+        reached = tuple(dataclasses.replace(fence, tmp=tmp).ready())
         if proxy is not None:
             proxy.start()
         port = proxy.port if proxy is not None else None
@@ -218,7 +229,7 @@ def _seatbelted(fence: Fence, argv: Sequence[str]) -> int:
                 # program only reads the keychains. Denied, TLS reports a bad certificate.
                 security = (str(Path(cache, "mds")),)
         profile = seatbelt.Profile(
-            read=fence.read, write=(*fence.write, tmp, *security), port=port
+            read=fence.read, write=(*reached, *security), port=port
         )
         pid = os.posix_spawn(
             seatbelt.SANDBOX_EXEC,
@@ -242,9 +253,9 @@ def _status(status: int) -> int:
 
 def _become(
     fence: Fence,
+    held: Mapping[str, int | None],
     argv: Sequence[str],
     env: dict[str, str],
-    tmp: str,
     offline: tuple[int | None, socket.socket | None],
     orphaned: tuple[int, ctypes.CDLL],
 ) -> None:
@@ -286,7 +297,7 @@ def _become(
             handoff.close()
         landlock.Ruleset(
             read=fence.read,
-            write=(*fence.write, tmp),
+            held=[fd for fd in held.values() if fd is not None],
             connect_ports=() if port is None else (port,),
             # A port the kernel picks is a listener only, which reaches nothing: a CLI that
             # serves itself on loopback (agy's language server) cannot start without one. A
