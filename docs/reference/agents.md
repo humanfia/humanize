@@ -791,7 +791,14 @@ no defaults), as Codex requires. An answer that does not validate raises `ValueE
 ### Events {#watching-a-turn-as-it-happens}
 
 `session.stream(prompt, *, schema=None)` yields `Event(kind, text, whose="", tokens={},
-spent=Usage())`.
+spent=Usage())`. Closing it before its `result` ends the turn there: `close()` does, and so does
+the last reference to it going, as on a `break` out of `for event in session.stream(...)`. A
+caller that keeps the iterator calls `close()` itself. On a backend that runs a command per
+turn, the close ends the command and every process it has started, where it is still running,
+as a cut-off does, then waits at most `DRAIN_SECONDS` (5 s, in `hmz.coganchor.agents.base`) for
+the turn's output to be let go of: a process that left the command's tree, or one started by a
+command that had already exited, is not ended. What such a process says after the close is
+drained but not heard: it reaches neither the closed turn nor the session's next one.
 
 | `kind` | Meaning |
 | --- | --- |

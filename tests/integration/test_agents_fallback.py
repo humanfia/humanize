@@ -23,7 +23,7 @@ from hmz.coganchor.agents import (
     OpencodeAgentConfig,
     Unrecoverable,
 )
-from tests.integration.doubles_agents import Standins, kinds, standins
+from tests.integration.doubles_agents import Standins, kinds, serving, standins
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -109,6 +109,27 @@ def test_a_place_with_no_chain_fails_as_a_turn_always_has(places: Standins) -> N
 
     assert failed.value.returncode == 3
     assert places.calls("opencode") == []
+
+
+# Short of the 600s the endpoint would hold the turn without the watchdog, and long enough
+# for litellm's first import on a cold runner.
+@pytest.mark.timeout(60)
+def test_a_place_fallen_back_to_that_the_watchdog_gives_up_on_fails_the_turn(
+    places: Standins, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The turn is taken in a session of the place fallen back to, outside that session's own
+    # count of turns: the watchdog over it gives up on an endpoint gone silent as it would
+    # on its own, and the turn fails, rather than answering with what a cut-off leaves,
+    # which is nothing.
+    places.install("claude", CLAUDE_CRASHING)
+    fallbacks.points("claude/claude-stand-in", ["litellm/openai/stand-in"])
+    monkeypatch.setenv("HUMANIZE_WATCHDOG", "1")
+    for endpoint in serving():
+        monkeypatch.setenv("OPENAI_BASE_URL", endpoint.url)
+        monkeypatch.setenv("OPENAI_API_BASE", endpoint.url)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-stand-in")
+        with pytest.raises(Failed, match="the watchdog stopped this turn"):
+            ClaudeCodeAgent(CLAUDE).new()("hang")
 
 
 def test_a_place_told_to_try_again_does_so_before_falling_back(
