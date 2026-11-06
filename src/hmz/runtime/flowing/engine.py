@@ -404,12 +404,15 @@ class FlowImpl:
             env_views[name] = _env(role, given, node, self)
         if self._skilled:
             await self._bring(run)
+            # The run may have ended while they were brought, and its journal with it.
+            parent.check()
         if run.journal is not None:
             self._journaled(node, parent, task, views, env_views, params)
         elif self.resumable:
             node.state = FlowStateImpl({}, None, 0, Conversations(node, views))
         if run.recorder is not None:
             run.recorder.entered(node.record())
+        run.joined()
         live = run.live
         live[node] = None
         parent.live += 1
@@ -1005,6 +1008,9 @@ class Call:
     def check(self) -> None:
         """Refuses anything more of a call whose caller -- or run -- is over.
 
+        What it lets go on goes on in a task the run counts among the flow's
+        (:meth:`Run.joined`).
+
         Raises:
           FlowCancelled: If it is.
         """
@@ -1016,6 +1022,7 @@ class Call:
                     "has ended"
                 )
             node = node.parent
+        self.run.joined()
 
     def limits(self, budget: Budget | None) -> tuple[Limits, float | None]:
         """What a turn of this call may spend now, every budget over it taken together.
@@ -1398,6 +1405,7 @@ class Run:
         "recorder",
         "skills",
         "specs",
+        "tasks",
         "thread",
     )
 
@@ -1444,6 +1452,22 @@ class Run:
         #: Where sessions kept in a flow's state are copied beside their CLI's, and
         #: whether it is a temporary directory of the run's own, once one has been.
         self.conversing: tuple[Path, bool] | None = None
+        #: Every task still going that has run a call of the flow, or a turn or an operation
+        #: of one of its agents or environments: the flow's, which the run ends before it
+        #: lets go of its journal.
+        self.tasks: set[asyncio.Task[Any]] = set()
+
+    def joined(self) -> None:
+        """Counts the task running now among the flow's, until it ends.
+
+        Asked by every call as it starts and every operation of an agent or an environment
+        (:meth:`Call.check`): a task the flow started -- a `gather`'s, or one it never waited
+        for -- is one of the flow's from the first thing it does in the run.
+        """
+        task = asyncio.current_task()
+        if task is not None and task not in self.tasks:
+            self.tasks.add(task)
+            task.add_done_callback(self.tasks.discard)
 
     def sessions(self) -> Path:
         """Where a session a flow's state keeps is copied, beside the sessions of its CLI.
@@ -1565,10 +1589,15 @@ class Run:
             )
 
     async def close(self) -> None:
-        """Lets go of everything the run made, however it ended."""
+        """Lets go of everything the run made, however it ended.
+
+        The flow's own tasks first (:meth:`_settled`): nothing of the flow runs once the
+        journal is closed, and nothing it writes before then goes unjournaled.
+        """
         from .loading import unpin
 
         try:
+            await self._settled()
             self.drain()
             if self.reapers:
                 await asyncio.wait(set(self.reapers), timeout=REAP)
@@ -1601,11 +1630,39 @@ class Run:
                     log.exception("closing an environment the run opened failed")
         finally:
             if self.journal is not None:
+                # Kept no more: a call still going past it writes nothing of its own down, and
+                # its flow writing its state is refused (:meth:`Journal.close`).
                 self.journal.close()
+                self.journal = None
             if self.conversing is not None and self.conversing[1]:
                 shutil.rmtree(self.conversing[0], ignore_errors=True)
             unpin(self)
             _RUNS.discard(self)
+
+    async def _settled(self) -> None:
+        """Ends every task of the flow still going, and waits for each to end.
+
+        One the flow started and never waited for, and one a `gather` stopped waiting for as
+        it unwound: each is cancelled -- but for one being cancelled already, whose way out
+        is not to be cut short -- and waited for, up to `REAP`. So what one writes into the
+        flow's state on its way out is journaled, and a turn under way in one is interrupted
+        and answers nothing: no answer reaches flow code that the journal never hears of.
+        """
+        me = asyncio.current_task()
+        going = [one for one in self.tasks if one is not me and not one.done()]
+        if not going:
+            return
+        for one in going:
+            if not one.cancelling():
+                one.cancel()
+        _, late = await asyncio.wait(going, timeout=REAP)
+        if late:
+            log.warning(
+                "%d task(s) of the flow had not ended %ss after it did; left to go on, with "
+                "nothing more journaled",
+                len(late),
+                REAP,
+            )
 
 
 # ------------------------------------------------------------------- the entry points
