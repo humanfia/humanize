@@ -75,7 +75,7 @@ def _run(script: str, *argv: str) -> None:
     assert done.returncode == 0, done.stderr
 
 
-@pytest.mark.skipif(abi() < 6, reason="needs Landlock scopes (ABI 6)")  # noqa: PLR2004
+@pytest.mark.skipif(abi() < 6, reason="needs Landlock scopes (ABI 6)")
 def test_a_ruleset_keeps_signals_and_abstract_sockets_inside_it() -> None:
     """The same operations succeed inside the scope and fail across its boundary."""
     name = f"hmz-scope-{uuid.uuid4().hex}"
