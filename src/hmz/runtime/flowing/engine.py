@@ -1037,9 +1037,6 @@ class Call:
           FlowCancelled: If the call's caller, or the run, is over.
           BudgetExceeded: The leaf for a budget over it that is spent.
         """
-        # Asked before every turn, of a session new or old, an agent's or an outworlder's: the
-        # task taking it is the flow's from here on (`Run.joined`).
-        self.run.joined()
         # Each limit is the least any budget over the turn leaves, and is hard -- stops the
         # turn mid-turn when reached -- where the budget that leaves it is not graceful for
         # it, each limit on its own: a hard limit stays hard under a graceful one, and the
@@ -1078,6 +1075,9 @@ class Call:
                     if hard and ends < cut:
                         cut = ends
             node = node.parent
+        # A turn of a session new or old, an agent's or an outworlder's: the task taking it is
+        # the flow's from here on (`Run.joined`).
+        self.run.joined()
         now = time.monotonic()
         deadline = self.deadline
         if now >= deadline:
@@ -1463,7 +1463,7 @@ class Run:
         self.tasks: set[asyncio.Task[Any]] = set()
         #: Every turn under way, by the session taking it: what the run interrupts as it ends,
         #: whatever has become of the task waiting on it.
-        self.turns: set[SessionHandle] = set()
+        self.turns: dict[int, SessionHandle] = {}
 
     def joined(self) -> None:
         """Counts the task running now among the flow's, until it ends.
@@ -1665,20 +1665,31 @@ class Run:
         a session half closed.
         """
         me = asyncio.current_task()
-        engines = self.closing | self.reapers
-        going = [
-            one
-            for one in self.tasks
-            if one is not me and not one.done() and one not in engines
-        ]
-        if not going:
-            return
-        for one in going:
-            if not one.cancelling():
-                one.cancel()
-        for handle in list(self.turns):
-            handle.interrupt()
-        _, late = await asyncio.wait(going, timeout=REAP)
+        until = self.loop.time() + REAP
+        settled: set[asyncio.Task[Any]] = set()
+        # Again for any task that joined while the others ended, until none is left or the
+        # time is up: one that caught its cancel may have started another.
+        while True:
+            engines = self.closing | self.reapers
+            going = [
+                one
+                for one in self.tasks
+                if one is not me
+                and not one.done()
+                and one not in engines
+                and one not in settled
+            ]
+            left = until - self.loop.time()
+            if not going or left <= 0:
+                break
+            settled.update(going)
+            for one in going:
+                if not one.cancelling():
+                    one.cancel()
+            for handle in list(self.turns.values()):
+                handle.interrupt()
+            await asyncio.wait(going, timeout=left)
+        late = [one for one in settled if not one.done()]
         if late:
             log.warning(
                 "%d task(s) of the flow had not ended %ss after it did; left to go on, with "

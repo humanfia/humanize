@@ -543,7 +543,7 @@ class AgentView:
         taken._turns += 1
         node.turning(1)
         turns = node.run.turns
-        turns.add(handle)
+        turns[id(handle)] = handle
         cut = None if hard is None else _Cut(node.run.loop, handle, hard)
         try:
             said = await handle.turn(
@@ -564,7 +564,7 @@ class AgentView:
                 raise cut.exceeded(self._role) from error
             raise
         finally:
-            turns.discard(handle)
+            turns.pop(id(handle), None)
             taken._busy = False
             node.turning(-1)
             if cut is not None:
@@ -1565,12 +1565,16 @@ class OutworlderView:
         driver = source.driver
         if driver is None or driver.away_for(self._asker):
             return away_answer(output_schema)
+        away = False
         try:
             said = await driver.run(prompt, output_schema, self._asker)
         except OutworlderAway:
-            return away_answer(output_schema)
+            said, away = None, True
+        # An answer -- being away included -- once the call or the run is over reaches nobody.
         if node is not None:
-            node.check()  # an answer once the call or the run is over reaches nobody
+            node.check()
+        if away:
+            return away_answer(output_schema)
         return _answered(said, output_schema, self._role or "outworlder")
 
     def on_outworlder_run(
