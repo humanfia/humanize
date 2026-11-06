@@ -1592,6 +1592,14 @@ fall `idle` first, which ends nothing.
 - The server reads `overrides`, `features`, `strict_config`, `web_search`, the account and the
   fence once at start; a change starts a new server for the next turn and each conversation is
   resumed there by id. Model, effort, rung and `approvals` are per call.
+- The agent owns every app server it starts until that server is down, including one still
+  being introduced to, one an account or callback change let go of while a turn runs on it,
+  and one retiring that is still writing its home back. Stopping the agent, a cut and the
+  watchdog putting the server down reach all of them and wait for each; a server whose start
+  finishes after the agent stopped is reaped and refused. A refused introduction reaps the
+  process before its home is dropped. A stop that cuts a message off partway still ends the
+  turns reading that server, and a cut or interrupt that lands before a turn has a server ends
+  that turn before anything of it is sent.
 - `-p/--profile` and `--add-dir` are not offered; `codex app-server` does not take them.
 - Each app server runs in a [virtual home](#virtual-homes) (`CODEX_HOME`), so the trust Codex
   writes into `config.toml` for each workspace it opens a writing thread in is dropped with it.
