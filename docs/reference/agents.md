@@ -1523,6 +1523,9 @@ claude --print --input-format stream-json --output-format stream-json --verbose
 
 - Every turn runs with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, so background subagents and
   commands finish inside the turn.
+- Every turn runs with `CLAUDE_CODE_NO_MODEL_FALLBACK=1`, overriding an inherited value, so
+  the provider cannot silently answer a refused turn on another model; the refusal follows
+  the normal failure and retry policy for the requested model.
 - `--settings` carries `fastMode` (fast tier) and the `PreToolUse` hook table only when needed.
 - `--json-schema`, a hook table change, an effort change, a change of `asks`, or a change of
   offered tools restarts the process and resumes the conversation.
@@ -2023,6 +2026,7 @@ Set by drivers on a turn:
 | Variable | Backend | Value |
 | --- | --- | --- |
 | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` | `claude` | `1` |
+| `CLAUDE_CODE_NO_MODEL_FALLBACK` | `claude` | `1`, overriding an inherited value |
 | `NODE_OPTIONS`, `HMZ_PRELOAD_AT`, `HMZ_PRELOAD_IN` | `kimi`, `pi`, `qwen`, `mimo` | the runtime-report preload, only while a `PRE_TOOL_USE` hook is hung |
 | `NODE_COMPILE_CACHE` | `pi`, `qwen` | `$TMPDIR/humanize-<uid>/compiled/<cli>`, unless already set |
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`, `mimo` | the permission table |
