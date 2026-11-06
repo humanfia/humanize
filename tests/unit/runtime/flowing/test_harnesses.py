@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import dataclasses
 import time
 from dataclasses import dataclass, field
@@ -849,6 +850,21 @@ async def test_closing_the_driver_closes_its_sessions_and_opens_no_more(
     assert _cli(session).stopped == 1
     with pytest.raises(SessionError, match="closed"):
         await _session(driver, tmp_path)
+
+
+async def test_a_session_closed_as_its_loop_is_torn_down_still_stops_its_cli(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    session = await _session(open_agent(_spec()), tmp_path)
+    # The loop's threads already gone, as an interrupted run leaves them once its main task
+    # has ended: a close then reaches no thread to stop the CLI on.
+    gone = concurrent.futures.ThreadPoolExecutor()
+    gone.shutdown()
+    asyncio.get_running_loop().set_default_executor(gone)
+
+    await session.close()
+
+    assert _cli(session).stopped == 1
 
 
 # --------------------------------------------------------------------------------- a turn
