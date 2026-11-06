@@ -394,6 +394,17 @@ class ClaudeCodeSession(StreamSessionBase):
         #: `result` opens an answer of its own. Read off the order of those three, rather
         #: than off the `system init` an answer may or may not open with.
         self._answering = False
+        #: The uuid the turn's own prompt was sent under, whether Claude names what it takes
+        #: up at all (`command_lifecycle`), and whether the answer being read now is one of
+        #: ours (True), a turn Claude started by itself (False) or nobody's yet (None).
+        #: Claude starts turns of its own -- a wakeup, a task finishing, something it queued
+        #: -- and what one of those says and ends on is no prompt's answer.
+        self._ticket = ""
+        self._lifecycle = False
+        self._ours: bool | None = None
+        #: Whether the turn's prompt was taken into a turn Claude started by itself, whose
+        #: `result` is then the only answer it gets and is not its own.
+        self._merged = False
         #: Whether it has been said that Claude is running another model than it was told.
         self._substituted = False
         #: The agents this turn has started of its own, by the id of the call that started
@@ -699,7 +710,9 @@ class ClaudeCodeSession(StreamSessionBase):
         if ticket:
             said["uuid"] = ticket
         else:
-            # A turn's own prompt, which is an answer owed from here.
+            # A turn's own prompt, which is an answer owed from here: named too, so that its
+            # answer is told apart from that of a turn Claude starts by itself.
+            self._ticket = said["uuid"] = str(uuid.uuid4())
             self._answering = True
         return json.dumps(said) + "\n"
 
@@ -710,6 +723,7 @@ class ClaudeCodeSession(StreamSessionBase):
         self._fleet = {}
         self._reaching, self._announced = {}, set()
         self._answering = False
+        self._ticket, self._lifecycle, self._ours, self._merged = "", False, None, False
         self._at = self.effort
         self._offering = self._telling
         self._gated = self._gating
@@ -1075,11 +1089,35 @@ class ClaudeCodeSession(StreamSessionBase):
             said: dict[str, Any] = json.loads(line)
         except json.JSONDecodeError:
             return  # not ours: Claude prints the odd plain line among the JSON
+        if said.get("type") in ("stream_event", "assistant", "user") and (
+            self._ours is False or (self._lifecycle and self._ours is None)
+        ):
+            # A turn Claude started by itself: an answer of ours begins only once Claude says
+            # it has taken our prompt up. What it says is not ours to show; what it costs is
+            # still this session's, as it goes.
+            self._ours = False
+            if said.get("type") == "assistant":
+                self._live(said)
+            elif said.get("type") == "stream_event":
+                event: dict[str, Any] = said.get("event") or {}
+                if event.get("type") in ("message_start", "message_delta"):
+                    for _ in self._streaming(
+                        event, str(said.get("parent_tool_use_id") or "")
+                    ):
+                        pass  # those two say what a message cost, and nothing to show
+            return
         if said.get("type") == "stream_event":
             yield from self._streaming(
                 cast("dict[str, Any]", said.get("event") or {}),
                 str(said.get("parent_tool_use_id") or ""),
             )
+        elif (
+            said.get("type") == "system" and said.get("subtype") == "task_notification"
+        ):
+            # A task of an earlier turn has ended. Read into whatever turn is open, and
+            # otherwise the start of one of Claude's own.
+            if self._lifecycle and self._ours is None:
+                self._ours = False
         elif said.get("type") == "control_request":
             # Claude waits on the answer, so one left unanswered is a turn that never ends.
             self._answer(said)
@@ -1088,9 +1126,28 @@ class ClaudeCodeSession(StreamSessionBase):
             # with: `queued` the moment it has been read off stdin, `started` once it is in
             # front of the model, `completed` when its answer is done. Only `started` is the
             # agent having heard -- the other two are the pipe and the answer.
-            if said.get("state") == "started":
-                words = self.took(str(said.get("command_uuid") or ""))
-                if words is not None:
+            self._lifecycle = True
+            named = str(said.get("command_uuid") or "")
+            if said.get("state") == "started" and named and named == self._ticket:
+                if self._ours is False:
+                    # Taken into a turn Claude is running by itself, whose `result` then
+                    # answers it: an answer that is not the prompt's own.
+                    self._merged = True
+                else:
+                    self._ours = True
+            elif said.get("state") == "started":
+                words = self.took(named)
+                if words is None and named and self._ours is None:
+                    # Taken up under a name hmz never gave: a turn Claude queued for itself.
+                    self._ours = False
+                elif words is not None and self._ours is False:
+                    # A word put in, taken into a turn of Claude's own and answered there,
+                    # by a `result` that is no answer of ours: none is owed for it.
+                    with self._writing:
+                        self._owed -= 1
+                    yield Event(kind="took", text=words)
+                elif words is not None:
+                    self._ours = True
                     if self._answering:
                         # Taken into the answer under way, which the `result` ending it is
                         # the answer to as well: no answer of its own is coming.
@@ -1116,6 +1173,26 @@ class ClaudeCodeSession(StreamSessionBase):
             ):
                 yield Event(kind="notice", text=instead)
         elif said.get("type") == "result":
+            if self._lifecycle and not self._ours:
+                # The end of a turn Claude started by itself: what it cost is this session's,
+                # and what it said is nobody's answer.
+                self._settle(self._spent(said)[1])
+                self._ours, merged, self._merged = None, self._merged, False
+                if merged:
+                    # The prompt it took in is owed an answer that is not coming, and a turn
+                    # sent again is one Claude is not busy with.
+                    self._answering = False
+                    with self._writing:
+                        self._owed, self._folded = 0, 0
+                    raise Failed(
+                        1,
+                        ["claude"],
+                        "",
+                        "claude took the prompt into a turn of its own",
+                        fault="contended",
+                    )
+                return
+            self._ours = None
             self._answering = False
             if failure := _result_failure(said):
                 # Claude has emitted `subtype: success` with `is_error: true`, so neither

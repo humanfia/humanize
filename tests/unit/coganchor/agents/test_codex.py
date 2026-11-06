@@ -697,7 +697,11 @@ def test_an_approval_is_granted_at_a_named_rung_unless_a_hook_refuses(
             {
                 "id": 900,
                 "method": "item/commandExecution/requestApproval",
-                "params": {"threadId": thread, "command": "rm -rf build"},
+                "params": {
+                    "threadId": thread,
+                    "turnId": turn,
+                    "command": "rm -rf build",
+                },
             }
         )
         server.after[900] = lambda: _says(_message("done"))(proc, thread, turn)
@@ -725,6 +729,7 @@ def test_a_question_is_put_to_whoever_is_driving(
                 "method": "item/tool/requestUserInput",
                 "params": {
                     "threadId": thread,
+                    "turnId": turn,
                     "questions": [
                         {
                             "id": "q1",

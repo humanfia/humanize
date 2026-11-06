@@ -633,6 +633,13 @@ session(prompt)                     # opens the conversation, then resumes it
 - A session runs one turn at a time; concurrent callers of one session are serialised.
 - An agent holds its sessions weakly; dropping a session closes it.
 - `session.close()` ends whatever holds the conversation open.
+- `claude` and `codex` also run turns nobody asked for (a wakeup, a task finishing, a turn
+  queued by the CLI). A turn's answer, events and `tokens` are only its own: `claude` names each
+  prompt with a command uuid, `codex` takes the turn `turn/start` answers with. What a turn of
+  the CLI's own spends still counts against the session's meter and budget; what it says is
+  dropped. A `claude` prompt taken into such a turn fails as `contended` and is retried.
+  `codex` puts an approval or a question to hooks and `agent.ask` only for the turn under way on
+  its thread, or the goal being pursued there, and refuses the rest with an RPC error.
 
 ### Failures {#failures}
 
@@ -651,7 +658,7 @@ classified, `(<fault>: <fix>)`.
 
 | Fault | Meaning |
 | --- | --- |
-| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`, and Codex's `failed to initialize sqlite state runtime` from an app server that lost the race to create the state database a run's servers share), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`) |
+| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`, and Codex's `failed to initialize sqlite state runtime` from an app server that lost the race to create the state database a run's servers share), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`), or a `claude` prompt taken into a turn of the CLI's own |
 | `spent` | a quota or balance used up, said in so many words (`quota`, `insufficient balance`, `credit balance is too low`, `billing`); read ahead of `throttled`, since it comes as the same `429` |
 | `throttled` | too many requests (`429`, `529`, `rate limit`, `resource exhausted`, `overloaded`, `usage limit`, …) |
 | `refused` | the credential (`401`, `403`, `unauthorized`, `invalid api key`, `not logged in`, `token expired`, `token was revoked`, `forbidden`, …) |

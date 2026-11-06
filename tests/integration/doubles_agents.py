@@ -567,6 +567,8 @@ for line in sys.stdin:
         result = {"thread": {"id": "t-%d" % next(threads)}}
     elif method == "thread/resume":
         result = {"thread": {"id": params["threadId"]}}
+    elif method == "turn/start":
+        result = {"turn": {"id": "turn-1"}}
     send({"jsonrpc": "2.0", "id": call["id"], "result": result})
     if method in ("thread/start", "thread/fork"):
         notify("thread/status/changed", threadId=result["thread"]["id"],

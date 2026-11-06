@@ -347,6 +347,8 @@ for line in sys.stdin:
     if method == "thread/start":
         threads["t-1"] = params.get("model")
         result = {"thread": {"id": "t-1"}}
+    elif method == "turn/start":
+        result = {"turn": {"id": "turn-1"}}
     out({"jsonrpc": "2.0", "id": call["id"], "result": result})
     if method == "thread/start":
         out({"method": "thread/status/changed",
