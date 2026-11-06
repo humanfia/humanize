@@ -675,6 +675,10 @@ class SessionBase(ABC):
         #: is watching a stand-in, and a chain walked past it is a chain whoever is watching
         #: the flow has to be able to see.
         self._standing_for: SessionBase | None = None
+        #: The conversation the round of the turn now running moved to, or None for one taken
+        #: here: what the turn lands in, where it lands, is that conversation's
+        #: (:meth:`_landed`). Cleared as each round starts here (:meth:`_falling_back`).
+        self._took: SessionBase | None = None
         #: Where this conversation works, as it was given, or None for wherever the flow is.
         self._cwd = os.fspath(cwd) if cwd is not None else None
         self._id: str | None = None
@@ -1182,18 +1186,15 @@ class SessionBase(ABC):
     def _wedges(self, turn: int) -> None:
         """Marks a turn as one the watchdog stopped (:attr:`_wedged`), if it is still running.
 
-        And always for a session standing in for another (:meth:`_instead`): its turns are
-        taken outside :meth:`stream`, so none of them is ever running by that count, and a
-        stand-in the watchdog gave up on must still fail rather than answer with what a
-        cut-off leaves, which is nothing.
+        A session standing in for another takes its turns by the same count
+        (:meth:`_instead`), so a stand-in the watchdog gave up on fails rather than answering
+        with what a cut-off leaves, which is nothing.
 
         Args:
           turn: The turn the watchdog was watching (:attr:`_nth_turn`).
         """
         with self._turn_guard:
-            if self._standing_for is not None or (
-                self._working and turn == self._nth_turn
-            ):
+            if self._working and turn == self._nth_turn:
                 self._wedged = True
 
     def _budgeting(self) -> None:
@@ -1297,12 +1298,24 @@ class SessionBase(ABC):
         budget = self._capped
         if self._over and budget is not None and budget.then == "fail":
             raise Unrecoverable(1, [self._agent.backend], said, f"turn cut off: {why}")
-        if self._id is None and (named := self.named) is not None:
-            # A turn cut off short is a turn that landed: what the agent did is on disk and
-            # the conversation is open to the next turn, which is the whole difference
-            # between a cap and a kill. So the session is opened by it wherever the backend
-            # had already said what to call it -- or the round after a short round would
-            # start a conversation from nothing and lose the work the short one did.
+        self._landed()
+
+    def _landed(self) -> None:
+        """Opens the conversation a turn cut off short was taking, where it had been named.
+
+        A turn cut off short is a turn that landed: what the agent did is on disk and the
+        conversation is open to the next turn, which is the whole difference between a cap
+        and a kill. So the session is opened by it wherever the backend had already said what
+        to call it -- or the round after a short round would start a conversation from nothing
+        and lose the work the short one did.
+
+        The session that took the turn: this one, or, for a round that moved, the one it moved
+        to (:attr:`_took`), along however many moves it made. Asked only by :meth:`_short` of
+        the session the flow is talking to, which alone says whether the turn landed or failed.
+        """
+        if self._took is not None:
+            self._took._landed()
+        elif self._id is None and (named := self.named) is not None:
             self._adopt(named)
 
     @property
@@ -1498,23 +1511,35 @@ class SessionBase(ABC):
         # backend is spoken to: the moments a turn fires and the events it says are the turn
         # as much as the process is, and two threads calling one session are two turns one
         # after the other. A conversation is a sequence, however many are driving it.
-        with self._lock:
-            # Cleared before the turn is open to being cut off rather than as it opens: the
-            # moments a turn fires before the backend is spoken to can each take seconds, and
-            # a reason set in that window and cleared afterwards is a cut-off that quietly
-            # never happened.
+        with self._lock, self._taking():
+            yield from self._turning(prompt, schema=schema)
+
+    @contextlib.contextmanager
+    def _taking(self) -> Generator[None]:
+        """This session's turn, open to being cut off for as long as it is being taken.
+
+        Opened by :meth:`stream` for a turn of its own, and by :meth:`_instead` for one it
+        takes standing in for another session: a turn there is cut off and interrupted there.
+
+        Cleared before the turn is open to being cut off rather than as it opens: the moments a
+        turn fires before the backend is spoken to can each take seconds, and a reason set in
+        that window and cleared afterwards is a cut-off that quietly never happened.
+
+        Yields:
+          Nothing, for as long as the turn is being taken.
+        """
+        with self._turn_guard:
+            self._nth_turn += 1
+            self._over = self._cut = ""
+            self._waking.clear()
+            self._wedged = False
+            self._sofar = []
+            self._working = True
+        try:
+            yield
+        finally:
             with self._turn_guard:
-                self._nth_turn += 1
-                self._over = self._cut = ""
-                self._waking.clear()
-                self._wedged = False
-                self._sofar = []
-                self._working = True
-            try:
-                yield from self._turning(prompt, schema=schema)
-            finally:
-                with self._turn_guard:
-                    self._working = False
+                self._working = False
 
     def _turning(
         self, prompt: str, *, schema: type[BaseModel] | None = None
@@ -1728,6 +1753,10 @@ class SessionBase(ABC):
         """
         from hmz.coganchor import fallbacks
 
+        # Taken here until it moves (:meth:`_instead`): each round of a turn -- a hook that
+        # refuses a stop sends the agent round again -- starts where the place is, and is what
+        # a cut of it lands in (:meth:`_landed`).
+        self._took = None
         # How this place is tried again, read once for the whole turn: it is a file. Read
         # against this place's own row even for a place standing in for another -- how often
         # a turn is tried again is a thing about the place -- while where it goes next is the
@@ -2136,7 +2165,15 @@ class SessionBase(ABC):
         session.offers(self._agent.toolbox.offered())
         # And its command lines, for the same reason.
         session.shelves(self._agent.shelf.shelved())
-        yield from session._falling_back(prompt, schema=schema)
+        # Taken as a turn of that session's own, so that what cuts this turn off -- forwarded
+        # there by :meth:`interrupt` and :meth:`cut` -- finds it being taken.
+        with session._lock, session._taking():
+            if self._cut:
+                # Cut off as it moved, before that session's turn was open to it: the cut is
+                # this turn's, and nothing of it goes there.
+                raise Failed(1, [stood_in.backend], "", f"turn cut off: {self._cut}")
+            self._took = session
+            yield from session._falling_back(prompt, schema=schema)
 
     def _shaped_ask(self, prompt: str, schema: type[BaseModel] | None) -> str:
         """The prompt as the backend is to be given it, shape and all.
@@ -2863,6 +2900,8 @@ class SessionBase(ABC):
         self.interrupt(why=why)
         if type(self).cuts_transport:
             self._lets_go()
+        if (moved := self._moved_to) is not None and moved._working:
+            moved.cut(why=why)
 
     def _at_the_boundary(self) -> None:
         """Refuses a fork whose conversation has moved on since it was asked for.
