@@ -784,8 +784,14 @@ sessions without running a turn.
 | `codex` | `outputSchema` on the turn |
 | every other | the schema is put in the prompt; the answer is validated after |
 
-`grok` and `mcode` close every object (`additionalProperties: false`, every property required,
-no defaults), as Codex requires. An answer that does not validate raises `ValueError`;
+`codex`, `grok` and `mcode` get the schema as Codex requires it: every model's object closed
+(`additionalProperties: false`, every property required), no defaults, and no keyword beside a
+`$ref`. A `dict[str, …]` field stays open. Where a field with a description has an enum or model
+type, that type's definition is written out at the field with the field's description; a field
+inside its own type's definition, where writing it out would never end, keeps a bare `$ref` and
+loses its description. Examples and other values in the schema are left as written. Each
+described field of model type carries a copy of its type, so nesting them multiplies the
+schema's size: keep answer models shallow. An answer that does not validate raises `ValueError`;
 `suppress=True` returns `None`.
 
 ### Events {#watching-a-turn-as-it-happens}

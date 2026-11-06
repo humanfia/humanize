@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, cast
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, Json
 
 from hmz.coganchor import AnchorConfig, gateway, providers
 from hmz.coganchor.agents import (
@@ -189,14 +190,95 @@ def test_strict_requires_every_property_and_closes_every_object() -> None:
     assert "required" not in held["properties"]["inner"]
 
 
-def test_strict_leaves_a_property_named_like_a_keyword_alone() -> None:
+def test_strict_leaves_names_and_data_that_look_like_keywords_alone() -> None:
+    def example() -> dict[str, Any]:
+        return {"$ref": "#/$defs/x", "default": "a", "properties": {}}
+
     schema = {
         "type": "object",
         "properties": {"default": {"type": "string", "default": "a"}},
+        "examples": [example()],
     }
     held = strict(schema)
     assert held["properties"] == {"default": {"type": "string"}}
     assert held["required"] == ["default"]
+    assert held["examples"] == [example()]
+
+
+class _Mood(StrEnum):
+    """The type's own words."""
+
+    CALM = "calm"
+
+
+class _Place(BaseModel):
+    path: str
+
+
+class _Node(BaseModel):
+    kids: list[Annotated[_Node, Field(description="a kid")]]
+
+
+class _Described(BaseModel):
+    mood: _Mood = Field(description="the field's words")
+    place: _Place = Field(description="where")
+    tree: _Node = Field(description="a tree")
+    packed: Json[_Place]
+    more: list[_Described]
+
+
+def _crowded(node: object) -> list[dict[str, object]]:
+    """Every node of a schema with a keyword beside its `$ref`."""
+    if isinstance(node, list):
+        return [one for item in cast("list[object]", node) for one in _crowded(item)]
+    if not isinstance(node, dict):
+        return []
+    held = cast("dict[str, object]", node)
+    found = [held] if "$ref" in held and len(held) > 1 else []
+    return found + [one for value in held.values() for one in _crowded(value)]
+
+
+def test_strict_writes_a_described_reference_out_with_its_description() -> None:
+    held = strict(_Described.model_json_schema())
+    assert _crowded(held) == []
+    said = held["properties"]
+    assert said["mood"]["description"] == "the field's words"
+    assert said["mood"]["enum"] == ["calm"]
+    assert said["place"]["description"] == "where"
+    assert said["place"]["additionalProperties"] is False
+    assert said["tree"]["description"] == "a tree"
+    # Inside its own definition a reference cannot be written out: it loses its words.
+    assert held["$defs"]["_Node"]["properties"]["kids"]["items"] == {
+        "$ref": "#/$defs/_Node"
+    }
+
+
+def test_strict_ends_on_a_definition_nested_in_the_one_it_names() -> None:
+    leaf = {"$ref": "#/$defs/Leaf", "description": "the root leaf"}
+    schema = {
+        "type": "object",
+        "properties": {"top": {"$ref": "#/$defs/Tree", "description": "a tree"}},
+        "$defs": {
+            "Leaf": {"type": "object", "properties": {"v": {"type": "string"}}},
+            "Tree": {
+                "type": "object",
+                "properties": {"x": {"type": "string"}},
+                "$defs": {
+                    "Leaf": {"type": "object", "properties": {"leaf": leaf}},
+                    "Loop": {
+                        "type": "object",
+                        "properties": {
+                            "t": {"$ref": "#/$defs/Tree", "description": "up"}
+                        },
+                    },
+                },
+            },
+        },
+    }
+    held = strict(schema)
+    assert _crowded(held) == []
+    nested = held["$defs"]["Tree"]["$defs"]["Leaf"]["properties"]["leaf"]
+    assert nested["description"] == "the root leaf"
 
 
 @pytest.mark.parametrize(

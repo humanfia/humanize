@@ -465,7 +465,35 @@ def _kinds(stated: Mapping[str, Any]) -> dict[str, int]:
 
 
 #: The keywords of a JSON Schema whose value maps names to schemas, rather than being one.
-_NAMED_SCHEMAS = ("properties", "$defs", "definitions", "patternProperties")
+_NAMED_SCHEMAS = (
+    "properties",
+    "$defs",
+    "definitions",
+    "patternProperties",
+    "dependentSchemas",
+)
+#: The keywords of a JSON Schema whose value is a schema, or a list of them.
+_SCHEMA_VALUED = frozenset(
+    {
+        "items",
+        "prefixItems",
+        "contains",
+        "additionalProperties",
+        "propertyNames",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+        "allOf",
+        "anyOf",
+        "oneOf",
+        "not",
+        "if",
+        "then",
+        "else",
+        "contentSchema",
+    }
+)
+#: Where pydantic keeps the definitions its references name.
+_DEFINED = "#/$defs/"
 
 
 def strict(schema: Mapping[str, Any]) -> dict[str, Any]:
@@ -478,7 +506,15 @@ def strict(schema: Mapping[str, Any]) -> dict[str, Any]:
     property it names required, and defaults are dropped: the model writes every field, and
     what it writes is read back through the pydantic model the schema came from, defaults
     and all. An object that names no properties -- a mapping of whatever keys -- is left as
-    it is, having nothing to require.
+    it is, having nothing to require. Only schemas are rewritten: the data a schema holds,
+    an example or a discriminator's mapping, is left as written.
+
+    They also refuse a `$ref` with any keyword beside it -- `$ref cannot have keywords
+    {'description'}` -- which is how pydantic writes a field that has a description and an
+    enum or model type. Such a reference is replaced by the `$defs` definition it names, with
+    its keywords over the definition's own. Where it names no definition under `$defs`, or
+    stands inside the expansion of the definition it names, where writing that out again
+    would never end, it keeps only its `$ref` and its keywords are lost.
 
     Args:
       schema: The schema, as `model_json_schema()` writes it.
@@ -486,31 +522,46 @@ def strict(schema: Mapping[str, Any]) -> dict[str, Any]:
     Returns:
       The same schema, held to that.
     """
+    defined = cast("dict[str, Any]", schema.get("$defs", {}))
 
-    def held(node: object) -> object:
-        if isinstance(node, list):
-            return [held(one) for one in cast("list[Any]", node)]
+    def held(node: object, within: frozenset[str]) -> object:
         if not isinstance(node, dict):
-            return node
+            return node  # a schema that is `true` or `false`
+        given = {
+            key: value
+            for key, value in cast("dict[str, Any]", node).items()
+            if key != "default"
+        }
+        ref = given.pop("$ref", None)
+        if ref is not None:
+            name = ref.removeprefix(_DEFINED)
+            if given and name in defined and name not in within:
+                return held({**defined[name], **given}, within | {name})
+            return {"$ref": ref}
         said: dict[str, Any] = {}
-        for key, value in cast("dict[str, Any]", node).items():
-            if key == "default":
-                continue
+        for key, value in given.items():
             if key in _NAMED_SCHEMAS and isinstance(value, dict):
                 # Names mapped to schemas, where a name may be spelled like a keyword.
+                # `within` names only definitions a reference can name: each of the root
+                # `$defs` is inside itself alone, and every other schema is inside all that
+                # encloses it, so `within` only grows below the root and expansion ends.
                 said[key] = {
-                    name: held(one)
+                    name: held(one, frozenset({name}) if value is defined else within)
                     for name, one in cast("dict[str, Any]", value).items()
                 }
+            elif key in _SCHEMA_VALUED and isinstance(value, list):
+                said[key] = [held(one, within) for one in cast("list[Any]", value)]
+            elif key in _SCHEMA_VALUED:
+                said[key] = held(value, within)
             else:
-                said[key] = held(value)
+                said[key] = value
         named = said.get("properties")
         if isinstance(named, dict):
             said["required"] = list(cast("dict[str, Any]", named))
             said["additionalProperties"] = False
         return said
 
-    return cast("dict[str, Any]", held(schema))
+    return cast("dict[str, Any]", held(schema, frozenset()))
 
 
 def unattended(permission: str, service_tier: str = "default") -> dict[str, Any]:
