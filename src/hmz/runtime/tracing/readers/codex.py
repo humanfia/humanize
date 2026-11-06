@@ -154,12 +154,24 @@ def _parse(
     ident: str,
     spawns: dict[tuple[str, str], str],
 ) -> tuple[list[Action], dict[str, Any]]:
-    """Turns one rollout into prompt, reasoning, tool and message slices."""
+    """Turns one rollout into prompt, reasoning, tool and message slices.
+
+    A request to the model is said as what it wrote -- its reasoning, a `think`; the stretch
+    before a tool call, a `generate`; a message of its own -- and its usage is said once it is
+    over, after its tool calls have been answered. So that usage is the request's whose slices
+    came since the usage said before it, and goes on the first of its model calls, with the
+    model the turn ran on: on its message, for a request that wrote nothing but one. A message
+    another agent sent the thread is what the request read, not what it wrote.
+    """
     actions: list[Action] = []
     info: dict[str, Any] = {}
     pending: dict[str, Action] = {}
     turn: Action | None = None
     think: Action | None = None
+    # What the request under way wrote so far, and what the thread had spent by the last
+    # request that said so: Codex says a request's usage again, unmoved, after nothing new.
+    request: list[Action] = []
+    spent: object = None
     prev = 0.0
     # Codex 0.160 says a turn's messages as completed items alone, where earlier releases said
     # them as events: a rollout holding the items is read by them, so none is said twice.
@@ -172,6 +184,7 @@ def _parse(
         if not window[0] <= at <= window[1]:
             continue
         prev = prev or at
+        before = len(actions)
         payload = mapping(record.get("payload"))
         kind, item = record.get("type"), payload.get("type")
         said = _said(record)
@@ -191,7 +204,7 @@ def _parse(
                 turn.end = max(turn.end, prev, at)
                 actions.append(turn)
             turn = Action("turn", "turn", at, at, {"turn_id": payload.get("turn_id")})
-            think = None
+            think, request = None, []
         elif item == "user_message":
             body = str(payload.get("message") or "")
             if turn is None:
@@ -205,7 +218,7 @@ def _parse(
                 )
                 turn.end = max(turn.end, prev, at)
                 actions.append(turn)
-            turn, think = None, None
+            turn, think, request = None, None, []
         elif item == "reasoning":
             body = text_of(payload.get("summary"))
             if think is None:
@@ -226,14 +239,41 @@ def _parse(
             think.name = f"think: {summarize(body)}"
             think.end = max(think.end, at)
             prev = max(prev, at)
-        elif item == "token_count" and think is not None:
-            counts = payload.get("info")
-            if isinstance(counts, dict):
-                think.args["usage"] = mapping(counts).get("last_token_usage")
+        elif item == "token_count":
+            counts = mapping(payload.get("info"))
+            usage = counts.get("last_token_usage")
+            total = counts.get("total_token_usage")
+            if isinstance(usage, dict) and (total is None or total != spent):
+                spent = total
+                answered = next(
+                    (one for one in request if one.category == "llm"),
+                    request[0] if request else None,
+                )
+                if answered is not None:
+                    answered.args["usage"] = usage
+                    if isinstance(info.get("model"), str):
+                        answered.args["model"] = info["model"]
+                think, request = None, []
         else:
             prev, think = _add_event(
-                actions, kind, item, payload, at, prev, think, pending, ident, spawns
+                actions,
+                kind,
+                item,
+                payload,
+                at,
+                prev,
+                think,
+                pending,
+                ident,
+                spawns,
+                anchored=any(one.category == "llm" for one in request),
             )
+        own = kind == "event_msg" and item == "agent_message"
+        request += (
+            one
+            for one in actions[before:]
+            if one.category == "llm" or (own and one.category == "message")
+        )
     prev = max((action.end for action in actions), default=prev)
     for call in pending.values():
         call.end = max(call.start, prev)
@@ -263,8 +303,15 @@ def _add_event(
     pending: dict[str, Action],
     ident: str,
     spawns: dict[tuple[str, str], str],
+    *,
+    anchored: bool,
 ) -> tuple[float, Action | None]:
-    """Records one non-reasoning rollout entry and returns the new cursor."""
+    """Records one non-reasoning rollout entry and returns the new cursor.
+
+    `anchored` says whether the request under way has a model call already: the stretch
+    before the first tool call of one that has none is that call, whatever earlier calls are
+    still open -- one cut off with its turn is never answered.
+    """
     if item == "agent_message" and kind == "event_msg":
         body = str(payload.get("message") or "")
         actions.append(
@@ -301,8 +348,10 @@ def _add_event(
         except json.JSONDecodeError:
             parsed = raw
         target = mapping(parsed).get("task_name")
-        if at > prev and not pending:
-            actions.append(Action("generate", "llm", prev, at, {"emits": name}))
+        if not anchored or (at > prev and not pending):
+            actions.append(
+                Action("generate", "llm", min(prev, at), at, {"emits": name})
+            )
         call = Action(
             label(name, parsed),
             "tool",
