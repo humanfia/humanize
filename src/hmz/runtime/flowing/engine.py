@@ -1469,9 +1469,9 @@ class Run:
         #: of one of its agents or environments: the flow's, which the run ends before it
         #: lets go of its journal.
         self.tasks: set[asyncio.Task[Any]] = set()
-        #: Every turn under way, by the session taking it: what the run interrupts as it ends,
-        #: whatever has become of the task waiting on it.
-        self.turns: dict[int, Interruptible] = {}
+        #: Every turn under way, by the session taking it, with the task asking for it: what
+        #: the run interrupts as it ends, whatever has become of that task.
+        self.turns: dict[int, tuple[Interruptible, asyncio.Task[Any] | None]] = {}
 
     def joined(self) -> None:
         """Counts the task running now among the flow's, until it ends.
@@ -1655,6 +1655,10 @@ class Run:
                 shutil.rmtree(self.conversing[0], ignore_errors=True)
             unpin(self)
             _RUNS.discard(self)
+            # A task outliving the run -- past `REAP`, or the one that ran it -- holds it no more.
+            for one in self.tasks:
+                one.remove_done_callback(self.tasks.discard)
+            self.tasks.clear()
 
     async def _settled(self) -> None:
         """Ends every task of the flow still going, and waits for each to end.
@@ -1694,8 +1698,9 @@ class Run:
             for one in going:
                 if not one.cancelling():
                     one.cancel()
-            for handle in list(self.turns.values()):
-                handle.interrupt()
+            for handle, asking in list(self.turns.values()):
+                if asking not in engines:
+                    handle.interrupt()
             await asyncio.wait(going, timeout=left)
         late = [one for one in settled if not one.done()]
         if late:
@@ -2001,6 +2006,7 @@ async def _closed(run: Run) -> None:
     me = asyncio.current_task()
     if me is not None:
         run.tasks.discard(me)
+        me.remove_done_callback(run.tasks.discard)
     closing = asyncio.ensure_future(run.close())
     stopped = False
     while not closing.done():

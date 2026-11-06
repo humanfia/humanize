@@ -64,6 +64,7 @@ from hmz.flows import (
     FakeCli,
     FakeTool,
     FilesEnvMixin,
+    FlowCancelled,
     GitEnvMixin,
     GitWorktreeEnvMixin,
     GoalCommandAgentMixin,
@@ -543,7 +544,7 @@ class AgentView:
         taken._turns += 1
         node.turning(1)
         turns = node.run.turns
-        turns[id(handle)] = handle
+        turns[id(handle)] = (handle, asyncio.current_task())
         cut = None if hard is None else _Cut(node.run.loop, handle, hard)
         try:
             said = await handle.turn(
@@ -1402,9 +1403,15 @@ async def _asked[T](node: Call | None, asking: Coroutine[Any, Any, T]) -> T:
     waiting = asyncio.get_running_loop().create_task(asking)
     asked = _Asked(waiting)
     turns = node.run.turns
-    turns[id(asked)] = asked
+    me = asyncio.current_task()
+    turns[id(asked)] = (asked, me)
     try:
         return await waiting
+    except asyncio.CancelledError:
+        if waiting.cancelled() and (me is None or not me.cancelling()):
+            # Cut by the run as it ended, the task asking not cancelled itself.
+            raise FlowCancelled(f"{node.ref}: the run has ended") from None
+        raise
     finally:
         turns.pop(id(asked), None)
 
