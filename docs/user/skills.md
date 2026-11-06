@@ -23,7 +23,7 @@ above changes.
 
 ## Before you start
 
-- A coding agent CLI that loads skills. Every built-in CLI does but DeepSeek Harness (`dsh`).
+- A coding agent CLI that loads skills. Every built-in CLI does.
 - For the flow's skills: a flow whose roles bring some. [`rlar`](https://humanfia.ai/flows/rlar)'s reviewer and
   both roles of [`aot`](https://humanfia.ai/flows/aot) do; a flow's page says which.
 
@@ -113,14 +113,36 @@ each CLI reads:
 | `opencode` | `~/.config/opencode/skill(s)/`, `~/.agents/skills/`, `~/.claude/skills/` | `.opencode/skill(s)/`, `.agents/skills/`, `.claude/skills/` |
 | `pi` | `~/.pi/agent/skills/`, `~/.agents/skills/` | <Badge type="warning" text="only in a project you trusted in pi" /> |
 | `qwen` | `~/.qwen/skills/`, `~/.agents/skills/` | `.qwen/skills/`, `.agents/skills/` |
-| `dsh` | <Badge type="danger" text="none" /> | <Badge type="danger" text="none" /> |
+| `dsh` | `~/.dsh/skills/`, `~/.agents/skills/` | `.dsh/skills/`, `.agents/skills/`, at the project's root |
 
 Each directory holds one skill per subdirectory, as `<name>/SKILL.md`. A CLI's home moves with
 its own variable, such as `CODEX_HOME`, `KIMI_CODE_HOME`, `GROK_HOME` or `MINIMAX_DATA_DIR`,
 and opencode's and MiMo Code's move with `XDG_CONFIG_HOME`.
 
-DeepSeek Harness loads no skills at all when Humanize drives it. pi reads a project's own
-skills only in a project you have trusted in pi, and Humanize does not trust one for you.
+DeepSeek Harness's home moves with `DSH_HOME` and its `~/.agents` with `DSH_AGENTS_HOME`. It
+finds a project's skills at the project's root -- the nearest directory up from where the
+session works that holds a `.git`, or that directory itself where none does -- and prefers
+them to yours: `.dsh/skills/`, then `.agents/skills/`, then its home's, then `~/.agents/`'s. Each
+skill is `<name>/SKILL.md` or `<name>.md`, whose front matter must give a kebab-case `name`
+and a `description`; it passes over any other, and over `.system/` in its home. A dsh session
+Humanize keeps in a run's epic is started with the epic's directory as its `DSH_HOME`, and
+is still told to read the skills in yours.
+
+Static `skill-filesystem` settings in your `profiles/sdk/cordis.patch.yml`, then your home's
+`cordis.patch.yml`, are preserved when the session uses an epic home. This includes custom
+skill directories, overridden homes and a disabled provider. Flow skills use a separate
+provider and take precedence over user custom directories as well as default user roots.
+Dynamic JavaScript expressions and structural plugin changes cannot be carried into an epic
+home: the turn reports an unsupported configuration, and the skill list shows no inferred
+user skills for a configuration it cannot inspect.
+These settings are read when the runtime starts. Editing them while a conversation runs
+does not interrupt it; the next runtime reads the new settings.
+
+If several files in one directory declare the same skill name, the list marks that name as
+having multiple definitions. DSH chooses the definition using its own locale-dependent order.
+
+pi reads a project's own skills only in a project you have trusted in pi, and Humanize does
+not trust one for you.
 
 ## The flow's skills
 
@@ -129,8 +151,10 @@ a process at a time, in a home of their own -- copies of the settings they rewri
 links to the rest of yours -- whose user-level `skills/` holds links to yours with the flow's
 beside them. That home goes when the process stops; nothing of yours, and nothing of the
 project's, is written. opencode and MiMo Code are told where the flow's skills are, in the
-configuration Humanize hands each run, and read them after their own. Nothing goes in your
-workspace:
+configuration Humanize hands each run, and read them after their own. dsh is told in the
+patch its runtime is started with: a copy of the session's skills beside that patch, read by a
+skill provider of humanize's own, after the project's and before yours, and gone with the
+runtime. Nothing goes in your workspace:
 
 | Backend | Put into |
 | --- | --- |
@@ -144,10 +168,10 @@ workspace:
 | `kimi` | its own home's `skills/` (`$KIMI_CODE_HOME/skills/`) |
 | `mcode` | its own home's `skills/` (`$MINIMAX_DATA_DIR/skills/`) |
 | `opencode`, `mimo` | named under `skills.paths` in the configuration of each run |
-| `dsh` | <Badge type="danger" text="none" /> it carries only what you installed |
+| `dsh` | a copy beside its runtime's patch, named in that patch |
 
-An agent whose turns run on [another machine](/user/remote-execution) gets them in the home
-built for it there.
+For backends other than dsh, an agent whose turns run on
+[another machine](/user/remote-execution) gets them in the home built for it there.
 
 A flow may also name skills from a git repository. Installing the flow fetches them into its
 own `skills/`, so they travel with it like the rest of it and update when the flow does. A flow
@@ -173,8 +197,17 @@ and edit its skill.
 
 - **An agent ignores your skill.** Check it is in a directory that CLI reads (the table above),
   as `<name>/SKILL.md`, and that the CLI's home variable points where you think.
-- **`dsh` in a role that brings skills.** It does not get the flow's copy. The role runs
-  without it; give it another CLI if the skill matters.
+- **`dsh` on another machine.** A dsh agent whose harness runs elsewhere gets neither the
+  flow's skills nor yours from this machine. This adapter does not restore user skill roots
+  for a remote harness.
+- **`dsh` after its skills change.** A session told to carry other skills between two turns
+  carries them from its next turn, in the same conversation: the model is shown a catalog
+  that replaces the one it had.
+- **A dsh flow skill cannot be copied.** It is omitted with a warning; the turn and the other
+  skills continue, and the next turn tries that skill again. Resource symlinks are preserved
+  as links, including dangling links, rather than expanded while copying. Relative links
+  outside the skill directory may no longer resolve from the copy; keep needed resources
+  inside that directory. Only the private copy's directories are made writable for cleanup.
 - **A skill from a git repository cannot be fetched.** The run is refused before it starts,
   naming the skill. Check the network, or the repository's address in the flow.
 

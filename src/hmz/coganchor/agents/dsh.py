@@ -9,9 +9,11 @@ import contextlib
 import importlib
 import io
 import json
+import logging
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -27,6 +29,7 @@ from hmz.coganchor import backends
 
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
+from .dsh_skills import configuration as skill_configuration
 from .event import Event, Failed, Saying, Unrecoverable, Usage, say
 from .watchdog import Watchdog
 
@@ -40,6 +43,8 @@ if TYPE_CHECKING:
     from hmz.coganchor.providers import Provider
 
 __all__ = ["DshAgent", "DshAgentConfig", "DshSession", "native_ready"]
+
+log = logging.getLogger(__name__)
 
 _REQUEST_SECONDS = 180.0
 
@@ -93,6 +98,74 @@ _SEARCH = "web-search-deepseek"
 #: than resolved.
 _JS_TAG = "tag:yaml.org,2002:js"
 _API_KEY_ENV = "DEEPSEEK_API_KEY"
+
+#: The stock provider, whose original user patch configuration must survive when session
+#: storage moves DSH_HOME into an epic. Only this plugin's settings cross that boundary.
+_STOCK = "skill-filesystem"
+
+#: The flow's skills this session carries, put in `skills` beside the patch, and read by the
+#: same provider package mounted once more under a name of humanize's own: no default root of
+#: its own, so nothing the stock one reads is read twice, and the one root at the rank of
+#: runtime registrations -- below the project's, above user roots including custom ones.
+_SKILLS = "skills"
+
+#: What tells that provider's catalog it changed, for a runtime already up when a flow says
+#: its session is to carry other skills: nothing on the SDK's JSON-RPC surface says so, and a
+#: file watcher answers when it answers. So the provider watches nothing, and this plugin --
+#: put beside the patch and mounted from it -- reads :data:`_GENERATION` at the start of every
+#: step, before `dsh-tool-skill` takes its catalog, and invalidates the registry's catalog
+#: where it has changed since the last step: the step that starts the next turn lists the
+#: skills afresh, and the model is shown the catalog that replaces the one it had. The
+#: same plugin wraps the native filesystem provider to give flow skills runtime rank.
+_BRIDGE = "humanize-skills.mjs"
+_GENERATION = "skills.generation"
+_BRIDGING = """\
+import { readFileSync } from "node:fs";
+
+export const name = "humanize-skills";
+export const inject = ["skills"];
+
+export async function apply(ctx, config) {
+  // Resolve through the runtime's loader: a temporary plugin has no node_modules of its own.
+  const { FileSystemSkillProvider } = await ctx.fiber.entry.parent.tree.import(
+    "@deepseek-ai/dsh-skill-filesystem"
+  );
+  let control;
+  let seen;
+  let provider;
+  ctx.skills.registerProvider((given) => {
+    control = given;
+    provider = new FileSystemSkillProvider(ctx, given, config.provider);
+    return {
+      name: provider.name,
+      list: async (options) => {
+        const observed = await provider.list(options);
+        const rank = (items) => items.map((item) => ({ ...item, rank: 250 }));
+        return Array.isArray(observed) ? rank(observed)
+          : { ...observed, candidates: rank(observed.candidates) };
+      },
+      get: (candidate, options) => provider.get(candidate, options),
+    };
+  });
+  ctx.effect(() => () => provider.dispose());
+  ctx.on("fs/observed", (target, observation, actor) => {
+    if (actor?.name === "write" || actor?.name === "edit") {
+      provider.observeHostMutation(target.displayPath);
+    }
+  });
+  ctx.on("agent/pre-step", (event, next) => {
+    let now = "";
+    try {
+      now = readFileSync(config.generation, "utf8");
+    } catch {}
+    if (now !== seen) {
+      seen = now;
+      control.invalidate();
+    }
+    return next();
+  });
+}
+"""
 
 #: Where the packed runtime copies a native module to before loading it, read by the `pkg`
 #: bootstrap it is built with; `~/.cache` when unset.
@@ -339,6 +412,8 @@ class DshSession(SessionBase):
         #: The composition the live runtime was started from, so that an agent reconfigured
         #: mid-session is noticed as one whose runtime was built the old way.
         self._runtime_composition: str | None = None
+        # User configuration is read at launch, just as the native runtime reads it.
+        self._runtime_skilled: tuple[dict[str, Any] | None, str | None] = (None, None)
         #: The LiteLLM gateway the live runtime was pointed at, if any: one started again
         #: since is at another port, under another key, so the runtime is stale with it.
         self._runtime_through: Gateway | None = None
@@ -569,11 +644,18 @@ class DshSession(SessionBase):
         way = _route(self._agent.provider)
         toolbox = self._agent.toolbox
         offered = toolbox.names()
-        composition = _composed(
-            cast("DshAgentConfig", self._agent.config),
-            way,
-            toolbox.command() if offered else None,
-        )
+
+        def composed(skilled: tuple[dict[str, Any] | None, str | None]) -> str:
+            return _composed(
+                cast("DshAgentConfig", self._agent.config),
+                way,
+                toolbox.command() if offered else None,
+                *skilled,
+            )
+
+        # Composed against the live runtime's own directory, which is where its skills are:
+        # the same agent is the same composition, whichever directory it was written in.
+        composition = composed(self._runtime_skilled)
         # The account and the composition as well as the effort. A runtime is started with
         # one account's environment and its credential paths, and with one composition read
         # once at boot, and none of the three changes under one already up -- so an agent
@@ -589,6 +671,9 @@ class DshSession(SessionBase):
             or self.elsewhere()
         )
         if self._harness is not None and not stale:
+            # The skills this turn carries, which a flow may have changed since the last one,
+            # put down where the runtime reads them before the turn's first step does.
+            self._lodge(self._runtime_skilled[1])
             return self._harness
         # Except that a conversation which has taken a turn does not survive it. A fresh
         # runtime knows only the sessions it opened itself, and `session/prompt` opens one by
@@ -663,9 +748,16 @@ class DshSession(SessionBase):
             raise FileNotFoundError(
                 "env is required to isolate dsh provider credentials"
             )
-        written = self._cordis(composition, fence)
+        written = self._cordis(fence)
         harness: _Harness | None = None
         try:
+            # Read the user's settings once per launch, with the same cleanup guarantee as
+            # the patch and runtime. Later edits belong to the next runtime, not this turn.
+            skilled = self._skilled(written)
+            composition = composed(skilled)
+            (Path(written.name) / _PATCH).write_text(composition, encoding="utf-8")
+            if self._lodge(skilled[1]):
+                (Path(written.name) / _BRIDGE).write_text(_BRIDGING, encoding="utf-8")
             # The bundled runtime under the SDK's own profile with Humanize's patch over it,
             # wrapped in whatever `spawned` puts in front of it and in `env -u` where
             # credentials have to be dropped. Resolved here rather than by the SDK, which
@@ -732,6 +824,7 @@ class DshSession(SessionBase):
         self._harness, self._composition = harness, written
         self._runtime_effort = effort
         self._runtime_composition = composition
+        self._runtime_skilled = skilled
         self._runtime_offered = offered
         self._runtime_through = through
         self._as, self._pathed = self._agent.node().name, pathed
@@ -739,15 +832,14 @@ class DshSession(SessionBase):
         return harness
 
     @staticmethod
-    def _cordis(
-        composition: str, fence: Fence | None = None
-    ) -> tempfile.TemporaryDirectory[str]:
-        """Writes one patch out, as :data:`_PATCH` in a directory of its own.
+    def _cordis(fence: Fence | None = None) -> tempfile.TemporaryDirectory[str]:
+        """Makes the directory one runtime's patch is written in, as :data:`_PATCH`.
 
         Written per runtime rather than shipped, because it is this agent's settings: two
-        agents of one flow may ask for different ones.
+        agents of one flow may ask for different ones. The flow's skills the session carries
+        are put beside it, in :data:`_SKILLS` (:meth:`_lodge`), so that they go with it.
 
-        Written into the fence's own scratch directory where the agent is held to one, rather
+        Made in the fence's own scratch directory where the agent is held to one, rather
         than the system's: the runtime reads this file from inside the fence, which grants
         its `tmp` and not the rest of `/tmp` -- so a composition written beside everybody
         else's would be one the runtime it was written for could not open, under
@@ -755,18 +847,126 @@ class DshSession(SessionBase):
         default `system=read`.
 
         Args:
-          composition: The patch to write, as `_composed` built it.
           fence: What the agent is held to, as :meth:`AgentBase.fenced` widens it, or None
             for an agent held to nothing.
 
         Returns:
           The directory, which stands as long as the runtime reading it does.
         """
-        written = tempfile.TemporaryDirectory(
+        return tempfile.TemporaryDirectory(
             prefix="hmz-dsh-", dir=fence.tmp if fence is not None else None
         )
-        (Path(written.name) / _PATCH).write_text(composition, encoding="utf-8")
-        return written
+
+    def _skilled(
+        self, written: tempfile.TemporaryDirectory[str]
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """What the runtime is told about skills over its profile.
+
+        Args:
+          written: The directory the runtime's patch is in.
+
+        Returns:
+          The user's stock provider row, for a runtime handed another home -- one whose
+          sessions are kept in the epic -- preserving its configuration and enablement; and the
+          directory the flow's skills are put beside the patch in (:data:`_SKILLS`), for an
+          agent the flow gave any. Each None where it is not so, and both for a runtime on
+          another machine, where no path of this one's is: it runs as that machine's runs.
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.elsewhere import elsewhere
+
+        anchor = self._agent.anchor
+        if anchor is not None and (anchor.native or elsewhere(anchor)):
+            return None, None
+        profile = named("dsh")
+        assert profile is not None  # noqa: S101 -- dsh's own profile
+        try:
+            environment = self._agent._environ()
+        except ValueError:
+            environment = None
+        home = profile.directory(environment).expanduser().absolute()
+        kept = self._agent.kept()
+        moved = kept is None or kept.expanduser().absolute() != home
+        row: dict[str, Any] | None = None
+        if moved:
+            configured = skill_configuration(home)
+            if configured is None:
+                row = {"id": _STOCK, "disabled": True}
+            else:
+                configured.setdefault("dshHome", str(home))
+                row = {"id": _STOCK, "config": configured}
+        return (
+            row,
+            written.name if self._agent.loaded else None,
+        )
+
+    def _lodge(self, lodged: str | None) -> bool:
+        """Puts exactly the flow's skills this session carries where its runtime reads them.
+
+        Copies each skill's directory, preserving resource symlinks without following them, and
+        takes away any the session no longer carries -- then says it did, in
+        :data:`_GENERATION`, which the runtime reads at its next step. Into the runtime's own
+        directory, which is this session's alone and goes with the runtime: never the
+        workspace, and never a home of anybody's.
+
+        Args:
+          lodged: The runtime's skill-provider directory, or None if it has no flow provider.
+
+        Returns:
+          Whether the runtime reads the flow's skills from there at all.
+
+        Raises:
+          ValueError: If a skill is named as anything but one directory's name, before anything
+            is written or taken away.
+        """
+        if lodged is None:
+            return False
+        wanted = {one.name: one.at for one in self._carrying()}
+        for name in wanted:
+            if name in ("", ".", "..") or Path(name).name != name or "\\" in name:
+                raise ValueError(f"unsupported skill name {name!r} for dsh")
+        root = Path(lodged) / _SKILLS
+        if root.is_symlink():
+            raise ValueError("dsh skill directory was replaced by a symbolic link")
+        root.mkdir(exist_ok=True)
+        root.chmod(root.stat().st_mode | stat.S_IRWXU)
+        added = {name: at for name, at in wanted.items() if not (root / name).exists()}
+        removed = [entry for entry in root.iterdir() if entry.name not in wanted]
+        if added or removed:
+            # A skill that cannot be delivered is omitted, never published half-copied;
+            # it can be retried on the next turn without interrupting the conversation.
+            changed = False
+            with tempfile.TemporaryDirectory(
+                prefix="skills-", dir=lodged, ignore_cleanup_errors=True
+            ) as stage:
+                for entry in removed:
+                    if entry.is_symlink() or not entry.is_dir():
+                        entry.unlink()
+                    else:
+                        # Withdraw the whole skill before cleaning its resources. The temp
+                        # directory's cleanup can reset permissions on read-only children.
+                        entry.chmod(entry.stat().st_mode | stat.S_IRWXU)
+                        entry.replace(Path(stage) / entry.name)
+                    changed = True
+                for name, at in added.items():
+                    try:
+                        copied = Path(stage) / name
+                        shutil.copytree(at, copied, symlinks=True)
+                        # copytree preserves source modes. Our private copy's directories
+                        # must allow publishing, later deselection and cleanup as this user.
+                        for directory, _, _ in os.walk(copied):
+                            here = Path(directory)
+                            here.chmod(here.stat().st_mode | stat.S_IRWXU)
+                        copied.replace(root / name)
+                    except OSError as why:
+                        log.warning("omitting dsh flow skill %r: %s", name, why)
+                    else:
+                        changed = True
+            if changed:
+                told = Path(lodged) / f".{_GENERATION}"
+                told.write_text(uuid.uuid4().hex, encoding="utf-8")
+                told.replace(Path(lodged) / _GENERATION)
+        return True
 
     def _shut(self) -> None:
         """Closes this session's SDK runtime without ending the conversation."""
@@ -777,6 +977,7 @@ class DshSession(SessionBase):
         composition, self._composition = self._composition, None
         self._runtime_effort = None
         self._runtime_composition = None
+        self._runtime_skilled = (None, None)
         self._runtime_through = None
         if self._reaper is not None:
             self._reaper.detach()
@@ -918,7 +1119,11 @@ def _route(provider: Provider | None) -> str | None:
 
 
 def _composed(
-    config: DshAgentConfig, way: str | None = None, bridge: list[str] | None = None
+    config: DshAgentConfig,
+    way: str | None = None,
+    bridge: list[str] | None = None,
+    stock: dict[str, Any] | None = None,
+    lodged: str | None = None,
 ) -> str:
     """What one agent's runtime is told over the SDK's own profile, as a patch.
 
@@ -934,6 +1139,11 @@ def _composed(
       way: The way the account a turn runs under was made by, or None for no account.
       bridge: The command that reaches the flow's own callbacks, or None for an agent
         offered none.
+      stock: The original user's stock skill provider row, or None where the runtime reads
+        that user's configuration directly.
+      lodged: The directory the flow's skills are put beside the patch in, for the
+        provider and the plugin that read them (:data:`_SKILLS`, :data:`_BRIDGE`), or None
+        for an agent the flow gave none.
 
     Returns:
       The patch to write out and hand the runtime with `--patch`, as YAML.
@@ -1018,6 +1228,26 @@ def _composed(
             },
         }
         rows.append({"insert": [row]})
+    if stock is not None:
+        rows.append(stock)
+    # The flow's, read by a provider of humanize's own and kept current by the plugin beside
+    # it, rather than by the stock row's config restated: a patch would replace it whole.
+    if lodged is not None:
+        at = Path(lodged)
+        provider = {
+            "id": "humanize-skills",
+            "name": str(at / _BRIDGE),
+            "config": {
+                "generation": str(at / _GENERATION),
+                "provider": {
+                    "providerName": f"humanize-{at.name}",
+                    "includeDefaultRoots": False,
+                    "customSkillDirs": [str(at / _SKILLS)],
+                    "watch": False,
+                },
+            },
+        }
+        rows.append({"insert": [provider]})
     return yaml.dump(
         rows, Dumper=_CordisDumper, sort_keys=False, default_flow_style=False
     )

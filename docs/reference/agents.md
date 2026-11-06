@@ -1161,9 +1161,24 @@ brought skills in its [virtual home](#virtual-homes): linked into that home's sk
 beside links to the user's own, a brought skill taking the place of the user's of the same
 name. `opencode` and `mimo` are told where the brought skills are instead, under
 `skills.paths` in their config variable, which they read after their own skill directories.
-Any other backend gets none. Nothing is ever put in the workspace.
+`dsh` is told where its user's original home is when its session records are kept in an epic.
+The flow's skills are copied beside its runtime's patch and read by a separate filesystem
+skill provider, after the project's skills and before the user's. Nothing is ever put in the
+workspace.
 
-| Backend | Put at | Skill directories read (`Profile.works`, relative to the workspace) |
+For DSH, static settings of the stock `skill-filesystem` row are read from the original
+SDK-profile patch and then the home patch. Custom roots, home overrides and `disabled` are
+preserved; JavaScript expressions or structural changes to that provider are refused when
+the session's home moves to an epic. The catalog does not infer user skills from such a
+configuration. Other plugins' configuration is not copied into the epic.
+Skill providers supplied by those other plugins are therefore not restored by this adapter.
+Settings are captured once per runtime launch, so edits to the user's patch take effect
+on the next launch without invalidating a running conversation. Flow resource symlinks stay
+as links, so relative references outside the copied directory may not resolve. Private copy
+directories are made writable for publishing and cleanup; source modes are preserved.
+A skill that cannot be copied or published is omitted with a warning and retried next turn.
+
+| Backend | Put at | Skill directories read (relative to the workspace) |
 | --- | --- | --- |
 | `claude` | `$CLAUDE_CONFIG_DIR/skills/` in its virtual home | `.claude/skills` |
 | `codex` | `$CODEX_HOME/skills/` in its virtual home | `.agents/skills`, `.codex/skills` |
@@ -1175,7 +1190,8 @@ Any other backend gets none. Nothing is ever put in the workspace.
 | `kimi` | `$KIMI_CODE_HOME/skills/` in its daemon's virtual home | `.kimi-code/skills`, `.agents/skills` |
 | `mcode` | `$MINIMAX_DATA_DIR/skills/` in its virtual home | `.minimax/skills`, `.claude/skills`, `.agents/skills` |
 | `opencode`, `mimo` | `skills.paths` in `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT` | `.agents/skills` and their own (`.opencode/skill[s]`, `.mimocode/skill[s]`, and for opencode `.claude/skills`) |
-| `dsh`, an [added CLI](#a-cli-of-your-own) | none: the turn runs without them | none |
+| `dsh` | a copy beside its runtime's patch | `.dsh/skills`, `.agents/skills`, at the nearest ancestor holding `.git`, or the workspace if none does |
+| an [added CLI](#a-cli-of-your-own) | none: the turn runs without them | none |
 
 - A virtual home is built per process, so a session told to carry other skills restarts its
   process and resumes the conversation (`agy`), or carries them from its next command
@@ -1185,6 +1201,10 @@ Any other backend gets none. Nothing is ever put in the workspace.
 
 - `pi` reads workspace skills only for a trusted project, which is why brought skills go to
   its user level; pass further paths with `PiAgentConfig.skill_paths` (`--skill`).
+- `dsh` carries changes to a session's selected skills from its next turn without restarting
+  its conversation. Its temporary copies go when its runtime closes. When its harness runs
+  on another machine, it receives no local skill paths; remote skill discovery is unchanged
+  by this adapter.
 - Under a native anchor, skills are written into the virtual home
   [built on the target](/reference/remote-execution#native-the-target-s-own-cli); under a
   supervised anchor a virtual home is built here, where the CLI runs; under a harness on

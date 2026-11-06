@@ -232,10 +232,14 @@ REMINDER = "<system-reminder>"
 
 
 def harnessed(message: dict[str, Any]) -> bool:
-    """Whether a user message is one a harness wrote itself, not one it was prompted with."""
-    return any(
-        one.startswith((RUNTIME_CONTEXT, OPERATOR_NOTE))
-        for one in _parts(message.get("content"))
+    """Whether a user message is one a harness wrote itself, not one it was prompted with.
+
+    Which is also one that is reminders and nothing else: DeepSeek Harness puts its catalog
+    of skills after the prompt as a message of its own, and again when that catalog changes.
+    """
+    parts = _parts(message.get("content"))
+    return any(one.startswith((RUNTIME_CONTEXT, OPERATOR_NOTE)) for one in parts) or (
+        bool(parts) and all(one.startswith(REMINDER) for one in parts)
     )
 
 

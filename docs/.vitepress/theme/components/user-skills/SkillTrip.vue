@@ -7,8 +7,8 @@
 // starts, it starts in a home of its own: copies of the settings it rewrites, links to the rest
 // of yours, and a `skills/` holding links to yours with the flow's beside them. When it stops,
 // that home goes, all of it, and nothing of yours was written. Every other CLI gets the same,
-// except that opencode and MiMo are told where the flow's skills are, and `dsh` gets none. A
-// simulation: the names of "your" two skills are invented.
+// except that opencode and MiMo are told where the flow's skills are in their config, and `dsh`
+// in the patch its runtime is started with. A simulation: the names of "your" two skills are invented.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
@@ -24,7 +24,7 @@ const BEATS = [
   "The flow's: in its own skills/ or a git repository, for the roles it names",
   "The reviewer's Claude Code starts in a home of its own, review-notes beside yours",
   'It stops: that home goes, all of it, and yours was never written',
-  'Every CLI gets the same, or is told where they are; dsh gets none',
+  'Every CLI gets the same, or is told where they are',
 ]
 
 /** A mono character's advance at 11px. */
@@ -131,7 +131,7 @@ const DEST = [
   { backend: 'claude', who: 'claude', dest: 'its home: skills/' },
   { backend: 'codex', who: 'codex, grok, agy, …', dest: 'its home: skills/' },
   { backend: 'opencode', who: 'opencode, mimo', dest: 'named in its config' },
-  { backend: 'dsh', who: 'dsh', dest: 'none' },
+  { backend: 'dsh', who: 'dsh', dest: 'named in its patch' },
 ]
 /** From the flow's skill to the reviewer's slot for it: across the gap, or down on a phone. */
 const givePath = computed(() => {
@@ -290,7 +290,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="5 / 8"
-    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; Humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's Claude Code starts, it starts in a home of its own: a copy of the .claude.json it rewrites, links to the rest of yours, and a skills/ directory with links to your skills and review-notes beside them. When it stops, that home goes, all of it, and nothing of yours was written. Every other CLI gets the same, except that opencode and MiMo Code are told where the flow's skills are, and dsh gets none, carrying only what you installed. Nothing is put in the workspace."
+    label="The two sets of skills an agent carries. Yours are where the CLI keeps them, such as ~/.claude/skills/ and the project's .claude/skills/ for Claude Code, and every agent of that CLI carries them; Humanize never changes them. The flow's are in the flow's own skills/ directory or fetched from a git repository, for the roles the flow gives them to: in rlar the reviewer carries review-notes and the actor does not. When the reviewer's Claude Code starts, it starts in a home of its own: a copy of the .claude.json it rewrites, links to the rest of yours, and a skills/ directory with links to your skills and review-notes beside them. When it stops, that home goes, all of it, and nothing of yours was written. Every other CLI gets the same, except that opencode and MiMo Code are told where the flow's skills are in their configuration, and dsh in the patch its runtime is started with. Nothing is put in the workspace."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
