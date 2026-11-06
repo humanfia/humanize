@@ -340,6 +340,8 @@ class FlowImpl:
                     "has ended"
                 )
             above = above.parent
+        # The flow's from here on, whatever it waits for before the call starts.
+        parent.run.joined()
         depth = parent.depth + 1
         if depth > DEPTH:
             raise FlowDepthExceeded(
@@ -412,7 +414,6 @@ class FlowImpl:
             node.state = FlowStateImpl({}, None, 0, Conversations(node, views))
         if run.recorder is not None:
             run.recorder.entered(node.record())
-        run.joined()
         live = run.live
         live[node] = None
         parent.live += 1
@@ -1460,9 +1461,9 @@ class Run:
     def joined(self) -> None:
         """Counts the task running now among the flow's, until it ends.
 
-        Asked by every call as it starts and every operation of an agent or an environment
-        (:meth:`Call.check`): a task the flow started -- a `gather`'s, or one it never waited
-        for -- is one of the flow's from the first thing it does in the run.
+        Asked by every call before it waits on anything, and by every operation of an agent
+        or an environment (:meth:`Call.check`): a task the flow started -- a `gather`'s, or one
+        it never waited for -- is one of the flow's from the first thing it does in the run.
         """
         task = asyncio.current_task()
         if task is not None and task not in self.tasks:

@@ -1301,7 +1301,8 @@ behave as anywhere.
 - Turns of one session are sequential; a second `run` while one is under way raises
   `SessionError`.
 - Cancelling a task in a turn interrupts that CLI.
-- A task the flow starts ends with the run, awaited or not: see [Stopping](#stopping).
+- A task the flow starts is cancelled as the run ends, awaited or not, and waited for up to
+  30 s: see [Stopping](#stopping).
 - A called flow's exception reaches `except*` with its own class.
 - Concurrent calls form a tree of contexts, each with its own usage.
 
