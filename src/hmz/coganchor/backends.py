@@ -146,7 +146,9 @@ class Way:
 #: What each of them means:
 #:
 #: - `contended`: two turns at one local store. opencode's SQLite is shared across workspaces,
-#:   and the loser of a race says `database is locked` before it has spoken to any provider.
+#:   and the loser of a race says `database is locked` before it has spoken to any provider;
+#:   codex's app servers of one run share a state database, and one that lost the race to
+#:   create it says `failed to initialize sqlite state runtime` and exits.
 #: - `throttled`: too many requests. The whole account rather than the one call, but for a
 #:   while rather than for good: the service is limiting how fast it is asked, and waiting is
 #:   what answers it, with another account after that.
@@ -1820,6 +1822,12 @@ PROFILES = (
         # written under the home it was started in: `thread/resume` and `thread/fork` read
         # nothing else, and a thread of a virtual home is one neither finds once it is gone.
         records=(("state_*.sqlite", "threads", "rollout_path"),),
+        # Every app server of a run that keeps its sessions shares one state database, and
+        # codex creates it as a server starts: of servers started together on a new run, those
+        # that lose the race to create it exit before answering anything, and codex-cli 0.166
+        # says only this. A store busy for the moment another process holds it, which a
+        # server started a second later finds made.
+        signs=(Sign("contended", r"failed to initialize (sqlite )?state runtime"),),
         # One file, whichever way it was signed into: the subscription's tokens and an API
         # key land in the same place, under the mode that says which of them is in force.
         creds=("auth.json",),

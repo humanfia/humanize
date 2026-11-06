@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import psutil
 import pytest
 
-from hmz.coganchor import providers
+from hmz.coganchor import fallbacks, providers
 from hmz.coganchor.agents import (
     CodexAgent,
     CodexAgentConfig,
@@ -49,6 +49,14 @@ CODEX = r"""
 import itertools, threading, time
 
 note()
+busy = pathlib.Path(sys.argv[0]).with_name("busy")
+if busy.exists() and int(busy.read_text()):
+    # A server that lost the race to create the run's state database, as codex-cli 0.166
+    # says it and exits, before it has answered anything.
+    busy.write_text(str(int(busy.read_text()) - 1))
+    print("Error: failed to initialize sqlite state runtime under /run/codex: failed to"
+          " initialize state runtime at /run/codex", file=sys.stderr, flush=True)
+    sys.exit(1)
 threads = itertools.count(1)
 total = [0]
 writing = threading.Lock()
@@ -158,6 +166,11 @@ for line in sys.stdin:
     params = call.get("params") or {}
     if method == "turn/start":
         note(params["input"][0]["text"])
+        vanishes = pathlib.Path(sys.argv[0]).with_name("vanishes")
+        if vanishes.exists() and int(vanishes.read_text()):
+            # Gone before it answered: whether it kept the turn, nobody can say.
+            vanishes.write_text(str(int(vanishes.read_text()) - 1))
+            os._exit(1)
     elif method in ("thread/start", "thread/resume", "thread/fork", "turn/steer"):
         note(method + " " + json.dumps(params, sort_keys=True))
     if "id" not in call:
@@ -318,6 +331,55 @@ def test_a_response_stream_that_keeps_breaking_fails_as_dropped(
 
     assert failed.value.fault == "dropped"
     assert codex.said().count("drop") == 2
+
+
+def test_an_opening_turn_that_failed_is_taken_again_on_its_own_thread(
+    codex: Standins,
+) -> None:
+    (codex.bin / "drops").write_text("1")
+    session = CodexAgent(CONFIG).new()
+
+    assert session("drop") == "drop"
+
+    assert session.id == "t-1"
+    assert len(_told(codex, "thread/start")) == 1
+
+
+def test_an_opening_fork_that_failed_is_taken_again_on_its_own_child(
+    codex: Standins,
+) -> None:
+    parent = CodexAgent(CONFIG).new()
+    parent("one")
+    child = parent.fork()
+    (codex.bin / "drops").write_text("1")
+
+    assert child("drop") == "drop"
+
+    assert len(_told(codex, "thread/fork")) == 1
+
+
+def test_an_opening_turn_the_server_never_answered_is_taken_on_a_new_thread(
+    codex: Standins,
+) -> None:
+    agent = CodexAgent(CONFIG)
+    fallbacks.retrying(agent.spec, 1, "constant", 0)
+    (codex.bin / "vanishes").write_text("1")
+
+    assert agent.new()("vanish") == "vanish"
+
+    assert len(_told(codex, "thread/start")) == 2
+    assert _told(codex, "thread/resume") == []
+
+
+def test_a_server_that_lost_the_race_to_create_its_state_is_started_again(
+    codex: Standins,
+) -> None:
+    (codex.bin / "busy").write_text("1")
+
+    assert CodexAgent(CONFIG).new()("one") == "one"
+
+    assert len({one.pid for one in codex.calls()}) == 2
+    assert codex.said().count("one") == 1
 
 
 def test_a_server_that_dies_mid_turn_fails_the_turn(codex: Standins) -> None:
