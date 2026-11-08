@@ -520,14 +520,20 @@ class ClaudeCodeSession(StreamSessionBase):
                 # nobody is at a prompt to answer for it -- and what is still asked, Humanize
                 # answers: whatever Claude asks at `bypassPermissions` regardless (a question
                 # for its user), everything the account's own mode asks where it forbids that
-                # one, and everything while a hook is hung on `PERMISSION_REQUEST`. An agent
-                # at no rung at all is not that agent: what it stops to ask about is between
-                # it and the account it runs on, and taking the deciding for one would be
-                # Humanize answering a question nobody put to it.
+                # one, and everything while a hook is hung on `PERMISSION_REQUEST`.
+                # `read-only` is routed too, for its questions: plan mode is where Claude
+                # stops to ask its user one, and a question the CLI answered by itself would
+                # never reach the hook hung for it. Every other request there is answered no,
+                # after a `PERMISSION_REQUEST` hook has been told of it. The rungs between
+                # are Claude's own to decide, and an agent at no rung at all is not that
+                # agent either: what it stops to ask about is between it and the account it
+                # runs on, and taking the deciding for one would be Humanize answering a
+                # question nobody put to it.
                 #
                 # `stdio` routes every request to us: each one is read as a
-                # `control_request` and answered `allow`, yes to whatever the account leaves
-                # decidable, with its own hard `deny` list still the CLI's to enforce.
+                # `control_request` and answered -- `allow` at `bypass`, yes to whatever the
+                # account leaves decidable, with its own hard `deny` list still the CLI's to
+                # enforce.
                 #
                 # Not in `claude --help` any more. What 2.1.272 documents is
                 # `--permission-prompts <host|none>`, "who answers permission prompts with
@@ -540,10 +546,11 @@ class ClaudeCodeSession(StreamSessionBase):
                 # asked for something and changed nothing. The host it means is one that
                 # announced itself over the control protocol, and a reader of the stream is
                 # not that. So the flag stays: without it `bypass` would be a rung that
-                # decides nothing and a flow's `PERMISSION_REQUEST` hooks would see none of
-                # what they are hung for.
+                # decides nothing, a flow's `PERMISSION_REQUEST` hooks would see none of
+                # what they are hung for, and a question asked at `read-only` would be
+                # declined before any `ASK_USER` hook heard it.
                 ["--permission-prompt-tool", "stdio"]
-                if self._agent.config.permission == "bypass"
+                if self._agent.config.permission in ("read-only", "bypass")
                 else []
             ),
             "--settings",

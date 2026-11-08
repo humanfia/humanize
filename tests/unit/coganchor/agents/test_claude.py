@@ -219,7 +219,10 @@ def test_each_rung_is_a_permission_mode(
     _agent(permission=permission).new(tmp_path)("go")
     argv = spawner.last.args
     assert _flag(argv, "--permission-mode") == mode
-    assert ("--permission-prompt-tool" in argv) is (permission == "bypass")
+    routed = permission in ("read-only", "bypass")
+    assert ("--permission-prompt-tool" in argv) is routed
+    if routed:
+        assert _flag(argv, "--permission-prompt-tool") == "stdio"
 
 
 def test_what_the_config_says_reaches_the_command_line(
@@ -497,8 +500,21 @@ def test_the_model_it_was_told_under_another_spelling_is_no_news(
 
 
 def _asking(request: dict[str, Any]) -> Callable[[Process, str], None]:
-    """An answer that first asks for something over the control protocol."""
-    return _says({"type": "control_request", "request_id": "r1", "request": request})
+    """An answer that first asks for something over the control protocol.
+
+    As the CLI does: only a process told `--permission-prompt-tool stdio` routes the request
+    to its reader. Any other denies the tool by itself and names it in the result.
+    """
+
+    def answer(proc: Process, session: str) -> None:
+        if "--permission-prompt-tool" in proc.args:
+            asked = {"type": "control_request", "request_id": "r1", "request": request}
+            _says(asked)(proc, session)
+        else:
+            denied = [{"tool_name": request["tool_name"]}]
+            _says(_result(permission_denials=denied))(proc, session)
+
+    return answer
 
 
 def _replied(proc: Process) -> dict[str, Any]:
@@ -515,14 +531,23 @@ def test_a_permission_is_granted_unless_the_rung_changes_nothing(
     spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str, behavior: str
 ) -> None:
     claude.mode = "bypassPermissions" if permission == "bypass" else "plan"
+    seen: list[Occasion] = []
+
+    def watch(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict()
+
+    agent = _agent(permission=permission)
+    agent.hooks.on(Moment.PERMISSION_REQUEST, watch)
     claude.answers = [
         _asking(
             {"subtype": "can_use_tool", "tool_name": "Bash", "input": {"command": "ls"}}
         )
     ]
-    _agent(permission=permission).new(tmp_path)("go")
+    agent.new(tmp_path)("go")
     replied = _replied(spawner.last)
     assert replied["behavior"] == behavior
+    assert [(one.tool, one.about) for one in seen] == [("Bash", "ls")]
     if behavior == "allow":
         assert replied["updatedInput"] == {"command": "ls"}
 
@@ -550,11 +575,13 @@ def test_a_hook_on_permission_request_asks_and_may_refuse(
     assert [(one.tool, one.about) for one in seen] == [("Bash", "rm")]
 
 
+@pytest.mark.parametrize("permission", ["read-only", "bypass"])
 @pytest.mark.parametrize(("answer", "behavior"), [("blue", "allow"), (None, "deny")])
 def test_a_question_for_its_user_is_put_to_whoever_is_driving(
     spawner: Spawner,
     claude: _Claude,
     tmp_path: Path,
+    permission: str,
     answer: str | None,
     behavior: str,
 ) -> None:
@@ -564,7 +591,8 @@ def test_a_question_for_its_user_is_put_to_whoever_is_driving(
         asked.append(question)
         return answer
 
-    agent = _agent()
+    claude.mode = "plan" if permission == "read-only" else "bypassPermissions"
+    agent = _agent(permission=permission)
     agent.ask = ask
     question = {"question": "Which?", "options": [{"label": "blue"}, {"label": "red"}]}
     claude.answers = [
@@ -582,6 +610,44 @@ def test_a_question_for_its_user_is_put_to_whoever_is_driving(
     assert replied["behavior"] == behavior
     if answer is not None:
         assert replied["updatedInput"]["answers"] == {"Which?": "blue"}
+
+
+@pytest.mark.parametrize("permission", ["", "workspace-write", "auto"])
+def test_a_rung_humanize_does_not_answer_for_routes_nothing(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str
+) -> None:
+    asked: list[Question] = []
+
+    def ask(question: Question) -> str | None:
+        asked.append(question)
+        return "blue"
+
+    agent = _agent(permission=permission)
+    agent.ask = ask
+    question = {"question": "Which?", "options": [{"label": "blue"}]}
+    claude.answers = [
+        _asking(
+            {
+                "subtype": "can_use_tool",
+                "tool_name": "AskUserQuestion",
+                "input": {"questions": [question]},
+            }
+        )
+    ]
+    agent.new(tmp_path)("go")
+    assert "--permission-prompt-tool" not in spawner.last.args
+    assert asked == []
+
+
+@pytest.mark.parametrize("web_search", [True, None])
+def test_web_search_not_switched_off_leaves_the_web_tools_alone(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, web_search: bool | None
+) -> None:
+    _agent(permission="read-only", web_search=web_search).new(tmp_path)("go")
+    argv = spawner.last.args
+    if "--disallowedTools" in argv:
+        denied = set(_flag(argv, "--disallowedTools").split(","))
+        assert not {"WebSearch", "WebFetch"} & denied
 
 
 def test_an_account_that_forbids_bypass_is_moved_and_remembered(

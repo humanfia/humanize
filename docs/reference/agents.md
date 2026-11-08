@@ -349,7 +349,7 @@ How it is sent:
 | Backend | Flags or protocol |
 | --- | --- |
 | `agy` | `--mode plan --agent hmz-read-only`; `--mode accept-edits`; `--dangerously-skip-permissions` |
-| `claude` | `--permission-mode <mode>`; at `bypass` also `--permission-prompt-tool stdio`, each request answered `allow` unless a `PERMISSION_REQUEST` hook refuses |
+| `claude` | `--permission-mode <mode>`; at `read-only` and `bypass` also `--permission-prompt-tool stdio`: at `bypass` each request answered `allow` unless a `PERMISSION_REQUEST` hook refuses, at `read-only` each answered `deny`; at both a question goes to the ask-user hook |
 | `codex` | `sandbox` and `approvalPolicy` on `thread/start`, `thread/resume` and `turn/start`; approval `never` at every rung but `auto` |
 | `cursor-agent` | `--mode plan`; `--force --sandbox enabled`; `--auto-review`; `--force --sandbox disabled` |
 | `grok` | `--always-approve`, plus `--tools read_file,grep,list_dir` at `read-only` and `--disable-web-search` at `workspace-write` |
@@ -382,7 +382,10 @@ Per-backend rules:
   `bypass` runs at `manual` instead, so that every tool that would change something reaches a
   `PERMISSION_REQUEST` hook. Whatever is asked at `bypass` is
   answered `allow` unless such a hook refuses. The CLI still enforces an organisation's `deny`
-  list.
+  list. `read-only` is routed too, so that an `AskUserQuestion` asked in plan mode reaches the
+  ask-user hook (no hook: denied, nobody to ask); every other request there is denied after
+  `PERMISSION_REQUEST` hooks are told of it. At `workspace-write`, `auto` and with no rung
+  nothing is routed, and Claude decides by itself.
 - **codex**: the approval policy is `never` at every rung but `auto`. On a machine whose
   requirements forbid `danger-full-access`, `bypass` runs at `auto` and says once per agent,
   as a `notice` event to whatever watches it (on stderr where nothing does):
@@ -975,7 +978,7 @@ A refusal reaches the agent only on a backend that waits for the answer:
 
 | Backend | When it asks | Default answer with no refusing hook |
 | --- | --- | --- |
-| `claude` | at `bypass`: `--permission-prompt-tool stdio` routes every request over the stream | yes; a request at `read-only` is answered no; with no rung nothing is routed |
+| `claude` | at `read-only` and `bypass`: `--permission-prompt-tool stdio` routes every request over the stream | yes at `bypass`; no at `read-only`; at the other rungs and with no rung nothing is routed |
 | `codex` | through the app server, at `auto` (`on-request`) and at any rung given `approvals` | yes at every rung; no with no rung |
 | `grok` | `session/request_permission`, on the held-open transport only | yes at every rung; no with no rung |
 | `kimi` | each approval on the daemon's `/approvals`: at `auto`, and at `read-only` or no rung | yes at `auto`; no at `read-only` and with no rung |
