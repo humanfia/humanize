@@ -69,8 +69,11 @@ ask, and Humanize answers every request yes unless the hook says no -- never a m
   CLI deems risky, and is the mode where the agent may ask its user at all.
 
 `online` is also the CLI's own web tools: on for ALL, off for NONE where the CLI can be told,
-and left as the CLI has it where it cannot (cursor-agent, mcode, pi, agy, acp) -- where the
-fence's cut network is what stops them, a search reaching no host but the model's.
+and left as the CLI has it where it cannot (cursor-agent, mcode, omp, pi, acp). At NONE,
+cursor-agent and mcode -- whose search runs on their vendors' servers, through the hosts of
+their models -- and an ACP CLI that declares no hosts are refused; on omp, pi and an ACP CLI
+that does, the fence's cut network is what stops a search, which reaches no host but the
+model's.
 """
 
 from __future__ import annotations

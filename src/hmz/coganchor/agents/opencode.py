@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
@@ -271,11 +272,11 @@ class OpencodeSession(CommandSessionBase):
     takes_tools: ClassVar[bool] = True
 
     #: Which permissions of that table are the ways out of the workspace, and so the ones
-    #: `web_search` is said in. Two here -- the tool that fetches a page it is given, and the
-    #: one that goes looking for pages it is not -- because either left allowed is an agent
-    #: still reaching the web, and a switch that took only the first away would be one that
-    #: lies. mimocode ships a third and says so on its own class.
-    reaches: ClassVar[tuple[str, ...]] = ("webfetch", "websearch")
+    #: `web_search` is said in. Three here -- the tool that fetches a page it is given, the one
+    #: that goes looking for pages it is not, and the one that looks up the APIs and libraries
+    #: a turn is working against -- because any left allowed is an agent still reaching the
+    #: web, and a switch that took only the first away would be one that lies.
+    reaches: ClassVar[tuple[str, ...]] = ("webfetch", "websearch", "codesearch")
 
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
@@ -818,10 +819,19 @@ class OpencodeAgent(AgentBase):
         """The fence, with the model API this machine's configuration points the model at.
 
         What pi's `models.json` is to pi (:meth:`hmz.coganchor.agents.PiAgent.fenced`), its
-        `opencode.json` is here: a provider of its own, at a `baseURL` written there and in no
+        config is here: a provider of its own, at a `baseURL` written there and in no
         variable. A gateway declared there was cut off at `online=NONE` with every other host,
         and the turn could not reach its own model. Only the provider the model is named
-        under, and nothing where the file does not declare it.
+        under, and nothing where no config declares it.
+
+        Read as the CLI reads its config, every source over the one before, so the `baseURL`
+        let through is the one the CLI will use: `config.json`, `<name>.json` and
+        `<name>.jsonc` in its directory under `$XDG_CONFIG_HOME`, the file `<NAME>_CONFIG`
+        names, then `<NAME>_CONFIG_CONTENT` itself -- each JSON with comments, and with its
+        `{env:VAR}` said as the variable. Not a project's own config: the fence is the
+        agent's, and which project a turn of it works in is the session's; and a host a
+        repository's file named would be one the repository, or the agent writing into it,
+        opened past a cut network.
 
         Returns:
           The fence, or None for an agent nobody said one for.
@@ -829,24 +839,38 @@ class OpencodeAgent(AgentBase):
         fence = super().fenced()
         if fence is None:
             return None
+        import json5
+
         environ = self._environ() or os.environ
-        at = Path(environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
-        named = self.configured
-        try:
-            said = json.loads(
-                (at / named / f"{named}.json").read_text(encoding="utf-8")
-            )
-            provider = self.config.model.partition("/")[0]
-            split = urllib.parse.urlsplit(
-                str(said["provider"][provider]["options"]["baseURL"])
-            )
-            host, port = (split.hostname or "").rstrip("."), split.port
-        # A file that is not there, or a provider it does not declare, is a built-in one.
-        except (OSError, ValueError, KeyError, TypeError):
-            return fence
-        if not host:
-            return fence
-        return fence.granting(hosts=[f"{host}:{port}" if port else host])
+        named, variable = self.configured, self.configured.upper()
+        at = Path(environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / named
+        files = [at / "config.json", at / f"{named}.json", at / f"{named}.jsonc"]
+        if chosen := environ.get(f"{variable}_CONFIG"):
+            files.append(Path(chosen))
+        texts: list[str] = []
+        for one in files:
+            try:
+                texts.append(one.read_text(encoding="utf-8"))
+            # A file that is not there is one the CLI skips too.
+            except (OSError, UnicodeError):
+                continue
+        if content := environ.get(f"{variable}_CONFIG_CONTENT"):
+            texts.append(content)
+        provider = self.config.model.partition("/")[0]
+        host = ""
+        for text in texts:
+            said = re.sub(r"\{env:([^}]+)\}", lambda m: environ.get(m[1], ""), text)
+            try:
+                url = json5.loads(said)["provider"][provider]["options"]["baseURL"]
+                split = urllib.parse.urlsplit(str(url))
+                name, port = (split.hostname or "").rstrip("."), split.port
+            # A config that does not declare the provider leaves the one before it standing.
+            except (ValueError, KeyError, TypeError):
+                continue
+            # In brackets, an IPv6 address, as the proxy names the host it is asked for.
+            at = f"[{name}]" if ":" in name else name
+            host = f"{at}:{port}" if name and port else name
+        return fence.granting(hosts=[host]) if host else fence
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> OpencodeSession:
         """Opens a new opencode session, in the directory it is given or in this one."""

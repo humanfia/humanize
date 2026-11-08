@@ -17,6 +17,16 @@ allow-list a list of names rather than of addresses, which change. An IP literal
 unless that literal is itself listed, because an address names no host and so matches none --
 letting one through would be letting the child go anywhere it had the number for.
 
+Where the machine hmz runs on reaches the network through a proxy of its own -- the
+`HTTPS_PROXY`, `HTTP_PROXY` or `ALL_PROXY` of the process this one runs in, which the fenced
+child no longer sees because its own are pointed here -- an allowed host is reached through
+that proxy rather than directly, unless `NO_PROXY` names it, by asking it for a tunnel to
+that host -- a plain HTTP request too, sent through the tunnel as it would be sent direct.
+Never handed to it as a request it reads: whatever the client wrote after its first request
+would be read there as a next one, for any host at all. Without that, the hosts a fenced
+agent was let reach would be the ones a machine with no other way out cannot reach at all.
+What is refused is refused here first either way.
+
 Each connection is held by one thread per direction, the number of connections held at once
 is bounded, and a side that closes its writing half has that passed on rather than taken for
 the end of the whole exchange.
@@ -31,6 +41,8 @@ import socket
 import socketserver
 import threading
 import urllib.parse
+import urllib.request
+from base64 import b64encode
 from typing import TYPE_CHECKING, Any, Self
 
 from hmz.coganchor.proto import CHUNK_SIZE
@@ -133,6 +145,10 @@ class Proxy:
     Started on an ephemeral port on 127.0.0.1, which :attr:`port` then says; usable as a
     context manager, which starts it on the way in and stops it on the way out.
 
+    What it passes is reached through the proxy the environment it is made in names, where
+    it names one, as the module says; read once, here, so that what a child is handed later
+    changes nothing about it.
+
     Args:
       allowed: The hosts it passes, as :func:`permits` reads them.
       ports: The ports those hosts may be reached on, where an entry names none of its own.
@@ -148,6 +164,7 @@ class Proxy:
     ) -> None:
         self.allowed = tuple(allowed)
         self.ports = frozenset(ports)
+        self.upstream = urllib.request.getproxies_environment()
         self._server = _Server(self, limit)
         self._thread: threading.Thread | None = None
 
@@ -190,6 +207,41 @@ class Proxy:
     def passes(self, host: str, port: int) -> bool:
         """Whether a request for this host and port goes through."""
         return permits(self.allowed, host, port, self.ports)
+
+    def via(
+        self, host: str, port: int, *, tunnel: bool
+    ) -> tuple[str, int, list[bytes]] | None:
+        """The proxy a request this one passes is sent on through, or None to go direct.
+
+        Args:
+          host: The host it is for.
+          port: The port it is for.
+          tunnel: Whether it is a `CONNECT`, which the HTTPS proxy carries, rather than a
+            plain HTTP request, which the HTTP one does; `ALL_PROXY` carries either.
+
+        Returns:
+          That proxy's host and port, and the header that signs in to it where it is named
+          with a user -- where one is named for that kind of request, `NO_PROXY` does not
+          exempt the host, and it is a plain HTTP proxy, the one kind this one speaks to.
+        """
+        named = self.upstream.get("https" if tunnel else "http") or self.upstream.get(
+            "all"
+        )
+        # The standard library's own reading of `NO_PROXY`, the one `urllib.request.urlopen`
+        # goes by; undocumented, and so left out of the type stubs.
+        bypass = urllib.request.proxy_bypass_environment  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType, reportUnknownVariableType]
+        if not named or bypass(_spelled(host, port), self.upstream):
+            return None
+        try:
+            split = urllib.parse.urlsplit(
+                named if "://" in named else f"http://{named}"
+            )
+            if split.scheme.lower() == "http" and split.hostname:
+                return split.hostname, split.port or 80, _credentials(split)
+        except ValueError:
+            pass
+        log.warning("fence proxy: %s is not an http:// proxy; going direct", named)
+        return None
 
 
 #: What a server is handed per connection: a socket, or for a datagram server a packet and one.
@@ -293,8 +345,12 @@ class _Handler(socketserver.BaseRequestHandler):
                 f"hmz: {host}:{port} is not a host this run may reach\n",
             )
             return
+        tunnel = method == "CONNECT"
+        via = proxy.via(host, port, tunnel=tunnel)
         try:
-            upstream = socket.create_connection((_host(host), port), timeout=_WAIT)
+            upstream = socket.create_connection(
+                (_host(host), port) if via is None else via[:2], timeout=_WAIT
+            )
         except OSError as error:
             _answer(
                 client,
@@ -305,20 +361,72 @@ class _Handler(socketserver.BaseRequestHandler):
             return
         self.server.hold(upstream)
         try:
-            if method == "CONNECT":
-                client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            early = (
+                b""
+                if via is None
+                else _tunnelled(upstream, _spelled(host, port), via[2])
+            )
+            if tunnel:
+                client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n" + early)
                 first = rest
             else:
+                if early:
+                    client.sendall(early)
                 first = _forwarded(method, path, version, fields) + rest
             if first:
                 upstream.sendall(first)
             client.settimeout(None)
             upstream.settimeout(None)
             _relay(client, upstream)
+        except _RefusedError as error:
+            _answer(client, 502, "Bad Gateway", f"hmz: {error}\n")
         except OSError:
             pass
         finally:
             self.server.drop(upstream)
+
+
+class _RefusedError(Exception):
+    """The proxy upstream of this one would not open a tunnel."""
+
+
+def _spelled(host: str, port: int) -> str:
+    """A host and port as a request line names them, an IPv6 address in brackets."""
+    host = _host(host)
+    return f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+
+
+def _credentials(via: urllib.parse.SplitResult) -> list[bytes]:
+    """The header that signs in to a proxy named with a user in it, or none."""
+    if via.username is None:
+        return []
+    said = urllib.parse.unquote(f"{via.username}:{via.password or ''}")
+    return [b"Proxy-Authorization: Basic " + b64encode(said.encode())]
+
+
+def _tunnelled(upstream: socket.socket, target: str, fields: list[bytes]) -> bytes:
+    """Ask the proxy upstream for a tunnel to `target`.
+
+    Returns:
+      Whatever it sent past the end of its answer, which is the far end's already and so the
+      client's to read.
+
+    Raises:
+      _RefusedError: Where it answers with anything but success, or closes before answering.
+    """
+    head = [f"CONNECT {target} HTTP/1.1".encode(), f"Host: {target}".encode(), *fields]
+    upstream.sendall(b"\r\n".join(head) + b"\r\n\r\n")
+    try:
+        answer, rest = _read_head(upstream)
+    except ValueError as error:
+        raise _RefusedError(
+            f"the proxy upstream did not answer for {target}: {error}"
+        ) from None
+    line = answer.split(b"\r\n", 1)[0].decode("latin-1")
+    status = line.split()[1:2]
+    if not (status and status[0].startswith("2")):
+        raise _RefusedError(f"the proxy upstream refused {target}: {line}")
+    return rest
 
 
 def _read_head(sock: socket.socket) -> tuple[bytes, bytes]:

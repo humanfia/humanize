@@ -224,10 +224,14 @@ def _seatbelted(fence: Fence, argv: Sequence[str]) -> int:
         port = proxy.port if proxy is not None else None
         security: tuple[str, ...] = ()
         with contextlib.suppress(OSError, ValueError):
-            if cache := os.confstr(_DARWIN_USER_CACHE_DIR):
+            if (cache := os.confstr(_DARWIN_USER_CACHE_DIR)) and not (
+                mds := Path(cache, "mds")
+            ).is_symlink():
                 # Native TLS needs the module database's lock writable even when the
                 # program only reads the keychains. Denied, TLS reports a bad certificate.
-                security = (str(Path(cache, "mds")),)
+                # Reached as the fence's own are, and granted nothing where it is a link:
+                # Security makes a directory there, and a link is one a program put.
+                security = (fence.reach(str(mds))[1],)
         profile = seatbelt.Profile(
             read=fence.read, write=(*reached, *security), port=port
         )

@@ -54,9 +54,9 @@ has connected. A fence that cuts the network turns both off, whatever `web_searc
 ``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``. And at
 `read-only` a fence that grants it is not cut by Codex instead: that sandbox cuts a command's
 network with its writes, so a `read-only` turn whose fence grants the network is sent that
-sandbox with the network left on (:data:`_REACHING`). On Linux and macOS a rung that a fence
-around Codex already holds is left to that fence (:func:`_abroad`): Codex's own sandbox cannot
-start inside it.
+sandbox with the network left on (:data:`_REACHING`). On Linux and macOS a rung under a fence
+held around Codex is left to that fence (:func:`_abroad`): Codex's own sandbox cannot start
+inside it.
 
 What the app server is started with -- the web search, the fence, the features, the overrides
 -- it reads once, so an agent set up as something else there runs its next turn on a server
@@ -336,22 +336,24 @@ _SANDBOXED = ("read-only", "workspace-write")
 def _abroad(config: AgentConfig, sandbox: object) -> bool:
     """Whether a rung's sandbox is held by the fence rather than by Codex.
 
-    Where the agent's turns land on another machine, or on this one where it is Linux, and its
-    fence -- held there by the anchor, on both machines, or here around Codex -- is at least as
-    narrow as the rung: nothing of the workdir, the home or the system written at `read-only`,
-    nothing of the home or the system at `workspace-write`. A fence wider than the rung, or
-    none, leaves the rung to Codex's own sandbox, which is what it always was. Inside a fence
-    here Codex's sandbox cannot start at all: Landlock forbids the mounts bubblewrap makes
-    (`bwrap: Failed to make / slave: Operation not permitted`), and codex-cli 0.163.0 with
-    :data:`_LANDLOCK` on panics with `filesystem-restricted execution requires bubblewrap`,
-    so every command of a sandboxed turn failed.
+    Where the agent's turns land on another machine and its fence -- held there by the
+    anchor, on both machines -- is at least as narrow as the rung: nothing of the workdir, the
+    home or the system written at `read-only`, nothing of the home or the system at
+    `workspace-write`. A fence wider than the rung, or none, leaves the rung to Codex's own
+    sandbox, which is what it always was.
 
-    And on a Mac wherever a fence is held around Codex here, at a rung with a sandbox: the
-    fence is Seatbelt, and Codex's own sandbox is Seatbelt too, which cannot be applied inside
-    another -- on codex-cli 0.154.0 every command of a `read-only` thread inside a fence
-    answered `sandbox-exec: sandbox_apply: Operation not permitted` and never ran. What is
-    held there is the fence, which is the permission; a rung narrower than it, which a flow's
-    permission never draws, is not held beyond it.
+    And on Linux or a Mac wherever a fence is held around Codex here, at a rung with a
+    sandbox, whatever its width: Codex's own sandbox cannot start inside it. On Linux Landlock
+    forbids the mounts bubblewrap makes (`bwrap: Failed to make / slave: Operation not
+    permitted`), and codex-cli 0.163.0 with :data:`_LANDLOCK` on panics with
+    `filesystem-restricted execution requires bubblewrap`, so every command of a sandboxed
+    turn failed. On a Mac the fence is Seatbelt, and Codex's own sandbox is Seatbelt too,
+    which cannot be applied inside another -- on codex-cli 0.154.0 every command of a
+    `read-only` thread inside a fence answered `sandbox-exec: sandbox_apply: Operation not
+    permitted` and never ran. What is held there is the fence, which is the permission, its
+    network included; a rung narrower than it -- `workspace-write` that a Codex refusing
+    `danger-full-access` stepped `bypass` down to, under a fence that writes the home -- is
+    not held beyond it.
 
     Args:
       config: What the agent runs at.
@@ -367,8 +369,8 @@ def _abroad(config: AgentConfig, sandbox: object) -> bool:
     fence = config.fence
     if fence is None or fence.open or sandbox not in _SANDBOXED:
         return False
-    if config.machine is None and sys.platform != "linux":
-        return sys.platform == "darwin"
+    if config.machine is None:
+        return sys.platform in ("darwin", "linux")
     if len(fence.scopes) != 3:  # noqa: PLR2004
         return False
     local, user, system = fence.scopes
@@ -652,25 +654,30 @@ _FORBIDDEN = "requirements do not allow"
 def _rung(params: Mapping[str, Any]) -> str | None:
     """Which rung of the ladder a call's parameters are asking for.
 
+    Read off the sandbox, which is what an installation's requirements forbid: an approval
+    policy said in place of the rung's (:attr:`CodexAgentConfig.approvals`, `untrusted` while
+    a hook is hung on `PERMISSION_REQUEST`) does not hide the rung it was said at. Of two rows
+    with one sandbox, the one whose policy the call carries too.
+
     Args:
       params: What the call was made with.
 
     Returns:
       The rung they name, or None for a call that says nothing about what the agent may do.
     """
+    # The row that names nothing is skipped rather than read: it is the absence of a rung
+    # rather than one of them. So a call Humanize sent no sandbox with names no rung to step
+    # down from, and a Codex refusing one is refusing something it was never asked -- its own
+    # error to report, rather than ours to retry a rung quieter.
+    named = [
+        rung
+        for rung, settings in _PERMITTED.items()
+        if settings and params.get("sandbox") == settings["sandbox"]
+    ]
+    policy = params.get("approvalPolicy")
     return next(
-        (
-            rung
-            # The row that names nothing is skipped rather than read: `all` over no settings
-            # is true of every call ever made, and the unset row is the absence of a rung
-            # rather than one of them. So a call Humanize sent no sandbox with names no rung
-            # to step down from, and a Codex refusing one is refusing something it was never
-            # asked -- its own error to report, rather than ours to retry a rung quieter.
-            for rung, settings in _PERMITTED.items()
-            if settings
-            and all(params.get(key) == value for key, value in settings.items())
-        ),
-        None,
+        (rung for rung in named if _PERMITTED[rung]["approvalPolicy"] == policy),
+        next(iter(named), None),
     )
 
 
@@ -1042,15 +1049,16 @@ class _AppServer:
             if taken == asked:
                 self._instead[rung] = instead
         self._instead[asked] = instead
-        if not self._watched():
-            # Where a turn's own words go when nothing is watching the agent, which is the one
-            # place a line of ours belongs: something watching owns the screen.
-            say(
-                f"codex: this machine will not run an agent at {asked}, so it runs at"
-                f" {instead}, where what it asks for is granted",
-                sys.stderr,
-            )
-        return params | _PERMITTED[instead]
+        stepped = params | _PERMITTED[instead]
+        if params.get("approvalPolicy", "") not in (
+            "",
+            _PERMITTED[asked]["approvalPolicy"],
+        ):
+            # An approval policy the caller said in place of the rung's goes down with it:
+            # `untrusted` while a hook is hung on `PERMISSION_REQUEST` is every command put to
+            # that hook, at whichever rung this Codex will take.
+            stepped["approvalPolicy"] = params["approvalPolicy"]
+        return stepped
 
     def _called(self, method: str, params: dict[str, Any]) -> Any:
         """Makes that one call, exactly as it stands, and reads until it is answered.
@@ -1859,17 +1867,6 @@ class _AppServer:
             {"jsonrpc": "2.0", "id": message["id"], "result": {"answers": answers}}
         )
 
-    def _watched(self) -> bool:
-        """Whether something is watching the agents this server runs turns for.
-
-        Whatever is watching owns the screen, so a line of this driver's own goes on the
-        terminal only when nothing is.
-
-        Returns:
-          Whether anything is watching.
-        """
-        return any(agent._watchers for agent in self._agents)
-
     def _take(
         self, mailbox: _Mailbox, timeout: float | None = None
     ) -> dict[str, Any] | None:
@@ -2046,7 +2043,8 @@ class CodexAgentConfig(AgentConfig):
         the sandbox stays where the rung puts it -- `untrusted` at `bypass` is full access
         with nothing but a known-safe read run unasked, and every request answered by this
         client, which grants it unless a hook hung on `PERMISSION_REQUEST` refuses. A policy
-        said here is not stepped down from on an installation that refuses the rung's sandbox.
+        said here is kept on an installation that refuses the rung's sandbox, at the rung the
+        sandbox is stepped down to.
       unsandboxed: The fake command lines (:meth:`~hmz.coganchor.agents.SessionBase.shelves`)
         Codex runs outside its own sandbox, each by an execpolicy rule in the virtual home
         (:func:`_ruled`). Codex's `read-only` sandbox refuses the socket a fake command line
@@ -2178,6 +2176,7 @@ class CodexSession(SessionBase):
                 # back up is let go of like one whose turn was never taken.
                 self._running.answered = False
                 thread = self._thread(server)
+                self._steps(server)
                 # Known before the turn starts, so a word put in has a thread to name even
                 # though the session is only opened once the turn has landed. The book goes
                 # with it: the server reads every session's stream, and only this one knows
@@ -2297,9 +2296,9 @@ class CodexSession(SessionBase):
         """What a turn of this session tells the server the agent may do.
 
         The rung's settings less those only a thread takes (:func:`turning`), and one more
-        where the turn lands on another machine, or on this Linux one, whose fence holds the
-        rung, or on a Mac where a fence is held around Codex at all -- the sandbox left to
-        that fence (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
+        where the turn lands on another machine whose fence holds the rung, or on this Linux
+        or Mac one where a fence is held around Codex at all -- the sandbox left to that fence
+        (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
         fence it is held to grants the network. Codex's
         `read-only` sandbox cuts a command's network as well as its writes, which is narrower
         than a permission that reads its workdir and reaches the web: so such a turn is sent
@@ -2372,6 +2371,24 @@ class CodexSession(SessionBase):
         server.holding(thread, rung, self)
         return thread
 
+    def _steps(self, server: _AppServer) -> None:
+        """Says, once for the agent, that this machine's Codex runs it a rung down.
+
+        Where the server has stepped the agent's rung down -- for this call or for another
+        agent's on it -- and nobody has said so for this agent yet: on a server it started
+        before, or one it starts after, the agent is told once and no more.
+
+        Args:
+          server: The server the thread was just opened or picked up on.
+        """
+        asked = self._agent.config.permission
+        instead = server._instead.get(asked, asked)
+        if instead != asked and self._agent._stepped(asked):
+            self._narrates(
+                f"codex: this machine will not run an agent at {asked}, so it runs at"
+                f" {instead}, where what it asks for is granted"
+            )
+
     def _lets_go(self) -> None:
         """Takes down the app server, which is what a wedged turn here is waiting on.
 
@@ -2402,6 +2419,7 @@ class CodexSession(SessionBase):
                 self._on = server
                 config = self._agent.config
                 thread = self._thread(server)
+                self._steps(server)
                 if self._id is None:
                     # The run's from here, as for a turn: the goal may fail before it lands.
                     self._tells(thread)
@@ -2531,6 +2549,24 @@ class CodexAgent(AgentBase):
         #: one dropped for an account that moved is still up and still holding conversations.
         self._ever = False
         self._serving = threading.Lock()
+        #: The rungs this machine's Codex was found to refuse that the agent has been told it
+        #: runs below, so that it is told once whatever server found it out.
+        self._stepping: set[str] = set()
+
+    def _stepped(self, permission: str) -> bool:
+        """Notes that the agent has been told its rung is run a rung down here.
+
+        Args:
+          permission: The rung refused.
+
+        Returns:
+          Whether this is the first it has been told of it, and so something to say.
+        """
+        with self._serving:
+            if permission in self._stepping:
+                return False
+            self._stepping.add(permission)
+            return True
 
     def disable_goals(self) -> None:
         """Disables both ``pursue`` and Codex's goal tools for this agent.
@@ -2796,8 +2832,12 @@ class CodexAgent(AgentBase):
         if offline:
             # Off whatever the flow said of it, for the reason the web search is below.
             argv += ["--disable", _APPS]
-            # And this, so that the proxy the fence hands it is the one it goes through.
-            if _offered(_SYSTEM_PROXY):
+            # And this, so that the proxy the fence hands it is the one it goes through --
+            # where this machine's Codex is the one started: a native one is the target's,
+            # whose features `codex features list` here does not say, and a name it does not
+            # know would keep it from starting. Left out there, the fence still cuts what a
+            # system proxy would reach.
+            if not self._native() and _offered(_SYSTEM_PROXY):
                 argv += ["--disable", _SYSTEM_PROXY]
         sandboxed = _PERMITTED.get(self.config.permission, {}).get("sandbox")
         if (

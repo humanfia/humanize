@@ -8,10 +8,19 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor.agents import Failed, PiAgent, PiAgentConfig, PiSession, driver
+from hmz.coganchor import fence
+from hmz.coganchor.agents import (
+    UNSAID,
+    Failed,
+    PiAgent,
+    PiAgentConfig,
+    PiSession,
+    driver,
+)
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 
+from .doubles_u4 import fenceable
 from .doubles_u5 import (
     configured,
     heard,
@@ -198,6 +207,32 @@ def test_what_the_agent_is_configured_with_goes_on_the_command_line(
     argv = spawned[0].args
     at = argv.index(flags[0])
     assert argv[at : at + len(flags)] == flags
+
+
+@pytest.mark.parametrize("permission", ["workspace-write", "auto", "bypass", UNSAID])
+def test_only_read_only_takes_tools_away(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, permission: str
+) -> None:
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    agent = _agent(permission=permission)
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    assert "--exclude-tools" not in spawned[0].args
+
+
+def test_a_fence_that_cuts_the_network_runs_pi_offline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    agent = _agent(fence=Fence(online=False))
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    assert "--offline" in spawned[0].args
 
 
 def test_a_bare_agent_adds_nothing_to_the_command_line(

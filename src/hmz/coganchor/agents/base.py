@@ -4059,6 +4059,43 @@ _FILE_SUFFIXES: Final = frozenset(
 )
 
 
+def _within(fence: Fence | None, *, write: bool) -> Callable[[str], bool]:
+    """Whether a path, every link in it followed, is inside what a fence grants.
+
+    What Humanize asks before it reads or writes for an agent outside its fence -- copying
+    into its virtual home, writing that home back -- so that a link the agent put where it
+    may write leads Humanize nowhere the agent could not go itself.
+
+    Args:
+      fence: The agent's whole fence (:meth:`AgentBase.fenced`), or None for none.
+      write: Whether the path is to be written, rather than read.
+
+    Returns:
+      The test: true for every path where there is no fence.
+    """
+    if fence is None:
+        return lambda _path: True
+    roots = fence.write if write else (*fence.write, *fence.read)
+    held = list(roots)
+    for root in roots:
+        # And as the fence reaches it: a root kept elsewhere through a link holds where it
+        # leads, unless that is a link the agent could have made, which leads nowhere.
+        with contextlib.suppress(ValueError, OSError):
+            fd, at = fence.reach(root)
+            if fd is not None:
+                os.close(fd)
+            held.append(at)
+
+    def inside(path: str) -> bool:
+        real = os.path.realpath(path)
+        return any(
+            real == root or real.startswith(root.rstrip(os.sep) + os.sep)
+            for root in held
+        )
+
+    return inside
+
+
 def _swept(scratch: str) -> None:
     """Takes away a fenced agent's scratch directory, and everything its turns left there."""
     import shutil
@@ -4673,8 +4710,9 @@ class AgentBase(ABC):
         its model and sign-in are at -- read off the account it is on now, which a step down
         its chain changes -- and the skills it is given, to read. On a Mac, the login keychain
         to write besides, which is where a CLI there keeps its sign-in. With the scratch directory
-        its processes are given as their temporary directory. Not Humanize's own home: its
-        settings, and every account's credentials, are no agent's to write.
+        its processes are given as their temporary directory. Not Humanize's own home nor its
+        cache: its settings, every account's credentials and its record of mirrors are no
+        agent's to write.
 
         This is what a driver that enforces a fence natively builds its sandbox from, and what
         is left of it once :meth:`natively` has taken its part is what :meth:`spawned` puts
@@ -4695,10 +4733,7 @@ class AgentBase(ABC):
         profile = backends.named(self.backend)
         writes: list[str | os.PathLike[str]] = [
             os.path.expanduser(one)  # noqa: PTH111 -- a string, as a fence holds it
-            for one in (
-                *statepaths.profile_for(self.backend).state_paths,
-                "~/.cache/humanize",
-            )
+            for one in statepaths.profile_for(self.backend).state_paths
         ]
         # Its own backend's directory of the sessions kept, not every agent's.
         if (keeps := self.keeps) is not None:
@@ -5503,8 +5538,15 @@ class AgentBase(ABC):
             spec = replace(spec, keeps=os.path.abspath(at / profile.name))  # noqa: PTH100
         provider = self.provider
         swaps = Swaps.of(provider.swaps() if provider is not None else ())
+        # Built and written back outside the fence: through nothing the agent could not reach.
+        fence = self.fenced()
         return homes.build(
-            spec, self._environ(), under=self._homing(), answered=swaps.swap
+            spec,
+            self._environ(),
+            under=self._homing(),
+            answered=swaps.swap,
+            readable=_within(fence, write=False),
+            writable=_within(fence, write=True),
         )
 
     def _homing(self) -> Path:

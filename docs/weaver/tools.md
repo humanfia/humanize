@@ -301,7 +301,10 @@ is handed on to offers the ones its own role declares instead.
 `litellm` do not, and neither does an ACP CLI, whose role is a plain `Agent`: a role declaring the
 mixin is refused for any of them before the first turn. On `grok`, a turn only `grok -p` can take
 fails with `HarnessUnrecoverable` while tools are offered: one with an `output_schema`, the
-first turn of a fork, web search off, or a permission that takes tools away.
+first turn of a fork, web search off, or a permission that takes tools away. A session whose CLI
+runs on another machine, as a runtime's harness `env` or `<backend>:<name>` puts it, is refused
+with `UnsupportedOperation` as it opens while its role offers tools, except on `omp`, which asks
+for each call over the pipe it is driven through.
 
 In a test, a fake session calls one with `await session.use("review", {"path": "calc.py"})`,
 which answers what the agent would read.

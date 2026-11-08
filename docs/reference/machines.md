@@ -251,7 +251,7 @@ and reaches its node:
 | `via` | The job's script | Anchor |
 | --- | --- | --- |
 | `srun` | `exec sleep 2147483647`: nothing, for as long as the job is let | `slurm://<job>[?python=<python>]`: every connection is a step of the job, `srun --jobid=<job> --overlap`, sharing its allocation (see [Remote execution › Targets](/reference/remote-execution#targets)) |
-| `tcp` | waits for the serving half's archive under `$HOME/.cache/humanize/`, then runs the serving half listening on `0.0.0.0:<free port>`, exporting `/`, with a random secret set in the script (`HUMANIZE_TOKEN`), never on a command line on the node | `tcp://<node>:<port>` with `token` the secret; `srun` is used once to put the archive on the node and to read the port off `/tmp/humanize-slurm-<job>.out` there (60 s) |
+| `tcp` | waits for the serving half's archive under `$HOME/.cache/humanize/`, then runs the serving half listening on `0.0.0.0:<free port>`, exporting the workspace and nothing else, with a random secret set in the script (`HUMANIZE_TOKEN`), never on a command line on the node | `tcp://<node>:<port>` with `token` the secret; `srun` is used once to put the archive on the node and to read the port off `/tmp/humanize-slurm-<job>.out` there (60 s) |
 
 The mirror is at `<dir>/shadow` of a private temporary directory here, and the anchor is
 observed as `DockerConfig`'s is. `stop()` runs `scancel <job>` (never a job it did not submit)

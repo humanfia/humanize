@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl
@@ -214,6 +215,7 @@ def test_a_job_reached_over_tcp_runs_the_serving_half_and_is_dialled_with_its_se
     assert machine.token
     assert f"HUMANIZE_TOKEN={machine.token}" in script
     assert "--listen" in script
+    assert after(shlex.split(script.split("; exec ", 1)[1]), "--export") == ["/w"]
     assert "/opt/py" in script
     assert after(made, "--output") == ["/tmp/humanize-slurm-%j.out"]
     assert machine.token not in " ".join(made).replace(script, "")

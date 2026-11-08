@@ -413,7 +413,8 @@ class HarnessDriver:
             another machine -- or, forking only in place, here in a mirror of that machine's
             work apart from it; or the CLI runs on another machine than its work, and the
             work's project configuration would have it start programs there (hooks, MCP
-            servers and the like).
+            servers and the like); or it runs on another machine, and `tools` offers any
+            tool it cannot be given there.
           HarnessDropped: If the work's machine cannot be reached to read that configuration.
           HarnessNotInstalled: If the CLI is not installed on the machine its harness runs
             on: this one, or the environment's where its runtime's harness setting is `env`.
@@ -440,6 +441,7 @@ class HarnessDriver:
             hooks=hooks,
             parent=parent,
             carry_on=carry_on,
+            tools=tools,
         )
         handle = HarnessSession(
             self,
@@ -470,6 +472,7 @@ class HarnessDriver:
         hooks: HookTable,
         parent: HarnessSession | None,
         carry_on: Kept | None = None,
+        tools: tuple[FakeTool, ...] = (),
     ) -> tuple[AgentBase, SessionBase]:
         """A session's own coganchor agent at `placement`, and its conversation there.
 
@@ -481,6 +484,7 @@ class HarnessDriver:
           parent: The session whose conversation it carries on, checked by :meth:`cut_from`,
             or None for a fresh one.
           carry_on: A kept conversation it carries on instead, or None.
+          tools: The flow's tools its turns offer the agent.
 
         Returns:
           The agent, and the conversation: a fork of `parent`'s or of the kept one, cut by its
@@ -498,7 +502,7 @@ class HarnessDriver:
                 raise UnsupportedOperation(f"{self.harness} cannot fork a session")
         cwd = self._where(placement)
         hung = frozenset(kind for kind in _STARTING if kind in hooks)
-        config = self._configured(permission, placement, hung)
+        config = self._configured(permission, placement, hung, placement.machine)
         machine = (
             None
             if self.harness in _NOWHERE
@@ -511,9 +515,18 @@ class HarnessDriver:
                 f"{self.harness} cannot carry a kept conversation onto another machine"
                 " its CLI runs on"
             )
+        if tools and _afar(machine) and not self._kind.pipes_tools:
+            # Served by a bridge that is a program on this machine, speaking to a socket in
+            # this process, which a CLI on another machine cannot start.
+            raise UnsupportedOperation(
+                f"{self.harness} cannot offer the flow's tools to a CLI on another"
+                " machine; set the harness of the runtime it is on to local"
+            )
         if machine is None:
             self._check_installed()
-        config = dataclasses.replace(config, machine=machine)
+        # Its fence drawn again for the machine it was put on: around the mirror of the work
+        # here, for a CLI run here in one.
+        config = self._configured(permission, placement, hung, machine)
         return await asyncio.to_thread(
             self._made, config, skills, parent, cwd, carry_on
         )
@@ -547,7 +560,9 @@ class HarnessDriver:
         if self._harbors is None or self.harness in _NOWHERE:
             return
         for placement in placements:
-            config = self._configured(permission, placement, frozenset())
+            config = self._configured(
+                permission, placement, frozenset(), placement.machine
+            )
             machine = await self._harnessed(placement, config)
             if machine is not None:
                 # Built and let go, as `open_agent` builds one: where coganchor refuses a
@@ -712,10 +727,14 @@ class HarnessDriver:
         try:
             return await self._put(setting, placement, machine, config, hung)
         except (HarnessError, UnsupportedOperation, EnvError, ResourceUnmet) as why:
-            raise type(why)(
-                f"{spelled(placement.backend, placement.provider)}: {self._named()}'s "
-                f"harness cannot run where its harness setting ({setting}) says: {why}"
-            ) from why
+            raise self.refusal(placement, setting, why) from why
+
+    def refusal[E: Exception](self, placement: Placement, setting: str, why: E) -> E:
+        """`why`, in the words a harness setting that cannot hold a session is refused in."""
+        return type(why)(
+            f"{spelled(placement.backend, placement.provider)}: {self._named()}'s "
+            f"harness cannot run where its harness setting ({setting}) says: {why}"
+        )
 
     async def _put(
         self,
@@ -735,12 +754,7 @@ class HarnessDriver:
         if setting == store.HERE:
             return machine
         if setting == store.ENV:
-            if hung & _GATES:
-                raise UnsupportedOperation(
-                    f"a {' and a '.join(sorted(hung & _GATES))} hook cannot gate the "
-                    "tools of a CLI on another machine; set the harness of the runtime "
-                    "it is on to local"
-                )
+            _ungated(hung)
             why = await self._native_on(machine.anchor, config.fence, placement)
             if why is not None:
                 kind, said = why
@@ -895,16 +909,27 @@ class HarnessDriver:
         return (
             HarnessSandboxed,
             (
-                f"{where} cannot fence the agent to its permission: it needs Landlock; "
-                "grant the agent everything, or set the harness of the runtime it is on "
-                "to local"
+                f"{where} cannot fence the agent to its permission: it needs Landlock"
+                f"{'' if fence.online else ' ABI 4 and seccomp'}; grant the agent "
+                "everything, or set the harness of the runtime it is on to local"
             ),
         )
 
     def _configured(
-        self, permission: Permission, placement: Placement, hung: frozenset[HookKind]
+        self,
+        permission: Permission,
+        placement: Placement,
+        hung: frozenset[HookKind],
+        machine: MachineConfig | None,
     ) -> AgentConfig:
         """What a session's own agent is configured with.
+
+        Args:
+          permission: What it may touch.
+          placement: Where it works.
+          hung: The hooks among :data:`_STARTING` hung on it.
+          machine: The machine its turns land on: `placement`'s own until its harness is
+            put somewhere, then the one it was put on.
 
         Raises:
           HarnessUnrecoverable: If the CLI cannot be configured so.
@@ -916,7 +941,7 @@ class HarnessDriver:
             permission,
             hung,
             tellable=self.tellable,
-            machine=placement.machine,
+            machine=machine,
             workdir=str(placement.workdir),
             profile=self._profile,
         )
@@ -1005,6 +1030,22 @@ class HarnessDriver:
         await asyncio.gather(*(one.close() for one in sessions))
 
 
+def _ungated(hung: frozenset[HookKind]) -> None:
+    """Refuses the hooks that gate a CLI's tools to a CLI driven natively on another machine.
+
+    Its hook table names a program on this machine, which a CLI there cannot run.
+
+    Raises:
+      UnsupportedOperation: If any of them is hung.
+    """
+    if hung & _GATES:
+        raise UnsupportedOperation(
+            f"a {' and a '.join(sorted(hung & _GATES))} hook cannot gate the "
+            "tools of a CLI on another machine; set the harness of the runtime "
+            "it is on to local"
+        )
+
+
 def _afar(machine: MachineConfig | None) -> bool:
     """Whether a CLI whose turns land on `machine` runs there, rather than here.
 
@@ -1069,7 +1110,8 @@ def settled(
       tellable: Whether the CLI can be told about the web.
       machine: The machine its turns land on, or None for this one.
       workdir: Where the session works, which the fence is drawn around: `~/...` is the
-        home of whoever runs the CLI. "" for the directory this process is in.
+        home of whoever runs the CLI. "" for the directory this process is in. Under a
+        `machine` whose CLI runs here in a mirror of the work, the mirror instead.
       profile: What coganchor knows of the CLI, for the hosts a fence lets it reach.
 
     Returns:
@@ -1079,11 +1121,21 @@ def settled(
       HarnessUnrecoverable: If the CLI cannot be configured so.
     """
     from hmz.coganchor.agents import ClaudeCodeAgentConfig, CodexAgentConfig
+    from hmz.coganchor.machines import AnchoredConfig
 
+    here = os.path.expanduser(workdir or os.getcwd())  # noqa: PTH109, PTH111
+    if (
+        isinstance(machine, AnchoredConfig)
+        and not machine.anchor.native
+        and machine.anchor.shadow is not None
+    ):
+        # A CLI run here in its mirror of the work: the work here is the mirror, and
+        # whatever this machine has at the path the work has there is none of it.
+        here = os.path.abspath(machine.anchor.shadow)  # noqa: PTH100
     try:
         fence = harnessing.fenced(
             permission,
-            workdir=os.path.expanduser(workdir or os.getcwd()),  # noqa: PTH109, PTH111
+            workdir=here,
             home=os.path.expanduser("~"),  # noqa: PTH111
             profile=profile,
             environ=_environ(config, profile),
@@ -1682,15 +1734,30 @@ class HarnessSession:
     def _settling(self) -> Callable[[], None] | None:
         """What to change about the CLI before the next turn, given the hooks hung now.
 
+        Settled on the machine its harness was put on when the session was opened or last
+        moved, which a hook hung since does not move it from: a hook that gates the tools of
+        a CLI driven natively on another machine is refused, as it is when the session opens.
+
         Returns:
           What sets it up again, run on the turn's thread, or None where nothing changes.
+
+        Raises:
+          UnsupportedOperation: If a hook gating its tools is hung on a CLI driven natively
+            on another machine.
         """
-        self._settle_pre_tool_use()
-        hung = frozenset(kind for kind in _STARTING if kind in self._hooks)
-        if hung == self._hung:
-            return None
+        from hmz.coganchor.machines import AnchoredConfig, store
+
         driver = self._driver
         was = self._agent.config
+        hung = frozenset(kind for kind in _STARTING if kind in self._hooks)
+        if isinstance(was.machine, AnchoredConfig) and was.machine.anchor.native:
+            try:
+                _ungated(hung)
+            except UnsupportedOperation as why:
+                raise driver.refusal(self._placement, store.ENV, why) from why
+        self._settle_pre_tool_use()
+        if hung == self._hung:
+            return None
         now = settled(
             was,
             driver.harness,
@@ -1698,7 +1765,7 @@ class HarnessSession:
             self._permission,
             hung,
             tellable=driver.tellable,
-            machine=self._placement.machine,
+            machine=was.machine,
             workdir=str(self._placement.workdir),
             profile=driver.profile,
         )
@@ -1866,6 +1933,7 @@ class HarnessSession:
             hooks=self._hooks,
             parent=parent,
             carry_on=self._carry_on,
+            tools=self._tools,
         )
         if self._closed:
             await asyncio.to_thread(_stopped, agent, session)

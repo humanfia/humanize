@@ -341,15 +341,15 @@ refused: `Unserved`):
 | `mimo`, `opencode` | `edit`, `bash` denied | web tools denied | nothing denied | — |
 | `omp` | `always-ask`, every approval answered no | `yolo` | — | — |
 | `pi` | four tools withheld | nothing withheld | — | — |
-| `qwen` | five tools withheld | `web_fetch` withheld | nothing withheld | — |
-| an ACP CLI | refused | refused | refused | every request granted |
+| `qwen` | six tools withheld | `web_fetch` withheld | nothing withheld | — |
+| an ACP CLI | refused | refused | refused | every request granted, `allow_once` before `allow_always` |
 
 How it is sent:
 
 | Backend | Flags or protocol |
 | --- | --- |
 | `agy` | `--mode plan --agent hmz-read-only`; `--mode accept-edits`; `--dangerously-skip-permissions` |
-| `claude` | `--permission-mode <mode>`; at `bypass` also `--permission-prompt-tool stdio`, each request answered `allow` unless a `PERMISSION_REQUEST` hook refuses |
+| `claude` | `--permission-mode <mode>`; at `read-only` and `bypass` also `--permission-prompt-tool stdio`: at `bypass` each request answered `allow` unless a `PERMISSION_REQUEST` hook refuses, at `read-only` each answered `deny`; at both a question goes to the ask-user hook |
 | `codex` | `sandbox` and `approvalPolicy` on `thread/start`, `thread/resume` and `turn/start`; approval `never` at every rung but `auto` |
 | `cursor-agent` | `--mode plan`; `--force --sandbox enabled`; `--auto-review`; `--force --sandbox disabled` |
 | `grok` | `--always-approve`, plus `--tools read_file,grep,list_dir` at `read-only` and `--disable-web-search` at `workspace-write` |
@@ -358,17 +358,18 @@ How it is sent:
 | `mimo`, `opencode` | the `MIMOCODE_PERMISSION` / `OPENCODE_PERMISSION` table, plus `--dangerously-skip-permissions` / `--auto` |
 | `omp` | `--approval-mode always-ask` at `read-only`; `--approval-mode yolo` at `workspace-write`, `auto` and `bypass` |
 | `pi` | `--exclude-tools bash,edit,write,powershell` at `read-only` |
-| `qwen` | `--approval-mode yolo`, plus `--exclude-tools edit,monitor,notebook_edit,run_shell_command,write_file` at `read-only` or `--exclude-tools web_fetch` at `workspace-write` |
+| `qwen` | `--approval-mode yolo`, plus `--exclude-tools edit,monitor,notebook_edit,run_shell_command,save_memory,write_file` at `read-only` or `--exclude-tools web_fetch` at `workspace-write` |
 
 Per-backend rules:
 
 - **agy**: `--mode plan` alone does not stop writes (agy 1.2 writes in it), so `read-only`
   also starts the turn as `--agent hmz-read-only`, an agent file Humanize writes into the
   `agents/` of the turn's [virtual home](#virtual-homes) whose only tools are `view_file`, `grep_search`,
-  `find_by_name` and `list_dir`. That file exists only on this machine, so `read-only` or
-  `web_search=False` on another machine is `Unserved: agy cannot run at read-only or off the
-  web on another machine: what holds it there is an agent of Humanize's that is a file on this
-  one`. At `workspace-write` edits pass and commands are soft-denied (named in
+  `find_by_name` and `list_dir`. That home is built wherever the CLI runs, so the agent is
+  there under a harness on another machine too; a native turn runs in the target's own home,
+  so `read-only` or `web_search=False` there is refused before the first turn with
+  `Unserved: agy cannot run at read-only or off the web natively on another machine: ...`.
+  At `workspace-write` edits pass and commands are soft-denied (named in
   `denied_actions`).
 - **claude**: `bypass` is `bypassPermissions`. An account whose managed settings carry
   `"disableBypassPermissionsMode": "disable"` starts that turn at `default` and says so in
@@ -382,11 +383,16 @@ Per-backend rules:
   `bypass` runs at `manual` instead, so that every tool that would change something reaches a
   `PERMISSION_REQUEST` hook. Whatever is asked at `bypass` is
   answered `allow` unless such a hook refuses. The CLI still enforces an organisation's `deny`
-  list.
+  list. `read-only` is routed too, so that an `AskUserQuestion` asked in plan mode reaches the
+  ask-user hook (no hook: denied, nobody to ask); every other request there is denied after
+  `PERMISSION_REQUEST` hooks are told of it. At `workspace-write`, `auto` and with no rung
+  nothing is routed, and Claude decides by itself.
 - **codex**: the approval policy is `never` at every rung but `auto`. On a machine whose
-  requirements forbid `danger-full-access`, `bypass` runs at `auto` and says once:
+  requirements forbid `danger-full-access`, `bypass` runs at `auto` and says once per agent,
+  as a `notice` event to whatever watches it (on stderr where nothing does):
   `codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks
-  for is granted`. `CodexAgentConfig.approvals` replaces the rung's approval policy.
+  for is granted`. `CodexAgentConfig.approvals` replaces the rung's approval policy, and is
+  kept when the rung is stepped down.
 - **kimi**: Kimi's modes are, loosest last, `manual`, `yolo`, `auto`. At `read-only` plan mode
   vetoes `Write`, `Edit`, `TaskStop` and the cron tools, and `manual` turns everything else,
   `Bash` included, into an approval the driver answers no; `ExitPlanMode` is an approval too.
@@ -440,10 +446,9 @@ Under a flow the rung is derived from the role's `Permission` by
   sent `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`. On macOS, where Codex's
   own Seatbelt sandbox cannot start inside the fence's, each `read-only` or `workspace-write`
   turn under a fence is sent `sandboxPolicy: {"type": "externalSandbox", "networkAccess":
-  "enabled"|"restricted"}` instead, the fence holding the rung. On Linux, where Codex's own
-  sandbox cannot start inside Landlock either, so is each such turn whose fence is at least as
-  narrow as the rung: nothing of the workdir, home or system written at `read-only`, nothing of
-  the home or system at `workspace-write`.
+  "enabled"|"restricted"}` instead, the fence holding the rung. So is each such turn on Linux,
+  where Codex's own sandbox cannot start inside Landlock either, whether or not the fence is as
+  narrow as the rung (`bypass` stepped down to `auto` under a fence that writes the home).
 - `online` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
 
 <small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `prompting`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
@@ -464,8 +469,7 @@ Under a flow the rung is derived from the role's `Permission` by
 | `grok` | `--disable-web-search` when off, or when the fence cuts the network |
 | `kimi` | `disabled_tools` on each prompt: `WebSearch`, `FetchURL` when off, or when the fence cuts the network |
 | `qwen` | `--exclude-tools web_search,web_fetch` when off, or when the fence cuts the network |
-| `opencode` | `webfetch: deny`, `websearch: deny` in the permission table |
-| `mimo` | the same, and `codesearch: deny` |
+| `mimo`, `opencode` | `webfetch: deny`, `websearch: deny`, `codesearch: deny` in the permission table |
 | `agy` | `--agent hmz-offline` (default tools less `read_url_content`, `search_web` and the subagent tools) when off or when the fence cuts the network; at `read-only`, `hmz-read-only-web` when on |
 | `cursor-agent`, `mcode`, `omp`, `pi`, an ACP CLI | cannot be told: `False` is refused |
 
@@ -517,7 +521,9 @@ The agent widens the fence where it spawns a turn (`agent.fenced()`): its CLI's 
 sign-in directories and its session directory to write, and on macOS `~/Library/Keychains`,
 where Claude Code keeps its sign-in and rewrites it as it refreshes; the account's directory;
 the hosts its model and sign-in are at under the account ([Network hosts](#network-hosts)); the
-skills it carries; its programs and their install trees to read.
+skills it carries; its programs and their install trees to read. Never Humanize's own home
+(`~/.hmz`) or cache (`~/.cache/humanize`, which holds the mirror records), beyond a CLI's own
+state directory under it (`litellm`'s `~/.cache/humanize/litellm`).
 
 Both a flow's fence and the agent's widening read the hosts from the same environment,
 `providers.composed(provider, profile)`: this process's own, less the variables the account
@@ -536,7 +542,7 @@ the turn:
 | Landlock (Linux) | paths; TCP `connect`/`bind` by port (ABI >= 4 where the network is cut); signals and connections to abstract Unix sockets kept inside the fenced process tree (ABI >= 6) |
 | seccomp filter (Linux) | every non-TCP socket family refused |
 | seccomp user notification + `pidfd_getfd` (Linux) | with `online=False`, every `bind` and `listen` stops for the wrapper, which allows loopback only (`EACCES` otherwise) |
-| Seatbelt (macOS) | paths (as given and as resolved, `/tmp` being `/private/tmp`); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
+| Seatbelt (macOS) | paths (read as given and as resolved, `/tmp` being `/private/tmp`; written as reached, none of them made a symbolic link nor, where a directory, removed); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
 | proxy on loopback | with `online=False`, the only way out: handed to the CLI as `HTTPS_PROXY` and related variables, passing only `hosts` (ports 443 and 80 for a host without a port) |
 
 What a fence writes (`write`) and its scratch (`tmp`) are reached where the fence is put up
@@ -560,8 +566,9 @@ The minimum granted whatever the scopes is `LINUX_SYSTEM` and `LINUX_DEVICES` on
 `/private/var/db/timezone` and the handful of files under `/etc` a program reads to start) and
 `DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
 pseudo-terminals `/dev/ttys*` writable. Seatbelt also lets the current user's `mds`
-directory under `DARWIN_USER_CACHE_DIR` be written: the Security framework locks its module
-database there to initialize TLS, and a CLI refused it fails before its model starts.
+directory under `DARWIN_USER_CACHE_DIR` be written, reached as the fence's own paths are and
+granted nothing where it is a link: the Security framework locks its module database there to
+initialize TLS, and a CLI refused it fails before its model starts.
 
 No built-in CLI enforces any part natively: every driver's `natively` returns the whole fence,
 for the reasons below. `litellm` returns none of it: a turn is one request from this process
@@ -570,7 +577,7 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | Backend | Why its own confinement is not used |
 | --- | --- |
 | `agy` | `--sandbox` confines commands only (its file tools run outside it), cannot start without unprivileged user namespaces, and its network lists are desktop-app settings |
-| `codex` | its sandbox holds the commands its agent runs, not Codex's own process, MCP servers or hooks; `online=False` also sends `-c web_search="disabled"`, `--disable apps`, and `--disable respect_system_proxy` where `codex features list` names it |
+| `codex` | its sandbox holds the commands its agent runs, not Codex's own process, MCP servers or hooks; `online=False` also sends `-c web_search="disabled"`, `--disable apps`, and `--disable respect_system_proxy` where this machine's `codex features list` names it (never for a native Codex, whose features are the target's) |
 | `cursor-agent` | `cursorsandbox` wraps shell commands only and needs a user namespace; `$XDG_CONFIG_HOME/cursor` (else `~/.config/cursor`) is granted to write |
 | `dsh` | the bundle has no confining shell executor; the runtime the SDK launches is wrapped, its composition file and native module cache (`PKG_NATIVE_CACHE_PATH`) put in the fence's `tmp` |
 | `grok` | its sandbox profiles write `/tmp` and `/var/tmp`, block only commands' network, and fail without user namespaces on 1.0.24 |
@@ -604,8 +611,10 @@ each machine holds is in [Remote execution › A fence on both machines](/refere
 Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket by its
 path (on macOS, nor asking a system service over Mach); on Linux before Landlock ABI 6, signals
 and abstract Unix sockets reach outside the fence too; on Linux with the network cut the proxy's port
-is reachable on any address, by number; and on macOS with the network cut a program may listen
-on any address and port, Seatbelt telling neither apart.
+is reachable on any address, by number; on macOS with the network cut a program may listen
+on any address and port, Seatbelt telling neither apart; and on macOS a file the fence writes
+by name (such as `~/.claude.json`) may be swapped (`renamex_np`) for a link, which Seatbelt
+cannot tell from the atomic save it must allow there.
 
 ### Network hosts {#network-hosts}
 
@@ -619,13 +628,13 @@ network](/reference/providers#hosts-reachable-under-a-cut-network)).
 | `claude` | `api.anthropic.com`, `platform.claude.com`, `claude.ai` |
 | `codex` | `chatgpt.com`, `auth.openai.com`, `api.openai.com` |
 | `cursor-agent` | `*.cursor.sh` (a cut network is refused anyway) |
-| `dsh` | `api.deepseek.com` |
+| `dsh` | `api.deepseek.com`; with no account, plus the host dsh's own configuration points it at: `llm-deepseek.baseURL` in its `settings.yaml`, else `DEEPSEEK_BASE_URL` in the environment or its home's `.env` (not a project's `.env`) |
 | `grok` | `cli-chat-proxy.grok.com`, `auth.x.ai`, `api.x.ai` |
 | `kimi` | `api.kimi.com`, `auth.kimi.com`, `api.kimi.ai`, `auth.kimi.ai`, `api.moonshot.ai`, `api.moonshot.cn` |
 | `mcode` | `agent.minimax.io`, `agent.minimaxi.com`, `agent.minimax.cn`, `api.minimax.io`, `api.minimaxi.com`, `account.minimax.io`, `account.minimax.cn` (a cut network is refused anyway) |
-| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`, and for its vendor-key ways `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`; plus the `options.baseURL` of the provider `mimocode/mimocode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`, and for its vendor-key ways `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`; plus the `options.baseURL` the model's provider has, read as mimocode reads it: `config.json`, `mimocode.json` and `mimocode.jsonc` in `$XDG_CONFIG_HOME/mimocode`, the file `MIMOCODE_CONFIG` names, then `MIMOCODE_CONFIG_CONTENT`, the last that declares it winning (not a project's config) |
 | `omp` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`; plus the `baseUrl` of each provider omp's own `models.yml` (or `models.yaml`) declares for the model |
-| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`, `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`, `api.mistral.ai`; plus the `options.baseURL` of the provider `opencode/opencode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`, `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`, `api.mistral.ai`; plus the `options.baseURL` the model's provider has, read as opencode reads it: `config.json`, `opencode.json` and `opencode.jsonc` in `$XDG_CONFIG_HOME/opencode`, the file `OPENCODE_CONFIG` names, then `OPENCODE_CONFIG_CONTENT`, the last that declares it winning (not a project's config) |
 | `pi` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`; plus the `baseUrl` of each provider pi's own `models.json` declares for the model |
 | `qwen` | `dashscope.aliyuncs.com`, `dashscope-intl.aliyuncs.com`, `coding.dashscope.aliyuncs.com`, `coding-intl.dashscope.aliyuncs.com`, `token-plan.cn-beijing.maas.aliyuncs.com`, `token-plan.ap-southeast-1.maas.aliyuncs.com`, `generativelanguage.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` |
 | an ACP CLI | its declared `hosts` |
@@ -969,7 +978,7 @@ A refusal reaches the agent only on a backend that waits for the answer:
 
 | Backend | When it asks | Default answer with no refusing hook |
 | --- | --- | --- |
-| `claude` | at `bypass`: `--permission-prompt-tool stdio` routes every request over the stream | yes; a request at `read-only` is answered no; with no rung nothing is routed |
+| `claude` | at `read-only` and `bypass`: `--permission-prompt-tool stdio` routes every request over the stream | yes at `bypass`; no at `read-only`; at the other rungs and with no rung nothing is routed |
 | `codex` | through the app server, at `auto` (`on-request`) and at any rung given `approvals` | yes at every rung; no with no rung |
 | `grok` | `session/request_permission`, on the held-open transport only | yes at every rung; no with no rung |
 | `kimi` | each approval on the daemon's `/approvals`: at `auto`, and at `read-only` or no rung | yes at `auto`; no at `read-only` and with no rung |
@@ -1224,6 +1233,18 @@ right after the program's name).
   Never over a file as new or newer, which another process of the same account saved since:
   the last to save wins. So a refreshed token (`.credentials.json`, `auth.json`, `credentials`)
   and a session file a CLI replaces are kept; the copies of `Profile.rewrites` still go.
+- Building and removing the home happens outside the agent's fence, so for a fenced agent
+  (`AgentBase.homed` passes `homes.build` its `readable` and `writable` tests, drawn from
+  `agent.fenced()`) every link is followed to where it leads and checked there, against the
+  fence's roots as given and as the fence reaches them: a `Profile.rewrites` file is copied in
+  only where the agent may read what it leads to, and a replaced link is written back (and a
+  `Profile.records` database respelled) only where the agent may write what it leads to and
+  read the replacement. Otherwise it is left out, with a warning (`not copying <path>: the
+  agent may not read it`, `not writing <file> back to <path>: the agent may not reach it`). So
+  a link the agent put in its own state directory, such as `~/.claude/.credentials.json ->
+  ~/.bashrc`, is never read or written through. Without a fence, everything is followed. A
+  file the CLI made under a name of a glob is moved out only where nothing, not even a link,
+  has that name yet, fenced or not.
 - A path of its home a CLI writes down to read back later (`Profile.records`) names the
   virtual home, which is gone once the process is. As the home is removed (`Home.drop`), each
   such path whose file is there is rewritten with the home's links followed, to where the file
@@ -1292,7 +1313,7 @@ runs `call` in this process; `offers(None)` withdraws them. `FakeTool` is one ty
   virtual home's copy of `settings.json`; the user's `mcp.allowed`/`mcp.excluded` and folder
   trust still apply), `opencode` and `mimo` (`mcp.humanize` merged into
   `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), `agy` (a plugin,
-  `--add-dir <temp>/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
+  `--add-dir <temp>/~humanize-agy-…/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
   `grok` and an ACP CLI (a `humanize` stdio server in the `mcpServers` of the call that opens
   the conversation), `pi` (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under
   `--no-extensions` too; tools named `humanize_<name>`), `omp` (RPC `set_host_tools`; tools named
@@ -1538,11 +1559,13 @@ or flow resources restart the process; an anchored turn always ends it.
   written. An account whose arguments carry `--app_data_dir` of their own runs in that home
   as before, without the flow's skills; there `read-only` or `web_search=False` is
   `Unserved: agy cannot run at read-only or off the web under an account naming its own
-  --app_data_dir: ...`. agy replaces `jetbox_summaries_proto.pb` (its conversation
+  --app_data_dir: ...`, said where the agent is made or reconfigured, and again at a turn
+  whose account a fallback changed to one. agy replaces `jetbox_summaries_proto.pb` (its conversation
   summaries index) rather than writing through it, so that index keeps what Humanize's turns
   wrote to it only for their process.
 - [Fake tools](#callbacks-as-tools) are a plugin `humanize` in a temporary directory added
-  with `--add-dir` (the session directory is then always added too); a change in the offered
+  with `--add-dir` (the session directory is then always added too), under one directory of
+  the agent's (`<temp>/~humanize-agy-…/~humanize-agy-…`) that its fence grants to read; a change in the offered
   names restarts the process. agy runs commands in the first workspace directory by path, so
   the plugin's must sort after the session's: where it would sort before (a session under
   `/workspace` with `TMPDIR=/tmp`) the turn is refused with `Unserved: agy cannot be offered
@@ -1847,6 +1870,8 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
   (`agentInvoked: false`), also ends the turn.
 - At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
   `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
+- `reconfigure` to another `--approval-mode`, or another fence, ends the held process before
+  the next turn, which starts one at the new one and resumes the conversation.
 - Offered [fake tools](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
   the prompt whenever their names change; each `host_tool_call` runs on a thread of its own and
   is answered `host_tool_result`. A refused `set_host_tools` fails the turn.

@@ -134,8 +134,13 @@ class Supervisor:
         token: str | None = None,
         private: Iterable[str] = (),
         fence: dict[str, Any] | None = None,
+        writes: bool = True,
     ) -> None:
         self.client = client
+        #: Whether the agent may change its workspace: False where its fence grants the
+        #: mirror less than `all`, and every change it would make there is then refused
+        #: before it can be replayed on the target, as the wall refuses it here.
+        self.writes = writes
         #: The levels every command the agent runs on the target is fenced at, as
         #: :func:`hmz.coganchor.fence.abroad.told` says them, or None for commands run as
         #: they are.

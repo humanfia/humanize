@@ -707,7 +707,8 @@ def derive(self, *, permission: Permission | None = None,
 
 Returns a new view of the same driver with the narrower grant; the original is unchanged. The
 derived agent shares the original's hooks and its sessions (a session of either may be used by
-the other).
+the other). A session runs under the permission and skills of the agent that spawned or forked
+it, whichever of the two runs its first turn.
 
 | Condition | Raises |
 | --- | --- |
@@ -954,9 +955,9 @@ The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.
   CLI is started, which apply from the next turn: `on_pre_tool_use` on a gating CLI, and
   `on_permission_request` or `on_ask_user` on Codex (whose app server is restarted between
   turns for it) and Kimi Code.
-- A session whose CLI starts (its first turn, or a turn that carries it elsewhere) on
-  another machine while `on_pre_tool_use` or `on_permission_request` is hung is refused where
-  its runtime's harness is `env`, the CLI there being one these hooks cannot gate; see
+- A session whose CLI runs on another machine is refused where its runtime's harness is `env`
+  while `on_pre_tool_use` or `on_permission_request` is hung, as it opens or from its next
+  turn, the CLI there being one these hooks cannot gate; see
   [Harness placement](#harness-placement).
 
 ### `HookKind` {#hookkind}
@@ -1017,7 +1018,7 @@ the run; naming it with `-a` is refused
 | `Outworlder.new()` | A new outworlder answered by the flow through `on_outworlder_run`. Away until a hook is hung. |
 | `on_outworlder_run(fn)` | Only on an outworlder from `new()`; on any other raises `CapabilityNotGranted`: `<role>: only an outworlder made with Outworlder.new() is answered by a hook`. |
 | `fork` | `UnsupportedOperation`: `an outworlder's session cannot be forked`. |
-| `derive(skills=…)` | Non-empty skills raise `CapabilityNotGranted`: `<role>: an outworlder has no skills`. |
+| `derive(permission=…, skills=…)` | Returns the same outworlder. A permission that the default `Permission()` does not cover raises `CapabilityNotGranted`: `<role>: <permission> is wider than the <granted> an outworlder is granted`. Non-empty skills raise `CapabilityNotGranted`: `<role>: an outworlder has no skills`. |
 
 **While away**, `run` returns at once: `""` for text; the schema built from defaults where
 every field has one; otherwise `OutworlderAway`:
@@ -1501,8 +1502,10 @@ nothing was spent. Refusals for one kind of agent grant are computed once per ro
 | anything not handed out by the run | — | `RequirementError`: `<ref>: '<role>' was given <value>, which is not an agent the run handed out` (or `environment`) |
 
 The callee receives **exactly** its declaration: each agent re-granted the callee role's
-mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins. Its hooks
-and sessions are its own; a session the caller opened cannot be used by the callee.
+mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins. A
+*full view* callee such as `chat` is granted every mixin of each agent's harness in place of
+the role's, and the rest as above. Its hooks and sessions are its own; a session the caller
+opened cannot be used by the callee.
 
 `Hmz().flows.running()` lists every flow call currently running in this process (oldest
 first), each with its ref, name, depth, start time, journal id, parent, task and whether it is
@@ -1599,8 +1602,10 @@ already present in either shape is refused (`ValueError`); a failed copy leaves 
 
 ## Skills {#the-skills-a-flow-brings}
 
-A flow directory's `skills/` holds one directory per skill, each with a `SKILL.md`. A role
-names the skills its sessions carry in `_skills`.
+A flow directory's `skills/` holds one directory per skill, each with a `SKILL.md`. An entry
+that is a link out of the flow's directory -- or, for a fetched repository, out of the
+repository -- is skipped with a warning. A role names the skills its sessions carry in
+`_skills`.
 
 ```python
 class Reviewer(Agent):
@@ -1946,7 +1951,7 @@ value and nowhere else.
 | Work | Harness |
 | --- | --- |
 | here (env location `local`) | here (harness location `local`) |
-| elsewhere, harness `env` (the default; also a machine nobody saved) | on the environment's machine, natively. Refused where the CLI is not on that machine's `PATH`, where a fenced session's fence cannot be held there, where the machine cannot be asked, or where an `on_pre_tool_use`/`on_permission_request` hook is hung when the session opens (an `on_ask_user` hook is not) |
+| elsewhere, harness `env` (the default; also a machine nobody saved) | on the environment's machine, natively. Refused where the CLI is not on that machine's `PATH`, where a fenced session's fence cannot be held there, where the machine cannot be asked, or where an `on_pre_tool_use`/`on_permission_request` hook is hung (an `on_ask_user` hook is not) |
 | elsewhere, harness `local` | here, anchored to the machine, in a mirror of its work |
 | elsewhere, harness `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` or `slurm:<name>` (harness location `standalone`) | on that runtime, in a mirror there, acting on the work through the anchor. Refused where it cannot be opened or reached, has no share left, or the role's permission is anything but every scope `ALL` |
 
@@ -1969,9 +1974,10 @@ per kind of fence (network cut or not) in the anchor handshake.
 | a harness runtime, role not granted everything | `HarnessSandboxed`: `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
 | a harness runtime that cannot be opened, reached or given a container | the runtime's `EnvUnavailable`, `EnvConnectionError` or `ResourceUnmet` |
 | `env`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>[@<provider>]: <install hint> there, or set the harness of the runtime it is on to local` |
-| `env`: fence not holdable | `HarnessSandboxed`: `<backend>[@<provider>] cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or set the harness of the runtime it is on to local` |
+| `env`: fence not holdable | `HarnessSandboxed`: `<backend>[@<provider>] cannot fence the agent to its permission: it needs Landlock[ ABI 4 and seccomp]; grant the agent everything, or set the harness of the runtime it is on to local` |
 | `env`: machine did not answer | `HarnessUnrecoverable`: `<backend>[@<provider>] did not say within 300s whether <cli> is there`, or `could not be asked whether <cli> is there: <reason>` |
-| `env`: gating hook hung | `UnsupportedOperation`: `a pre_tool_use[ and a …] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local` |
+| `env`: gating hook hung | `UnsupportedOperation`: `a pre_tool_use[ and a …] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local`; a hook hung after the session opened is refused from its next turn |
+| `env` or a harness runtime: the role offers fake tools, on any CLI but `omp` | `UnsupportedOperation`: `<cli> cannot offer the flow's tools to a CLI on another machine; set the harness of the runtime it is on to local`, as the session opens (not prefixed) |
 
 Each refusal is raised, of its type, as `<backend>[@<provider>]: <cli>'s harness cannot run
 where its harness setting (<setting>) says: <refusal>`; the harness is never put anywhere

@@ -87,12 +87,21 @@ def test_run_refuses_a_host_that_cannot_fence(
 
 
 @pytest.mark.parametrize(
-    "cache", ["available", None, OSError("no cache"), ValueError("unknown")]
+    "cache",
+    ["available", "made", "linked", None, OSError("no cache"), ValueError("unknown")],
 )
 def test_a_mac_run_keeps_only_its_security_cache_writable_when_available(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, cache: str | Exception | None
 ) -> None:
     cache_dir = str(tmp_path.resolve() / "system-cache")
+    Path(cache_dir).mkdir()
+    if cache == "made":
+        Path(cache_dir, "mds").mkdir()
+    if cache == "linked":
+        # A link a program put where Security keeps its database: granted nothing, and
+        # never resolved into a grant of where it leads.
+        (tmp_path / "elsewhere").mkdir()
+        Path(cache_dir, "mds").symlink_to(tmp_path / "elsewhere")
     scratch = str(tmp_path.resolve() / "scratch")
     commands: list[list[str]] = []
     asked: list[int] = []
@@ -129,7 +138,7 @@ def test_a_mac_run_keeps_only_its_security_cache_writable_when_available(
     assert command[-2:] == ["prog", "arg"]
     writes = {one.partition("=")[2] for one in command if one.startswith("-DW")}
     assert writes == {"/w", scratch} | (
-        {str(Path(cache_dir, "mds"))} if cache == "available" else set()
+        {str(Path(cache_dir, "mds"))} if cache in {"available", "made"} else set()
     )
 
 

@@ -461,21 +461,32 @@ def test_a_command_line_named_unsandboxed_is_ruled_out_of_the_sandbox(
     assert sorted(one.name for one in theirs.iterdir()) == ["default.rules"]
 
 
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
 @pytest.mark.parametrize(
-    ("permission", "local"), [("read-only", READ), ("workspace-write", ALL)]
+    ("permission", "local", "user", "online"),
+    [
+        ("read-only", READ, READ, True),
+        ("workspace-write", ALL, READ, True),
+        # Wider than the rung: `bypass` stepped down by a Codex that forbids full access,
+        # under a fence that writes the home and cuts the network.
+        ("workspace-write", ALL, ALL, False),
+    ],
 )
-def test_a_fence_that_holds_the_rung_holds_it_in_place_of_codex(
+def test_a_fence_around_codex_holds_the_rung_in_place_of_codex(
     codex: Standins,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    platform: str,
     permission: str,
     local: str,
+    user: str,
+    online: bool,
 ) -> None:
     """Codex's own sandbox cannot start inside the fence, on Linux as on a Mac.
 
     Inside Landlock bubblewrap may not mount, and with `use_legacy_landlock` codex-cli 0.163.0
-    panics: every command of the turn would fail. The fence itself is not put up here, only
-    what Codex is told inside it.
+    panics: every command of the turn would fail -- whether or not the fence is as narrow as
+    the rung. The fence itself is not put up here, only what Codex is told inside it.
     """
 
     def enforceable(*, net: bool) -> bool:
@@ -488,13 +499,14 @@ def test_a_fence_that_holds_the_rung_holds_it_in_place_of_codex(
 
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    monkeypatch.setattr("sys.platform", platform)
     # Where the stand-in looks for rules beside Humanize's, for it to say what it was told.
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     fence = Fence.of(
         local=local,
-        user=READ,
+        user=user,
         system=READ,
-        online=True,
+        online=online,
         workdir=tmp_path,
         home=tmp_path / "home",
     )
@@ -505,4 +517,7 @@ def test_a_fence_that_holds_the_rung_holds_it_in_place_of_codex(
         agent.stop()
 
     told = json.loads(said[-1].text)
-    assert told["policy"] == {"type": "externalSandbox", "networkAccess": "enabled"}
+    assert told["policy"] == {
+        "type": "externalSandbox",
+        "networkAccess": "enabled" if online else "restricted",
+    }

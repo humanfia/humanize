@@ -35,7 +35,9 @@ def test_an_empty_profile_denies_every_path_and_leaves_the_network() -> None:
     assert params == {}
 
 
-def test_paths_are_named_by_parameter_as_given_and_as_resolved(tmp_path: Path) -> None:
+def test_paths_read_are_named_by_parameter_as_given_and_as_resolved(
+    tmp_path: Path,
+) -> None:
     real = tmp_path.resolve() / "real"
     real.mkdir()
     link = tmp_path.resolve() / "link"
@@ -52,6 +54,48 @@ def test_paths_are_named_by_parameter_as_given_and_as_resolved(tmp_path: Path) -
         '(allow file-read* file-write* process-exec (subpath (param "W0")))'
         in profile.splitlines()
     )
+
+
+def test_paths_written_are_granted_as_given_and_never_where_a_link_leads(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path.resolve() / "out"
+    out.mkdir()
+    root = tmp_path.resolve() / "root"
+    root.symlink_to(out)  # put there since the fence reached it
+
+    _, params = Profile(write=(str(root),)).rules()
+
+    assert params == {"W0": str(root)}
+
+
+def test_a_path_spelled_with_a_leading_double_slash_is_granted_as_the_kernel_names_it() -> (
+    None
+):
+    _, params = Profile(read=("//usr",), write=("//private/tmp/x",)).rules()
+
+    assert params["R0"] == "/usr"
+    assert params["W0"] == "/private/tmp/x"
+
+
+def test_no_path_written_may_be_replaced_by_a_link() -> None:
+    profile, _ = Profile(write=("/w/dir", "/w/file")).rules()
+
+    lines = profile.splitlines()
+    itself = '(require-any (literal (param "W0")) (literal (param "W1")))'
+    denies = [
+        f"(deny file-write-create (require-all (vnode-type SYMLINK) {itself}))",
+        # A swap is checked against what each name held before it.
+        f"(deny file-write-unlink (require-all (vnode-type DIRECTORY) {itself}))",
+    ]
+    granted = lines.index(
+        "(allow file-read* file-write* process-exec "
+        '(subpath (param "W0")) (subpath (param "W1")))'
+    )
+    # After the grant they narrow it, which Seatbelt's last matching rule decides by; a
+    # file is still removed by name, as an atomic save replaces it.
+    assert all(lines.index(deny) > granted for deny in denies)
+    assert [line for line in lines if "unlink" in line] == denies[1:]
 
 
 def test_a_path_given_twice_is_named_once(tmp_path: Path) -> None:

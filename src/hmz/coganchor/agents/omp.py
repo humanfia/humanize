@@ -34,6 +34,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
     from pathlib import Path
 
+    from hmz.coganchor.fence import Fence
+
 #: The command omp is installed as.
 _COMMAND = "omp"
 
@@ -90,6 +92,9 @@ class OhMyPiSession(PiSession):
         super().__init__(agent, cwd)
         #: The names of the callbacks the process now up was last told of.
         self._hosting: tuple[str, ...] = ()
+        #: The approval mode and the fence the process now up was started at, or None before
+        #: one is.
+        self._launched: tuple[str | None, Fence | None] | None = None
 
     def _command(self) -> list[str]:
         """Builds the ``omp --mode rpc`` that reads commands on stdin and says events on stdout.
@@ -122,14 +127,31 @@ class OhMyPiSession(PiSession):
             argv += ["--approval-mode", mode]
         return argv
 
+    def _launching(self) -> tuple[str | None, Fence | None]:
+        """What a process started now is started at that it cannot be told afterwards.
+
+        The rung's `--approval-mode`, and the fence it is put inside: both are the process's
+        rather than a turn's, so an agent reconfigured to another of either has the process up
+        ended before its next turn rather than going on at the old one -- while
+        :meth:`_answer` reads the new rung, which would split the two halves of `read-only`.
+        """
+        config = self._agent.config
+        return _APPROVING.get(config.permission), config.fence
+
     def _stale(self) -> bool:
-        """Never for the callbacks, which omp is told of without being started again."""
-        return super(PiSession, self)._stale()
+        """Whether the rung or the fence moved since the process up was started.
+
+        Never for the callbacks, which omp is told of without being started again.
+        """
+        return (
+            self._launched is not None and self._launched != self._launching()
+        ) or super(PiSession, self)._stale()
 
     def _restarted(self) -> None:
         """Forgets what the last process was told of, which this one has not been."""
         super()._restarted()
         self._hosting = ()
+        self._launched = self._launching()
 
     def _environment(self) -> Mapping[str, str]:
         """What a turn is run with, which is the provider's and nothing of pi's.

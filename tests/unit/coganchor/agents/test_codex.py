@@ -7,6 +7,7 @@ the command a server is started as, the calls a turn is made of, and the turn re
 
 from __future__ import annotations
 
+import contextlib
 import json
 from dataclasses import replace
 from enum import StrEnum
@@ -16,7 +17,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, cast
 import pytest
 from pydantic import BaseModel, Field, Json
 
-from hmz.coganchor import AnchorConfig, gateway, providers
+from hmz.coganchor import AnchorConfig, fence, gateway, providers
 from hmz.coganchor.agents import (
     CodexAgent,
     CodexAgentConfig,
@@ -28,9 +29,10 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.base import KEEPING
 from hmz.coganchor.agents.codex import strict, turning, unattended
+from hmz.coganchor.fence import ALL, READ, Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
-from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner
+from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner, fenceable
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -664,6 +666,83 @@ def test_a_rung_the_installation_forbids_is_stepped_down_and_remembered(
     )
     agent.new(tmp_path)("again")
     assert server.called("thread/start")[-1]["sandbox"] == "workspace-write"
+
+
+_FORBIDS = {
+    "code": -1,
+    "message": "approval_policy cannot be used because requirements do not allow it",
+}
+
+
+def test_a_forbidden_rung_is_stepped_down_under_an_approval_policy_of_its_own(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    """`untrusted`, as while a permission-request hook is hung, goes down with the rung."""
+    server.refusing["thread/start"] = dict(_FORBIDS)
+    agent = _agent(permission="bypass", approvals="untrusted")
+    agent.new(tmp_path)("hi")
+    agent.new(tmp_path)("again")
+    refused, stepped, again = server.called("thread/start")
+    assert (refused["sandbox"], refused["approvalPolicy"]) == (
+        "danger-full-access",
+        "untrusted",
+    )
+    for one in (stepped, again):
+        assert (one["sandbox"], one["approvalPolicy"]) == (
+            "workspace-write",
+            "untrusted",
+        )
+    assert {one["approvalPolicy"] for one in server.called("turn/start")} == {
+        "untrusted"
+    }
+
+
+def test_a_step_down_is_told_once_to_each_agent_watching(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    told: dict[str, list[str]] = {}
+    agents = [_agent(permission="bypass") for _ in range(2)]
+    for agent in agents:
+        agent.watch(
+            lambda who, _session, event: (
+                told.setdefault(who.id, []).append(event.text)
+                if event.kind == "notice"
+                else None
+            )
+        )
+        server.refusing["thread/start"] = dict(_FORBIDS)
+        agent.new(tmp_path)("hi")
+        agent.new(tmp_path)("again")
+    said = (
+        "codex: this machine will not run an agent at bypass, so it runs at auto,"
+        " where what it asks for is granted"
+    )
+    assert told == {agent.id: [said] for agent in agents}
+
+
+def test_a_native_codex_cut_off_the_network_is_not_configured_from_this_machines(
+    spawner: Spawner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The target's Codex runs the command, so this machine's features say nothing of it."""
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    # The target is never reached here: only what was started on the way to it matters.
+    spawner.script = lambda proc: proc.exit(255)
+    anchor = AnchorConfig(target="ssh://box", workspace=str(tmp_path), native=True)
+    offline = Fence.of(
+        local=ALL,
+        user=READ,
+        system=READ,
+        online=False,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    agent = _agent(
+        permission="bypass", machine=AnchoredConfig(anchor=anchor), fence=offline
+    )
+    with contextlib.suppress(Exception):
+        agent.new(tmp_path)("hi")
+    assert spawner.started
+    assert not [one for one in spawner.started if "features" in one.args]
 
 
 def test_a_server_that_goes_away_fails_the_turn(

@@ -14,7 +14,10 @@ Every handler receives the tracee's registers at syscall *entry* and returns an
     it started has finished.  Used only for ``execve``.
 
 Mutating syscalls are replayed on the target *first*, so its errno
-wins, and then allowed to run locally, which keeps the shadow in step.
+wins, and then allowed to run locally, which keeps the shadow in step --
+unless the agent's fence keeps it from changing its workspace
+(:attr:`~hmz.coganchor.supervisor.Supervisor.writes`), when they fail ``EACCES``
+and the target is never asked.
 """
 
 from __future__ import annotations
@@ -143,6 +146,11 @@ STALL = Action("stall")
 def fails(code: int) -> Action:
     """The action that fails a syscall with this errno, or EIO when it names none."""
     return Action("errno", code or errno.EIO)
+
+
+#: What a change to a workspace the agent may not write is answered with, as the wall
+#: around it answers a change to the mirror: before the target hears of it.
+_READ_ONLY = fails(errno.EACCES)
 
 
 class SyscallDispatcher:
@@ -318,7 +326,8 @@ class SyscallDispatcher:
         # including O_APPEND and read-modify-write editing.
         if not (flags & O_TRUNC and (flags & O_ACCMODE) == O_WRONLY):
             shadow.ensure_content(path)
-        if writable:
+        if writable and self._sup.writes:
+            # Where the workspace may not be written, the wall refuses the open itself.
             shadow.note_write(path)
         return ALLOW
 
@@ -375,6 +384,8 @@ class SyscallDispatcher:
     def _make_dir(self, path: str | None, mode: int) -> Action:
         if path is None or not self._sup.router.is_remote_path(path):
             return ALLOW
+        if not self._sup.writes:
+            return _READ_ONLY
         self._sup.shadow.ensure_path(path)
         return self._replay(
             lambda: self._sup.client.mkdir(self._virtual(path), mode & 0o7777)
@@ -397,6 +408,8 @@ class SyscallDispatcher:
     def _remove(self, path: str | None, *, is_dir: bool) -> Action:
         if path is None or not self._sup.router.is_remote_path(path):
             return ALLOW
+        if not self._sup.writes:
+            return _READ_ONLY
         self._sup.shadow.ensure_path(path)
         virtual = self._virtual(path)
         remove = self._sup.client.rmdir if is_dir else self._sup.client.unlink
@@ -440,6 +453,8 @@ class SyscallDispatcher:
             # Crossing the boundary would need a copy; refuse the way the
             # kernel refuses a cross-device rename, so callers fall back.
             return fails(errno.EXDEV)
+        if not self._sup.writes:
+            return _READ_ONLY
         self._sup.shadow.ensure_path(source)
         self._sup.shadow.ensure_path(target)
         action = self._replay(
@@ -462,6 +477,8 @@ class SyscallDispatcher:
     def _make_symlink(self, target: str | None, path: str | None) -> Action:
         if path is None or target is None or not self._sup.router.is_remote_path(path):
             return ALLOW
+        if not self._sup.writes:
+            return _READ_ONLY
         self._sup.shadow.ensure_path(path)
         return self._replay(
             lambda: self._sup.client.symlink(target, self._virtual(path))
@@ -526,6 +543,8 @@ class SyscallDispatcher:
         """
         if path is None or not self._sup.router.is_remote_path(path):
             return ALLOW
+        if not self._sup.writes:
+            return _READ_ONLY
         self._sup.shadow.ensure_path(path)
         if (mode & _S_IFMT) in (0, _S_IFREG):
             self._sup.shadow.note_write(path)
@@ -534,6 +553,8 @@ class SyscallDispatcher:
     def _change_mode(self, path: str | None, mode: int) -> Action:
         if path is None or not self._sup.router.is_remote_path(path):
             return ALLOW
+        if not self._sup.writes:
+            return _READ_ONLY
         self._sup.shadow.ensure_path(path)
         return self._replay(
             lambda: self._sup.client.chmod(self._virtual(path), mode & 0o7777)
@@ -543,6 +564,8 @@ class SyscallDispatcher:
         path = self._path(tracee.pid, AT_FDCWD, registers.arg(0))
         if path is None or not self._sup.router.is_remote_path(path):
             return ALLOW
+        if not self._sup.writes:
+            return _READ_ONLY
         # Truncation reshapes local content, which the next flush pushes; no
         # separate remote call is needed.
         self._sup.shadow.ensure_content(path)
@@ -587,6 +610,8 @@ class SyscallDispatcher:
             return ALLOW
         if times == (None, None):
             return ALLOW  # both omitted: the syscall asks for no change at all
+        if not self._sup.writes:
+            return _READ_ONLY
         self._sup.shadow.ensure_path(path)
         return self._replay(
             lambda: self._sup.client.utime(self._virtual(path), times[0], times[1])

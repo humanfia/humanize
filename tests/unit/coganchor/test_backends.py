@@ -683,6 +683,38 @@ def test_remember_again_replaces_the_command_and_keeps_what_was_declared() -> No
     assert backends.declared("my-agent") == (("api.mine",), ("~/.mine",))
 
 
+def test_declared_hosts_are_read_as_hosts_whether_written_as_urls_or_not(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    written = [
+        "https://API.example.com/v1",
+        "*.example.org",
+        "gateway:8080",
+        "2001:db8::1",
+        "api.example.com",
+        "https://",
+    ]
+    settings.changes(
+        lambda held: held.update(
+            clis={"my-agent": {"command": ["my-agent"], "hosts": written}}
+        )
+    )
+    hosts = ("api.example.com", "*.example.org", "gateway:8080", "2001:db8::1")
+    assert backends.declared("my-agent") == (hosts, ())
+    assert "'https://' names no host" in caplog.text
+
+    settings.changes(
+        lambda held: held.update(
+            clis={"my-agent": {"command": ["my-agent"], "hosts": ["https://"]}}
+        )
+    )
+    assert backends.declared("my-agent") == ((), ())
+
+    # Read as hosts, but written back as the person wrote them.
+    backends.remember("my-agent", ["my-agent", "--v2"])
+    assert settings.read()["clis"]["my-agent"]["hosts"] == ["https://"]
+
+
 def test_forget_takes_an_added_cli_away() -> None:
     settings.changes(lambda held: held.update(other=1))
     backends.remember("my-agent", ["my-agent"])

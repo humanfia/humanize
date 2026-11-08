@@ -506,7 +506,15 @@ class Slurm(MachineBase):
         _, digest = bundled()
         archive = f"{REMOTE_CACHE}/humanize-{digest}.pyz"
         serving = python_command(
-            ["internal", "anchor", "serve", "--listen", "0.0.0.0:0", "--export", "/"],
+            [
+                "internal",
+                "anchor",
+                "serve",
+                "--listen",
+                "0.0.0.0:0",
+                "--export",
+                config.workspace,
+            ],
             bundle=archive,
             python=config.python,
         )

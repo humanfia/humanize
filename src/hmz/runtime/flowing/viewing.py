@@ -50,7 +50,7 @@ import threading
 import time
 import weakref
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Self, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, overload
 
 import pydantic
 
@@ -447,10 +447,13 @@ class AgentView:
         clis = self._shelved()
         if clis:
             extra["clis"] = clis
+        # Under the permission and skills of the agent that spawned or forked it, whichever
+        # of it and the agents derived alongside it runs its first turn.
+        owner = cast("AgentView", session._agent)
         handle = await self._driver.open(
             placement,
-            permission=self._grant.permission,
-            skills=self._brought(),
+            permission=owner._grant.permission,
+            skills=owner._brought(),
             hooks=line.hooks,
             fork_of=None if parent is None else parent._handle,
             **extra,
@@ -1542,8 +1545,14 @@ class OutworlderView:
         permission: Permission | None = None,
         skills: tuple[str, ...] | None = None,
     ) -> Self:
-        if permission is not None and not isinstance(permission, Permission):  # pyright: ignore[reportUnnecessaryIsInstance]
-            raise TypeError(f"permission={permission!r} is not a Permission")
+        if permission is not None:
+            if not isinstance(permission, Permission):  # pyright: ignore[reportUnnecessaryIsInstance]
+                raise TypeError(f"permission={permission!r} is not a Permission")
+            if not self._permission.covers(permission):
+                raise CapabilityNotGranted(
+                    f"{self._role}: {permission} is wider than the {self._permission} "
+                    "an outworlder is granted"
+                )
         if skills:
             raise CapabilityNotGranted(f"{self._role}: an outworlder has no skills")
         return self

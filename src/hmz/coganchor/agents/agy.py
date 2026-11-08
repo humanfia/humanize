@@ -342,6 +342,20 @@ def _carried(model: str) -> bool:
     return any(model.endswith(f"-{rung}") for rung in efforts)
 
 
+#: What a turn held by one of Humanize's agents is refused with under an account naming a
+#: home of its own, where that agent is not.
+_OWN_HOME = (
+    f"{_COMMAND} cannot run at read-only or off the web under an account naming its own "
+    "--app_data_dir: what holds it there is an agent of Humanize's, which is in a home of "
+    "Humanize's"
+)
+
+
+def _homes_itself(args: Iterable[str]) -> bool:
+    """Whether an account's arguments name agy a home of their own (`--app_data_dir`)."""
+    return any(one.partition("=")[0] == "--app_data_dir" for one in args)
+
+
 def _settled(config: AgentConfig) -> AntigravityCLIAgentConfig:
     """This backend's own settings, off a config that may not be one of its own.
 
@@ -700,8 +714,12 @@ class AntigravityCLISession(StreamSessionBase):
             it rather than in the session's directory.
         """
         if self._plugged is None:
+            # In the agent's own, which is what its fence lets agy read (:meth:`fenced`).
+            agent = cast("AntigravityCLIAgent", self._agent)
             self._plugged = tempfile.TemporaryDirectory(
-                prefix="~humanize-agy-", ignore_cleanup_errors=True
+                prefix="~humanize-agy-",
+                dir=agent._plugins(),  # noqa: SLF001 -- its own agent's
+                ignore_cleanup_errors=True,
             )
         root = Path(self._plugged.name).resolve()
         _plug(root, self._agent.toolbox)
@@ -991,8 +1009,11 @@ class AntigravityCLIAgent(AgentBase):
             saying it may not -- and a rung that lies is worse than one that is refused. Only
             `plan`: the CLI names that mode alone, and `--mode accept-edits` is unaffected.
             And a turn started as one of Humanize's agents -- at `read-only`, or kept off the
-            web -- on another machine, where that agent is not to be found and agy would run
-            its default agent in its place.
+            web -- where no virtual home of Humanize's carries that agent, and agy would run
+            its default agent in its place: the target's own agy, driven natively, which runs
+            in its own home there; and an account naming a home of its own with
+            `--app_data_dir` (:meth:`virtual`), refused here as well as where a turn is
+            spawned, so that it is said before the first turn rather than at it.
         """
         super()._serves(config)
         if _settled(config).disable_slash_commands and config.permission == "read-only":
@@ -1000,11 +1021,58 @@ class AntigravityCLIAgent(AgentBase):
                 f"{_COMMAND} cannot run at read-only with disable_slash_commands: "
                 f"its plan mode has no effect while expansion is off"
             )
-        if config.machine is not None and _defined(config) is not None:
+        if _defined(config) is None:
+            return
+        from hmz.coganchor import providers
+        from hmz.coganchor.machines import AnchoredConfig
+
+        machine = config.machine
+        if isinstance(machine, AnchoredConfig) and machine.anchor.native:
             raise Unserved(
-                f"{_COMMAND} cannot run at read-only or off the web on another machine: "
-                "what holds it there is an agent of Humanize's that is a file on this one"
+                f"{_COMMAND} cannot run at read-only or off the web natively on another "
+                "machine: what holds it there is an agent of Humanize's, which is in a home "
+                "of Humanize's, and a native turn runs in the target's own"
             )
+        # The account it is on now, where it has been read; before then, the one it names.
+        # This machine's own sign-in carries no arguments.
+        account = getattr(self, "_at", None) or (
+            providers.find(self.backend, config.provider) if config.provider else None
+        )
+        if account is not None and _homes_itself(account.args):
+            raise Unserved(_OWN_HOME)
+
+    #: The directory every session's plugin (:meth:`AntigravityCLISession._plugin`) is made
+    #: in, made the first time one is.
+    _plugging: tempfile.TemporaryDirectory[str] | None = None
+
+    def _plugins(self) -> Path:
+        """The directory the plugins carrying the flow's callbacks are made in.
+
+        One of the agent's rather than one for each session's only, so that its fence can name
+        it: it is under the temporary directory, which a fence lets be read only at
+        `system` or `local` `ALL`, and a plugin agy cannot read is a turn without the flow's
+        callbacks that says nothing of it.
+
+        Returns:
+          Its path, resolved.
+        """
+        with self._starting:
+            if self._plugging is None:
+                self._plugging = tempfile.TemporaryDirectory(
+                    prefix="~humanize-agy-", ignore_cleanup_errors=True
+                )
+            return Path(self._plugging.name).resolve()
+
+    def fenced(self) -> Fence | None:
+        """The fence, with the directory the flow's callbacks are carried in let be read.
+
+        Returns:
+          The fence, or None for an agent nobody said one for.
+        """
+        fence = super().fenced()
+        if fence is None or self._plugging is None:
+            return fence
+        return fence.granting(read=[self._plugins()])
 
     def virtual(
         self,
@@ -1034,13 +1102,11 @@ class AntigravityCLIAgent(AgentBase):
           Unserved: If the account names a home of its own and the turn would be started as
             an agent of Humanize's.
         """
-        if any(one.partition("=")[0] == "--app_data_dir" for one in self.node().args):
+        if _homes_itself(self.node().args):
+            # Said before the first turn too (:meth:`_serves`); here for an account a step
+            # down its chain has changed to since.
             if _defined(_settled(self.config)) is not None:
-                raise Unserved(
-                    f"{_COMMAND} cannot run at read-only or off the web under an account "
-                    "naming its own --app_data_dir: what holds it there is an agent of "
-                    "Humanize's, which is in a home of Humanize's"
-                )
+                raise Unserved(_OWN_HOME)
             return None
         return super().virtual(skills, (*merges, merged(_agents)))
 

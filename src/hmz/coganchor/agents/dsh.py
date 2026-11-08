@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 import uuid
 import weakref
 from dataclasses import dataclass
@@ -309,6 +310,43 @@ class DshAgent(AgentBase):
 
     def __init__(self, config: DshAgentConfig, *, name: str | None = None) -> None:
         super().__init__(config, name=name)
+
+    def fenced(self) -> Fence | None:
+        """The fence, with the model API an installed dsh's own configuration points it at.
+
+        An agent on no account takes its endpoint from the layers an installed dsh reads
+        (:func:`_native_dsh_environment`): `llm-deepseek.baseURL` in its `settings.yaml`,
+        written there and in no variable, ahead of `DEEPSEEK_BASE_URL` in this process's
+        environment or its home's `.env`. The fence reads only the environment, so an endpoint
+        set in either file was cut off at `online=NONE` with every other host, and the turn
+        could not reach its own model. Read in dsh's own order, so the host let through is the
+        one the runtime will use. Not a project's `.env`: the fence is the agent's, and which
+        project a turn of it works in is the session's; and a host a repository's file named
+        would be one the repository, or the agent writing into it, opened past a cut network.
+        Nothing under an account, whose endpoint is the account's and already let through.
+
+        Returns:
+          The fence, or None for an agent nobody said one for.
+        """
+        fence = super().fenced()
+        if fence is None or self.provider is not None:
+            return fence
+        home = _dsh_home()
+        try:
+            url = _native_dsh_environment(home).get(_BASE_URL_ENV, "")
+            split = urllib.parse.urlsplit(url)
+            host, port = (split.hostname or "").rstrip("."), split.port
+        # A configuration dsh cannot read either is the turn's to refuse, saying why.
+        except (ImportError, ValueError):
+            return fence
+        if not host:
+            return fence
+        if port is None:
+            return fence.granting(hosts=[host])
+        # In brackets, an IPv6 address, as the proxy names the host it is asked for.
+        return fence.granting(
+            hosts=[f"[{host}]:{port}" if ":" in host else f"{host}:{port}"]
+        )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> DshSession:
         """Opens an SDK session, which stays unopened until its first turn."""

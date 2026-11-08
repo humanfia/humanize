@@ -352,6 +352,9 @@ class Home:
         :attr:`Virtual.keeps`; None for the user's home.
       held: The names of :attr:`linked` that were links into :attr:`keeps`: what is written
         back there rather than to the user's home.
+      readable: Whether the agent this home is for may read a path, as :func:`build` took it.
+      writable: Whether it may write one, as :func:`build` took it: what is written back goes
+        only where it may, however the links lead there.
     """
 
     at: Path
@@ -367,6 +370,12 @@ class Home:
     records: tuple[tuple[str, str, str], ...] = ()
     keeps: Path | None = None
     held: tuple[str, ...] = ()
+    readable: Callable[[str], bool] = field(
+        default=lambda _path: True, compare=False, repr=False
+    )
+    writable: Callable[[str], bool] = field(
+        default=lambda _path: True, compare=False, repr=False
+    )
 
     def environ(self, environ: Mapping[str, str] | None) -> dict[str, str]:
         """The whole environment a process of the CLI is started in, given the one it had.
@@ -416,7 +425,10 @@ class Home:
         over it -- is written back first to what it stood for, or to what a supervisor answers
         that with: a file whole and atomically, with the mode the one there had; a directory a
         file at a time, each that is new or changed. Never over one that is newer, which is
-        another process of the same account having saved since: the last to save wins.
+        another process of the same account having saved since: the last to save wins. And
+        never where the links lead somewhere the agent may not write, nor from a file it may
+        not read: this runs outside its fence, and a link in its own state directory is one it
+        could have put there.
 
         What the CLI made here that is the user's to keep (:attr:`kept`) and that the user's
         home -- or :attr:`keeps`, for a home keeping its conversations there -- has none of yet
@@ -424,7 +436,12 @@ class Home:
         down to read back (:attr:`records`) is said again with its links followed, while they
         are still here to follow: what it names is where they lead.
         """
-        _respelled(self.at, self.records, self.kept if self.keeps is not None else ())
+        _respelled(
+            self.at,
+            self.records,
+            self.kept if self.keeps is not None else (),
+            self.writable,
+        )
         for name in self.linked:
             whence = (
                 self.keeps
@@ -442,13 +459,9 @@ class Home:
                     continue
                 for one in held:
                     if one.is_file() and not one.is_symlink():
-                        _back(
-                            one,
-                            whence / name / one.relative_to(entry),
-                            self.answered,
-                        )
+                        _back(one, whence / name / one.relative_to(entry), self)
             else:
-                _back(entry, whence / name, self.answered)
+                _back(entry, whence / name, self)
         into = self.real if self.keeps is None else self.keeps
         with contextlib.suppress(OSError):
             for entry in self.at.iterdir() if self.kept else ():
@@ -456,7 +469,8 @@ class Home:
                 if (
                     not entry.is_symlink()
                     and any(fnmatch.fnmatchcase(entry.name, one) for one in self.kept)
-                    and not there.exists()
+                    # Nor over a link, which a move across devices would write through.
+                    and not os.path.lexists(there)
                 ):
                     shutil.move(entry, there)
         shutil.rmtree(self.at, ignore_errors=True)
@@ -468,6 +482,8 @@ def build(
     *,
     under: Path | None = None,
     answered: Callable[[str], str | None] = lambda _path: None,
+    readable: Callable[[str], bool] = lambda _path: True,
+    writable: Callable[[str], bool] = lambda _path: True,
 ) -> Home:
     """Builds one virtual home on this machine, for one process of the CLI about to start.
 
@@ -479,6 +495,11 @@ def build(
       answered: What a supervisor would answer a path of the user's home with, or None for a
         path it leaves alone: a provider's own copy of a credential, which is what the CLI
         would have read where this home copies the file instead.
+      readable: Whether the agent the home is for may read a path, every link in it followed:
+        a file it may not is never copied into the home, which it may read, however the
+        user's home links to it.
+      writable: Whether it may write one, every link in it followed: where the home is
+        written back to as it is dropped (:meth:`Home.drop`).
 
     Returns:
       The home, to be dropped once the process is over.
@@ -493,7 +514,7 @@ def build(
     real = spec.real(said)
     at = Path(os.path.realpath(tempfile.mkdtemp(prefix="hmz-home-", dir=under)))
     try:
-        linked, held = _built(spec, said, real, at, answered)
+        linked, held = _built(spec, said, real, at, answered, readable)
         for name, argument in spec.merges:
             _merging(name)(at, json.loads(argument))
     except BaseException:
@@ -526,17 +547,23 @@ def build(
         records=spec.records,
         keeps=Path(spec.keeps) if spec.keeps else None,
         held=held,
+        readable=readable,
+        writable=writable,
     )
 
 
 def _respelled(
-    at: Path, records: Iterable[tuple[str, str, str]], moved: Iterable[str] = ()
+    at: Path,
+    records: Iterable[tuple[str, str, str]],
+    moved: Iterable[str] = (),
+    writable: Callable[[str], bool] = lambda _path: True,
 ) -> None:
     """Says each path of a virtual home a CLI's databases hold with that home's links followed.
 
     Only through a database that is a link, which is the user's, or one of the home's own that
     is moved out of it as it is dropped (`moved`, globs of its names): any other goes with it.
-    A path whose file is not there to follow to is left as it was.
+    And only one the agent may write (`writable`) where its links lead. A path whose file is
+    not there to follow to is left as it was.
     """
     moved = tuple(moved)
     import sqlite3
@@ -547,6 +574,9 @@ def _respelled(
             if not database.is_symlink() and not any(
                 fnmatch.fnmatchcase(database.name, one) for one in moved
             ):
+                continue
+            if not writable(os.path.realpath(database)):
+                log.warning("not respelling %s: the agent may not write it", database)
                 continue
             try:
                 connection = sqlite3.connect(database, timeout=10)
@@ -580,8 +610,13 @@ def _built(
     real: Path,
     at: Path,
     answered: Callable[[str], str | None],
+    readable: Callable[[str], bool],
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Fills a virtual home in; :func:`build`'s, which takes it away again if this fails.
+
+    A file it copies it copies only where the agent may read what the links lead to
+    (`readable`): the copy is the agent's to read, and a link in its state directory is one it
+    could have put there. One it may not is left out, as one that is not there is.
 
     Returns:
       The names directly in it that it linked to the user's home or to where its
@@ -605,7 +640,10 @@ def _built(
             # empty: what it holds is the user's, and none of it is read back.
             into.mkdir(exist_ok=True)
         elif source.is_file():
-            shutil.copy2(source, into)
+            if readable(os.path.realpath(source)):
+                shutil.copy2(source, into)
+            else:
+                log.warning("not copying %s: the agent may not read it", source)
     copied = {one.split("/")[0] for one in spec.rewrites}
     for name in spec.made:
         if name in copied or name == spec.lodges:
@@ -669,19 +707,27 @@ def _link(at: Path, to: Path) -> bool:
     return True
 
 
-def _back(entry: Path, whence: Path, answered: Callable[[str], str | None]) -> None:
+def _back(entry: Path, whence: Path, home: Home) -> None:
     """Writes one file the CLI saved in place of a link back to where the link pointed.
 
-    Never raises: this runs as a home is dropped, which is the end of a turn.
+    Only where the agent may write what the links lead to, and from a file it may read
+    (:attr:`Home.writable`, :attr:`Home.readable`): this runs outside its fence. Never raises:
+    this runs as a home is dropped, which is the end of a turn.
 
     Args:
       entry: The file the CLI saved.
       whence: Where it stands for in the user's home.
-      answered: What a supervisor answers that with, as :func:`build` took it.
+      home: The home it is in, for what a supervisor answers that with and what the agent may
+        reach.
     """
     there = whence
     try:
-        there = Path(os.path.realpath(answered(str(whence)) or whence))
+        there = Path(os.path.realpath(home.answered(str(whence)) or whence))
+        if not home.readable(os.path.realpath(entry)) or not home.writable(str(there)):
+            log.warning(
+                "not writing %s back to %s: the agent may not reach it", entry, there
+            )
+            return
         now = entry.stat()
         try:
             was: os.stat_result | None = there.stat()

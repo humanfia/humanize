@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import logging
 import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
@@ -50,6 +51,8 @@ __all__ = [
     "remote",
     "under",
 ]
+
+log = logging.getLogger(__name__)
 
 #: What separates the repository from the skill wanted out of it.
 _WANTED = "#"
@@ -229,12 +232,22 @@ def _inside(at: Path) -> list[Path]:
     Returns:
       One per directory holding a `SKILL.md`, which is what makes a directory a skill.
       Nothing at all where there is no such place -- a flow that brings none has no `skills/`,
-      which is not a thing to raise about.
+      which is not a thing to raise about. Not one that is a link out of the flow or
+      repository `at` is in: a session is granted read on each skill it carries, and a link
+      would have that grant reach wherever it points.
     """
     try:
-        return sorted(one for one in at.iterdir() if (one / CARD).is_file())
+        root = at.parent.resolve()
+        found = sorted(one for one in at.iterdir() if (one / CARD).is_file())
     except OSError:
         return []
+    inside: list[Path] = []
+    for one in found:
+        if one.resolve().is_relative_to(root):
+            inside.append(one)
+        else:
+            log.warning("skipped skill %s: it links out of %s", one, root)
+    return inside
 
 
 def cached(url: str) -> Path:
