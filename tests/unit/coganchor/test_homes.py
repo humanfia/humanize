@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 from typing import TYPE_CHECKING, Any
@@ -792,3 +793,24 @@ def test_a_copy_is_never_made_of_what_the_agent_may_not_read(
         assert (home.at / ".claude.json").read_text() == '{"outside": true}\n'
     finally:
         home.drop()
+
+
+def test_what_the_cli_made_is_not_moved_through_a_link_planted_for_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = _user(tmp_path)
+    spec = Virtual(
+        variable="CLAUDE_CONFIG_DIR", default=".claude", kept=("state_*.sqlite*",)
+    )
+    home = build(spec, {"HOME": str(user)}, under=tmp_path)
+    (home.at / "state_2.sqlite").write_text("payload\n")
+    target = tmp_path / "authorized_keys"
+    (user / ".claude" / "state_2.sqlite").symlink_to(target)
+
+    def across(_src: object, _dst: object) -> None:
+        raise OSError(errno.EXDEV, os.strerror(errno.EXDEV))
+
+    monkeypatch.setattr(os, "rename", across)  # a move across devices copies instead
+    home.drop()
+
+    assert not target.exists()

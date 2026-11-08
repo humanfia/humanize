@@ -469,7 +469,8 @@ class Home:
                 if (
                     not entry.is_symlink()
                     and any(fnmatch.fnmatchcase(entry.name, one) for one in self.kept)
-                    and not there.exists()
+                    # Nor over a link, which a move across devices would write through.
+                    and not os.path.lexists(there)
                 ):
                     shutil.move(entry, there)
         shutil.rmtree(self.at, ignore_errors=True)

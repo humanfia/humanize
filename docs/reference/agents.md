@@ -1235,7 +1235,9 @@ right after the program's name).
   read the replacement. Otherwise it is left out, with a warning (`not copying <path>: the
   agent may not read it`, `not writing <file> back to <path>: the agent may not reach it`). So
   a link the agent put in its own state directory, such as `~/.claude/.credentials.json ->
-  ~/.bashrc`, is never read or written through. Without a fence, everything is followed.
+  ~/.bashrc`, is never read or written through. Without a fence, everything is followed. A
+  file the CLI made under a name of a glob is moved out only where nothing, not even a link,
+  has that name yet, fenced or not.
 - A path of its home a CLI writes down to read back later (`Profile.records`) names the
   virtual home, which is gone once the process is. As the home is removed (`Home.drop`), each
   such path whose file is there is rewritten with the home's links followed, to where the file
