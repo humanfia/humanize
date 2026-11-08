@@ -954,9 +954,9 @@ The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.
   CLI is started, which apply from the next turn: `on_pre_tool_use` on a gating CLI, and
   `on_permission_request` or `on_ask_user` on Codex (whose app server is restarted between
   turns for it) and Kimi Code.
-- A session whose CLI starts (its first turn, or a turn that carries it elsewhere) on
-  another machine while `on_pre_tool_use` or `on_permission_request` is hung is refused where
-  its runtime's harness is `env`, the CLI there being one these hooks cannot gate; see
+- A session whose CLI runs on another machine is refused where its runtime's harness is `env`
+  while `on_pre_tool_use` or `on_permission_request` is hung, as it opens or from its next
+  turn, the CLI there being one these hooks cannot gate; see
   [Harness placement](#harness-placement).
 
 ### `HookKind` {#hookkind}
@@ -1946,7 +1946,7 @@ value and nowhere else.
 | Work | Harness |
 | --- | --- |
 | here (env location `local`) | here (harness location `local`) |
-| elsewhere, harness `env` (the default; also a machine nobody saved) | on the environment's machine, natively. Refused where the CLI is not on that machine's `PATH`, where a fenced session's fence cannot be held there, where the machine cannot be asked, or where an `on_pre_tool_use`/`on_permission_request` hook is hung when the session opens (an `on_ask_user` hook is not) |
+| elsewhere, harness `env` (the default; also a machine nobody saved) | on the environment's machine, natively. Refused where the CLI is not on that machine's `PATH`, where a fenced session's fence cannot be held there, where the machine cannot be asked, or where an `on_pre_tool_use`/`on_permission_request` hook is hung (an `on_ask_user` hook is not) |
 | elsewhere, harness `local` | here, anchored to the machine, in a mirror of its work |
 | elsewhere, harness `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` or `slurm:<name>` (harness location `standalone`) | on that runtime, in a mirror there, acting on the work through the anchor. Refused where it cannot be opened or reached, has no share left, or the role's permission is anything but every scope `ALL` |
 
