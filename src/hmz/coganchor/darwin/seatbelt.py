@@ -15,8 +15,15 @@ Code's own sandboxes run their commands under, and has been on every Mac since 1
 
 Paths are named in a profile as the kernel resolves them, a link followed: `/tmp` is
 `/private/tmp` to Seatbelt, as `/var` and `/etc` are, and a grant written `/tmp/x` would grant
-nothing. Each path is granted as given and as it resolves, which is what Landlock does with a
-path whose rule it opens. Metadata is left readable everywhere, as Landlock leaves it: a
+nothing. A path read is granted as given and as it resolves, which is what Landlock does with
+a path whose rule it opens. A path written is granted as given and only so: it is what the
+fence reached, every link on the way already followed where no fenced program could have made
+it, and resolved again here it would follow a link put there since. Nor may one be put at it:
+Seatbelt holds a path written to everything beneath it and to its own name, which Landlock
+leaves to the directory above, so a program could otherwise take a root away and leave a link
+out of the wall at its name for the next profile to grant. It may still be removed and made
+again, as a directory or as a file renamed over it, as programs that save atomically do.
+Metadata is left readable everywhere, as Landlock leaves it: a
 program that cannot `stat` the directories above its own cannot find its way to them. So is
 the root directory itself, though nothing beneath it: a Mac starts no program, `/bin/sh`
 included, that cannot open `/`.
@@ -81,13 +88,17 @@ def available() -> bool:
     return done.returncode == 0
 
 
-def _held(paths: Iterable[str]) -> list[str]:
-    """Each path as given and as the kernel resolves it, each once."""
+def _held(paths: Iterable[str], *, resolved: bool) -> list[str]:
+    """Each path as given and, where `resolved`, as the kernel resolves it, each once."""
     return list(
         dict.fromkeys(
             one
             for path in paths
-            for one in (os.path.normpath(path), os.path.realpath(path))
+            for one in (
+                (os.path.normpath(path), os.path.realpath(path))
+                if resolved
+                else (os.path.normpath(path),)
+            )
         )
     )
 
@@ -98,7 +109,8 @@ class Profile:
 
     Attributes:
       read: Absolute paths that may be read, listed and executed, with everything beneath.
-      write: Absolute paths that may be read, executed and changed, with everything beneath.
+      write: Absolute paths that may be read, executed and changed, with everything beneath,
+        each as the fence reached it; none may be replaced by a symbolic link.
       port: The one TCP port on loopback that may be connected to, where the network is cut;
         None leaves the network as it is.
     """
@@ -118,13 +130,11 @@ class Profile:
         """
         params: dict[str, str] = {}
 
-        def named(paths: Sequence[str], prefix: str) -> str:
-            held = _held(paths)
+        def named(paths: Sequence[str], prefix: str, *, resolved: bool) -> list[str]:
+            held = _held(paths, resolved=resolved)
             for index, path in enumerate(held):
                 params[f"{prefix}{index}"] = path
-            return " ".join(
-                f'(subpath (param "{prefix}{index}"))' for index in range(len(held))
-            )
+            return [f'(param "{prefix}{index}")' for index in range(len(held))]
 
         lines = [
             "(version 1)",
@@ -133,10 +143,19 @@ class Profile:
             "(allow file-read-metadata)",
             '(allow file-read-data (literal "/"))',
         ]
-        if reading := named(self.read, "R"):
-            lines.append(f"(allow file-read* process-exec {reading})")
-        if writing := named(self.write, "W"):
-            lines.append(f"(allow file-read* file-write* process-exec {writing})")
+        if reading := named(self.read, "R", resolved=True):
+            beneath = " ".join(f"(subpath {one})" for one in reading)
+            lines.append(f"(allow file-read* process-exec {beneath})")
+        if writing := named(self.write, "W", resolved=False):
+            beneath = " ".join(f"(subpath {one})" for one in writing)
+            itself = " ".join(f"(literal {one})" for one in writing)
+            lines += [
+                f"(allow file-read* file-write* process-exec {beneath})",
+                (
+                    "(deny file-write-create (require-all (vnode-type SYMLINK) "
+                    f"(require-any {itself})))"
+                ),
+            ]
         lines.append(f'(allow file-read* file-write* (regex #"{_TERMINALS}"))')
         if self.port is not None:
             lines += [

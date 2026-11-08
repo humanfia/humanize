@@ -35,7 +35,9 @@ def test_an_empty_profile_denies_every_path_and_leaves_the_network() -> None:
     assert params == {}
 
 
-def test_paths_are_named_by_parameter_as_given_and_as_resolved(tmp_path: Path) -> None:
+def test_paths_read_are_named_by_parameter_as_given_and_as_resolved(
+    tmp_path: Path,
+) -> None:
     real = tmp_path.resolve() / "real"
     real.mkdir()
     link = tmp_path.resolve() / "link"
@@ -52,6 +54,36 @@ def test_paths_are_named_by_parameter_as_given_and_as_resolved(tmp_path: Path) -
         '(allow file-read* file-write* process-exec (subpath (param "W0")))'
         in profile.splitlines()
     )
+
+
+def test_paths_written_are_granted_as_given_and_never_where_a_link_leads(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path.resolve() / "out"
+    out.mkdir()
+    root = tmp_path.resolve() / "root"
+    root.symlink_to(out)  # put there since the fence reached it
+
+    _, params = Profile(write=(str(root),)).rules()
+
+    assert params == {"W0": str(root)}
+
+
+def test_no_path_written_may_be_replaced_by_a_link() -> None:
+    profile, _ = Profile(write=("/w/dir", "/w/file")).rules()
+
+    lines = profile.splitlines()
+    deny = (
+        "(deny file-write-create (require-all (vnode-type SYMLINK) "
+        '(require-any (literal (param "W0")) (literal (param "W1")))))'
+    )
+    assert deny in lines
+    # After the grant it narrows, which Seatbelt's last matching rule decides by.
+    assert lines.index(deny) > lines.index(
+        "(allow file-read* file-write* process-exec "
+        '(subpath (param "W0")) (subpath (param "W1")))'
+    )
+    assert not any("unlink" in line for line in lines)
 
 
 def test_a_path_given_twice_is_named_once(tmp_path: Path) -> None:
