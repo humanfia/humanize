@@ -20,8 +20,10 @@ letting one through would be letting the child go anywhere it had the number for
 Where the machine hmz runs on reaches the network through a proxy of its own -- the
 `HTTPS_PROXY`, `HTTP_PROXY` or `ALL_PROXY` of the process this one runs in, which the fenced
 child no longer sees because its own are pointed here -- an allowed host is reached through
-that proxy rather than directly, unless `NO_PROXY` names it: a tunnel by asking it for one,
-a plain HTTP request by handing it on in absolute form. Without that, the hosts a fenced
+that proxy rather than directly, unless `NO_PROXY` names it, by asking it for a tunnel to
+that host -- a plain HTTP request too, sent through the tunnel as it would be sent direct.
+Never handed to it as a request it reads: whatever the client wrote after its first request
+would be read there as a next one, for any host at all. Without that, the hosts a fenced
 agent was let reach would be the ones a machine with no other way out cannot reach at all.
 What is refused is refused here first either way.
 
@@ -359,19 +361,18 @@ class _Handler(socketserver.BaseRequestHandler):
             return
         self.server.hold(upstream)
         try:
+            early = (
+                b""
+                if via is None
+                else _tunnelled(upstream, _spelled(host, port), via[2])
+            )
             if tunnel:
-                early = (
-                    b""
-                    if via is None
-                    else _tunnelled(upstream, _spelled(host, port), via[2])
-                )
                 client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n" + early)
                 first = rest
-            elif via is None:
-                first = _forwarded(method, path, version, fields) + rest
             else:
-                target = f"http://{_spelled(host, port)}{path}"
-                first = _forwarded(method, target, version, fields, via[2]) + rest
+                if early:
+                    client.sendall(early)
+                first = _forwarded(method, path, version, fields) + rest
             if first:
                 upstream.sendall(first)
             client.settimeout(None)
@@ -486,18 +487,11 @@ _HOP = frozenset(
 )
 
 
-def _forwarded(
-    method: str,
-    path: str,
-    version: str,
-    fields: list[bytes],
-    added: list[bytes] | None = None,
-) -> bytes:
-    """A plain HTTP request's head as the origin server, or the proxy upstream, is sent it.
+def _forwarded(method: str, path: str, version: str, fields: list[bytes]) -> bytes:
+    """A plain HTTP request's head as the origin server is sent it.
 
-    In origin form to a server, in absolute form to a proxy -- `path` is whichever -- and
-    closed after one exchange: a kept-alive connection would carry the client's next request
-    to this host whatever host that request named.
+    In origin form, and closed after one exchange: a kept-alive connection would carry the
+    client's next request to this host whatever host that request named.
     """
     kept = [
         field for field in fields if field.split(b":", 1)[0].strip().lower() not in _HOP
@@ -505,7 +499,6 @@ def _forwarded(
     lines = [
         f"{method} {path} {version}".encode("latin-1"),
         *kept,
-        *(added or []),
         b"Connection: close",
     ]
     return b"\r\n".join(lines) + b"\r\n\r\n"

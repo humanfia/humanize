@@ -232,22 +232,30 @@ def test_an_allowed_tunnel_is_asked_of_the_proxy_upstream(chained: list[bytes]) 
     ]
 
 
-def test_plain_http_is_handed_to_the_proxy_upstream_in_absolute_form(
+def test_plain_http_goes_through_a_tunnel_the_proxy_upstream_never_reads_in(
     chained: list[bytes],
 ) -> None:
+    # A second request written after the first would be read by a proxy handed requests as
+    # one more, for whatever host it named; inside a tunnel it is the allowed host's.
     with Proxy(["api.example.com"]) as proxy:
         sock = socket.create_connection(("127.0.0.1", proxy.port), timeout=10)
         sock.sendall(
             b"GET http://api.example.com/models HTTP/1.1\r\n"
             b"Host: api.example.com\r\nProxy-Authorization: Basic theirs\r\n\r\n"
+            b"GET http://elsewhere.example/ HTTP/1.1\r\nHost: elsewhere.example\r\n\r\n"
         )
+        sock.shutdown(socket.SHUT_WR)
         answer = _drain(sock)
         sock.close()
 
-    assert answer.endswith(b"GET http://api.example.com:80/models HTTP/1.1")
+    assert answer.startswith(b"GET /models HTTP/1.1\r\n")
+    assert b"theirs" not in answer
     (head,) = chained
-    assert _SIGNED in head.split(b"\r\n")
-    assert b"theirs" not in head
+    assert head.split(b"\r\n") == [
+        b"CONNECT api.example.com:80 HTTP/1.1",
+        b"Host: api.example.com:80",
+        _SIGNED,
+    ]
 
 
 def test_what_is_refused_never_reaches_the_proxy_upstream(chained: list[bytes]) -> None:
