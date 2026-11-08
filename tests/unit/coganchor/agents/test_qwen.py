@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from pydantic import BaseModel
 
+from hmz.coganchor import fence
 from hmz.coganchor.agents import (
     Failed,
     QwenCodeAgent,
@@ -21,6 +22,7 @@ from hmz.coganchor.fence import Fence
 from hmz.coganchor.homes import build
 from hmz.coganchor.providers import Provider
 
+from .doubles_u4 import fenceable
 from .doubles_u5 import (
     afar,
     carried,
@@ -244,9 +246,16 @@ def test_partial_messages_stream_their_deltas_rather_than_the_whole(
         (
             {"permission": "read-only"},
             "yolo",
-            "edit,monitor,notebook_edit,run_shell_command,write_file",
+            "edit,monitor,notebook_edit,run_shell_command,save_memory,write_file",
         ),
         ({"permission": "workspace-write"}, "yolo", "web_fetch"),
+        ({"fence": Fence(online=False)}, None, "web_search,web_fetch"),
+        (
+            {"permission": "workspace-write", "fence": Fence(online=False)},
+            "yolo",
+            "web_fetch,web_search",
+        ),
+        ({"fence": Fence(online=True)}, None, None),
         ({"permission": "auto"}, "yolo", None),
         ({"permission": "bypass", "web_search": False}, "yolo", "web_search,web_fetch"),
         (
@@ -264,6 +273,7 @@ def test_what_the_agent_may_do_goes_on_the_command_line(
     excluded: str | None,
 ) -> None:
     spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     agent = _agent(**said)
     heard(agent)
 

@@ -164,9 +164,11 @@ _PERMITTED = {
 #: mode: what the agent may not do is taken away, and everything left is approved without
 #: being asked -- a run per turn has nobody to answer it.
 #:
-#: The five at `read-only` are the four that write and the one that runs something and
+#: The six at `read-only` are the five that write and the one that runs something and
 #: watches it -- `monitor` being the tool Qwen Code itself denies alongside the shell whenever
 #: it is refusing what a mode would have asked about, which is the company it keeps here too.
+#: `save_memory` among the writers, since what it writes is a `QWEN.md` -- the user's own,
+#: which every later session of theirs reads as instructions, at its global scope.
 #: At `workspace-write` it is the one tool that reaches somewhere the workspace is not. And
 #: nothing at all where no rung was asked for: a place that declared nothing takes nothing
 #: away. Written out rather than left to the reader's default, so that the table is the whole
@@ -177,6 +179,7 @@ _WITHHELD = {
         "monitor",
         "notebook_edit",
         "run_shell_command",
+        "save_memory",
         "write_file",
     ),
     "workspace-write": ("web_fetch",),
