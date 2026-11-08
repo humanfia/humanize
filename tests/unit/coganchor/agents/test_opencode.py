@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz.coganchor import fence
 from hmz.coganchor.agents import (
     Failed,
     OpencodeAgent,
@@ -18,6 +19,7 @@ from hmz.coganchor.agents.config import Unserved
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 
+from .doubles_u4 import fenceable
 from .doubles_u5 import configured, heard, line, option, routing, spawning
 
 if TYPE_CHECKING:
@@ -206,6 +208,8 @@ def test_the_next_turn_resumes_the_session_the_first_one_opened(
         ({"thinking": True}, ["--thinking"]),
         ({"pure": True}, ["--pure"]),
         ({"permission": "auto"}, ["--auto"]),
+        ({"permission": "read-only"}, ["--auto"]),
+        ({"permission": "bypass"}, ["--auto"]),
         ({"unattended": True}, ["--auto"]),
     ],
 )
@@ -239,6 +243,10 @@ def test_a_bare_turn_carries_no_auto_approval(
     assert "--auto" not in spawned[0].args
 
 
+#: The web tools of opencode's table: its page fetcher, its web search and its code search.
+_REACHES = ("webfetch", "websearch", "codesearch")
+
+
 def _permitted(spawned_env: dict[str, str] | None) -> dict[str, Any] | None:
     said = (spawned_env or {}).get("OPENCODE_PERMISSION")
     return None if said is None else json.loads(said)
@@ -251,18 +259,22 @@ def _permitted(spawned_env: dict[str, str] | None) -> dict[str, Any] | None:
         ({"permission_table": True}, None),
         (
             {"permission": "read-only"},
-            {"edit": "deny", "bash": "deny", "webfetch": "allow", "websearch": "allow"},
+            {"edit": "deny", "bash": "deny"} | dict.fromkeys(_REACHES, "allow"),
         ),
         (
             {"permission": "workspace-write"},
-            {"edit": "allow", "bash": "allow", "webfetch": "deny", "websearch": "deny"},
+            {"edit": "allow", "bash": "allow"} | dict.fromkeys(_REACHES, "deny"),
+        ),
+        (
+            {"permission": "bypass"},
+            {"edit": "allow", "bash": "allow"} | dict.fromkeys(_REACHES, "allow"),
         ),
         (
             {"permission": "auto", "web_search": False},
-            {"edit": "allow", "bash": "allow", "webfetch": "deny", "websearch": "deny"},
+            {"edit": "allow", "bash": "allow"} | dict.fromkeys(_REACHES, "deny"),
         ),
-        ({"web_search": True}, {"webfetch": "allow", "websearch": "allow"}),
-        ({"web_search": False}, {"webfetch": "deny", "websearch": "deny"}),
+        ({"web_search": True}, dict.fromkeys(_REACHES, "allow")),
+        ({"web_search": False}, dict.fromkeys(_REACHES, "deny")),
         ({"permission": "auto", "permission_table": False}, None),
     ],
 )
@@ -370,6 +382,130 @@ def test_a_fence_is_left_alone_where_no_provider_is_configured(
     assert fence is not None
     assert plain is not None
     assert fence.hosts == plain.hosts
+
+
+@pytest.mark.parametrize(
+    "where",
+    ["config.json", "opencode.jsonc", "OPENCODE_CONFIG", "OPENCODE_CONFIG_CONTENT"],
+)
+def test_a_fence_reads_the_provider_from_every_config_the_cli_reads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, where: str
+) -> None:
+    configured = tmp_path / "config" / "opencode"
+    configured.mkdir(parents=True)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("GATEWAY_HOST", "gw.example")
+    written = """{
+      // the CLI reads its config with comments in it
+      "provider": {"local": {"options": {"baseURL": "https://{env:GATEWAY_HOST}:8443"}}},
+    }"""
+    if where == "OPENCODE_CONFIG_CONTENT":
+        monkeypatch.setenv(where, written)
+    elif where == "OPENCODE_CONFIG":
+        (tmp_path / "custom.jsonc").write_text(written)
+        monkeypatch.setenv(where, str(tmp_path / "custom.jsonc"))
+    else:
+        (configured / where).write_text(written)
+
+    fence = _agent(model="local/m1", fence=Fence(online=False)).fenced()
+
+    assert fence is not None
+    assert "gw.example:8443" in fence.hosts
+
+
+def test_a_fence_lets_through_the_provider_the_last_config_says(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    configured = tmp_path / "opencode"
+    configured.mkdir()
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    def at(url: str) -> str:
+        return json.dumps({"provider": {"local": {"options": {"baseURL": url}}}})
+
+    (configured / "opencode.json").write_text(at("https://first.example"))
+    monkeypatch.setenv("OPENCODE_CONFIG_CONTENT", at("https://last.example"))
+
+    fence = _agent(model="local/m1", fence=Fence(online=False)).fenced()
+
+    assert fence is not None
+    assert "last.example" in fence.hosts
+    assert "first.example" not in fence.hosts
+
+
+def _fenced_table(
+    monkeypatch: pytest.MonkeyPatch, work: Path, **said: Any
+) -> dict[str, Any]:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    monkeypatch.delenv("OPENCODE_PERMISSION", raising=False)
+    spawned = spawning(monkeypatch, opening=_TURN)
+    agent = _agent(**said)
+    heard(agent)
+    _turn(agent.new(work))
+    table = _permitted(spawned[0].env)
+    assert table is not None
+    return table
+
+
+@pytest.fixture
+def work(tmp_path: Path) -> Path:
+    """A checkout to work in, which is what opencode reads a tool's paths relative to."""
+    at = tmp_path / "work"
+    (at / ".git").mkdir(parents=True)
+    return at
+
+
+def test_a_fence_narrows_the_file_tools_to_what_it_lets_be_read_and_written(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, work: Path
+) -> None:
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    fence = Fence(read=(str(shared),), write=(str(work),), online=False)
+
+    table = _fenced_table(monkeypatch, work, permission="bypass", fence=fence)
+
+    edit, read = table["edit"], table["read"]
+    # Read last rule first: the workdir is everything, less what climbs out of it.
+    assert next(iter(edit)) == "*"
+    assert edit["*"] == "allow"
+    assert edit["../*"] == "deny"
+    assert list(edit).index("../*") > list(edit).index("*")
+    assert "../shared/*" not in edit
+    assert next(iter(read)) == "*"
+    assert read["../*"] == "deny"
+    assert read["../shared"] == read["../shared/*"] == "allow"
+    # What opencode asks about before a `.env` is read is said again beneath each root.
+    assert read["*.env"] == read["../shared/*.env"] == "ask"
+    assert read["*.env.example"] == "allow"
+    outside = table["external_directory"]
+    assert next(iter(outside)) == "*"
+    assert outside["*"] == "deny"
+    assert outside[f"{work}/*"] == outside[f"{shared}/*"] == "allow"
+    assert {table[named] for named in _REACHES} == {"deny"}
+
+
+def test_a_fence_never_widens_what_read_only_denies(
+    monkeypatch: pytest.MonkeyPatch, work: Path
+) -> None:
+    fence = Fence(write=(str(work),), online=True)
+
+    table = _fenced_table(monkeypatch, work, permission="read-only", fence=fence)
+
+    assert table["edit"] == "deny"
+    assert table["bash"] == "deny"
+    assert {table[named] for named in _REACHES} == {"allow"}
+
+
+def test_a_fence_that_lets_everything_be_read_says_nothing_of_reading(
+    monkeypatch: pytest.MonkeyPatch, work: Path
+) -> None:
+    fence = Fence(read=("/",), write=(str(work),))
+
+    table = _fenced_table(monkeypatch, work, permission="bypass", fence=fence)
+
+    assert "read" not in table
+    assert "external_directory" not in table
+    assert isinstance(table["edit"], dict)
 
 
 def test_an_agent_without_a_fence_has_none() -> None:

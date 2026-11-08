@@ -34,11 +34,6 @@ class MimoCodeSession(OpencodeSession):
     permits: ClassVar[str] = "MIMOCODE_PERMISSION"
     configures: ClassVar[str] = "MIMOCODE_CONFIG_CONTENT"
 
-    #: Three ways out where opencode has two. It ships the same page-fetcher and web search,
-    #: and a third tool that looks up the APIs and libraries a turn is working against -- which
-    #: goes out over the same wire and is the same setting, so `web_search` off takes it too.
-    reaches: ClassVar[tuple[str, ...]] = ("webfetch", "websearch", "codesearch")
-
     def _environment(self) -> dict[str, str]:
         """What opencode's driver runs a turn with, plus the preload where one is wanted.
 
