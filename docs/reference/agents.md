@@ -365,10 +365,11 @@ Per-backend rules:
 - **agy**: `--mode plan` alone does not stop writes (agy 1.2 writes in it), so `read-only`
   also starts the turn as `--agent hmz-read-only`, an agent file Humanize writes into the
   `agents/` of the turn's [virtual home](#virtual-homes) whose only tools are `view_file`, `grep_search`,
-  `find_by_name` and `list_dir`. That file exists only on this machine, so `read-only` or
-  `web_search=False` on another machine is `Unserved: agy cannot run at read-only or off the
-  web on another machine: what holds it there is an agent of Humanize's that is a file on this
-  one`. At `workspace-write` edits pass and commands are soft-denied (named in
+  `find_by_name` and `list_dir`. That home is built wherever the CLI runs, so the agent is
+  there under a harness on another machine too; a native turn runs in the target's own home,
+  so `read-only` or `web_search=False` there is refused before the first turn with
+  `Unserved: agy cannot run at read-only or off the web natively on another machine: ...`.
+  At `workspace-write` edits pass and commands are soft-denied (named in
   `denied_actions`).
 - **claude**: `bypass` is `bypassPermissions`. An account whose managed settings carry
   `"disableBypassPermissionsMode": "disable"` starts that turn at `default` and says so in
@@ -1313,7 +1314,7 @@ runs `call` in this process; `offers(None)` withdraws them. `FakeTool` is one ty
   virtual home's copy of `settings.json`; the user's `mcp.allowed`/`mcp.excluded` and folder
   trust still apply), `opencode` and `mimo` (`mcp.humanize` merged into
   `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), `agy` (a plugin,
-  `--add-dir <temp>/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
+  `--add-dir <temp>/~humanize-agy-…/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
   `grok` and an ACP CLI (a `humanize` stdio server in the `mcpServers` of the call that opens
   the conversation), `pi` (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under
   `--no-extensions` too; tools named `humanize_<name>`), `omp` (RPC `set_host_tools`; tools named
@@ -1559,11 +1560,13 @@ or flow resources restart the process; an anchored turn always ends it.
   written. An account whose arguments carry `--app_data_dir` of their own runs in that home
   as before, without the flow's skills; there `read-only` or `web_search=False` is
   `Unserved: agy cannot run at read-only or off the web under an account naming its own
-  --app_data_dir: ...`. agy replaces `jetbox_summaries_proto.pb` (its conversation
+  --app_data_dir: ...`, said where the agent is made or reconfigured, and again at a turn
+  whose account a fallback changed to one. agy replaces `jetbox_summaries_proto.pb` (its conversation
   summaries index) rather than writing through it, so that index keeps what Humanize's turns
   wrote to it only for their process.
 - [Fake tools](#callbacks-as-tools) are a plugin `humanize` in a temporary directory added
-  with `--add-dir` (the session directory is then always added too); a change in the offered
+  with `--add-dir` (the session directory is then always added too), under one directory of
+  the agent's (`<temp>/~humanize-agy-…/~humanize-agy-…`) that its fence grants to read; a change in the offered
   names restarts the process. agy runs commands in the first workspace directory by path, so
   the plugin's must sort after the session's: where it would sort before (a session under
   `/workspace` with `TMPDIR=/tmp`) the turn is refused with `Unserved: agy cannot be offered

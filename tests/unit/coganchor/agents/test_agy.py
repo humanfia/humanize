@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import dataclasses
+import itertools
 import json
 import math
+import tempfile
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor import gateway, providers
+from hmz.coganchor import fence, gateway, providers
 from hmz.coganchor.agents import (
     AntigravityCLIAgent,
     AntigravityCLIAgentConfig,
     AntigravityCLISession,
     Failed,
+    FakeTool,
+    Toolbox,
     driver,
 )
 from hmz.coganchor.agents.config import Unserved
@@ -21,6 +26,7 @@ from hmz.coganchor.fence import Fence
 from hmz.coganchor.homes import build
 from hmz.coganchor.providers import Provider
 
+from .doubles_u4 import fenceable
 from .doubles_u5 import afar, carried, configured, heard, line, option, spawning
 
 if TYPE_CHECKING:
@@ -173,6 +179,7 @@ def test_what_a_turn_cost_is_what_the_running_total_rose_by(
         ({"permission": "read-only"}, ["--mode", "plan"]),
         ({"permission": "workspace-write"}, ["--mode", "accept-edits"]),
         ({"permission": "auto"}, ["--dangerously-skip-permissions"]),
+        ({"permission": "bypass"}, ["--dangerously-skip-permissions"]),
         ({"effort": "high"}, ["--effort", "high"]),
         ({"sandbox": True}, ["--sandbox"]),
         ({"disable_slash_commands": True}, ["--disable-slash-commands"]),
@@ -287,6 +294,35 @@ def test_a_harness_on_another_machine_has_humanize_s_agents_written_there(
     ]
 
 
+@pytest.mark.parametrize("said", [{"permission": "read-only"}, {"web_search": False}])
+def test_humanize_s_agents_hold_it_on_another_machine_whose_home_carries_them(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, said: dict[str, Any]
+) -> None:
+    from hmz.coganchor.anchor import AnchorConfig
+    from hmz.coganchor.machines import AnchoredConfig
+
+    for machine in (
+        afar(monkeypatch, tmp_path),
+        AnchoredConfig(
+            anchor=AnchorConfig(target="ssh://box", workspace=str(tmp_path))
+        ),
+    ):
+        assert _agent(machine=machine, **said).config.machine is machine
+
+
+@pytest.mark.parametrize("said", [{"permission": "read-only"}, {"web_search": False}])
+def test_a_native_turn_cannot_be_held_by_humanize_s_agents(
+    tmp_path: Path, said: dict[str, Any]
+) -> None:
+    from hmz.coganchor.anchor import AnchorConfig
+    from hmz.coganchor.machines import AnchoredConfig
+
+    anchor = AnchorConfig(target="ssh://box", workspace=str(tmp_path), native=True)
+    _agent(machine=AnchoredConfig(anchor=anchor))  # every rung open: nothing to hold it
+    with pytest.raises(Unserved, match="natively"):
+        _agent(machine=AnchoredConfig(anchor=anchor), **said)
+
+
 def _card(at: Path, text: str) -> None:
     at.parent.mkdir(parents=True, exist_ok=True)
     at.write_text(text, encoding="utf-8")
@@ -321,6 +357,61 @@ def test_an_account_naming_its_own_home_cannot_be_held_to_reading(
 
     with pytest.raises(Unserved, match="app_data_dir"):
         agent.homed()
+
+
+@pytest.mark.parametrize("said", [{"permission": "read-only"}, {"web_search": False}])
+def test_an_account_naming_its_own_home_is_refused_before_its_first_turn(
+    monkeypatch: pytest.MonkeyPatch, said: dict[str, Any]
+) -> None:
+    held = Provider("agy", "mine", way="login", args=("--app_data_dir=other",))
+
+    def find(cli: str, name: str) -> Provider:
+        del cli, name
+        return held
+
+    monkeypatch.setattr(providers, "find", find)
+
+    assert _agent(provider="mine").config.provider == "mine"
+    with pytest.raises(Unserved, match="app_data_dir"):
+        _agent(provider="mine", **said)
+
+
+def test_the_plugin_carrying_the_flow_s_callbacks_is_let_through_its_fence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def address(_box: Toolbox) -> str:
+        return str(tmp_path / "sock")
+
+    def config(_box: Toolbox, named: str = "humanize") -> dict[str, Any]:
+        del named
+        return {}
+
+    monkeypatch.setattr(Toolbox, "address", address)
+    monkeypatch.setattr(Toolbox, "config", config)
+    spawned = spawning(monkeypatch, answers=_answering(*_SAID))
+    (tmp_path / "a").mkdir()
+    (tmp_path / "t").mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "t"))
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path / "a")
+    session.offers([FakeTool("secret", "Says the secret word.", lambda: "")])
+
+    _turn(session)
+
+    argv = spawned[0].args
+    plugin = [b for a, b in itertools.pairwise(argv) if a == "--add-dir"][-1]
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    held = Fence(online=False)
+    agent.reconfigure(dataclasses.replace(agent.config, fence=held))
+    fenced = agent.fenced()
+    assert fenced is not None
+    assert fenced.allows(plugin)
+    assert not fenced.allows(plugin, write=True)
+    unplugged = _agent(fence=held).fenced()
+    assert unplugged is not None
+    assert not unplugged.allows(plugin)  # nothing of the temporary directory otherwise
+    session.close()
 
 
 def test_an_agent_with_the_web_and_every_rung_open_is_held_to_no_agent(
