@@ -341,7 +341,7 @@ refused: `Unserved`):
 | `mimo`, `opencode` | `edit`, `bash` denied | web tools denied | nothing denied | — |
 | `omp` | `always-ask`, every approval answered no | `yolo` | — | — |
 | `pi` | four tools withheld | nothing withheld | — | — |
-| `qwen` | five tools withheld | `web_fetch` withheld | nothing withheld | — |
+| `qwen` | six tools withheld | `web_fetch` withheld | nothing withheld | — |
 | an ACP CLI | refused | refused | refused | every request granted, `allow_once` before `allow_always` |
 
 How it is sent:
@@ -358,7 +358,7 @@ How it is sent:
 | `mimo`, `opencode` | the `MIMOCODE_PERMISSION` / `OPENCODE_PERMISSION` table, plus `--dangerously-skip-permissions` / `--auto` |
 | `omp` | `--approval-mode always-ask` at `read-only`; `--approval-mode yolo` at `workspace-write`, `auto` and `bypass` |
 | `pi` | `--exclude-tools bash,edit,write,powershell` at `read-only` |
-| `qwen` | `--approval-mode yolo`, plus `--exclude-tools edit,monitor,notebook_edit,run_shell_command,write_file` at `read-only` or `--exclude-tools web_fetch` at `workspace-write` |
+| `qwen` | `--approval-mode yolo`, plus `--exclude-tools edit,monitor,notebook_edit,run_shell_command,save_memory,write_file` at `read-only` or `--exclude-tools web_fetch` at `workspace-write` |
 
 Per-backend rules:
 
@@ -469,8 +469,7 @@ Under a flow the rung is derived from the role's `Permission` by
 | `grok` | `--disable-web-search` when off, or when the fence cuts the network |
 | `kimi` | `disabled_tools` on each prompt: `WebSearch`, `FetchURL` when off, or when the fence cuts the network |
 | `qwen` | `--exclude-tools web_search,web_fetch` when off, or when the fence cuts the network |
-| `opencode` | `webfetch: deny`, `websearch: deny` in the permission table |
-| `mimo` | the same, and `codesearch: deny` |
+| `mimo`, `opencode` | `webfetch: deny`, `websearch: deny`, `codesearch: deny` in the permission table |
 | `agy` | `--agent hmz-offline` (default tools less `read_url_content`, `search_web` and the subagent tools) when off or when the fence cuts the network; at `read-only`, `hmz-read-only-web` when on |
 | `cursor-agent`, `mcode`, `omp`, `pi`, an ACP CLI | cannot be told: `False` is refused |
 
@@ -629,13 +628,13 @@ network](/reference/providers#hosts-reachable-under-a-cut-network)).
 | `claude` | `api.anthropic.com`, `platform.claude.com`, `claude.ai` |
 | `codex` | `chatgpt.com`, `auth.openai.com`, `api.openai.com` |
 | `cursor-agent` | `*.cursor.sh` (a cut network is refused anyway) |
-| `dsh` | `api.deepseek.com` |
+| `dsh` | `api.deepseek.com`; with no account, plus the host dsh's own configuration points it at: `llm-deepseek.baseURL` in its `settings.yaml`, else `DEEPSEEK_BASE_URL` in the environment or its home's `.env` (not a project's `.env`) |
 | `grok` | `cli-chat-proxy.grok.com`, `auth.x.ai`, `api.x.ai` |
 | `kimi` | `api.kimi.com`, `auth.kimi.com`, `api.kimi.ai`, `auth.kimi.ai`, `api.moonshot.ai`, `api.moonshot.cn` |
 | `mcode` | `agent.minimax.io`, `agent.minimaxi.com`, `agent.minimax.cn`, `api.minimax.io`, `api.minimaxi.com`, `account.minimax.io`, `account.minimax.cn` (a cut network is refused anyway) |
-| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`, and for its vendor-key ways `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`; plus the `options.baseURL` of the provider `mimocode/mimocode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`, and for its vendor-key ways `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`; plus the `options.baseURL` the model's provider has, read as mimocode reads it: `config.json`, `mimocode.json` and `mimocode.jsonc` in `$XDG_CONFIG_HOME/mimocode`, the file `MIMOCODE_CONFIG` names, then `MIMOCODE_CONFIG_CONTENT`, the last that declares it winning (not a project's config) |
 | `omp` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`; plus the `baseUrl` of each provider omp's own `models.yml` (or `models.yaml`) declares for the model |
-| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`, `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`, `api.mistral.ai`; plus the `options.baseURL` of the provider `opencode/opencode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`, `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`, `api.mistral.ai`; plus the `options.baseURL` the model's provider has, read as opencode reads it: `config.json`, `opencode.json` and `opencode.jsonc` in `$XDG_CONFIG_HOME/opencode`, the file `OPENCODE_CONFIG` names, then `OPENCODE_CONFIG_CONTENT`, the last that declares it winning (not a project's config) |
 | `pi` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`; plus the `baseUrl` of each provider pi's own `models.json` declares for the model |
 | `qwen` | `dashscope.aliyuncs.com`, `dashscope-intl.aliyuncs.com`, `coding.dashscope.aliyuncs.com`, `coding-intl.dashscope.aliyuncs.com`, `token-plan.cn-beijing.maas.aliyuncs.com`, `token-plan.ap-southeast-1.maas.aliyuncs.com`, `generativelanguage.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` |
 | an ACP CLI | its declared `hosts` |
@@ -1871,6 +1870,8 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
   (`agentInvoked: false`), also ends the turn.
 - At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
   `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
+- `reconfigure` to another `--approval-mode`, or another fence, ends the held process before
+  the next turn, which starts one at the new one and resumes the conversation.
 - Offered [fake tools](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
   the prompt whenever their names change; each `host_tool_call` runs on a thread of its own and
   is answered `host_tool_result`. A refused `set_host_tools` fails the turn.
