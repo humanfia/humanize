@@ -15,21 +15,24 @@ from typing import TYPE_CHECKING, Any, Self
 import pytest
 import websockets.sync.client
 
+from hmz.coganchor import fence
 from hmz.coganchor.agents import (
     KEEPING,
+    UNSAID,
     Failed,
     KimiCodeCLIAgent,
     KimiCodeCLIAgentConfig,
     KimiCodeCLISession,
     driver,
 )
-from hmz.coganchor.agents.hooks import Moment
+from hmz.coganchor.agents.hooks import Moment, Occasion, Verdict
 from hmz.coganchor.agents.kimi import LOG_LEVELS, READABLE
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.providers import Provider
 
 from .doubles_core import Run
+from .doubles_u4 import fenceable
 from .doubles_u5 import UNREAL_PID, Process, configured, gatewayed, heard, spawning
 
 if TYPE_CHECKING:
@@ -380,6 +383,7 @@ def test_the_server_is_started_as_the_config_says(
             {"permission": "workspace-write"},
             {"permission_mode": "auto", "plan_mode": False},
         ),
+        ({"permission": "bypass"}, {"permission_mode": "auto", "plan_mode": False}),
     ],
 )
 def test_the_session_profile_carries_how_the_agent_is_configured(
@@ -399,17 +403,24 @@ def test_the_session_profile_carries_how_the_agent_is_configured(
 
 @pytest.mark.parametrize(
     ("said", "disabled"),
-    [({"web_search": False}, ["WebSearch", "FetchURL"]), ({"web_search": True}, [])],
+    [
+        ({"web_search": False}, ["WebSearch", "FetchURL"]),
+        ({"web_search": True}, []),
+        ({"fence": Fence(online=False)}, ["WebSearch", "FetchURL"]),
+        ({"fence": Fence(online=False), "web_search": True}, ["WebSearch", "FetchURL"]),
+    ],
 )
 def test_the_web_tools_are_said_on_the_prompt(
     made: Callable[..., KimiCodeCLIAgent],
     daemon: _Daemon,
     server: list[Process],
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     said: dict[str, Any],
     disabled: list[str],
 ) -> None:
     del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     _turn(made(**said).new(tmp_path))
 
     (prompt,) = daemon.posted(f"/sessions/{_SESSION}/prompts")
@@ -418,7 +429,13 @@ def test_the_web_tools_are_said_on_the_prompt(
 
 @pytest.mark.parametrize(
     ("permission", "decision"),
-    [("auto", "approved"), ("workspace-write", "approved"), ("read-only", "rejected")],
+    [
+        ("auto", "approved"),
+        ("workspace-write", "approved"),
+        ("bypass", "approved"),
+        ("read-only", "rejected"),
+        (UNSAID, "rejected"),
+    ],
 )
 def test_an_approval_the_server_holds_is_answered_by_the_rung(
     made: Callable[..., KimiCodeCLIAgent],
@@ -437,6 +454,52 @@ def test_an_approval_the_server_holds_is_answered_by_the_rung(
 
     (answer,) = daemon.posted(f"/sessions/{_SESSION}/approvals/ap1")
     assert answer["decision"] == decision
+
+
+@pytest.mark.parametrize("permission", ["auto", "workspace-write", "bypass"])
+def test_a_hook_refusing_an_approval_rejects_it_at_a_granting_rung(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    permission: str,
+) -> None:
+    del server
+    daemon.approvals = [
+        {"approval_id": "ap1", "tool_name": "Shell", "action": "rm -rf"}
+    ]
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not that")
+
+    agent = made(permission=permission)
+    agent.hooks.on(Moment.PERMISSION_REQUEST, refuse)
+    _turn(agent.new(tmp_path))
+
+    assert daemon.posted(f"/sessions/{_SESSION}/approvals/ap1") == [
+        {"decision": "rejected", "feedback": "not that"}
+    ]
+    assert [(one.tool, one.about) for one in seen] == [("Shell", "rm -rf")]
+
+
+def test_a_hook_saying_nothing_leaves_a_read_only_approval_rejected(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+) -> None:
+    del server
+    daemon.approvals = [
+        {"approval_id": "ap1", "tool_name": "Shell", "action": "rm -rf"}
+    ]
+    agent = made(permission="read-only")
+    agent.hooks.on(Moment.PERMISSION_REQUEST, lambda _occasion: Verdict())
+    _turn(agent.new(tmp_path))
+
+    (answer,) = daemon.posted(f"/sessions/{_SESSION}/approvals/ap1")
+    assert answer["decision"] == "rejected"
 
 
 @pytest.mark.parametrize(
