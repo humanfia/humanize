@@ -245,6 +245,34 @@ def test_the_command_line_is_the_model_its_effort_and_omps_approval_mode(
     assert spawned[0].args[1:] == [*_BARE, *flags]
 
 
+@pytest.mark.parametrize(("then", "restarted"), [("read-only", True), ("auto", False)])
+def test_a_rung_moved_by_reconfiguring_is_a_process_started_at_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, then: str, restarted: bool
+) -> None:
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    agent = _agent(permission="bypass")
+    heard(agent)
+    session = agent.new(tmp_path)
+    _turn(session, "one")
+
+    agent.reconfigure(OhMyPiAgentConfig(**configured(_MODEL, {"permission": then})))
+    _turn(session, "two")
+
+    if restarted:
+        first, second = spawned
+        assert option(first.args, "--approval-mode") == "yolo"
+        assert second.args[1:] == [
+            *_BARE,
+            "--resume",
+            "s-1",
+            "--approval-mode",
+            "always-ask",
+        ]
+    else:
+        (only,) = spawned
+        assert _told(only.told)[-1] == {"type": "prompt", "message": "two"}
+
+
 @pytest.mark.parametrize("unfinished", [{"isTerminal": False}, {"yielded": False}])
 def test_an_agent_end_omp_says_is_not_the_last_does_not_end_the_turn(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, unfinished: dict[str, bool]
