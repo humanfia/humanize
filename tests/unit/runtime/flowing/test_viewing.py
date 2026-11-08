@@ -590,6 +590,31 @@ async def test_a_flow_handed_an_agent_offers_its_own_roles_tools_every_call() ->
     assert await run_fake(handing, agents={"coder": coder}) == "ValueError: no ink"
 
 
+class Wide(Agent, FakeToolAgentMixin):
+    _permission = Permission(user=PermissionKind.ALL, system=PermissionKind.ALL)
+
+
+class Wides(AgentCollection):
+    coder: Wide
+
+
+@flow(agents=Wides, envs=NoEnvs, params=Prompt)
+async def widely(
+    task: str, *, agents: Wides, envs: NoEnvs, params: Prompt, ctx: FlowContext
+) -> str:
+    return await fully(task, agents={"scribe": agents["coder"]}, envs={}, params=params)
+
+
+async def test_a_full_flow_called_runs_under_its_roles_permission_not_the_callers() -> (
+    None
+):
+    coder = FakeAgentDriver()
+
+    await run_fake(widely, agents={"coder": coder})
+
+    assert [session.permission for session in coder.sessions] == [Permission()]
+
+
 class Ticket(pydantic.BaseModel):
     title: str = pydantic.Field(description="What the ticket says.")
 

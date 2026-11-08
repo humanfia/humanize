@@ -366,10 +366,10 @@ class FlowImpl:
             given = agents.get(name)
             if type(given) is AgentView and not role.auto and role.harness is None:
                 grant = given._grant
-                # A full view's tools and command lines are the callee's own, which only
-                # `_agent` grants it unless the caller's grant is the role's.
-                if grant is role.grant or (
-                    not full and role._seen.get(grant, _UNSEEN) is None
+                # A full view is granted its harness's every capability, which only `_agent`
+                # does.
+                if not full and (
+                    grant is role.grant or role._seen.get(grant, _UNSEEN) is None
                 ):
                     views[name] = AgentView(given._driver, role.grant, node, name)
                     continue
@@ -562,12 +562,12 @@ def _agent(
             if refusal is not None:
                 raise refusal[0](f"{flow.ref}: {role.name!r} {refusal[1]}")
         if full:
-            # Everything the agent given holds, but the tools and command lines: those are
-            # the callee's own.
+            # Every capability of its harness, and the rest the callee role's own, as at the
+            # top of a run.
             grant = Grant.of(
-                grant.capabilities,
-                grant.permission,
-                grant.skills,
+                frozenset(driver.capabilities),
+                role.permission,
+                role.skills,
                 role.tools,
                 role.clis,
             )
