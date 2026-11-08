@@ -342,7 +342,7 @@ refused: `Unserved`):
 | `omp` | `always-ask`, every approval answered no | `yolo` | — | — |
 | `pi` | four tools withheld | nothing withheld | — | — |
 | `qwen` | five tools withheld | `web_fetch` withheld | nothing withheld | — |
-| an ACP CLI | refused | refused | refused | every request granted |
+| an ACP CLI | refused | refused | refused | every request granted, `allow_once` before `allow_always` |
 
 How it is sent:
 

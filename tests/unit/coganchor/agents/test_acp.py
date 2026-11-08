@@ -7,6 +7,7 @@ the way, so what is checked is what the client says, serves and refuses.
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -318,12 +319,27 @@ def test_an_agent_that_goes_away_fails_the_turn_with_what_it_had_said(
                 {"optionId": "always", "kind": "allow_always"},
                 {"optionId": "no", "kind": "reject_once"},
             ],
+            {"outcome": "selected", "optionId": "once"},
+        ),
+        (
+            [
+                {"optionId": "always", "kind": "allow_always"},
+                {"optionId": "no", "kind": "reject_once"},
+            ],
             {"outcome": "selected", "optionId": "always"},
         ),
         (
             [{"optionId": "only", "kind": "other"}],
             {"outcome": "selected", "optionId": "only"},
         ),
+        (
+            [
+                {"optionId": "never", "kind": "reject_always"},
+                {"optionId": "no", "kind": "reject_once"},
+            ],
+            {"outcome": "selected", "optionId": "no"},
+        ),
+        ([{"optionId": "never", "kind": "reject_always"}], {"outcome": "cancelled"}),
         ([], {"outcome": "cancelled"}),
     ],
 )
@@ -341,6 +357,76 @@ def test_a_permission_is_granted_by_the_kind_of_its_option(
         )
     ]
     _agent().new(tmp_path)("hi")
+    assert acp.replied(50)["result"] == {"outcome": outcome}
+
+
+_EVERY = [
+    {"optionId": "once", "kind": "allow_once"},
+    {"optionId": "always", "kind": "allow_always"},
+    {"optionId": "never", "kind": "reject_always"},
+    {"optionId": "no", "kind": "reject_once"},
+]
+
+
+@pytest.mark.parametrize(
+    ("call", "options", "outcome"),
+    [
+        (
+            {"kind": "read", "locations": [{"path": "/elsewhere/secret"}]},
+            _EVERY,
+            {"outcome": "selected", "optionId": "no"},
+        ),
+        (
+            {"kind": "edit", "rawInput": {"file_path": "/elsewhere/a.py"}},
+            _EVERY[:3],
+            {"outcome": "cancelled"},
+        ),
+        (
+            {"kind": "edit", "locations": [{"path": "{work}/a.py"}]},
+            _EVERY,
+            {"outcome": "selected", "optionId": "once"},
+        ),
+        (
+            {"kind": "edit", "rawInput": {"path": "{held}/a.py"}},
+            _EVERY,
+            {"outcome": "selected", "optionId": "no"},
+        ),
+        (
+            {"kind": "read", "rawInput": {"path": "{held}/a.py"}},
+            _EVERY,
+            {"outcome": "selected", "optionId": "once"},
+        ),
+    ],
+)
+def test_a_call_reaching_past_the_fence_is_refused_writing_nothing_down(
+    monkeypatch: pytest.MonkeyPatch,
+    spawner: Spawner,
+    acp: _Agent,
+    tmp_path: Path,
+    call: dict[str, Any],
+    options: list[dict[str, str]],
+    outcome: dict[str, str],
+) -> None:
+    work, held = tmp_path / "work", tmp_path / "held"
+    work.mkdir()
+    held.mkdir()
+    walled = Fence(read=(str(work), str(held)), write=(str(work),))
+
+    def fenced(self: AcpAgent) -> Fence:
+        del self
+        return walled
+
+    monkeypatch.setattr(AcpAgent, "fenced", fenced)
+    spelled = json.loads(
+        json.dumps(call).replace("{work}", str(work)).replace("{held}", str(held))
+    )
+    acp.turns = [
+        _asks(
+            "session/request_permission",
+            {"toolCall": spelled, "options": options},
+        )
+    ]
+    _agent().new(work)("hi")
     assert acp.replied(50)["result"] == {"outcome": outcome}
 
 

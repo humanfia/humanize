@@ -75,7 +75,7 @@ from hmz.coganchor.homes import merged, merger
 # What the protocol says a thing is, what a client may do, how a tool call is permitted and
 # what ends a turn having answered are the protocol's rather than Grok Build's, so they are
 # taken from the ACP client every such CLI here is driven through rather than said again.
-from .acp import _ANSWERED, _CAPABILITIES, _GRANTS, _VERSION, _bridged
+from .acp import _ALWAYS, _ANSWERED, _CAPABILITIES, _GRANTS, _VERSION, _bridged
 from .acp import _SAYS as _TOLD
 from .base import (
     AgentBase,
@@ -1133,8 +1133,11 @@ def _permits(params: dict[str, Any], *, granted: bool) -> dict[str, Any]:
         # answered with one of its own options than with none. Only where the rung grants:
         # the first option of a list is the agent's own best answer, which every 1.0.24
         # request starts with an `allow_always`, and a refusal that fell through to it would
-        # be a no said as a yes.
-        chosen = next(iter(offered), None)
+        # be a no said as a yes. Never an `always` either way, which is a rule written down.
+        chosen = next(
+            (one for one in offered if not str(one.get("kind", "")).endswith(_ALWAYS)),
+            None,
+        )
     if chosen is None:
         return {"outcome": "cancelled"}
     return {"outcome": "selected", "optionId": str(chosen.get("optionId"))}
