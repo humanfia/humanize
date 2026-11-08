@@ -69,6 +69,15 @@ def test_paths_written_are_granted_as_given_and_never_where_a_link_leads(
     assert params == {"W0": str(root)}
 
 
+def test_a_path_spelled_with_a_leading_double_slash_is_granted_as_the_kernel_names_it() -> (
+    None
+):
+    _, params = Profile(read=("//usr",), write=("//private/tmp/x",)).rules()
+
+    assert params["R0"] == "/usr"
+    assert params["W0"] == "/private/tmp/x"
+
+
 def test_no_path_written_may_be_replaced_by_a_link() -> None:
     profile, _ = Profile(write=("/w/dir", "/w/file")).rules()
 

@@ -90,6 +90,11 @@ def available() -> bool:
     return done.returncode == 0
 
 
+def _normal(path: str) -> str:
+    """A path normalised, its leading `//` too, which POSIX lets `normpath` keep."""
+    return os.sep + os.path.normpath(path).lstrip(os.sep)
+
+
 def _held(paths: Iterable[str], *, resolved: bool) -> list[str]:
     """Each path as given and, where `resolved`, as the kernel resolves it, each once."""
     return list(
@@ -97,9 +102,9 @@ def _held(paths: Iterable[str], *, resolved: bool) -> list[str]:
             one
             for path in paths
             for one in (
-                (os.path.normpath(path), os.path.realpath(path))
+                (_normal(path), os.path.realpath(path))
                 if resolved
-                else (os.path.normpath(path),)
+                else (_normal(path),)
             )
         )
     )
