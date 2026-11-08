@@ -341,7 +341,12 @@ class DshAgent(AgentBase):
             return fence
         if not host:
             return fence
-        return fence.granting(hosts=[f"{host}:{port}" if port else host])
+        if port is None:
+            return fence.granting(hosts=[host])
+        # In brackets, an IPv6 address, as the proxy names the host it is asked for.
+        return fence.granting(
+            hosts=[f"[{host}]:{port}" if ":" in host else f"{host}:{port}"]
+        )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> DshSession:
         """Opens an SDK session, which stays unopened until its first turn."""

@@ -646,6 +646,7 @@ def test_the_base_url_settings_name_reaches_the_runtime(
             "DEEPSEEK_BASE_URL=https://dotenv.example/v1\n",
             None,
         ),
+        (None, "DEEPSEEK_BASE_URL=http://[::1]:8080/v1\n", "[::1]:8080"),
     ],
 )
 def test_a_fence_lets_through_the_endpoint_an_installed_dsh_is_pointed_at(

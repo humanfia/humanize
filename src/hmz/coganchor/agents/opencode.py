@@ -867,7 +867,9 @@ class OpencodeAgent(AgentBase):
             # A config that does not declare the provider leaves the one before it standing.
             except (ValueError, KeyError, TypeError):
                 continue
-            host = f"{name}:{port}" if name and port else name
+            # In brackets, an IPv6 address, as the proxy names the host it is asked for.
+            at = f"[{name}]" if ":" in name else name
+            host = f"{at}:{port}" if name and port else name
         return fence.granting(hosts=[host]) if host else fence
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> OpencodeSession:

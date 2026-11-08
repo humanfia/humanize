@@ -341,19 +341,20 @@ def test_a_run_that_exits_nonzero_fails_with_what_it_said(
     assert "crashed hard" in str(failed.value.stderr)
 
 
+@pytest.mark.parametrize(
+    ("url", "host"),
+    [
+        ("http://gw.example:8080/v1", "gw.example:8080"),
+        ("http://[::1]:8080/v1", "[::1]:8080"),
+    ],
+)
 def test_a_fence_lets_through_the_host_its_provider_is_configured_at(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, url: str, host: str
 ) -> None:
     configured = tmp_path / "config" / "opencode"
     configured.mkdir(parents=True)
     (configured / "opencode.json").write_text(
-        json.dumps(
-            {
-                "provider": {
-                    "local": {"options": {"baseURL": "http://gw.example:8080/v1"}}
-                }
-            }
-        )
+        json.dumps({"provider": {"local": {"options": {"baseURL": url}}}})
     )
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
 
@@ -361,7 +362,7 @@ def test_a_fence_lets_through_the_host_its_provider_is_configured_at(
     fence = agent.fenced()
 
     assert fence is not None
-    assert "gw.example:8080" in fence.hosts
+    assert host in fence.hosts
 
 
 @pytest.mark.parametrize(
