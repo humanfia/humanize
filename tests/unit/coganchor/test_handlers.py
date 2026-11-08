@@ -86,6 +86,7 @@ class Supervisor:
     router: Router = field(default_factory=Router)
     shadow: Recorder = field(default_factory=Recorder)
     client: Recorder = field(default_factory=Recorder)
+    writes: bool = True
 
 
 @pytest.fixture
@@ -199,6 +200,58 @@ def test_an_open_makes_the_mirror_tell_the_truth_first(
     supervisor = Supervisor()
     assert dispatch(supervisor, stopped(NR.OPENAT, AT_FDCWD, 1, flags)) is ALLOW
     assert supervisor.shadow.named() == asked
+    assert supervisor.client.calls == []
+
+
+#: Every call that changes the workspace, as `(syscall, its arguments)`: the paths at 1 and 2.
+CHANGES = [
+    (NR.MKDIRAT, (AT_FDCWD, 1, 0o755)),
+    (NR.UNLINKAT, (AT_FDCWD, 1, 0)),
+    (NR.UNLINKAT, (AT_FDCWD, 1, AT_REMOVEDIR)),
+    (NR.RENAMEAT2, (AT_FDCWD, 1, AT_FDCWD, 2, 0)),
+    (NR.LINKAT, (AT_FDCWD, 1, AT_FDCWD, 2, 0)),
+    (NR.SYMLINKAT, (1, AT_FDCWD, 2)),
+    (NR.FCHMODAT, (AT_FDCWD, 1, 0o600)),
+    (NR.UTIMENSAT, (AT_FDCWD, 1, 0, 0)),
+    (NR.TRUNCATE, (1, 0)),
+    (NR.MKNODAT, (AT_FDCWD, 1, 0o100644, 0)),
+]
+
+
+@pytest.mark.parametrize(("number", "args"), CHANGES)
+def test_a_workspace_the_agent_may_not_write_is_never_changed_on_the_target(
+    memory: dict[int, str], number: int, args: tuple[int, ...]
+) -> None:
+    memory |= {1: "/m/a", 2: "/m/b"}
+    supervisor = Supervisor(writes=False)
+    assert dispatch(supervisor, stopped(number, *args)) == fails(errno.EACCES)
+    assert supervisor.client.calls == []
+    assert "note_write" not in supervisor.shadow.named()
+
+
+@pytest.mark.parametrize(("number", "args"), CHANGES)
+def test_a_workspace_the_agent_may_write_is_changed_as_ever(
+    memory: dict[int, str], number: int, args: tuple[int, ...]
+) -> None:
+    memory |= {1: "/m/a", 2: "/m/b"}
+    supervisor = Supervisor()
+    assert dispatch(supervisor, stopped(number, *args)) is ALLOW
+    assert supervisor.client.calls or "note_write" in supervisor.shadow.named()
+
+
+def test_a_workspace_the_agent_may_not_write_is_still_read(
+    memory: dict[int, str],
+) -> None:
+    memory[1] = "/m/f"
+    supervisor = Supervisor(writes=False)
+    assert dispatch(supervisor, stopped(NR.OPENAT, AT_FDCWD, 1, 0)) is ALLOW
+    assert supervisor.shadow.named() == ["ensure_path", "ensure_content"]
+    # A write is left to the wall, and never pushed to the target.
+    assert (
+        dispatch(supervisor, stopped(NR.OPENAT, AT_FDCWD, 1, O_WRONLY | O_CREAT))
+        is ALLOW
+    )
+    assert "note_write" not in supervisor.shadow.named()
     assert supervisor.client.calls == []
 
 

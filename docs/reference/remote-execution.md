@@ -592,7 +592,10 @@ network is answered from the target.
 - A file the agent modifies is pushed in full before any command runs on the target, and again
   when the session ends.
 - Creating, removing, renaming, linking and mode changes are replayed on the target first; the
-  target's error is the agent's error.
+  target's error is the agent's error. Where the agent's [fence](#a-fence-on-both-machines)
+  grants the workdir less than `all`, each of them, and `truncate`, `mknod` and the `utime*`
+  family, fails `EACCES` instead, and the target is never asked; a file the agent opens there
+  is never pushed.
 - Completing a remote command invalidates every cached directory listing.
 - The mirror is authoritative: what the target does not have is deleted from it.
 - A file written since it was last pushed is pushed before what the target says of it is
@@ -769,7 +772,7 @@ what crosses is its levels, not its paths.
 
 | Arrangement | This machine | Target |
 | --- | --- | --- |
-| Supervised | The agent process is walled in by Landlock before it runs, with the mirror granted at the workdir's level. Where `online=False`, a proxy served by the anchor process is its only way out, passing the fence's hosts; binds are limited to a kernel-chosen port and the fence's `listen` ports, on loopback. The supervisor, its link and the mirror are outside the wall. | Every command the agent runs is sent with `{local, user, system, online, tmp}`, `tmp` being the agent's scratch directory here. The serving half draws the fence again (`abroad.drawn`) around its exported directories, its own `$HOME` and its own minimum, and runs the command under its own `hmz internal fence` with its scratch at that same path: made `0700` there if missing, through no link a fenced command could have made, and left afterwards; used where it is a directory of the serving user's own (not a link), and otherwise replaced by one made for the one command. A command that names the path, as Claude Code's shell commands name the file they write their working directory to, finds it. Where `online=False`, the command reaches no host. |
+| Supervised | The agent process is walled in by Landlock before it runs, with the mirror granted at the workdir's level. Below `all`, every change to the workspace the supervisor would replay on the target fails `EACCES` before the target is asked, as the wall refuses it here. Where `online=False`, a proxy served by the anchor process is its only way out, passing the fence's hosts; binds are limited to a kernel-chosen port and the fence's `listen` ports, on loopback. The supervisor, its link and the mirror are outside the wall. | Every command the agent runs is sent with `{local, user, system, online, tmp}`, `tmp` being the agent's scratch directory here. The serving half draws the fence again (`abroad.drawn`) around its exported directories, its own `$HOME` and its own minimum, and runs the command under its own `hmz internal fence` with its scratch at that same path: made `0700` there if missing, through no link a fenced command could have made, and left afterwards; used where it is a directory of the serving user's own (not a link), and otherwise replaced by one made for the one command. A command that names the path, as Claude Code's shell commands name the file they write their working directory to, finds it. Where `online=False`, the command reaches no host. |
 | Native | nothing | The CLI is run under `hmz internal fence` on the target with the levels, the hosts its model is at, the state it writes under its home (sent as `~/…`), the turn's credential directory, read access to its own install tree, and its `listen` ports. |
 | Afar | refused | refused |
 

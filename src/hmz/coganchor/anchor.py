@@ -727,6 +727,7 @@ def _supervised(command: Sequence[str], config: AnchorConfig, home: Home | None)
         token=config.token,
         private=config.private,
         fence=walls.told if walls is not None else None,
+        writes=walls is None or walls.writes,
     )
     log.info("running %s against %s", agent.profile.name, target.describe())
     try:
@@ -826,6 +827,9 @@ class _Walls:
             read=[mirror] if level == READ else [],
             write=[mirror] if level == ALL else [],
         )
+        #: Whether the wall lets the agent change the mirror, and so the workspace: what the
+        #: supervisor replays on the target is held to it (`Supervisor.writes`).
+        self.writes = self.fence.allows(mirror, write=True)
         self._made = not fence.tmp
         self.tmp = fence.tmp or tempfile.mkdtemp(prefix="hmz-fence-")
         # With the scratch the agent is given, for the target to keep its own at the same
