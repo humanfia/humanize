@@ -151,7 +151,10 @@ What that comes to in practice:
   machine stays at `system`.
 - **A read-only role** (`local` of `READ` or `NONE`) also runs in its CLI's read-only mode.
 - **`online` of `NONE`** cuts the network, except the hosts the agent's model and login are
-  at. The CLI's web tools are switched off too, where it can be told.
+  at. The CLI's web tools are switched off too, where it can be told. Those hosts are
+  reached through a proxy Humanize runs on loopback; where your own `HTTPS_PROXY`,
+  `HTTP_PROXY` or `ALL_PROXY` names an `http://` proxy, that loopback proxy goes on through
+  yours, except for the hosts your `NO_PROXY` names.
 - **Work in a container or on an ssh host is fenced there too.** Every command the agent
   runs on that machine is held by that machine's own Landlock or Seatbelt, around its own
   working directory and home.

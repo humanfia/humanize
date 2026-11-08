@@ -190,7 +190,9 @@ outside:
   names. On Linux nothing from outside reaches it either: a program it runs may serve on this
   machine's loopback address and on no other. Seatbelt cannot tell one address from another
   when a program starts to serve, so on macOS a program it runs may serve on any address,
-  while it still reaches nothing but its model.
+  while it still reaches nothing but its model. A machine that reaches the network through a
+  proxy of its own (`HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`) still reaches the model through
+  it.
 
 | Backend | `local`, `user`, `system` | `online` of `NONE` |
 | --- | --- | --- |
