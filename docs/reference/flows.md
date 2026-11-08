@@ -1502,8 +1502,10 @@ nothing was spent. Refusals for one kind of agent grant are computed once per ro
 | anything not handed out by the run | — | `RequirementError`: `<ref>: '<role>' was given <value>, which is not an agent the run handed out` (or `environment`) |
 
 The callee receives **exactly** its declaration: each agent re-granted the callee role's
-mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins. Its hooks
-and sessions are its own; a session the caller opened cannot be used by the callee.
+mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins. A
+*full view* callee such as `chat` is granted every mixin of each agent's harness in place of
+the role's, and the rest as above. Its hooks and sessions are its own; a session the caller
+opened cannot be used by the callee.
 
 `Hmz().flows.running()` lists every flow call currently running in this process (oldest
 first), each with its ref, name, depth, start time, journal id, parent, task and whether it is
@@ -1600,8 +1602,10 @@ already present in either shape is refused (`ValueError`); a failed copy leaves 
 
 ## Skills {#the-skills-a-flow-brings}
 
-A flow directory's `skills/` holds one directory per skill, each with a `SKILL.md`. A role
-names the skills its sessions carry in `_skills`.
+A flow directory's `skills/` holds one directory per skill, each with a `SKILL.md`. An entry
+that is a link out of the flow's directory -- or, for a fetched repository, out of the
+repository -- is skipped with a warning. A role names the skills its sessions carry in
+`_skills`.
 
 ```python
 class Reviewer(Agent):
