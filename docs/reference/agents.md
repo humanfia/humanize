@@ -384,9 +384,11 @@ Per-backend rules:
   answered `allow` unless such a hook refuses. The CLI still enforces an organisation's `deny`
   list.
 - **codex**: the approval policy is `never` at every rung but `auto`. On a machine whose
-  requirements forbid `danger-full-access`, `bypass` runs at `auto` and says once:
+  requirements forbid `danger-full-access`, `bypass` runs at `auto` and says once per agent,
+  as a `notice` event to whatever watches it (on stderr where nothing does):
   `codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks
-  for is granted`. `CodexAgentConfig.approvals` replaces the rung's approval policy.
+  for is granted`. `CodexAgentConfig.approvals` replaces the rung's approval policy, and is
+  kept when the rung is stepped down.
 - **kimi**: Kimi's modes are, loosest last, `manual`, `yolo`, `auto`. At `read-only` plan mode
   vetoes `Write`, `Edit`, `TaskStop` and the cron tools, and `manual` turns everything else,
   `Bash` included, into an approval the driver answers no; `ExitPlanMode` is an approval too.
@@ -440,10 +442,9 @@ Under a flow the rung is derived from the role's `Permission` by
   sent `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`. On macOS, where Codex's
   own Seatbelt sandbox cannot start inside the fence's, each `read-only` or `workspace-write`
   turn under a fence is sent `sandboxPolicy: {"type": "externalSandbox", "networkAccess":
-  "enabled"|"restricted"}` instead, the fence holding the rung. On Linux, where Codex's own
-  sandbox cannot start inside Landlock either, so is each such turn whose fence is at least as
-  narrow as the rung: nothing of the workdir, home or system written at `read-only`, nothing of
-  the home or system at `workspace-write`.
+  "enabled"|"restricted"}` instead, the fence holding the rung. So is each such turn on Linux,
+  where Codex's own sandbox cannot start inside Landlock either, whether or not the fence is as
+  narrow as the rung (`bypass` stepped down to `auto` under a fence that writes the home).
 - `online` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
 
 <small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `prompting`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
@@ -573,7 +574,7 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | Backend | Why its own confinement is not used |
 | --- | --- |
 | `agy` | `--sandbox` confines commands only (its file tools run outside it), cannot start without unprivileged user namespaces, and its network lists are desktop-app settings |
-| `codex` | its sandbox holds the commands its agent runs, not Codex's own process, MCP servers or hooks; `online=False` also sends `-c web_search="disabled"`, `--disable apps`, and `--disable respect_system_proxy` where `codex features list` names it |
+| `codex` | its sandbox holds the commands its agent runs, not Codex's own process, MCP servers or hooks; `online=False` also sends `-c web_search="disabled"`, `--disable apps`, and `--disable respect_system_proxy` where this machine's `codex features list` names it (never for a native Codex, whose features are the target's) |
 | `cursor-agent` | `cursorsandbox` wraps shell commands only and needs a user namespace; `$XDG_CONFIG_HOME/cursor` (else `~/.config/cursor`) is granted to write |
 | `dsh` | the bundle has no confining shell executor; the runtime the SDK launches is wrapped, its composition file and native module cache (`PKG_NATIVE_CACHE_PATH`) put in the fence's `tmp` |
 | `grok` | its sandbox profiles write `/tmp` and `/var/tmp`, block only commands' network, and fail without user namespaces on 1.0.24 |
