@@ -538,7 +538,7 @@ the turn:
 | Landlock (Linux) | paths; TCP `connect`/`bind` by port (ABI >= 4 where the network is cut); signals and connections to abstract Unix sockets kept inside the fenced process tree (ABI >= 6) |
 | seccomp filter (Linux) | every non-TCP socket family refused |
 | seccomp user notification + `pidfd_getfd` (Linux) | with `online=False`, every `bind` and `listen` stops for the wrapper, which allows loopback only (`EACCES` otherwise) |
-| Seatbelt (macOS) | paths (as given and as resolved, `/tmp` being `/private/tmp`); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
+| Seatbelt (macOS) | paths (read as given and as resolved, `/tmp` being `/private/tmp`; written as reached, none of them made a symbolic link nor, where a directory, removed); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
 | proxy on loopback | with `online=False`, the only way out: handed to the CLI as `HTTPS_PROXY` and related variables, passing only `hosts` (ports 443 and 80 for a host without a port) |
 
 What a fence writes (`write`) and its scratch (`tmp`) are reached where the fence is put up
@@ -562,8 +562,9 @@ The minimum granted whatever the scopes is `LINUX_SYSTEM` and `LINUX_DEVICES` on
 `/private/var/db/timezone` and the handful of files under `/etc` a program reads to start) and
 `DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
 pseudo-terminals `/dev/ttys*` writable. Seatbelt also lets the current user's `mds`
-directory under `DARWIN_USER_CACHE_DIR` be written: the Security framework locks its module
-database there to initialize TLS, and a CLI refused it fails before its model starts.
+directory under `DARWIN_USER_CACHE_DIR` be written, reached as the fence's own paths are and
+granted nothing where it is a link: the Security framework locks its module database there to
+initialize TLS, and a CLI refused it fails before its model starts.
 
 No built-in CLI enforces any part natively: every driver's `natively` returns the whole fence,
 for the reasons below. `litellm` returns none of it: a turn is one request from this process
@@ -606,8 +607,10 @@ each machine holds is in [Remote execution › A fence on both machines](/refere
 Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket by its
 path (on macOS, nor asking a system service over Mach); on Linux before Landlock ABI 6, signals
 and abstract Unix sockets reach outside the fence too; on Linux with the network cut the proxy's port
-is reachable on any address, by number; and on macOS with the network cut a program may listen
-on any address and port, Seatbelt telling neither apart.
+is reachable on any address, by number; on macOS with the network cut a program may listen
+on any address and port, Seatbelt telling neither apart; and on macOS a file the fence writes
+by name (such as `~/.claude.json`) may be swapped (`renamex_np`) for a link, which Seatbelt
+cannot tell from the atomic save it must allow there.
 
 ### Network hosts {#network-hosts}
 

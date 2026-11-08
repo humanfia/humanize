@@ -73,17 +73,20 @@ def test_no_path_written_may_be_replaced_by_a_link() -> None:
     profile, _ = Profile(write=("/w/dir", "/w/file")).rules()
 
     lines = profile.splitlines()
-    deny = (
-        "(deny file-write-create (require-all (vnode-type SYMLINK) "
-        '(require-any (literal (param "W0")) (literal (param "W1")))))'
-    )
-    assert deny in lines
-    # After the grant it narrows, which Seatbelt's last matching rule decides by.
-    assert lines.index(deny) > lines.index(
+    itself = '(require-any (literal (param "W0")) (literal (param "W1")))'
+    denies = [
+        f"(deny file-write-create (require-all (vnode-type SYMLINK) {itself}))",
+        # A swap is checked against what each name held before it.
+        f"(deny file-write-unlink (require-all (vnode-type DIRECTORY) {itself}))",
+    ]
+    granted = lines.index(
         "(allow file-read* file-write* process-exec "
         '(subpath (param "W0")) (subpath (param "W1")))'
     )
-    assert not any("unlink" in line for line in lines)
+    # After the grant they narrow it, which Seatbelt's last matching rule decides by; a
+    # file is still removed by name, as an atomic save replaces it.
+    assert all(lines.index(deny) > granted for deny in denies)
+    assert [line for line in lines if "unlink" in line] == denies[1:]
 
 
 def test_a_path_given_twice_is_named_once(tmp_path: Path) -> None:

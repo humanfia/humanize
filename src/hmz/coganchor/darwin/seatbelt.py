@@ -21,8 +21,10 @@ fence reached, every link on the way already followed where no fenced program co
 it, and resolved again here it would follow a link put there since. Nor may one be put at it:
 Seatbelt holds a path written to everything beneath it and to its own name, which Landlock
 leaves to the directory above, so a program could otherwise take a root away and leave a link
-out of the wall at its name for the next profile to grant. It may still be removed and made
-again, as a directory or as a file renamed over it, as programs that save atomically do.
+out of the wall at its name for the next profile to grant. A directory may not be taken from
+its name at all, since a swap is checked against what each name held before it; a file may
+still be removed and made again, or renamed over, as programs that save atomically do -- and
+so swapped for a link, which no rule here can tell from such a save.
 Metadata is left readable everywhere, as Landlock leaves it: a
 program that cannot `stat` the directories above its own cannot find its way to them. So is
 the root directory itself, though nothing beneath it: a Mac starts no program, `/bin/sh`
@@ -110,7 +112,8 @@ class Profile:
     Attributes:
       read: Absolute paths that may be read, listed and executed, with everything beneath.
       write: Absolute paths that may be read, executed and changed, with everything beneath,
-        each as the fence reached it; none may be replaced by a symbolic link.
+        each as the fence reached it; none may be made a symbolic link, nor one that is a
+        directory removed.
       port: The one TCP port on loopback that may be connected to, where the network is cut;
         None leaves the network as it is.
     """
@@ -153,6 +156,12 @@ class Profile:
                 f"(allow file-read* file-write* process-exec {beneath})",
                 (
                     "(deny file-write-create (require-all (vnode-type SYMLINK) "
+                    f"(require-any {itself})))"
+                ),
+                # A swap (`renamex_np`) is checked against what each name holds before it,
+                # so a directory is never taken from its name, by a swap or otherwise.
+                (
+                    "(deny file-write-unlink (require-all (vnode-type DIRECTORY) "
                     f"(require-any {itself})))"
                 ),
             ]

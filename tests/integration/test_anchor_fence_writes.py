@@ -91,10 +91,13 @@ def test_a_scratch_swapped_for_a_link_out_is_refused_where_the_fence_is_put_up_a
         f"os.symlink({str(home)!r}, {str(scratch)!r})",
     )
     if sys.platform == "darwin":
-        # Seatbelt lets no root it writes be made a link at all; one is put there as a
-        # fence from before that, or a program outside any, could have left it.
+        # Seatbelt lets no directory it writes be taken from its name, nor any root be made
+        # a link; one is put there as a fence from before that, or a program outside any,
+        # could have left it.
         assert swapped.returncode != 0
+        assert scratch.is_dir()
         assert not scratch.is_symlink()
+        scratch.rename(state / "aside")
         scratch.symlink_to(home)
     else:
         assert swapped.returncode == 0, swapped.stderr
@@ -108,17 +111,24 @@ def test_a_scratch_swapped_for_a_link_out_is_refused_where_the_fence_is_put_up_a
     assert not (home / "x").exists()
 
 
-#: What a program inside a Seatbelt profile tries of the roots it writes, a directory `d` and
-#: a file `f`, with `out` beside them unwritten: whether each attempt went through, in order.
+#: What a program inside a Seatbelt profile tries of the roots it writes, directories `d` and
+#: `e` and a file `f`, with `out` beside them unwritten: whether each attempt went through, in
+#: order.
 _SWAPS = """
-import json, os, shutil, sys
-d, f, out = sys.argv[1:]
+import ctypes, json, os, shutil, sys
+d, e, f, out = sys.argv[1:]
+libc = ctypes.CDLL(None, use_errno=True)
 def tried(how):
     try:
         how()
     except OSError:
         return False
     return True
+def swapped_dir():
+    os.symlink(out, os.path.join(d, "s"))
+    RENAME_SWAP = 2
+    if libc.renamex_np(os.path.join(d, "s").encode(), e.encode(), RENAME_SWAP):
+        raise OSError(ctypes.get_errno(), "renamex_np")
 def relinked_dir():
     shutil.rmtree(d)
     os.symlink(out, d)
@@ -137,7 +147,7 @@ def inside():
     os.symlink(out, os.path.join(d, "sub", "l"))
     os.unlink(os.path.join(d, "sub", "l"))
     os.rmdir(os.path.join(d, "sub"))
-hows = (saved, inside, renamed_link, relinked_file, relinked_dir)
+hows = (saved, inside, renamed_link, relinked_file, swapped_dir, relinked_dir)
 print(json.dumps({how.__name__: tried(how) for how in hows}))
 """
 
@@ -151,16 +161,17 @@ def test_a_root_a_seatbelt_profile_writes_cannot_be_swapped_for_a_link(
     if not seatbelt.available():
         pytest.skip("this Mac is already inside a sandbox")
     tmp_path = tmp_path.resolve()
-    d, f, out = tmp_path / "d", tmp_path / "f", tmp_path / "out"
+    d, e, f, out = (tmp_path / name for name in ("d", "e", "f", "out"))
     d.mkdir()
+    e.mkdir()
     out.mkdir()
     f.write_text("kept")
     (out / "secret").write_text("secret")
-    profile = seatbelt.Profile(read=("/",), write=(str(d), str(f)))
+    profile = seatbelt.Profile(read=("/",), write=(str(d), str(e), str(f)))
 
     done = subprocess.run(
         profile.command(
-            [sys.executable, "-I", "-B", "-c", _SWAPS, str(d), str(f), str(out)]
+            [sys.executable, "-I", "-B", "-c", _SWAPS, *map(str, (d, e, f, out))]
         ),
         capture_output=True,
         text=True,
@@ -176,8 +187,10 @@ def test_a_root_a_seatbelt_profile_writes_cannot_be_swapped_for_a_link(
         "inside": True,
         "renamed_link": False,
         "relinked_file": False,
+        "swapped_dir": False,
         "relinked_dir": False,
     }
     assert not d.is_symlink()
+    assert not e.is_symlink()
     assert not f.is_symlink()
     assert (out / "secret").read_text() == "secret"
