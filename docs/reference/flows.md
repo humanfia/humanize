@@ -1969,9 +1969,10 @@ per kind of fence (network cut or not) in the anchor handshake.
 | a harness runtime, role not granted everything | `HarnessSandboxed`: `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
 | a harness runtime that cannot be opened, reached or given a container | the runtime's `EnvUnavailable`, `EnvConnectionError` or `ResourceUnmet` |
 | `env`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>[@<provider>]: <install hint> there, or set the harness of the runtime it is on to local` |
-| `env`: fence not holdable | `HarnessSandboxed`: `<backend>[@<provider>] cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or set the harness of the runtime it is on to local` |
+| `env`: fence not holdable | `HarnessSandboxed`: `<backend>[@<provider>] cannot fence the agent to its permission: it needs Landlock[ ABI 4 and seccomp]; grant the agent everything, or set the harness of the runtime it is on to local` |
 | `env`: machine did not answer | `HarnessUnrecoverable`: `<backend>[@<provider>] did not say within 300s whether <cli> is there`, or `could not be asked whether <cli> is there: <reason>` |
-| `env`: gating hook hung | `UnsupportedOperation`: `a pre_tool_use[ and a …] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local` |
+| `env`: gating hook hung | `UnsupportedOperation`: `a pre_tool_use[ and a …] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local`; a hook hung after the session opened is refused from its next turn |
+| `env` or a harness runtime: the role offers fake tools, on any CLI but `omp` | `UnsupportedOperation`: `<cli> cannot offer the flow's tools to a CLI on another machine; set the harness of the runtime it is on to local`, as the session opens (not prefixed) |
 
 Each refusal is raised, of its type, as `<backend>[@<provider>]: <cli>'s harness cannot run
 where its harness setting (<setting>) says: <refusal>`; the harness is never put anywhere

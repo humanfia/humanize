@@ -973,7 +973,7 @@ the host with its harness `local`, to run the CLI here.
 **Verify.** `ssh build-box command -v claude` prints a path, and the transcript at the prompt
 says `builder's harness runs on its environment's machine`.
 
-### `… cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or set the harness of the runtime it is on to local`
+### `… cannot fence the agent to its permission: it needs Landlock[ ABI 4 and seccomp]; grant the agent everything, or set the harness of the runtime it is on to local`
 
 **Symptom.** `hmz exec` refuses the run with this, after `… harness cannot run where its
 harness setting (env) says: …`, before the flow starts. `… cannot fence the commands the agent runs there: it needs
@@ -981,7 +981,7 @@ Landlock …` is the same, for an agent whose CLI runs here.
 
 **Cause.** The role's permission is narrower than everything, and the machine the work lands on
 cannot hold it: a kernel older than 5.13 or without Landlock, or a container whose seccomp
-profile refuses Landlock. Cutting the network needs Linux 6.7 or later there. A Mac target
+profile refuses Landlock. Cutting the network (`ABI 4 and seccomp` in the message) needs Linux 6.7 or later there, with seccomp user notification. A Mac target
 fences with Seatbelt, but an agent supervised here (its CLI runs here, its work there) needs
 Landlock on this machine too.
 
@@ -1008,7 +1008,8 @@ everything.
 
 **Symptom.** `hmz exec` refuses the run with this, after `… harness cannot run where its
 harness setting (env) says: …`, before the flow starts, with exit status 2. It may name a
-`permission_request` hook as well, or instead.
+`permission_request` hook as well, or instead. A flow that hangs the hook after a session has
+opened gets it raised from that session's next turn instead.
 
 **Cause.** The flow hangs a hook on the role that decides whether each tool runs. The CLI runs
 that hook as a program on this machine, so a CLI running on the host, as the runtime's harness

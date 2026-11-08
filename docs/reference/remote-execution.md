@@ -472,8 +472,8 @@ from its `spawn`. The refusals (`<where>` is `<backend>[@<provider>]` of the env
 | `HarnessUnrecoverable` | `<where> could not be asked whether <cli> is there: <last stderr line \| exit status N>` | `env`, probe failed |
 | `HarnessUnrecoverable` | `<where> did not say within 300s whether <cli> is there` | `env`, probe timed out |
 | `HarnessUnrecoverable` | `<where> could not be asked whether it can fence: <error>` | `env`, handshake failed |
-| `HarnessSandboxed` | `<where> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or set the harness of the runtime it is on to local` | `env`, the machine cannot hold the fence |
-| `UnsupportedOperation` | `a <kind>[ and a <kind>] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local`, `<kind>` being `permission_request` or `pre_tool_use` | `env`, a `PreToolUse` or `PermissionRequest` hook hung |
+| `HarnessSandboxed` | `<where> cannot fence the agent to its permission: it needs Landlock[ ABI 4 and seccomp]; grant the agent everything, or set the harness of the runtime it is on to local` | `env`, the machine cannot hold the fence |
+| `UnsupportedOperation` | `a <kind>[ and a <kind>] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local`, `<kind>` being `permission_request` or `pre_tool_use` | `env`, a `PreToolUse` or `PermissionRequest` hook hung; one hung after the session opened is refused from its next turn, and the session stays where it is |
 | `HarnessNotInstalled` | `<cli> is not installed here: <install line>` | the harness is here and the CLI is not on this machine |
 | `HarnessSandboxed` | `<role>=<cli>[@<account>]/<model>:<effort>: <AgentClass>: a fence cannot hold a harness that runs on another machine` | a harness runtime, and the role's `Permission` is anything but every scope `ALL` |
 | `EnvUnavailable`, `EnvConnectionError`, `ResourceUnmet` | as the runtime's own environment would be refused | a harness runtime that cannot be opened, reached, or given a container |
@@ -495,15 +495,20 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
   `Permission` (`local=ALL, user=READ, system=READ, online=ALL`) is refused.
 - **Accounts do not follow a harness elsewhere.** See [Where the account lives](#where-the-account-lives).
 - **Gating hooks need the harness here.** A role with a `PreToolUse` or `PermissionRequest`
-  hook hung is refused under the setting `env`; set the runtime's harness to `local`. An
-  `AskUser` hook does not need it here.
+  hook hung is refused under the setting `env`; set the runtime's harness to `local`. One hung
+  after the session opened is refused from the session's next turn. An `AskUser` hook does not
+  need it here. Hanging or taking down a hook never moves a session's harness from where it
+  was put when the session opened.
   An anchored turn gets no hook table, so there `PreToolUse` is read off the CLI's stream and
   cannot stop a tool ([Agents › Refusing a tool](/reference/agents#refusing-a-tool)).
 - **Callbacks do not cross.** A native turn on a non-`local` target offered the flow's tool
   callbacks or [command lines](/reference/agents#command-lines) is refused: `<cli>: a turn
   driven on <target> cannot be offered the flow's own callbacks or command lines -- the bridge
   that carries them is a program on this machine, and the CLI that would start it is on that
-  one` (`command lines` alone for `omp`). `omp`'s callbacks are the exception (`AgentBase.pipes_tools`): it asks for each call over
+  one` (`command lines` alone for `omp`). A flow session whose role offers tools is refused
+  earlier, as it opens, under the harness setting `env` or a harness runtime alike:
+  `UnsupportedOperation: <cli> cannot offer the flow's tools to a CLI on another machine; set
+  the harness of the runtime it is on to local`. `omp`'s callbacks are the exception (`AgentBase.pipes_tools`): it asks for each call over
   the RPC pipe it is driven through, so they reach it wherever it runs.
 - **Sessions whose harness is on the env or standalone stay where that CLI keeps them**, on the
   other machine; a
@@ -784,6 +789,9 @@ what crosses is its levels, not its paths.
   the fence writes nothing of the home or the system.
 - Whatever a driver grants its CLI past the wall (a port it serves on, a sign-in outside its
   home, generated settings) is granted on both machines.
+- A flow session supervised here in a mirror (`shadow` set) has its fence drawn around the
+  mirror as its workdir: whatever this machine has at the path the work has on the target is
+  not granted.
 - The target reports what it can hold at the handshake: `fence.fs` is Landlock ABI >= 1;
   `fence.net` is Landlock ABI >= 4 (Linux 6.7), a loadable seccomp user-notification filter,
   and `pidfd_getfd` permitted with Yama `ptrace_scope` < 2. A macOS target reports both as
