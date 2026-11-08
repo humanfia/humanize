@@ -165,8 +165,11 @@ entry's own `spec`, or repeat an earlier one.
 
 CLIs added on the Accounts page, driven over ACP. A mapping from name to either an argv list
 or `{command: [...], hosts: [...], state: [...]}` (`hosts`, `state` are set by hand: the hosts
-it may reach with `online` `NONE`, and extra paths it may write). Removing the key forgets
-every added CLI.
+it may reach with `online` `NONE`, and extra paths it may write). A host is `name`,
+`name:port`, `*.suffix` or an IP address; one written as a URL is read as its host and port
+(`https://api.example.com/v1` is `api.example.com`), and one that names no host is dropped
+with a warning, so a list of nothing else counts as no hosts. Removing the key forgets every
+added CLI.
 
 ### `runtimes`
 

@@ -19,6 +19,8 @@ purpose does: driving in :mod:`hmz.coganchor.agents`, reading back in :mod:`hmz.
 from __future__ import annotations
 
 import base64
+import ipaddress
+import logging
 import os
 import re
 import shutil
@@ -30,6 +32,8 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+log = logging.getLogger(__name__)
 
 __all__ = [
     "ALIKE",
@@ -4532,6 +4536,27 @@ def _strings(said: object) -> tuple[str, ...]:
     return tuple(str(one) for one in cast("list[object]", said) if str(one).strip())
 
 
+def _hosts(said: object, name: str) -> tuple[str, ...]:
+    """The hosts a CLI was declared to reach, each as :attr:`Profile.hosts` spells one.
+
+    Written as a URL or as a host, the way an endpoint's variable is read (see
+    :func:`_place`): `https://api.example.com/v1` is the host `api.example.com`, which is
+    what the fence's proxy compares. One that names no host is dropped, and said so, rather
+    than kept as an entry that matches nothing while still counting as a host declared.
+    """
+    kept: list[str] = []
+    for one in _strings(said):
+        try:
+            host = str(ipaddress.ip_address(one.strip()))
+        except ValueError:
+            host = _place(one)
+        if host:
+            kept.append(host)
+        else:
+            log.warning("clis.%s.hosts: %r names no host; ignored", name, one)
+    return tuple(dict.fromkeys(kept))
+
+
 def speaking() -> dict[str, tuple[str, ...]]:
     """Every CLI somebody has added, and the command that starts each one.
 
@@ -4575,7 +4600,7 @@ def speaking() -> dict[str, tuple[str, ...]]:
         if given:
             found[str(name)] = given
             declared[str(name)] = (
-                _strings(said.get("hosts")),
+                _hosts(said.get("hosts"), str(name)),
                 _strings(said.get("state")),
             )
     _added, _added_at, _declared = found, stamp, declared
