@@ -46,6 +46,7 @@ from hmz.coganchor.agents.hooks import Moment, Occasion, Verdict
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.faking import FakeCli, FakeCommand, FakeTool
+from hmz.coganchor.fence import Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers.store import Provider
 from tests.unit.coganchor.agents.doubles_core import (
@@ -695,6 +696,55 @@ def test_a_cli_that_rewrites_its_home_is_started_in_a_virtual_one(
     assert not home.at.exists()
     assert (real / "settings.json").exists()
     assert Scripted(backend="dsh").homed() is None
+
+
+def _walled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Scripted:
+    """A fenced Claude reading and writing only its workdir, with a home of its own."""
+    monkeypatch.setenv("HOME", str(tmp_path / "user"))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "user" / ".claude"))
+    (tmp_path / "user" / ".claude").mkdir(parents=True)
+    work = tmp_path / "work"
+    work.mkdir()
+    walls = Fence(read=(str(work),), write=(str(work),))
+    return Scripted(AgentConfig(model="m", effort="", fence=walls), backend="claude")
+
+
+def test_a_fenced_agent_may_not_write_humanizes_own_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fence = _walled(tmp_path, monkeypatch).fenced()
+
+    assert fence is not None
+    cache = tmp_path / "user" / ".cache" / "humanize"
+    assert not fence.allows(cache / "shadows" / "planted.json", write=True)
+    assert fence.allows(tmp_path / "user" / ".claude" / "x", write=True)
+
+
+def test_a_fenced_agents_home_follows_no_link_it_could_have_planted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _walled(tmp_path, monkeypatch)
+    real = tmp_path / "user" / ".claude"
+    secret = tmp_path / "secret"
+    secret.write_text("key\n")
+    (real / "settings.json").symlink_to(secret)
+    bashrc = tmp_path / "bashrc"
+    bashrc.write_text("theirs\n")
+    os.utime(bashrc, (1_000_000, 1_000_000))
+    (real / ".credentials.json").symlink_to(bashrc)
+    (real / "token").write_text("old\n")
+    os.utime(real / "token", (1_000_000, 1_000_000))
+
+    home = agent.homed()
+
+    assert home is not None
+    assert not (home.at / "settings.json").exists()
+    for name, said in ((".credentials.json", "payload\n"), ("token", "new\n")):
+        (home.at / name).unlink()
+        (home.at / name).write_text(said)
+    home.drop()
+    assert bashrc.read_text() == "theirs\n"
+    assert (real / "token").read_text() == "new\n"
 
 
 def test_a_harness_on_another_machine_has_its_virtual_home_built_there(

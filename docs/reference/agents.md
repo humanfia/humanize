@@ -517,7 +517,9 @@ The agent widens the fence where it spawns a turn (`agent.fenced()`): its CLI's 
 sign-in directories and its session directory to write, and on macOS `~/Library/Keychains`,
 where Claude Code keeps its sign-in and rewrites it as it refreshes; the account's directory;
 the hosts its model and sign-in are at under the account ([Network hosts](#network-hosts)); the
-skills it carries; its programs and their install trees to read.
+skills it carries; its programs and their install trees to read. Never Humanize's own home
+(`~/.hmz`) or cache (`~/.cache/humanize`, which holds the mirror records), beyond a CLI's own
+state directory under it (`litellm`'s `~/.cache/humanize/litellm`).
 
 Both a flow's fence and the agent's widening read the hosts from the same environment,
 `providers.composed(provider, profile)`: this process's own, less the variables the account
@@ -1224,6 +1226,16 @@ right after the program's name).
   Never over a file as new or newer, which another process of the same account saved since:
   the last to save wins. So a refreshed token (`.credentials.json`, `auth.json`, `credentials`)
   and a session file a CLI replaces are kept; the copies of `Profile.rewrites` still go.
+- Building and removing the home happens outside the agent's fence, so for a fenced agent
+  (`AgentBase.homed` passes `homes.build` its `readable` and `writable` tests, drawn from
+  `agent.fenced()`) every link is followed to where it leads and checked there, against the
+  fence's roots as given and as the fence reaches them: a `Profile.rewrites` file is copied in
+  only where the agent may read what it leads to, and a replaced link is written back (and a
+  `Profile.records` database respelled) only where the agent may write what it leads to and
+  read the replacement. Otherwise it is left out, with a warning (`not copying <path>: the
+  agent may not read it`, `not writing <file> back to <path>: the agent may not reach it`). So
+  a link the agent put in its own state directory, such as `~/.claude/.credentials.json ->
+  ~/.bashrc`, is never read or written through. Without a fence, everything is followed.
 - A path of its home a CLI writes down to read back later (`Profile.records`) names the
   virtual home, which is gone once the process is. As the home is removed (`Home.drop`), each
   such path whose file is there is rewritten with the home's links followed, to where the file

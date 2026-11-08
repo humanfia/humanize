@@ -20,6 +20,7 @@ from hmz.coganchor.homes import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 CLAUDE = Virtual(
@@ -698,3 +699,96 @@ def test_a_replaced_link_into_a_kept_directory_is_written_back_there(
 def test_a_kept_directory_must_be_absolute() -> None:
     with pytest.raises(ValueError, match="to keep sessions in"):
         Virtual(variable="CODEX_HOME", default=".codex", keeps="epic/codex")
+
+
+def _inside(*roots: Path) -> Callable[[str], bool]:
+    """What an agent fenced to `roots` may reach, every link followed."""
+    held = [os.path.realpath(one) for one in roots]
+    return lambda path: any(
+        os.path.realpath(path) == root
+        or os.path.realpath(path).startswith(root + os.sep)
+        for root in held
+    )
+
+
+def test_a_link_planted_in_the_users_home_is_not_written_through(
+    tmp_path: Path,
+) -> None:
+    user = _user(tmp_path)
+    outside = tmp_path / "bashrc"
+    outside.write_text("theirs\n")
+    os.utime(outside, (1_000_000, 1_000_000))
+    planted = user / ".claude" / ".credentials.json"
+    planted.unlink()
+    planted.symlink_to(outside)
+    home = build(
+        CLAUDE, {"HOME": str(user)}, under=tmp_path, writable=_inside(user / ".claude")
+    )
+
+    _renamed(home.at / ".credentials.json", "payload\n")
+    home.drop()
+
+    assert outside.read_text() == "theirs\n"
+
+
+def test_a_directory_planted_as_a_link_is_not_written_through(
+    tmp_path: Path,
+) -> None:
+    user = _user(tmp_path)
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    (user / ".claude" / "d").symlink_to(outside)
+    home = build(
+        CLAUDE, {"HOME": str(user)}, under=tmp_path, writable=_inside(user / ".claude")
+    )
+    (home.at / "d").unlink()
+    (home.at / "d").mkdir()
+    (home.at / "d" / ".bashrc").write_text("payload\n")
+
+    home.drop()
+
+    assert not (outside / ".bashrc").exists()
+
+
+def test_a_replacement_the_agent_may_write_is_still_written_back(
+    tmp_path: Path,
+) -> None:
+    user = _user(tmp_path)
+    real = user / ".claude" / ".credentials.json"
+    os.utime(real, (1_000_000, 1_000_000))
+    home = build(
+        CLAUDE,
+        {"HOME": str(user)},
+        under=tmp_path,
+        readable=_inside(user / ".claude", tmp_path),
+        writable=_inside(user / ".claude"),
+    )
+
+    _renamed(home.at / ".credentials.json", "refreshed\n")
+    home.drop()
+
+    assert real.read_text() == "refreshed\n"
+
+
+def test_a_copy_is_never_made_of_what_the_agent_may_not_read(
+    tmp_path: Path,
+) -> None:
+    user = _user(tmp_path)
+    secret = tmp_path / "id_ed25519"
+    secret.write_text("key\n")
+    settings = user / ".claude" / "settings.json"
+    settings.unlink()
+    settings.symlink_to(secret)
+
+    home = build(
+        CLAUDE,
+        {"HOME": str(user)},
+        under=tmp_path,
+        readable=_inside(user / ".claude", user / ".claude.json"),
+    )
+
+    try:
+        assert not (home.at / "settings.json").exists()
+        assert (home.at / ".claude.json").read_text() == '{"outside": true}\n'
+    finally:
+        home.drop()
