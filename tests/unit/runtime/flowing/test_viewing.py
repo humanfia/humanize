@@ -422,6 +422,35 @@ async def test_a_role_granted_what_it_declared_runs_forks_and_answers_its_schema
     )
 
 
+READING = Permission(local=PermissionKind.READ, online=PermissionKind.NONE)
+
+
+@flow(agents=Plain, envs=NoEnvs, params=Prompt)
+async def shared(
+    task: str, *, agents: Plain, envs: NoEnvs, params: Prompt, ctx: FlowContext
+) -> None:
+    coder = agents["coder"]
+    looker = coder.derive(permission=READING)
+    narrow = await looker.spawn()
+    await coder.run("x", session=narrow)
+    await looker.run("y", session=narrow)
+    wide = await coder.spawn()
+    await looker.run("z", session=wide)
+
+
+async def test_a_session_runs_under_the_agent_it_was_spawned_by_whichever_runs_it() -> (
+    None
+):
+    coder = FakeAgentDriver()
+
+    await run_fake(shared, agents={"coder": coder})
+
+    assert [session.permission for session in coder.sessions] == [
+        READING,
+        Permission(),
+    ]
+
+
 async def test_a_model_called_directly_works_in_no_environment() -> None:
     with pytest.raises(UnsupportedOperation, match="litellm"):
         await run_fake(model_in_env)
@@ -673,6 +702,11 @@ async def test_the_runs_outworlder_answers_as_the_role_it_was_filled_for() -> No
     assert await view.run("ok?", session=session) == "yes"
     assert await view.run("why?", session=session, output_schema=Away) == Away(note="n")
     assert view.derive() is view
+    assert view.derive(permission=Permission(local=PermissionKind.READ)) is view
+    with pytest.raises(CapabilityNotGranted, match="wider"):
+        view.derive(permission=Permission(user=PermissionKind.ALL))
+    with pytest.raises(TypeError, match="not a Permission"):
+        view.derive(permission="all")  # pyright: ignore[reportArgumentType]
     with pytest.raises(CapabilityNotGranted, match="no skills"):
         view.derive(skills=("x",))
     with pytest.raises(UnsupportedOperation):

@@ -393,7 +393,7 @@ from hmz.flows import Permission, PermissionKind
 
 read_only = Permission(local=PermissionKind.READ)
 reader = agents["builder"].derive(permission=read_only)
-reading = await reader.spawn()  # may not write
+reading = await reader.spawn()  # may not write, whichever of the two runs it
 ```
 
 It only narrows: asking for more than was granted raises `CapabilityNotGranted`. It is for a

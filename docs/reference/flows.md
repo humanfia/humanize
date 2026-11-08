@@ -707,7 +707,8 @@ def derive(self, *, permission: Permission | None = None,
 
 Returns a new view of the same driver with the narrower grant; the original is unchanged. The
 derived agent shares the original's hooks and its sessions (a session of either may be used by
-the other).
+the other). A session runs under the permission and skills of the agent that spawned or forked
+it, whichever of the two runs its first turn.
 
 | Condition | Raises |
 | --- | --- |
@@ -1017,7 +1018,7 @@ the run; naming it with `-a` is refused
 | `Outworlder.new()` | A new outworlder answered by the flow through `on_outworlder_run`. Away until a hook is hung. |
 | `on_outworlder_run(fn)` | Only on an outworlder from `new()`; on any other raises `CapabilityNotGranted`: `<role>: only an outworlder made with Outworlder.new() is answered by a hook`. |
 | `fork` | `UnsupportedOperation`: `an outworlder's session cannot be forked`. |
-| `derive(skills=…)` | Non-empty skills raise `CapabilityNotGranted`: `<role>: an outworlder has no skills`. |
+| `derive(permission=…, skills=…)` | Returns the same outworlder. A permission that the default `Permission()` does not cover raises `CapabilityNotGranted`: `<role>: <permission> is wider than the <granted> an outworlder is granted`. Non-empty skills raise `CapabilityNotGranted`: `<role>: an outworlder has no skills`. |
 
 **While away**, `run` returns at once: `""` for text; the schema built from defaults where
 every field has one; otherwise `OutworlderAway`:
