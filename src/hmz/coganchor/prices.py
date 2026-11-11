@@ -36,7 +36,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz import machine
@@ -54,6 +54,7 @@ __all__ = [
     "price",
     "ready",
     "refresh",
+    "tiered",
     "where",
 ]
 
@@ -118,6 +119,20 @@ _INSTEAD = {"cache_write": "input"}
 #: the one-hour cache is priced at.
 _HOUR = "cache_write_1h"
 
+#: Every kind a price is put against: the ones the list prices, and the ones billed as them.
+_PRICED = frozenset({*_CATEGORIES.values(), *_BILLED})
+
+#: Where a `contextRange` sets a floor under the prompt, which makes its item a dearer tier
+#: rather than the standard one: `input > 272k tokens`, `input >= 32k tokens`, `32k < input
+#: <= 128k tokens`, `256k < prompt <= 1M tokens`. A range with only a ceiling, `all`, or one
+#: this does not read is the standard price.
+_FLOOR = re.compile(
+    r"([\d.]+)\s*([km]?)\s*<\s*(?:input|prompt)"
+    r"|(?:input|prompt)\s*(>=?)\s*([\d.]+)\s*([km]?)",
+    re.IGNORECASE,
+)
+_SCALE = {"": 1, "k": 1_000, "m": 1_000_000}
+
 #: A trailing scrap that names a release rather than a model. Tried one at a time and then
 #: together, so that a model listed with its date intact still matches itself first.
 _DATED = re.compile(r"[-@_](?:19|20)\d{2}-?\d{2}-?\d{2}$")
@@ -175,11 +190,17 @@ class Price:
         here is one this model is not priced for, which is not the same as a free one. A
         `cache_write_1h` beside them is what a write to a one-hour cache costs, where the
         list sells one, `cache_write` being then a write to a five-minute one.
+      tiers: What a request whose prompt is longer than a line costs instead, by the line in
+        tokens, each priced the way `per_million` is. A kind a tier does not price is at the
+        standard price there.
     """
 
     model: str
     provider: str
     per_million: Mapping[str, float]
+    tiers: Mapping[int, Mapping[str, float]] = field(
+        default_factory=dict[int, "Mapping[str, float]"]
+    )
 
 
 def where() -> pathlib.Path:
@@ -205,9 +226,8 @@ def price(model: str) -> Price | None:
 
     Nothing here guesses. A near miss is a miss: `gpt-5` is not `gpt-5.6-sol`, and a model
     the list has never heard of answers nothing rather than the price of its neighbour. Nor
-    does it read a tier: a model priced differently above some context length is taken at the
-    first tier the list gives, which is the standard price, so a very long turn cost more than
-    this says.
+    does it pick a tier: what a request past a model's long-context line costs is worked out
+    from its `tiers` by :func:`tiered` and :func:`cost`.
 
     Args:
       model: The model as whatever counted the tokens spelled it.
@@ -227,7 +247,55 @@ def price(model: str) -> Price | None:
     return None
 
 
-def cost(usage: Mapping[str, float], model: str, *, hour: float = 0.0) -> float | None:
+def tiered(
+    request: Mapping[str, float], model: str, *, hour: float = 0.0
+) -> dict[str, float]:
+    """Which of one request's tokens the list prices at a long-context tier.
+
+    A tier is a price for the whole of a request whose prompt -- its input, cached or not --
+    is longer than the tier's line, so it is only ever read off one request at a time: a
+    turn's tokens added up say nothing of how long any one prompt was.
+
+    Args:
+      request: One request's tokens, by kind.
+      model: What it was spent on.
+      hour: How many of its cache writes went to a one-hour cache, which a tier prices too.
+
+    Returns:
+      Its tokens by kind, each under `<kind>><line>` for the highest line its prompt is past,
+      to be handed to :func:`cost` beside the kinds they are counted in. Empty for a request
+      under every line, and for a model nobody lists or a list that cannot be read -- which
+      :func:`cost` is the one to say.
+    """
+    try:
+        listed = price(model)
+    except PriceError:
+        return {}
+    if listed is None:
+        return {}
+    prompt = sum(
+        request.get(kind, 0.0) for kind in ("input", "cache_read", "cache_write")
+    )
+    line = max((line for line in listed.tiers if prompt > line), default=0)
+    if not line:
+        return {}
+    marked = {
+        f"{kind}>{line}": tokens
+        for kind, tokens in request.items()
+        if kind in _PRICED and tokens > 0
+    }
+    if hour > 0:
+        marked[f"{_HOUR}>{line}"] = hour
+    return marked
+
+
+def cost(
+    usage: Mapping[str, float],
+    model: str,
+    *,
+    hour: float = 0.0,
+    tiered: Mapping[str, float] | None = None,
+) -> float | None:
     """What some tokens came to, in US dollars.
 
     Args:
@@ -238,6 +306,11 @@ def cost(usage: Mapping[str, float], model: str, *, hour: float = 0.0) -> float 
         is added where the list gives a one-hour price, and nothing where it does not. Those
         writes themselves are counted in `cache_write`, of this reckoning or of an earlier one:
         a turn may say which cache its writes went to only after they were counted.
+      tiered: Which of those tokens were spent by requests past a long-context line, as
+        :func:`tiered` names them. They are counted in `usage` too; what the tier charges
+        beyond the standard price is added, and nothing for a kind the tier does not price.
+        One-hour writes past a line are counted in `hour` too, and what the tier's one-hour
+        surcharge is beyond the standard one is added the same way.
 
     Returns:
       The money, or None both for a model nobody lists and for a reckoning none of whose
@@ -255,10 +328,7 @@ def cost(usage: Mapping[str, float], model: str, *, hour: float = 0.0) -> float 
     total = 0.0
     priced = False
     for kind, tokens in usage.items():
-        named = _BILLED.get(kind, kind)
-        rate = per.get(named)
-        if rate is None:
-            rate = per.get(_INSTEAD.get(named, ""))
+        rate = per.get(_named(per, kind))
         if rate is None:
             continue  # a kind nobody prices, including the one that has no name at all
         if tokens > 0:
@@ -267,12 +337,41 @@ def cost(usage: Mapping[str, float], model: str, *, hour: float = 0.0) -> float 
             # run was free.
             priced = True
             total += tokens * rate / _MILLION
-    dearer, cheaper = per.get(_HOUR), per.get("cache_write")
-    if hour > 0 and dearer is not None and cheaper is not None:
+    if hour > 0 and (surcharge := _surcharge(per)) is not None:
         # What a one-hour write costs beyond the five-minute price it was counted at.
         priced = True
-        total += hour * (dearer - cheaper) / _MILLION
+        total += hour * surcharge / _MILLION
+    for marked, tokens in (tiered or {}).items():
+        kind, _, line = marked.partition(">")
+        tier = listed.tiers.get(int(line)) if line.isdigit() else None
+        if tier is None:
+            continue
+        if kind == _HOUR:
+            # The one-hour surcharge, counted above at the standard price's.
+            dearer = _surcharge(tier)
+            cheaper = _surcharge(per) or 0.0
+        else:
+            # At the tier's price for what the standard price was read off, and nothing
+            # where the tier has none: its own fallback could come to less than that.
+            named = _named(per, kind)
+            dearer, cheaper = tier.get(named), per.get(named)
+        if tokens > 0 and dearer is not None and cheaper is not None:
+            # What the tier charges for these beyond the standard price they were counted at.
+            priced = True
+            total += tokens * (dearer - cheaper) / _MILLION
     return total if priced else None
+
+
+def _surcharge(per: Mapping[str, float]) -> float | None:
+    """What a one-hour cache write costs per million beyond a five-minute one, if priced."""
+    dearer, cheaper = per.get(_HOUR), per.get("cache_write")
+    return None if dearer is None or cheaper is None else dearer - cheaper
+
+
+def _named(per: Mapping[str, float], kind: str) -> str:
+    """What one kind is priced as, as billed and where not priced as itself."""
+    named = _BILLED.get(kind, kind)
+    return named if named in per else _INSTEAD.get(named, "")
 
 
 def money(dollars: float) -> str:
@@ -563,12 +662,17 @@ def _trim(loaded: object, whence: str, etag: str) -> dict[str, Any] | None:
             continue
         model = cast("dict[str, Any]", one)
         named = str(model.get("id") or "")
-        per = _per_million(model.get("pricingItems") or [], named, rates)
-        if named and per:
+        tiers = _per_million(model.get("pricingItems") or [], named, rates)
+        if named and (per := tiers.pop(0, None)):
             models[named] = {
                 "provider": str(model.get("provider") or ""),
                 "name": str(model.get("name") or ""),
                 "per_million": per,
+                **(
+                    {"tiers": {str(line): one for line, one in sorted(tiers.items())}}
+                    if tiers
+                    else {}
+                ),
             }
     if not models:
         return None
@@ -612,15 +716,15 @@ def _rates(said: object) -> dict[str, float]:
 
 def _per_million(
     items: object, named: str, rates: dict[str, float]
-) -> dict[str, float]:
-    """What one model costs per million tokens, by kind.
+) -> dict[int, dict[str, float]]:
+    """What one model costs per million tokens, by context tier and kind.
 
-    The first entry for a kind wins. One model carries several, one per context tier and one
-    per cache duration, written cheapest-tier-first -- and nothing here knows how long the
-    prompt was, so the standard price is the honest one to take and the one to say has been
-    taken. A cache write the list says is to a cache kept for an hour is the exception: it is
-    kept beside `cache_write` as `cache_write_1h`, which is the five-minute price whichever
-    order the two are written in, since the backends that sell both say which was bought.
+    Each item goes to the tier its `contextRange` puts a floor under -- the line a prompt
+    must be longer than, `0` for the standard price -- and within a tier the first entry for
+    a kind wins. One model carries several per tier, one per cache duration: a cache write
+    the list says is to a cache kept for an hour is kept beside `cache_write` as
+    `cache_write_1h`, which is the five-minute price whichever order the two are written in,
+    since the backends that sell both say which was bought.
 
     An item in another currency is turned into dollars at its rate, and one in a currency
     with no rate is skipped as though it were not there: a figure in yuan read as dollars is
@@ -632,14 +736,15 @@ def _per_million(
       rates: Units of each currency per dollar, as `_rates` gives them.
 
     Returns:
-      Dollars per million tokens, by the kind Humanize counts them under.
+      Dollars per million tokens, by the line each tier is above and the kind Humanize
+      counts them under; a tier nothing was priced at is not there.
 
     Raises:
       PriceError: If a kind Humanize counts is priced at something not a finite number.
     """
-    per: dict[str, float] = {}
+    tiers: dict[int, dict[str, float]] = {}
     if not isinstance(items, list):
-        return per
+        return tiers
     for one in cast("list[Any]", items):
         if not isinstance(one, dict):
             continue
@@ -653,16 +758,37 @@ def _per_million(
         ):
             kind = _HOUR
         asked: object = item.get("price")
-        if kind is None or kind in per or not isinstance(asked, (int, float)):
+        if kind is None or not isinstance(asked, (int, float)):
             continue
         if isinstance(asked, bool):
             continue
         rate = _finite(named, kind, asked)
         exchange = rates.get(str(item.get("currency") or "USD"))
-        if rate < 0 or exchange is None:
+        per = tiers.setdefault(_line(item.get("conditions")), {})
+        if rate < 0 or exchange is None or kind in per:
             continue
         per[kind] = rate / exchange
-    return per
+    return {line: per for line, per in tiers.items() if per}
+
+
+def _line(conditions: object) -> int:
+    """The line in tokens an item's `contextRange` says a prompt is longer than, or `0`.
+
+    `>= 32k` is past 31,999, which is the same prompts as `32k <=`.
+    """
+    if not isinstance(conditions, dict):
+        return 0
+    said = str(cast("dict[str, Any]", conditions).get("contextRange") or "")
+    floor = _FLOOR.search(said)
+    if floor is None:
+        return 0
+    try:
+        if floor[1]:
+            return int(float(floor[1]) * _SCALE[floor[2].lower()])
+        line = int(float(floor[4]) * _SCALE[floor[5].lower()])
+    except ValueError:
+        return 0  # `1.2.3k`, which says no line at all
+    return line - 1 if floor[3] == ">=" else line
 
 
 def _finite(named: str, kind: str, rate: float) -> float:
@@ -808,14 +934,14 @@ def _read(kept: pathlib.Path) -> dict[str, Price]:
         if not isinstance(one, dict):
             continue
         model = cast("dict[str, Any]", one)
-        per: object = model.get("per_million")
-        if not isinstance(per, dict):
-            continue
+        said: object = model.get("tiers")
+        lines = cast("dict[str, Any]", said) if isinstance(said, dict) else {}
         try:
-            rates: dict[str, float] = {
-                str(kind): _finite(str(named), str(kind), rate)
-                for kind, rate in cast("dict[str, Any]", per).items()
-                if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+            rates = _rates_of(named, model.get("per_million"))
+            tiers = {
+                int(line): tier
+                for line, one in lines.items()
+                if line.isdigit() and int(line) > 0 and (tier := _rates_of(named, one))
             }
         except PriceError as why:
             msg = f"the price list kept at {kept} {why}, or delete it"
@@ -826,11 +952,23 @@ def _read(kept: pathlib.Path) -> dict[str, Price]:
             model=str(named),
             provider=str(model.get("provider") or ""),
             per_million=rates,
+            tiers=tiers,
         )
         found[_squash(named)] = priced
         found.setdefault(_squash(str(model.get("name") or "")), priced)
     found.pop("", None)
     return found
+
+
+def _rates_of(named: str, per: object) -> dict[str, float]:
+    """One `per_million` as kept, its numbers by kind, refused where one is not finite."""
+    if not isinstance(per, dict):
+        return {}
+    return {
+        str(kind): _finite(named, str(kind), rate)
+        for kind, rate in cast("dict[str, Any]", per).items()
+        if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+    }
 
 
 def _keys(model: str) -> list[str]:

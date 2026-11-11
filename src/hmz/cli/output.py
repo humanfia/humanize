@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from rich.console import Console, ConsoleOptions, RenderResult
     from rich.live import Live
 
-    from hmz.coganchor.agents import AgentBase, Event
+    from hmz.coganchor.agents import AgentBase, Event, Usage
     from hmz.coganchor.agents.base import SessionBase
 
 __all__ = ["Out", "Shown", "colours", "terminal"]
@@ -403,19 +403,20 @@ class Shown:
         # Keyed by the conversation itself, which is what tells two turns of one agent
         # apart: nothing here numbers conversations, and nothing written shows the key.
         key = agent.id if session is None else f"{agent.id}#{id(session)}"
-        # The one-hour cache writes are read off the event rather than the record, which
-        # carries exactly the keys every reader of it is promised.
+        # The one-hour cache writes and the tokens past a long-context line are read off the
+        # event rather than the record, which carries exactly the keys every reader of it is
+        # promised.
         self._shows(
             record(agent, session, event, key=key),
             _where(agent, session),
-            event.spent.hour,
+            event.spent,
         )
 
-    def _shows(self, said: dict[str, Any], where: str, hour: float) -> None:
+    def _shows(self, said: dict[str, Any], where: str, usage: Usage) -> None:
         if self._out.as_json:
             self._object(said)
             return
-        self._row(said, where, hour)
+        self._row(said, where, usage)
 
     def _object(self, said: dict[str, Any]) -> None:
         """Puts one event on the stream a program is reading, as one object."""
@@ -435,7 +436,7 @@ class Shown:
             spent=said["spent"],
         )
 
-    def _row(self, said: dict[str, Any], where: str, hour: float) -> None:
+    def _row(self, said: dict[str, Any], where: str, usage: Usage) -> None:
         """Shows one event as a line, or as several for something said in several."""
         whose, kind, text = str(said["agent"]), said["kind"], str(said["text"])
         if kind == "begins":
@@ -477,7 +478,7 @@ class Shown:
         elif kind == "failed":
             self._out.line(("hmz: ", "red"), (text, "red"))
         elif kind == "result":
-            self._footer(said, hour)
+            self._footer(said, usage)
             if self._echoes and text:
                 # Where the backend's own command line would have put it, and where every
                 # script written against `hmz exec` before this reads it. Nothing for a turn
@@ -492,7 +493,7 @@ class Shown:
         for line in said[1:]:
             self._out.line((f"  {line}", ""))
 
-    def _footer(self, said: dict[str, Any], hour: float) -> None:
+    def _footer(self, said: dict[str, Any], usage: Usage) -> None:
         """What the turn cost, under the turn, for a backend that says.
 
         In money as well as in tokens, since nobody is watching a token count for its own
@@ -503,7 +504,9 @@ class Shown:
 
         Args:
           said: The turn's `result`, as recorded.
-          hour: How many of its cache writes went to a one-hour cache.
+          usage: What the event says the turn spent, which beside the kinds says how many
+            of its cache writes went to a one-hour cache and which of its tokens went on
+            requests past a long-context line.
         """
         from hmz.coganchor.agents import KINDS
         from hmz.coganchor.prices import PriceError, cost, money
@@ -531,7 +534,7 @@ class Shown:
             )
         )
         try:
-            bill = cost(spent, model, hour=hour)
+            bill = cost(spent, model, hour=usage.hour, tiered=usage.tiered)
         except PriceError:
             bill = math.inf  # a bill nobody can read, which `money` says as `$?`
         priced = f"{money(bill)}{_DOT}" if bill is not None else ""

@@ -295,6 +295,15 @@ class Monitor:
     #: moment, and must not reprice as five-minute writes the one-hour writes already counted.
     #: It is held to the cache writes of the reckoning it is priced with.
     hour: dict[str, float] = field(default_factory=dict[str, float])
+    #: Likewise which of the tokens each source has counted went on requests past a model's
+    #: long-context line, under the names `prices.tiered` gives them, and of each model the
+    #: most any source has said of each, held to the kinds of the reckoning it is priced with.
+    tiereds: dict[tuple[str, str], dict[str, float]] = field(
+        default_factory=dict[tuple[str, str], dict[str, float]]
+    )
+    tiered: dict[str, dict[str, float]] = field(
+        default_factory=dict[str, dict[str, float]]
+    )
     #: Which kinds of token each agent's backend reports at all, said of the backend rather
     #: than read off what a turn happened to spend -- a kind nothing went on this turn is
     #: missing from that turn's reckoning exactly as a kind the CLI never counts is, and this
@@ -510,6 +519,7 @@ class Monitor:
         now: float | None = None,
         kinds: Mapping[str, float] | None = None,
         hour: float = 0.0,
+        tiered: Mapping[str, float] | None = None,
     ) -> None:
         """Notes what one source has now seen spent on one model, all told.
 
@@ -526,9 +536,11 @@ class Monitor:
             says which. A total rather than an addition, for the reason `total` is one.
           hour: How many of the `cache_write` tokens in `kinds` went to a one-hour cache,
             likewise a total.
+          tiered: Which of the tokens in `kinds` went on requests past a long-context line,
+            as `prices.tiered` names them, likewise a total.
         """
         with self._lock:
-            self._counted(source, model, total, now, kinds, hour)
+            self._counted(source, model, total, now, kinds, hour, tiered)
 
     def _counted(
         self,
@@ -538,6 +550,7 @@ class Monitor:
         now: float | None,
         kinds: Mapping[str, float] | None,
         hour: float = 0.0,
+        tiered: Mapping[str, float] | None = None,
     ) -> None:
         """The whole of `counted`, with the lock already held by whoever called."""
         was = self.totals.get((source, model), 0)
@@ -545,8 +558,11 @@ class Monitor:
         # A breakdown that has changed is worth having even where the total has not moved:
         # one source may say a lump where another says what the lump was made of, and the
         # money is worked out from whichever of them said.
-        moved = broken != self.kinds.get((source, model)) or hour != self.hours.get(
-            (source, model), 0.0
+        marked = dict(tiered or {})
+        moved = (
+            broken != self.kinds.get((source, model))
+            or hour != self.hours.get((source, model), 0.0)
+            or marked != self.tiereds.get((source, model), {})
         )
         if total <= was and not moved:
             return
@@ -564,6 +580,7 @@ class Monitor:
             else:
                 self.kinds[(source, model)] = broken
             self.hours[(source, model)] = hour
+            self.tiereds[(source, model)] = marked
             self.changed += 1  # so that what it is worth is worked out again
         # What every per-kind figure and the money are read off, kept here so that the rate --
         # which is output alone -- has a rise per kind to be measured over. Clamped at
@@ -574,6 +591,12 @@ class Monitor:
             (said for (_, named), said in self.hours.items() if named == model),
             default=0.0,
         )
+        most: dict[str, float] = {}
+        for (_, named), said in self.tiereds.items():
+            if named == model:
+                for kind, tokens in said.items():
+                    most[kind] = max(most.get(kind, 0.0), tokens)
+        self.tiered[model] = most
         before = self.parts.get(model, {})
         grown = {
             kind: risen
@@ -681,7 +704,13 @@ class Monitor:
             return None
         try:
             hour = min(self.hour.get(model, 0.0), broken.get("cache_write", 0.0))
-            return prices.cost(broken, model, hour=hour)
+            # A tier's one-hour writes are no more than the one-hour writes priced.
+            capped = {**broken, "cache_write_1h": hour}
+            tiered = {
+                marked: min(tokens, capped.get(marked.partition(">")[0], 0.0))
+                for marked, tokens in self.tiered.get(model, {}).items()
+            }
+            return prices.cost(broken, model, hour=hour, tiered=tiered)
         except prices.PriceError:
             return math.inf  # a bill nobody can read, which `money` says as `$?`
 

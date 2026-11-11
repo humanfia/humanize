@@ -1141,8 +1141,13 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
   (`agents.WINDOW == 300`); a younger run is measured over its life.
 - `juice(over=WINDOW)`: output tokens per model request; `0.0` for a window with none.
 - The `result` event's `spent` is the turn's usage and `tokens` its per-model totals.
-- `hmz.coganchor.prices.cost(usage, model)` prices a `Usage` kind by kind; `price(model)`
-  returns the `Price`. Both read `$TMPDIR/humanize-<uid>/prices.json` (fetched from
+- `hmz.coganchor.prices.cost(usage, model, hour=, tiered=)` prices a `Usage` kind by kind;
+  `price(model)` returns the `Price`. `tiered(request, model, hour=)` names the tokens of one request
+  whose prompt (`input` + `cache_read` + `cache_write`) is past the model's long-context line,
+  as `<kind>><line>` (e.g. `input>272000`; its one-hour cache writes as `cache_write_1h><line>`), and `cost(..., tiered=)` adds what the tier
+  charges for them beyond the standard price. A `Usage` carries them as `.tiered` beside its
+  kinds, never as a kind: the `claude` and `codex` drivers and the logs the TUI reads mark
+  each request; a backend that states only turn totals stays at the standard price. Both read `$TMPDIR/humanize-<uid>/prices.json` (fetched from
   `https://openllmprices.com/data/prices.json`, refreshed after 24 h; `HUMANIZE_PRICES`
   points elsewhere or turns fetching off with `off`) and return `None` for an unlisted model.
 - The TUI's running cost reads the CLIs' own logs as they are written, for `claude`, `codex`,

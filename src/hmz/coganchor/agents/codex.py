@@ -85,6 +85,7 @@ from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+from hmz.coganchor import prices
 from hmz.coganchor.homes import merged, merger
 
 from .base import AgentBase, SessionBase
@@ -831,6 +832,9 @@ class _AppServer:
         #: What each thread has spent so far, by kind, as the server counts it: a running
         #: total, so what one turn cost is the rise across it.
         self._counted: dict[str, Counter[str]] = {}
+        #: The model each thread's turns were last asked to run on, which is what a request
+        #: past a long-context line is priced at the tier of.
+        self._models: dict[str, str] = {}
         #: What each thread this server has open was opened or picked back up under, so that
         #: a turn asking for exactly that does not ask the server to read the thread again.
         self._holding: dict[str, dict[str, Any]] = {}
@@ -1415,9 +1419,16 @@ class _AppServer:
           told: The notification's params.
 
         Returns:
-          The rise by kind, and None for a notification that states nothing.
+          The rise by kind, and None for a notification that states nothing. The tokens of a
+          request past the model's long-context line are beside the kinds as well, read off
+          `last`, which is the one request whose prompt says which tier it was.
         """
         counted: dict[str, Any] = told.get("tokenUsage") or {}
+        last = {
+            kind: float(tokens)
+            for kind, tokens in _kinds(counted.get("last") or {}).items()
+        }
+        tiered = prices.tiered(last, self._models.get(thread, ""))
         usage: dict[str, Any] = counted.get("total") or {}
         held = Counter(_kinds(usage))
         if not sum(held.values()):
@@ -1432,14 +1443,19 @@ class _AppServer:
             # the server it was picked up from counted already, so what this request cost is
             # what the server says it cost -- `last` -- and the total is where the next rise
             # is read from.
-            last: dict[str, Any] = counted.get("last") or {}
-            return Usage({kind: float(tokens) for kind, tokens in _kinds(last).items()})
+            return Usage(last, tiered=tiered)
+        rose = {
+            kind: float(tokens)
+            for kind in set(held) | set(before)
+            if (tokens := held[kind] - before[kind]) > 0
+        }
+        # No more of a kind than the thread rose by: a total said late rose by less.
         risen = Usage(
-            {
-                kind: tokens
-                for kind in set(held) | set(before)
-                if (tokens := held[kind] - before[kind]) > 0
-            }
+            rose,
+            tiered={
+                marked: min(tokens, rose.get(marked.partition(">")[0], 0.0))
+                for marked, tokens in tiered.items()
+            },
         )
         return risen if risen.total else None  # a total said again, or said late
 
@@ -1517,6 +1533,9 @@ class _AppServer:
           subprocess.CalledProcessError: If the server has stopped reading.
         """
         assert self._proc.stdin is not None  # noqa: S101
+        asked: dict[str, Any] = message.get("params") or {}
+        if "threadId" in asked and asked.get("model"):
+            self._models[str(asked["threadId"])] = str(asked["model"])
         try:
             with self._writing:
                 self._proc.stdin.write(json.dumps(message) + "\n")

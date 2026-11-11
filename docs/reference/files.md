@@ -125,7 +125,8 @@ M/
 ```json
 {"source": "https://openllmprices.com/data/prices.json", "etag": "…", "fetched": 1790000000.0,
  "date": "…", "models": {"<id>": {"provider": "…", "name": "…",
-   "per_million": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}}}}
+   "per_million": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75},
+   "tiers": {"200000": {"input": 6.0, "output": 22.5, "cache_read": 0.6, "cache_write": 7.5}}}}}
 ```
 
 Refreshed when older than 24 h, with a conditional GET (a `304` only touches the mtime), from
@@ -140,7 +141,12 @@ what is kept, every run is refused before its first turn (`hmz exec` exits 2).
 `per_million` is US dollars: a price the list gives in yuan is converted at the list's own
 `exchangeRate`, and one in a currency with no usable rate is left out. Where the list sells a
 model two cache writes, `cache_write` is the five-minute one and `per_million` also has
-`cache_write_1h`, the one-hour one, whichever order the list gives them in.
+`cache_write_1h`, the one-hour one, whichever order the list gives them in. `per_million` is
+the standard price; where the list prices a model higher past a context length
+(`contextRange` `input > 272k tokens`, `32k < input <= 128k tokens`, `input >= 32k tokens`,
+…), `tiers` maps each line, in tokens a request's prompt must exceed (`>= 32k` is `31999`), to
+that tier's prices in the same shape. A model with no such tier has no `tiers` key, and a list
+kept before tiers were read has none until the source changes.
 
 ### `M/releases.json` {#h-releases-json}
 

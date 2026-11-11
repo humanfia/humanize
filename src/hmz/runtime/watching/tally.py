@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz.coganchor import backends
+from hmz.coganchor import backends, prices
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -452,12 +452,22 @@ class Tally:
                 totals.setdefault(model, Counter()).update(broken)
         for model, broken in totals.items():
             hour = float(broken.pop(_HOUR, 0))
+            tiered = {
+                marked: float(broken.pop(marked))
+                for marked in list(broken)
+                if ">" in marked
+            }
             # The kind with no name goes along with the rest: it is what a row counted
             # without saying what it went on, and leaving it out here would price the whole
             # of a total against the part of it somebody did break down.
             kinds = {kind: float(count) for kind, count in broken.items()}
             self._monitor.counted(
-                "read", model, sum(broken.values()), kinds=kinds or None, hour=hour
+                "read",
+                model,
+                sum(broken.values()),
+                kinds=kinds or None,
+                hour=hour,
+                tiered=tiered,
             )
 
     def _take(self, path: Path, backend: str, model: str, since: float) -> bool:
@@ -502,6 +512,17 @@ class Tally:
                 counted[""] += rest
             if hour := _hour(backend, row):
                 counted[_HOUR] = hour
+            # A row is one request, which is where a prompt past the model's long-context
+            # line shows: its tokens are counted again under the tier's names, beside the
+            # kinds and never one of them.
+            counted.update(
+                {
+                    marked: int(tokens)
+                    for marked, tokens in prices.tiered(
+                        broken, named or model, hour=hour
+                    ).items()
+                }
+            )
             if request is not None and backend in _EVERYWHERE:
                 # A request said again counts for the most any row of it has said, kind by
                 # kind, and not for every row it was said on.

@@ -253,7 +253,9 @@ class Ledger:
             usage = agent.spent()
             output += usage.output
             try:
-                money = prices.cost(usage, agent.config.model, hour=usage.hour)
+                money = prices.cost(
+                    usage, agent.config.model, hour=usage.hour, tiered=usage.tiered
+                )
             except prices.PriceError:
                 # A price that is not a number is a bill no allowance can afford: the run
                 # stops on it rather than going on with its spending uncounted.

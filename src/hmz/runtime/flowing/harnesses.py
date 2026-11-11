@@ -1825,9 +1825,14 @@ class HarnessSession:
         from hmz.coganchor.agents import Usage as Tokens
 
         # The one-hour cache writes carried along with the kinds, under a name no kind has,
-        # so that what rose of them is read the way what rose of each kind is.
+        # and the tokens of requests past a long-context line under the tier's names, so
+        # that what rose of them is read the way what rose of each kind is.
         held = self._session.spent()
-        spent = {**held, _HOUR: getattr(held, "hour", 0.0)}
+        spent = {
+            **held,
+            _HOUR: getattr(held, "hour", 0.0),
+            **getattr(held, "tiered", {}),
+        }
         with self._lock:
             sink, limits = self._sink, self._limits
             if sink is None or limits is None:
@@ -1842,7 +1847,11 @@ class HarnessSession:
                 for kind, tokens in rose.items():
                     self._rose[kind] = self._rose.get(kind, 0.0) + tokens
             if answered is not None:
-                said = {**answered, _HOUR: getattr(answered, "hour", 0.0)}
+                said = {
+                    **answered,
+                    _HOUR: getattr(answered, "hour", 0.0),
+                    **getattr(answered, "tiered", {}),
+                }
                 for kind, tokens in said.items():
                     if (beyond := tokens - self._rose.get(kind, 0.0)) > 0:
                         rose[kind] = rose.get(kind, 0.0) + beyond
@@ -1851,8 +1860,14 @@ class HarnessSession:
                 return
             try:
                 hour = rose.pop(_HOUR, 0.0)
+                tiered = {kind: rose.pop(kind) for kind in list(rose) if ">" in kind}
                 cost = (
-                    prices.cost(Tokens(rose), self._agent.config.model, hour=hour)
+                    prices.cost(
+                        Tokens(rose),
+                        self._agent.config.model,
+                        hour=hour,
+                        tiered=tiered,
+                    )
                     or 0.0
                 )
             except prices.PriceError:

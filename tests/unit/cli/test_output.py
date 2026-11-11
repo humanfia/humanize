@@ -202,9 +202,10 @@ def _shown(
     *events: dict[str, Any],
     session: object = None,
     hour: float = 0.0,
+    tiered: dict[str, float] | None = None,
 ) -> None:
     agent = _Agent()
-    heard = mock.Mock(spent=mock.Mock(hour=hour))
+    heard = mock.Mock(spent=mock.Mock(hour=hour, tiered=tiered or {}))
     with Out() as out, Shown(out) as shown:
         for event in events:
             said.append(event)
@@ -282,7 +283,7 @@ def test_a_result_is_priced_and_its_answer_put_on_stdout(
         "✻ input 1.5k · output 2.50M · reasoning 3 · zeta 1 · $0.50 · m2 · alice"
     ]
     assert captured.out == "done\n"
-    prices.cost.assert_called_once_with(spent, "m2", hour=0.0)
+    prices.cost.assert_called_once_with(spent, "m2", hour=0.0, tiered={})
     prices.money.assert_called_once_with(0.5)
 
 
@@ -295,7 +296,21 @@ def test_a_result_prices_its_one_hour_cache_writes_as_such(
         {"kind": "result", "text": "", "spent": spent, "tokens": {"m2": spent}},
         hour=40_000,
     )
-    prices.cost.assert_called_once_with(spent, "m2", hour=40_000)
+    prices.cost.assert_called_once_with(spent, "m2", hour=40_000, tiered={})
+
+
+def test_a_result_prices_its_long_context_requests_at_their_tier(
+    plain: None, recorded: list[dict[str, Any]], prices: mock.Mock
+) -> None:
+    spent = {"input": 300_000, "output": 500}
+    tiered = {"input>272000": 300_000.0, "output>272000": 500.0}
+    _shown(
+        recorded,
+        {"kind": "result", "text": "", "spent": spent, "tokens": {"m2": spent}},
+        tiered=tiered,
+    )
+    # Off the event rather than the record every reader of it is promised.
+    prices.cost.assert_called_once_with(spent, "m2", hour=0.0, tiered=tiered)
 
 
 def test_a_result_on_a_model_nobody_prices_has_no_price(
