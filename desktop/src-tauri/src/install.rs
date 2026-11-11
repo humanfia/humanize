@@ -698,9 +698,14 @@ fn download(env: &Env, dir: &Path, tell: &dyn Fn(&str)) -> Result<PathBuf, Strin
     unpack(&archive, sum, dir)
 }
 
+/// The sha256 of `bytes`, in lowercase hex.
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// The `uv` in a release archive, once its sha256 is the one expected.
 pub fn unpacked(archive: &[u8], sha256: &str) -> Result<Vec<u8>, String> {
-    let sum = format!("{:x}", Sha256::digest(archive));
+    let sum = sha256_hex(archive);
     if sum != sha256 {
         return Err(format!(
             "the uv downloaded is not uv {UV}: its sha256 is {sum}"
@@ -755,7 +760,7 @@ pub fn unpack(archive: &[u8], sha256: &str, dir: &Path) -> Result<PathBuf, Strin
     command
         .args(["-c", WRITE, "sh"])
         .arg(dir)
-        .arg(format!("{:x}", Sha256::digest(&unpacked)))
+        .arg(sha256_hex(&unpacked))
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
@@ -911,13 +916,13 @@ requirements = [
     #[test]
     fn takes_uv_from_an_archive_only_where_its_sum_is_the_pinned_one() {
         let good = archive("uv-x86_64-unknown-linux-gnu/uv", b"#!/bin/sh\n");
-        let sum = format!("{:x}", Sha256::digest(&good));
+        let sum = sha256_hex(&good);
         assert_eq!(unpacked(&good, &sum).unwrap(), b"#!/bin/sh\n");
         let tampered = archive("uv-x86_64-unknown-linux-gnu/uv", b"#!/bin/sh\nevil\n");
         let refused = unpacked(&tampered, &sum).unwrap_err();
         assert!(refused.contains("sha256"), "{refused}");
         let empty = archive("uv-x86_64-unknown-linux-gnu/uvx", b"");
-        let sum = format!("{:x}", Sha256::digest(&empty));
+        let sum = sha256_hex(&empty);
         assert!(unpacked(&empty, &sum).is_err());
     }
 
@@ -926,7 +931,7 @@ requirements = [
     fn unpacks_uv_only_where_its_sum_is_the_pinned_one() {
         let dir = tempfile::tempdir().unwrap();
         let good = archive("uv-aarch64-apple-darwin/uv", b"#!/bin/sh\n");
-        let sum = format!("{:x}", Sha256::digest(&good));
+        let sum = sha256_hex(&good);
         let uv = unpack(&good, &sum, dir.path()).unwrap();
         assert_eq!(uv, dir.path().join("uv"));
         assert_eq!(fs::read(&uv).unwrap(), b"#!/bin/sh\n");
@@ -938,7 +943,7 @@ requirements = [
         assert_eq!(fs::read(&uv).unwrap(), b"#!/bin/sh\n");
 
         let empty = archive("uv-aarch64-apple-darwin/uvx", b"");
-        let sum = format!("{:x}", Sha256::digest(&empty));
+        let sum = sha256_hex(&empty);
         assert!(unpack(&empty, &sum, dir.path()).is_err());
         // Nothing half-written is left beside it.
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
