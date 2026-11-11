@@ -704,8 +704,10 @@ class Monitor:
             return None
         try:
             hour = min(self.hour.get(model, 0.0), broken.get("cache_write", 0.0))
+            # A tier's one-hour writes are no more than the one-hour writes priced.
+            capped = {**broken, "cache_write_1h": hour}
             tiered = {
-                marked: min(tokens, broken.get(marked.partition(">")[0], 0.0))
+                marked: min(tokens, capped.get(marked.partition(">")[0], 0.0))
                 for marked, tokens in self.tiered.get(model, {}).items()
             }
             return prices.cost(broken, model, hour=hour, tiered=tiered)

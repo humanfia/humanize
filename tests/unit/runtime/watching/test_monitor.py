@@ -362,6 +362,22 @@ def test_long_context_tokens_are_never_more_than_the_tokens_priced() -> None:
     assert monitor.spending()[0].dollars == 10.0 + 30.0
 
 
+def test_one_hour_cache_writes_past_a_line_are_priced_up_to_the_one_hour_writes() -> (
+    None
+):
+    monitor = Monitor()
+    monitor.counted(
+        "read",
+        "priced",
+        100,
+        kinds={"cache_write": 100},
+        hour=40,
+        tiered={"cache_write>9": 100, "cache_write_1h>9": 60},
+    )
+
+    assert monitor.spending()[0].dollars == 200.0 + 60.0 + 3.0 * (100 + 40)
+
+
 def test_a_breakdown_a_source_stopped_saying_is_dropped() -> None:
     monitor = Monitor()
     monitor.counted("read", "priced", 100, kinds={"input": 100})
