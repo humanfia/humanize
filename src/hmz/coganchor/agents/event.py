@@ -55,20 +55,32 @@ class Usage(Mapping[str, float]):
 
     The same shape says what has been spent and how fast it is being spent: a rate is tokens a
     second, kind by kind, which is the same reckoning divided by the seconds it happened over.
+
+    Attributes:
+      hour: How many of the `cache_write` tokens went to a cache kept for an hour rather than
+        for five minutes, where the backend says. Beside the kinds rather than among them:
+        it is part of `cache_write`, not a kind of its own, and only its price differs.
     """
 
-    __slots__ = ("_kinds",)
+    __slots__ = ("_kinds", "hour")
 
     def __init__(
-        self, kinds: Mapping[str, float] | None = None, /, **named: float
+        self,
+        kinds: Mapping[str, float] | None = None,
+        /,
+        *,
+        hour: float = 0.0,
+        **named: float,
     ) -> None:
         """Initializes a reckoning of tokens.
 
         Args:
           kinds: What was spent, by kind.
+          hour: How many of the `cache_write` tokens went to a one-hour cache.
           named: The same, for the kinds that can be written as words.
         """
         self._kinds: dict[str, float] = {**(kinds or {}), **named}
+        self.hour = hour
 
     @property
     def input(self) -> float:
@@ -104,13 +116,16 @@ class Usage(Mapping[str, float]):
         added = dict(self._kinds)
         for kind, tokens in other.items():
             added[kind] = added.get(kind, 0.0) + tokens
-        return Usage(added)
+        return Usage(added, hour=self.hour + getattr(other, "hour", 0.0))
 
     def __truediv__(self, over: float) -> Usage:
         """The same reckoning as a rate, which is what it came to over that many seconds."""
         if over <= 0:
             return Usage(dict.fromkeys(self._kinds, 0.0))
-        return Usage({kind: tokens / over for kind, tokens in self._kinds.items()})
+        return Usage(
+            {kind: tokens / over for kind, tokens in self._kinds.items()},
+            hour=self.hour / over,
+        )
 
     def __repr__(self) -> str:
         said = ", ".join(f"{kind}={tokens:g}" for kind, tokens in self._kinds.items())

@@ -17,7 +17,7 @@ from .event import Event, Failed, Question, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
     from pathlib import Path
 
     from pydantic import BaseModel
@@ -216,6 +216,18 @@ _AS_IT_GOES = {
     "cache_read": "cache_read_input_tokens",
     "cache_write": "cache_creation_input_tokens",
 }
+#: Where the part of the cache writes Claude says went to a cache kept for an hour is kept
+#: among what a message or a model is counted at here: beside the kinds, and never one of
+#: them, since it is part of `cache_write` and differs from the rest only in its price.
+_HOUR = "1h"
+
+
+def _usage(counts: Mapping[str, float]) -> Usage:
+    """What has been counted here, as the kinds with the one-hour cache writes beside them."""
+    return Usage(
+        {kind: tokens for kind, tokens in counts.items() if kind != _HOUR},
+        hour=counts.get(_HOUR, 0.0),
+    )
 
 
 @dataclass(slots=True)
@@ -829,6 +841,8 @@ class ClaudeCodeSession(StreamSessionBase):
                     if usage.get(named)
                 }
             )
+            if hour := int(usage.get("cacheCreationEphemeral1hInputTokens") or 0):
+                counted[_HOUR] = hour
             before = self._counted.get(model) or Counter()
             moved = Counter(
                 {
@@ -837,11 +851,11 @@ class ClaudeCodeSession(StreamSessionBase):
                     if (tokens := counted[kind] - before[kind]) > 0
                 }
             )
-            if total := sum(moved.values()):
+            if total := sum(tokens for kind, tokens in moved.items() if kind != _HOUR):
                 spent[model] = total
             risen.update(moved)
             self._counted[model] = counted
-        return spent, Usage(risen)
+        return spent, _usage(risen)
 
     def _live(self, said: dict[str, Any]) -> None:
         """Takes what one request to the model came to, as its answer arrives.
@@ -877,14 +891,23 @@ class ClaudeCodeSession(StreamSessionBase):
                 if usage.get(spelled)
             }
         )
+        # The one-hour part of the writes, which the `message_delta` closing a message leaves
+        # out while repeating their total: the most any copy of the message said is kept, so
+        # one that is silent about it has not moved those writes back to five minutes.
+        written: object = usage.get("cache_creation")
+        if isinstance(written, dict) and (
+            hour := int(
+                cast("dict[str, Any]", written).get("ephemeral_1h_input_tokens") or 0
+            )
+        ):
+            counted[_HOUR] = hour
         before = self._seen.get(named) or Counter()
-        risen = Usage(
-            {
-                kind: tokens
-                for kind in set(counted) | set(before)
-                if (tokens := counted[kind] - before[kind]) > 0
-            }
-        )
+        rises = {
+            kind: tokens
+            for kind in set(counted) | set(before)
+            if (tokens := counted[kind] - before[kind]) > 0
+        }
+        risen = _usage(rises)
         # A request the first time its message is told of, and the same request after: what
         # the rest add is what it came to, not another turn of the model in the average.
         asked = named not in self._seen
@@ -892,7 +915,7 @@ class ClaudeCodeSession(StreamSessionBase):
         # not others: one it left out has not gone back to nothing.
         self._seen[named] = before | counted
         if risen.total:
-            self._fed.update(risen)
+            self._fed.update(rises)
             self._spends(risen, turn=asked)
 
     def _settle(self, risen: Usage) -> None:
@@ -901,11 +924,12 @@ class ClaudeCodeSession(StreamSessionBase):
         Args:
           risen: What the turn cost, by kind, as the `result` states it.
         """
-        owed = Usage(
+        said = {**risen, _HOUR: risen.hour}
+        owed = _usage(
             {
                 kind: tokens
-                for kind in set(risen) | set(self._fed)
-                if (tokens := risen.get(kind, 0.0) - self._fed[kind]) > 0
+                for kind in set(said) | set(self._fed)
+                if (tokens := said.get(kind, 0.0) - self._fed[kind]) > 0
             }
         )
         self._fed, self._seen = Counter(), {}

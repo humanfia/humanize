@@ -164,6 +164,11 @@ _GOAL: Final = "/goal "
 #: How often a turn's spending is read while nothing it says has been heard.
 _POLL: Final = 1.0
 
+#: What the cache writes that went to a one-hour cache are read under beside the kinds of a
+#: turn's spending: a name no kind has, since they are part of `cache_write` and only priced
+#: apart from the rest of it.
+_HOUR: Final = "1h"
+
 #: How often a turn that was cut off is cut again while it has not ended.
 _RECUT: Final = 1.0
 
@@ -1819,7 +1824,10 @@ class HarnessSession:
         from hmz.coganchor import prices
         from hmz.coganchor.agents import Usage as Tokens
 
-        spent = self._session.spent()
+        # The one-hour cache writes carried along with the kinds, under a name no kind has,
+        # so that what rose of them is read the way what rose of each kind is.
+        held = self._session.spent()
+        spent = {**held, _HOUR: getattr(held, "hour", 0.0)}
         with self._lock:
             sink, limits = self._sink, self._limits
             if sink is None or limits is None:
@@ -1834,14 +1842,19 @@ class HarnessSession:
                 for kind, tokens in rose.items():
                     self._rose[kind] = self._rose.get(kind, 0.0) + tokens
             if answered is not None:
-                for kind, tokens in answered.items():
+                said = {**answered, _HOUR: getattr(answered, "hour", 0.0)}
+                for kind, tokens in said.items():
                     if (beyond := tokens - self._rose.get(kind, 0.0)) > 0:
                         rose[kind] = rose.get(kind, 0.0) + beyond
                 self._rose = {}
             if not rose:
                 return
             try:
-                cost = prices.cost(Tokens(rose), self._agent.config.model) or 0.0
+                hour = rose.pop(_HOUR, 0.0)
+                cost = (
+                    prices.cost(Tokens(rose), self._agent.config.model, hour=hour)
+                    or 0.0
+                )
             except prices.PriceError:
                 # A list that went bad under a run already going, which the run was refused
                 # for had it been so at the start: what these tokens cost is then a figure

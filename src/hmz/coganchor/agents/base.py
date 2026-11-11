@@ -481,6 +481,8 @@ class Meter:
         """Initializes a meter that has seen nothing spent."""
         self._lock = threading.Lock()
         self._total: Counter[str] = Counter()
+        #: How many of the cache writes in `_total` went to a one-hour cache.
+        self._hour = 0.0
         #: Recent spending as (when, what, whether it was a turn of the model), bounded by
         #: the window rather than by the length of the run: a flow going for days keeps five
         #: minutes of it.
@@ -505,6 +507,7 @@ class Meter:
         moment = time.monotonic() if now is None else now
         with self._lock:
             self._total.update(usage)
+            self._hour += usage.hour
             self._recent.append((moment, usage, turn))
             # Cut down as it is written rather than only when somebody reads a rate: an
             # agent driving ten thousand sessions is told what every request of every one of
@@ -522,7 +525,9 @@ class Meter:
           need not ask whether they are there.
         """
         with self._lock:
-            return Usage({"input": 0.0, "output": 0.0} | dict(self._total))
+            return Usage(
+                {"input": 0.0, "output": 0.0} | dict(self._total), hour=self._hour
+            )
 
     def rate(self, over: float = WINDOW, now: float | None = None) -> Usage:
         """How fast it is being spent, by kind, over the last stretch of it.

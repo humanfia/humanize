@@ -44,6 +44,7 @@ class _Told:
         default_factory=dict[str, tuple[int, dict[str, float] | None]]
     )
     sources: set[str] = field(default_factory=set[str])
+    hours: dict[str, float] = field(default_factory=dict[str, float])
     landed: threading.Event = field(default_factory=threading.Event)
 
     def reporting(self, agent: str, kinds: Iterable[str]) -> None:
@@ -56,9 +57,11 @@ class _Told:
         total: int,
         now: float | None = None,
         kinds: Mapping[str, float] | None = None,
+        hour: float = 0.0,
     ) -> None:
         self.sources.add(source)
         self.totals[model] = (total, dict(kinds) if kinds is not None else None)
+        self.hours[model] = hour
         self.landed.set()
 
 
@@ -95,7 +98,7 @@ def _write(path: Path, *rows: object, partial: str = "") -> None:
 
 def _claude(
     message: str | None,
-    usage: dict[str, int],
+    usage: dict[str, Any],
     model: str = "opus",
     at: str | None = None,
 ) -> dict[str, Any]:
@@ -191,6 +194,29 @@ def test_a_claude_message_said_on_several_rows_is_counted_once(
     tally.read()
 
     assert told.totals["opus"][0] == 15
+
+
+def test_claude_one_hour_cache_writes_are_counted_beside_the_kinds_once(
+    home: Path, told: _Told
+) -> None:
+    written = {"input_tokens": 6, "cache_creation_input_tokens": 100_000}
+    split = {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 100_000}
+    _write(
+        home / "s1.jsonl",
+        _claude("m1", {**written, "output_tokens": 1, "cache_creation": split}),
+        _claude("m1", {**written, "output_tokens": 1, "cache_creation": split}),
+        # What closes the message says its writes again and leaves the split out.
+        _claude("m1", {**written, "output_tokens": 500}),
+    )
+    tally = _tally(told, Seen("a", "claude", "opus", idents=frozenset({"s1"})))
+
+    tally.read()
+
+    assert told.totals["opus"] == (
+        100_506,
+        {"input": 6.0, "output": 500.0, "cache_write": 100_000.0},
+    )
+    assert told.hours["opus"] == 100_000
 
 
 def test_a_claude_message_said_again_with_more_adds_only_the_more(

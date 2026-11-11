@@ -92,6 +92,34 @@ _KINDS: dict[str, tuple[tuple[str, str], ...]] = {
 }
 
 
+#: Where the cache writes a row says went to a cache kept for an hour are counted beside the
+#: kinds, under a name no kind has: they are part of `cache_write`, and differ from the rest
+#: of it only in their price. Counted the way a kind is, so that a request said again counts
+#: them once -- and so that the `message_delta` closing a message, which repeats the total of
+#: its writes and leaves the split out, leaves what was said of them as it was.
+_HOUR = "1h"
+
+
+def _hour(backend: str, row: dict[str, Any]) -> int:
+    """How many of one row's cache writes it says went to a one-hour cache.
+
+    Args:
+      backend: Whose log the row came out of. Claude's is the only one that says.
+      row: The row, as read.
+
+    Returns:
+      The tokens, or nought where the row does not say.
+    """
+    if backend != "claude":
+        return 0
+    message: dict[str, Any] = row.get("message") or {}
+    usage: dict[str, Any] = message.get("usage") or {}
+    written: object = usage.get("cache_creation")
+    if not isinstance(written, dict):
+        return 0
+    return int(cast("dict[str, Any]", written).get("ephemeral_1h_input_tokens") or 0)
+
+
 def reported(backend: str) -> frozenset[str]:
     """Which kinds of token this backend's own log says, out of the logs read here.
 
@@ -423,12 +451,13 @@ class Tally:
             for model, broken in reading.spent.items():
                 totals.setdefault(model, Counter()).update(broken)
         for model, broken in totals.items():
+            hour = float(broken.pop(_HOUR, 0))
             # The kind with no name goes along with the rest: it is what a row counted
             # without saying what it went on, and leaving it out here would price the whole
             # of a total against the part of it somebody did break down.
             kinds = {kind: float(count) for kind, count in broken.items()}
             self._monitor.counted(
-                "read", model, sum(broken.values()), kinds=kinds or None
+                "read", model, sum(broken.values()), kinds=kinds or None, hour=hour
             )
 
     def _take(self, path: Path, backend: str, model: str, since: float) -> bool:
@@ -471,6 +500,8 @@ class Tally:
             # no kind at all rather than guessed at as one.
             if (rest := tokens - int(sum(broken.values()))) > 0:
                 counted[""] += rest
+            if hour := _hour(backend, row):
+                counted[_HOUR] = hour
             if request is not None and backend in _EVERYWHERE:
                 # A request said again counts for the most any row of it has said, kind by
                 # kind, and not for every row it was said on.

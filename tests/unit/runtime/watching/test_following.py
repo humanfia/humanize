@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 def unpriced(monkeypatch: pytest.MonkeyPatch) -> None:
     """No price list read off the disk: what is counted is in tokens here."""
 
-    def cost(usage: Mapping[str, float], model: str) -> float | None:
+    def cost(usage: Mapping[str, float], model: str, **_: float) -> float | None:
         return None
 
     monkeypatch.setattr(prices, "cost", cost)

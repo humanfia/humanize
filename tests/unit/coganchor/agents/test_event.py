@@ -47,6 +47,16 @@ def test_usages_add_kind_by_kind() -> None:
     assert dict(added) == {"input": 1, "output": 5, "reasoning": 4}
 
 
+def test_one_hour_cache_writes_go_beside_the_kinds() -> None:
+    usage = Usage({"cache_write": 10.0}, hour=4.0)
+    assert dict(usage) == {"cache_write": 10.0}
+    assert usage.total == 10.0
+    assert (usage + Usage({"cache_write": 2.0}, hour=1.0)).hour == 5.0
+    assert (usage + {"cache_write": 2.0}).hour == 4.0
+    assert (usage / 2.0).hour == 2.0
+    assert Usage().hour == 0.0
+
+
 @pytest.mark.parametrize(
     ("over", "rate"),
     [(2.0, {"input": 2.0, "output": 1.0}), (0.0, {"input": 0.0, "output": 0.0})],

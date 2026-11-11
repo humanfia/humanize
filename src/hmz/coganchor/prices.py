@@ -112,6 +112,12 @@ _BILLED = {"reasoning": "output"}
 #: figure is a floor.
 _INSTEAD = {"cache_write": "input"}
 
+#: What the price of a write to a cache kept for an hour is kept under, beside `cache_write`,
+#: which is a write to one kept for five minutes. Not a kind: a one-hour write is counted as a
+#: `cache_write` like any other, and this is only what the part of those said to have gone to
+#: the one-hour cache is priced at.
+_HOUR = "cache_write_1h"
+
 #: A trailing scrap that names a release rather than a model. Tried one at a time and then
 #: together, so that a model listed with its date intact still matches itself first.
 _DATED = re.compile(r"[-@_](?:19|20)\d{2}-?\d{2}-?\d{2}$")
@@ -166,7 +172,9 @@ class Price:
         under -- see :func:`price` for what the matching does and does not promise.
       provider: Who sells it.
       per_million: US dollars per million tokens, by the kind of token. A kind that is not
-        here is one this model is not priced for, which is not the same as a free one.
+        here is one this model is not priced for, which is not the same as a free one. A
+        `cache_write_1h` beside them is what a write to a one-hour cache costs, where the
+        list sells one, `cache_write` being then a write to a five-minute one.
     """
 
     model: str
@@ -219,12 +227,15 @@ def price(model: str) -> Price | None:
     return None
 
 
-def cost(usage: Mapping[str, float], model: str) -> float | None:
+def cost(usage: Mapping[str, float], model: str, *, hour: float = 0.0) -> float | None:
     """What some tokens came to, in US dollars.
 
     Args:
       usage: Tokens by kind, as `hmz.coganchor.agents.Usage` counts them.
       model: What they were spent on.
+      hour: How many of the `cache_write` tokens went to a cache kept for an hour, which the
+        list prices above a write to one kept for five minutes. They are priced at the list's
+        one-hour price where it gives one, and as any other cache write where it does not.
 
     Returns:
       The money, or None both for a model nobody lists and for a reckoning none of whose
@@ -254,6 +265,13 @@ def cost(usage: Mapping[str, float], model: str) -> float | None:
             # run was free.
             priced = True
             total += tokens * rate / _MILLION
+    dearer, cheaper = per.get(_HOUR), per.get("cache_write")
+    if hour > 0 and dearer is not None and cheaper is not None:
+        # What a one-hour write costs beyond the five-minute price it was counted at above:
+        # never on more of them than there were cache writes, which would overstate the bill.
+        total += (
+            min(hour, usage.get("cache_write", 0.0)) * (dearer - cheaper) / _MILLION
+        )
     return total if priced else None
 
 
@@ -599,8 +617,10 @@ def _per_million(
 
     The first entry for a kind wins. One model carries several, one per context tier and one
     per cache duration, written cheapest-tier-first -- and nothing here knows how long the
-    prompt was or how long the cache was held for, so the standard price is the honest one to
-    take and the one to say has been taken.
+    prompt was, so the standard price is the honest one to take and the one to say has been
+    taken. A cache write the list says is to a cache kept for an hour is the exception: it is
+    kept beside `cache_write` as `cache_write_1h`, which is the five-minute price whichever
+    order the two are written in, since the backends that sell both say which was bought.
 
     An item in another currency is turned into dollars at its rate, and one in a currency
     with no rate is skipped as though it were not there: a figure in yuan read as dollars is
@@ -625,6 +645,13 @@ def _per_million(
             continue
         item = cast("dict[str, Any]", one)
         kind = _CATEGORIES.get(str(item.get("category") or ""))
+        conditions: object = item.get("conditions")
+        if (
+            kind == "cache_write"
+            and isinstance(conditions, dict)
+            and cast("dict[str, Any]", conditions).get("cacheDuration") == "1h"
+        ):
+            kind = _HOUR
         asked: object = item.get("price")
         if kind is None or kind in per or not isinstance(asked, (int, float)):
             continue

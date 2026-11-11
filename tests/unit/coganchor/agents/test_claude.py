@@ -397,6 +397,73 @@ def test_what_each_message_cost_is_counted_as_it_lands(
     assert dict(session.spent()) == {"input": 40, "output": 9}
 
 
+def _hourly(split: bool) -> dict[str, Any]:
+    """A turn total of 100,000 cache writes, all to the one-hour cache where it says so."""
+    usage: dict[str, int] = {
+        "inputTokens": 6,
+        "outputTokens": 500,
+        "cacheCreationInputTokens": 100_000,
+    }
+    if split:
+        usage["cacheCreationEphemeral5mInputTokens"] = 0
+        usage["cacheCreationEphemeral1hInputTokens"] = 100_000
+    return {"modelUsage": {"claude-x": usage}}
+
+
+@pytest.mark.parametrize("split", [True, False])
+def test_one_hour_cache_writes_are_counted_beside_the_kinds_once(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, split: bool
+) -> None:
+    message = _assistant({"type": "text", "text": "x"})
+    message["message"]["usage"] = {
+        "input_tokens": 6,
+        "output_tokens": 1,
+        "cache_creation_input_tokens": 100_000,
+        "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 100_000,
+        },
+    }
+
+    def partial(event: dict[str, Any]) -> dict[str, Any]:
+        return {"type": "stream_event", "event": event}
+
+    claude.answers = [
+        _says(
+            partial({"type": "message_start", "message": {"id": "m1"}}),
+            message,
+            # What closes the message repeats the writes and leaves the split out.
+            partial(
+                {
+                    "type": "message_delta",
+                    "usage": {
+                        "output_tokens": 500,
+                        "cache_creation_input_tokens": 100_000,
+                    },
+                }
+            ),
+            _result("x", **_hourly(split)),
+        )
+    ]
+    session = _agent().new(tmp_path)
+    result = list(session.stream("go"))[-1]
+    spent = session.spent()
+    assert dict(spent) == {"input": 6, "output": 500, "cache_write": 100_000}
+    assert spent.hour == 100_000
+    assert dict(result.spent) == dict(spent)
+    assert result.spent.hour == (100_000 if split else 0)
+
+
+def test_one_hour_cache_writes_only_the_turn_total_names_are_counted(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    claude.answers = [_says(_result("x", **_hourly(split=True)))]
+    session = _agent().new(tmp_path)
+    list(session.stream("go"))
+    assert session.spent()["cache_write"] == 100_000
+    assert session.spent().hour == 100_000
+
+
 @pytest.mark.parametrize(
     ("ending", "match"),
     [
