@@ -460,22 +460,34 @@ def test_a_message_past_a_long_context_line_is_counted_beside_the_kinds_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def tiered(request: Mapping[str, float], model: str) -> dict[str, float]:
+    def tiered(
+        request: Mapping[str, float], model: str, *, hour: float = 0.0
+    ) -> dict[str, float]:
         prompt = request.get("input", 0.0) + request.get("cache_read", 0.0)
         if model != "claude-long" or prompt <= 1000:
             return {}
-        return {f"{kind}>1000": tokens for kind, tokens in request.items()}
+        marked = {f"{kind}>1000": tokens for kind, tokens in request.items()}
+        return marked | ({"cache_write_1h>1000": hour} if hour else {})
 
     monkeypatch.setattr(prices, "tiered", tiered)
     message = _assistant(
-        {"type": "text", "text": "x"}, input_tokens=6, cache_read_input_tokens=2000
+        {"type": "text", "text": "x"},
+        input_tokens=6,
+        cache_read_input_tokens=2000,
+        cache_creation_input_tokens=40,
     )
     message["message"]["model"] = "claude-long"
+    message["message"]["usage"]["cache_creation"] = {"ephemeral_1h_input_tokens": 40}
 
     def partial(event: dict[str, Any]) -> dict[str, Any]:
         return {"type": "stream_event", "event": event}
 
-    used = {"inputTokens": 6, "outputTokens": 500, "cacheReadInputTokens": 2000}
+    used = {
+        "inputTokens": 6,
+        "outputTokens": 500,
+        "cacheReadInputTokens": 2000,
+        "cacheCreationInputTokens": 40,
+    }
     claude.answers = [
         _says(
             partial(
@@ -494,8 +506,19 @@ def test_a_message_past_a_long_context_line_is_counted_beside_the_kinds_once(
     session = _agent().new(tmp_path)
     result = list(session.stream("go"))[-1]
     spent = session.spent()
-    marked = {"input>1000": 6, "cache_read>1000": 2000, "output>1000": 500}
-    assert dict(spent) == {"input": 6, "output": 500, "cache_read": 2000}
+    marked = {
+        "input>1000": 6,
+        "cache_read>1000": 2000,
+        "cache_write>1000": 40,
+        "cache_write_1h>1000": 40,
+        "output>1000": 500,
+    }
+    assert dict(spent) == {
+        "input": 6,
+        "output": 500,
+        "cache_read": 2000,
+        "cache_write": 40,
+    }
     assert spent.tiered == marked
     assert dict(result.spent) == dict(spent)
     assert result.spent.tiered == marked

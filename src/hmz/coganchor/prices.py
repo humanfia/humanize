@@ -247,7 +247,9 @@ def price(model: str) -> Price | None:
     return None
 
 
-def tiered(request: Mapping[str, float], model: str) -> dict[str, float]:
+def tiered(
+    request: Mapping[str, float], model: str, *, hour: float = 0.0
+) -> dict[str, float]:
     """Which of one request's tokens the list prices at a long-context tier.
 
     A tier is a price for the whole of a request whose prompt -- its input, cached or not --
@@ -257,6 +259,7 @@ def tiered(request: Mapping[str, float], model: str) -> dict[str, float]:
     Args:
       request: One request's tokens, by kind.
       model: What it was spent on.
+      hour: How many of its cache writes went to a one-hour cache, which a tier prices too.
 
     Returns:
       Its tokens by kind, each under `<kind>><line>` for the highest line its prompt is past,
@@ -276,11 +279,14 @@ def tiered(request: Mapping[str, float], model: str) -> dict[str, float]:
     line = max((line for line in listed.tiers if prompt > line), default=0)
     if not line:
         return {}
-    return {
+    marked = {
         f"{kind}>{line}": tokens
         for kind, tokens in request.items()
         if kind in _PRICED and tokens > 0
     }
+    if hour > 0:
+        marked[f"{_HOUR}>{line}"] = hour
+    return marked
 
 
 def cost(
@@ -303,6 +309,8 @@ def cost(
       tiered: Which of those tokens were spent by requests past a long-context line, as
         :func:`tiered` names them. They are counted in `usage` too; what the tier charges
         beyond the standard price is added, and nothing for a kind the tier does not price.
+        One-hour writes past a line are counted in `hour` too, and what the tier's one-hour
+        surcharge is beyond the standard one is added the same way.
 
     Returns:
       The money, or None both for a model nobody lists and for a reckoning none of whose
@@ -320,7 +328,7 @@ def cost(
     total = 0.0
     priced = False
     for kind, tokens in usage.items():
-        rate = _rate(per, kind)
+        rate = per.get(_named(per, kind))
         if rate is None:
             continue  # a kind nobody prices, including the one that has no name at all
         if tokens > 0:
@@ -329,16 +337,24 @@ def cost(
             # run was free.
             priced = True
             total += tokens * rate / _MILLION
-    dearer, cheaper = per.get(_HOUR), per.get("cache_write")
-    if hour > 0 and dearer is not None and cheaper is not None:
+    if hour > 0 and (surcharge := _surcharge(per)) is not None:
         # What a one-hour write costs beyond the five-minute price it was counted at.
         priced = True
-        total += hour * (dearer - cheaper) / _MILLION
+        total += hour * surcharge / _MILLION
     for marked, tokens in (tiered or {}).items():
         kind, _, line = marked.partition(">")
         tier = listed.tiers.get(int(line)) if line.isdigit() else None
-        dearer = None if tier is None else _rate(tier, kind)
-        cheaper = _rate(per, kind)
+        if tier is None:
+            continue
+        if kind == _HOUR:
+            # The one-hour surcharge, counted above at the standard price's.
+            dearer = _surcharge(tier)
+            cheaper = _surcharge(per) or 0.0
+        else:
+            # At the tier's price for what the standard price was read off, and nothing
+            # where the tier has none: its own fallback could come to less than that.
+            named = _named(per, kind)
+            dearer, cheaper = tier.get(named), per.get(named)
         if tokens > 0 and dearer is not None and cheaper is not None:
             # What the tier charges for these beyond the standard price they were counted at.
             priced = True
@@ -346,11 +362,16 @@ def cost(
     return total if priced else None
 
 
-def _rate(per: Mapping[str, float], kind: str) -> float | None:
-    """What one kind is priced at per million, as billed and where not priced as itself."""
+def _surcharge(per: Mapping[str, float]) -> float | None:
+    """What a one-hour cache write costs per million beyond a five-minute one, if priced."""
+    dearer, cheaper = per.get(_HOUR), per.get("cache_write")
+    return None if dearer is None or cheaper is None else dearer - cheaper
+
+
+def _named(per: Mapping[str, float], kind: str) -> str:
+    """What one kind is priced as, as billed and where not priced as itself."""
     named = _BILLED.get(kind, kind)
-    rate = per.get(named)
-    return per.get(_INSTEAD.get(named, "")) if rate is None else rate
+    return named if named in per else _INSTEAD.get(named, "")
 
 
 def money(dollars: float) -> str:

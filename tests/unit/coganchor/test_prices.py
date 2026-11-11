@@ -613,6 +613,27 @@ def tiered(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
                     _ranged("output", 9, "input > some tokens"),
                 ],
             },
+            {
+                "id": "hours-1",
+                "pricingItems": [
+                    _ranged("input", 1, "input <= 200k tokens"),
+                    _ranged("input", 2, "input > 200k tokens"),
+                    *(
+                        {
+                            "category": "cache_write_tokens",
+                            "price": rate,
+                            "conditions": {"contextRange": within, "cacheDuration": d},
+                        }
+                        for rate, within, d in [
+                            (1.25, "input <= 200k tokens", "5m"),
+                            (2, "input <= 200k tokens", "1h"),
+                            (2.5, "input > 200k tokens", "5m"),
+                            (4, "input > 200k tokens", "1h"),
+                        ]
+                    ),
+                    _ranged("input", 3, "input > 400k tokens"),
+                ],
+            },
         ),
     )
     assert prices.refresh(wait=True)
@@ -690,6 +711,28 @@ def test_a_tier_that_does_not_price_a_kind_leaves_it_at_the_standard_price(
     # `stepped-1` past 31,999 prices input alone: its output there is the standard price.
     marked = {"input>31999": 1_000_000.0, "output>31999": 1_000_000.0, "odd": 1.0}
     assert prices.cost(usage, "stepped-1", tiered=marked) == pytest.approx(0.4 + 4)
+
+
+def test_one_hour_writes_past_the_line_are_priced_at_the_tiers_one_hour_rate(
+    tiered: Path,
+) -> None:
+    one = {"input": 10.0, "cache_read": 150_000.0, "cache_write": 100_000.0}
+    marked = prices.tiered(one, "hours-1", hour=100_000)
+    assert marked["cache_write_1h>200000"] == 100_000
+    bill = prices.cost(one, "hours-1", hour=100_000, tiered=marked)
+    assert bill == pytest.approx(10 * 2 / 1e6 + 0.4)
+    # Under the line, the standard one-hour rate.
+    assert prices.tiered({"input": 10.0}, "hours-1", hour=5) == {}
+    assert prices.cost(one, "hours-1", hour=100_000) == pytest.approx(10 / 1e6 + 0.2)
+
+
+def test_a_tier_without_a_cache_write_price_leaves_writes_at_the_standard_price(
+    tiered: Path,
+) -> None:
+    # Past 400k `hours-1` prices input alone, which is cheaper than a standard write.
+    one = {"input": 500_000.0, "cache_write": 1_000_000.0}
+    marked = prices.tiered(one, "hours-1")
+    assert prices.cost(one, "hours-1", tiered=marked) == pytest.approx(1.5 + 1.25)
 
 
 def test_a_tier_price_that_is_not_a_number_refuses_every_price(

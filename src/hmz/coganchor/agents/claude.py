@@ -928,6 +928,7 @@ class ClaudeCodeSession(StreamSessionBase):
             prices.tiered(
                 {kind: whole[kind] for kind in _AS_IT_GOES},
                 model or self._agent.config.model,
+                hour=whole[_HOUR],
             )
         )
         rises = {

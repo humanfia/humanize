@@ -227,14 +227,22 @@ def test_claude_one_hour_cache_writes_are_counted_beside_the_kinds_once(
 def test_requests_past_a_long_context_line_are_counted_beside_the_kinds_once(
     home: Path, told: _Told, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def tiered(request: Mapping[str, float], model: str) -> dict[str, float]:
+    def tiered(
+        request: Mapping[str, float], model: str, *, hour: float = 0.0
+    ) -> dict[str, float]:
         prompt = request.get("input", 0.0) + request.get("cache_read", 0.0)
         if model != "opus" or prompt <= 1000:
             return {}
-        return {f"{kind}>1000": tokens for kind, tokens in request.items()}
+        marked = {f"{kind}>1000": tokens for kind, tokens in request.items()}
+        return marked | ({"cache_write_1h>1000": hour} if hour else {})
 
     monkeypatch.setattr(prices, "tiered", tiered)
-    long = {"input_tokens": 6, "cache_read_input_tokens": 2000}
+    long = {
+        "input_tokens": 6,
+        "cache_read_input_tokens": 2000,
+        "cache_creation_input_tokens": 40,
+        "cache_creation": {"ephemeral_1h_input_tokens": 40},
+    }
     _write(
         home / "s1.jsonl",
         _claude("m1", {**long, "output_tokens": 1}),
@@ -246,12 +254,14 @@ def test_requests_past_a_long_context_line_are_counted_beside_the_kinds_once(
     tally.read()
 
     assert told.totals["opus"] == (
-        2521,
-        {"input": 16.0, "output": 505.0, "cache_read": 2000.0},
+        2561,
+        {"input": 16.0, "output": 505.0, "cache_read": 2000.0, "cache_write": 40.0},
     )
     assert told.tiered["opus"] == {
         "input>1000": 6.0,
         "cache_read>1000": 2000.0,
+        "cache_write>1000": 40.0,
+        "cache_write_1h>1000": 40.0,
         "output>1000": 500.0,
     }
 

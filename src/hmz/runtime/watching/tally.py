@@ -518,7 +518,9 @@ class Tally:
             counted.update(
                 {
                     marked: int(tokens)
-                    for marked, tokens in prices.tiered(broken, named or model).items()
+                    for marked, tokens in prices.tiered(
+                        broken, named or model, hour=hour
+                    ).items()
                 }
             )
             if request is not None and backend in _EVERYWHERE:
