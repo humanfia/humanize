@@ -45,7 +45,7 @@ Lifecycle rules, common to every setting:
   collected, or at exit.
 - The workspace is never removed.
 
-<small>Defined in [`src/hmz/coganchor/machines/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/base.py), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`AgentBase.anchor`), [`specs/features/environments.md`](https://github.com/humanfia/humanize/blob/main/specs/features/environments.md).</small>
+<small>Defined in [`src/hmz/coganchor/machines/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/base.py), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`AgentBase.anchor`), [`protocol/core.md`](https://github.com/humanfia/humanize/blob/main/protocol/core.md#7-environments).</small>
 
 ### `AnchoredConfig`
 
@@ -549,7 +549,7 @@ Two things Humanize cannot do for a container it did not start:
 }
 ```
 
-<small>Defined in [`src/hmz/runtime/flowing/environing_docker.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_docker.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_docker_env`), [`specs/features/environments.md`](https://github.com/humanfia/humanize/blob/main/specs/features/environments.md) §7.</small>
+<small>Defined in [`src/hmz/runtime/flowing/environing_docker.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_docker.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_docker_env`), [`protocol/core.md`](https://github.com/humanfia/humanize/blob/main/protocol/core.md#7-environments) §7.</small>
 
 ### Swarm environments {#swarm-environments}
 
@@ -628,7 +628,7 @@ To remove Humanize services by hand:
 docker service rm $(docker service ls -q --filter label=humanize=$(id -u))
 ```
 
-<small>Defined in [`src/hmz/runtime/flowing/environing_swarm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_swarm.py), [`src/hmz/coganchor/machines/swarm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/swarm.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_swarm_env`), [`specs/features/environments.md`](https://github.com/humanfia/humanize/blob/main/specs/features/environments.md) §8.</small>
+<small>Defined in [`src/hmz/runtime/flowing/environing_swarm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_swarm.py), [`src/hmz/coganchor/machines/swarm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/swarm.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_swarm_env`), [`protocol/core.md`](https://github.com/humanfia/humanize/blob/main/protocol/core.md#7-environments) §8.</small>
 
 ### Apple container environments {#apple-container-environments}
 
@@ -679,7 +679,7 @@ harness to another runtime that can hold it. See [Containers › Apple container
 To remove Humanize's Apple containers by hand: `container list` shows them as
 `humanize-<provider>-<role>-<8 hex>`; `container delete --force <id>` removes one.
 
-<small>Defined in [`src/hmz/runtime/flowing/environing_apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_apple_container.py), [`src/hmz/coganchor/machines/apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/apple_container.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_apple_container_env`), [`specs/features/environments.md`](https://github.com/humanfia/humanize/blob/main/specs/features/environments.md) §9.</small>
+<small>Defined in [`src/hmz/runtime/flowing/environing_apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_apple_container.py), [`src/hmz/coganchor/machines/apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/apple_container.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_apple_container_env`), [`protocol/core.md`](https://github.com/humanfia/humanize/blob/main/protocol/core.md#7-environments) §9.</small>
 
 ### Slurm environments {#slurm-environments}
 
@@ -1290,7 +1290,7 @@ class Podman(MachineBase):
         ...  # take down what start() brought up
 ```
 
-<small>Contract: [`specs/features/environments.md`](https://github.com/humanfia/humanize/blob/main/specs/features/environments.md).</small>
+<small>Contract: [`protocol/core.md`](https://github.com/humanfia/humanize/blob/main/protocol/core.md#7-environments).</small>
 
 ## Environment variables
 
