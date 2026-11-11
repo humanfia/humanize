@@ -290,7 +290,10 @@ class Monitor:
     hours: dict[tuple[str, str], float] = field(
         default_factory=dict[tuple[str, str], float]
     )
-    #: And of the reckoning in `parts`, read off the same source as it is.
+    #: And of each model, the most any source has said: a source that never says which cache
+    #: a write went to -- the backend's own events -- may be the fullest reckoning for a
+    #: moment, and must not reprice as five-minute writes the one-hour writes already counted.
+    #: `prices.cost` holds it to the cache writes of the reckoning it prices.
     hour: dict[str, float] = field(default_factory=dict[str, float])
     #: Which kinds of token each agent's backend reports at all, said of the backend rather
     #: than read off what a turn happened to spend -- a kind nothing went on this turn is
@@ -566,8 +569,11 @@ class Monitor:
         # which is output alone -- has a rise per kind to be measured over. Clamped at
         # nothing, because the fullest source may change from one reading to the next and a
         # reckoning that went backwards is not tokens somebody got back.
-        fullest, whose = self._fullest(model)
-        self.hour[model] = self.hours.get((whose, model), 0.0)
+        fullest = self._fullest(model)
+        self.hour[model] = max(
+            (said for (_, named), said in self.hours.items() if named == model),
+            default=0.0,
+        )
         before = self.parts.get(model, {})
         grown = {
             kind: risen
@@ -678,7 +684,7 @@ class Monitor:
         except prices.PriceError:
             return math.inf  # a bill nobody can read, which `money` says as `$?`
 
-    def _fullest(self, model: str) -> tuple[dict[str, float] | None, str]:
+    def _fullest(self, model: str) -> dict[str, float] | None:
         """The reckoning of one model to read every figure off. Held under the caller's lock.
 
         Whichever source said the kind of the most tokens, and where two said as much, the one
@@ -697,13 +703,10 @@ class Monitor:
 
         Returns:
           What that source says was spent on it, by kind, or None where no source broke it
-          down at all; and which source that is. Of two that said as much of the same tokens,
-          the one that said more of them went to a one-hour cache, which it alone has priced
-          as such.
+          down at all.
         """
         fullest: dict[str, float] | None = None
-        whose = ""
-        best = (-1.0, -1.0, -1.0)
+        best = (-1.0, -1.0)
         for (source, named), held in self.totals.items():
             if named != model:
                 continue
@@ -715,10 +718,9 @@ class Monitor:
             # reckoning wins, since a source whose whole total is tokens of no named kind
             # can be priced at nothing at all however many of them it has seen.
             told = sum(count for kind, count in broken.items() if kind)
-            ranked = (told, float(held), self.hours.get((source, model), 0.0))
-            if ranked > best:
-                best, fullest, whose = ranked, broken, source
-        return (dict(fullest) if fullest is not None else None), whose
+            if (told, held) > best:
+                best, fullest = (told, held), broken
+        return dict(fullest) if fullest is not None else None
 
     def reporting(self, agent: str, kinds: Iterable[str]) -> None:
         """Notes which kinds of token one agent's backend reports at all.

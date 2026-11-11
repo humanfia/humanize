@@ -40,7 +40,7 @@ def priced(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         if model != "priced":
             return None
         listed = sum(_PRICE.get(kind, 0.0) * count for kind, count in usage.items())
-        return listed + _HOURLY * hour
+        return listed + _HOURLY * min(hour, usage.get("cache_write", 0.0))
 
     monkeypatch.setattr(prices, "cost", cost)
     return asked
@@ -314,10 +314,10 @@ def test_the_fullest_breakdown_is_priced_rather_than_the_biggest_lump() -> None:
     assert spend.dollars == 100.0
 
 
-def test_one_hour_cache_writes_are_priced_off_the_source_the_kinds_are() -> None:
+def test_one_hour_cache_writes_are_priced_whichever_source_is_fullest() -> None:
     monitor = Monitor()
     # The backend's answer and its log, saying the same tokens: only the log says how many
-    # of the writes went to a one-hour cache, and it is the one priced.
+    # of the writes went to a one-hour cache.
     monitor.counted("told", "priced", 1000, kinds={"cache_write": 1000})
     monitor.counted("read", "priced", 1000, kinds={"cache_write": 1000}, hour=400)
 
@@ -326,9 +326,10 @@ def test_one_hour_cache_writes_are_priced_off_the_source_the_kinds_are() -> None
     assert spend.tokens == 1000
     assert spend.kinds == {"cache_write": 1000.0}
     assert spend.dollars == 2000.0 + 600.0
-    # Never their sum: a fuller reckoning without the split is priced as it says.
-    monitor.counted("told", "priced", 1100, kinds={"cache_write": 1100})
-    assert monitor.spending()[0].dollars == 2200.0
+    # The backend leading the log again keeps the one-hour writes already counted, so the
+    # money never falls; and they are never counted twice.
+    monitor.counted("told", "priced", 1010, kinds={"cache_write": 1000, "output": 10})
+    assert monitor.spending()[0].dollars == 2000.0 + 100.0 + 600.0
 
 
 def test_a_breakdown_a_source_stopped_saying_is_dropped() -> None:
