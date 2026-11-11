@@ -114,7 +114,7 @@ const LAYERS: Layer[] = [
     dotted: 'hmz.cli',
     here: 'The command line: a new command, and how a command writes its output.',
     note: 'Not in the table. It joins the layers, so it may import any of them, inside the command that needs it.',
-    spec: 'api/cli.md',
+    spec: 'cli.md',
     ref: '/reference/cli',
   },
   {
@@ -122,7 +122,7 @@ const LAYERS: Layer[] = [
     dotted: 'hmz.tui',
     here: 'The terminal interface: slash commands, keys, menus, and what they draw.',
     note: 'Reaches the runtime only through `daemon`, as one frontend of the runs a host holds.',
-    spec: 'features/tui.md',
+    spec: 'tui.md',
     ref: '/reference/tui',
   },
   {
@@ -130,7 +130,7 @@ const LAYERS: Layer[] = [
     dotted: 'hmz.web',
     here: 'The web interface: the runs of this directory in a browser on this machine, and what a page reads and asks of them.',
     note: 'Reaches the runtime only through `daemon`, as one frontend of the runs a host holds, and draws a run with `watching` as the terminal interface does.',
-    spec: 'features/web.md',
+    spec: 'web.md#3-the-page',
     ref: '/reference/web',
   },
   {
@@ -138,7 +138,7 @@ const LAYERS: Layer[] = [
     dotted: 'hmz.sdk',
     here: 'The Python API a tool outside Humanize calls: `from hmz.sdk import Hmz`.',
     note: 'Nothing imports it: it is the way in from outside.',
-    spec: 'api/sdk.md',
+    spec: 'python.md#4-software-development-kit-hmzsdk',
     ref: '/reference/sdk',
   },
   {
@@ -146,34 +146,34 @@ const LAYERS: Layer[] = [
     dotted: 'hmz.daemon',
     here: "A workspace's runs held apart from the terminal, and the socket every frontend reaches them over.",
     note: 'Names the runtime by its front door, `hmz.runtime`.',
-    spec: 'api/daemon.md',
+    spec: 'daemon.md#4-wire-protocol',
     ref: '/reference/daemon',
   },
   {
     id: 'runtime',
     dotted: 'hmz.runtime',
     here: 'The front door: hands `Hmz`, `Run` and `Refused` through from `doing` and `runner`.',
-    spec: 'features/epics.md',
+    spec: 'core.md#3-epics',
   },
   {
     id: 'doing',
     dotted: 'hmz.runtime.doing',
     here: 'Humanize as one object, `Hmz`. Anything `cli`, `tui` and `daemon` would each write goes here once.',
-    spec: 'api/sdk.md',
+    spec: 'python.md#4-software-development-kit-hmzsdk',
     ref: '/reference/sdk',
   },
   {
     id: 'runner',
     dotted: 'hmz.runtime.runner',
     here: 'The `hmz exec` line: reading it, finding the flow, checking it, refusing it, running it.',
-    spec: 'features/epics.md',
+    spec: 'core.md#3-epics',
     ref: '/reference/cli',
   },
   {
     id: 'flowing',
     dotted: 'hmz.runtime.flowing',
     here: 'Everything done to a flow: the engine, budgets, resuming, the agent and environment drivers, the `-a` `-e` `-p` parsers, the fakes, finding flows and flowverses.',
-    spec: 'features/epics.md',
+    spec: 'core.md#3-epics',
     ref: '/reference/flows',
   },
   {
@@ -181,45 +181,45 @@ const LAYERS: Layer[] = [
     dotted: 'hmz.flows',
     here: 'The flow API: the types a flow imports. Each is a promise to somebody else\'s repository.',
     note: 'Names `flowing` only inside `flow`, `load` and `Outworlder.new`, never at import. Importing `hmz.flows` loads nothing else of Humanize.',
-    spec: 'api/flows.md',
+    spec: 'python.md#3-flow-api-hmzflows',
     ref: '/reference/flows',
   },
   {
     id: 'exporting',
     dotted: 'hmz.runtime.exporting',
     here: 'One whole run packaged up to send somewhere, and read back in.',
-    spec: 'features/backups.md',
+    spec: 'core.md#11-backups',
   },
   {
     id: 'backing',
     dotted: 'hmz.runtime.backing',
     here: 'Epics backed up to git repositories, behind everything else.',
-    spec: 'features/backups.md',
+    spec: 'core.md#11-backups',
   },
   {
     id: 'epic',
     dotted: 'hmz.runtime.epic',
     here: 'One run of one flow, written down as it happens.',
-    spec: 'api/files/epics.md',
+    spec: 'files.md#6-epic-records',
   },
   {
     id: 'tracing',
     dotted: 'hmz.runtime.tracing',
     here: 'The backends\' own logs read back as one trace: a reader per backend.',
-    spec: 'features/monitoring.md',
+    spec: 'core.md#10-monitoring',
     ref: '/reference/tracing',
   },
   {
     id: 'watching',
     dotted: 'hmz.runtime.watching',
     here: 'A run read as it happens: who is working, what it has cost, and the view a side question is asked with. Every frontend draws the same figures from it.',
-    spec: 'features/monitoring.md',
+    spec: 'core.md#10-monitoring',
   },
   {
     id: 'coganchor',
     dotted: 'hmz.coganchor',
     here: 'Driving a coding agent CLI: backends, drivers, accounts, models, fallbacks, prices, machines, and the anchor.',
-    spec: 'features/agents.md',
+    spec: 'core.md#4-agents',
     ref: '/reference/agents',
   },
   {
@@ -227,26 +227,26 @@ const LAYERS: Layer[] = [
     dotted: 'hmz.coganchor.serve',
     here: 'The half of the anchor that ships to the target machine.',
     note: 'The target may be any architecture, so it may import `hmz.coganchor.proto`, and the fence and its Linux bindings where a fence is asked about, and nothing else.',
-    spec: 'features/placements.md',
+    spec: 'core.md#6-placements',
     ref: '/reference/remote-execution',
   },
   {
     id: 'telemetry',
     dotted: 'hmz.runtime.telemetry',
     here: 'What Humanize reports about itself, and whether it does.',
-    spec: 'features/telemetry.md',
+    spec: 'core.md#12-telemetry',
   },
   {
     id: 'settings',
     dotted: 'hmz.runtime.settings',
     here: 'What each workspace was set up to run.',
-    spec: 'api/settings.md',
+    spec: 'files.md#3-settings-file-and-environment-variables',
   },
   {
     id: 'kept',
     dotted: 'hmz.runtime.kept',
     here: 'An agent written down, in the `CLI/MODEL:EFFORT` shape `-a` takes.',
-    spec: 'features/agents.md',
+    spec: 'core.md#4-agents',
   },
 ]
 
@@ -389,7 +389,7 @@ function pick(id: string) {
 // Prose with `code` in it, as alternating runs of text and code.
 const parts = (text: string) => text.split('`').map((t, i) => ({ t, code: i % 2 === 1 }))
 
-const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/specs/${path}`
+const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/protocol/${path}`
 </script>
 
 <template>
@@ -496,7 +496,7 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
         </p>
 
         <p class="links">
-          <a :href="spec(layer.spec)" target="_blank" rel="noreferrer">its SPEC ↗</a>
+          <a :href="spec(layer.spec)" target="_blank" rel="noreferrer">its protocol ↗</a>
           <a v-if="layer.ref" :href="withBase(layer.ref)">reference →</a>
         </p>
       </div>

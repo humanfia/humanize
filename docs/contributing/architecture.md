@@ -17,8 +17,8 @@ layers at once, a backend and a command, every file to visit in order.
 ## How the layers work
 
 `src/hmz/` is a stack of layers, and code in each layer may import only the layers the table
-below gives it. Pick a layer to see what it may import and open its SPEC. A test holds the
-same table, so an import that breaks it fails the run.
+below gives it. Pick a layer to see what it may import and open its protocol document. A test
+holds the same table, so an import that breaks it fails the run.
 
 <HmzStack />
 
@@ -82,7 +82,7 @@ page of `/settings`.
 
 **You need:** the CLI installed and signed in, so a system test can drive it; its `--help`
 and a turn or two of its own logs, since several steps copy what it really writes; and which
-kind of driver it needs, which `specs/features/agents.md` says.
+kind of driver it needs, which `protocol/core.md` says.
 
 ### 1. Describe it, in `coganchor/`
 
@@ -177,7 +177,7 @@ kind of driver it needs, which `specs/features/agents.md` says.
     grep -rln mimo docs --include='*.md' --include='*.vue' --exclude-dir=node_modules
     ```
 
-    Where a SPEC lists the backends too, propose the change: do not edit a SPEC unless you were
+    Where the protocol lists the backends too, propose the change: do not edit it unless you were
     asked to.
 
 ### Check it worked
@@ -211,49 +211,31 @@ uv run pytest -n0 tests/system/test_harness_task.py -k <name>
 Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and with
 `uv run hmz <command> --help`.
 
-## SPECs
+## The protocol {#protocol}
 
-`specs/` states everything Humanize shows to the outside, in MUST, MUST NOT and MAY terms, and
-nothing about how it is built. `specs/api/` holds the interfaces: the flow API, the SDK, the
-daemon protocol, the HTTP API, the command line, `settings.yaml`, and every file Humanize may
-leave on disk. `specs/features/` holds one file per feature. `specs/README.md` holds the rules
-every SPEC is written by and the terms they share. Pick a layer in the diagram to open the SPEC
-that governs what it shows. Change the code to match the SPEC, and do not edit a SPEC unless you
-were asked to. Propose a SPEC change separately. How the layers are built and may name one
-another is this page's business, not a SPEC's.
+`protocol/` states everything Humanize shows to the outside, in MUST, MUST NOT and MAY terms, and
+nothing about how it is built: every interface (the command line, the terminal interface, the web
+page and its HTTP API, the desktop app, the daemon's wire protocol, the flow API and the SDK),
+what Humanize does to the system under it (`settings.yaml`, environment variables, every file it
+may leave on disk), and what each feature does as a user sees it. Another team could build a
+product that behaves the same from these documents alone. They are written as RFCs are;
+`protocol/core.md` holds the conventions every document follows and the terms they share. Pick a
+layer in the diagram to open the document that governs what it shows. Change the code to match
+the protocol, and do not edit a protocol document unless you were asked to. Propose a protocol
+change separately. How the layers are built and may name one another is this page's business,
+not the protocol's.
 
-::: details Every SPEC
+::: details Every document
 | | |
 | --- | --- |
-| `specs/README.md` | How a SPEC is written, numbered and cited; the terms every SPEC shares |
-| `specs/api/flows.md` | The flow API: what a flow imports, declares and is handed |
-| `specs/api/sdk.md` | `hmz.sdk`: how a program that is not Humanize drives it |
-| `specs/api/daemon.md` | The daemon's protocol, as a frontend sees it |
-| `specs/api/http.md` | Every HTTP endpoint `hmz web` serves |
-| `specs/api/cli.md` | Every command line |
-| `specs/api/settings.md` | Every key of `settings.yaml`, and every environment variable read |
-| `specs/api/files/home.md` | `~/.hmz` |
-| `specs/api/files/workspace.md` | What Humanize may leave in a workspace, and what never |
-| `specs/api/files/epics.md` | An epic's directory, its records, and `.hmzepic` archives |
-| `specs/api/files/machine.md` | Per-user temporary and cache directories |
-| `specs/api/files/harness-homes.md` | What Humanize keeps or builds for each CLI's home |
-| `specs/api/files/desktop.md` | The macOS app's files |
-| `specs/api/files/targets.md` | What Humanize may leave on another machine, container or job |
-| `specs/features/epics.md` | Starting, stopping, budgeting and picking up an epic |
-| `specs/features/agents.md` | Driving coding agent CLIs: configuration, permissions, faults |
-| `specs/features/accounts.md` | Which account an agent runs as |
-| `specs/features/placements.md` | Where a CLI runs against where its work is, and mirrors |
-| `specs/features/environments.md` | Local, ssh, docker, swarm, Apple container and Slurm envs |
-| `specs/features/chat.md` | The chat flow, in every frontend |
-| `specs/features/btw.md` | Side questions |
-| `specs/features/monitoring.md` | The live monitor, cost, notices, traces and profiles |
-| `specs/features/backups.md` | Git backups, export and import |
-| `specs/features/telemetry.md` | What is reported, and what never |
-| `specs/features/updates.md` | `hmz update` and update notices |
-| `specs/features/daemons.md` | One daemon per machine, and remote daemons |
-| `specs/features/tui.md` | Every behaviour the terminal interface must have |
-| `specs/features/web.md` | Every behaviour the web interface must have |
-| `specs/features/desktop.md` | Humanize Desktop, the macOS app in `desktop/`: a window on `hmz web` |
+| `protocol/core.md` | Conventions and shared terms; epics, agents, accounts, placements, environments, chat, side questions, monitoring, backups, telemetry, updates |
+| `protocol/cli.md` | Every command line |
+| `protocol/tui.md` | Every behaviour the terminal interface must have |
+| `protocol/daemon.md` | One daemon per machine, remote daemons, and the daemon's protocol as a frontend sees it |
+| `protocol/web.md` | Every behaviour the web interface must have, and every HTTP endpoint `hmz web` serves |
+| `protocol/desktop.md` | Humanize Desktop, the app in `desktop/`: a window on `hmz web`, and its files |
+| `protocol/python.md` | The flow API, and `hmz.sdk`: how a program that is not Humanize drives it |
+| `protocol/files.md` | Every key of `settings.yaml`, every environment variable read, and every file Humanize may leave on disk, here or on another machine |
 :::
 
 ## Next steps

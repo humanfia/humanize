@@ -82,7 +82,7 @@ runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
 
 `desktop/` is [Humanize Desktop](/user/desktop), the macOS app: a window on `hmz web`'s page, in
 Rust with [Tauri](https://tauri.app/), held to
-[its spec](https://github.com/humanfia/humanize/blob/main/specs/features/desktop.md). Working on it
+[its protocol document](https://github.com/humanfia/humanize/blob/main/protocol/desktop.md). Working on it
 takes a Mac, [Rust](https://rustup.rs/), Node and pnpm. Built from `main`, its version is
 `0.0.0`, and it installs nothing: `pnpm dev` opens it against the `hmz` on your `PATH`, and
 `HUMANIZE_HMZ` names another, such as this checkout's:
@@ -154,7 +154,7 @@ run fails if any file under pytest's temporary directories holds one of those re
 - **Popular, well-maintained libraries** before a custom implementation.
 - **Each layer imports only what the layering table gives it.** See
   [Architecture](/contributing/architecture).
-- **`specs/` is the contract.** Change the code to match a SPEC. Do not edit one unless you were
+- **`protocol/` is the contract.** Change the code to match it. Do not edit it unless you were
   asked to.
 - **A change to how flows run** also keeps the flows
   [humanfia/flowverse](https://github.com/humanfia/flowverse) lists working.

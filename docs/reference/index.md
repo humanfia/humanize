@@ -75,5 +75,5 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | role | A name a flow declares for an agent, an environment or an outworlder. |
 | frontend | An interface or program attached to a [host](/reference/daemon). |
 
-Where behaviour and a spec under `specs/` differ, these pages describe the behaviour of the
+Where behaviour and a document under `protocol/` differ, these pages describe the behaviour of the
 code.
