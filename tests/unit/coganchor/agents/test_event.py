@@ -47,6 +47,18 @@ def test_usages_add_kind_by_kind() -> None:
     assert dict(added) == {"input": 1, "output": 5, "reasoning": 4}
 
 
+def test_long_context_tokens_go_beside_the_kinds() -> None:
+    usage = Usage({"input": 10.0}, tiered={"input>5": 10.0})
+    assert dict(usage) == {"input": 10.0}
+    assert usage.total == 10.0
+    assert usage == Usage({"input": 10.0})
+    added = usage + Usage({"output": 2.0}, tiered={"input>5": 1.0, "output>5": 2.0})
+    assert added.tiered == {"input>5": 11.0, "output>5": 2.0}
+    assert (usage + {"input": 2.0}).tiered == {"input>5": 10.0}
+    assert (usage / 2.0).tiered == {"input>5": 5.0}
+    assert Usage().tiered == {}
+
+
 def test_one_hour_cache_writes_go_beside_the_kinds() -> None:
     usage = Usage({"cache_write": 10.0}, hour=4.0)
     assert dict(usage) == {"cache_write": 10.0}

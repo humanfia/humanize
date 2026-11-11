@@ -141,7 +141,7 @@ Read the figure as what the work is worth at list price, not as your bill:
 | | |
 | --- | --- |
 | **List price** | not what a subscription or a negotiated rate charges |
-| **Standard tier** | a very long turn priced higher past some context length cost more than this says |
+| **Long context** | a request whose prompt is past the model's long-context line is priced at the list's higher tier for that request. Only a CLI that says what each request cost shows which those were: `claude` and `codex`, and the running cost read from the logs of `dsh`, `kimi` and `mcode`. Elsewhere the standard price is a floor |
 | **A floor** | a kind of token the list has no price for adds nothing |
 
 ## Variations

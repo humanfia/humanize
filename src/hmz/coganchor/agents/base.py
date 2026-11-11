@@ -483,6 +483,8 @@ class Meter:
         self._total: Counter[str] = Counter()
         #: How many of the cache writes in `_total` went to a one-hour cache.
         self._hour = 0.0
+        #: And which of its tokens went on requests past a long-context line.
+        self._tiered: Counter[str] = Counter()
         #: Recent spending as (when, what, whether it was a turn of the model), bounded by
         #: the window rather than by the length of the run: a flow going for days keeps five
         #: minutes of it.
@@ -508,6 +510,7 @@ class Meter:
         with self._lock:
             self._total.update(usage)
             self._hour += usage.hour
+            self._tiered.update(usage.tiered)
             self._recent.append((moment, usage, turn))
             # Cut down as it is written rather than only when somebody reads a rate: an
             # agent driving ten thousand sessions is told what every request of every one of
@@ -526,7 +529,9 @@ class Meter:
         """
         with self._lock:
             return Usage(
-                {"input": 0.0, "output": 0.0} | dict(self._total), hour=self._hour
+                {"input": 0.0, "output": 0.0} | dict(self._total),
+                hour=self._hour,
+                tiered=self._tiered,
             )
 
     def rate(self, over: float = WINDOW, now: float | None = None) -> Usage:

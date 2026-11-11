@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, cast
 import pytest
 from pydantic import BaseModel, Field, Json
 
-from hmz.coganchor import AnchorConfig, fence, gateway, providers
+from hmz.coganchor import AnchorConfig, fence, gateway, prices, providers
 from hmz.coganchor.agents import (
     CodexAgent,
     CodexAgentConfig,
@@ -35,7 +35,7 @@ from hmz.coganchor.providers import Provider
 from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner, fenceable
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from hmz.coganchor.agents import Occasion
 
@@ -516,6 +516,30 @@ def test_cached_input_is_counted_beside_the_input_not_inside_it(
     assert dict(result.spent) == {"input": 100, "cache_read": 900, "output": 30}
     assert session.spent().total == 1030
     assert "cache_read" in CodexAgent.counts
+
+
+def test_a_request_past_a_long_context_line_is_counted_beside_the_kinds(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked: list[tuple[dict[str, float], str]] = []
+
+    def tiered(request: Mapping[str, float], model: str) -> dict[str, float]:
+        asked.append((dict(request), model))
+        return {f"{kind}>500": tokens for kind, tokens in request.items()}
+
+    monkeypatch.setattr(prices, "tiered", tiered)
+    server.turns = [_says(_message("done"), total=(1000, 30), cached=900)]
+    session = _agent().new(tmp_path)
+    result = list(session.stream("hi"))[-1]
+    # Read off the one request the server says came back, for the model the turn ran on.
+    assert asked == [({"input": 100.0, "cache_read": 900.0, "output": 30.0}, "gpt-x")]
+    marked = {"input>500": 100.0, "cache_read>500": 900.0, "output>500": 30.0}
+    assert dict(result.spent) == {"input": 100, "cache_read": 900, "output": 30}
+    assert result.spent.tiered == marked
+    assert session.spent().tiered == marked
 
 
 @pytest.mark.parametrize(

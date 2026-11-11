@@ -109,6 +109,15 @@ def test_a_meter_adds_what_was_spent_and_ignores_nothing() -> None:
     assert dict(meter.spent()) == {"input": 3, "output": 5, "cache_read": 2}
 
 
+def test_a_meter_adds_long_context_tokens_beside_the_kinds() -> None:
+    meter = Meter()
+    meter.spend(Usage({"input": 10.0}, tiered={"input>5": 10.0}))
+    meter.spend(Usage({"input": 3.0}))
+    meter.spend(Usage({"input": 7.0}, tiered={"input>5": 7.0}))
+    assert dict(meter.spent()) == {"input": 20.0, "output": 0.0}
+    assert meter.spent().tiered == {"input>5": 17.0}
+
+
 def test_a_meter_adds_one_hour_cache_writes_beside_the_kinds() -> None:
     meter = Meter()
     meter.spend(Usage({"cache_write": 10.0}, hour=4.0))

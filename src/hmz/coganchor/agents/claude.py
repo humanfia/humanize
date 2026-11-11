@@ -11,6 +11,8 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+from hmz.coganchor import prices
+
 from .base import DRAIN_SECONDS, AgentBase, StreamSessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Question, Usage
@@ -223,10 +225,19 @@ _HOUR = "1h"
 
 
 def _usage(counts: Mapping[str, float]) -> Usage:
-    """What has been counted here, as the kinds with the one-hour cache writes beside them."""
+    """What has been counted here, as the kinds with the one-hour cache writes beside them.
+
+    And with the tokens of requests past a long-context line beside them too, which are
+    counted here under the names `hmz.coganchor.prices.tiered` gives them.
+    """
     return Usage(
-        {kind: tokens for kind, tokens in counts.items() if kind != _HOUR},
+        {
+            kind: tokens
+            for kind, tokens in counts.items()
+            if kind != _HOUR and ">" not in kind
+        },
         hour=counts.get(_HOUR, 0.0),
+        tiered={kind: tokens for kind, tokens in counts.items() if ">" in kind},
     )
 
 
@@ -391,9 +402,10 @@ class ClaudeCodeSession(StreamSessionBase):
         #: and what each of those messages last said it had cost.
         self._fed: Counter[str] = Counter()
         self._seen: dict[str, Counter[str]] = {}
-        #: The message each agent on the stream is writing now, by the call it was started
-        #: under ("" for this one's own), since what closes one names no message.
-        self._messages: dict[str, str] = {}
+        #: The message each agent on the stream is writing now, and the model writing it, by
+        #: the call it was started under ("" for this one's own), since what closes one names
+        #: neither.
+        self._messages: dict[str, tuple[str, str]] = {}
         #: What the process now up was started to think at, so that a flow moving the effort
         #: mid-session is answered by starting one that thinks at the new one.
         self._at: str | None = None
@@ -869,9 +881,13 @@ class ClaudeCodeSession(StreamSessionBase):
           said: The `assistant` event, as read.
         """
         message: dict[str, Any] = said.get("message") or {}
-        self._rose(str(message.get("id") or ""), message.get("usage") or {})
+        self._rose(
+            str(message.get("id") or ""),
+            message.get("usage") or {},
+            str(message.get("model") or ""),
+        )
 
-    def _rose(self, named: str, usage: dict[str, Any]) -> None:
+    def _rose(self, named: str, usage: dict[str, Any], model: str) -> None:
         """Counts what one message now says it has cost, beyond what it said before.
 
         Claude says the same message several times -- once for the thinking in it, once for
@@ -880,9 +896,14 @@ class ClaudeCodeSession(StreamSessionBase):
         on it. Its output only as it stood when the message began, which is a handful of
         tokens: what it came to is on the `message_delta` that closes it, read here too.
 
+        A message is one request, so it is also where a prompt past the model's long-context
+        line is seen: its tokens are counted again beside the kinds, under the tier's names,
+        and rise the way the kinds do.
+
         Args:
           named: Claude's id for the message.
           usage: What it says the message has cost, as Anthropic spells each kind.
+          model: The model that wrote it, or "" for the one this session was told.
         """
         counted: Counter[str] = Counter(
             {
@@ -902,6 +923,13 @@ class ClaudeCodeSession(StreamSessionBase):
         ):
             counted[_HOUR] = hour
         before = self._seen.get(named) or Counter()
+        whole = before | counted  # the request, as the most any copy of it has said
+        counted.update(
+            prices.tiered(
+                {kind: whole[kind] for kind in _AS_IT_GOES},
+                model or self._agent.config.model,
+            )
+        )
         rises = {
             kind: tokens
             for kind in set(counted) | set(before)
@@ -918,11 +946,15 @@ class ClaudeCodeSession(StreamSessionBase):
             self._fed.update(rises)
             self._spends(risen, turn=asked)
 
-    def _settle(self, risen: Usage) -> None:
+    def _settle(self, risen: Usage) -> Usage:
         """Adds whatever the turn's own total says was spent beyond what was counted live.
 
         Args:
           risen: What the turn cost, by kind, as the `result` states it.
+
+        Returns:
+          The same, with what its requests past a long-context line were counted live at
+          beside it: the total names no request, and says nothing of how long any one was.
         """
         said = {**risen, _HOUR: risen.hour}
         owed = _usage(
@@ -932,11 +964,13 @@ class ClaudeCodeSession(StreamSessionBase):
                 if (tokens := said.get(kind, 0.0) - self._fed[kind]) > 0
             }
         )
+        tiered = {kind: tokens for kind, tokens in self._fed.items() if ">" in kind}
         self._fed, self._seen = Counter(), {}
         # Not a turn of the model: the requests it is settling up for have each been counted
         # already, and counting this as one more would put a turn in the average that never
         # happened.
         self._spends(owed, turn=False)
+        return Usage(risen, hour=risen.hour, tiered=tiered)
 
     def _running(self, running: str) -> str:
         """What to say where Claude is running another model than the one it was told.
@@ -1230,7 +1264,7 @@ class ClaudeCodeSession(StreamSessionBase):
                 # field is sufficient alone. The remaining reasons also guard a malformed
                 # success result that arrives while Claude is still asking to use a tool.
                 tokens, risen = self._spent(said)
-                self._settle(risen)
+                risen = self._settle(risen)
                 yield Event(
                     kind="failed",
                     text=failure,
@@ -1241,7 +1275,7 @@ class ClaudeCodeSession(StreamSessionBase):
             if self._named is not None:
                 self._adopt(self._named)  # a turn has landed, so the session is open
             tokens, risen = self._spent(said)
-            self._settle(risen)
+            risen = self._settle(risen)
             # The turn is over, so what it reached for is nothing the next one has to know
             # about: a session takes thousands of turns, and these would grow with all of them.
             self._reaching, self._announced = {}, set()
@@ -1355,16 +1389,19 @@ class ClaudeCodeSession(StreamSessionBase):
                 )
             case "message_start":
                 message = cast("dict[str, Any]", event.get("message") or {})
-                self._messages[under] = str(message.get("id") or "")
+                self._messages[under] = (
+                    str(message.get("id") or ""),
+                    str(message.get("model") or ""),
+                )
             case "message_delta":
                 # What the message came to, which the messages carrying its parts never say:
                 # each states the output as it stood when the message began. Read as it
                 # lands, a turn writing a hundred thousand tokens is a turn the budget and
                 # the rate see writing them, rather than a few hundred and then the rest at
                 # the end -- past a cap that was meant to stop it on the way.
+                named, model = self._messages.get(under, ("", ""))
                 self._rose(
-                    self._messages.get(under, ""),
-                    cast("dict[str, Any]", event.get("usage") or {}),
+                    named, cast("dict[str, Any]", event.get("usage") or {}), model
                 )
             case _:  # the fragments of words
                 pass
