@@ -198,13 +198,17 @@ def prices(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
 
 
 def _shown(
-    said: list[dict[str, Any]], *events: dict[str, Any], session: object = None
+    said: list[dict[str, Any]],
+    *events: dict[str, Any],
+    session: object = None,
+    hour: float = 0.0,
 ) -> None:
     agent = _Agent()
+    heard = mock.Mock(spent=mock.Mock(hour=hour))
     with Out() as out, Shown(out) as shown:
         for event in events:
             said.append(event)
-            shown.heard(agent, session, mock.Mock())  # pyright: ignore[reportArgumentType]
+            shown.heard(agent, session, heard)  # pyright: ignore[reportArgumentType]
 
 
 @pytest.mark.parametrize(
@@ -278,8 +282,20 @@ def test_a_result_is_priced_and_its_answer_put_on_stdout(
         "✻ input 1.5k · output 2.50M · reasoning 3 · zeta 1 · $0.50 · m2 · alice"
     ]
     assert captured.out == "done\n"
-    prices.cost.assert_called_once_with(spent, "m2")
+    prices.cost.assert_called_once_with(spent, "m2", hour=0.0)
     prices.money.assert_called_once_with(0.5)
+
+
+def test_a_result_prices_its_one_hour_cache_writes_as_such(
+    plain: None, recorded: list[dict[str, Any]], prices: mock.Mock
+) -> None:
+    spent = {"input": 6, "output": 500, "cache_write": 100_000}
+    _shown(
+        recorded,
+        {"kind": "result", "text": "", "spent": spent, "tokens": {"m2": spent}},
+        hour=40_000,
+    )
+    prices.cost.assert_called_once_with(spent, "m2", hour=40_000)
 
 
 def test_a_result_on_a_model_nobody_prices_has_no_price(

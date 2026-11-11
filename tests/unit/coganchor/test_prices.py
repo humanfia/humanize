@@ -537,8 +537,9 @@ def test_a_one_hour_cache_write_is_kept_beside_the_five_minute_one(
     )
     # Counted as five-minute writes where nobody says otherwise, as before.
     assert prices.cost(usage, "claude-opus-5-5") == pytest.approx(0.510024)
-    # Never more of them at the one-hour price than there were cache writes.
-    assert prices.cost(usage, "claude-opus-5-5", hour=10**9) == pytest.approx(0.810024)
+    # Writes counted in an earlier reckoning and only now said to be one-hour ones: what
+    # they cost beyond the five-minute price they were counted at.
+    assert prices.cost({}, "claude-opus-5-5", hour=100_000) == pytest.approx(0.3)
 
 
 def test_one_hour_writes_of_a_model_without_a_one_hour_price_cost_a_cache_write(

@@ -40,7 +40,7 @@ def priced(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         if model != "priced":
             return None
         listed = sum(_PRICE.get(kind, 0.0) * count for kind, count in usage.items())
-        return listed + _HOURLY * min(hour, usage.get("cache_write", 0.0))
+        return listed + _HOURLY * hour
 
     monkeypatch.setattr(prices, "cost", cost)
     return asked
@@ -330,6 +330,13 @@ def test_one_hour_cache_writes_are_priced_whichever_source_is_fullest() -> None:
     # money never falls; and they are never counted twice.
     monitor.counted("told", "priced", 1010, kinds={"cache_write": 1000, "output": 10})
     assert monitor.spending()[0].dollars == 2000.0 + 100.0 + 600.0
+
+
+def test_one_hour_cache_writes_are_never_more_than_the_writes_priced() -> None:
+    monitor = Monitor()
+    monitor.counted("read", "priced", 100, kinds={"cache_write": 100}, hour=400)
+
+    assert monitor.spending()[0].dollars == 200.0 + 150.0
 
 
 def test_a_breakdown_a_source_stopped_saying_is_dropped() -> None:

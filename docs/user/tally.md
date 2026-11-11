@@ -143,7 +143,6 @@ Read the figure as what the work is worth at list price, not as your bill:
 | **List price** | not what a subscription or a negotiated rate charges |
 | **Standard tier** | a very long turn priced higher past some context length cost more than this says |
 | **A floor** | a kind of token the list has no price for adds nothing |
-| **One-hour cache writes** | the readout in `hmz`, a `cost` budget and the flow's usage price them at the one-hour price; the line per turn under `hmz exec` prices them as five-minute writes |
 
 ## Variations
 

@@ -233,9 +233,11 @@ def cost(usage: Mapping[str, float], model: str, *, hour: float = 0.0) -> float 
     Args:
       usage: Tokens by kind, as `hmz.coganchor.agents.Usage` counts them.
       model: What they were spent on.
-      hour: How many of the `cache_write` tokens went to a cache kept for an hour, which the
-        list prices above a write to one kept for five minutes. They are priced at the list's
-        one-hour price where it gives one, and as any other cache write where it does not.
+      hour: How many cache writes went to a cache kept for an hour, which the list prices
+        above a write to one kept for five minutes. What they cost beyond a five-minute write
+        is added where the list gives a one-hour price, and nothing where it does not. Those
+        writes themselves are counted in `cache_write`, of this reckoning or of an earlier one:
+        a turn may say which cache its writes went to only after they were counted.
 
     Returns:
       The money, or None both for a model nobody lists and for a reckoning none of whose
@@ -267,11 +269,9 @@ def cost(usage: Mapping[str, float], model: str, *, hour: float = 0.0) -> float 
             total += tokens * rate / _MILLION
     dearer, cheaper = per.get(_HOUR), per.get("cache_write")
     if hour > 0 and dearer is not None and cheaper is not None:
-        # What a one-hour write costs beyond the five-minute price it was counted at above:
-        # never on more of them than there were cache writes, which would overstate the bill.
-        total += (
-            min(hour, usage.get("cache_write", 0.0)) * (dearer - cheaper) / _MILLION
-        )
+        # What a one-hour write costs beyond the five-minute price it was counted at.
+        priced = True
+        total += hour * (dearer - cheaper) / _MILLION
     return total if priced else None
 
 

@@ -293,7 +293,7 @@ class Monitor:
     #: And of each model, the most any source has said: a source that never says which cache
     #: a write went to -- the backend's own events -- may be the fullest reckoning for a
     #: moment, and must not reprice as five-minute writes the one-hour writes already counted.
-    #: `prices.cost` holds it to the cache writes of the reckoning it prices.
+    #: It is held to the cache writes of the reckoning it is priced with.
     hour: dict[str, float] = field(default_factory=dict[str, float])
     #: Which kinds of token each agent's backend reports at all, said of the backend rather
     #: than read off what a turn happened to spend -- a kind nothing went on this turn is
@@ -680,7 +680,8 @@ class Monitor:
         if not broken:
             return None
         try:
-            return prices.cost(broken, model, hour=self.hour.get(model, 0.0))
+            hour = min(self.hour.get(model, 0.0), broken.get("cache_write", 0.0))
+            return prices.cost(broken, model, hour=hour)
         except prices.PriceError:
             return math.inf  # a bill nobody can read, which `money` says as `$?`
 
