@@ -506,7 +506,9 @@ def _trim(loaded: object, whence: str, etag: str) -> dict[str, Any] | None:
 
     Returns:
       What to keep, or None for a document this cannot read -- which includes one priced in
-      another currency or by another unit. Showing the wrong money is worse than none.
+      another currency or by another unit. Showing the wrong money is worse than none. A
+      single price given in yuan is turned into dollars at the list's own `exchangeRate`, or
+      left out where the list gives no usable rate.
 
     Raises:
       PriceError: If the newest version prices a model at something not a finite number.
@@ -535,6 +537,7 @@ def _trim(loaded: object, whence: str, etag: str) -> dict[str, Any] | None:
             listed, latest = version, when
     if listed is None:
         return None
+    rates = _rates(said.get("exchangeRate"))
     every: object = listed.get("models")
     models: dict[str, Any] = {}
     for one in cast("list[Any]", every) if isinstance(every, list) else []:
@@ -542,7 +545,7 @@ def _trim(loaded: object, whence: str, etag: str) -> dict[str, Any] | None:
             continue
         model = cast("dict[str, Any]", one)
         named = str(model.get("id") or "")
-        per = _per_million(model.get("pricingItems") or [], named)
+        per = _per_million(model.get("pricingItems") or [], named, rates)
         if named and per:
             models[named] = {
                 "provider": str(model.get("provider") or ""),
@@ -560,7 +563,38 @@ def _trim(loaded: object, whence: str, etag: str) -> dict[str, Any] | None:
     }
 
 
-def _per_million(items: object, named: str) -> dict[str, float]:
+def _rates(said: object) -> dict[str, float]:
+    """How many of each currency the list says a dollar buys, dollars included.
+
+    The list is in dollars but prices some models in yuan, each such item marked with its
+    `currency`, and gives the one rate between the two as `{"pair": "USD/CNY", "usdCny": …}`.
+
+    Args:
+      said: The list's `exchangeRate`.
+
+    Returns:
+      Units of each currency per dollar: always dollars, and yuan where the rate is a finite
+      number above nought.
+    """
+    rates = {"USD": 1.0}
+    if not isinstance(said, dict):
+        return rates
+    given = cast("dict[str, Any]", said)
+    rate: object = given.get("usdCny")
+    if (
+        given.get("pair") == "USD/CNY"
+        and isinstance(rate, (int, float))
+        and not isinstance(rate, bool)
+        and math.isfinite(rate)
+        and rate > 0
+    ):
+        rates["CNY"] = float(rate)
+    return rates
+
+
+def _per_million(
+    items: object, named: str, rates: dict[str, float]
+) -> dict[str, float]:
     """What one model costs per million tokens, by kind.
 
     The first entry for a kind wins. One model carries several, one per context tier and one
@@ -568,9 +602,14 @@ def _per_million(items: object, named: str) -> dict[str, float]:
     prompt was or how long the cache was held for, so the standard price is the honest one to
     take and the one to say has been taken.
 
+    An item in another currency is turned into dollars at its rate, and one in a currency
+    with no rate is skipped as though it were not there: a figure in yuan read as dollars is
+    several times the price.
+
     Args:
       items: The model's `pricingItems`.
       named: The model, for the error.
+      rates: Units of each currency per dollar, as `_rates` gives them.
 
     Returns:
       Dollars per million tokens, by the kind Humanize counts them under.
@@ -592,9 +631,10 @@ def _per_million(items: object, named: str) -> dict[str, float]:
         if isinstance(asked, bool):
             continue
         rate = _finite(named, kind, asked)
-        if rate < 0:
+        exchange = rates.get(str(item.get("currency") or "USD"))
+        if rate < 0 or exchange is None:
             continue
-        per[kind] = rate
+        per[kind] = rate / exchange
     return per
 
 

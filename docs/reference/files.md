@@ -137,6 +137,8 @@ renamed. Each fetch first deletes any `.prices.json.*.new` or `prices.json.*` (t
 naming) more than 10 min old, left by a process that exited mid-write. A list that gives any
 price that is not a finite number is never written, and while it is what the source says, or
 what is kept, every run is refused before its first turn (`hmz exec` exits 2).
+`per_million` is US dollars: a price the list gives in yuan is converted at the list's own
+`exchangeRate`, and one in a currency with no usable rate is left out.
 
 ### `M/releases.json` {#h-releases-json}
 

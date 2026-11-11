@@ -242,6 +242,78 @@ def test_cost_of_an_unlisted_model_is_no_answer(listed: Path) -> None:
     assert prices.cost({"input": 1000}, "nobody-lists-me") is None
 
 
+def _in_yuan(**overrides: Any) -> dict[str, Any]:
+    """The listing with a model priced in yuan, the first input item of it in dollars."""
+    listing = _listing(**overrides)
+    listing["versions"][1]["models"].append(
+        {
+            "id": "glm-5.3",
+            "name": "GLM-5.3",
+            "provider": "zhipu",
+            "pricingItems": [
+                {"category": "input_tokens", "price": 8, "currency": "CNY"},
+                {"category": "input_tokens", "price": 1.5},
+                {"category": "output_tokens", "price": 28, "currency": "CNY"},
+            ],
+        }
+    )
+    listing["versions"][1]["models"].append(
+        {
+            "id": "yuan-only",
+            "pricingItems": [
+                {"category": "output_tokens", "price": 4, "currency": "CNY"}
+            ],
+        }
+    )
+    return listing
+
+
+def test_a_price_in_yuan_is_turned_into_dollars_at_the_lists_rate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _source(
+        tmp_path, monkeypatch, _in_yuan(exchangeRate={"pair": "USD/CNY", "usdCny": 8})
+    )
+    assert prices.refresh(wait=True)
+    priced = prices.price("glm-5.3")
+    assert priced is not None
+    assert priced.per_million == {"input": 1.0, "output": 3.5}
+    yuan = prices.price("yuan-only")
+    assert yuan is not None
+    assert yuan.per_million == {"output": 0.5}
+    # An item that names no currency is in dollars.
+    sonnet = prices.price("claude-sonnet-5")
+    assert sonnet is not None
+    assert sonnet.per_million["input"] == 3.0
+
+
+@pytest.mark.parametrize(
+    "rate",
+    [
+        None,
+        {"pair": "USD/EUR", "usdCny": 8},
+        {"pair": "USD/CNY", "usdCny": 0},
+        {"pair": "USD/CNY", "usdCny": -8},
+        {"pair": "USD/CNY", "usdCny": float("nan")},
+        {"pair": "USD/CNY", "usdCny": True},
+        {"pair": "USD/CNY", "usdCny": "8"},
+        {"pair": "USD/CNY"},
+        "8",
+    ],
+)
+def test_a_price_in_yuan_without_a_usable_rate_is_left_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rate: object
+) -> None:
+    said = _in_yuan() if rate is None else _in_yuan(exchangeRate=rate)
+    _source(tmp_path, monkeypatch, said)
+    assert prices.refresh(wait=True)
+    priced = prices.price("glm-5.3")
+    assert priced is not None
+    # The dollar item behind it is taken instead; the yuan never lands as dollars.
+    assert priced.per_million == {"input": 1.5}
+    assert prices.price("yuan-only") is None
+
+
 @pytest.mark.parametrize(
     "said",
     [
