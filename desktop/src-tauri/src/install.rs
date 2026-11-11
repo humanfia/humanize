@@ -700,7 +700,10 @@ fn download(env: &Env, dir: &Path, tell: &dyn Fn(&str)) -> Result<PathBuf, Strin
 
 /// The sha256 of `bytes`, in lowercase hex.
 fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// The `uv` in a release archive, once its sha256 is the one expected.
