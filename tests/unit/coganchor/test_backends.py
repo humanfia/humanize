@@ -612,9 +612,9 @@ def test_read(
         ("1bad=claude/m", "not a place a flow could declare"),
         ("claude/m,codex/n", "expected one agent"),
         ("claude@/m", "expected an account"),
-        ("nobody/m", "expected \\[NAME=\\]CLI"),
-        ("claude", "expected \\[NAME=\\]CLI"),
-        ("claude/ :high", "expected \\[NAME=\\]CLI"),
+        ("nobody/m", "unknown CLI 'nobody'; see the CLI reference"),
+        ("claude", "missing model"),
+        ("claude/ :high", "missing model"),
     ],
 )
 def test_read_refuses(spec: str, why: str) -> None:

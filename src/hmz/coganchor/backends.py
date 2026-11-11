@@ -5312,8 +5312,8 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
       machine already runs its CLI.
 
     Raises:
-      ValueError: If it is not that or names no backend there is. What it says is what a
-        command line reports after the agent it could not read.
+      ValueError: If it is not that or names no backend there is. Unknown CLI names and
+        missing models have separate messages so a command line can say what to fix.
     """
     name, written, rest = spec.partition("=")
     name, spec = (name.strip(), rest) if written else ("", spec)
@@ -5345,9 +5345,16 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
         raise ValueError(
             "expected an account after @, as in claude@deepseek/MODEL:EFFORT"
         )
-    profile = named(backend.strip())
-    if profile is None or not model.strip():
+    backend = backend.strip()
+    if not backend:
         raise ValueError("expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]")
+    profile = named(backend)
+    if profile is None:
+        raise ValueError(
+            f"unknown CLI {backend!r}; see the CLI reference for supported names"
+        )
+    if not model.strip():
+        raise ValueError("missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]")
     # `auto` is the written form of no rung at all, and this is where it stops being written:
     # everything downstream reads the absence as "", which is what every driver already knows
     # to say nothing about. So is an effort left off, and one that is empty rather than

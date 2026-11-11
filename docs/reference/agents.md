@@ -143,7 +143,8 @@ file, `Runs`, the TUI. `backends.read` parses one item; `-a` splits a value on `
 | --- | --- |
 | no `ROLE=` | `-a 'claude/m:high': expected <role>=<harness>[@<provider>]/<model>[:<effort>]` |
 | a role that is not an identifier | `` -a '9x=claude/m:high': '9x' is not a place a flow could declare: what is written before `=` is a field of the tuple of agents the flow declares, so it is a Python identifier `` |
-| unknown CLI, no `/`, empty model | `-a 'agent=claude': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
+| unknown CLI | `-a 'agent=codxe/model': unknown CLI 'codxe'; see the CLI reference for supported names` |
+| known CLI with no `/` or empty model | `-a 'agent=claude': missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
 | `@` with no account | `-a 'agent=claude@/m:high': expected an account after @, as in claude@deepseek/MODEL:EFFORT` |
 | a role given twice | `-a: the role 'agent' is given twice` |
 | an empty item | `-a '<value>': an item is empty` |

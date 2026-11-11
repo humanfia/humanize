@@ -115,6 +115,11 @@ def test_repeated_flags_add_up_in_order() -> None:
         (["-f", "x"], "the following arguments are required: task"),
         (["-f", "x", "--nope", "t"], "unrecognized arguments: --nope"),
         (["-f", "x", "-a", "builder", "t"], "-a 'builder'"),
+        (
+            ["-f", "x", "-a", "assistant=codxe/gpt-6.1-sol", "t"],
+            "unknown CLI 'codxe'; see the CLI reference",
+        ),
+        (["-f", "x", "-a", "assistant=codex/", "t"], "missing model"),
         (["-f", "x", "-a", "b=claude/opus,b=codex/o3", "t"], "given twice"),
         (["-f", "x", "-a", "b=claude/opus,", "t"], "expected one agent"),
         (["-f", "x", "-e", "", "t"], "an item is empty"),
