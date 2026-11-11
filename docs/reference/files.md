@@ -138,7 +138,9 @@ naming) more than 10 min old, left by a process that exited mid-write. A list th
 price that is not a finite number is never written, and while it is what the source says, or
 what is kept, every run is refused before its first turn (`hmz exec` exits 2).
 `per_million` is US dollars: a price the list gives in yuan is converted at the list's own
-`exchangeRate`, and one in a currency with no usable rate is left out.
+`exchangeRate`, and one in a currency with no usable rate is left out. Where the list sells a
+model two cache writes, `cache_write` is the five-minute one and `per_million` also has
+`cache_write_1h`, the one-hour one, whichever order the list gives them in.
 
 ### `M/releases.json` {#h-releases-json}
 

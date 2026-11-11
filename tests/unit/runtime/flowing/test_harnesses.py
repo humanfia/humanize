@@ -67,7 +67,7 @@ from hmz.runtime.flowing.spi import (
 from tests.unit.runtime.flowing.doubles_u11 import returning
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterator, Mapping
 
 # ------------------------------------------------------------------------- coganchor, stood in
 
@@ -1188,7 +1188,7 @@ async def test_a_turn_with_nothing_left_to_spend_is_refused(
 async def test_a_price_that_is_not_a_number_is_a_cost_no_cap_affords(
     coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def cost(usage: object, model: str) -> float:
+    def cost(usage: object, model: str, **_: float) -> float:
         raise prices.PriceError("prices it at nan dollars")
 
     def spent(self: Conversation) -> dict[str, float]:
@@ -1204,6 +1204,56 @@ async def test_a_price_that_is_not_a_number_is_a_cost_no_cap_affords(
             TurnRequest("x", limits=Limits(cost=1.0, cost_graceful=False)), sink
         )
     assert sink.added[0][0] == float("inf")
+
+
+async def test_one_hour_cache_writes_are_priced_as_such(
+    coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[tuple[dict[str, float], float]] = []
+
+    def cost(usage: Mapping[str, float], model: str, *, hour: float = 0.0) -> float:
+        asked.append((dict(usage), hour))
+        return 1.0
+
+    def spent(self: Conversation) -> coganchor_agents.Usage:
+        return coganchor_agents.Usage({"cache_write": 100.0}, hour=40.0)
+
+    monkeypatch.setattr(prices, "cost", cost)
+    monkeypatch.setattr(Conversation, "spent", spent)
+    session = await _session(open_agent(_spec()), tmp_path)
+
+    await session.turn(TurnRequest("x", limits=Limits(cost=10.0)), Sink())
+
+    assert asked == [({"cache_write": 100.0}, 40.0)]
+
+
+async def test_one_hour_cache_writes_said_after_their_writes_are_priced_as_such(
+    coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[tuple[dict[str, float], float]] = []
+    held = [
+        coganchor_agents.Usage({"cache_write": 100.0}),
+        coganchor_agents.Usage({"cache_write": 100.0}, hour=40.0),
+    ]
+
+    def cost(usage: Mapping[str, float], model: str, *, hour: float = 0.0) -> float:
+        asked.append((dict(usage), hour))
+        return 1.0
+
+    def spent(self: Conversation) -> coganchor_agents.Usage:
+        return held[0]
+
+    monkeypatch.setattr(prices, "cost", cost)
+    monkeypatch.setattr(Conversation, "spent", spent)
+    session = await _session(open_agent(_spec()), tmp_path)
+
+    await session.turn(TurnRequest("x", limits=Limits(cost=10.0)), Sink())
+    held.pop(0)
+    await session.turn(TurnRequest("y", limits=Limits(cost=10.0)), Sink())
+
+    # The writes priced when they were counted, and what they cost as one-hour writes when
+    # that was said, with no cache write of its own to hold it to.
+    assert asked == [({"cache_write": 100.0}, 0.0), ({}, 40.0)]
 
 
 async def test_a_turn_with_time_to_spare_is_taken(

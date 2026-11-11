@@ -39,7 +39,7 @@ price, so Humanize keeps them apart rather than adding them into one total:
 | `input` | what the agent was sent, fresh |
 | `output` | what the model wrote, reasoning included unless the CLI counts it apart |
 | `cache_read` | input the provider had cached from an earlier request, usually the bulk of a long turn and the cheapest |
-| `cache_write` | input written into that cache, priced a little above `input` |
+| `cache_write` | input written into that cache, priced a little above `input`. Claude writes some of it to a cache kept for an hour, which the list prices higher; that part stays counted here and is priced at the list's one-hour price |
 | `reasoning` | thinking, where a CLI counts it apart from the output. Priced as output |
 
 The money is those tokens at list price, in US dollars, from a public price list. The rate is

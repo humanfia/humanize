@@ -109,6 +109,14 @@ def test_a_meter_adds_what_was_spent_and_ignores_nothing() -> None:
     assert dict(meter.spent()) == {"input": 3, "output": 5, "cache_read": 2}
 
 
+def test_a_meter_adds_one_hour_cache_writes_beside_the_kinds() -> None:
+    meter = Meter()
+    meter.spend(Usage({"cache_write": 10.0}, hour=4.0))
+    meter.spend(Usage({"cache_write": 5.0}, hour=1.0))
+    assert dict(meter.spent()) == {"input": 0.0, "output": 0.0, "cache_write": 15.0}
+    assert meter.spent().hour == 5.0
+
+
 def test_a_meters_rate_is_over_the_window() -> None:
     meter = Meter()
     now = time.monotonic() + 10 * WINDOW  # the run is older than any window asked about

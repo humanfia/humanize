@@ -284,6 +284,17 @@ class Monitor:
     parts: dict[str, dict[str, float]] = field(
         default_factory=dict[str, dict[str, float]]
     )
+    #: How many of the cache writes each source has counted went to a cache kept for an hour,
+    #: which is priced above one kept for five minutes. Beside the kinds rather than among
+    #: them: they are part of `cache_write`, and no kind is drawn for them.
+    hours: dict[tuple[str, str], float] = field(
+        default_factory=dict[tuple[str, str], float]
+    )
+    #: And of each model, the most any source has said: a source that never says which cache
+    #: a write went to -- the backend's own events -- may be the fullest reckoning for a
+    #: moment, and must not reprice as five-minute writes the one-hour writes already counted.
+    #: It is held to the cache writes of the reckoning it is priced with.
+    hour: dict[str, float] = field(default_factory=dict[str, float])
     #: Which kinds of token each agent's backend reports at all, said of the backend rather
     #: than read off what a turn happened to spend -- a kind nothing went on this turn is
     #: missing from that turn's reckoning exactly as a kind the CLI never counts is, and this
@@ -498,6 +509,7 @@ class Monitor:
         total: int,
         now: float | None = None,
         kinds: Mapping[str, float] | None = None,
+        hour: float = 0.0,
     ) -> None:
         """Notes what one source has now seen spent on one model, all told.
 
@@ -512,9 +524,11 @@ class Monitor:
           now: When, defaulting to this moment. Given only so a test can say.
           kinds: The same total broken into the kinds of token it went on, where this source
             says which. A total rather than an addition, for the reason `total` is one.
+          hour: How many of the `cache_write` tokens in `kinds` went to a one-hour cache,
+            likewise a total.
         """
         with self._lock:
-            self._counted(source, model, total, now, kinds)
+            self._counted(source, model, total, now, kinds, hour)
 
     def _counted(
         self,
@@ -523,6 +537,7 @@ class Monitor:
         total: int,
         now: float | None,
         kinds: Mapping[str, float] | None,
+        hour: float = 0.0,
     ) -> None:
         """The whole of `counted`, with the lock already held by whoever called."""
         was = self.totals.get((source, model), 0)
@@ -530,7 +545,9 @@ class Monitor:
         # A breakdown that has changed is worth having even where the total has not moved:
         # one source may say a lump where another says what the lump was made of, and the
         # money is worked out from whichever of them said.
-        moved = broken != self.kinds.get((source, model))
+        moved = broken != self.kinds.get((source, model)) or hour != self.hours.get(
+            (source, model), 0.0
+        )
         if total <= was and not moved:
             return
         # Written even where it has not risen, and even where it is nought: what is spent is
@@ -546,12 +563,17 @@ class Monitor:
                 self.kinds.pop((source, model), None)
             else:
                 self.kinds[(source, model)] = broken
+            self.hours[(source, model)] = hour
             self.changed += 1  # so that what it is worth is worked out again
         # What every per-kind figure and the money are read off, kept here so that the rate --
         # which is output alone -- has a rise per kind to be measured over. Clamped at
         # nothing, because the fullest source may change from one reading to the next and a
         # reckoning that went backwards is not tokens somebody got back.
         fullest = self._fullest(model)
+        self.hour[model] = max(
+            (said for (_, named), said in self.hours.items() if named == model),
+            default=0.0,
+        )
         before = self.parts.get(model, {})
         grown = {
             kind: risen
@@ -658,7 +680,8 @@ class Monitor:
         if not broken:
             return None
         try:
-            return prices.cost(broken, model)
+            hour = min(self.hour.get(model, 0.0), broken.get("cache_write", 0.0))
+            return prices.cost(broken, model, hour=hour)
         except prices.PriceError:
             return math.inf  # a bill nobody can read, which `money` says as `$?`
 

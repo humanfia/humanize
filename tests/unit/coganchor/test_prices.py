@@ -482,3 +482,79 @@ def test_refresh_sweeps_copies_abandoned_beside_the_list(
     assert prices.refresh(wait=True)
     assert not old.exists()
     assert recent.exists()
+
+
+def _written(price: float, duration: str | None) -> dict[str, Any]:
+    return {
+        "category": "cache_write_tokens",
+        "price": price,
+        "conditions": {"contextRange": "all", "cacheDuration": duration},
+    }
+
+
+def _with_hours(*writes: dict[str, Any]) -> dict[str, Any]:
+    """The listing with a model sold two cache writes, five-minute and one-hour (#553)."""
+    listing = _listing()
+    listing["versions"][1]["models"].append(
+        {
+            "id": "claude-opus-5-5",
+            "pricingItems": [
+                {"category": "input_tokens", "price": 4},
+                *writes,
+                {"category": "cache_read_tokens", "price": 0.2},
+                {"category": "output_tokens", "price": 20},
+            ],
+        }
+    )
+    return listing
+
+
+@pytest.mark.parametrize(
+    "writes",
+    [
+        (_written(5, "5m"), _written(8, "1h")),
+        (_written(8, "1h"), _written(5, "5m")),
+    ],
+)
+def test_a_one_hour_cache_write_is_kept_beside_the_five_minute_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, writes: tuple[dict[str, Any], ...]
+) -> None:
+    _source(tmp_path, monkeypatch, _with_hours(*writes))
+    assert prices.refresh(wait=True)
+    priced = prices.price("claude-opus-5-5")
+    assert priced is not None
+    assert priced.per_million == {
+        "input": 4.0,
+        "cache_write": 5.0,
+        "cache_write_1h": 8.0,
+        "cache_read": 0.2,
+        "output": 20.0,
+    }
+    # The issue's row: 100,000 tokens written to the one-hour cache, at list price.
+    usage = {"input": 6.0, "output": 500.0, "cache_write": 100_000.0}
+    assert prices.cost(usage, "claude-opus-5-5", hour=100_000) == pytest.approx(
+        0.810024
+    )
+    # Counted as five-minute writes where nobody says otherwise, as before.
+    assert prices.cost(usage, "claude-opus-5-5") == pytest.approx(0.510024)
+    # Writes counted in an earlier reckoning and only now said to be one-hour ones: what
+    # they cost beyond the five-minute price they were counted at.
+    assert prices.cost({}, "claude-opus-5-5", hour=100_000) == pytest.approx(0.3)
+
+
+def test_one_hour_writes_of_a_model_without_a_one_hour_price_cost_a_cache_write(
+    listed: Path,
+) -> None:
+    usage = {"cache_write": 1_000_000.0}
+    assert prices.cost(usage, "claude-sonnet-5", hour=1_000_000) == pytest.approx(3.75)
+
+
+def test_a_one_hour_price_that_is_not_a_number_refuses_every_price(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _source(tmp_path, monkeypatch, None)
+    listing = _with_hours(_written(5, "5m"), _written(12345, "1h"))
+    source.write_text(json.dumps(listing).replace("12345", "NaN"), encoding="utf-8")
+    assert not prices.refresh(wait=True)
+    with pytest.raises(prices.PriceError, match=r"cache_write_1h"):
+        prices.cost({"input": 1000}, "claude-sonnet-5")
