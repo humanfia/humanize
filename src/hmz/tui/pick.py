@@ -60,7 +60,7 @@ from typing import (
 from urllib.parse import unquote
 from weakref import WeakKeyDictionary
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 from rich.markup import escape
 from textual import events, on, work
 from textual.await_complete import AwaitComplete
@@ -3182,13 +3182,6 @@ class Budgeted(BaseModel):
             parse_duration(said)
         return said.strip()
 
-    @model_validator(mode="after")
-    def _limits_something(self) -> Budgeted:
-        """Refuses a budget that limits nothing, which is no budget."""
-        if not (self.duration or self.cost or self.output_tokens):
-            raise ValueError("set at least one of duration, cost and output_tokens")
-        return self
-
     @classmethod
     def of(cls, budget: Budget) -> Budgeted:
         """A budget, as the sheet shows it.
@@ -3214,8 +3207,14 @@ class Budgeted(BaseModel):
 
     def budget(self) -> Budget:
         """What the sheet was answered with, as a run's budget."""
+        import math
+
         from hmz.runtime.flowing import parse_duration
 
+        if not (self.duration or self.cost or self.output_tokens):
+            # Every field says "0/empty for no limit": all of them empty is a run with
+            # no limit, which a Budget spells as an infinite cost (as the CLI does).
+            return Budget(cost=math.inf)
         return Budget(
             duration=parse_duration(self.duration) if self.duration else None,
             cost=self.cost or None,
