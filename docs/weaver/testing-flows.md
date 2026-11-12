@@ -328,8 +328,9 @@ def reply(prompt: str, *, output_schema=None, **_) -> object:
     return f"did {prompt}"
 ```
 
-**An answer out of shape raises `OutputSchemaError`**, a `HarnessError`, so the path your flow
-takes on a bad answer is testable too. `{"done": "maybe"}` is not a `bool`:
+**An answer out of shape gets one retry with the validation error fed back**; if it is still
+malformed, it raises `OutputSchemaError`, a `HarnessError`, so the path your flow takes on a
+bad answer is testable too. `{"done": "maybe"}` is not a `bool`:
 
 ```python
 async def test_a_malformed_review_is_skipped() -> None:
