@@ -258,6 +258,26 @@ def manager(monkeypatch: pytest.MonkeyPatch) -> type[_Config]:
     return Config
 
 
+async def test_a_runtime_that_does_not_resolve_its_image_says_so_to_the_service(
+    manager: type[_Config],
+) -> None:
+    machine = SwarmMachine(
+        "c",
+        PurePosixPath("/srv/x"),
+        stored=runtime(
+            Runtime(name="c", cpus=8, gpu_resource="NVIDIA-GPU", resolve_image=False)
+        ),
+        role=_worker(),
+    )
+    driver = MachineEnvDriver(machine, PurePosixPath("/work"))
+
+    await driver.probe()
+
+    (made,) = manager.made
+    assert made["resolve_image"] is False
+    await driver.close()
+
+
 async def test_a_task_is_created_with_its_share_and_reached_where_it_landed(
     manager: type[_Config],
 ) -> None:
@@ -289,6 +309,7 @@ async def test_a_task_is_created_with_its_share_and_reached_where_it_landed(
     assert made["constraints"] == ("node.labels.gpu==1",)
     assert made["nodes"] == {"node-2": "tcp://node-2.lan:2376"}
     assert (made["traced"], made["run_args"]) == (True, ("--init",))
+    assert made["resolve_image"] is True  # docker's way, unless the runtime says not
     assert (made["labels"][PROVIDER], made["labels"][ROLE]) == ("c", "worker")
     assert machine.target.startswith("docker://task.1.abc@")
     assert machine.resources(gpus=True) == Resources(4, 8 << 30, 1, 16384 << 20)

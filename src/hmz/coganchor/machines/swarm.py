@@ -115,6 +115,11 @@ class SwarmConfig(MachineConfig):
         given up on.
       starting: How long, in seconds, it may take to be running once it has a node --
         pulling its image among it.
+      resolve_image: Whether the manager asks the image's registry for its digest as it
+        creates the service, docker's way; False creates it with `--no-resolve-image`,
+        each node running the image it holds under that name and pulling it only where it
+        holds none -- no registry round trip, some two seconds each, for an image pinned
+        by digest or the same on every node.
     """
 
     image: str = "python:3.12"
@@ -133,6 +138,7 @@ class SwarmConfig(MachineConfig):
     labels: Mapping[str, str] = field(default_factory=dict[str, str], hash=False)
     placing: float = 30.0
     starting: float = 600.0
+    resolve_image: bool = True
 
     def __post_init__(self) -> None:
         """Refuses what the swarm would refuse, where it is written rather than as it starts.
@@ -459,6 +465,7 @@ class Swarm(MachineBase):
                     "1",
                     "--restart-condition",
                     "none",
+                    *(() if config.resolve_image else ("--no-resolve-image",)),
                     "--name",
                     name,
                     *self._labelled(),

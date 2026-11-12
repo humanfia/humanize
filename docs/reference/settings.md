@@ -217,6 +217,7 @@ entry that does not validate is skipped. A runtime an earlier Humanize wrote wit
 | `cpus` | `float` |
 | `memory`, `max_tasks` | `int` |
 | `nodes` | `{str: str}`: a node's host name to a saved ssh runtime's name or `[user@]host[:port]` |
+| `resolve_image` | `bool` (default `true`; `false`: `--no-resolve-image`) |
 | `made` | `"typed"` |
 
 `apple-container`: `image`, `workdir`, `harness` (`str`), `run_args`, `fallback` (`[str]`),

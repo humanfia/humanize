@@ -8386,6 +8386,9 @@ class Swarming(_Daemon["SwarmRuntime"]):
             "max_tasks": _how_many(typed.get(_TASKS, ""), "max tasks"),
             "gpu_resource": typed.get(_RESOURCE, ""),
             "nodes": _pairs(typed.get(_NODES, "")),
+            # Not on the form, and so kept as it was written rather than reset by it: a swarm
+            # told not to resolve its image would otherwise be corrected into one that does.
+            "resolve_image": self._one.resolve_image if self._one is not None else True,
         }
 
 

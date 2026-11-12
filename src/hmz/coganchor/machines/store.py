@@ -623,6 +623,9 @@ class SwarmRuntime:
       made: How it was made, which is :data:`TYPED`.
       harness: Where the harness of an agent working on it runs, and nowhere else: see
         :func:`affine`.
+      resolve_image: Whether a service is created with its image's digest asked of the
+        registry, docker's way; False passes `--no-resolve-image`: each node runs the image
+        it holds under that name (see :class:`~hmz.coganchor.machines.swarm.SwarmConfig`).
     """
 
     backend: ClassVar[str] = SWARM
@@ -643,6 +646,7 @@ class SwarmRuntime:
     fallback: tuple[str, ...] = ()
     made: str = TYPED
     harness: str = ENV
+    resolve_image: bool = True
 
     def __post_init__(self) -> None:
         _named(self.name)
@@ -939,11 +943,18 @@ type Runtime = (
 )
 
 
+#: Fields written down only where they are not their default: a runtime that leaves them
+#: so is written as a Humanize without them wrote it, and reads there.
+_UNLESS_DEFAULT = frozenset({"resolve_image"})
+
+
 def _fields(runtime: Runtime) -> dict[str, Any]:
-    """Every field of one, as JSON holds it."""
+    """Every field of one, as JSON holds it, but those of `_UNLESS_DEFAULT` at default."""
     held: dict[str, Any] = {}
     for one in dataclasses.fields(runtime):
         value: object = getattr(runtime, one.name)
+        if one.name in _UNLESS_DEFAULT and value == one.default:
+            continue
         if isinstance(value, tuple):
             value = [str(each) for each in cast("tuple[object, ...]", value)]
         elif one.name in _MAPPINGS:
@@ -1117,6 +1128,10 @@ def _typed(key: str, default: object, value: object, name: str) -> object:
         if not isinstance(value, (list, tuple)):
             raise wrong
         return tuple(str(one) for one in cast("Iterable[Any]", value))
+    if isinstance(default, bool):  # a switch: true or false, never 0 or 1
+        if not isinstance(value, bool):
+            raise wrong
+        return value
     if isinstance(value, bool):
         raise wrong
     if isinstance(default, float):
