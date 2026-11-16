@@ -269,7 +269,8 @@ certificate for it, made the first time hmz needs either and kept as Section 4.1
 
 **4.3.2** A device certificate MUST be X.509 version 3, self-signed with ECDSA and SHA-256, with a
 serial number of 16 random bytes, the subject and issuer common name `hmz <host>` (`<host>` this
-machine's host name up to its first `.`), a `notBefore` of the moment it was made and a `notAfter`
+machine's host name up to its first `.`, cut to its first 60 characters, so that the common name
+is at most the 64 characters X.509 allows), a `notBefore` of the moment it was made and a `notAfter`
 of `99991231235959Z`.
 
 **4.3.3** The daemon of a machine and every client on that machine MUST use that machine's one

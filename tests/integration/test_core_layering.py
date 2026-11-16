@@ -101,6 +101,8 @@ ALLOWED: dict[str, set[str]] = {
     # this machine's daemon where `where` says it is.
     "hmz.reach": {"hmz.coganchor", "hmz.daemon.where"},
     "hmz.relay": set(),
+    # Who is at the other end of a carrier: a device's key, pairing, and TLS between two.
+    "hmz.trust": {"hmz.coganchor.atomic", "hmz.coganchor.settings"},
     "hmz.tui": {
         "hmz.coganchor",
         "hmz.flows",

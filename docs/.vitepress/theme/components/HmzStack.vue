@@ -70,6 +70,7 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.daemon': ['hmz.runtime'],
   'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where'],
   'hmz.relay': [],
+  'hmz.trust': ['hmz.coganchor.atomic', 'hmz.coganchor.settings'],
   'hmz.tui': [
     'hmz.coganchor',
     'hmz.flows',
@@ -166,6 +167,12 @@ const LAYERS: Layer[] = [
     note: 'Imports nothing of Humanize: it reads nothing of the machine it runs on.',
     spec: 'wire.md#5-the-relay',
     ref: '/user/relay',
+  },
+  {
+    id: 'trust',
+    dotted: 'hmz.trust',
+    here: "Who is at the other end of a carrier that proves nothing by itself: this machine's device key, pairing codes, the paired devices, and mutual TLS between two devices over any pipe.",
+    spec: 'wire.md#4-session-security',
   },
   {
     id: 'runtime',
@@ -271,7 +278,7 @@ const LAYERS: Layer[] = [
 const BANDS: { label: string; ids: string[] }[] = [
   { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
-  { label: 'reaching a daemon', ids: ['reach', 'relay'] },
+  { label: 'reaching a daemon', ids: ['reach', 'relay', 'trust'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
   { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },
