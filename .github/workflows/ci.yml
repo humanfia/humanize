@@ -225,7 +225,21 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends bubblewrap
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
+      - name: DIAGNOSTIC hang hunt
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          (while sleep 10; do echo "=== $(date +%T) $(free -m | awk 'NR==2{print "used="$3"MB"}') procs=$(ps -e --no-headers | wc -l)"; ps -eo pid,ppid,rss,pcpu,etime,args --sort=-pcpu | head -12 | cut -c1-200; done) &
+          watcher=$!
+          for dir in tests/unit/daemon tests/unit/web; do
+            echo "##### $dir"
+            ( ulimit -u 600; ulimit -v 6000000; timeout -k 10 300 uv run --frozen --all-extras pytest "$dir" -p no:randomly -v --timeout=60 -x 2>&1 | tail -n 400 ) || echo "##### $dir exit $?"
+          done
+          kill $watcher
+          exit 1
+
       - name: pytest tests/unit/<package>, a package at a time
+        if: runner.os != 'Linux'
         env:
           CHANGES: ${{ needs.changes.outputs.changes || '' }}
           EVENT: ${{ github.event_name }}
