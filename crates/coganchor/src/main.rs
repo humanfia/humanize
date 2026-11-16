@@ -12,7 +12,8 @@ fn main() {
         Mode::Internal(Internal::Fence(args)) => coganchor::fence::main(args),
         Mode::Internal(Internal::Cred(args)) => cred(args),
         Mode::Internal(Internal::Able(args)) => {
-            println!("{}", coganchor::fence::said(args.policy.as_deref()));
+            let asked = coganchor::fence::Sandbox::of(args.sandbox.as_deref());
+            println!("{}", coganchor::fence::said(args.policy.as_deref(), asked));
             0
         }
     };

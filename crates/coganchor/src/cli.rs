@@ -198,14 +198,24 @@ pub struct AbleArgs {
     /// A fence, as JSON or @PATH, whose carve-outs to ask about.
     #[arg(long, value_name = "JSON")]
     pub policy: Option<String>,
+    /// What puts a fence up on Linux: auto, landlock or bwrap.
+    #[arg(long, value_name = "BACKEND")]
+    pub sandbox: Option<String>,
 }
 
 /// `coganchor internal fence`: the options of `hmz internal fence`.
 #[derive(Clone, Debug, Args)]
+#[command(group(clap::ArgGroup::new("held").required(true).args(["policy", "relay"])))]
 pub struct FenceArgs {
     /// The fence, as JSON, or @PATH for a file holding it.
     #[arg(long, value_name = "JSON")]
-    pub policy: String,
+    pub policy: Option<String>,
+    /// Inside a network namespace bubblewrap made: carry loopback through DIR.
+    #[arg(long, value_name = "DIR")]
+    pub relay: Option<String>,
+    /// What puts the fence up on Linux: auto, landlock or bwrap.
+    #[arg(long, value_name = "BACKEND")]
+    pub sandbox: Option<String>,
     /// The program to run and its arguments, after --. Not required here: an empty one is
     /// refused by the command itself, with the usage line `hmz internal ...` has always printed.
     #[arg(

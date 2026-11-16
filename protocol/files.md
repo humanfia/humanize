@@ -348,6 +348,18 @@ MUST refuse it with `A secret must be at least 16 bytes.`
 (Section 3.8.5.7 of [DAEMON]); a writer given none MUST refuse it with `An EasyTier daemon needs at
 least one node.`
 
+#### 3.4.11. `sandbox`
+
+**3.4.11.1** `sandbox` MUST be a mapping with the keys `backend` and `native`, which say how this
+machine holds a grant (Section 4.6.4 of [CORE]); hmz MUST NOT write it.
+
+**3.4.11.2** `sandbox.backend` MUST be `auto`, `landlock` or `bwrap` (Section 4.6.4.16 of [CORE]);
+an absent value or any other MUST be read as `auto`.
+
+**3.4.11.3** `sandbox.native` MUST be a list of harness kinds whose own sandbox holds the grant
+(Section 4.6.4.19 of [CORE]); an absent value MUST be read as an empty list, and an entry that is
+not a kind name MUST be ignored.
+
 ### 3.5. `workspaces`
 
 #### 3.5.1. Workspace entries
