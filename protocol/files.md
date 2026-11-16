@@ -40,8 +40,10 @@ It is normative. It is cited by the tag [FILES].
   - [4.9. User flows](#49-user-flows)
   - [4.10. Environment state](#410-environment-state)
   - [4.11. Epics](#411-epics)
-  - [4.12. The server](#412-the-server)
+  - [4.12. The former server record](#412-the-former-server-record)
   - [4.13. EasyTier](#413-easytier)
+  - [4.14. Device identity and paired devices](#414-device-identity-and-paired-devices)
+  - [4.15. The web port](#415-the-web-port)
 - [5. Workspaces](#5-workspaces)
   - [5.1. Scope](#51-scope)
   - [5.2. Terminology](#52-terminology)
@@ -192,8 +194,8 @@ workspace entry, across every write.
 
 **3.3.3.1** Every write other than that of Section 3.4.7.2 MUST change exactly one thing: one
 machine key, one workspace's `flow` key together with one flow entry, one workspace entry removed,
-the whole value of `fallbacks`, of `clis`, of `backup`, of `daemons` or of `notifications`, or one
-runtime.
+the whole value of `fallbacks`, of `clis`, of `backup`, of `daemons`, of `notifications`, of
+`listen`, of `ice_servers` or of `easytier`, or one runtime.
 
 **3.3.3.2** A writer MUST guard, read and replace the settings file as Section 4.5 states for
 `<home>/settings.yaml`.
@@ -212,8 +214,9 @@ MUST keep its mode.
 workspace entry fails, or the file is unreadable, the process MUST keep the change in effect for
 itself for as long as it runs and MUST NOT report an error.
 
-**3.3.3.8** Where a write of `fallbacks`, `clis`, `daemons`, `notifications` or a runtime fails, or
-the file is unreadable, hmz MUST refuse the change with an error that names the file.
+**3.3.3.8** Where a write of `fallbacks`, `clis`, `daemons`, `notifications`, `listen`,
+`ice_servers`, `easytier` or a runtime fails, or the file is unreadable, hmz MUST refuse the change
+with an error that names the file.
 
 ### 3.4. Machine keys
 
@@ -256,7 +259,8 @@ shows every epic of this machine rather than those of the current workspace.
 
 #### 3.4.5. `notifications`
 
-**3.4.5.1** `notifications` MUST be a mapping with the keys `kinds` and `system`.
+**3.4.5.1** `notifications` MUST be a mapping with the keys `kinds` and `system`, which the
+terminal interface reads; the page keeps its own (Section 3.15 of [WEB]).
 
 **3.4.5.2** `notifications.kinds` MUST be a mapping from each of `done`, `failed`, `stopped`,
 `asked` and `listening` to a boolean that says whether a notice of that kind is given (Section 10 of
@@ -271,39 +275,32 @@ system to show each notice.
 
 #### 3.4.6. `daemons`
 
-**3.4.6.1** `daemons` MUST be a list of mappings, each naming the daemon of one other machine
-reached over ssh or over EasyTier (Section 3 of [DAEMON]).
+**3.4.6.1** `daemons` MUST be a list of mappings, each naming the daemon of one other machine as the
+terminal interface, `hmz exec` and the SDK of this machine keep it (Section 3.8.1 of [DAEMON]); the
+page and the desktop application keep their own (Section 3.13 of [WEB]).
 
-**3.4.6.2** Each entry MUST have the key `name` and MAY have the key `via`, `ssh` or `easytier`, an
-entry without `via` being `ssh`. An `ssh` entry MAY have the keys `host`, `user`, `port`,
-`identity_file`, `proxy_jump`, `options`, `alias` and `config`, with the types and validation of the
-fields of the same names of an ssh runtime (Section 3.8.3), but for `options` (Section 3.4.6.4).
+**3.4.6.2** Each entry MUST have the keys `name`, `id` and `routes`, and no other.
 
 **3.4.6.3** `name` MUST begin with a letter or a digit, MUST consist of letters, digits, `.`, `_`
 and `-`, and MUST NOT be `local` in any case.
 
-**3.4.6.4** `options` MUST be a list of two-element lists, each a keyword and its value, with the
-validation of Section 3.8.3.6 and Section 3.8.3.7.
+**3.4.6.4** `id` MUST be the daemon id the client pins (Section 4.2.4 of [WIRE]), 52 base32
+characters, or `""` until the daemon is first reached over a trusted carrier.
 
-**3.4.6.5** An entry with a key outside Section 3.4.6.2, with an invalid value, or with a `name` an
+**3.4.6.5** `routes` MUST be a non-empty list of routes (Section 3.3 of [WIRE]), in the order they
+are tried; an entry whose `id` is `""` MUST have a trusted route first.
+
+**3.4.6.6** An entry with a key outside Section 3.4.6.2, with an invalid value, or with a `name` an
 earlier entry has MUST be ignored when read and MUST be removed at the next write of `daemons`.
 
-**3.4.6.6** The daemon of this machine MUST NOT be written in `daemons`.
+**3.4.6.7** The daemon of this machine MUST NOT be written in `daemons`.
 
-**3.4.6.7** An `ssh` entry with `alias` and none of `host`, `user`, `port`, `identity_file`,
-`proxy_jump` and `options` MUST be reached through the ssh configuration's host of that alias; any
-other `ssh` entry MUST be reached from the fields it holds. Which of the two an entry is MUST NOT be
-stored.
-
-**3.4.6.8** An `easytier` entry MUST have the keys `secret` and `peers` and MUST NOT have any other
-key but `name` and `via`; an `ssh` entry MUST NOT have `secret` or `peers`.
-
-**3.4.6.9** `secret` MUST be a string of at least 16 bytes in UTF-8; a writer given a shorter one
-MUST refuse it with `A secret must be at least 16 bytes.`
-
-**3.4.6.10** `peers` MUST be a non-empty list of strings, each the URL of a shared EasyTier node
-(Section 3.8.5.10 of [DAEMON]); a writer given none MUST refuse it with `An EasyTier daemon needs at
-least one node.`
+**3.4.6.8** An entry written by an earlier release, of the keys `via`, `host`, `user`, `port`,
+`identity_file`, `proxy_jump`, `options`, `alias`, `config`, `secret` and `peers`, MUST be read as
+the entry those keys reached: an `ssh` one as `id` `""` and one `stdio:ssh` route of its fields; an
+`easytier` one as `id` `""`, one `easytier:<name>` route and the EasyTier entry `<name>` of its
+`secret` and `peers` (Section 3.4.10). The next write of `daemons` MUST write it as Section 3.4.6.2
+states, and the next write of `easytier` that entry.
 
 #### 3.4.7. `spelling`
 
@@ -320,6 +317,36 @@ where no runtime of that backend is written as `local`, into `<backend>/<dir>`.
 
 **3.4.7.4** Where `spelling` is `2`, hmz MUST read every env spec as written, whatever has become of
 the runtimes it names.
+
+#### 3.4.8. `listen`
+
+**3.4.8.1** `listen` MUST be a list of listener specs (Section 3.9.2 of [DAEMON]), each a listener
+the daemon of this machine opens beside its socket; absent or empty, the daemon MUST listen on its
+socket alone.
+
+**3.4.8.2** A writer given a spec that is not a listener spec MUST refuse it with `<spec> is not a
+listener.`, and one naming `easytier:<name>` with no EasyTier entry `<name>` with `There is no
+EasyTier entry <name>.`
+
+#### 3.4.9. `ice_servers`
+
+**3.4.9.1** `ice_servers` MUST be a list of mappings, each `urls` (a `stun:`, `turn:` or `turns:`
+URL, or a list of them) and, for a TURN server, `username` and `credential`, as WebRTC names them;
+it MUST name the STUN and TURN servers the daemon of this machine uses to answer WebRTC (Section
+4.7.8 of [WIRE]).
+
+#### 3.4.10. `easytier`
+
+**3.4.10.1** `easytier` MUST be a mapping from a name, of the grammar of Section 3.4.6.3, to an
+EasyTier entry: a mapping with exactly the keys `secret` and `nodes` (Section 3.8.5 of [DAEMON]),
+which the daemon of this machine listens on and the clients of this machine dial with.
+
+**3.4.10.2** `secret` MUST be a string of at least 16 bytes in UTF-8; a writer given a shorter one
+MUST refuse it with `A secret must be at least 16 bytes.`
+
+**3.4.10.3** `nodes` MUST be a non-empty list of strings, each the URL of a shared EasyTier node
+(Section 3.8.5.7 of [DAEMON]); a writer given none MUST refuse it with `An EasyTier daemon needs at
+least one node.`
 
 ### 3.5. `workspaces`
 
@@ -457,11 +484,11 @@ strings, the command that starts it, or a mapping with the keys `command`, `host
 **3.7.1.2** `command` MUST be a non-empty list of strings, the command that starts the harness,
 speaking the Agent Client Protocol.
 
-**3.7.1.3** `hosts` MUST be a list of hosts the harness MAY reach while a flow's permission cuts the
-network.
+**3.7.1.3** `hosts` MUST be a list of hosts the harness MAY reach while a flow's permission has
+`network` false.
 
-**3.7.1.4** `state` MUST be a list of paths the harness MAY write while a flow's permission forbids
-writing them.
+**3.7.1.4** `state` MUST be a list of paths the harness MAY write beyond what a flow's permission
+gives (Section 4.14.1.8 of [CORE]).
 
 **3.7.1.5** An entry whose command is not a non-empty list MUST be ignored when read.
 
@@ -688,7 +715,8 @@ removing surrounding white space and lower-casing letters.
 **3.11.2.1** `HUMANIZE_HOME` MUST name the home; a relative value MUST be taken relative to the
 current directory.
 
-**3.11.2.2** `HUMANIZE_DAEMON` MUST act as Section 3.4 of [DAEMON] states.
+**3.11.2.2** `HUMANIZE_DAEMON` MUST NOT be read: every frontend holds its epics through a daemon
+(Section 3.3.8 of [DAEMON]).
 
 **3.11.2.3** `HUMANIZE_NAME` MUST name the user part of a frontend's name (Section 4.7.1.5 of
 [DAEMON]).
@@ -720,10 +748,10 @@ hmz from sharing one ssh connection between the ssh commands it runs to one dest
 [CLI] names.
 
 **3.11.2.13** `HUMANIZE_EASYTIER` MUST name an EasyTier binary for hmz to use in place of the one it
-downloads (Section 3.8.5 of [DAEMON]); one that does not exist MUST be ignored.
+downloads (Section 3.8.5.6 of [DAEMON]); one that does not exist MUST be ignored.
 
 **3.11.2.14** `HUMANIZE_EASYTIER_NODES` MUST name the Uptime Kuma server whose status page
-`easytier` hmz reads the community's shared EasyTier nodes from (Section 3.8.5.11 of [DAEMON]), in
+`easytier` hmz reads the community's shared EasyTier nodes from (Section 3.8.5.8 of [DAEMON]), in
 place of EasyTier's own.
 
 #### 3.11.3. Other variables
@@ -734,7 +762,7 @@ specifies.
 **3.11.3.2** `TEXTUAL_THEME` MUST name the theme of the terminal interface; a name the interface
 does not have MUST be ignored.
 
-**3.11.3.3** `TMUX`, `TERM_PROGRAM` and `LC_TERMINAL` MUST be read as Section 6.1.7 of [CLI]
+**3.11.3.3** `TMUX`, `TERM_PROGRAM` and `LC_TERMINAL` MUST be read as Section 6.1.5 of [CLI]
 specifies.
 
 **3.11.3.4** `DISPLAY` and `WAYLAND_DISPLAY` MUST be read as Section 8.2.5 of [CLI] specifies.
@@ -761,7 +789,7 @@ Out of scope:
 - Directories outside the **home** on **this machine**: Section 7.
 - The state directory of **hmz** on a **machine** other than **this machine**: Section 9.
 - The directory `<workspace>/.hmz/`: Section 5.
-- The process of `hmz server`: Section 13 of [CLI] and Section 3.8.5 of [DAEMON].
+- The daemon's listeners and pairing: Section 3.9 of [DAEMON] and Section 4 of [WIRE].
 
 ### 4.2. Terminology
 
@@ -828,7 +856,7 @@ NOT read, modify, merge or remove `$HOME/.humanize`.
 reporting an error.
 
 **4.4.5** `hmz` MUST NOT create in `<home>` any entry other than those specified in Section 4.5 to
-Section 4.13.
+Section 4.15.
 
 **4.4.6** `hmz` MUST NOT remove `<home>`.
 
@@ -989,19 +1017,10 @@ is `<ws>`; its content is specified in Section 6.
 **4.11.2** `hmz` MUST NOT remove `<home>/epics/` or any directory in it, except the staging
 directories specified in Section 6.11.4.
 
-### 4.12. The server
+### 4.12. The former server record
 
-**4.12.1** `<home>/server.json` MUST be a JSON object with exactly the keys `pid` (integer, the
-process identifier of the server), `mode` (the string `p2p`), `port` (integer, the port of its `hmz
-web` on the loopback) and `version` (string, the version of **hmz** it runs), with mode `0600`,
-written by atomic replacement; `<home>/server.json` MUST NOT hold the secret of the server (Section
-3.8.5.1 of [DAEMON]).
-
-**4.12.2** `hmz server start` MUST write `<home>/server.json` once the server has started, and `hmz
-server stop` MUST remove it once the server has gone.
-
-**4.12.3** A `<home>/server.json` whose `pid` is not running MUST be read as no server, and MAY be
-removed by `hmz`; the **user** MAY delete it while no server runs.
+**4.12.1** `hmz` MUST NOT write `<home>/server.json`, which an earlier release's `hmz server` wrote;
+the **user** MAY delete it.
 
 ### 4.13. EasyTier
 
@@ -1014,6 +1033,40 @@ check of Section 3.8.5.6 of [DAEMON], and MUST NOT download again a binary prese
 
 **4.13.3** The **user** MAY delete `<home>/easytier/` or any directory in it while no process of
 **hmz** uses EasyTier; `hmz` downloads it again when next needed.
+
+### 4.14. Device identity and paired devices
+
+**4.14.1** `<home>/identity/<machine>/` MUST hold the device identity of this machine (Section 4.3
+of [WIRE]), with mode `0700`, `<machine>` being the content of `/etc/machine-id` on Linux, the
+`IOPlatformUUID` on macOS, and the host name up to its first `.` elsewhere and wherever that content
+is missing, unreadable or empty, as in a container given no machine id, so that machines that mount
+one home hold one identity each.
+
+**4.14.2** `key.pem` in it MUST be the device's private key, PKCS #8 in PEM and unencrypted, with
+mode `0600`, written by atomic replacement once, when it is first needed, and never rewritten.
+
+**4.14.3** `cert.pem` in it MUST be the device certificate in PEM, with mode `0600`, written by
+atomic replacement together with `key.pem`.
+
+**4.14.4** `devices.yaml` in it MUST be a YAML list of mappings, one per device paired with the
+daemon of this machine, each with exactly the keys `name`, `fingerprint` (its device fingerprint,
+Section 4.2.5 of [WIRE]), `added` and `seen` (UTC timestamps; `seen` `null` before a session of it
+was seen), with mode `0600`, written by atomic replacement by the daemon alone.
+
+**4.14.5** The daemon MUST write `seen` when a session of the device opens, and at most once a
+minute for one device.
+
+**4.14.6** The **user** MAY delete `devices.yaml` while **hmz** is not running, which unpairs every
+device; and MAY delete `<home>/identity/<machine>/` while **hmz** is not running, which gives this
+machine a new daemon id that every client pinning the old one refuses.
+
+### 4.15. The web port
+
+**4.15.1** `<home>/web-port` MUST hold the port the last `hmz web` of this home listened on, as
+decimal digits without a line feed, written by atomic replacement only when that port changes.
+
+**4.15.2** `hmz web` MUST read a `<home>/web-port` that does not hold a port from 1 to 65535 as no
+port; the **user** MAY delete it at any time.
 
 ## 5. Workspaces
 
@@ -1544,8 +1597,8 @@ Out of scope:
   homes: Section 8.
 - Files on a **machine** other than **this machine**: Section 9.
 - Files of the macOS app: Section 4 of [DESKTOP].
-- The record of `hmz server` and the EasyTier binaries, both in the **home**: Section 4.12 and
-  Section 4.13.
+- The EasyTier binaries, the device identity and the paired devices, all in the **home**: Section
+  4.13 and Section 4.14.
 - The messages carried over the socket of the **daemon**: Section 4 of [DAEMON].
 
 ### 7.2. Terminology
@@ -1688,7 +1741,7 @@ the files `<tmp>/humanize-<uid>.pyz` and `<tmp>/humanize-<uid>.stamp`.
 
 **7.6.2** `<mdir>/daemon.json` MUST be a JSON object with exactly the keys `pid` (integer, the
 process identifier of the **daemon**), `started` (string, `YYYY-MM-DDTHH:MM:SSZ`), `kind` (the
-string `daemon`) and `protocol` (integer, the protocol version specified in Section 4 of [DAEMON]),
+string `daemon`) and `protocol` (string, the protocol version of Section 6.5.1 of [WIRE]),
 with mode `0600`, written by atomic replacement.
 
 **7.6.3** The **daemon** MUST remove a stale `<mdir>/daemon.sock` before it binds the socket, and
@@ -2291,11 +2344,14 @@ document on which the security of a user's machine, credentials and work depends
   its name (Section 3.10.1.1 and Section 3.10.1.2).
 - A settings file that hmz creates, and its lock file `<home>/.settings.yaml.lock`, have mode `0600`
   (Section 3.3.3.4, Section 4.5.2 and Section 4.5.6).
-- The `secret` of an `easytier` entry of `daemons` is stored in the settings file and is at least 16
-  bytes long (Section 3.4.6.8 and Section 3.4.6.9).
+- The `secret` of an EasyTier entry is stored in the settings file and is at least 16 bytes long
+  (Section 3.4.10.2), and so is a TURN `credential` of `ice_servers` (Section 3.4.9.1).
+- A remote daemon is kept with the daemon id the client pins (Section 3.4.6.4).
 - `<home>/providers/`, each `<home>/providers/<cli>/` and each account directory are created with
   mode `0700` (Section 4.7.2).
-- `<home>/server.json` has mode `0600` and does not hold the secret of the server (Section 4.12.1).
+- The device key is kept in a directory of mode `0700` in a file of mode `0600`, is written once and
+  never rewritten, and the paired devices are kept in a file of mode `0600` written by the daemon
+  alone (Section 4.14).
 - `HUMANIZE_TOKEN` carries the default of a token option of `hmz internal anchor` in the environment
   of a process (Section 3.11.2.12).
 - hmz places no skill, hook, tool server configuration or instruction file for a harness in a
@@ -2338,6 +2394,7 @@ document on which the security of a user's machine, credentials and work depends
 - **[CORE]** "The Humanize Protocol: Core Concepts and Functional Behaviour", [`core.md`](core.md).
 - **[CLI]** "The Humanize Protocol: Command-Line Interface", [`cli.md`](cli.md).
 - **[DAEMON]** "The Humanize Protocol: Daemon", [`daemon.md`](daemon.md).
+- **[WIRE]** "The Humanize Protocol: Carriers, Sessions and RPC", [`wire.md`](wire.md).
 - **[WEB]** "The Humanize Protocol: Web Interface", [`web.md`](web.md).
 - **[DESKTOP]** "The Humanize Protocol: Desktop Application", [`desktop.md`](desktop.md).
 - **[PYTHON]** "The Humanize Protocol: Python Interfaces", [`python.md`](python.md).

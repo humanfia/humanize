@@ -81,6 +81,12 @@ jobs:
             unit-sdk: [*shared, src/hmz/sdk/**, tests/unit/sdk/**]
             unit-tui: [*shared, src/hmz/tui/**, tests/unit/tui/**]
             unit-web: [*shared, src/hmz/web/**, tests/unit/web/**]
+            # The RPC package holds protocol/openrpc.json to the protocol's text.
+            unit-rpc: [*shared, src/hmz/rpc/**, tests/unit/rpc/**, protocol/**]
+            unit-trust: [*shared, src/hmz/trust/**, tests/unit/trust/**]
+            unit-reach: [*shared, src/hmz/reach/**, tests/unit/reach/**]
+            unit-relay: [*shared, src/hmz/relay/**, tests/unit/relay/**]
+            unit-rtc: [*shared, src/hmz/rtc/**, tests/unit/rtc/**]
             integration-agents:
               - *shared
               - *kernel
@@ -112,6 +118,25 @@ jobs:
               - src/hmz/**
               - tests/integration/*_web*.py
               - tests/integration/doubles_core.py
+            # A daemon reached over each carrier: ssh and EasyTier through their doubles, and a
+            # WebRTC data channel over loopback. reach dials EasyTier and ssh through coganchor.
+            integration-reach:
+              - *shared
+              - *kernel
+              - src/hmz/{cli,daemon,reach,rpc,rtc,trust}/**
+              - tests/integration/*_reach*.py
+              - tests/integration/doubles_ssh.py
+              - tests/integration/doubles_easytier.py
+            integration-relay:
+              - *shared
+              - src/hmz/{cli,reach,relay,rpc,rtc,trust}/**
+              - tests/integration/*_relay*.py
+              - tests/unit/relay/doubles_relay.py
+            # The page's own modules, tested by node alone.
+            js:
+              - .github/workflows/ci.yml
+              - src/hmz/web/static/**
+              - tests/unit/web/js/**
             desktop:
               - desktop/**
               - .github/workflows/ci.yml
@@ -156,7 +181,7 @@ jobs:
   tests:
     name: tests (${{ matrix.os }})
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"unit-') || contains(needs.changes.outputs.changes, '"integration-')) }}
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"unit-') || contains(needs.changes.outputs.changes, '"integration-') || contains(needs.changes.outputs.changes, '"js"')) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -209,9 +234,14 @@ jobs:
         run: |
           export PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN)))
           status=0
-          for topic in core agents tui daemon anchor web; do
+          for topic in core agents tui daemon anchor web reach relay; do
             if [[ $EVENT != workflow_dispatch && $CHANGES != *"\"integration-$topic\""* ]]; then
               echo "integration $topic: unchanged"
+              continue
+            fi
+            # A topic its first tests have not reached yet.
+            if ! compgen -G "tests/integration/test_${topic}_*.py" > /dev/null; then
+              echo "::notice::integration $topic has no tests yet"
               continue
             fi
             echo "::group::integration $topic"
@@ -220,6 +250,17 @@ jobs:
             echo "::endgroup::"
           done
           exit "$status"
+
+      # The page's modules are plain ES modules with no build step, tested by node's own runner.
+      # Named by a glob: node 24 loads a directory given alone as one module, not its tests.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
+        with:
+          node-version: 24
+
+      - name: node --test tests/unit/web/js
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
+        run: node --test 'tests/unit/web/js/*.test.mjs'
 
   # The macOS app in desktop/: its Rust held to rustfmt and clippy, its tests, and the app built
   # and its disk image as a release builds them, but unoptimised.

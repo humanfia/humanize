@@ -3,7 +3,8 @@
 ## Abstract
 
 This document specifies the hmz daemon: the behaviour a user observes of the process that holds a
-machine's epics apart from every frontend, and the wire protocol a client speaks to it.
+machine's epics apart from every frontend, how it is reached from this machine and from others, and
+every RPC method it serves to its clients.
 
 ## Status of This Document
 
@@ -23,20 +24,28 @@ It is normative. It is cited by the tag [DAEMON].
   - [3.6. Frontends](#36-frontends)
   - [3.7. Versions](#37-versions)
   - [3.8. Remote daemons](#38-remote-daemons)
-- [4. Wire Protocol](#4-wire-protocol)
+  - [3.9. Listeners, pairing and services](#39-listeners-pairing-and-services)
+- [4. RPC Methods](#4-rpc-methods)
   - [4.1. Scope](#41-scope)
   - [4.2. Terminology](#42-terminology)
   - [4.3. The daemon directory](#43-the-daemon-directory)
-  - [4.4. Finding the daemon and a host](#44-finding-the-daemon-and-a-host)
-  - [4.5. Frames](#45-frames)
-  - [4.6. Control requests](#46-control-requests)
-  - [4.7. Frontend connections](#47-frontend-connections)
-  - [4.8. Requests](#48-requests)
+  - [4.4. Finding the daemon](#44-finding-the-daemon)
+  - [4.5. Parameters common to many methods](#45-parameters-common-to-many-methods)
+  - [4.6. Hosts](#46-hosts)
+  - [4.7. Attaching to a host](#47-attaching-to-a-host)
+  - [4.8. Calls to an epic](#48-calls-to-an-epic)
   - [4.9. Messages](#49-messages)
   - [4.10. Semantics a frontend observes](#410-semantics-a-frontend-observes)
   - [4.11. Limits](#411-limits)
   - [4.12. Protocol versions](#412-protocol-versions)
   - [4.13. Lifecycle](#413-lifecycle)
+  - [4.14. Sessions, pairing and devices](#414-sessions-pairing-and-devices)
+  - [4.15. Side questions](#415-side-questions)
+  - [4.16. Epics written down](#416-epics-written-down)
+  - [4.17. Flows, workspaces and paths](#417-flows-workspaces-and-paths)
+  - [4.18. Settings](#418-settings)
+  - [4.19. Notices](#419-notices)
+  - [4.20. Methods and the interfaces they replace](#420-methods-and-the-interfaces-they-replace)
 - [5. Security Considerations](#5-security-considerations)
 - [6. References](#6-references)
   - [6.1. Normative References](#61-normative-references)
@@ -44,12 +53,14 @@ It is normative. It is cited by the tag [DAEMON].
 ## 1. Introduction
 
 This document specifies the hmz daemon: the behaviour a user observes of the process that holds a
-machine's epics apart from every frontend, and the wire protocol a client speaks to it.
+machine's epics apart from every frontend, how it is reached from this machine and from others, and
+every RPC method it serves to its clients. Every frontend is a client of a daemon, over the
+carriers, sessions and frames of [WIRE].
 
 This document is organised as follows:
 
 - Section 3: Daemon Behaviour.
-- Section 4: Wire Protocol.
+- Section 4: RPC Methods.
 
 ## 2. Conventions and Terminology
 
@@ -66,27 +77,31 @@ Section 2 of [CORE].
 Section 3 specifies the daemon as the user experiences it: one daemon per machine and user,
 holding the epics of every workspace on that machine apart from any terminal; how it starts and
 goes; how frontends attach to and detach from the epics it holds; how epics outlive the frontend
-that started them; how a daemon of one release meets a frontend of another; and how a frontend
-reaches the daemon of another machine over ssh or over EasyTier.
+that started them; how a daemon of one release meets a frontend of another; how a frontend reaches
+the daemon of another machine; and how a daemon listens beyond its socket, pairs devices and runs
+as a service.
 
 Out of scope:
 
-- The protocol between frontends and the daemon, its messages and its requests: Section 4.
-- The files the daemon keeps on this machine: Section 7 of [FILES].
-- The settings the remote daemons are kept in: Section 3 of [FILES].
+- Carriers, routes, device identity, pairing codes, the relay and the frames of a session: [WIRE].
+- The methods a client calls, their parameters, results and refusals: Section 4.
+- The files the daemon keeps on this machine: Section 7 of [FILES] and Section 4.14 of [FILES].
+- The settings the remote daemons and the listeners are kept in: Section 3 of [FILES].
 - What a chat is, and how a chat folds away: Section 8 of [CORE].
-- How the page of `hmz web` presents daemons: Section 3.13 of [WEB].
+- How the page presents daemons: Section 3.13 of [WEB].
 - How the terminal interface presents daemons and `/exit`: [TUI].
 - The release check and `hmz update`: Section 13 of [CORE].
-- The command line of `hmz server`: Section 13 of [CLI].
+- The command lines of `hmz daemon` and `hmz relay`: Section 13 of [CLI] and Section 14 of [CLI].
 
 ### 3.2. Terminology
 
-**3.2.1** A **host** is what holds the epics of one workspace, or of one chat of a workspace, for
-every frontend attached to them. A host held by the daemon is held apart from every frontend.
+**3.2.1** A **host** is what holds the epics of one workspace, of one chat of a workspace, or of one
+epic `hmz exec` started, for every frontend attached to them. A host held by the daemon is held
+apart from every frontend.
 
 **3.2.2** The **workspace host** of a workspace is the host that runs that workspace's flows. A
-**chat host** is a host that runs one chat of a workspace, beside the workspace host.
+**chat host** is a host that runs one chat of a workspace, and an **exec host** one that runs the
+one epic of one `hmz exec`, each beside the workspace host.
 
 **3.2.3** A frontend **attaches** to a host when it starts reading and steering the epics that host
 holds, and **detaches** when it stops, without stopping them.
@@ -94,18 +109,20 @@ holds, and **detaches** when it stops, without stopping them.
 **3.2.4** A host is **idle** when no frontend is attached to it, no epic is going, starting or
 stopping on it, and it keeps no ended epic for the next frontend under Section 3.5.5.
 
-**3.2.5** A daemon is **older** than a frontend when it speaks a protocol of an earlier release of
-hmz than the frontend, and **newer** when it speaks a protocol of a later one.
+**3.2.5** A daemon is **older** than a frontend when it speaks a protocol of an earlier version than
+the frontend, and **newer** when it speaks a protocol of a later one (Section 6.5 of [WIRE]).
 
-**3.2.6** A **remote daemon** is the daemon of another machine, reached from this machine over ssh
-or over EasyTier. A remote daemon reached over ssh is an **SSH daemon**, and one reached over
-EasyTier a **P2P daemon**, as the page of `hmz web` names them.
+**3.2.6** A **remote daemon** is the daemon of another machine, reached from this machine over a
+route of [WIRE]. A remote daemon whose first route is `stdio:ssh` is an **SSH daemon**, one whose
+first route is `easytier:` a **P2P daemon**, and any other a **paired daemon**, as the frontends
+that switch between daemons name them.
 
 **3.2.7** **Local** is the daemon of this machine, as the frontends that switch between daemons name
 it.
 
-**3.2.8** **EasyTier** is the peer-to-peer virtual network of that name; a **server** is an `hmz
-server` that keeps the daemon of its machine reachable over it (Section 3.8.5).
+**3.2.8** **EasyTier** is the peer-to-peer virtual network of that name.
+
+**3.2.9** A **listener** is a carrier end the daemon offers beside its socket (Section 3.9).
 
 ### 3.3. One daemon per machine and user
 
@@ -113,11 +130,12 @@ server` that keeps the daemon of its machine reachable over it (Section 3.8.5).
 
 **3.3.2** The daemon MUST hold the epics of every workspace of its machine and user.
 
-**3.3.3** The daemon MUST hold one workspace host per workspace, and one chat host per chat beside
-it; each host MUST run in a process of its own, standing in its workspace.
+**3.3.3** The daemon MUST hold one workspace host per workspace, one chat host per chat and one exec
+host per `hmz exec` beside it; each host MUST run in a process of its own, standing in its
+workspace.
 
-**3.3.4** A chat host and the workspace host of one workspace MUST NOT wait on each other; how many
-epics each runs at a time is stated in Section 3.4.3 of [CORE].
+**3.3.4** A chat host, an exec host and the workspace host of one workspace MUST NOT wait on each
+other; how many epics each runs at a time is stated in Section 3.4.3 of [CORE].
 
 **3.3.5** Two spellings of one directory MUST name one workspace, and two directories MUST name two
 workspaces.
@@ -125,32 +143,31 @@ workspaces.
 **3.3.6** The daemon MUST belong to the machine it runs on, and MUST NOT be shared between machines
 that mount one home.
 
-**3.3.7** Two frontends racing to start the daemon, or a host of one workspace, MUST end with one
-daemon, or one host, which both use.
+**3.3.7** Two clients racing to start the daemon, or a host of one slot of one workspace, MUST end
+with one daemon, or one host, which both use.
+
+**3.3.8** A frontend MUST NOT hold an epic in its own process: the terminal interface, `hmz exec`,
+the page, the desktop application and every program using the SDK MUST each run and hold every epic
+through a daemon -- this machine's, or, for a program's tests on fakes, a private daemon of that
+program (Section 4.19 of [PYTHON]).
 
 ### 3.4. Starting
 
-**3.4.1** The daemon MUST start when the first frontend that holds epics apart from itself needs it,
-and MUST NOT need to be started by the user.
+**3.4.1** The daemon of this machine MUST start when the first client on this machine needs it --
+over `unix:` or `stdio:local`, or by `hmz daemon connect --stdio` run over `ssh` or WSL -- and MUST
+NOT need to be started by the user.
 
-**3.4.2** The terminal interface MUST hold epics apart from itself only where both its standard
-input and its standard output are a terminal and `HUMANIZE_DAEMON` is not `off`, `0` or `no`;
-otherwise it MUST hold them in its own process, and closing it MUST end them.
+**3.4.2** `hmz daemon serve` and the service `hmz daemon install` writes (Section 3.9.6) MUST start
+the daemon in the foreground of their process, where none runs.
 
-**3.4.3** `hmz web` MUST hold epics apart from itself unless `HUMANIZE_DAEMON` is `off`, `0` or
-`no`; otherwise it MUST hold them in its own process, and stopping it MUST end them.
+**3.4.3** Where the daemon cannot be started or reached, the terminal interface, `hmz exec` and `hmz
+web` MUST say `hmz: the daemon cannot be reached: <why>` on standard error and exit with status 1,
+and MUST NOT hold the epics in their own process.
 
-**3.4.4** Where the daemon or a host cannot be started, the terminal interface MUST say `hmz: runs
-cannot be detached from the terminal (<why>), so they will run in this process instead` on standard
-error and MUST hold the epics in its own process.
-
-**3.4.5** A frontend MUST be told whether the daemon and the host came up, and MUST be told a
+**3.4.4** A frontend MUST be told whether the daemon and the host came up, and MUST be told a
 failure to start with its reason, without waiting out a timeout.
 
-**3.4.6** Asking the daemon which epics are going MUST NOT start a daemon or a host.
-
-**3.4.7** `HUMANIZE_DAEMON` MUST read as `off`, `0` or `no` in Section 3.4.2 and Section 3.4.3 where
-it is one of them after surrounding white space is removed and letters are lower-cased.
+**3.4.5** Asking the daemon which epics are going MUST NOT start a host.
 
 ### 3.5. Epics outlive their frontends
 
@@ -165,13 +182,14 @@ stop it.
 seconds have passed since it started.
 
 **3.5.5** A host MUST keep an epic that ended while no frontend was attached, and that nobody
-stopped, until a frontend attaches; it MUST NOT keep a chat that folded away.
+stopped, until a frontend attaches; it MUST NOT keep a chat that folded away, nor the epic of an
+exec host.
 
 **3.5.6** A chat host MUST fold its chat away as Section 8 of [CORE] specifies, and MUST then go
 once it is idle.
 
-**3.5.7** The daemon MUST go once it holds no host, and MUST go 60 seconds after it started where no
-host ever came.
+**3.5.7** The daemon MUST go once it holds no host and no session is open, and MUST go 60 seconds
+after it started where no host ever came and no session is open, except as Section 3.9.4 states.
 
 **3.5.8** A host MUST go, telling every attached frontend why, when it is stopped, when the daemon
 goes, and when any frontend asks it to quit; every epic on it MUST be closed as a stop closes it.
@@ -188,8 +206,9 @@ Section 7 of [FILES] specifies.
 
 ### 3.6. Frontends
 
-**3.6.1** hmz MUST let any number of frontends -- the terminal interface, `hmz web`, and programs
-using the SDK -- attach to one host at once, each whole and each its own.
+**3.6.1** hmz MUST let any number of frontends -- the terminal interface, `hmz exec`, the page,
+the desktop application and programs using the SDK -- attach to one host at once, each whole and
+each its own, over any session of [WIRE].
 
 **3.6.2** A frontend that attaches MUST be told everything kept of the epic going or the last one,
 from its start, then how everything stands, then everything as it happens.
@@ -220,6 +239,10 @@ stop the flow or to detach, as [TUI] specifies.
 **3.6.10** Running the terminal interface again in the same workspace MUST attach it to that
 workspace's host, and MUST show the epic from its start.
 
+**3.6.11** A frontend whose session drops MUST attach again once a session is up again, as Section
+3.6 of [WIRE] states, and MUST be told only what it has not been told where its host still keeps it
+(Section 6.8.4 of [WIRE]).
+
 ### 3.7. Versions
 
 **3.7.1** A daemon MUST hold its epics under the release of hmz it started with, until it goes.
@@ -227,92 +250,89 @@ workspace's host, and MUST show the epic from its start.
 **3.7.2** Installing another release of hmz, by `hmz update` or otherwise, MUST NOT stop the daemon
 or any epic it holds.
 
-**3.7.3** Once a daemon of an earlier release than the one installed has gone, the next frontend
-that needs a daemon MUST start one of the release installed.
+**3.7.3** Once a daemon of an earlier release than the one installed has gone, the next client that
+needs a daemon MUST start one of the release installed.
 
-**3.7.4** A frontend MUST NOT reach a daemon or host that is older than it, and MUST NOT start a
-daemon or host beside one.
+**3.7.4** A client MUST NOT use a daemon that refuses its protocol (Section 6.5.5 of [WIRE]), and
+MUST NOT start a daemon beside one.
 
-**3.7.5** A frontend that finds the epics of a workspace held by an older daemon MUST refuse them,
-saying `the runs in <workspace> are held by an older Humanize (pid <pid>); stop it with that
-version`, or `on this machine` in place of `in <workspace>` where the daemon itself is older.
+**3.7.5** A frontend that finds this machine's epics held by an older daemon MUST refuse them,
+saying `the runs on this machine are held by an older Humanize (pid <pid>); stop it with that
+version`.
 
-**3.7.6** The terminal interface and `hmz web` MUST say that refusal on standard error and exit 1
-where they cannot serve without those epics; the page of `hmz web` MUST say it where the page asks
-for that workspace's epics, and MUST serve every other workspace.
+**3.7.6** The terminal interface, `hmz exec` and `hmz web` MUST say that refusal on standard error
+and exit with status 1; the page MUST say it of a remote daemon that answers it, and MUST serve
+every other daemon.
 
-**3.7.7** A daemon or host MUST tell a frontend that is older than it ``held for frontends by a
-newer Humanize; `hmz` of it reads it``, and MUST then detach it.
+**3.7.7** A daemon MUST tell a client that is older than it ``held for frontends by a newer
+Humanize; `hmz` of it reads it``, as Section 6.5.6 of [WIRE] states.
 
 ### 3.8. Remote daemons
 
 #### 3.8.1. Keeping them
 
-**3.8.1.1** The remote daemons MUST be kept in the settings of this machine, as Section 3 of [FILES]
-specifies, and MUST be shared by every frontend of this machine that switches between daemons.
+**3.8.1.1** The remote daemons MUST be kept by each client for itself: by the terminal interface,
+`hmz exec` and the SDK in the settings of this machine (Section 3.4.6 of [FILES]), and by the page
+and the desktop application in the page's own storage (Section 3.13 of [WEB]).
 
-**3.8.1.2** Local MUST always be present, and MUST NOT be removed, renamed or written to the
-settings.
+**3.8.1.2** Each remote daemon MUST be kept as its name, the daemon id the client pins (Section
+4.4.7 of [WIRE]), `""` until it is first reached over a trusted carrier, and its routes, in the
+order they are tried.
 
-**3.8.1.3** The name of a remote daemon MUST start with a letter or a digit, MUST consist of
+**3.8.1.3** Local MUST always be present, and MUST NOT be removed, renamed or written among the
+remote daemons.
+
+**3.8.1.4** The name of a remote daemon MUST start with a letter or a digit, MUST consist of
 letters, digits, `.`, `_` and `-`, and MUST NOT be `local`.
 
-**3.8.1.4** An SSH daemon MUST be reached as `ssh` reaches its host, with the user's keys and ssh
-config, from what the user set: host, user, port, identity file, proxy jump and ssh options, or a
-host of the ssh config resolved each time it is reached.
+**3.8.1.5** A remote daemon MUST be added from a pairing code (Section 4.5 of [WIRE]), taking its id
+and routes, or from routes alone where its first route is trusted.
 
-**3.8.1.5** Removing a remote daemon MUST forget only how to reach it; the epics and the hmz on its
-machine MUST stay as they are.
+**3.8.1.6** Removing a remote daemon MUST forget only how to reach it; the epics and the hmz on its
+machine, and its pairing of this device, MUST stay as they are.
 
 #### 3.8.2. Reaching one
 
 **3.8.2.1** A remote daemon MUST be reached when a frontend first asks for it or the user asks to
-connect to it.
+connect to it, by racing its routes as Section 3.6 of [WIRE] states.
 
-**3.8.2.2** Reaching an SSH daemon MUST start `hmz web` on its machine over ssh, listening on that
-machine's loopback alone.
-
-**3.8.2.3** Reaching an SSH daemon MUST forward a port of this machine's loopback to that `hmz web`.
-
-**3.8.2.4** hmz MUST NOT listen on the remote machine beyond its loopback.
-
-**3.8.2.5** Whatever a frontend asks of a remote daemon MUST be asked of that `hmz web`, which holds
-its own key, its own epics and its own refusals; the key MUST NOT be shown to the user or to the
-page.
-
-**3.8.2.6** A remote daemon MUST be in exactly one of these states:
+**3.8.2.2** A remote daemon MUST be in exactly one of these states:
 
 | State | Meaning |
 | --- | --- |
 | `idle` | Not reached yet |
-| `connecting` | ssh is reaching the host and starting `hmz web` there, or EasyTier is joining |
+| `connecting` | A route is being opened: ssh reaching the host, EasyTier joining, a relay joining |
 | `installing` | hmz is being installed on the host, or EasyTier on this machine |
-| `up` | Reached |
+| `up` | A session is up |
 | `failed` | Not reached, with the reason |
 
-**3.8.2.7** Each state MUST carry what was said last, including the last line of an install.
+**3.8.2.3** Each state MUST carry what was said last, including the last line of an install.
 
-**3.8.2.8** A connection to a remote daemon that drops or fails MUST be tried again after 1 second,
-the wait doubling after each further failure up to at most 60 seconds, and starting again at 1
-second once the remote daemon is `up`.
+**3.8.2.4** A session to a remote daemon that drops or fails MUST be tried again as Section 3.6.4 of
+[WIRE] states.
 
-**3.8.2.9** The frontend that reached a remote daemon going MUST stop the `hmz web`, the ssh
-connections and the EasyTier processes it started for it; the epics on that machine MUST keep going,
-held by its daemon.
+**3.8.2.5** The client that reached a remote daemon going MUST close its sessions and stop the
+`ssh`, `wsl.exe` and EasyTier processes it started for it; the epics on that machine MUST keep
+going, held by its daemon.
 
-**3.8.2.10** Reaching an SSH daemon MUST NOT ask the user for a password or to accept a host key; a
+**3.8.2.6** Reaching a remote daemon MUST NOT ask the user for a password or to accept a host key; a
 host that needs either MUST fail with what ssh said.
+
+**3.8.2.7** A remote daemon whose id is pinned and which answers with another id MUST be `failed`
+with `<name> is not the daemon it was paired with.`; one first reached over a trusted carrier MUST
+have the id it answered pinned.
 
 #### 3.8.3. The hmz on a remote machine
 
-**3.8.3.1** Before starting `hmz web` on the machine of an SSH daemon, the frontend MUST find the
-hmz there as a login shell finds it, with `~/.local/bin` included, and MUST learn its version.
+**3.8.3.1** Before running `hmz daemon connect --stdio` over a `stdio:ssh` route, the client MUST
+find the hmz there as a login shell finds it, with `~/.local/bin` included, and MUST learn its
+version.
 
-**3.8.3.2** Where no hmz is there, or one of another release, the frontend MUST install hmz of its
+**3.8.3.2** Where no hmz is there, or one of another release, the client MUST install hmz of its
 own release there as a uv tool, installing uv there first where none is, and MUST be `installing`
 while it does.
 
-**3.8.3.3** The frontend MUST NOT replace an hmz there while that machine's daemon holds running
+**3.8.3.3** The client MUST NOT replace an hmz there while that machine's daemon holds running
 epics, and MUST NOT replace it where it cannot tell; it MUST then use the hmz there and say `hmz
 <there> there holds running epics; hmz <wanted> waits`, or `Whether hmz <there> there runs epics is
 unknown; not replaced`.
@@ -325,36 +345,37 @@ it `failed` with `hmz <wanted> was installed, and hmz <there> answers.`
 and MUST use the hmz there; where none is there, the remote daemon MUST be `failed` with `hmz is not
 installed on <name>.`
 
+**3.8.3.6** A client MUST install nothing on the machine of a route other than `stdio:ssh`.
+
 #### 3.8.4. Using one
 
 **3.8.4.1** A frontend that switches between daemons MUST show one daemon at a time, and MUST show
-of a remote daemon everything it shows of Local: its workspaces, its epics, starting and steering
-epics there, its flows, and its daemon settings.
+of a remote daemon everything it shows of Local: its workspaces, its epics, attaching to, starting
+and steering epics there, its flows, and its daemon settings.
 
-**3.8.4.2** hmz MUST let a frontend attach to the epics of a workspace on a remote daemon as it
-attaches on Local, as Section 3 of [WEB] and [TUI] specify.
-
-**3.8.4.3** A frontend MUST say a remote daemon that is not `up` is unavailable, with its state,
+**3.8.4.2** A frontend MUST say a remote daemon that is not `up` is unavailable, with its state,
 wherever it asks it something.
 
-#### 3.8.5. P2P daemons
+#### 3.8.5. EasyTier
 
-**3.8.5.1** A P2P daemon MUST be kept as its name and a secret of at least 16 bytes in UTF-8, the
-secret its server was started with; a shorter secret MUST be refused with `A secret must be at least
-16 bytes.`
+**3.8.5.1** An EasyTier network MUST be kept, on each side, as an EasyTier entry of a name and a
+secret of at least 16 bytes in UTF-8, and the shared EasyTier nodes it meets through (Section 3.4.10
+of [FILES]); a shorter secret MUST be refused with `A secret must be at least 16 bytes.`
 
 **3.8.5.2** The name and the secret of the EasyTier network MUST be derived from the secret by
-SHA-256, and the key of the server's `hmz web` by HMAC-SHA256, each under a label of its own; the
-secret itself MUST NOT leave the machine it is set on, nor be passed on any command line.
+SHA-256, each under a label of its own: the name the SHA-256 of the UTF-8 of `hmz-easytier-name`, a
+NUL and the secret, and the network's secret that of `hmz-easytier-secret`, a NUL and the secret,
+each in lowercase hexadecimal; the secret itself MUST NOT leave the machine it is set on, nor be
+passed on any command line.
 
-**3.8.5.3** A server MUST serve `hmz web` on its machine's loopback alone, at a port fixed by hmz,
-with the key derived from its secret, holding the epics through its machine's daemon, and MUST make
-that port reachable over the EasyTier network of its secret, through the shared EasyTier nodes it
-was started with (Section 3.8.5.10).
+**3.8.5.3** A daemon whose `listen` names `easytier:<name>` MUST join the network of that entry and
+make a TCP listener of its own, on its machine's loopback alone and at the port 41817, reachable
+over that network at the virtual address `10.144.144.1`, which it MUST take, and at that port
+alone, carrying mutual TLS as any `tcp` listener does.
 
-**3.8.5.4** Reaching a P2P daemon MUST join the EasyTier network of its secret and expose that `hmz
-web` on a port of this machine's loopback, MUST wait until it answers, and MUST then ask it as
-Section 3.8.2.5 states, with the key derived from the secret.
+**3.8.5.4** A client opening `easytier:<name>` MUST join the network of its own entry of that name,
+expose the daemon's port, `10.144.144.1:41817`, on a port of this machine's loopback, wait until it
+answers, and then open mutual TLS over it as Section 4.4 of [WIRE] states.
 
 **3.8.5.5** EasyTier MUST run without root and without a virtual network device, on either side.
 
@@ -364,51 +385,81 @@ MUST reuse it once there; a P2P daemon MUST be `installing` while it downloads, 
 EasyTier <version>`, and `failed` with the reason where the download or the check fails.
 `HUMANIZE_EASYTIER` naming an existing binary MUST be used in its place.
 
-**3.8.5.7** Reaching a P2P daemon MUST install nothing on its machine; a server older than the
-frontend MUST be refused as Section 3.7.4 states.
+**3.8.5.7** An EasyTier entry MUST name at least one shared EasyTier node, as a URL
+`<protocol>://<host>:<port>` with protocol `tcp`, `udp`, `ws`, `wss`, `quic` or `wg`, and the two
+sides MUST meet only through the nodes they name; hmz MUST NOT name a node of its own, and a client
+reaches a daemon only where both name a node in common. An entry that names no node MUST be refused
+with `An EasyTier daemon needs at least one node.`
 
-**3.8.5.8** A P2P daemon MUST be in the states of Section 3.8.2.6, with what was said last, and MUST
-be tried again as Section 3.8.2.8 states.
-
-**3.8.5.9** Stopping a server MUST stop its `hmz web` and EasyTier, and MUST NOT stop any epic its
-daemon holds.
-
-**3.8.5.10** A P2P daemon and a server MUST each name at least one shared EasyTier node, as a URL
-`<protocol>://<host>:<port>` with protocol `tcp`, `udp`, `ws`, `wss`, `quic` or `wg`, and MUST meet
-the other end only through the nodes they name; hmz MUST NOT name a node of its own, and a P2P
-daemon reaches its server only where both name a node in common. A P2P daemon or a server that
-names no node MUST be refused with `An EasyTier daemon needs at least one node.`
-
-**3.8.5.11** hmz MUST offer the shared nodes of EasyTier's community, as the status page EasyTier's
+**3.8.5.8** hmz MUST offer the shared nodes of EasyTier's community, as the status page EasyTier's
 own apps read lists them, each with its URL, its name, its version, whether it is up and its uptime
 over the last 24 hours; a list that cannot be read MUST be said to be unreadable with the reason,
 and nodes the user types MUST be taken all the same.
 
-## 4. Wire Protocol
+**3.8.5.9** Removing a daemon's `easytier:` listener MUST stop its EasyTier, and MUST NOT stop any
+epic it holds.
+
+### 3.9. Listeners, pairing and services
+
+**3.9.1** The daemon MUST always accept sessions on its socket, and MUST also listen on each
+listener the setting `listen` names (Section 3.4.8 of [FILES]) and each `--listen` of `hmz daemon
+serve`.
+
+**3.9.2** A listener spec MUST be one of: `tcp://<address>:<port>`, a TCP listener carrying mutual
+TLS; `ws://<address>:<port>`, a WebSocket listener carrying mutual TLS in its binary messages, which
+answers every other request 404; `relay:<ws-url>`, a registration with that relay (Section 5.4 of
+[WIRE]) accepting native joins; `webrtc:<ws-url>`, a registration with that relay answering WebRTC
+joins (Section 4.7 of [WIRE]); and `easytier:<name>` (Section 3.8.5.3). A port `0` MUST mean any
+free port.
+
+**3.9.3** The route of a listener, as a pairing code carries it, MUST be the listener spec, with an
+unspecified address (`0.0.0.0` or `::`) replaced by this machine's host name and a port `0` by the
+port taken.
+
+**3.9.4** A daemon with any listener, or started by `hmz daemon serve` or its service, MUST NOT go
+for want of hosts or sessions, and MUST go on `SIGTERM` alone.
+
+**3.9.5** A listener that cannot be opened, or a relay that cannot be reached, MUST be written to
+`daemon.log` and tried again as Section 3.6.4 of [WIRE] states, and MUST NOT keep the daemon from
+serving its socket and its other listeners.
+
+**3.9.6** `hmz daemon install` MUST write, enable and start a service that runs `<hmz> daemon serve`
+(`<hmz>` the absolute path of the hmz that ran it) for the user at login and keeps it running: on
+macOS the launchd agent `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist`, loaded with
+`launchctl bootstrap gui/<uid>`; on Linux the systemd user unit
+`~/.config/systemd/user/hmz-daemon.service`, enabled with `systemctl --user enable --now`. `hmz
+daemon uninstall` MUST stop, disable and remove it.
+
+**3.9.7** A daemon MUST pair devices and revoke them as Section 4.5 of [WIRE] and Section 4.6 of
+[WIRE] state; every session of any carrier MUST then be as whole as a session over its socket.
+
+**3.9.8** A daemon MUST fetch the newest release of hmz as Section 13.3 of [CORE] states, and every
+flowverse's index once as it starts, without telling any client.
+
+## 4. RPC Methods
 
 ### 4.1. Scope
 
-Section 4 governs the **daemon** as a client sees it: where a client finds the one daemon of
-**this machine** for the current user, how it connects, the frames carried on a connection, every
-request a client sends and every message and answer it receives, how protocol versions are told
-apart, and every obligation of the daemon and its hosts that a client observes over a connection. A
-client is a **frontend** (`hmz`, `hmz web`, a program using Section 4 of [PYTHON]) or a program
-asking a single question. The internal structure of the daemon and of its host processes is not
-governed by this document.
+Section 4 governs every method the daemon serves and every notification it sends, as a client sees
+them over a session of [WIRE]: where a client finds the one daemon of **this machine**, the methods
+of each namespace, their parameters, results and refusals, the messages of an epic subscription, and
+every obligation of the daemon and its hosts that a client observes. [OPENRPC] lists the same
+methods with the JSON Schema of each. The internal structure of the daemon, of its host processes
+and of the links between them is not governed by this document.
 
 Out of scope:
 
-- The Python objects that speak this protocol (`Daemon`, `Link`, `Host`): Section 4 of [PYTHON].
+- Carriers, session security, frames, `session.hello`, error codes, idempotency, subscriptions and
+  file chunks as such: [WIRE].
+- The Python objects that speak this protocol: Section 4 of [PYTHON].
 - The files of the daemon directory as files on disk, and their cleanup: Section 7 of [FILES].
 - The files an **epic** writes, `host.log` among them: Section 6 of [FILES].
-- When `hmz` and `hmz web` use a daemon rather than holding epics in their own process, and the
-  daemons of other machines: Section 3.
 - What a flow, a chat and a side question do beyond what is carried here: Section 3 of [CORE],
   Section 8 of [CORE], Section 9 of [CORE].
 
 ### 4.2. Terminology
 
-**4.2.1** Every term of Section 2 of [CORE] MUST carry the meaning given there.
+**4.2.1** Every term of Section 2 of [CORE] and of [WIRE] MUST carry the meaning given there.
 
 **4.2.2** **Daemon directory**: the machine directory `<mdir>` of Section 7.2.2 of [FILES].
 
@@ -419,33 +470,39 @@ Out of scope:
 **4.2.5** **Workspace path**: a workspace directory as an absolute path with every symbolic link
 followed. Two spellings of one directory are one workspace path.
 
-**4.2.6** **Slot**: the text naming one host of a workspace: `""` for the workspace's own host, or
-`chat:` followed by 1 to 32 lowercase hexadecimal digits for the host of one chat.
+**4.2.6** **Slot**: the text naming one host of a workspace: `""` for the workspace's own host,
+`chat:` followed by 1 to 32 lowercase hexadecimal digits for the host of one chat, or `exec:`
+followed by 1 to 32 lowercase hexadecimal digits for the host of one `hmz exec`.
 
 **4.2.7** The term host MUST carry the meaning Section 3.2.1 gives it; each slot of a workspace
 names one host, which a client reaches only through the daemon.
 
-**4.2.8** **Frame**: one unit carried on a connection, as Section 4.5 defines it.
+**4.2.8** **Epic subscription**: the subscription `epic.attach` opens (Section 6.8 of [WIRE]); one
+epic subscription is one attached frontend.
 
-**4.2.9** **Control request**: one JSON object carried in a `CONTROL` frame, as Section 4.6 defines
-it.
+**4.2.9** **Call to an epic**: a method of Section 4.8, which names an epic subscription in `sub`.
 
-**4.2.10** **Request**: one JSON object a frontend sends in a `MESSAGE` frame, naming what it asks
-in its field `do`.
+**4.2.10** **Reply**: what a host answers one call to an epic: its fields where it carries it out,
+or `why`, one sentence, where it refuses it.
 
-**4.2.11** **Reply**: the message a host sends in answer to one request, with `type` `reply`.
+**4.2.11** **Message**: one JSON object an epic subscription carries, naming its kind in its field
+`type`.
 
-**4.2.12** **Message**: one JSON object a host sends in a `MESSAGE` frame, naming its kind in its
-field `type`.
-
-**4.2.13** **Client id**: the text `c<n>` a host gives one attached frontend, `n` counting from 1
+**4.2.12** **Client id**: the text `c<n>` a host gives one attached frontend, `n` counting from 1
 per host and never reused.
 
-**4.2.14** **History record**: a message that carries the field `seq` (Section 4.9.2).
+**4.2.13** **History record**: a message that carries the field `seq` (Section 4.9.2).
 
-**4.2.15** **Snapshot**: a message without `seq` that says how one thing stands now (Section 4.9.3).
+**4.2.14** **Snapshot**: a message without `seq` that says how one thing stands now (Section 4.9.3).
 
-**4.2.16** **Epic number**: the number a host gives each epic it starts, counting from 1 per host.
+**4.2.15** **Epic number**: the number a host gives each epic it starts, counting from 1 per host.
+
+**4.2.16** An epic name (Section 3.2.1 of [CORE]) MUST be written as Section 6.2.2 of [FILES]
+states.
+
+**4.2.17** **Epic row**: the JSON object Section 4.16.2 defines.
+
+**4.2.18** **Notice**: the JSON object Section 4.19.1 defines.
 
 ### 4.3. The daemon directory
 
@@ -457,107 +514,83 @@ removed as Section 7.3 of [FILES] and Section 7.6 of [FILES] state.
 **4.3.3** Where the full path of the socket exceeds 100 bytes, a client MUST still connect to the
 socket, and MUST have the current directory it had before once it has connected.
 
-### 4.4. Finding the daemon and a host
+### 4.4. Finding the daemon
 
-**4.4.1** A client MUST read a daemon as present only where the daemon record parses as a JSON
-object whose `pid` is an integer naming an existing process, and the socket accepts a connection
-within 1 second.
+**4.4.1** A client on this machine MUST read a daemon as present only where the daemon record parses
+as a JSON object whose `pid` is an integer naming an existing process, and the socket accepts a
+connection within 1 second.
 
 **4.4.2** A client MUST count a process that exists but that it cannot signal as existing.
 
 **4.4.3** A client MUST NOT read a daemon as present on the strength of the socket file alone.
 
-**4.4.4** Where the daemon record's `protocol` is absent or differs from the client's protocol
-version, the client MUST NOT send any other frame to the socket and MUST report that an older
-**hmz** holds the epics (Section 4.12.3).
+**4.4.4** Where the daemon record's `protocol` is absent, is not text, or names another major
+version than the client's, the client MUST NOT connect to the socket and MUST refuse as Section
+3.7.5 states.
 
-**4.4.5** A client finds the hosts of the daemon with the control request `list` (Section 4.6.2); a
-client MUST read a listed host as live only where its `pid` names an existing process.
+**4.4.5** A client that starts the daemon MUST wait at most 10 seconds for it to come up, and MUST
+report a failure the started process reports as soon as it is reported.
 
-**4.4.6** A client MUST name a workspace to the daemon by its workspace path.
-
-**4.4.7** A client that starts the daemon or a host MUST wait at most 10 seconds for it to come up.
-
-**4.4.8** A client that starts the daemon or a host MUST report a failure the started process
-reports as soon as it is reported, without waiting out the bound of Section 4.4.7.
-
-**4.4.9** Where two clients start the daemon at once, exactly one daemon MUST come up, and both
+**4.4.6** Where two clients start the daemon at once, exactly one daemon MUST come up, and both
 clients MUST use it.
 
-**4.4.10** Where two clients start a host of one slot of one workspace at once, exactly one host
-MUST be taken on, and both clients MUST use it.
+**4.4.7** The daemon MUST start the hosts; where two calls need a host of one slot of one workspace
+at once, exactly one host MUST be taken on, and both MUST use it.
 
-### 4.5. Frames
+### 4.5. Parameters common to many methods
 
-**4.5.1** Every byte on a connection MUST belong to a frame of the form: one byte of kind, then the
-payload length as an unsigned 32-bit big-endian integer, then the payload.
+**4.5.1** A method MUST take exactly the parameters its paragraph and [OPENRPC] list, with the
+stated types and defaults; a parameter not sent MUST take its default, and one sent that the method
+does not take MUST be refused as Section 6.6.3 of [WIRE] states.
 
-**4.5.2** The kinds MUST be: `M` (`MESSAGE`), a payload of one UTF-8 JSON object, a request from a
-frontend or a message from a host; `C` (`CONTROL`), a payload of one UTF-8 JSON object, a control
-request or its answer; and `X` (`GONE`), a payload of UTF-8 text saying why the reader is let go.
+**4.5.2** `workspace` MUST name a **workspace** by an absolute path of the daemon's machine, `~`
+expanded there; one that is not absolute after that MUST be refused 400, `Say the workspace as a
+whole path, not <workspace>.`, and one naming no directory 404, `There is no directory <path>.`,
+except where a method states it reads an epic of a workspace since removed.
 
-**4.5.3** A reader MUST accept a payload of at most 4 194 304 bytes; a length above it MUST be
-treated as a connection not carrying this protocol, which the reader closes.
+**4.5.3** `slot` absent or `""` MUST mean the workspace's own host; one that is not a slot, nor
+`chat:` or `exec:` alone where Section 4.7.1.2 permits it, MUST be refused 400, `<slot> is not a
+slot.`
 
-**4.5.4** A host MUST NOT send a frame whose length with its 5-byte header exceeds 4 194 303 bytes;
-a message that would MUST be dropped and recorded in the host's log, and replies are exempt.
+**4.5.4** `idem` MUST be taken by every write as Section 6.7 of [WIRE] states.
 
-**4.5.5** A host MUST encode JSON without escaping non-ASCII characters and MUST encode every value
-that is not JSON-native as its text.
+**4.5.5** `here` MUST be a directory a client calls its own -- the directory `hmz web` or the
+terminal interface started in -- which a method that takes it orders first; it MUST NOT be read as a
+workspace written down.
 
-**4.5.6** A JSON payload that is not an object MUST be read as an empty object.
-
-**4.5.7** A reader MUST hand out each whole frame exactly once, in the order received.
-
-**4.5.8** On receiving a frame of a kind it does not know, the daemon and a host MUST answer with
-one `GONE` frame carrying ``held for frontends by a newer Humanize; `hmz` of it reads it`` and close
-the connection.
-
-### 4.6. Control requests
+### 4.6. Hosts
 
 #### 4.6.1. General
 
-**4.6.1.1** A control request MUST be the first and only frame a client sends on its connection.
+**4.6.1.1** The methods of Section 4.6 but `hosts.open` MUST NOT start a host, and a call that names
+a workspace and slot no host holds MUST be refused 404, `no runs are held in <workspace>`, with `
+for <slot>` appended where `slot` is not `""`.
 
-**4.6.1.2** A control request MUST carry `do` and MUST be answered with exactly one `CONTROL` frame,
-after which the connection MUST be closed.
+**4.6.1.2** A call of Section 4.6 MUST NOT count as a frontend attached to the host.
 
-**4.6.1.3** A client MUST NOT send a control request whose `do` is `serve`; that request is reserved
-for the host processes of **hmz**.
+#### 4.6.2. `hosts.list`, `hosts.running` and `hosts.open`
 
-#### 4.6.2. Control requests to the daemon
+**4.6.2.1** `hosts.list` MUST be answered `{"held": [...]}`, one entry per host taken on, in the
+order taken on, each with `pid`, `workspace`, `started` and `slot`.
 
-**4.6.2.1** A control request without `workspace` MUST be answered by the daemon itself.
+**4.6.2.2** `hosts.running` MUST answer `running`, holding, for every host whose epic is going or
+stopping, `state`, `run`, `flow`, `epic`, `task` and, of a chat, `turn` from its status, each with
+`workspace`, `slot` and `asking` (the questions it waits on, each `<run>:<question>`).
 
-**4.6.2.2** `do: "list"` MUST be answered `{"ok": true, "held": [...]}`, one entry per host taken
-on, in the order taken on, each with `pid`, `workspace`, `started` and `slot`.
+**4.6.2.3** `hosts.open` `{workspace, slot}` MUST start the host of that workspace and slot where
+none is, as `epic.attach` does (Section 4.7.1.2 to Section 4.7.1.4), MUST NOT attach to it, and MUST
+be answered with its host-process keys (Section 4.6.4.2) and `slot`.
 
-**4.6.2.3** Any other `do` MUST be answered `{"ok": false, "why": "no such request: <repr>"}`,
-`<repr>` being the `do` given written as a Python literal: text in single quotes, a number as
-written, `True`, `False` or `None` for `true`, `false` or `null`, and a list or object in brackets
-or braces with each item so written.
+#### 4.6.3. `hosts.status`, `hosts.detach` and `hosts.stop`
 
-#### 4.6.3. Control requests to a host
+**4.6.3.1** `hosts.status` `{workspace, slot}` MUST be answered with the host's own `pid`,
+`workspace`, `slot`, `started`, `kind` (`"host"`) and `protocol`, and every key of Section 4.6.4.
 
-**4.6.3.1** A control request with `workspace` and, for a host other than the workspace's own,
-`slot` MUST be answered by that host.
+**4.6.3.2** `hosts.detach` `{workspace, slot}` MUST let every attached frontend go with `gone` `let
+go`, leave every epic running, and be answered `{"let_go": <n>}`, `n` the number let go.
 
-**4.6.3.2** Where no host holds that workspace and slot, the daemon MUST answer `{"ok": false,
-"why": "no runs are held in <workspace>"}`, with ` for <slot>` appended where `slot` is not `""`.
-
-**4.6.3.3** `do: "status"` MUST be answered `{"ok": true}` with the host's own `pid`, `workspace`,
-`slot`, `started`, `kind` (`"host"`) and `protocol`, and every key of Section 4.6.4.
-
-**4.6.3.4** `do: "detach"` MUST let every attached frontend go with `gone` `let go`, leave every
-epic running, and be answered `{"ok": true, "let go": <n>}`, `n` the number let go.
-
-**4.6.3.5** `do: "stop"` MUST be answered `{"ok": true}` before anything else happens, and the host
-MUST then close as Section 4.13.6 states.
-
-**4.6.3.6** Any other `do` MUST be answered `{"ok": false, "why": "no such request: <repr>"}`.
-
-**4.6.3.7** A connection carrying a control request MUST NOT count as a frontend attached to the
-host.
+**4.6.3.3** `hosts.stop` `{workspace, slot}` MUST be a write, MUST be answered `{}` before anything
+else happens, and the host MUST then close as Section 4.13.6 states.
 
 #### 4.6.4. Status
 
@@ -585,234 +618,246 @@ an absent `turn` as the host not holding a chat.
 
 **4.6.4.2** The host-process keys are `pid`, `workspace`, `started`, `kind` and `protocol`.
 
-**4.6.4.3** A client MUST read a host that does not answer a control request `status` as having the
-host-process keys of its `list` entry, `attached` `0`, `flows` `[]` and `calls` `[]`.
+**4.6.4.3** Where a host does not answer for its status, the daemon MUST answer with the
+host-process keys of its `hosts.list` entry, `attached` `0`, `flows` `[]` and `calls` `[]`.
 
-### 4.7. Frontend connections
+### 4.7. Attaching to a host
 
-#### 4.7.1. Attaching
+#### 4.7.1. `epic.attach`
 
-**4.7.1.1** A frontend MUST send `hello` as the first request on its connection.
+**4.7.1.1** `epic.attach` MUST take `workspace`, `slot`, `replay` (default `true`), `since`
+(`{epoch, seq}` or `null`), `figures` (default `false`) and `scratch` (default `false`), MUST attach
+the session to that host as one frontend, and MUST be answered with `sub`, `client` (the frontend's
+client id), `workspace` and `slot`.
 
-**4.7.1.2** `hello` MUST carry `workspace` (a workspace path) and, for a host other than the
-workspace's own, `slot`; the host of that workspace and slot MUST answer it, and MUST read every
-later frame of that connection.
+**4.7.1.2** `epic.attach` MUST start the workspace's own host where none is; with `slot` `chat:` or
+`exec:` alone it MUST make a new slot of that kind, start its host and attach to it.
 
-**4.7.1.3** Where no host holds that workspace and slot, the daemon MUST answer with a reply whose
-`to` is the request's `id`, `ok` `false` and `why` `no runs are held in <workspace>`, with ` for
-<slot>` appended where `slot` is not `""`, and close the connection.
+**4.7.1.3** `epic.attach` with `scratch` `true` MUST, in place of `workspace`, make a new directory
+for the epic alone in the system's temporary directory, and attach to its own host.
 
-**4.7.1.4** `hello` MUST take `name` (text, default `""`), `kind` (text, default `"sdk"`) and
-`replay` (default `true`; only the JSON value `false` disables it).
+**4.7.1.4** `epic.attach` naming a chat or exec slot whose host has gone MUST be refused 409, `This
+chat has folded away.` for a chat and `This epic has ended.` for an exec slot.
 
-**4.7.1.5** A host MUST name a frontend by `name` where it is not `""`, else `<user>@<kind>`,
-`<user>` being `HUMANIZE_NAME` where set, else the login name, else `somebody`; a name already
-attached MUST become `<name>#2`, `<name>#3` and on.
+**4.7.1.5** A host MUST name a frontend by the `name` of `session.hello` where it is not `""`, else
+`<user>@<kind>`, `<user>` being `HUMANIZE_NAME` where set on the client's side, else the login name,
+else `somebody`; a name already attached MUST become `<name>#2`, `<name>#3` and on. The frontend's
+kind MUST be the `kind` of `session.hello`.
 
-**4.7.1.6** `hello` MUST be answered with `client`, the frontend's client id.
+**4.7.1.6** `epic.attach` MUST be refused 409 with `the frontend went while it was saying hello`
+where the session closed meanwhile, and `this host has closed` once the host is closed.
 
-**4.7.1.7** `hello` MUST be refused with `this frontend has already said hello` when sent twice,
-`the frontend went while it was saying hello` where the connection closed meanwhile, and `this host
-has closed` once the host is closed.
-
-**4.7.1.8** Every request sent before `hello` MUST be refused with `a frontend says hello first`.
+**4.7.1.7** One session MAY hold several epic subscriptions, of one host or of several.
 
 #### 4.7.2. Replies
 
-**4.7.2.1** A request MAY carry `id`; every request MUST be answered with exactly one reply on the
-connection it came in on, whose `to` is that `id`, or `""` where it carried none.
+**4.7.2.1** Every call to an epic MUST be answered with exactly one reply, as a result where the
+host carries it out and as the error 409 with its `why` where it refuses it.
 
-**4.7.2.2** A reply MUST carry `ok`; a reply with `ok` `true` MUST carry the fields of the answer,
-and one with `ok` `false` MUST carry `why`, one sentence.
+**4.7.2.2** A call to an epic that fails for any other reason MUST be refused with the text of the
+failure, or the name of its type where the text is empty.
 
-**4.7.2.3** A request whose `do` names no request MUST be refused with `no such request: <repr>`.
+**4.7.2.3** A host MUST give every frontend the same answer and the same refusal, in the same words,
+to the same call in the same state.
 
-**4.7.2.4** A request from a frontend no longer attached MUST be refused with `this frontend is not
-attached`.
-
-**4.7.2.5** A request that fails for any other reason MUST be refused with the text of the failure,
-or the name of its type where the text is empty.
-
-**4.7.2.6** A host MUST give every frontend the same answer and the same refusal, in the same words,
-to the same request in the same state.
+**4.7.2.4** A call naming a subscription that has ended MUST be refused 410.
 
 #### 4.7.3. Order
 
-**4.7.3.1** A host MUST carry out the requests of one frontend in the order sent, except `aside`,
-which MUST be carried out apart from that order so that no other request waits on it.
+**4.7.3.1** A host MUST carry out the calls of one frontend in the order sent, except `epic.aside`,
+which MUST be carried out apart from that order so that no other call waits on it.
 
-**4.7.3.2** A host MUST NOT let a request of one frontend delay the requests or messages of another.
+**4.7.3.2** A host MUST NOT let a call of one frontend delay the calls or messages of another.
 
 #### 4.7.4. Leaving
 
-**4.7.4.1** A frontend leaves by closing its connection, or by the request `detach`; the host MUST
-then send it `gone` `let go`, MUST release every role it claimed, and MUST close every aside it
-opened.
+**4.7.4.1** A frontend leaves by `epic.detach` `{sub}`, or by its session closing; the host MUST
+then send it `gone` `let go` where its session is open, MUST release every role it claimed, and MUST
+close every aside it opened.
 
 **4.7.4.2** A frontend leaving MUST NOT stop any epic.
 
-### 4.8. Requests
+### 4.8. Calls to an epic
 
 #### 4.8.1. General
 
-**4.8.1.1** Each request MUST take exactly the fields its subsection lists, with the stated types
-and defaults; a field not sent MUST take its default.
+**4.8.1.1** Each call to an epic MUST take `sub` and exactly the fields its subsection lists, with
+the stated types and defaults; a field not sent MUST take its default.
 
-#### 4.8.2. `start`
+**4.8.1.2** `epic.start`, `epic.say`, `epic.answer`, `epic.stop`, `epic.force`, `epic.afk`,
+`epic.claim`, `epic.release`, `epic.board` and `epic.quit` MUST be writes.
 
-**4.8.2.1** `start` MUST take `flow` (text, required: a flow name of [CLI]), `task` (text, `""`),
-`agents` (object of role to agent spec, `{}`), `envs` (object of role to environment spec, `{}`),
-`params` (object, `null` for the flow's defaults), `budget` (a `Budget` as JSON, `null`),
+#### 4.8.2. `epic.start`
+
+**4.8.2.1** `epic.start` MUST take `flow` (text, required: a flow name of [CLI]), `task` (text,
+`""`), `agents` (object of role to agent spec, `{}`), `envs` (object of role to environment spec,
+`{}`), `params` (object, `null` for the flow's defaults), `budget` (a `Budget` as JSON, `null`),
 `profile_flow` (boolean, `false`), `profile_environment` (boolean, `false`), `resume` (`false`,
-`true`, or the text of an epic directory, `false`) and `backup` (list of target names, `null` for
-the defaults).
+`true`, or the text of an epic directory, `false`), `backup` (list of target names, `null` for the
+defaults) and `remember` (boolean, `false`).
 
-**4.8.2.2** `start` MUST start the epic as `Hmz.run` of Section 4.4.5 of [PYTHON] does and MUST be
-answered with `run`, its epic number.
+**4.8.2.2** `epic.start` MUST check the epic as `flows.check` does (Section 4.17.8), then start it
+in the host's workspace, and MUST be answered with `run`, its epic number, `slot` and `workspace`;
+`params` text values MUST be read as `-p` reads them ([CLI]).
 
-**4.8.2.3** `start` MUST be refused with `a flow to start is named` for a missing `flow`; `backup is
-a list of backup target names` for a `backup` that is not one; `this host has closed`; `a flow is
-already running` while an epic is going; `a flow is already starting` while another `start` is under
-way; `this chat has folded away; carry it on from its epic` on a chat host that has folded (Section
-4.13.8); and with the `Refused` message of Section 4.6 of [PYTHON] for everything `Hmz.run` refuses.
+**4.8.2.3** `epic.start` with `remember` `true` MUST first write what the flow is started with as
+the workspace's set-up of that flow, as `flows.setup` does (Section 4.17.4).
 
-**4.8.2.4** An epic that is stopping MUST NOT prevent `start`.
+**4.8.2.4** `epic.start` MUST be refused with `a flow to start is named` for a missing `flow`;
+`backup is a list of backup target names` for a `backup` that is not one; `this host has closed`; `a
+flow is already running` while an epic is going; `a flow is already starting` while another start is
+under way; `this chat has folded away; carry it on from its epic` on a chat host that has folded
+(Section 4.13.8); `an exec host runs one epic` on an exec host that has started one; and with the
+`Refused` message of Section 4.6 of [PYTHON] for everything `flows.check` refuses.
 
-#### 4.8.3. `say`
+**4.8.2.5** An epic that is stopping MUST NOT prevent `epic.start`.
 
-**4.8.3.1** `say` MUST take `text` (text, required, not empty) and `to` (text, `""`), and MUST route
-the line as Section 4.10.1 states.
+#### 4.8.3. `epic.say`
 
-**4.8.3.2** `say` MUST be refused with `a line says something` for an empty `text`; `no flow is
+**4.8.3.1** `epic.say` MUST take `text` (text, required, not empty) and `to` (text, `""`), and MUST
+route the line as Section 4.10.1 states.
+
+**4.8.3.2** `epic.say` MUST be refused with `a line says something` for an empty `text`; `no flow is
 running to say it to` while no epic is going, a stopping epic included; and `<role> is <name>'s`
 where `to` is `outworlder:<role>` and another frontend claims `role`.
 
-#### 4.8.4. `answer`
+#### 4.8.4. `epic.answer`
 
-**4.8.4.1** `answer` MUST take `question` (text, a question id) and `text` (text, required, not
+**4.8.4.1** `epic.answer` MUST take `question` (text, a question id) and `text` (text, required, not
 empty).
 
 **4.8.4.2** Where `text`, stripped, is a decimal number `n` from 1 to the number of the question's
 options and is not itself an option, the answer MUST be the `n`-th option; otherwise it MUST be
 `text`.
 
-**4.8.4.3** `answer` MUST be refused with `an answer says something`; `already answered by <name>`
-for a question answered; `no question <id> is waiting`; and `<role> is <name>'s` where another
-frontend claims the question's role.
+**4.8.4.3** `epic.answer` MUST be refused with `an answer says something`; `already answered by
+<name>` for a question answered; `no question <id> is waiting`; and `<role> is <name>'s` where
+another frontend claims the question's role.
 
-#### 4.8.5. `stop` and `force`
+#### 4.8.5. `epic.stop` and `epic.force`
 
-**4.8.5.1** `stop` MUST take no field, MUST interrupt the turn under way and let the flow unwind,
-and MUST be refused with `the flow is already stopping: it is closing out the turn it was in` while
-one is stopping and `no flow is running, so there is nothing to stop` while none is going.
+**4.8.5.1** `epic.stop` MUST take no field, MUST interrupt the turn under way and let the flow
+unwind, and MUST be refused with `the flow is already stopping: it is closing out the turn it was
+in` while one is stopping and `no flow is running, so there is nothing to stop` while none is going.
 
-**4.8.5.2** `force` MUST take no field, MUST stop the epic going where there is one, MUST close
+**4.8.5.2** `epic.force` MUST take no field, MUST stop the epic going where there is one, MUST close
 every session of the stopping epic that has a turn open, and MUST be answered with `closed`, the
 number of sessions closed; it MUST be refused with `no flow is running, so there is nothing to stop`
 where no epic is going or stopping.
 
-#### 4.8.6. `afk`, `claim` and `release`
+#### 4.8.6. `epic.afk`, `epic.claim` and `epic.release`
 
-**4.8.6.1** `afk` MUST take `on` (boolean, required) and `role` (text, `""` for every role), MUST
-set away as Section 4.10.3 states, and MUST be refused with `afk is on or off` for an `on` that is
-not a boolean and `<role> is <name>'s` for a role another frontend claims.
+**4.8.6.1** `epic.afk` MUST take `on` (boolean, required) and `role` (text, `""` for every role),
+MUST set away as Section 4.10.3 states, and MUST be refused with `afk is on or off` for an `on` that
+is not a boolean and `<role> is <name>'s` for a role another frontend claims.
 
-**4.8.6.2** `claim` MUST take `role` (text, required) and `take` (boolean, `false`), MUST claim the
-role for this frontend as Section 4.10.2 states, and MUST be refused with `a role to claim is named`
-and, without `take`, `<role> is <name>'s` for a role another frontend claims.
+**4.8.6.2** `epic.claim` MUST take `role` (text, required) and `take` (boolean, `false`), MUST claim
+the role for this frontend as Section 4.10.2 states, and MUST be refused with `a role to claim is
+named` and, without `take`, `<role> is <name>'s` for a role another frontend claims.
 
-**4.8.6.3** `release` MUST take `role` (text) and MUST be refused with `<role> is not yours to
+**4.8.6.3** `epic.release` MUST take `role` (text) and MUST be refused with `<role> is not yours to
 release` for a role this frontend does not claim.
 
-**4.8.6.4** `afk`, `claim` and `release` MUST NOT require an epic to be going, and `claim` MUST NOT
-check the role against the flow.
+**4.8.6.4** `epic.afk`, `epic.claim` and `epic.release` MUST NOT require an epic to be going, and
+`epic.claim` MUST NOT check the role against the flow.
 
-#### 4.8.7. `board`
+#### 4.8.7. `epic.board`
 
-**4.8.7.1** `board` MUST take `key` (text) and `value` (text, `""`), and MUST write the line `key`
-of the last epic's board as the user, or remove it where `value` is `""`.
+**4.8.7.1** `epic.board` MUST take `key` (text) and `value` (text, `""`), and MUST write the line
+`key` of the last epic's board as the user, or remove it where `value` is `""`.
 
-**4.8.7.2** `board` MUST be refused with `this run has no board`, `<key> is not on the board`, and
-the board's own refusal where the line is not the user's to change.
+**4.8.7.2** `epic.board` MUST be refused with `this run has no board`, `<key> is not on the board`,
+and the board's own refusal where the line is not the user's to change.
 
-#### 4.8.8. `aside` and `unaside`
+#### 4.8.8. `epic.aside` and `epic.unaside`
 
-**4.8.8.1** `aside` without `side` MUST open a side conversation and be answered with `side`
+**4.8.8.1** `epic.aside` without `side` MUST open a side conversation and be answered with `side`
 (`s<n>`) and `forked` (boolean: whether it carries the history of a session).
 
-**4.8.8.2** `aside` with `key` (`<agent>/<n>`, a session of the last epic) and `fork` (boolean) MUST
-open the side conversation on that session: a fork of it where `fork` is `true` and its harness
+**4.8.8.2** `epic.aside` with `key` (`<agent>/<n>`, a session of the last epic) and `fork` (boolean)
+MUST open the side conversation on that session: a fork of it where `fork` is `true` and its harness
 forks, otherwise a new session of a copy of its agent.
 
-**4.8.8.3** `aside` with `runs` (an agent spec) MUST open a new session of that agent in the
+**4.8.8.3** `epic.aside` with `runs` (an agent spec) MUST open a new session of that agent in the
 workspace; with `runs` and `recall` (the harness's id of a session an earlier epic kept), `kept`
 (where that epic kept it) and `cwd`, it MUST open a fork of that session where `fork` is `true` and
 its harness forks it, otherwise a new session of that agent. With `runs` and `asks` (`true`), the
 side conversation MUST be The Epic's, asking as Section 9.6.10 of [CORE] to Section 9.6.14 of [CORE]
 state.
 
-**4.8.8.4** `aside` with a `key` that names no session MUST be refused with `<key> has no
+**4.8.8.4** `epic.aside` with a `key` that names no session MUST be refused with `<key> has no
 conversation to ask`.
 
-**4.8.8.5** `aside` with a `runs` that names no agent this host makes MUST be refused with `<runs>
-is not an agent that can be made here`.
+**4.8.8.5** `epic.aside` with a `runs` that names no agent this host makes MUST be refused with
+`<runs> is not an agent that can be made here`.
 
-**4.8.8.6** `aside` that names neither `key` nor `runs` MUST be refused with `an aside is about a
-conversation, or asks an agent`.
+**4.8.8.6** `epic.aside` that names neither `key` nor `runs` MUST be refused with `an aside is about
+a conversation, or asks an agent`.
 
-**4.8.8.7** `aside` from a frontend that has gone MUST be refused with `this frontend has gone`.
+**4.8.8.7** `epic.aside` from a frontend that has gone MUST be refused with `this frontend has
+gone`.
 
-**4.8.8.8** `aside` with `side` and `prompt` MUST take one turn of that side conversation and be
-answered with `answer`, its text stripped; for The Epic's, a turn that runs an ask command MUST
+**4.8.8.8** `epic.aside` with `side` and `prompt` MUST take one turn of that side conversation and
+be answered with `answer`, its text stripped; for The Epic's, a turn that runs an ask command MUST
 instead be answered with `ask` (`to` and `question`) while the turn waits, and one that runs
 `hmz-ask list` with `ask` whose `to` is empty.
 
-**4.8.8.9** `aside` with a `side` this frontend has not open MUST be refused with `no aside <side>
-is open`.
+**4.8.8.9** `epic.aside` with a `side` this frontend has not open MUST be refused with `no aside
+<side> is open`.
 
-**4.8.8.10** `aside` with a `side` that is taking a turn MUST be refused with `the aside is still
-answering the last question`.
+**4.8.8.10** `epic.aside` with a `side` that is taking a turn MUST be refused with `the aside is
+still answering the last question`.
 
-**4.8.8.11** `unaside` MUST take `side`, MUST close that side conversation, and MUST be refused with
-`no aside <side> is open`.
+**4.8.8.11** `epic.unaside` MUST take `side`, MUST close that side conversation, and MUST be refused
+with `no aside <side> is open`.
 
-**4.8.8.12** Every side conversation MUST be read-only, MUST carry no skills but The Epic's
-`ask-conversation` (Section 9.6.10 of [CORE]), MUST NOT be seen by the epic, MUST be answered only
-to the frontend that opened it, and MUST NOT write where any epic keeps its sessions nor into the
-harness's own home.
+**4.8.8.12** Every side conversation MUST run at the `read-only` rung, MUST carry no skills but The
+Epic's `ask-conversation` (Section 9.6.10 of [CORE]), MUST NOT be seen by the epic, MUST be answered
+only to the frontend that opened it, and MUST NOT write where any epic keeps its sessions nor into
+the harness's own home.
 
-**4.8.8.13** A side conversation MUST be closed by `unaside`, when its frontend leaves, when an epic
-starts on the host, and when the host closes; no message announces side conversations.
+**4.8.8.13** A side conversation MUST be closed by `epic.unaside`, when its frontend leaves, when an
+epic starts on the host, and when the host closes; no message announces side conversations.
 
-**4.8.8.14** `aside` with `side` and `answered` MUST give The Epic's waiting ask command that
-answer, and MUST be answered as `aside` with `prompt` is; where nothing waits, it MUST be refused
-with `aside <side> asked nothing`.
+**4.8.8.14** `epic.aside` with `side` and `answered` MUST give The Epic's waiting ask command that
+answer, and MUST be answered as `epic.aside` with `prompt` is; where nothing waits, it MUST be
+refused with `aside <side> asked nothing`.
 
-#### 4.8.9. `status`, `detach` and `quit`
+#### 4.8.9. `epic.status`, `epic.detach` and `epic.quit`
 
-**4.8.9.1** `status` MUST be answered with every key of Section 4.6.4.1.
+**4.8.9.1** `epic.status` MUST be answered with every key of Section 4.6.4.1.
 
-**4.8.9.2** `detach` MUST let this frontend go as Section 4.7.4 states.
+**4.8.9.2** `epic.detach` MUST let this frontend go as Section 4.7.4 states, and MUST be answered
+`{}`.
 
-**4.8.9.3** `quit` MUST close the host as Section 4.13.6 states.
+**4.8.9.3** `epic.quit` MUST close the host as Section 4.13.6 states.
 
 ### 4.9. Messages
 
 #### 4.9.1. Attaching
 
-**4.9.1.1** On `hello`, a host MUST send the new frontend, before any other message and with no
-other message between them: `welcome`; every history record kept, oldest first, unless `replay` is
-`false`; every snapshot, in the order `clients`, `claims`, `away`, `run`, `sessions`, `calls`,
-`waiting`, `pending`, `usage`, `board`; and `live`.
+**4.9.1.1** On `epic.attach`, a host MUST send the new frontend, before any other message and with
+no other message between them: `welcome`; every history record kept, oldest first, unless `replay`
+is `false`, or those Section 6.8.4 of [WIRE] states where `since` is given; every snapshot, in the
+order `clients`, `claims`, `away`, `run`, `sessions`, `calls`, `waiting`, `pending`, `usage`,
+`board`; and `live`.
 
 **4.9.1.2** After `live`, a host MUST send each history record and each changed snapshot as it
 happens.
 
 **4.9.1.3** `welcome` MUST carry `client`, `name`, `kind`, `workspace`, `slot`, `pid` (the host's
-process) and `protocol`.
+process), `protocol` and `epoch`, a text naming this life of the host, made afresh each time a host
+starts.
 
 **4.9.1.4** `live` MUST carry `seq`, the `seq` of the last history record, and `elided`, the number
 of history records dropped from the front.
+
+**4.9.1.5** An epic subscription opened with `figures` `true` MUST also be sent the message
+`figures`, after `live` and then at most once a second while it changes, holding `run`, `elapsed`,
+`lasting`, `ended`, `agents` and `sessions` (each `name`, `turns`, `working`, `since`, `lasting`,
+`used`, `tokens`, `under`), `handovers` (`[{from, to, count}]`), `latest`, `spending` (each `model`,
+`tokens`, `rate`, `dollars`, `money`, `kinds`), `reckoning` (each `kind`, `tokens`, `whole`) and
+`tally`: what the epic has done and spent, worked out of its history records.
 
 #### 4.9.2. History records
 
@@ -820,8 +865,8 @@ of history records dropped from the front.
 across the host's life.
 
 **4.9.2.2** A host MUST keep the history records of the epic going or the last, starting afresh with
-each `start`, up to 32 MiB of JSON, dropping the oldest whole records first and counting them in
-`elided`.
+each `epic.start`, up to 32 MiB of JSON, dropping the oldest whole records first and counting them
+in `elided`.
 
 **4.9.2.3** Every history record other than `printed` MUST carry `run`, its epic number.
 
@@ -847,7 +892,8 @@ each `start`, up to 32 MiB of JSON, dropping the oldest whole records first and 
 - `printed`: `text`: one line printed in the host process.
 - `notice`: `text`: a notice of **hmz** about the epic, as Section 3 of [CORE] defines notices.
 - `stopping`: `by`, `client`.
-- `ended`: `how` (`done`, `stopped`, `budget`, `refused`, `failed` or `crashed`), `why`, `mono`.
+- `ended`: `how` (`done`, `stopped`, `budget`, `refused`, `failed` or `crashed`), `why`, `mono`,
+  `result`.
 
 **4.9.2.5** A conversation MUST be keyed `<agent>/<n>`, `<agent>` the agent's own name and `n` the
 count of sessions that agent opened in the epic, assigned once as the session opens.
@@ -863,6 +909,9 @@ be `""`, `local`, `self` or `<backend>:<name>` as Section 6 of [CORE] defines th
 **4.9.2.8** `ended.how` MUST be read as the endings of Section 3.3.6 of [CORE]: `done` as `done`,
 `stopped` and `budget` as `stopped`, `failed` and `crashed` as `failed`, and `refused` as an epic
 refused before it was created, which has no ending.
+
+**4.9.2.9** `ended.result` MUST be what the flow returned, as JSON, every value that is not
+JSON-native as its text, for `done`, and `null` otherwise.
 
 #### 4.9.3. Snapshots
 
@@ -889,18 +938,15 @@ MUST send a snapshot to every frontend whenever it changes.
 
 #### 4.9.4. `gone`
 
-**4.9.4.1** `gone` MUST be the last message a host sends a frontend, carrying `why`.
+**4.9.4.1** `gone` MUST be the last message a host sends a frontend, carrying `why`, and its epic
+subscription MUST end with it.
 
 **4.9.4.2** `why` MUST be `let go` where the frontend left; `the host was closed` where the host
-closed; `fell too far behind; open it again` or `too far behind; attach again` where the frontend
-fell behind (Section 4.11.1).
+closed; `too far behind; attach again` where the frontend fell behind (Section 4.11.1); and `the
+host went away` where the host process ended without closing.
 
-**4.9.4.3** After `gone`, a host MUST send that frontend no message other than replies, and MUST
-give the connection at most 5 seconds to take what it is owed before closing it.
-
-**4.9.4.4** A client MUST read the end of the connection, a failed read, or a frame of no valid
-length, without a preceding `gone`, as `gone` with `why` `the host went away`, and a `GONE` frame as
-`gone` with its text as `why`.
+**4.9.4.3** A client MUST read the end of its session, without a preceding `gone`, as the end of
+every epic subscription of it, and MUST attach again as Section 3.6.11 states.
 
 ### 4.10. Semantics a frontend observes
 
@@ -954,32 +1000,27 @@ its epic stops or ends, is forced, or the host closes.
 
 **4.10.3.1** Away MUST be held per role by the host and MUST outlive the frontend that set it.
 
-**4.10.3.2** `afk` with a role MUST set that role; `afk` without a role MUST, where no role is
-claimed, set every role and clear every per-role value, and, where roles are claimed, leave the
-value of every role another frontend claims unchanged.
+**4.10.3.2** `epic.afk` with a role MUST set that role; `epic.afk` without a role MUST, where no
+role is claimed, set every role and clear every per-role value, and, where roles are claimed, leave
+the value of every role another frontend claims unchanged.
 
 ### 4.11. Limits
 
-**4.11.1** A host MUST NOT wait on a slow frontend: where more than 64 MiB of messages wait for one
-frontend, the host MUST let it go with `gone`, sent after the frame in progress.
+**4.11.1** A host MUST NOT wait on a slow frontend: a session that falls behind MUST be let go as
+Section 6.10.1 of [WIRE] states.
 
 **4.11.2** Every text longer than 262 144 characters in a history record or a snapshot MUST be cut
 to that length followed by `… (<n> more characters)`, `n` the characters cut.
 
 ### 4.12. Protocol versions
 
-**4.12.1** The protocol version this document defines MUST be `2`.
+**4.12.1** The protocol version of the daemon MUST be that of Section 6.5.1 of [WIRE].
 
 **4.12.2** The daemon MUST write its protocol version in the daemon record (Section 7.6.2 of
 [FILES]), and a host MUST send it in `welcome`.
 
-**4.12.3** A client finding a daemon of another protocol version, or of none, MUST NOT reach it and
-MUST NOT start a daemon beside it, and MUST report `the runs in <workspace> are held by an older
-Humanize (pid <pid>); stop it with that version`, with `on this machine` in place of `in
-<workspace>` where no workspace is concerned.
-
-**4.12.4** The daemon and a host MUST answer a reader that speaks another protocol, by a frame kind
-they do not know, with `GONE` as Section 4.5.8 states.
+**4.12.3** A client finding a daemon record of another major version, or of none, MUST NOT reach it,
+MUST NOT start a daemon beside it, and MUST report the refusal of Section 3.7.5.
 
 ### 4.13. Lifecycle
 
@@ -993,8 +1034,9 @@ every workspace.
 **4.13.1.3** The daemon MUST refuse a second host of one slot of one workspace while the first is
 alive.
 
-**4.13.1.4** The daemon MUST exit once it has held no host for 2 seconds, or 60 seconds after it
-started where no host was ever taken on, and on `SIGTERM`.
+**4.13.1.4** The daemon MUST exit once it has held no host and no session for 2 seconds, or 60
+seconds after it started where no host was ever taken on and no session is open, except as Section
+3.9.4 states, and on `SIGTERM`.
 
 #### 4.13.2. Hosts
 
@@ -1009,14 +1051,14 @@ to every frontend as a `printed` record, one line per record.
 
 #### 4.13.3. Idle hosts
 
-**4.13.3.1** A host MUST close once it is idle and either a frontend has ever said `hello` to it or
-60 seconds have passed since it started.
+**4.13.3.1** A host MUST close once it is idle and either a frontend has ever attached to it or 60
+seconds have passed since it started.
 
 **4.13.3.2** A host MUST read as idle where no frontend is attached, no epic is going, starting or
 stopping, and no epic awaits a frontend.
 
 **4.13.3.3** An epic that ended while no frontend was attached, and that no frontend stopped, MUST
-await a frontend until one attaches, except a chat that folded.
+await a frontend until one attaches, except a chat that folded and the epic of an exec host.
 
 #### 4.13.4. Hosts losing the daemon
 
@@ -1036,12 +1078,12 @@ conversation.
 **4.13.6.2** Closing a host MUST wait at most 15 seconds, from the first close, for its epics to
 release what they made, and the host process MUST then exit.
 
-**4.13.6.3** A connection arriving at a closed host MUST be closed at once.
+**4.13.6.3** A frontend attaching to a closed host MUST be refused as Section 4.7.1.6 states.
 
 #### 4.13.7. Failures
 
-**4.13.7.1** Whatever a frontend sends, other than `stop`, `force` and `quit`, MUST NOT end an
-epic.
+**4.13.7.1** Whatever a frontend sends, other than `epic.stop`, `epic.force`, `epic.quit` and
+`hosts.stop`, MUST NOT end an epic.
 
 **4.13.7.2** A failure that belongs to an epic MUST be written to that epic's `host.log` (Section 6
 of [FILES]), and one that belongs to none to `daemon.log` in the daemon directory (Section 7 of
@@ -1053,52 +1095,577 @@ of [FILES]), and one that belongs to none to `daemon.log` in the daemon director
 frontend attached for 60 seconds; folding MUST set every role away, MUST answer the waiting
 question with nothing, and MUST end the chat `done`.
 
-**4.13.8.2** A folded chat host MUST refuse `start` (Section 4.8.2.3); a folded chat is carried on
-by starting the `chat` flow on a new slot with `resume` its epic directory, which continues in that
-same epic.
+**4.13.8.2** A folded chat host MUST refuse `epic.start` (Section 4.8.2.4); a folded chat is carried
+on by starting the `chat` flow on a new slot with `resume` its epic directory, which continues in
+that same epic.
+
+### 4.14. Sessions, pairing and devices
+
+#### 4.14.1. `session.*` and `rpc.discover`
+
+**4.14.1.1** `session.hello` and `session.cancel` MUST be as Section 6.5 of [WIRE] and Section 6.4.7
+of [WIRE] state.
+
+**4.14.1.2** `rpc.discover` MUST answer as Section 6.11.4 of [WIRE] states.
+
+#### 4.14.2. `pair.*`
+
+**4.14.2.1** `pair.create` MUST take `routes` (a list of routes, default the routes of the
+listeners) and `seconds` (60 to 86 400, default 600), MUST make a pairing code as Section 4.5 of
+[WIRE] states, and MUST be answered with `code` and `expires`; `seconds` out of bounds MUST be
+refused 400, `A code lives 60 to 86400 seconds.`, and no route at all 409, `There is no route to
+pair over: give one, or listen.`
+
+**4.14.2.2** `pair.claim` MUST take `token` and `name` (the device's name, of the grammar of Section
+3.8.1.4), MUST pair the session's device as Section 4.5.8 of [WIRE] states, and MUST be answered
+with `daemon_id` and `device`, the name the device was paired under; a `name` not of that grammar
+MUST be refused 400, `A device's name begins with a letter or a digit, holds letters, digits, '.',
+'_' and '-', and is not local.`
+
+**4.14.2.3** `pair.claim` on a paired session MUST be refused 409, `This device is already paired.`
+
+**4.14.2.4** `pair.create` MUST be a write, and `pair.claim` MUST NOT be one.
+
+#### 4.14.3. `devices.*`
+
+**4.14.3.1** `devices.list` MUST answer `devices`, each `name`, `fingerprint`, `added`, `seen` and
+`live` (how many sessions of it are open), in the order paired.
+
+**4.14.3.2** `devices.revoke` MUST take `name`, MUST revoke that device as Section 4.6.3 of [WIRE]
+states, and MUST be answered with `dropped`, the number of sessions closed; `local` MUST be refused
+400, `local cannot be revoked.` (Section 4.6.4 of [WIRE]), and an unknown name 404, `There is no
+device <name>.`
+
+**4.14.3.3** `devices.revoke` MUST be a write.
+
+### 4.15. Side questions
+
+#### 4.15.1. General
+
+**4.15.1.1** A side question of `btw.*` MUST be asked as Section 9 of [CORE] defines it, through
+side conversations the workspace's own host opens (Section 4.8.8), and MUST NOT reach the epic.
+
+**4.15.1.2** The daemon MUST open those side conversations as a frontend of its own, of kind `btw`,
+attached to the workspace's own host only while a `btw.*` call asks something of it or it holds an
+open side conversation, and MUST let go of it once neither has happened for 60 seconds.
+
+**4.15.1.3** The **btw** agent MUST be chosen as Section 9.7 of [CORE] states: the `btw` setting of
+Section 3 of [FILES], and no other.
+
+**4.15.1.4** The side conversations of `btw.*` MUST be kept by the daemon per workspace and per
+`aside` name, the same for every session.
+
+#### 4.15.2. `btw.list`
+
+**4.15.2.1** `btw.list` MUST take `workspace` and `epic` (an epic name, `""` for the epic in view on
+the workspace's own host).
+
+**4.15.2.2** `btw.list` MUST answer `asides` (each side conversation open about `epic`, in the order
+opened) and `default` (the `btw` setting of Section 3 of [FILES], `""` for none, where a question to
+the btw agent is refused as Section 9.5.9 of [CORE] states).
+
+**4.15.2.3** Each of `asides` MUST say `aside` (its name, Section 4.15.3.1), `to` (whom it asks, as
+Section 4.15.3.1), `question` (the question it is answering, `""` for none), `asked` (`[{to,
+question}]`, each session the btw agent has asked on the way to that answer so far) and `said` (each
+side question answered in it, oldest first, as Section 4.15.3 answers it, the latest 200).
+
+**4.15.2.4** `btw.list` MUST NOT attach to any host; where the daemon holds no side conversation of
+the workspace, `asides` MUST be `[]`.
+
+#### 4.15.3. `btw.ask`
+
+**4.15.3.1** `btw.ask` MUST take `workspace`, `question` (text, required), `aside` (text, required:
+the side conversation, named by the client), `to` (`""` for the btw agent, or `<agent>/<n>`) and
+`epic` (the epic it is about, `""` for none).
+
+**4.15.3.2** The first question to an `aside` MUST open a side conversation on `to`, about `epic`,
+and every later question to it MUST go on in that side conversation, of that `to` and `epic`
+whatever the question sends, until it is left.
+
+**4.15.3.3** Where `epic` names an epic the host no longer holds, or `epic` and `to` a session it no
+longer holds, the daemon MUST tell the side conversation that epic rather than the epic going, and
+MUST carry each of its sessions asked on from where that epic kept it; a session that epic did not
+open, or whose agent it did not write, MUST be refused 404.
+
+**4.15.3.4** `btw.ask` MUST answer `aside`, `to`, `question`, `answer`, and `asked` (`[{to,
+question}]`, each session the btw agent asked on the way to its answer).
+
+**4.15.3.5** A question to a side conversation still answering MUST be refused 409, `btw is still
+answering the last question asked of it.`; a question closed by a new epic starting 409, `A new epic
+started, which closed what was asked.`; an empty answer 502, `The agent returned no answer.`
+
+#### 4.15.4. `btw.leave`
+
+**4.15.4.1** `btw.leave` MUST take `workspace` and `aside` (a side conversation, or absent for every
+one), MUST close the side conversations named, and MUST answer `{}`.
+
+**4.15.4.2** A side conversation about the epic going on a host MUST be closed when another epic
+starts on that host, and one about an epic the host no longer holds MUST NOT be closed by that.
+
+### 4.16. Epics written down
+
+#### 4.16.1. `runs.list`
+
+**4.16.1.1** `runs.list` MUST take `workspace` (only that workspace's epics; every workspace's where
+absent), `status` (an ending of Section 3 of [CORE], `running` or `unfinished`), `flow`, `q` (text
+found in the task, flow or epic name), `offset` (default `0`) and `limit` (default `50`, at most
+`200`).
+
+**4.16.1.2** `runs.list` MUST answer `runs` (epic rows, newest first), `total`, `offset`, `limit`,
+`counts` (`{ending: n}` over every epic) and `flows` (every flow, sorted).
+
+#### 4.16.2. Epic rows
+
+**4.16.2.1** An epic row MUST hold `name`, `workspace`, `flow`, `task` (its first line, cut at 240
+characters with `…`), `began`, `ended`, `how` (its ending, `running` while going, `unfinished` where
+its process went before it ended; of a chat, as Section 8.5 of [CORE] says it), `agents` (`[{name,
+role, runs}]`), `sessions` (a count), `resumable`, `spent`, `held` (whether a host is going with
+it), `slot` (that host's), `asking` (the questions that host waits on, each `<run>:<question>`, `[]`
+where none waits or no host is going with it), `backup` (the targets it was started with) and
+`backed` (`{target: {at, ok, error, why}}`).
+
+#### 4.16.3. `runs.get`
+
+**4.16.3.1** `runs.get` `{name}` MUST answer the epic row of the epic, of whichever workspace, with
+`at`, the whole `task`, `ref`, `agents` (each `name`, `role`, `runs`, `backend`, `model`, `effort`,
+`provider`), `sessions` (each `agent`, `backend`, `provider`, `ident`, `name`, `at`, `flow`,
+`parent`, `harness`), `envs`, `used`, `params`, `budget`, `picked_up`, `earlier` (of a chat carried
+on, how many of its sessions it opened before it last was), `profile_flow`, `profile_environment`,
+`picks_up`, `foreign` and `calls` (its tree of flow calls, each `flow`, `task`, `began`, `ended`,
+`how`, `calls`).
+
+**4.16.3.2** A `name` that names no epic MUST be refused 404, `There is no epic <name>.`, by every
+method of Section 4.16 that takes `name`.
+
+#### 4.16.4. Traces, timelines and bundles
+
+**4.16.4.1** `runs.trace` `{name}` MUST answer `sessions`, as `Epics.transcripts` of Section 4.12.15
+of [PYTHON] returns them.
+
+**4.16.4.2** `runs.timeline` `{name}` MUST answer the epic's Exomyth timeline as Section 10 of
+[CORE] defines it, laid out afresh on every call while the epic is going.
+
+**4.16.4.3** `runs.span` `{name, id, layout}` MUST answer one span of the last timeline laid out of
+the epic, whole; an id it lacks MUST be refused 404, `Epic <name> has no span <id>.`, and a `layout`
+other than that timeline's 409, `Epic <name> has been laid out again; read it again.`
+
+**4.16.4.4** `runs.bundle` `{name}` MUST write the epic's `.hmzepic` (Section 4.12.17 of [PYTHON])
+and answer `handle` (a read handle of it, Section 6.9 of [WIRE]), `filename` (`<name>.hmzepic`),
+`size` and `type` (`application/vnd.hmz.epic+gzip`).
+
+#### 4.16.5. `runs.backup`
+
+**4.16.5.1** `runs.backup` `{name, to}` MUST take `to` (a list of target names, or absent) and MUST
+back the epic up as `Backups.push` of Section 4.13.2 of [PYTHON] does, answering `queued` at once
+without waiting for the push, and MUST be a write.
+
+**4.16.5.2** A `to` that names no target MUST be refused 400; where there is no target at all the
+call MUST be refused 409, `There is no backup target: add one in Settings.`
+
+#### 4.16.6. `runs.import`
+
+**4.16.6.1** `runs.import` MUST take either `handle`, a write handle of `files.create` (Section 6.9
+of [WIRE]) holding the archive's bytes, or `path`, the absolute path of a `.hmzepic` on the daemon's
+machine, and MUST be a write.
+
+**4.16.6.2** `runs.import` MUST import the archive as `Epics.imported` of Section 4.12.18 of
+[PYTHON] does and answer `name`, `workspace`, `resumable` and `why`.
+
+**4.16.6.3** A handle given MUST be taken (Section 6.9.4 of [WIRE]) once the call is answered.
+
+**4.16.6.4** A handle whose file name, as `files.create` gave it, holds `/`, `\` or a NUL, or is
+longer than 255 bytes, MUST be refused 400, `That is not a file name.`; a `path` that is not
+absolute 400, `Say path as a whole path on this machine.`; a handle whose bytes are fewer than the
+size declared 409, `The file is not whole yet.`; an archive that cannot be imported 400 with the
+sentence of the error `Epics.imported` raises (Section 4.12.19 of [PYTHON]); and an epic already
+present 409 with that error's sentence and, in `data`, `name`, that epic's name.
+
+**4.16.6.5** Where the daemon runs in WSL, a `path` that is a Windows path (`C:\…`, `\\wsl$\…`,
+`\\wsl.localhost\…`) MUST be read as `wslpath -u` translates it, before the check of Section
+4.16.6.4 that `path` is absolute.
+
+#### 4.16.7. `files.*`
+
+**4.16.7.1** `files.create`, `files.write`, `files.read` and `files.close` MUST be as Section 6.9 of
+[WIRE] states.
+
+#### 4.16.8. `backups.*`
+
+**4.16.8.1** `backups.epics` `{target}` MUST fetch the target afresh and answer `epics`, newest
+first, each `key` (`<machine>/<workspace>/<epic>`), `machine`, `workspace`, `epic`, `flow`, `task`,
+`began`, `ended`, `how`, `head`, and `here` (whether this machine holds that epic).
+
+**4.16.8.2** `backups.pull` `{target, key}` MUST download that epic as `Backups.pulled` of Section
+4.13.7 of [PYTHON] does, answer `name`, and be a write.
+
+**4.16.8.3** `backups.epics` and `backups.pull` MUST each refuse 400 for an unknown target or what
+`Backups` raises `ValueError` for, and 502 where the repository cannot be reached; a refusal MUST
+NOT carry credentials of a URL.
+
+#### 4.16.9. `runs.usage`
+
+**4.16.9.1** `runs.usage` MUST take `days` (1 to 365, default 30) and `workspace` (only its epics),
+and MUST answer `days_back`, `days` (per UTC day, oldest first), `flows` (costliest first), `ended`
+(`{ending: n}`) and `whole`, each but `ended` holding `runs`, `cost`, `output_tokens`, `seconds`,
+`money`, `tokens` and `worked`.
+
+### 4.17. Flows, workspaces and paths
+
+#### 4.17.1. `flows.list`
+
+**4.17.1.1** `flows.list` MUST take `workspace` and answer `flows` (`[{whose, name, about}]`),
+`flow` (the flow that workspace opens on) and `running` (`[{ref, name, depth, since, task}]`).
+
+#### 4.17.2. `flows.get`
+
+**4.17.2.1** `flows.get` MUST take `name` and `workspace`, and MUST answer what the flow declares:
+`name`, `ref`, `description`, `resumable`, `resumes`, `agents` (each `name`, `required`, `auto`,
+`harness`, `permission` (`{preset, network, granular: [{path, access}]}`), `skills`, and `clis`: the
+CLIs installed on the daemon's machine that can fill it), `envs` (each `name`, `required`, `auto`,
+`cpu`, `memory`, `gpu`, `image`), `params` (its JSON schema) and `remembered` (`agents`, `envs`, `params`, `budget`, `profile_flow`,
+`profile_environment`, `backup`, as the workspace last set the flow up).
+
+**4.17.2.2** A name that is not one of `flows.list` MUST be refused 404, `<name> is not a flow on
+offer here.`, and a flow that will not load 404.
+
+**4.17.2.3** The daemon MUST NOT load a flow named by a path or a repository for `flows.get`.
+
+#### 4.17.3. `flows.backends`
+
+**4.17.3.1** `flows.backends` MUST answer `clis` (`{cli: {accounts: [{name, models: [{name,
+efforts}], asked}]}}` for each CLI installed, this machine's own sign-in first as `""`),
+`installable` (`{cli: [{name, efforts}]}`) and `envs` (`Runtimes.kinds()` of Section 4.10.2 of
+[PYTHON]).
+
+#### 4.17.4. `flows.setup` and `flows.fork`
+
+**4.17.4.1** `flows.setup` MUST take `workspace`, `flow`, and, as `epic.start` takes them, `agents`,
+`envs`, `params`, `budget`, `profile_flow`, `profile_environment` and `backup`, MUST write what the
+workspace runs the flow with, as Section 3 of [FILES] defines it, and MUST answer as `flows.get`
+does.
+
+**4.17.4.2** `flows.setup` MUST be refused 404 for a flow not on offer or that will not load; 400
+for an agent that is not an agent spec, a role left without an agent, a flow other than `chat` with
+no budget limit, and a `backup` naming an unknown target.
+
+**4.17.4.3** `flows.fork` MUST take `flow` and `workspace`, copy the flow as `Flows.fork` of Section
+4.7.7 of [PYTHON] does, and answer `said` and `at`; what that raises MUST be refused 400.
+
+**4.17.4.4** `flows.setup` and `flows.fork` MUST be writes.
+
+#### 4.17.5. `workspaces.*`
+
+**4.17.5.1** `workspaces.list` MUST take `here`, and answer `here` and `workspaces`, each `path`,
+`name`, `epics` (a count), `last` (when the latest began), `running`, `here` and `there` (whether
+the directory exists): `here` first, then those going, then those where epics ran, newest first,
+then those only written in the settings.
+
+**4.17.5.2** `workspaces.add` MUST take `workspace` and `here`, write the workspace in the settings,
+and answer `kept` (its absolute path) beside what `workspaces.list` answers.
+
+**4.17.5.3** `workspaces.forget` MUST take `workspace` and `here`, forget what it was set up with,
+and answer as `workspaces.list` does.
+
+**4.17.5.4** `workspaces.add` and `workspaces.forget` MUST be writes.
+
+#### 4.17.6. `flowverses.*`
+
+**4.17.6.1** `flowverses.list` MUST answer `verses` (each `name`, `url` without credentials,
+`fetched`, `fixed`, `edited`, `installed`), `installed` (each `flow`, `verse`, `listed`, `version`,
+`repo`, `ref`) and `updates` (each `flow`, `from`, `to`).
+
+**4.17.6.2** `flowverses.get` `{name}` MUST answer `name`, `url`, `fetched`, `fixed`, `edited`,
+`flows` (each `listed`, `flow` as `flowverses.install` takes it, `installed`, and `releases` newest
+first, each `version`, `description`, `prerelease`, `license`, `repo`, `dependencies`) and `skipped`
+(each `at`, `why`); an unknown name MUST be refused 404, `There is no flowverse <name>.`
+
+**4.17.6.3** `flowverses.add` (`url`, `name`), `flowverses.fetch` (`name`), `flowverses.remove`
+(`name`), `flowverses.install` (`flow`, `version`) and `flowverses.uninstall` (`flow`) MUST do what
+`Flowverses.add`, `fetch`, `remove`, `install` and `uninstall` of Section 4.8 of [PYTHON] do, MUST
+be writes, and MUST answer `said` (what was done, in words) beside what `flowverses.list` answers;
+what those raise MUST be refused 400.
+
+**4.17.6.4** Install, uninstall and remove MUST be refused 409, `An epic is running: flows change
+once none is.`, while an epic is going on the daemon's machine.
+
+#### 4.17.7. `paths.*`
+
+**4.17.7.1** `paths.list` MUST take `at` (a directory, `~` expanded, the home directory where
+absent), `files` (boolean, to list files) and `hidden` (boolean, to list names starting with `.`),
+and MUST answer `at` (spelled from `~` where under the home directory), `whole`, `up` (the parent,
+`""` at the root), `entries` (each `name`, `dir`, directories first, at most 500) and `more` (how
+many were left out); a directory that cannot be read MUST be refused 404.
+
+**4.17.7.2** `paths.complete` MUST take `typed` and answer `paths`: at most 50 directories the text
+typed could become, sorted, spelled as typed, each ending in `/`, names starting with `.` only where
+a `.` was typed.
+
+#### 4.17.8. `flows.check`
+
+**4.17.8.1** `flows.check` MUST take `workspace`, `flow`, and, as `epic.start` takes them, `agents`,
+`envs`, `params`, `budget`, `profile_flow`, `profile_environment`, `resume` and `backup`, and MUST
+check everything `hmz exec` checks before an epic starts (Section 7.7 of [CLI]) but whether an env
+can be reached, without starting the epic, any agent CLI or any env, and without reaching another
+machine.
+
+**4.17.8.2** `flows.check` MUST answer `flow` (as named), `ref`, `chats` (whether it is the built-in
+`chat` flow), `declared` (as `flows.get` answers), `names` (`{role: agent name}`), `budget`,
+`backup` (the targets it would go to) and `unreadable` (every limit of the budget nothing the epic
+drives can enforce, in words, or `""`).
+
+**4.17.8.3** `flows.check` MUST refuse 400 with the `Refused` message of Section 4.6 of [PYTHON],
+the one `hmz exec` prints after `hmz exec: error: `, for everything it finds.
+
+### 4.18. Settings
+
+#### 4.18.1. `settings.*`
+
+**4.18.1.1** `settings.get` MUST take `workspace`, for a workspace that need not exist, and answer
+`workspace`, `flow`, `btw`, `details`, `reports` (`null` where never answered), `flows` (the flows
+set up there), `backup` (`targets`, each `name`, `url` without credentials, `branch`, `policies`,
+`every`; and `defaults`), `listen` and `ice_servers`.
+
+**4.18.1.2** `settings.set` MUST take `workspace` and any of `btw` (text), `details` (boolean),
+`reports` (boolean), `backup` (`{targets, defaults}`, every target), `listen` (a list of listener
+specs) and `ice_servers` (a list of `{urls, username, credential}`), MUST be a write, and MUST
+answer as `settings.get` does.
+
+**4.18.1.3** `settings.set` MUST write `btw`, `details`, `backup`, `listen` and `ice_servers` as
+Section 3 of [FILES] defines them, and `reports` as the key `enable_sentry` of Section 3 of [FILES];
+a change of `listen` MUST open and close listeners at once.
+
+**4.18.1.4** A target whose `url` equals the credential-free URL `settings.get` answered MUST keep
+the URL written; a `url` still holding `***@` otherwise MUST be refused 400.
+
+**4.18.1.5** A value of another type, or a listener spec that is not one, MUST be refused 400 and
+nothing written.
+
+**4.18.1.6** `settings.forget` MUST take `workspace`, forget what that workspace was set up with,
+be a write, and answer `forgot` (whether there was anything) beside what `settings.get` answers.
+
+**4.18.1.7** `settings.get` MUST answer an `ice_servers` entry with its `credential` replaced by
+`true` where one is written, and `settings.set` given an entry whose `credential` is `true` MUST
+keep the one written.
+
+#### 4.18.2. `accounts.*`
+
+**4.18.2.1** `accounts.list` MUST answer `gateway` (`"LiteLLM"`), `accounts` (each `cli`, `name`,
+`way`, `sets` (the names of the variables it sets), `made`, `models`, `asked`, `serves`) and
+`backends` (each `cli`, `ways`, each `name`, `about`, `group`, `terminal`, `asks` (each `env`,
+`about`, `secret`, `fixed`); and `wants`).
+
+**4.18.2.2** An answer of the daemon MUST NOT carry the value of any variable an account sets.
+
+**4.18.2.3** `accounts.create` MUST take `cli`, `name`, `way` and `answers` (`{variable: value}`),
+and make the account; it MUST be refused 400 for an unknown way, a way whose `terminal` is true, a
+variable left unanswered or an invalid name, and 409 for a name taken.
+
+**4.18.2.4** `accounts.correct` MUST take `cli`, `name` and `answers`, write the account again
+keeping every variable not answered, and be refused 400 for a variable the way does not ask and for
+a way whose `terminal` is true.
+
+**4.18.2.5** `accounts.remove` (`cli`, `name`), `accounts.models` (`cli`, `name`, `""` for the
+daemon's machine's own) and `accounts.copy` (`cli`, `name`, `into`) MUST remove the account, ask the
+CLI what it runs as that account, and copy the account to the CLI `into`; an unknown account MUST be
+refused 404 and a CLI that will not answer 502.
+
+**4.18.2.6** Every method of Section 4.18.2 but `accounts.list` MUST be a write and MUST answer as
+`accounts.list` does.
+
+#### 4.18.3. `fallbacks.*`
+
+**4.18.3.1** `fallbacks.list` MUST answer `steps` (each `spec`, `to`, `tries`, `policy`,
+`timeout`), `policies`, `default` and `places`.
+
+**4.18.3.2** `fallbacks.set` MUST take `spec` (a place), `to` (places, in order), `tries` (default
+`0`), `policy` (default `exponential-jitter`) and `timeout` (seconds, `0` for none), write the step,
+and answer as `fallbacks.list` does; a value `Fallbacks` of Section 4.11 of [PYTHON] refuses MUST be
+refused 400.
+
+**4.18.3.3** `fallbacks.clear` MUST take `spec`, remove its step, and answer as `fallbacks.list`
+does; a place with no step MUST be refused 404.
+
+**4.18.3.4** `fallbacks.set` and `fallbacks.clear` MUST be writes.
+
+#### 4.18.4. `runtimes.*`
+
+**4.18.4.1** `runtimes.list` MUST answer `runtimes` (each as the runtime's `held()` of Section
+4.20.6.1 of [PYTHON] gives it) and `blanks` (each backend's fields as a new runtime holds them).
+
+**4.18.4.2** `runtimes.set` MUST take `backend`, `name`, `fields` and `replace` (boolean), and write
+the runtime; `backend` or `name` among `fields`, or an invalid runtime, MUST be refused 400.
+
+**4.18.4.3** `runtimes.remove` (`backend`, `name`) MUST remove the runtime, and `runtimes.check`
+(`backend`, `name`) MUST answer what `Runtimes.check` of Section 4.10.12 of [PYTHON] returns, each
+field by name; an unknown runtime MUST be refused 404.
+
+**4.18.4.4** `runtimes.hosts` MUST answer `hosts`, each `alias`, `host`, `user`, `port`,
+`identity_files`, `proxy_jump` and `saved`, every `Host` of the ssh configuration of the daemon's
+machine; an unreadable ssh config MUST be refused 503.
+
+**4.18.4.5** `runtimes.import` MUST take `names` (a list) and `update` (boolean), save an ssh
+runtime per name, and answer as `runtimes.list` does; an empty list or unknown host MUST be refused
+400.
+
+**4.18.4.6** `runtimes.set`, `runtimes.remove` and `runtimes.import` MUST be writes and MUST answer
+as `runtimes.list` does.
+
+#### 4.18.5. `easytier.*`
+
+**4.18.5.1** `easytier.list` MUST answer `networks`, each EasyTier entry of the daemon's machine
+(Section 3.4.10 of [FILES]) as `name`, `nodes` and `secret`, `true` where one is written.
+
+**4.18.5.2** `easytier.set` MUST take `name`, `secret` and `nodes`, write the entry, keeping the
+secret written where `secret` is absent, be a write, and answer as `easytier.list` does; a secret
+shorter than 16 bytes and an entry without nodes MUST be refused 400 with the sentences of Section
+3.8.5.1 and Section 3.8.5.7.
+
+**4.18.5.3** `easytier.remove` MUST take `name`, remove the entry, be a write and answer as
+`easytier.list` does; an unknown name MUST be refused 404 and one a listener names 409, `<name> is
+listened on.`
+
+**4.18.5.4** `easytier.nodes` MUST answer `nodes`, the community's shared EasyTier nodes (Section
+3.8.5.8), each `url`, `name`, `version`, `up` (boolean, or `null` where unknown) and `uptime` (from
+0 to 1 over 24 hours, or `null` where unknown); a list that cannot be read MUST be refused 503, `The
+community nodes could not be read: <why>`.
+
+**4.18.5.5** An answer of the daemon MUST NOT hold an EasyTier secret.
+
+### 4.19. Notices
+
+#### 4.19.1. Notices
+
+**4.19.1.1** The daemon MUST make a notice of each of these, for every epic it holds:
+
+| Kind | When |
+| --- | --- |
+| `done` | An epic ended done; or a chat finished a turn |
+| `failed` | An epic failed, crashed, ran out of budget or was refused |
+| `stopped` | An epic other than a chat was stopped |
+| `asked` | A flow asked a person a question |
+| `listening` | A flow other than a chat waits for what to say next |
+
+**4.19.1.2** A notice MUST hold `id` (an integer greater than every earlier one, across restarts of
+the daemon), `kind`, `workspace`, `slot`, `epic`, `flow`, `task`, `role`, `text` and `at` (Unix
+seconds), as Section 10 of [CORE] defines them.
+
+**4.19.1.3** The daemon MUST work notices out of each host's status without attaching to any host,
+and MUST NOT make a notice of anything that already stood when it started; watching for notices MUST
+NOT keep any host from going.
+
+**4.19.1.4** The daemon MUST NOT filter notices by kind: which a user is told of is the client's
+choice (Section 10.4.3 of [CORE]).
+
+#### 4.19.2. `notices.*`
+
+**4.19.2.1** `notices.list` MUST take `after` (an id, default `0`) and answer `notices` (those kept
+after it, oldest first, the latest 200) and `last` (the newest id, `0` for none).
+
+**4.19.2.2** `notices.subscribe` MUST take `after` (an id, or absent for from now), MUST open a
+notices subscription as Section 6.8 of [WIRE] states, and MUST be answered with `sub` and `last`.
+
+**4.19.2.3** `notices.unsubscribe` MUST take `sub`, end that subscription and answer `{}`.
+
+### 4.20. Methods and the interfaces they replace
+
+**4.20.1** The methods MUST serve everything the requests of protocol version 2 and the endpoints of
+the HTTP interface of `hmz web` served before this version, as the following table maps them; `…`
+stands for the path or method name of the row before.
+
+| Before | Method |
+| --- | --- |
+| Control `list`, `status`, `detach`, `stop` | `hosts.list`, `.status`, `.detach`, `.stop` |
+| `hello` | `epic.attach` |
+| `start`, `say`, `answer`, `stop`, `force` | `epic.start`, `.say`, `.answer`, `.stop`, `.force` |
+| `afk`, `claim`, `release`, `board` | `epic.afk`, `.claim`, `.release`, `.board` |
+| `aside`, `unaside` | `epic.aside`, `epic.unaside` |
+| `status`, `detach`, `quit` | `epic.status`, `epic.detach`, `epic.quit` |
+| `GET /api/held` | `session.hello` and `hosts.running` |
+| `GET /api/held/stream` | `epic.attach` with `figures` |
+| `POST /api/held/{do}` | `epic.<do>` |
+| `GET /api/btw`, `POST /api/btw`, `POST …/leave` | `btw.list`, `btw.ask`, `btw.leave` |
+| `GET /api/runs`, `GET …/{name}` | `runs.list`, `runs.get` |
+| `GET …/{name}/trace`, `…/timeline`, `…/timeline/span/{id}` | `runs.trace`, `.timeline`, `.span` |
+| `GET …/{name}/bundle` | `runs.bundle` and `files.read` |
+| `POST …/{name}/backup` | `runs.backup` |
+| `POST /api/runs/import` | `files.create`, `files.write` and `runs.import` |
+| `GET /api/backups/{target}/epics`, `POST …/pull` | `backups.epics`, `backups.pull` |
+| `GET /api/usage` | `runs.usage` |
+| `GET /api/flows`, `GET /api/flow`, `GET /api/backends` | `flows.list`, `.get`, `.backends` |
+| `POST /api/flows/setup`, `POST …/fork` | `flows.setup`, `flows.fork` |
+| `GET`, `POST /api/workspaces`, `POST …/forget` | `workspaces.list`, `.add`, `.forget` |
+| `GET /api/flowverses`, `GET …/{name}` | `flowverses.list`, `flowverses.get` |
+| `POST /api/flowverses`, `POST …/fetch` | `flowverses.add`, `flowverses.fetch` |
+| `POST …/remove`, `…/install`, `…/uninstall` | `flowverses.remove`, `.install`, `.uninstall` |
+| `GET /api/files`, `GET /api/paths` | `paths.list`, `paths.complete` |
+| `GET`, `POST /api/settings`, `POST …/forget` | `settings.get`, `.set`, `.forget` |
+| `GET`, `POST /api/accounts` | `accounts.list`, `accounts.create` |
+| `POST …/correct`, `…/remove` | `accounts.correct`, `accounts.remove` |
+| `POST …/models`, `…/copy` | `accounts.models`, `accounts.copy` |
+| `GET`, `POST /api/fallbacks`, `POST …/clear` | `fallbacks.list`, `.set`, `.clear` |
+| `GET`, `POST /api/runtimes` | `runtimes.list`, `runtimes.set` |
+| `POST …/remove`, `…/check` | `runtimes.remove`, `runtimes.check` |
+| `GET /api/runtimes/hosts`, `POST …/import` | `runtimes.hosts`, `runtimes.import` |
+| `GET /api/daemons/easytier/nodes` | `easytier.nodes` |
+| `GET /api/notices`, `GET …/stream` | `notices.list`, `notices.subscribe` |
+
+**4.20.2** The remote-daemon registry -- `GET` and `POST /api/daemons`, `POST /api/daemons/remove`,
+`GET /api/daemons/hosts`, `POST /api/daemons/import`, `GET /api/daemons/{name}/state`, `POST
+/api/daemons/{name}/connect` and `/d/{name}/api/...` -- and the notifications list -- every path
+under `/api/notifications` -- MUST NOT be methods: each client keeps them for itself (Section 3.8.1
+and Section 3.15 of [WEB]), and reaches each daemon itself.
 
 ## 5. Security Considerations
 
-Who can connect. The daemon is reached only through the Unix stream socket `daemon.sock` in the
-daemon directory (Section 4.2.2 and Section 4.2.3). That directory is created with mode `0700` and
-is refused where it is not owned by the user or is writable by its group or by others (Section 4.3.2
-of this document, Section 7.3.1 of [FILES] and Section 7.3.2 of [FILES]); the socket and the daemon
-record have mode `0600` (Section 7.6.1 of [FILES] and Section 7.6.2 of [FILES]). The wire protocol
-of Section 4 carries no credential of its own: the file modes are what confine the socket to the
-one user of the one machine (Section 3.3.1 and Section 3.3.6). Every frontend that connects is
-whole (Section 3.6.1): it is able to start, steer, stop and force epics, to take over a role another
-frontend claims, and to close the host (Section 3.6.5, Section 4.8.6.2 and Section 4.8.9.3). The
-name a frontend gives in `hello` is taken as given and is not verified (Section 4.7.1.5).
+Who can connect. Over its socket the daemon is reached only by the user of its machine: the daemon
+directory is created with mode `0700` and refused where it is not owned by the user or is writable
+by its group or by others, and the socket and the daemon record have mode `0600` (Section 4.3.2 of
+this document, Section 7.3.1 of [FILES], Section 7.3.2 of [FILES], Section 7.6.1 of [FILES] and
+Section 7.6.2 of [FILES]). `ssh` and WSL admit a client as the user before `hmz daemon connect
+--stdio` relays it to that socket (Section 3.5.1 of [WIRE]). Over a listener, a client is admitted
+only by mutual TLS or pinned WebRTC, and only a paired device can call more than `session.hello`,
+`pair.claim` and `rpc.discover` (Section 3.9 of this document, Section 4.4 of [WIRE], Section 4.5.10
+of [WIRE] and Section 4.7 of [WIRE]). A daemon listens beyond its socket only where `listen` or `hmz
+daemon serve` asks it to (Section 3.9.1).
 
-What a client trusts. A client reads a daemon as present only where the daemon record names an
-existing process and the socket accepts a connection, never on the strength of the socket file alone
-(Section 4.4.1 and Section 4.4.3). A reader closes a connection that announces a payload above
-4 194 304 bytes (Section 4.5.3), and a host lets go a frontend for which more than 64 MiB of
-messages wait (Section 4.11.1), so that one slow or misbehaving peer does not hold up an epic or
-another frontend (Section 3.6.8 and Section 4.7.3.2).
+What a client can do. Every paired session is whole (Section 3.6.1 and Section 3.9.7): it is able to
+start, steer, stop and force epics, to take over a role another frontend claims, to close a host,
+to read and write the settings, accounts, runtimes and flows of the daemon's machine, to list any
+directory the daemon's user can read, to import an archive from any path, to make pairing codes and
+to revoke other devices (Section 3.6.5, Section 4.8, Section 4.14, Section 4.16.6, Section 4.17.7
+and Section 4.18). Pairing a device is therefore equivalent to giving it the daemon's user's account
+on that machine. The name a frontend gives in `session.hello` is taken as given and is not verified
+(Section 4.7.1.5); the device name of a paired session is the one it claimed under (Section 4.14.2).
 
-Version mismatch. A client that finds a daemon record of another protocol version, or of none, sends
-no further frame to the socket, starts no daemon beside it and reports the refusal of Section 4.12.3
-(Section 3.7.4, Section 3.7.5 and Section 4.4.4). The daemon and a host answer a frame kind they do
-not know with one `GONE` frame and close the connection (Section 4.5.8 and Section 4.12.4).
-Installing another release does not stop a daemon or its epics (Section 3.7.2).
+Secrets. The daemon answers no value of an account's variables, no EasyTier secret, no TURN
+credential and no credential of a URL (Section 4.18.1.1, Section 4.18.1.7, Section 4.18.2.2, Section
+4.18.5.5 and Section 4.16.8.3). A pairing code's token lives in the daemon's memory alone (Section
+4.5.6 of [WIRE]).
 
-Remote daemons. A connection to an SSH daemon is carried by `ssh` with the user's own keys and ssh
-config, and never asks for a password or the acceptance of a host key (Section 3.8.1.4 and Section
-3.8.2.10). The `hmz web` started on the remote machine listens on that machine's loopback alone, and
-is reached through a port forwarded from this machine's loopback (Section 3.8.2.2 to Section
-3.8.2.4); it holds its own key, which is not shown to the user or to the page (Section 3.8.2.5).
-Reaching an SSH daemon can install hmz, and uv, on the remote machine (Section 3.8.3.2), and does
-not replace an hmz there whose daemon holds running epics (Section 3.8.3.3).
+What a client trusts. A client on this machine reads a daemon as present only where the daemon
+record names an existing process and the socket accepts a connection, never on the strength of the
+socket file alone (Section 4.4.1 and Section 4.4.3). A client pins a remote daemon's id and fails a
+daemon that answers with another (Section 3.8.2.7). Limits on frames and on queued notifications
+keep one slow or misbehaving peer from holding up an epic or another frontend (Section 4.11 and
+Section 6.10 of [WIRE]).
 
-P2P daemons. A P2P daemon is kept as a secret of at least 16 bytes (Section 3.8.5.1). The EasyTier
-network name, the network secret and the key of the server's `hmz web` are derived from that secret,
-which itself does not leave the machine it is set on and is not passed on any command line (Section
-3.8.5.2). Whoever holds the secret reaches the server's `hmz web`, and through it the epics of that
-machine's daemon (Section 3.8.5.3 and Section 3.8.5.4). The two ends meet only through the shared
-EasyTier nodes they name (Section 3.8.5.10). EasyTier runs without root and without a virtual
-network device (Section 3.8.5.5), and the EasyTier binary hmz downloads is checked against a pinned
-SHA-256 unless `HUMANIZE_EASYTIER` names another binary (Section 3.8.5.6).
+Version mismatch. A client that finds a daemon of another major version starts no daemon beside it
+and reports the refusal of Section 3.7.5 (Section 3.7.4 and Section 4.12.3). Installing another
+release does not stop a daemon or its epics (Section 3.7.2).
+
+Remote daemons. A `stdio:ssh` route is carried by `ssh` with the user's own keys and ssh config, in
+batch mode, and never asks for a password or the acceptance of a host key (Section 3.8.2.6 and
+Section 3.4.3 of [WIRE]). Reaching an SSH daemon can install hmz, and uv, on the remote machine
+(Section 3.8.3.2), and does not replace an hmz there whose daemon holds running epics (Section
+3.8.3.3). An EasyTier network is derived from a secret of at least 16 bytes that does not leave the
+machine it is set on and is not passed on any command line (Section 3.8.5.1 and Section 3.8.5.2);
+EasyTier runs without root and without a virtual network device (Section 3.8.5.5), and the binary
+hmz downloads is checked against a pinned SHA-256 unless `HUMANIZE_EASYTIER` names another binary
+(Section 3.8.5.6). Whoever holds the secret reaches the daemon's port over the network, but is still
+held to mutual TLS and pairing there (Section 3.8.5.3).
+
+Services. `hmz daemon install` makes the daemon run at login and keeps it running, with every
+listener `listen` names, until `hmz daemon uninstall` (Section 3.9.6).
 
 ## 6. References
 
@@ -1111,6 +1678,8 @@ SHA-256 unless `HUMANIZE_EASYTIER` names another binary (Section 3.8.5.6).
 - **[CORE]** "The Humanize Protocol: Core Concepts and Functional Behaviour", [`core.md`](core.md).
 - **[CLI]** "The Humanize Protocol: Command-Line Interface", [`cli.md`](cli.md).
 - **[TUI]** "The Humanize Protocol: Terminal Interface", [`tui.md`](tui.md).
+- **[WIRE]** "The Humanize Protocol: Carriers, Sessions and RPC", [`wire.md`](wire.md).
+- **[OPENRPC]** "The Humanize Protocol: OpenRPC Document", [`openrpc.json`](openrpc.json).
 - **[WEB]** "The Humanize Protocol: Web Interface", [`web.md`](web.md).
 - **[PYTHON]** "The Humanize Protocol: Python Interfaces", [`python.md`](python.md).
 - **[FILES]** "The Humanize Protocol: Settings, Environment Variables and Files", [`files.md`](files.md).

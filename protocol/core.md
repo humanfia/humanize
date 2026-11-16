@@ -187,16 +187,19 @@ appears in; a citation of another document of the protocol gives that document's
 | [CORE] | [`core.md`](core.md) | Conventions, shared terms, and the behaviour common to every interface |
 | [CLI] | [`cli.md`](cli.md) | Every `hmz` command, its options, output and exit statuses |
 | [TUI] | [`tui.md`](tui.md) | The terminal interface |
-| [DAEMON] | [`daemon.md`](daemon.md) | The daemon and the protocol a client speaks to it |
-| [WEB] | [`web.md`](web.md) | The web page and the HTTP interface |
+| [DAEMON] | [`daemon.md`](daemon.md) | The daemon and every RPC method it serves |
+| [WIRE] | [`wire.md`](wire.md) | Carriers, routes, pairing, the relay, frames and JSON-RPC |
+| [OPENRPC] | [`openrpc.json`](openrpc.json) | The OpenRPC document listing every RPC method |
+| [WEB] | [`web.md`](web.md) | The web page and the server `hmz web` |
 | [DESKTOP] | [`desktop.md`](desktop.md) | The desktop application for macOS and Windows |
 | [PYTHON] | [`python.md`](python.md) | The flow API `hmz.flows` and the software development kit `hmz.sdk` |
 | [FILES] | [`files.md`](files.md) | The settings file, environment variables, and files on disk |
 
 **2.2.5** The protocol states every externally observable behaviour of hmz: a public Python name
-and its signature, a command, a flag or another command-line token, an HTTP method and path, a
-file path or file format, an environment variable, an exit status, a stream's content, a message
-the user sees, and a process hmz starts and its arguments.
+and its signature, a command, a flag or another command-line token, an HTTP method and path, an
+RPC method with its parameters and result, a route, a file path or file format, an environment
+variable, an exit status, a stream's content, a message the user sees, and a process hmz starts and
+its arguments.
 
 **2.2.6** The protocol constrains nothing that is not externally observable; an implementation is
 free in everything the protocol does not state.
@@ -296,12 +299,15 @@ put.
 ### 2.6. Processes and frontends
 
 **2.6.1** The **daemon** is the hmz process of one user on one machine that holds that machine's
-epics apart from every frontend.
+epics apart from every frontend, and serves every frontend over the sessions of [WIRE].
 
 **2.6.2** A **frontend** is a way for a user to start, watch and steer epics: the command line, the
 terminal interface (TUI), the web interface, or the desktop application for macOS or for Windows.
 
 **2.6.3** The **settings file** is the file `settings.yaml` in the home (Section 3 of [FILES]).
+
+**2.6.4** Every frontend, `hmz exec` and every program using the software development kit is a
+client of a daemon, and runs and holds every epic through one (Section 3.3.8 of [DAEMON]).
 
 ## 3. Epics
 
@@ -357,7 +363,8 @@ through a frontend.
 **3.2.10** **Ending**: the state in which an epic is read back, as Section 3.3.6 defines.
 
 **3.2.11** **Host slot**: the slot (Section 4.2.6 of [DAEMON]) naming one host (Section 3.2.1 of
-[DAEMON]) of a workspace on **this machine**: the workspace host's, or one chat host's.
+[DAEMON]) of a workspace on **this machine**: the workspace host's, one chat host's, or one exec
+host's.
 
 **3.2.12** **Price list**: the list of per-token model prices kept on this machine (Section 10.3.3).
 
@@ -671,13 +678,14 @@ epic executes or stops there.
 **3.4.3.3** Any number of `chat` epics MAY execute in one workspace, each in a host slot of its own,
 concurrently with the epic of the workspace's own host slot.
 
-**3.4.3.4** An epic started by `hmz exec` MUST execute in the process of that command, and MUST NOT
-be refused because another epic executes in the same workspace.
+**3.4.3.4** An epic started by `hmz exec` MUST execute in an exec host slot of its own, held by the
+daemon (Section 3.2.2 of [DAEMON]), and MUST NOT be refused because another epic executes in the
+same workspace.
 
 **3.4.3.5** Epics of different workspaces MUST execute independently of one another.
 
-**3.4.3.6** hmz MUST report whether an epic is held by a process on this machine, whichever process
-holds it.
+**3.4.3.6** hmz MUST report whether an epic is held by a host on this machine, whichever host holds
+it.
 
 > Informative: a frontend's request to start an epic goes to a host slot, held in a **daemon**
 > where one runs (Section 3 of [DAEMON]); attaching and detaching a frontend does not affect the
@@ -727,8 +735,11 @@ ladder (Section 4.4.3).
 **4.2.6** **Rung**: one of the four permission levels `read-only`, `workspace-write`, `auto` and
 `bypass`, ordered from tightest to loosest.
 
-**4.2.7** **Grant**: the four scopes `local`, `user`, `system` and `online` that a flow declares for
-a role, each `NONE`, `READ` or `ALL`, as Section 3 of [PYTHON] defines them.
+**4.2.7** **Grant**: the permission a flow declares for a role, as Section 3 of [PYTHON] defines
+it: a `preset` (`read-only`, `workspace-write` or `danger-full-access`), a `network` flag, and
+`granular` rules, each a path and an access `none`, `read` or `write`; its **rules** are the
+preset's rules followed by the granular ones, and the last rule matching a path, which a rule does
+for its own path and everything beneath it, decides that path's access.
 
 **4.2.8** **Confinement**: the restriction hmz places around the harness process and every process
 it starts, so that the agent touches no more than its grant allows.
@@ -1122,8 +1133,8 @@ where a flow hangs a permission-request hook (Section 4.9.3) or an ask-user hook
 
 #### 4.6.2. Rungs
 
-**4.6.2.1** hmz MUST derive a rung from a role's grant as follows: `local` of `NONE` or `READ` gives
-`read-only`; `local` of `ALL` gives `bypass`.
+**4.6.2.1** hmz MUST derive a rung from a role's grant as follows: a `preset` of `read-only` whose
+rules do not give the workdir `write` gives `read-only`; every other grant gives `bypass`.
 
 **4.6.2.2** On `kimi`, a rung other than `read-only` MUST become `auto` while a permission-request
 hook or an ask-user hook is hung on the agent.
@@ -1166,8 +1177,8 @@ confinement (Section 4.6.4) permits it.
 
 #### 4.6.3. Web search
 
-**4.6.3.1** A grant whose `online` is `ALL` MUST switch the harness's own web search on, and one
-whose `online` is `NONE` MUST switch it off, on every harness that can be told.
+**4.6.3.1** A grant whose `network` is true MUST switch the harness's own web search on, and one
+whose `network` is false MUST switch it off, on every harness that can be told.
 
 **4.6.3.2** `cursor-agent`, `mcode`, `omp`, `pi` and every ACP harness cannot be told, and on them
 hmz MUST say nothing of web search.
@@ -1178,21 +1189,24 @@ hmz MUST say nothing of web search.
 #### 4.6.4. Confinement
 
 **4.6.4.1** hmz MUST confine every harness except `litellm`, and every process the harness starts,
-to the grant of its role.
+to the grant of its role: each path to the access its rules give it, and no access where no rule
+matches, with `~` read as the home of the user the harness runs as and `.` as the env's workdir,
+and also the session's directory where that lies outside it, on the machine the confinement is
+held on.
 
 **4.6.4.2** Confinement MUST permit reading what any program needs to start (system programs,
 libraries, certificates and name-resolution files), and writing the device files, the harness's own
 configuration and sign-in files, the agent's session records, and a temporary directory of the
 agent's own.
 
-**4.6.4.3** A `local` of `ALL` MUST also permit writing `/tmp`, `/var/tmp` and the directory
-`TMPDIR` names.
+**4.6.4.3** A grant whose rules give the workdir `write` MUST also permit writing `/tmp`, `/var/tmp`
+and the directory `TMPDIR` names.
 
-**4.6.4.4** A `user` of `ALL` MUST permit writing whatever the user's file permissions permit, and
-for the root user MUST permit writing the home directory, the temporary directories and
-`/run/user/0`.
+**4.6.4.4** A grant whose rules give `~` `write` MUST permit writing whatever the user's file
+permissions permit, and for the root user MUST permit writing the home directory, the temporary
+directories and `/run/user/0`.
 
-**4.6.4.5** A grant whose `online` is `NONE` MUST cut the network for the harness and its processes,
+**4.6.4.5** A grant whose `network` is false MUST cut the network for the harness and its processes,
 except connections to the hosts the harness and its account need to reach its model and its sign-in,
 which MUST pass through a proxy on loopback.
 
@@ -1204,19 +1218,36 @@ seccomp user notification; where either is absent, the session MUST be refused w
 **4.6.4.7** On macOS, confinement MUST use the Seatbelt sandbox, and where hmz itself runs inside a
 sandbox that prevents applying one, the session MUST be refused with `HarnessSandboxed`.
 
-**4.6.4.8** A grant whose `online` is `NONE` MUST be refused with `HarnessSandboxed` for
+**4.6.4.8** A grant whose `network` is false MUST be refused with `HarnessSandboxed` for
 `cursor-agent` and for `mcode`.
 
 > Informative: the web search of these two harnesses runs on their vendors' servers through the
 > same hosts as their models.
 
-**4.6.4.9** A grant whose `online` is `NONE` MUST be refused with `HarnessSandboxed` for an ACP
+**4.6.4.9** A grant whose `network` is false MUST be refused with `HarnessSandboxed` for an ACP
 harness that declares no hosts, and the message MUST name what to declare.
 
 **4.6.4.10** hmz MUST NOT rely on a rung's own sandbox inside a harness to hold the grant;
 confinement MUST hold the grant whatever the harness enforces.
 
 **4.6.4.11** A turn kept off a host by confinement MUST fail with the fault class `fenced`.
+
+**4.6.4.12** Where a path Section 4.6.4.2 to Section 4.6.4.4 or Section 4.14.1.8 permits and the
+path of a rule nest, the deeper of the two MUST decide, and the one permitting more where they are
+the same; a **carve-out** is a path to which the rules give less access than to the path above it.
+
+**4.6.4.13** On Linux, a carve-out beneath a path Landlock grants MUST be held by granting, in that
+path's stead, each of its children the access the rules give it, dividing in the same way each
+child beneath which the rules change, down to the carve-out and to every grant beneath it.
+
+> Informative: an entry made later directly in a directory so divided is reachable only where a
+> grant covers it.
+
+**4.6.4.14** On macOS, a carve-out MUST be held by Seatbelt rules denying what it withholds, placed
+after the rules granting the paths above it.
+
+**4.6.4.15** A carve-out that confinement cannot hold MUST refuse the session with
+`HarnessSandboxed`; hmz MUST NOT run the harness with access wider than this section permits.
 
 ### 4.7. Sessions and turns
 
@@ -1694,8 +1725,9 @@ command that is empty, and a name other than the program's own.
 **4.14.1.7** An ACP harness MUST continue a conversation by whichever of resuming and loading it
 advertises, and MUST fork only where it advertises forking.
 
-**4.14.1.8** The hosts an ACP harness declares MUST be reachable under a grant whose `online` is
-`NONE`, and the state paths it declares MUST be writable whatever the grant's `user` scope.
+**4.14.1.8** The hosts an ACP harness declares MUST be reachable under a grant whose `network` is
+false, and the state paths it declares MUST be permitted writing as the paths of Section 4.6.4.2
+are.
 
 ### 4.15. The human agent
 
@@ -3320,7 +3352,7 @@ Out of scope:
 - The layout of btw mode in the terminal interface: [TUI].
 - The layout of the btw panel in the web interface: Section 3 of [WEB].
 - The `btw` key of `settings.yaml`: Section 3 of [FILES].
-- The requests a frontend sends to ask a side question: Section 4 of [DAEMON], Section 4 of [WEB].
+- The methods a frontend calls to ask a side question: Section 4 of [DAEMON].
 - What an epic records and how its figures are worked out: Section 3, Section 10.
 
 ### 9.2. Terminology
@@ -3371,7 +3403,7 @@ steer, a stop or any other input.
 **9.3.3** Asking a side question MUST NOT change the state, the transcript, the board, the budget
 limits or the outcome of the epic.
 
-**9.3.4** Every side conversation MUST run at the read-only permission level.
+**9.3.4** Every side conversation MUST run at the `read-only` rung.
 
 **9.3.5** Every side conversation MUST run with no skills, no goals, no tools of the flow, no hooks
 of the flow and no approval of MCP servers, except what Section 9.6.10 to Section 9.6.14 give the
@@ -3391,7 +3423,7 @@ the epic or as spans of the epic's trace.
 conversation is answering an earlier one.
 
 **9.3.11** A frontend MUST word the refusal of Section 9.3.10 as Section 12.10 of [TUI], Section
-4.9.3.5 of [WEB] and Section 4.8.8.10 of [DAEMON] state.
+4.15.3.5 of [DAEMON] and Section 4.8.8.10 of [DAEMON] state.
 
 **9.3.12** A failure to answer a side question MUST be reported to the user as a failure of the side
 question and MUST NOT be reported as a failure of the epic.
@@ -3620,8 +3652,8 @@ Out of scope:
 - How a frontend draws these figures, its keys and screens ([TUI], Section 3 of [WEB], Section 3 of
   [DESKTOP]).
 - Side questions asked about an executing epic (Section 9).
-- The wire format in which a frontend receives records and notices (Section 4 of [DAEMON], Section 4
-  of [WEB]).
+- The wire format in which a frontend receives records and notices (Section 4 of [DAEMON], Section 6
+  of [WIRE]).
 - Where traces and profiles are stored inside an epic (Section 6 of [FILES]) and where the price
   list is stored (Section 7 of [FILES]).
 - Budgets and how a budget stops an epic (Section 3.3.4).
@@ -3772,9 +3804,9 @@ last epic of that slot from the beginning, unless it asks for none, before recor
 
 #### 10.4.2. Notices
 
-**10.4.2.1** The web interface and the terminal interface MUST each work out the notices of the
-epics of this machine by the rules of this section, from the status each host slot reports, and MUST
-NOT attach to a host slot to do so.
+**10.4.2.1** The daemon MUST work out the notices of the epics it holds by the rules of this
+section, from the status each host slot reports, and MUST NOT attach to a host slot to do so; every
+frontend MUST be told notices by the daemons it follows (Section 4.19 of [DAEMON]).
 
 **10.4.2.2** hmz MUST raise a notice of kind `done` when an epic ends `done`.
 
@@ -3805,13 +3837,13 @@ every identifier this machine raised before, including before hmz was last resta
 
 **10.4.2.11** hmz MUST keep at least the 200 most recent notices, and MUST serve every kept notice
 after a given identifier, and each new notice as it is raised, resuming after the last identifier a
-frontend heard (Section 4 of [WEB]).
+frontend heard (Section 4.19 of [DAEMON]).
 
 #### 10.4.3. Notification preferences
 
-**10.4.3.1** hmz MUST keep, as one setting of the **home** shared by every frontend, whether each
-notice kind is told to the user and whether the operating system is also told (Section 3 of
-[FILES]).
+**10.4.3.1** Each frontend MUST keep for itself whether each notice kind is told to the user and
+whether the operating system is also told: the terminal interface as one setting of the **home**
+(Section 3 of [FILES]), and the page in the browser's storage (Section 3.15 of [WEB]).
 
 **10.4.3.2** Every notice kind, and telling the operating system, MUST be on unless the user turned
 it off.
@@ -3938,7 +3970,7 @@ epic's span where no flow call opened it, to that session's process.
 
 **10.6.2.1** hmz MUST serve an Exomyth timeline as one JSON document holding exactly the keys
 `version`, `layout`, `epic`, `origin`, `live`, `strings`, `processes`, `tracks`, `spawns` and
-`summary` (Section 4 of [WEB]).
+`summary` (`runs.timeline`, Section 4.16.4.2 of [DAEMON]).
 
 **10.6.2.2** `origin` MUST be the epoch seconds of the earliest moment of anything in the document,
 and every time in the document MUST be whole microseconds since `origin`; every duration MUST be
@@ -4396,7 +4428,7 @@ stack, each frame named as Section 12.4.4 defines.
 
 **12.4.1.4** A report MUST hold, where an **epic** is executing in the reporting process, the flows
 executing with their depth, caller and seconds executed, and, for each **agent** role, the flow,
-role, CLI, model, effort, account name, permission scopes and skill names.
+role, CLI, model, effort, account name, permission and skill names.
 
 **12.4.1.5** A report from the terminal interface MUST hold the Python version, the operating
 system, the installed CLIs by name, each account by CLI, name and sign-in method, the skill names
@@ -4520,11 +4552,12 @@ release is stale, without delaying any input or drawing.
 **13.3.2.2** The terminal interface MUST then state once in its transcript, where there is a newer
 release, that the newer release is out and that `hmz update` updates to it.
 
-**13.3.2.3** `hmz web` MUST, when it starts, fetch the newest release in the background where the
-kept release is stale.
+**13.3.2.3** The daemon MUST, when it starts and every 24 hours while it runs, fetch the newest
+release in the background where the kept release is stale, and MUST tell every client of it in
+`session.hello` (Section 6.5.4 of [WIRE]).
 
-**13.3.2.4** The web interface MUST, while there is a newer release, mark this machine as having one
-and offer `Update` in its menu, which copies `hmz update` for the user to run.
+**13.3.2.4** The web interface MUST, while a daemon says there is a newer release, mark that daemon
+as having one and offer `Update` in its menu, which copies `hmz update` for the user to run.
 
 **13.3.2.5** An interface MUST NOT fetch the newest release more than once in 24 hours while the
 previous fetch succeeded.
@@ -4602,7 +4635,10 @@ document on which the security of a user's machine, credentials and work depends
 - hmz confines every harness except `litellm`, and every process the harness starts, to the grant
   of its role, and holds that grant whatever sandbox the harness itself enforces (Section 4.6.4.1
   and Section 4.6.4.10).
-- A grant whose `online` is `NONE` cuts the network for the harness and its processes, except the
+- A path a rule denies or keeps read-only beneath a wider grant is held by Landlock or Seatbelt,
+  and a session whose carve-out cannot be held is refused with `HarnessSandboxed` rather than run
+  wider (Section 4.6.4.12 to Section 4.6.4.15).
+- A grant whose `network` is false cuts the network for the harness and its processes, except the
   hosts the harness and its account need for its model and its sign-in, which pass through a proxy
   on loopback; a session whose machine lacks the operating-system facility confinement needs is
   refused with `HarnessSandboxed` (Section 4.6.4.5 to Section 4.6.4.9).
@@ -4649,7 +4685,7 @@ document on which the security of a user's machine, credentials and work depends
   standalone remain in the harness machine's cache between turns (Section 6.6.1.3, Section 7.7.1.9
   and Section 7.12).
 - A side question never reaches a session of the epic's flow, and every side conversation runs at
-  the read-only permission level, modifies no file of the workspace, and is told to treat what it
+  the `read-only` rung, modifies no file of the workspace, and is told to treat what it
   observes about the epic as data and not as instructions (Section 9.3).
 - The btw agent reaches the sessions of an epic only through at most 4 asks per side question, and
   on `codex` only `hmz-ask` runs outside the sandbox, whose network stays cut (Section 9.6.4 and
@@ -4669,6 +4705,10 @@ document on which the security of a user's machine, credentials and work depends
   Humanize, credentials, environment variable names, the command line, frame variables, the host
   name or the user's identity, and its strings are scrubbed and cut (Section 12.4.2 and Section
   12.4.3).
+- A frontend reaches a daemon of another machine only over `ssh`, WSL, or mutual TLS or WebRTC
+  between pinned device certificates, and a device must be paired before it can do more than say
+  hello; a paired device is whole on that daemon (Section 3.5 of [WIRE], Section 4 of [WIRE] and
+  Section 5 of [DAEMON]).
 - Fetching the newest release and the price list sends no data about the user, each is turned off
   by its environment variable, and no interface installs a release: `hmz update` runs only the
   installer that installed hmz (Section 13.3.1, Section 10.3.3.2, Section 13.3.2.6 and Section
@@ -4689,6 +4729,8 @@ document on which the security of a user's machine, credentials and work depends
 - **[CLI]** "The Humanize Protocol: Command-Line Interface", [`cli.md`](cli.md).
 - **[TUI]** "The Humanize Protocol: Terminal Interface", [`tui.md`](tui.md).
 - **[DAEMON]** "The Humanize Protocol: Daemon", [`daemon.md`](daemon.md).
+- **[WIRE]** "The Humanize Protocol: Carriers, Sessions and RPC", [`wire.md`](wire.md).
+- **[OPENRPC]** "The Humanize Protocol: OpenRPC Document", [`openrpc.json`](openrpc.json).
 - **[WEB]** "The Humanize Protocol: Web Interface", [`web.md`](web.md).
 - **[DESKTOP]** "The Humanize Protocol: Desktop Application", [`desktop.md`](desktop.md).
 - **[PYTHON]** "The Humanize Protocol: Python Interfaces", [`python.md`](python.md).

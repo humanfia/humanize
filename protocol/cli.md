@@ -67,13 +67,17 @@ It is normative. It is cited by the tag [CLI].
   - [11.7. `hmz internal cli`](#117-hmz-internal-cli)
 - [12. Environment](#12-environment)
   - [12.1. Variables](#121-variables)
-- [13. `hmz server`](#13-hmz-server)
+- [13. `hmz daemon`](#13-hmz-daemon)
   - [13.1. Synopsis](#131-synopsis)
   - [13.2. Behaviour](#132-behaviour)
   - [13.3. Exit](#133-exit)
-- [14. Security Considerations](#14-security-considerations)
-- [15. References](#15-references)
-  - [15.1. Normative References](#151-normative-references)
+- [14. `hmz relay`](#14-hmz-relay)
+  - [14.1. Synopsis](#141-synopsis)
+  - [14.2. Behaviour](#142-behaviour)
+  - [14.3. Exit](#143-exit)
+- [15. Security Considerations](#15-security-considerations)
+- [16. References](#16-references)
+  - [16.1. Normative References](#161-normative-references)
 
 ## 1. Introduction
 
@@ -86,6 +90,8 @@ The following are out of scope of this document and are specified where cited:
 
 - What the terminal interface does once it is open ([TUI]).
 - What the web interface serves (Section 3 of [WEB], Section 4 of [WEB]).
+- The daemon every command but `hmz relay` and `hmz update` is a client of, and the methods it
+  serves ([DAEMON], [WIRE]).
 - What a flow is and how its params are validated (Section 3 of [PYTHON]).
 - Which harnesses exist, their effort ladders and their accounts (Section 4 of [CORE], Section 5 of
   [CORE]).
@@ -108,7 +114,7 @@ Section 2 of [CORE].
 excluding the program name.
 
 **2.2** A **command** is the first argument of a command line where it is one of `exec`, `web`,
-`server`, `update`, `backup` and `internal`.
+`daemon`, `relay`, `update`, `backup` and `internal`.
 
 **2.3** A **usage error** is a refusal of a command line in which the refusing parser writes its
 usage text and the line `<prog>: error: <reason>` to standard error and exits with status 2, where
@@ -170,7 +176,8 @@ epilog MUST each be at most thirty words long.
 ```text
 exec      run an agent flow in this directory
 web       open this machine's epics in a browser on it
-server    keep this machine's daemon reachable from others until stopped
+daemon    serve, reach, pair or install this machine's daemon
+relay     relay daemons and the devices that reach them
 update    update hmz to its newest release
 backup    back epics up to git repositories, or download them
 internal  internal commands used by Humanize; do not run directly
@@ -182,7 +189,8 @@ internal  internal commands used by Humanize; do not run directly
 
 **4.1.1** A command MUST write to standard output only what a program reading it is to parse: help
 and version text (Section 3), the answers of turns, an NDJSON stream, the lines Section 8 to Section
-10 and Section 13 name as standard output, and what Section 11 relays or reports to standard output.
+10, Section 13 and Section 14 name as standard output, the bytes `hmz daemon connect --stdio`
+relays, and what Section 11 relays or reports to standard output.
 
 **4.1.2** A command MUST write every diagnostic to standard error.
 
@@ -251,26 +259,21 @@ or after it has ended, as Section 7.15.5 specifies.
 **6.1.1** `hmz` with an empty command line MUST open the terminal interface in the calling process
 on the current directory as its workspace, and MUST NOT start an epic.
 
-**6.1.2** Where `HUMANIZE_DAEMON` turns the daemon off (Section 3.4 of [DAEMON]), `hmz` MUST hold
-the epics in its own process.
+**6.1.2** `hmz` MUST open the terminal interface as a frontend of this machine's daemon, over
+`unix:` (Section 3.4 of [WIRE]), starting the daemon where none runs (Section 3 of [DAEMON]). Where
+standard error is a terminal and escapes are allowed (Section 4.2), `hmz` MUST draw a spinner on
+standard error while it reaches or starts the daemon, and MUST take it down before the interface
+starts.
 
-**6.1.3** Where standard input or standard output is not a terminal, `hmz` MUST hold the epics in
-its own process.
+**6.1.3** Where the daemon cannot be reached or started for a reason other than Section 6.1.4, `hmz`
+MUST write `hmz: the daemon cannot be reached: <reason>` to standard error, MUST NOT open the
+interface, and MUST exit with status 1.
 
-**6.1.4** Otherwise `hmz` MUST open the terminal interface as a frontend of the daemon, starting the
-daemon where none runs (Section 3 of [DAEMON]). Where standard error is a terminal and escapes are
-allowed (Section 4.2), `hmz` MUST draw a spinner on standard error while it reaches or starts the
-daemon, and MUST take it down before the interface starts.
-
-**6.1.5** Where the daemon cannot be reached or started for a reason other than Section 6.1.6, `hmz`
-MUST write `hmz: runs cannot be detached from the terminal (<reason>), so they will run in this
-process instead` to standard error and MUST hold the epics in its own process.
-
-**6.1.6** Where this machine's epics are held by a daemon of an older, incompatible hmz, `hmz` MUST
+**6.1.4** Where this machine's epics are held by a daemon of an older, incompatible hmz, `hmz` MUST
 write a diagnostic beginning `hmz: ` that names that daemon's process id, MUST NOT open the
 interface, and MUST exit with status 1.
 
-**6.1.7** Before the terminal interface starts, where `TMUX` is unset or empty and either
+**6.1.5** Before the terminal interface starts, where `TMUX` is unset or empty and either
 `TERM_PROGRAM` is `iTerm.app` or `LC_TERMINAL` is `iTerm2`, `hmz` MUST set
 `TEXTUAL_DISABLE_KITTY_KEY=1` in its own environment unless that variable is already set.
 
@@ -297,7 +300,10 @@ hmz exec -f <ref> [-a <agents>]... [-e <envs>]... [-p <params>]...
 ```
 
 **7.1.1** `hmz exec` MUST run the flow `<ref>` names, in the current directory as its workspace, to
-its return, as one new epic, with no interface.
+its return, as one new epic, with no interface: it MUST attach to a new exec slot of that workspace
+on this machine's daemon (`epic.attach` with `slot` `exec:`, Section 4.7.1 of [DAEMON]), starting
+the daemon where none runs, set every role away (`epic.afk`), start the epic there (`epic.start`),
+and follow its messages until `ended`.
 
 **7.1.2** `-f` and `--flow` MUST be the same option; that option MUST be given; where it is given
 more than once, the last occurrence MUST be the one used.
@@ -316,6 +322,13 @@ given after `--`.
 **7.1.7** Options MUST be accepted in any order, before or after `<task>`.
 
 **7.1.8** An option of `hmz exec` MUST NOT have an equivalent environment variable.
+
+**7.1.9** Where the daemon cannot be reached or started, `hmz exec` MUST write `hmz: the daemon
+cannot be reached: <why>` to standard error and exit with status 1, and where it is of another
+protocol version, the refusal of Section 3.7.5 of [DAEMON] and exit with status 1.
+
+**7.1.10** `hmz exec` ending in any way but those of Section 7.15 MUST NOT stop its epic, which the
+daemon holds to its end (Section 3.5.3 of [DAEMON]).
 
 ### 7.2. Items
 
@@ -530,7 +543,8 @@ every limit is graceful, and `budget.graceful.<name>` whether the limit `<name>`
 ### 7.7. Refusals before the epic starts
 
 **7.7.1** Every refusal of a well-formed line MUST be written to standard error as `hmz exec: error:
-<reason>`, MUST exit with status 2, and MUST happen before any agent has started.
+<reason>`, MUST exit with status 2, and MUST happen before any agent has started; a refusal of
+`epic.start` (Section 4.8.2.4 of [DAEMON]) MUST be written so, its message as `<reason>`.
 
 **7.7.2** `hmz exec` MUST refuse a flow that cannot be found or loaded.
 
@@ -606,8 +620,9 @@ a usage error.
 **7.11.3** Without `--backup`, the epic MUST go to the default targets of the settings file (Section
 3.9 of [FILES]).
 
-**7.11.4** Once the epic has ended and its backups have not all finished, `hmz exec` MUST write `hmz
-exec: backing the epic up` to standard error and wait for them for at most 60 seconds.
+**7.11.4** Once the epic has ended and its backups have not all finished, as `backed` of `runs.get`
+(Section 4.16.3 of [DAEMON]) says, `hmz exec` MUST write `hmz exec: backing the epic up` to standard
+error and wait for them for at most 60 seconds, staying attached so that its host waits too.
 
 **7.11.5** Where a backup has not finished after that wait, `hmz exec` MUST write ``hmz exec: a
 backup took longer than 60s and was left; `hmz backup EPIC` sends it again`` to standard error, and
@@ -615,8 +630,10 @@ MUST exit as the epic had it.
 
 ### 7.12. Output for a person
 
-**7.12.1** Without `--json`, `hmz exec` MUST draw the epic from the event stream of its agents
-(Section 4 of [CORE]) on standard error, one line or block per event.
+**7.12.1** Without `--json`, `hmz exec` MUST draw the epic from the `event` records of its epic
+(Section 4.9.2 of [DAEMON]) on standard error, one line or block per event, and MUST write each
+`printed` record to standard output and each `notice` record to standard error as `hmz exec:
+<text>`.
 
 **7.12.2** Each event line MUST say which agent it is about, and, where that agent holds two or more
 sessions, which session.
@@ -641,16 +658,16 @@ standard error before the flow is called, and MUST run the epic.
 **7.12.8** Where the epic's budget stopped it, `hmz exec` MUST write `hmz exec: stopped --
 <reason>` to standard error and MUST exit with status 0.
 
-**7.12.9** Where the flow raises an exception and Section 7.12.8 does not apply, `hmz exec` MUST
-write the exception's traceback to standard error and exit with status 1.
+**7.12.9** Where the epic ends `failed` or `crashed`, `hmz exec` MUST write the `why` of its `ended`
+record -- the exception, or the traceback -- to standard error and exit with status 1.
 
 ### 7.13. `--json`
 
 **7.13.1** With `--json`, `hmz exec` MUST write an NDJSON stream to standard output, one object per
-event, each flushed as it is written.
+`event` record of its epic, each flushed as it is written.
 
-**7.13.2** With `--json`, `hmz exec` MUST write nothing else to standard output, and MUST send to
-standard error anything the flow, or code the flow calls, writes to standard output.
+**7.13.2** With `--json`, `hmz exec` MUST write nothing else to standard output, and MUST write each
+`printed` record, all the flow or code it calls writes, to standard error.
 
 **7.13.3** Every object MUST carry exactly the keys of the following table, every time:
 
@@ -682,15 +699,16 @@ away outworlder.
 
 ### 7.15. Signals
 
-**7.15.1** On `SIGINT`, `SIGTERM` or `SIGHUP`, `hmz exec` MUST stop its epic, MUST wait until the
-epic has released everything it created, and MUST then exit with status 128 plus the number of the
-first signal received.
+**7.15.1** On `SIGINT`, `SIGTERM` or `SIGHUP`, `hmz exec` MUST stop its epic (`epic.stop`), MUST
+wait until the epic has ended, and MUST then exit with status 128 plus the number of the first
+signal received.
 
 **7.15.2** A signal whose disposition was set to ignore when `hmz exec` started MUST remain ignored.
 
 **7.15.3** A second `SIGTERM` or `SIGHUP` while the epic stops MUST be ignored.
 
-**7.15.4** A second `SIGINT` while the epic stops MUST end the process at once by `SIGINT`.
+**7.15.4** A second `SIGINT` while the epic stops MUST force it (`epic.force`) and end the process
+at once by `SIGINT`.
 
 **7.15.5** An interrupt that arrives before the epic has started or after it has ended MUST exit
 with status 130 without writing a traceback.
@@ -705,18 +723,21 @@ hmz web [--port <port>] [--no-open] [--attached]
 
 **8.1.1** `--port` MUST take an integer from 0 to 65535; any other value MUST be a usage error.
 
-**8.1.2** `--port` MUST default to 0, which MUST mean any free port.
+**8.1.2** `--port` MUST default to the port the last `hmz web` of this home listened on (Section
+4.15 of [FILES]), or 0 where none is kept; 0 MUST mean any free port. Where the port kept cannot be
+listened on, `hmz web` MUST listen on any free port.
 
 ### 8.2. Behaviour
 
-**8.2.1** `hmz web` MUST serve the web interface (Section 3 of [WEB]) of every workspace of this
-machine until it is stopped, offering the current directory first for a new epic.
+**8.2.1** `hmz web` MUST serve the page (Section 3 of [WEB]), its bridge `/rpc` to this machine's
+daemon and its `/dial` (Section 4 of [WEB]) until it is stopped, offering the current directory
+first for a new epic.
 
 **8.2.2** `hmz web` MUST listen on `127.0.0.1` and, where this machine has IPv6, on `::1`, on the
 same port, and on no other address.
 
-**8.2.3** `hmz web` MUST hold the epics in its own process where `HUMANIZE_DAEMON` is `off`, `0` or
-`no`, and through the daemon otherwise.
+**8.2.3** `hmz web` MUST reach this machine's daemon, starting it where none runs, before it
+listens, and MUST hold no epic in its own process.
 
 **8.2.4** Once listening, `hmz web` MUST write `hmz web: http://127.0.0.1:<port>/?key=<key>` and a
 line feed to standard output and flush it.
@@ -736,7 +757,7 @@ standard input reaches its end or cannot be read.
 **8.3.2** Where this machine's epics are held by a daemon of an older, incompatible hmz, `hmz web`
 MUST write a diagnostic beginning `hmz: ` and exit with status 1.
 
-**8.3.3** Where the epics cannot be reached or the port cannot be listened on, `hmz web` MUST write
+**8.3.3** Where the daemon cannot be reached or no port can be listened on, `hmz web` MUST write
 `hmz: the web interface cannot be served: <reason>` to standard error and exit with status 1.
 
 ## 9. `hmz update`
@@ -1047,64 +1068,121 @@ gave no answer` to standard error and exit with status 1.
 **12.1.1** The commands MUST read the environment variables Section 3.11 of [FILES] lists, with the
 meanings given there.
 
-**12.1.2** `hmz exec` MUST NOT read `HUMANIZE_DAEMON`.
-
-## 13. `hmz server`
+## 13. `hmz daemon`
 
 ### 13.1. Synopsis
 
 ```text
-hmz server start --mode p2p --secret <secret> --peer <url> [--peer <url>]...
-hmz server stop
+hmz daemon serve [--listen <spec>]...
+hmz daemon connect --stdio
+hmz daemon pair [--route <route>]... [--seconds <seconds>]
+hmz daemon devices [revoke <name>]
+hmz daemon install
+hmz daemon uninstall
 ```
 
-**13.1.1** `hmz server` MUST take a subcommand, `start` or `stop`; anything else MUST be a usage
+**13.1.1** `hmz daemon` MUST take a subcommand, `serve`, `connect`, `pair`, `devices`, `install` or
+`uninstall`; anything else MUST be a usage error.
+
+**13.1.2** `--listen` MUST be accepted any number of times, each a listener spec of Section 3.9.2 of
+[DAEMON]; another value MUST be a usage error saying `<spec> is not a listener.`
+
+**13.1.3** `connect` MUST take `--stdio`, and without it MUST be a usage error.
+
+**13.1.4** `--route` MUST be accepted any number of times, each a route of Section 3.3 of [WIRE];
+another value MUST be a usage error saying `<route> is not a route.` `--seconds` MUST take an
+integer from 60 to 86400; another value MUST be a usage error.
+
+**13.1.5** `devices` MUST take nothing, or `revoke` and one name; anything else MUST be a usage
 error.
 
-**13.1.2** `start` MUST take `--mode`, whose only value is `p2p`, and `--secret`; either missing,
-another mode, or a secret shorter than 16 bytes in UTF-8 MUST be a usage error, the last saying `A
-secret must be at least 16 bytes.`
-
-**13.1.3** `stop` MUST take no option.
-
-**13.1.4** `start` MUST take `--peer` one or more times, each the URL of a shared EasyTier node
-(Section 3.8.5.10 of [DAEMON]); none MUST be a usage error saying `An EasyTier daemon needs at least
-one node.`
+**13.1.6** `install` and `uninstall` MUST take no option.
 
 ### 13.2. Behaviour
 
-**13.2.1** `hmz server start` MUST start, apart from the terminal, a server that keeps this
-machine's daemon reachable over EasyTier as Section 3.8.5 of [DAEMON] specifies, until `hmz server
-stop` stops it; it MUST outlive the terminal as Section 3.5.1 of [DAEMON] and Section 3.5.2 of
-[DAEMON] state.
+**13.2.1** `hmz daemon serve` MUST run this machine's daemon in its own process, in the foreground,
+listening on its socket, on every listener `listen` names (Section 3.4.8 of [FILES]) and on every
+`--listen`, as Section 3.9 of [DAEMON] states, until it receives `SIGINT` or `SIGTERM`.
 
-**13.2.2** The server MUST hold the epics through the daemon, and MUST be given the secret on
-neither its command line nor that of any process it starts.
+**13.2.2** `hmz daemon serve` MUST write `hmz daemon: listening on <route>` and a line feed to
+standard output, flushed, as each listener opens, `<route>` the listener's route (Section 3.9.3 of
+[DAEMON]).
 
-**13.2.3** Once the server has started, `hmz server start` MUST write the server's record (Section
-4.12 of [FILES]), and MUST write `hmz server: started (pid <pid>)` and a line feed to standard
-output.
+**13.2.3** `hmz daemon connect --stdio` MUST reach this machine's daemon over its socket, starting
+it where none runs (Section 3.4 of [DAEMON]), and MUST then carry every byte of its standard input
+to the socket and every byte of the socket to its standard output, unchanged and in order, until
+either ends, and MUST then close both, half-closing neither (Section 3.4.10 of [WIRE]); it MUST
+write nothing else to standard output.
 
-**13.2.4** `hmz server stop` MUST send `SIGTERM` to the server, wait for the server to exit, remove
-the server's record, and write `hmz server: stopped` and a line feed to standard output.
+**13.2.4** `hmz daemon pair` MUST call `pair.create` on this machine's daemon, starting it where
+none runs, with the routes of `--route` where any is given and the lifetime `--seconds`, and MUST
+write the code and a line feed to standard output, and `hmz daemon pair: claim this code on the
+device to pair before <time>` to standard error, `<time>` the moment it expires in local time.
 
-**13.2.5** The server MUST stop its `hmz web` and EasyTier on `SIGTERM`, and MUST NOT stop any epic
-the daemon holds.
+**13.2.5** `hmz daemon devices` MUST write one line per device paired with this machine's daemon,
+oldest first, its name, fingerprint, when it was added and when it was last seen, separated by tab
+characters; `hmz daemon devices revoke <name>` MUST call `devices.revoke` and write `hmz daemon
+devices: revoked <name>; <n> sessions closed` to standard output.
+
+**13.2.6** `hmz daemon install` and `hmz daemon uninstall` MUST write, enable and start, or stop,
+disable and remove, the service of Section 3.9.6 of [DAEMON], and MUST write `hmz daemon: installed
+<path>` or `hmz daemon: uninstalled <path>` to standard output, `<path>` the file of the service.
 
 ### 13.3. Exit
 
-**13.3.1** `hmz server start` MUST exit with status 0 once Section 13.2.3 is done.
+**13.3.1** `hmz daemon serve` MUST exit with status 0 once stopped as Section 13.2.1 specifies.
 
-**13.3.2** Where a server is running, `hmz server start` MUST write `hmz: a server is already
-running (pid <pid>)` to standard error and exit with status 1.
+**13.3.2** Where a daemon is already running, `hmz daemon serve` MUST write `hmz: a daemon is
+already running (pid <pid>)` to standard error and exit with status 1.
 
-**13.3.3** Where the server cannot be started, a failure to download EasyTier included, `hmz server
-start` MUST write a diagnostic beginning `hmz: ` and exit with status 1.
+**13.3.3** `hmz daemon connect --stdio` MUST exit with status 0 where its standard input or the
+daemon ended the connection.
 
-**13.3.4** Where no server is running, `hmz server stop` MUST write `hmz: no server is running` to
-standard error and exit with status 1.
+**13.3.4** Where the daemon cannot be reached or started, `hmz daemon connect`, `pair` and `devices`
+MUST write `hmz: the daemon cannot be reached: <why>` to standard error and exit with status 1, and
+where it is of another protocol version, the refusal of Section 3.7.5 of [DAEMON] and exit with
+status 1.
 
-## 14. Security Considerations
+**13.3.5** Where the daemon refuses `pair.create` or `devices.revoke`, the command MUST write `hmz:
+<message>` to standard error, the refusal's message, and exit with status 1.
+
+**13.3.6** `hmz daemon install` and `hmz daemon uninstall` MUST write `hmz: hmz daemon install runs
+on macOS and Linux alone` and exit with status 1 on any other system, and MUST write `hmz: <why>`
+and exit with status 1 where `launchctl` or `systemctl` fails, or, for `uninstall`, where no service
+is installed.
+
+## 14. `hmz relay`
+
+### 14.1. Synopsis
+
+```text
+hmz relay serve [--listen <host>:<port>]
+```
+
+**14.1.1** `hmz relay` MUST take the subcommand `serve`; anything else MUST be a usage error.
+
+**14.1.2** `--listen` MUST take a host and a port from 0 to 65535, and MUST default to
+`127.0.0.1:8765`; another value MUST be a usage error.
+
+### 14.2. Behaviour
+
+**14.2.1** `hmz relay serve` MUST serve the relay of Section 5 of [WIRE] on plain WebSockets at the
+address `--listen` names, until it receives `SIGINT` or `SIGTERM`.
+
+**14.2.2** Once listening, `hmz relay serve` MUST write `hmz relay: listening on ws://<host>:<port>`
+and a line feed to standard output, flushed.
+
+**14.2.3** `hmz relay serve` MUST NOT read the settings file, the home or the identity of this
+machine, and MUST NOT start or reach a daemon.
+
+### 14.3. Exit
+
+**14.3.1** `hmz relay serve` MUST exit with status 0 once stopped as Section 14.2.1 specifies.
+
+**14.3.2** Where it cannot listen, `hmz relay serve` MUST write `hmz: the relay cannot listen:
+<why>` to standard error and exit with status 1.
+
+## 15. Security Considerations
 
 This section states no requirement; it summarises the security-relevant properties the rest of this
 document states.
@@ -1121,18 +1199,22 @@ document states.
   (Section 4.3, Section 9.2.2). The answers of turns, the event stream of `--json` and a flow's
   traceback are written as the agents and the flow produced them (Section 7.12, Section 7.13), so
   they hold whatever those produced. The line `hmz web` writes to standard output carries the key
-  of the address it serves (Section 8.2.4).
+  of the address it serves (Section 8.2.4), and the code `hmz daemon pair` writes admits one device
+  to the daemon until it is claimed or expires (Section 13.2.4).
 - **Secrets on command lines.** hmz passes a secret to a process it starts with `--token-file`,
-  never with `--token` (Section 11.2.4), and the secret of `hmz server start` reaches neither the
-  server's command line nor that of any process the server starts (Section 13.2.2). The secret a
-  user types after `--secret` or `--token` is nonetheless on that user's own command line. No option
-  of `hmz exec` has an equivalent environment variable (Section 7.1.8).
+  never with `--token` (Section 11.2.4). The secret a user types after `--token` is nonetheless on
+  that user's own command line. No option of `hmz exec` has an equivalent environment variable
+  (Section 7.1.8).
 - **Listening addresses.** `hmz web` listens on loopback addresses only (Section 8.2.2). `hmz
   internal anchor serve` refuses to listen on a non-loopback address without a token and refuses a
   client that presents another token (Section 11.2.8, Section 11.2.9). `hmz internal anchor
-  rendezvous` listens on `0.0.0.0` by default (Section 11.2.10). `hmz server start` makes this
-  machine's daemon reachable from other machines and refuses a secret shorter than 16 bytes
-  (Section 13.1.2, Section 13.2.1).
+  rendezvous` listens on `0.0.0.0` by default (Section 11.2.10). `hmz daemon serve` makes this
+  machine's daemon reachable on every listener it is given, each admitting only paired devices over
+  mutual TLS or WebRTC (Section 13.2.1). `hmz relay serve` listens where it is told, on plain
+  WebSockets, admits anybody, and carries only what is secured end to end (Section 14.2.1).
+- **Services.** `hmz daemon install` makes the daemon start at login and keeps it running with its
+  listeners (Section 13.2.6). `hmz daemon connect --stdio` gives whoever runs it, as this user, the
+  daemon's socket on its standard streams (Section 13.2.3).
 - **`hmz internal`.** These commands are the command lines hmz starts its own processes with and
   are not a public interface, yet each runs when a user types it (Section 11.1). `hmz internal
   cred` and `hmz internal fence` run a program only under the supervision or fence they were asked
@@ -1141,12 +1223,13 @@ document states.
   and a Unix socket named on the command line (Section 11.5 to Section 11.7).
 - **Programs hmz runs.** `hmz update` runs `uv`, `pipx` or pip as found on `PATH` or in the running
   interpreter, and asks PyPI, or the source `HUMANIZE_RELEASES` names, for the newest release
-  (Section 9.2, Section 9.3.1). `hmz server start` can download EasyTier (Section 13.3.3). `hmz
-  web` opens a browser unless `--no-open` is given (Section 8.2.5).
+  (Section 9.2, Section 9.3.1). A daemon with an `easytier:` listener can download EasyTier
+  (Section 3.8.5.6 of [DAEMON]). `hmz web` opens a browser unless `--no-open` is given (Section
+  8.2.5).
 
-## 15. References
+## 16. References
 
-### 15.1. Normative References
+### 16.1. Normative References
 
 - **[RFC2119]** Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC
   2119, March 1997, <https://www.rfc-editor.org/info/rfc2119>.
@@ -1155,6 +1238,7 @@ document states.
 - **[CORE]** "The Humanize Protocol: Core Concepts and Functional Behaviour", [`core.md`](core.md).
 - **[TUI]** "The Humanize Protocol: Terminal Interface", [`tui.md`](tui.md).
 - **[DAEMON]** "The Humanize Protocol: Daemon", [`daemon.md`](daemon.md).
+- **[WIRE]** "The Humanize Protocol: Carriers, Sessions and RPC", [`wire.md`](wire.md).
 - **[WEB]** "The Humanize Protocol: Web Interface", [`web.md`](web.md).
 - **[PYTHON]** "The Humanize Protocol: Python Interfaces", [`python.md`](python.md).
 - **[FILES]** "The Humanize Protocol: Settings, Environment Variables and Files", [`files.md`](files.md).
