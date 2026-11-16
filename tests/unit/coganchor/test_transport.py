@@ -776,7 +776,7 @@ def test_coganchor_is_shipped_once_per_machine_named_by_its_digest(
 
     name = _named(build)
     (probe, _), (install, fed) = ran.asked
-    assert probe == ["docker", "exec", "-i", "shipped-once", "uname", "-sm"]
+    assert probe == ["docker", "exec", "-i", "shipped-once", "/bin/sh", "-c", "exec uname -sm"]
     assert fed == build.read_bytes()
     script = install[-1]
     assert f'c="{CONTAINER_CACHE}"' in script

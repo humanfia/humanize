@@ -39,6 +39,8 @@ pub enum Internal {
     Fence(FenceArgs),
     /// Run a program with credentials from an account.
     Cred(CredArgs),
+    /// Say what this machine can fence, as `{"fs": bool, "net": bool}`.
+    Able,
 }
 
 /// `coganchor cog`: the options of `hmz internal anchor`.

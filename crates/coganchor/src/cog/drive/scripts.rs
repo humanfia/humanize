@@ -42,7 +42,9 @@ pub(super) struct Spec {
 impl Spec {
     /// The spec a virtual home's JSON says.
     pub fn of(home: &Virtual) -> anyhow::Result<Spec> {
-        Spec::deserialize(&home.raw).map_err(|why| anyhow::anyhow!("not a virtual home: {why}"))
+        let raw: serde_json::Value = serde_json::from_str(&home.dumps())
+            .map_err(|why| anyhow::anyhow!("not a virtual home: {why}"))?;
+        Spec::deserialize(&raw).map_err(|why| anyhow::anyhow!("not a virtual home: {why}"))
     }
 
     /// What [`SCRIPT`] is told after its first four arguments, and [`BACK`] after its first.

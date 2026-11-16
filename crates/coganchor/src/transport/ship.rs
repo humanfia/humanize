@@ -74,7 +74,15 @@ pub fn installed(road: &Road) -> io::Result<String> {
         .collect();
     let result = road.run(&argv, &carried, None)?;
     let said = String::from_utf8_lossy(&result.stdout);
-    let path = said.lines().last().unwrap_or("").trim().to_owned();
+    // A cache named outright (a container's `/tmp/humanize`) is where the binary is, spelled
+    // as every later command on that road will spell it; only one under `$HOME` needs the
+    // target's own expansion of it, which is what the script prints last.
+    let cache = road.cache();
+    let path = if cache.starts_with('/') {
+        format!("{}/coganchor-{digest}", cache.trim_end_matches('/'))
+    } else {
+        said.lines().last().unwrap_or("").trim().to_owned()
+    };
     if !result.status.success() || !path.starts_with('/') {
         return Err(io::Error::other(format!(
             "could not install coganchor on {described}: {}",
@@ -132,7 +140,10 @@ pub fn platform(road: &Road) -> io::Result<String> {
     {
         return Ok(known.clone());
     }
-    let result = road.run(&[OsString::from("uname"), OsString::from("-sm")], b"", None)?;
+    // Through the shell, which finds `uname` on its PATH: a road such as `srun` may run the
+    // program it is handed without looking it up.
+    let probe = ["/bin/sh", "-c", "exec uname -sm"].map(OsString::from);
+    let result = road.run(&probe, b"", None)?;
     let said = String::from_utf8_lossy(&result.stdout);
     let words: Vec<&str> = said.split_whitespace().collect();
     let found = match (result.status.success(), words.as_slice()) {

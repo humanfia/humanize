@@ -1298,7 +1298,9 @@ class Road:
             known = _UNAMES.get(described)
         if known is not None:
             return known
-        said = self.run(["uname", "-sm"])
+        # Through the shell, which finds `uname` on its PATH: a road such as `srun` may run
+        # the program it is handed without looking it up.
+        said = self.run(["/bin/sh", "-c", "exec uname -sm"])
         words = said.stdout.decode(errors="replace").split()
         if said.returncode != 0 or len(words) != 2:  # noqa: PLR2004 -- the OS, and the machine
             raise ConnectionError(

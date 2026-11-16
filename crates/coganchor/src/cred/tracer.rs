@@ -802,7 +802,11 @@ pub fn run(swaps: Swaps, command: &[OsString]) -> io::Result<i32> {
         .map(|one| CString::new(one.clone().into_vec()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|why| io::Error::new(io::ErrorKind::InvalidInput, why))?;
-    let _lent = lending::lent(&swaps.credentials(), false)?;
+    // Only the sign-ins that refresh themselves are held, as `lent(refreshing(..))` holds them.
+    let refreshing: Vec<PathBuf> = lending::refreshing(&swaps.credentials(), false)
+        .into_iter()
+        .collect();
+    let _lent = lending::lent(&refreshing, false)?;
     supervised(Tracer::new(swaps), &argv)
 }
 

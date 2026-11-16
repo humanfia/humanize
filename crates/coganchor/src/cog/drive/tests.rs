@@ -734,14 +734,16 @@ fn skill(dir: &Path) -> PathBuf {
 }
 
 fn virtual_home(skill: &Path, secures: &str) -> Virtual {
-    Virtual {
-        raw: json!({
+    Virtual::loads(
+        &json!({
             "variable": "CLAUDE_CONFIG_DIR", "default": ".claude", "rewrites": ["settings.json"],
             "outside": [["settings.json", ".claude.json"]], "lodges": "skills", "secures": secures,
             "private": ["projects"], "made": [], "kept": [], "skills": [["review", skill]],
             "flag": "", "merges": [], "records": [["db/*.sqlite", "t", "c"]], "keeps": "",
-        }),
-    }
+        })
+        .to_string(),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -877,7 +879,7 @@ fn a_native_turn_asks_the_target_what_pythons_asked_in_the_same_order() {
     let mut config = config(fixture["workspace"].as_str().unwrap());
     config.hushes = serde_json::from_value(fixture["hushes"].clone()).unwrap();
     config.projects = vec![("CODEX_HOME".into(), here("creds"))];
-    config.home = Some(Virtual { raw: home });
+    config.home = Some(Virtual::loads(&home.to_string()).unwrap());
     config.brings = vec![("CODEX_HOME/sessions".into(), here("brought"))];
     config.tell = here("tell");
 
