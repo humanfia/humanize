@@ -97,6 +97,7 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.tracing",
     },
     "hmz.daemon": {"hmz.runtime"},
+    "hmz.relay": set(),
     # Who is at the other end of a carrier: a device's key, pairing, and TLS between two.
     "hmz.trust": {"hmz.coganchor.atomic", "hmz.coganchor.settings"},
     "hmz.tui": {
