@@ -286,12 +286,20 @@ def listener(
 class _Signals:
     """The signals of one WebRTC join, as `hmz.rtc` reads and writes them."""
 
-    def __init__(self, send: Callable[[dict[str, Any]], None]) -> None:
+    def __init__(
+        self,
+        send: Callable[[dict[str, Any]], None],
+        refuse: Callable[[str], None],
+    ) -> None:
         self._send = send
+        self._refuse = refuse
         self.inbox: queue.SimpleQueue[object] = queue.SimpleQueue()
 
     def send(self, data: dict[str, Any]) -> None:
         self._send(data)
+
+    def refuse(self, why: str) -> None:
+        self._refuse(why)
 
     def receive(self, timeout: float) -> object:
         try:
@@ -449,14 +457,14 @@ class Registration:
             with self._lock:
                 control.send(json.dumps({"t": "signal", "conn": conn, "data": data}))
 
-        signals = _Signals(send)
+        signals = _Signals(send, lambda why: self._refuses(control, conn, why))
         with self._lock:
             self._joins[conn] = signals
         threading.Thread(
-            target=self._answers, args=(control, conn, signals), daemon=True
+            target=self._answers, args=(conn, signals), daemon=True
         ).start()
 
-    def _answers(self, control: ClientConnection, conn: str, signals: _Signals) -> None:
+    def _answers(self, conn: str, signals: _Signals) -> None:
         from cryptography.hazmat.primitives.serialization import Encoding
 
         from hmz import rtc
@@ -476,8 +484,8 @@ class Registration:
                 if isinstance(servers, list)
                 else [],
             )
-        except rtc.Refused as why:
-            self._refuses(control, conn, str(why))
+        except (rtc.Refused, ModuleNotFoundError):
+            # Refused through its signals already, saying why.
             return
         except (TimeoutError, EOFError, OSError, ValueError) as why:
             _log.info("a WebRTC join at %s failed: %s", self.url, why)
