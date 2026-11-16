@@ -2,7 +2,6 @@
 // and a step written against one says how many times over a failed turn is taken again there,
 // how long it waits between, and the places that take the turn after, in order.
 
-import { get, post } from '../../api.js'
 import { acting, confirming, fill, h, iconButton, lasting, problem } from '../../dom.js'
 import { placePicker, readBackends } from '../../pickers.js'
 
@@ -36,7 +35,7 @@ export function draw(holder, query, parts, scope) {
             'div',
             { class: 'row' },
             h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
-            confirming({ label: 'Clear', ask: `Let ${one.spec} fall back nowhere again?`, yes: 'Clear', small: true, act: async () => shown(await post(scope.at('/api/fallbacks/clear'), { spec: one.spec })) }),
+            confirming({ label: 'Clear', ask: `Let ${one.spec} fall back nowhere again?`, yes: 'Clear', small: true, act: async () => shown(await scope.call('fallbacks.clear', { spec: one.spec })) }),
           ),
         ),
       ),
@@ -44,7 +43,7 @@ export function draw(holder, query, parts, scope) {
     fill(
       listing,
       // Each step written over the one of its place there, or added; none there taken away.
-      h('header', {}, h('h2', {}, 'Steps'), scope.batch(() => data.steps.map(({ spec, to, tries, policy, timeout }) => ['/api/fallbacks', { spec, to, tries, policy, timeout }]))),
+      h('header', {}, h('h2', {}, 'Steps'), scope.batch(() => data.steps.map(({ spec, to, tries, policy, timeout }) => ['fallbacks.set', { spec, to, tries, policy, timeout }]))),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Place'), h('th', {}, 'Tried'), h('th', {}, 'Then'), h('th', {}, ''))), h('tbody', {}, rows)))
         : h('p', { class: 'dim' }, 'No steps. A failed turn fails where it ran.'),
@@ -104,7 +103,7 @@ export function draw(holder, query, parts, scope) {
           'Save',
           async () => {
             const to = [...chain.children].map((line) => line.picked.value()).filter(Boolean)
-            const answer = await post(scope.at('/api/fallbacks'), { spec: spec.value(), to, tries: Number(tries.value || 0), policy: policy.value, timeout: Number(timeout.value || 0) })
+            const answer = await scope.call('fallbacks.set', { spec: spec.value(), to, tries: Number(tries.value || 0), policy: policy.value, timeout: Number(timeout.value || 0) })
             editing = null
             shown(answer)
           },
@@ -119,7 +118,7 @@ export function draw(holder, query, parts, scope) {
   }
 
   let pickers = []
-  Promise.all([get(scope.at('/api/fallbacks')), readBackends(undefined, scope.base)])
+  Promise.all([scope.call('fallbacks.list'), readBackends(undefined, scope.name)])
     .then(([answer]) => shown(answer))
     .catch((error) => fill(listing, problem(error)))
 }

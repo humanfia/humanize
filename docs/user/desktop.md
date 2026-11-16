@@ -49,9 +49,9 @@ the page it serves.
   the top row, and double-click it to zoom or maximize.
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown
   in the Finder or Explorer.
-- **Other machines too.** The [daemons](/user/web#daemons) the page reaches -- your ssh hosts
-  -- are reached from the app as from a browser, with your ssh config, and switched between at
-  the foot of the sidebar.
+- **Other machines too.** The [daemons](/user/web#daemons) the page reaches -- your ssh hosts,
+  and machines paired by a code -- are reached from the app as from a browser, with your ssh
+  config, and switched between at the foot of the sidebar.
 
 ## On Windows: WSL {#windows}
 

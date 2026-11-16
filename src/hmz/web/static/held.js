@@ -1,23 +1,24 @@
-// The runs held for each workspace, as streams the views of the page share: per host of a
+// The runs held for each workspace, as subscriptions the views of the page share: per host of a
 // workspace -- its own, which runs its flows one at a time, and each chat's beside it, by its
 // slot -- the records of the run in front of it, how everything stands, and the figures the
-// server works out -- the same the terminal interface draws. A host is followed only while a
-// view of it is open. What a view asks of a host's runs goes through `ask`.
+// daemon works out -- the same the terminal interface draws (`epic.attach` with `figures`,
+// Section 4.7 of protocol/daemon.md). A host is followed only while a view of it is open. What a
+// view asks of a host's runs goes through `ask`, as a call to the epic on its subscription.
 //
 // A host is named by `where`: a workspace's path alone for the workspace's own, or
 // `{workspace, slot}` for a chat's.
 
-import { onDaemon, post, scoped } from './api.js'
+import { attach, call, onDaemon } from './api.js'
 
-/** The most records kept per workspace, and about how many bytes of them, as the server keeps. */
+/** The most records kept per workspace, and about how many bytes of them, as the daemon keeps. */
 const KEPT = 20000
 const WEIGHED = 32 * 1024 * 1024
 
-/** What a record weighs besides what it says, as the server weighs one. */
+/** What a record weighs besides what it says, as the daemon weighs one. */
 const FRAME = 256
 
-/** How long a tab nobody looks at keeps its streams, in milliseconds. */
-const RESTS = 30000
+/** The snapshots a host sends, each kept by its type (Section 4.9.3 of protocol/daemon.md). */
+const STANDING = new Set(['clients', 'claims', 'away', 'run', 'sessions', 'calls', 'waiting', 'pending', 'usage', 'board'])
 
 /** Every host followed, by its workspace's path and its slot. */
 const followed = new Map()
@@ -40,11 +41,11 @@ export function follow(where, told) {
   let one = followed.get(key)
   if (!one) followed.set(key, (one = following(workspace, slot)))
   one.listeners.add(told)
-  if (!one.source) one.connect()
+  if (!one.opening) one.connect()
   told(one.state)
   return () => {
     one.listeners.delete(told)
-    // Nobody reads it any more: the stream goes after a moment, in case a view comes back.
+    // Nobody reads it any more: the subscription goes after a moment, in case a view comes back.
     if (!one.listeners.size) {
       setTimeout(() => {
         if (one.listeners.size) return
@@ -55,13 +56,43 @@ export function follow(where, told) {
   }
 }
 
+/** Whether a flow named to start is the built-in chat, however it was named. */
+function chats(flow) {
+  return typeof flow === 'string' && flow.replace(/[/#]+$/, '').split(/[/#:]/).pop() === 'chat'
+}
+
 /**
- * Asks one host's runs one thing: `start`, `say`, `answer`, `stop`, `force`, `afk`, … A chat
- * started at a workspace alone is a new chat's, on a host of its own, which the answer names.
+ * Asks one host's runs one thing: `start`, `say`, `answer`, `stop`, `force`, `afk`, … -- the call
+ * `epic.<what>` on the subscription that follows the host, attached first where none does. A
+ * chat started at a workspace alone is a new chat's, on a host of its own, which the answer
+ * names; and an epic started with `scratch` is started in a directory made for it alone.
  */
-export function ask(where, what, body = {}) {
+export async function ask(where, what, body = {}) {
   const { workspace, slot } = placed(where)
-  return post(`/api/held/${what}`, { ...body, workspace, ...(slot ? { slot } : {}) })
+  if (what === 'start') return starts(workspace, slot, body)
+  const stop = follow({ workspace, slot }, () => {})
+  try {
+    const opening = followed.get(`${workspace}\n${slot}`).opening
+    if (!opening) throw new Error('This host cannot be reached.')
+    const sub = await opening
+    return await call(`epic.${what}`, { ...body, sub: sub.sub })
+  } finally {
+    stop()
+  }
+}
+
+/** Starts an epic as it is set up, writing that down as the workspace's set-up of its flow. */
+async function starts(workspace, slot, { scratch = false, ...said }) {
+  const chat = !slot && chats(said.flow) ? 'chat:' : slot
+  const sub = await attach({ ...(scratch ? { scratch: true } : { workspace }), slot: chat, replay: false }, () => {})
+  try {
+    const started = await call('epic.start', { ...said, remember: true, sub: sub.sub })
+    // Followed a moment longer, as the view gone to next follows it.
+    follow({ workspace: started.workspace, slot: started.slot }, () => {})()
+    return started
+  } finally {
+    sub.close()
+  }
 }
 
 /** The run in front of a workspace's records: its number, and the records of it. */
@@ -77,9 +108,9 @@ function following(workspace, slot) {
   let weights = []
   let weight = 0
   let pending = 0
-  /** The id of the last record heard, which a stream opened again picks up after. */
-  let lastId = ''
-  const one = { state, listeners, source: null, connect, close }
+  /** The attaching that is this one's now: what an earlier one says is said to nobody. */
+  let opening = null
+  const one = { state, listeners, opening: null, connect, close }
 
   function tell() {
     if (pending) return
@@ -89,31 +120,21 @@ function following(workspace, slot) {
     })
   }
 
-  function connect() {
-    const query = new URLSearchParams({ workspace })
-    if (slot) query.set('slot', slot)
-    if (lastId && state.epoch) query.set('last', lastId)
-    const mine = new EventSource(scoped(`/api/held/stream?${query}`))
-    one.source = mine
-    // A stream let go of, or replaced, says nothing more to the page.
-    const on = (name, handle) => mine.addEventListener(name, (event) => one.source === mine && handle(event))
-    on('hello', (event) => {
-      const said = JSON.parse(event.data)
-      if (said.epoch !== state.epoch) {
-        // Another link's records: everything is told again, from the top.
-        Object.assign(state, { epoch: said.epoch, standing: {}, records: [], figures: null })
+  function heard(mine, message) {
+    if (opening !== mine) return
+    const type = message.type
+    if (type === 'welcome') {
+      if (message.epoch !== state.epoch) {
+        // Another life of the host's: everything is told again, from the top.
+        Object.assign(state, { epoch: message.epoch, standing: {}, records: [], figures: null })
         weights = []
         weight = 0
-        lastId = ''
       }
-      Object.assign(state, { me: said.me, connected: true, gone: '' })
-      tell()
-    })
-    on('record', (event) => {
-      lastId = event.lastEventId || lastId
-      const record = JSON.parse(event.data)
-      const weighs = String(record.text ?? '').length + FRAME
-      state.records.push(record)
+      Object.assign(state, { me: message.client, connected: true, gone: '' })
+    } else if (type === 'live') state.connected = true
+    else if (typeof message.seq === 'number') {
+      const weighs = String(message.text ?? '').length + FRAME
+      state.records.push(message)
       weights.push(weighs)
       weight += weighs
       let dropped = 0
@@ -122,71 +143,65 @@ function following(workspace, slot) {
         state.records.splice(0, dropped)
         weights.splice(0, dropped)
       }
-      tell()
-    })
-    on('standing', (event) => {
-      const said = JSON.parse(event.data)
-      state.standing = { ...state.standing, [said.type]: said }
-      tell()
-    })
-    on('figures', (event) => {
-      state.figures = JSON.parse(event.data)
-      tell()
-    })
-    on('gone', (event) => {
-      state.gone = JSON.parse(event.data).why || 'The host let this page go.'
-      state.connected = false
-      // A chat's host goes as it folds away, and is not reached again: it is carried on anew.
-      if (slot) close()
-      tell()
-    })
-    on('again', () => {
-      mine.close()
-      one.source = null
-      state.epoch = ''
-      lastId = ''
-      setTimeout(() => !one.source && listeners.size && connect(), 500)
-    })
-    on('error', () => {
-      // The browser reaches for the stream again by itself, from the last record it heard --
-      // but for one refused outright: a chat's host that has gone, its chat folded away.
-      state.connected = false
-      if (slot && mine.readyState === EventSource.CLOSED) {
-        state.gone = state.gone || 'This chat has folded away.'
-        close()
-      }
-      tell()
-    })
+    } else if (STANDING.has(type)) state.standing = { ...state.standing, [type]: message }
+    else if (type === 'figures') state.figures = message
+    else return
+    tell()
+  }
+
+  /** The subscription ended on its own: let go, the host gone, or attaching it again refused. */
+  function ended(mine, why) {
+    if (opening !== mine) return
+    opening = one.opening = null
+    state.connected = false
+    state.gone = why || 'The host let this page go.'
+    tell()
+    // A chat's host goes as it folds away, and is not reached again: it is carried on anew. The
+    // workspace's own is attached again, after a moment, while a view still follows it.
+    if (!slot) {
+      setTimeout(() => {
+        if (!one.opening && listeners.size) connect()
+      }, 500)
+    }
+  }
+
+  function connect() {
+    const mine = attach(
+      { workspace, slot, figures: true },
+      (message) => heard(mine, message),
+      (why) => ended(mine, why),
+    )
+    opening = one.opening = mine
+    mine.then(
+      (sub) => {
+        // Let go of before it was attached: nobody hears it.
+        if (opening !== mine) sub.close()
+      },
+      (error) => {
+        if (opening !== mine) return
+        opening = one.opening = null
+        state.connected = false
+        state.gone = error.message
+        tell()
+      },
+    )
   }
 
   function close() {
-    if (one.source) one.source.close()
-    one.source = null
+    const was = opening
+    opening = one.opening = null
     state.connected = false
+    was?.then((sub) => sub.close(), () => {})
   }
 
   return one
 }
 
-// Another daemon's workspaces are others: every stream of the last goes, and nobody is told it.
+// Another daemon's workspaces are others: every subscription of the last goes, and nobody is told it.
 onDaemon(() => {
   for (const one of followed.values()) {
     one.listeners.clear()
     one.close()
   }
   followed.clear()
-})
-
-// A browser holds only so many connections to one server: a tab nobody looks at lets its
-// streams go after a while, and picks each up from the last record it heard once looked at.
-let resting = 0
-document.addEventListener('visibilitychange', () => {
-  clearTimeout(resting)
-  if (document.hidden) {
-    resting = setTimeout(() => {
-      for (const one of followed.values()) one.close()
-    }, RESTS)
-  } else {
-    for (const one of followed.values()) if (!one.source && one.listeners.size) one.connect()
-  }
 })

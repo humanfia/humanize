@@ -3,7 +3,7 @@
 // runs as, a model that account runs and an effort that model takes; an environment is a
 // backend, the runtime of it, and a directory there. Each comes to what `-a` or `-e` spells.
 
-import { daemon, get, hash, onDaemon, post } from './api.js'
+import { call, daemon, hash, onDaemon } from './api.js'
 import { fill, h, iconButton } from './dom.js'
 import { pathPicker } from './paths.js'
 
@@ -17,14 +17,14 @@ const failed = new Map()
 
 /** Reads the CLIs installed again -- as a workspace runs them -- and tells every picker. */
 let reading = ''
-/** Whose CLIs they are: '' for the daemon the page is on, else `/d/<name>`, as Settings picks. */
+/** Whose CLIs they are: '' for the daemon the page is on, else its name, as Settings picks. */
 let base = ''
 
 export async function readBackends(workspace = reading, from = '') {
   reading = workspace
   base = from
   const of = daemon()
-  const read = await get(`${from}/api/backends?workspace=${encodeURIComponent(workspace)}`)
+  const read = await call('flows.backends', {}, { on: from || undefined })
   // Read of a daemon the page has since left: another's CLIs.
   if (of !== daemon()) return read
   backends = read
@@ -46,12 +46,13 @@ function ask(cli, account) {
   if (!asking.has(key)) {
     asking.set(
       key,
-      post(`${base}/api/accounts/models`, { cli, name: account })
+      call('accounts.models', { cli, name: account }, { on: base || undefined })
         .then(() => failed.delete(key))
         .catch((error) => failed.set(key, error.message))
         .finally(() => {
           asking.delete(key)
-          return readBackends(reading, base)
+          // Read again for every picker, which says a failure to read where it draws.
+          return readBackends(reading, base).catch(() => {})
         }),
     )
   }

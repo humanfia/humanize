@@ -374,9 +374,8 @@ directory's, while its log or the monitor is up -- is never told of.
 | Kinds | Chat turns | a chat waits for its next turn |
 | Shown | System | also ring the terminal's bell and show a system notification, which iTerm2, Ghostty, WezTerm, kitty and Windows Terminal show as your system's own |
 
-Every row is on until you turn it off. They are the
-[web interface's notification settings](/user/web#notifications) too, kept in
-`~/.hmz/settings.yaml` under `notifications`, so turning a kind off here turns it off there.
+Every row is on until you turn it off. They are kept in `~/.hmz/settings.yaml` under
+`notifications`; the [web page](/user/web#notifications) keeps its own, in your browser.
 
 ## Daemons
 
@@ -389,7 +388,8 @@ from a host of your ssh config with its `import` row; or **Routes**, typed in th
 are tried (`stdio:ssh://…`, `tcp://host:port`, …), a route other than ssh needing the id a
 pairing code gives. Editing one opens it in the mode its routes are in, and keeps its id. Hosts
 of your ssh config can also be brought in with **Import…**, those added already left out. It is
-written at once, to this machine's settings.
+written at once, to this machine's settings; the [web page](/user/web#adding-a-daemon) keeps
+a list of its own, in your browser.
 
 Each row says its routes and how it stands: `idle` until it is asked for, then `connecting`,
 `installing` while this `hmz` is put there, `up, hmz <version>`, or `failed`, with what was

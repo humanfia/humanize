@@ -2,7 +2,7 @@
 // chart is drawn in plain HTML with a table beside it, so no figure rests on a colour or on a
 // pointer hovering over it.
 
-import { address, get, hash, poll } from '../../api.js'
+import { given, hash, poll } from '../../api.js'
 import { stays } from '../../app.js'
 import { badge, fill, flowName, h, problem } from '../../dom.js'
 
@@ -13,7 +13,7 @@ export function draw(holder, query, parts, scope) {
   let days = Number(query.get('days')) || 30
   let workspace = query.get('workspace') || ''
   const places = h('select', { 'aria-label': 'Workdir' }, h('option', { value: '' }, 'All workdirs'))
-  get(scope.at('/api/workspaces')).then((answer) => {
+  scope.call('workspaces.list').then((answer) => {
     fill(places, h('option', { value: '' }, 'All workdirs'), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === workspace, title: one.path }, one.name)))
   }, () => {})
   places.addEventListener('change', () => {
@@ -41,7 +41,7 @@ export function draw(holder, query, parts, scope) {
         return button
       }),
     )
-    stop = poll(address(scope.at('/api/usage'), { days, workspace }), 30000, (data, error) => draw(data, error))
+    stop = poll('runs.usage', given({ days, workspace }), 30000, (data, error) => draw(data, error), { on: scope.name })
   }
 
   function draw(data, error) {

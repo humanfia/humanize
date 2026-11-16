@@ -46,6 +46,7 @@ H/
 ├── settings.yaml                       everything /settings sets: workspaces, machine settings, fallbacks, added CLIs, runtimes
 ├── .settings.yaml.lock                 held by each writer of settings.yaml
 ├── history.jsonl                       lines typed at the TUI prompt
+├── web-port                            the port the last hmz web listened on, its --port default
 ├── server.json                         the running hmz server: pid, mode, port, version
 ├── easytier/<version>/                 easytier-core, downloaded and checked once
 ├── providers/<cli>/<name>/             accounts

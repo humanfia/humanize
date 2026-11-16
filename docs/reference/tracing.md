@@ -170,7 +170,7 @@ without the payloads, which are asked for one span at a time. Built by
 `hmz.runtime.tracing.timeline.build` from the sessions a [trace](#document) of the epic would
 be drawn from, the epic itself, the tree of flows it called, its `profile.jsonl` and its
 `flow-profile.jsonl`; served as
-[`GET /api/runs/<name>/timeline`](/reference/web#api-runs) and from Python as
+the daemon's `runs.timeline` `{name}`, which the [web page](/reference/web#page) calls, and from Python as
 [`Epics.timeline`](#epics-timeline). Unlike a Chrome trace, **every session is its own
 process**, under the session that started it.
 
@@ -253,7 +253,7 @@ with ids moved, is `409` rather than some other span.
 
 ### One span, whole {#timeline-span}
 
-`GET /api/runs/<name>/timeline/span/<id>?layout=<layout>` (`layout` optional), or
+`runs.span` `{name, id, layout}` (`layout` optional), or
 `Timeline.span(id)`:
 
 ```json

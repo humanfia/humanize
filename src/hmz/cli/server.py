@@ -320,6 +320,8 @@ def serves(argv: list[str]) -> int:
     """
     import threading
 
+    from hmz import daemon
+
     telling, peers = int(argv[0]), argv[1:]
     secret = sys.stdin.buffer.read().decode("utf-8")
     # Noted rather than raised: raised, it could land between `easytier-core` starting and
@@ -341,7 +343,7 @@ def serves(argv: list[str]) -> int:
             _served(secret, peers, told, stopping)
         except KeyboardInterrupt:
             return 0
-        except (OSError, ValueError) as why:
+        except (OSError, ValueError, daemon.Older) as why:
             if not told.closed:
                 told.write(f"{why}\n")
             return 1

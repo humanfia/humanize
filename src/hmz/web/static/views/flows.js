@@ -6,10 +6,10 @@
 // index -- and, one opened, every flow it lists, every release of each, installing, switching
 // and uninstalling one; with adding, fetching and removing one. Nothing opens until chosen.
 
-import { get, hash, poll, post, refresh } from '../api.js'
+import { call, given, hash, poll, refresh } from '../api.js'
 import { stays } from '../app.js'
 import { acting, confirming, empty, fill, h, icon, permitted, problem } from '../dom.js'
-import { workspacePicker } from '../places.js'
+import { firstWorkspace, workspacePicker } from '../places.js'
 import { bar, tabbed } from '../shell.js'
 import { copy, menuOn, toast } from '../ui.js'
 
@@ -51,13 +51,13 @@ export function mount(root, { query }) {
       tab = key
       watch()
     }))
-    stopVerses = poll('/api/flowverses', 30000, (data, error) => {
+    stopVerses = poll('flowverses.list', {}, 30000, (data, error) => {
       if (data) verses = data
       drawUpdates(error)
       if (tab === 'verses') drawVerses(error)
     })
     if (tab === 'installed') {
-      stop = poll(`/api/flows?workspace=${encodeURIComponent(workspace)}`, 30000, drawFlows)
+      stop = poll('flows.list', { workspace }, 30000, drawFlows)
       if (chosen) show(chosen)
       else {
         shown.hidden = false
@@ -72,18 +72,18 @@ export function mount(root, { query }) {
   }
 
   /** Says what changed, and reads again what it changed. */
-  async function change(url, body) {
-    const answer = await post(url, body)
+  async function change(method, body) {
+    const answer = await call(method, given(body))
     fill(said, h('p', { class: 'note', role: 'status' }, answer.said || 'Done.'))
-    refresh('/api/flowverses')
-    refresh('/api/flows')
+    refresh('flowverses.list')
+    refresh('flows.list')
     return answer
   }
 
   /** What a card's menu does, said while it goes: then what changed, or a toast of why not. */
-  function busy(doing, url, body) {
+  function busy(doing, method, body) {
     fill(said, said.querySelector('[data-hmz=update-banner]'), h('p', { class: 'loading', role: 'status', 'data-hmz': 'busy' }, doing))
-    change(url, body).catch((error) => {
+    change(method, body).catch((error) => {
       said.querySelector('[data-hmz=busy]')?.remove()
       toast(error.message)
     })
@@ -149,8 +149,8 @@ export function mount(root, { query }) {
                 { label: 'New epic', glyph: 'new', href: newEpic },
                 { label: 'Show', glyph: 'open', act: () => show(one.name) },
                 '-',
-                updates[one.name] ? { label: `Update to ${updates[one.name].to}`, glyph: 'download', act: () => busy(`Updating ${one.name}…`, '/api/flowverses/install', { flow: one.name, version: updates[one.name].to }) } : null,
-                one.name.startsWith('@local/') ? null : { label: 'Copy here', glyph: 'copy', act: () => busy(`Copying ${one.name}…`, '/api/flows/fork', { flow: one.name, workspace }) },
+                updates[one.name] ? { label: `Update to ${updates[one.name].to}`, glyph: 'download', act: () => busy(`Updating ${one.name}…`, 'flowverses.install', { flow: one.name, version: updates[one.name].to }) } : null,
+                one.name.startsWith('@local/') ? null : { label: 'Copy here', glyph: 'copy', act: () => busy(`Copying ${one.name}…`, 'flows.fork', { flow: one.name, workspace }) },
                 { label: 'Copy name', glyph: 'copy', act: () => copy(one.name, 'Name copied') },
               ])
             }),
@@ -171,7 +171,7 @@ export function mount(root, { query }) {
     fill(shown, h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
     let flow
     try {
-      flow = await get(`/api/flow?name=${encodeURIComponent(name)}&workspace=${encodeURIComponent(workspace)}`)
+      flow = await call('flows.get', { name, workspace })
     } catch (error) {
       if (chosen === name) fill(shown, problem(error))
       return
@@ -181,9 +181,9 @@ export function mount(root, { query }) {
     const installed = ((verses && verses.installed) || []).find((one) => one.flow === name)
     const update = ((verses && verses.updates) || []).find((one) => one.flow === name)
     const actions = [h('a', { class: 'btn primary', href: hash(`/new?flow=${encodeURIComponent(flow.name)}&workspace=${encodeURIComponent(workspace)}`) }, icon('new'), 'New epic')]
-    if (update) actions.push(acting(`Update to ${update.to}`, () => change('/api/flowverses/install', { flow: name, version: update.to }), { busy: 'Updating…' }))
-    if (!name.startsWith('@local/')) actions.push(acting('Copy here', () => change('/api/flows/fork', { flow: name, workspace }), { kind: 'btn quiet', busy: 'Copying…' }))
-    if (installed) actions.push(confirming({ label: 'Uninstall', ask: `Uninstall ${name}?`, yes: 'Uninstall', no: 'Cancel', act: () => change('/api/flowverses/uninstall', { flow: name }) }))
+    if (update) actions.push(acting(`Update to ${update.to}`, () => change('flowverses.install', { flow: name, version: update.to }), { busy: 'Updating…' }))
+    if (!name.startsWith('@local/')) actions.push(acting('Copy here', () => change('flows.fork', { flow: name, workspace }), { kind: 'btn quiet', busy: 'Copying…' }))
+    if (installed) actions.push(confirming({ label: 'Uninstall', ask: `Uninstall ${name}?`, yes: 'Uninstall', no: 'Cancel', act: () => change('flowverses.uninstall', { flow: name }) }))
     const params = Object.entries(flow.params.properties || {})
     fill(
       shown,
@@ -238,7 +238,7 @@ export function mount(root, { query }) {
           return menuOn(card, () => [
             { head: one.url || one.name },
             { label: 'Open', glyph: 'open', act: () => openVerse(one.name) },
-            !one.fixed || one.name === 'official' ? { label: 'Fetch', glyph: 'resume', act: () => busy(`Fetching ${one.name}…`, '/api/flowverses/fetch', { name: one.name }) } : null,
+            !one.fixed || one.name === 'official' ? { label: 'Fetch', glyph: 'resume', act: () => busy(`Fetching ${one.name}…`, 'flowverses.fetch', { name: one.name }) } : null,
             one.url ? { label: 'Copy URL', glyph: 'copy', act: () => copy(one.url, 'URL copied') } : null,
           ])
         }),
@@ -286,7 +286,7 @@ export function mount(root, { query }) {
       button.disabled = true
       button.textContent = 'Adding…'
       try {
-        const answer = await change('/api/flowverses', { url: url.value.trim(), name: name.value.trim() })
+        const answer = await change('flowverses.add', { url: url.value.trim(), name: name.value.trim() })
         const added = String(answer.said || '').replace(/^added /, '')
         if (added) openVerse(added)
       } catch (error) {
@@ -307,7 +307,7 @@ export function mount(root, { query }) {
     fill(shown, h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
     let index
     try {
-      index = await get(`/api/flowverses/${encodeURIComponent(name)}`)
+      index = await call('flowverses.get', { name })
     } catch (error) {
       if (verse === name) fill(shown, problem(error))
       return
@@ -315,11 +315,11 @@ export function mount(root, { query }) {
     if (verse !== name) return
     const actions = []
     if (!index.fixed || name === 'official') actions.push(acting(index.fetched ? 'Fetch' : 'Fetch now', async () => {
-      await change('/api/flowverses/fetch', { name })
+      await change('flowverses.fetch', { name })
       openVerse(name)
     }, { kind: 'btn', busy: 'Fetching…' }))
     if (!index.fixed) actions.push(confirming({ label: 'Remove', ask: `Remove ${name} and every flow installed out of it?`, yes: 'Remove', no: 'Cancel', act: async () => {
-      await change('/api/flowverses/remove', { name })
+      await change('flowverses.remove', { name })
       close()
     } }))
     fill(
@@ -345,11 +345,11 @@ export function mount(root, { query }) {
     const newest = one.releases.find((each) => !each.prerelease) || one.releases[0]
     if (!one.installed && newest) pick.value = newest.version
     const go = acting(one.installed ? 'Switch' : 'Install', async () => {
-      await change('/api/flowverses/install', { flow: one.flow, version: pick.value })
+      await change('flowverses.install', { flow: one.flow, version: pick.value })
       openVerse(name)
     }, { kind: 'btn small', busy: 'Installing…' })
     const remove = one.installed ? confirming({ label: 'Uninstall', ask: `Uninstall ${one.flow}?`, yes: 'Uninstall', no: 'Cancel', small: true, act: async () => {
-      await change('/api/flowverses/uninstall', { flow: one.flow })
+      await change('flowverses.uninstall', { flow: one.flow })
       openVerse(name)
     } }) : null
     const about = (one.releases.find((each) => each.version === (one.installed || (newest && newest.version))) || {}).description
@@ -361,8 +361,20 @@ export function mount(root, { query }) {
     )
   }
 
-  watch()
+  // A workspace named by none of the address is the one offered first.
+  let left = false
+  if (workspace) watch()
+  else
+    firstWorkspace().then(
+      (to) => {
+        if (left) return
+        workspace = workspace || to
+        watch()
+      },
+      (error) => !left && fill(list, problem(error)),
+    )
   return () => {
+    left = true
     stop()
     stopVerses()
   }

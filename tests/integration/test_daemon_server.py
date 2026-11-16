@@ -93,9 +93,9 @@ def test_a_server_serves_its_web_over_easytier_until_stopped(core: Core) -> None
     assert _SECRET not in record.read_text()
 
     # Its web answers with the key its secret derives, and no other.
-    assert isinstance(_asked("/api/daemons", easytier.key(_SECRET)), (dict, list))
+    assert isinstance(_asked("/here", easytier.key(_SECRET)), dict)
     with pytest.raises(urllib.error.HTTPError):
-        _asked("/api/daemons", easytier.key("fedcba9876543210"))
+        _asked("/here", easytier.key("fedcba9876543210"))
     # EasyTier serves that port, told the node and given the secret off its command line.
     assert until(core.told)
     ((argv, secret),) = core.told()

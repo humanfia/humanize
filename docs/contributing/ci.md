@@ -70,7 +70,7 @@ run on Linux and macOS. `tests/system` is never run here: it drives real agents 
 test and spends real tokens, and `hmz web`'s page in real browsers, so it is yours to run when
 your change needs it. [Where a test goes](/contributing/#where-a-test-goes) says when.
 
-The `web` topic speaks HTTP to `hmz web` as a browser does, and opens no browser.
+The `web` topic speaks HTTP and WebSockets to `hmz web` as a browser does -- JSON-RPC over `/rpc` and `/dial` -- and opens no browser.
 `tests/system/web/` draws the page in headless Chromium and in WebKit, the engine the macOS
 app's window draws it with: fetch both with `uv run playwright install chromium webkit` before
 running it.

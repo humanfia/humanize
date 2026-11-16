@@ -20,8 +20,6 @@ it uses whatever `hmz` is there.
 from __future__ import annotations
 
 import contextlib
-import http.client
-import json
 import queue
 import re
 import subprocess
@@ -32,7 +30,6 @@ from hmz.runtime.runner import Refused
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping, Sequence
-    from pathlib import Path
     from types import TracebackType
 
     from hmz.coganchor.transport import Road
@@ -49,10 +46,10 @@ __all__ = [
     "UP",
     "Client",
     "Daemons",
+    "Dialing",
     "Remotes",
     "Unreached",
     "carried",
-    "headers",
     "said",
 ]
 
@@ -627,17 +624,6 @@ def said(lines: Sequence[str]) -> dict[str, str]:
     return found
 
 
-def headers(port: int, key: str) -> dict[str, str]:
-    """What a request to an interface listening on `port` carries to be let in, as its page's."""
-    # Wave 4 removes this, with the web's `/d/` proxy that is all that still asks it.
-    return {
-        "Host": f"127.0.0.1:{port}",
-        "Origin": f"http://127.0.0.1:{port}",
-        "Sec-Fetch-Site": "same-origin",
-        "Cookie": f"hmz-{port}={key}",
-    }
-
-
 def _last(lines: Sequence[str], otherwise: str) -> str:
     """The last line said, or what is said otherwise."""
     return next((line for line in reversed(lines) if line.strip()), otherwise).strip()
@@ -956,9 +942,6 @@ class _Remote:
         self.state = IDLE
         self.detail = ""
         self.there = ""
-        #: Wave 4 removes these, with the HTTP members of `Remotes` that read them: nothing
-        #: serves HTTP to a daemon reached over JSON-RPC.
-        self.port, self.remote, self.key = 0, 0, ""
         self.entry: dict[str, Any] | None = None
         self.session: _Session | None = None
         #: What is said of it while it is up: why its hmz is not this one's, where it is not.
@@ -1195,6 +1178,76 @@ class _Remote:
             _stops(child)
 
 
+class Dialing(_Remote):
+    """One route opened for a client of its own, `hmz web`'s `/dial` (Section 4.8 of web.md).
+
+    Opened as a remote daemon's route is -- hmz installed over `stdio:ssh`, EasyTier downloaded
+    for `easytier:`, mutual TLS as this machine's device on an untrusted carrier, pinning the
+    id given -- with each state told as it goes. Closing it closes the carrier and stops every
+    process started for it.
+
+    Args:
+      route: The route.
+      pinned: The daemon id pinned, `""` for none.
+      told: Told each state, `connecting`, `installing` or `failed`, and what was said last.
+      version: The version of `hmz` installed where another is found; this one's by default.
+    """
+
+    def __init__(
+        self,
+        route: Route,
+        pinned: str,
+        told: Callable[[str, str], None],
+        version: str | None = None,
+    ) -> None:
+        super().__init__(str(route), version or _here_version(), threading.Condition())
+        self._route = route
+        self._pinned = pinned
+        self._told = told
+
+    def opens(self) -> tuple[Pipe, str]:
+        """Opens the carrier, secured where it is untrusted.
+
+        Returns:
+          It, and why the `hmz` there is not this one's, where it is not; else "".
+
+        Raises:
+          Exception: Whatever went wrong, saying it.
+        """
+        self._racing.set()
+        try:
+            self._says(CONNECTING)
+            note = ""
+            if self._route.kind == "ssh":
+                note = self._installed(self._route)
+            elif self._route.kind == "easytier":
+                self._downloads()
+            pipe = _secured(
+                self._route, self._pinned, self.name, _networks(), self._opened
+            )
+        except BaseException:
+            self._ends()
+            raise
+        finally:
+            with self._changed:
+                self._racing.clear()
+                children = list(self._children)
+                self._children.clear()
+            # What probed or installed: the carrier is what is kept.
+            for child in children:
+                _stops(child)
+        return pipe, note
+
+    def close(self) -> None:
+        """Closes the carrier and stops every process started for it, opening or open."""
+        self._closed.set()
+        self._ends()
+
+    def _says(self, state: str, detail: str = "") -> None:
+        super()._says(state, detail)
+        self._told(state, detail)
+
+
 def _moved(said: dict[str, Any], entry: dict[str, Any] | None) -> bool:
     """Whether a daemon's entry says to reach it otherwise than as it was reached.
 
@@ -1347,159 +1400,6 @@ class Remotes:
         return Daemons().write(
             name, {"id": entry["id"], "routes": entry["routes"]}, replace=True
         )
-
-    def reached(self, name: str) -> tuple[int, str]:
-        """Where a daemon is reached here, and the key it lets in.
-
-        Reached first where it was not, waiting a while for it.
-
-        Returns:
-          The port of this machine's loopback forwarded to it, and its key.
-
-        Raises:
-          Unreached: If it is not up, with its state.
-          LookupError: If none is called that.
-        """
-        # Wave 4 removes this, with the web's notifications that are all that still ask it.
-        held = self._up(name)
-        return held.port, held.key
-
-    def asks(self, name: str) -> tuple[int, dict[str, str]]:
-        """Where a daemon is reached here, and what a request to it carries to be let in.
-
-        Raises:
-          Unreached: As `reached` does.
-          LookupError: As `reached` does.
-        """
-        # Wave 4 removes this, with the web's `/d/` proxy that is all that still asks it.
-        held = self._up(name)
-        return held.port, headers(held.remote, held.key)
-
-    def asked(
-        self,
-        name: str,
-        path: str,
-        body: dict[str, Any] | None = None,
-        *,
-        into: Path | None = None,
-    ) -> Any:
-        """What a daemon's interface answers, reached first where it was not.
-
-        Args:
-          name: The daemon.
-          path: What is asked of it, `/api/...` and its query; a write where there is a body.
-          body: What is written, as JSON; None for a read.
-          into: Where what it answers is written, as it comes, rather than read as JSON.
-
-        Returns:
-          Its answer, read as JSON; or, `into` a file, how many bytes were written there.
-
-        Raises:
-          Unreached: If it is not up, or refused, saying why.
-          LookupError: If none is called that.
-          OSError: If it went where it was asked, or the file could not be written.
-        """
-        # Wave 4 removes this, with the terminal's remote epics that are all that still ask it.
-        port, said = self.asks(name)
-        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=_ASKING)
-        try:
-            return self._answer(connection, name, path, said, body, into)
-        except (http.client.HTTPException, ValueError) as why:
-            raise Unreached(f"{name} answered what cannot be read: {why}") from why
-        finally:
-            connection.close()
-
-    @staticmethod
-    def _answer(
-        connection: http.client.HTTPConnection,
-        name: str,
-        path: str,
-        said: dict[str, str],
-        body: dict[str, Any] | None,
-        into: Path | None,
-    ) -> Any:
-        """What one question to a daemon's interface is answered with, as `asked` says.
-
-        What is written `into` a file is written beside it first and moved into place, so
-        that a file there already is replaced whole or not at all.
-        """
-        if body is None:
-            connection.request("GET", path, headers=said)
-        else:
-            connection.request(
-                "POST",
-                path,
-                json.dumps(body).encode(),
-                said | {"Content-Type": "application/json"},
-            )
-        answer = connection.getresponse()
-        if answer.status >= 300:  # noqa: PLR2004 -- any status but a success
-            try:
-                refused: object = json.loads(answer.read() or b"{}")
-            except ValueError:
-                refused = None
-            why = (
-                cast("dict[str, Any]", refused).get("error")
-                if isinstance(refused, dict)
-                else None
-            )
-            raise Unreached(
-                str(why or f"{name} answered {answer.status}"),
-                status=answer.status,
-            )
-        if into is None:
-            return json.loads(answer.read() or b"null")
-        beside = into.with_name(f".{into.name}.new")
-        written = 0
-        try:
-            with beside.open("wb") as file:
-                while chunk := answer.read(65536):
-                    written += file.write(chunk)
-            beside.replace(into)
-        finally:
-            beside.unlink(missing_ok=True)
-        return written
-
-    def followed(
-        self, name: str, path: str, going: threading.Event
-    ) -> Iterator[tuple[str, Any]]:
-        """Each server-sent event a daemon's interface says at one address, as it says it.
-
-        Args:
-          name: The daemon.
-          path: What is followed there, `/api/...` and its query.
-          going: Set to stop following, which the next word from there or its quiet ends.
-
-        Yields:
-          Each event's name and its data, read as JSON, until the stream ends.
-
-        Raises:
-          Unreached: If it is not up, or refused, saying why.
-          LookupError: If none is called that.
-        """
-        # Wave 4 removes this, with the terminal's remote epics that are all that still ask it.
-        port, said = self.asks(name)
-        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=_ASKING)
-        try:
-            connection.request("GET", path, headers=said)
-            answer = connection.getresponse()
-            if answer.status >= 300:  # noqa: PLR2004 -- any status but a success
-                raise Unreached(
-                    f"{name} answered {answer.status}", status=answer.status
-                )
-            event, data = "", list[str]()
-            while not going.is_set() and (line := answer.readline()):
-                heard = line.decode().rstrip("\r\n")
-                if heard.startswith("event:"):
-                    event = heard[6:].strip()
-                elif heard.startswith("data:"):
-                    data.append(heard[5:].removeprefix(" "))
-                elif not heard:
-                    if event and data:
-                        yield event, json.loads("\n".join(data))
-                    event, data = "", []
-        finally:
-            connection.close()
 
     def close(self) -> None:
         """Stops reaching every daemon: every session closed, every process stopped and reaped."""
