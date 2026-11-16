@@ -5,8 +5,9 @@ pageClass: hmz-feature
 # Remote execution
 
 Reference for anchoring: how a turn whose work lands on another machine is run, where each
-part of it runs, what crosses between machines, and what is refused. The layer is CogAnchor,
-`hmz.coganchor.anchor` and its command line is `hmz internal anchor`. Where an agent's turns
+part of it runs, what crosses between machines, and what is refused. The layer is CogAnchor:
+the program `coganchor`, built from `crates/coganchor` and carried in the package, which hmz
+runs as `hmz internal anchor`, and `hmz.coganchor`, which drives it. Where an agent's turns
 land is set per agent by [`machine=`](/reference/machines) and per flow session by its
 [environment](/reference/machines#where-a-flow-s-agents-work); where the harness runs is set per
 saved runtime by its `harness` setting ([below](#where-the-harness-runs)).
@@ -17,12 +18,12 @@ saved runtime by its `harness` setting ([below](#where-the-harness-runs)).
 | --- | --- |
 | **Anchor** | The settings that send one agent's turns to another machine: an [`AnchorConfig`](#anchorconfig). An agent with no anchor runs its turns on this machine as ordinary processes. |
 | **Target** | The machine the work lands on: the files the agent reads and writes and the commands it runs. Named by a [target spelling](#targets). |
-| **Serving half** | `hmz internal anchor serve`, running on the target. It answers file operations and runs commands inside the directories it exports. |
+| **Serving half** | `coganchor anchor` (`hmz internal anchor serve`), running on the target. It answers file operations and runs commands inside the directories it exports. |
 | **Harness** | The agent's own process (the coding agent CLI) and, when supervised, the supervisor tracing it. |
 | **Supervisor** | A seccomp-filtered ptrace tracer that stops the agent's path, exec and connect syscalls and answers them from the target. |
 | **Mirror** (shadow) | A directory on the harness's machine that reproduces the target's workspace, filled lazily. The supervised agent works in it. |
 | **Arrangement** | How one anchor runs its harness relative to the target: supervised here, supervised on another machine (afar), or the target's own CLI (native). A flow session's [harness location](#where-the-harness-runs) becomes one of them: `local` is supervised, `standalone` is afar, `env` is native. |
-| **Broker** (rendezvous) | A TCP server that introduces a harness and a serving half on two machines that cannot dial each other, and relays their bytes when no direct connection can be made. |
+| **Broker** (rendezvous) | `coganchor broker`: a TCP server that introduces a harness and a serving half on two machines that cannot dial each other, and relays their bytes when no direct connection can be made. |
 | **Ticket** | A 128-bit secret naming one meeting at a broker. |
 | **Export** | A directory the serving half exposes, as `VIRTUAL[:REAL]`: the path the agent names, and where it really is on the target. |
 | **Fence** | What an agent's processes may reach ([Agents › The fence](/reference/agents#the-fence)). Under an anchor it is held on both machines ([below](#a-fence-on-both-machines)). |
@@ -116,10 +117,10 @@ machine in `AnchorConfig.harness`.
 | --- | --- | --- | --- | --- |
 | `local` | this machine, standing in for another | the serving half is a child process here | yes | none |
 | `local:DIR` | this machine, with `DIR` standing in for the far side's copy of the workspace | as `local` | yes | none |
-| `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` | a host reached with the system `ssh` | the serving half is bootstrapped over `ssh` and spoken to on its pipes | yes | POSIX `/bin/sh`, Python >= 3.12 |
-| `docker://CONTAINER[?OPTIONS][@ENDPOINT]` | a running container | the serving half is bootstrapped with `docker exec -i`, running as the container's user or the one `OPTIONS` names, with its variables and under its wrapper | yes | `docker` here; `/bin/sh` and Python >= 3.12 in the container |
-| `apple-container://CONTAINER` | a running Apple container on this Mac | the serving half is bootstrapped with `container exec -i`, running as the container's user | yes | Apple's `container` here; `/bin/sh` and Python >= 3.12 in the container |
-| `slurm://JOBID[?python=PATH]` | the node a running Slurm job of this user's was given | the serving half is bootstrapped with `srun --jobid=JOBID --overlap`, a step of that job sharing its allocation, running as this user | yes | `srun` here; `/bin/sh` and Python >= 3.12 on the node (`PATH`, absolute or under `~/`, is tried first) |
+| `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` | a host reached with the system `ssh` | the serving half is bootstrapped over `ssh` and spoken to on its pipes | yes | POSIX `/bin/sh`; Linux or macOS on x86-64 or aarch64 |
+| `docker://CONTAINER[?OPTIONS][@ENDPOINT]` | a running container | the serving half is bootstrapped with `docker exec -i`, running as the container's user or the one `OPTIONS` names, with its variables and under its wrapper | yes | `docker` here; `/bin/sh` in a Linux container on x86-64 or aarch64 |
+| `apple-container://CONTAINER` | a running Apple container on this Mac | the serving half is bootstrapped with `container exec -i`, running as the container's user | yes | Apple's `container` here; `/bin/sh` in the container |
+| `slurm://JOBID[?python=PATH]` | the node a running Slurm job of this user's was given | the serving half is bootstrapped with `srun --jobid=JOBID --overlap`, a step of that job sharing its allocation, running as this user | yes | `srun` here; `/bin/sh` on a Linux node on x86-64 or aarch64 (`python=PATH` is accepted and not used) |
 | `tcp://HOST:PORT` | a serving half [left listening](#serving-a-target) | a TCP connection, `TCP_NODELAY`, 30 s connect timeout | no | a served target and its token |
 | `peer://TICKET@HOST:PORT` | a serving half waiting at a broker | the broker at `HOST:PORT`, presenting `TICKET` | no | written by Humanize only |
 
@@ -146,14 +147,16 @@ Parsing rules:
   The `exec` words are a wrapper: a program in the container (with its arguments) that runs
   the command it is given after them, with the same streams, and exits with its status, as
   `exec "$@"` does. The target is written on command lines and in logs, so an `env` value is no
-  place for a secret. A target naming a `user` keeps its archive and mirrors in
+  place for a secret. A target naming a `user` keeps its `coganchor` and mirrors in
   `/tmp/humanize-<UID>` and `/tmp/humanize-mirrors-<UID>` instead (see
   [Bootstrapping](#bootstrapping-the-serving-half)). The options are part of the target: two
-  spellings telling one container different things are two targets, each given the archive
+  spellings telling one container different things are two targets, each given `coganchor`
   once.
 - `apple-container://`: the container name, holding no `@`, `/`, `?` or `#`.
 - `slurm://`: the job's id, all digits; after `?`, only `python=PATH`, URL-quoted, `PATH`
   absolute or under `~/` (the node's home) and holding no newline, carriage return, NUL or `"`.
+  It is accepted so that older spellings still parse, and is not used: nothing on the node
+  needs a Python.
 - `tcp://`: `HOST:PORT` split at the last `:`; the port must be digits.
 - `peer://`: `TICKET@HOST:PORT`; brackets around an IPv6 host are stripped.
 
@@ -171,22 +174,24 @@ Parsing rules:
 
 ### Bootstrapping the serving half
 
-For `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://`, Humanize starts `hmz internal anchor serve --stdio
---export WORKSPACE[:REAL]` on the far side and speaks the protocol over its stdin and stdout.
+For `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://`, Humanize starts
+`coganchor anchor --stdio --export WORKSPACE[:REAL]` on the far side and speaks the protocol
+over its stdin and stdout.
 
 | Step | Behaviour |
 | --- | --- |
-| Archive | A zipapp of `hmz.coganchor` and the command line reaching it, with an `hmz-<version>.dist-info/METADATA` so that `__version__` and `hmz --version` answer the same on the target, built once per source tree into `$TMPDIR/humanize-<uid>/humanize-<digest>.pyz` (directory `0700`, refused if anyone else can write it), beside a `<stamp>.digest` naming the archive each source tree (by version, path, file sizes and modification times) built. Two checkouts or versions never share an archive. A run touches the archive it uses at least hourly; a build removes anything in the directory, and the `$TMPDIR/humanize-<uid>.pyz` an earlier Humanize shared, untouched for 14 days. A directory anyone else can write fails the install with `ConnectionError: could not install Humanize on <target>: …`. The driving half (`agents`, `providers`, `machines`, `backends.py`, `models.py`, `fallbacks.py`, `prices.py`) is left out. Pure standard library; runs on any architecture. |
-| Name on the target | `humanize-<digest>.pyz`, `<digest>` the first 16 hex digits of the archive's SHA-256. |
+| Builds | `coganchor` is one static program. The installed package carries a build for each of `linux-x86_64`, `linux-aarch64` (both static, against musl), `darwin-x86_64` and `darwin-aarch64`, at `hmz/coganchor/bin/<os>-<arch>/coganchor`; a `coganchor` Humanize starts is told that directory in `COGANCHOR_BINARIES`. [`HUMANIZE_COGANCHOR`](/reference/environment#humanize-coganchor) names a binary to run on this machine instead. Nothing is built, or kept, on this machine. |
+| Platform | The far side is asked `uname -sm` once per target. `Linux` or `Darwin`, and `x86_64`, `amd64`, `aarch64` or `arm64`, pick the build. |
+| No build | Any other platform fails the install with `ConnectionError: could not install Humanize on <target>: no coganchor is built for <uname -sm>; a target must be Linux or macOS on x86-64 or aarch64`. |
+| Name on the target | `coganchor-<digest16>`, `<digest16>` the first 16 hex digits of the build's SHA-256. |
 | Cache on the target | `$HOME/.cache/humanize/` over ssh and on a Slurm node, `/tmp/humanize/` in a container, and `/tmp/humanize-<UID>/` in a container whose target names `user=UID[:GID]`. That one, and the target's mirror directory, are made by the far side's shell before anything is put in them or run from them, refused unless each is a directory (not a link) the user owns, and made `0700`: `Humanize: <dir> is not a directory this user owns`, exit 1. |
-| Install | Run with the interpreter below, `HUMANIZE_BUNDLES` set to the cache and `mkdir -p`'d by the far side's shell, the archive on stdin: refuse it (`Humanize: <n> bytes arrived that are not humanize-<digest>.pyz`) unless its SHA-256 starts with `<digest>`; keep a file already there only if its own SHA-256 does too, touching it; otherwise write `<file>.<pid>` and move it into place. Then remove other `humanize-*.pyz*` in the cache untouched for 14 days. Every line that runs the archive first `touch -c`es it. Concurrent installs are safe. Each (target, digest) pair is pushed at most once per process. |
-| Interpreter | The first candidate that exists and reports a version >= 3.12, tried in order: a `slurm://` target's `python`, then `python3`, `python3.14`, `python3.13`, `python3.12`, `/opt/homebrew/bin/python3`, `/usr/local/bin/python3`, `/Library/Frameworks/Python.framework/Versions/Current/bin/python3`, `/usr/bin/python3`. |
-| No interpreter | Exit 127, stderr `Humanize: no python 3.12 or newer on this machine; looked for: <candidates>`. |
+| Install | The build is sent on stdin to the far side's shell, which keeps a file already there under that name, touching it; otherwise it writes `<file>.<pid>`, mode `0700`, and moves it into place. Then it removes other `coganchor-*` in the cache, and any `humanize-*.pyz` an earlier Humanize left there, untouched for 14 days. Every line that runs it first `touch -c`es it. Concurrent installs are safe. Each (target, digest) pair is pushed at most once per process. |
 | Install failure | `ConnectionError: could not install Humanize on <target>: <stderr>`; for a container, `; the container said: <last 3 log lines>` is appended. |
 | Protocol | Both halves send `PROTOCOL_VERSION` (currently `1`). A mismatch fails the handshake with `EPROTO`, `client speaks protocol <n>, this Humanize speaks 1`, and closes the connection. |
 
-The handshake reply (`Op.HELLO`) carries `version`, `hostname`, `platform` (`sys.platform`),
-`python`, `pid`, `exports` (`[{virtual, real}]`) and `fence` (`{fs: bool, net: bool}`, see
+The handshake reply (`Op.HELLO`) carries `version`, `hostname`, `platform` (`linux` or
+`darwin`), `python` (`coganchor <version>`: the field keeps the name it had when the serving half was
+Python, so the protocol stays at version 1), `pid`, `exports` (`[{virtual, real}]`) and `fence` (`{fs: bool, net: bool}`, see
 [below](#a-fence-on-both-machines)). A token mismatch fails it with `EACCES`, `invalid token`.
 
 ### ssh connections
@@ -225,16 +230,17 @@ srun --jobid=JOBID --overlap --nodes=1 --ntasks=1 --unbuffered --quiet --export=
   with `SrunPortRange=30927-30951` holds about 8 connections at once. A
   [Slurm runtime](/reference/machines#a-slurm-cluster) saved with `via: tcp` holds none: its job
   runs the serving half [listening](#serving-a-target) on its node, and `srun` is used only to
-  put the archive there and read the port.
+  put `coganchor` there and read the port.
 
-<small>Defined in [`src/hmz/coganchor/transport.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/transport.py) (`Target`, `Road`, `python_command`, `build_bundle`), [`src/hmz/coganchor/proto.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/proto.py), [`src/hmz/coganchor/serve/server.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/serve/server.py).</small>
+<small>Defined in [`crates/coganchor/src/transport/`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/transport) (`target.rs`, `ship.rs`), [`crates/coganchor/src/proto/`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/proto), [`crates/coganchor/src/anchor/`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/anchor), [`src/hmz/coganchor/binary.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/binary.py).</small>
 
 ## `AnchorConfig` {#anchorconfig}
 
 `hmz.coganchor.AnchorConfig` is a frozen, keyword-only dataclass. Every field is an option of
 `hmz internal anchor`, and every option but `--check` and `--log-level` is a field;
 `hmz.coganchor.argv` reads one into the other and renders it back
-(`python -Pm hmz internal anchor <options> AGENT ARGS...`).
+(`coganchor cog <options> AGENT ARGS...`, which `hmz internal anchor <options> AGENT ARGS...`
+also runs).
 
 | Field | Type | Default | Option | Option default | Meaning |
 | --- | --- | --- | --- | --- | --- |
@@ -262,9 +268,9 @@ srun --jobid=JOBID --overlap --nodes=1 --ntasks=1 --unbuffered --quiet --export=
 
 - `--log-level {debug,info,warning,error}` defaults to `$HUMANIZE_LOG`, else `warning`, and
   logs to stderr.
-- The environment-variable defaults apply to the command line only. `check()`, `connect()` and
-  `drive()` called in-process do not read `$HUMANIZE_TOKEN` or `$HUMANIZE_SHADOW`; a spawned
-  turn is the rendered command line and does.
+- The environment-variable defaults apply to the command line only. `check()` called
+  in-process does not read `$HUMANIZE_TOKEN` or `$HUMANIZE_SHADOW`; `connect()` and `drive()`
+  spawn the rendered command line, `coganchor cog`, and a spawned turn is that line and does.
 - A turn spawned from an agent is `AnchorConfig.command(argv, swaps=…, private=…, chdir=…)`:
   the provider's credential paths and kept session paths are added as `redirects`, the
   provider's variables as `private`, and the session's directory as `chdir`.
@@ -292,7 +298,7 @@ as a usage error and exits 2.
 | a redirect that is not two absolute paths | `unsupported redirect 'a=b'; expected two absolute paths` |
 | an empty hush, or one containing `=` | `unsupported hush 'A=B'; expected a variable name` |
 | a projection without a variable name and an absolute path | `unsupported projection X='rel'; expected a variable name and an absolute path` |
-| a non-open `fence` with no `drawn` rules (drawn path by path) | `a fence drawn path by path cannot be held on another machine; draw it from its levels with Fence.of` |
+| a non-open `fence` with no `drawn` rules (drawn path by path) | `a fence drawn path by path cannot be held on another machine; draw it from its rules with Fence.of` |
 | a non-open `fence` with a harness on another machine | `a fence is drawn around this machine's paths, and cannot hold a harness on another machine` |
 | a `fence` with `online=False` and `net="remote"` | `a fence that cuts the network keeps the agent's own connections here; --net remote would send them past it` |
 
@@ -324,12 +330,12 @@ Refused only when a turn is started:
 ```text
 target      ssh://build-box
 hostname    build-box
-python      3.12.3 (pid 41207)
+python      coganchor 1.4.0 (pid 41207)
 export      /srv/project -> /srv/project
 workspace   /srv/project (184 entries)
 ```
 
-<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py), [`src/hmz/coganchor/argv.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/argv.py), [`src/hmz/cli/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/cli/anchor.py).</small>
+<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py), [`src/hmz/coganchor/argv.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/argv.py), [`crates/coganchor/src/cli.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cli.rs).</small>
 
 ## Where the harness runs {#where-the-harness-runs}
 
@@ -347,8 +353,8 @@ session.
 | any other `ssh://` or `docker://` spelling | that machine | kept, on that machine | afar; a [rendezvous](#being-introduced) introduces the harness to the serving half on the target |
 | `local:DIR` | this machine | as `local` | not afar |
 
-A turn with the harness elsewhere is spawned as `hmz internal anchor` on the harness machine
-(bootstrapped as a [target](#bootstrapping-the-serving-half) is), with `harness` rewritten to
+A turn with the harness elsewhere is spawned as `coganchor cog` on the harness machine
+(put there as it is on a [target](#bootstrapping-the-serving-half)), with `harness` rewritten to
 `local` and `target` rewritten to `local:<remote_path>` (same machine) or `peer://<ticket>@<broker>`
 (third machine). This machine runs only the process carrying the three streams.
 
@@ -672,7 +678,7 @@ workspace all the same, and what is beside it in that directory stays here.
 - A command that cannot be started, or that the supervisor loses track of, fails. Nothing it
   started is left running when the session ends.
 
-<small>Defined in [`src/hmz/coganchor/supervisor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/supervisor.py), [`src/hmz/coganchor/linux/syscalls.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/linux/syscalls.py), [`src/hmz/coganchor/shadow.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/shadow.py), [`src/hmz/coganchor/statepaths.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/statepaths.py), [`src/hmz/coganchor/policy.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/policy.py).</small>
+<small>Defined in [`crates/coganchor/src/cog/supervisor.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/supervisor.rs), [`crates/coganchor/src/sys/syscalls.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/sys/syscalls.rs), [`crates/coganchor/src/cog/shadow/mod.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/shadow/mod.rs), [`crates/coganchor/src/cog/statepaths.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/statepaths.rs), [`crates/coganchor/src/cog/policy.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/policy.rs).</small>
 
 ## Native arrangement {#native-the-target-s-own-cli}
 
@@ -730,21 +736,21 @@ refused rather than run as whatever account the target is signed into.
 - The CLI keeps its sessions on the target; a run copies what they log into its epic
   ([Providers › Sessions on another machine](/reference/providers#sessions-on-another-machine)).
 
-<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`drive`, `_installed`, `_projected`, `_homed`, `_swept`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_reaching`, `_projecting`).</small>
+<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`drive`), [`crates/coganchor/src/cog/drive/mod.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/drive/mod.rs), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_reaching`, `_projecting`).</small>
 
 ## Afar arrangement and the rendezvous {#being-introduced}
 
 With the harness on the target (`same`), nothing is introduced: the harness machine runs
-`hmz internal anchor --target local:<remote_path>` against itself. With the harness on a third
+`coganchor cog --target local:<remote_path>` against itself. With the harness on a third
 machine, Humanize books a meeting:
 
 1. This process starts (once, for its lifetime) a broker listening on `0.0.0.0`, port
    `$HUMANIZE_RENDEZVOUS_PORT` (default `0`, any free port).
 2. It mints a ticket (`secrets.token_hex(16)`, 128 bits) and starts, on the target,
-   `hmz internal anchor serve --peer TICKET@HOST:PORT --export …`, where `HOST` is `broker`,
+   `coganchor anchor --peer TICKET@HOST:PORT --export …`, where `HOST` is `broker`,
    else `$HUMANIZE_RENDEZVOUS`, else this machine's outward-facing IPv4 address (the source
    address of a route to `192.0.2.1`; `127.0.0.1` if there is none).
-3. It spawns `hmz internal anchor --target peer://TICKET@HOST:PORT` on the harness machine.
+3. It spawns `coganchor cog --target peer://TICKET@HOST:PORT` on the harness machine.
 4. Both halves dial the broker with the ticket and their role (`anchor` or `serve`), and offer
    the address they dialled from plus the IPv4 addresses their hostname resolves to -- left
    out where resolving it takes longer than 1 s, as an unanswered macOS `.local` name does.
@@ -764,11 +770,12 @@ machine, Humanize books a meeting:
   `this rendezvous is already holding 65536 meetings`.
 - Addresses are IPv4 only; a machine reachable only over IPv6 is relayed.
 - Neither half is told whether it was relayed.
-- `hmz internal anchor rendezvous [--listen [HOST:]PORT] [--punching SECONDS]` runs a broker on
-  its own (default `0.0.0.0:0`) and prints `hmz internal anchor rendezvous listening HOST PORT`
-  on stderr.
+- `coganchor broker [--listen [HOST:]PORT] [--punching SECONDS]`, or `hmz internal anchor
+  rendezvous` with the same options, runs a broker on its own (default `0.0.0.0:0`) and prints
+  `hmz internal anchor rendezvous listening HOST PORT` on stderr. `coganchor` needs no Python,
+  so a broker can run on any Linux or macOS machine both halves can reach.
 
-<small>Defined in [`src/hmz/coganchor/elsewhere.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/elsewhere.py) (`afar`, `_carried`), [`src/hmz/coganchor/rendezvous.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/rendezvous.py).</small>
+<small>Defined in [`src/hmz/coganchor/elsewhere.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/elsewhere.py) (`afar`, `_carried`), [`src/hmz/coganchor/rendezvous.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/rendezvous.py), [`crates/coganchor/src/broker/server.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/broker/server.rs).</small>
 
 ## A fence on both machines {#a-fence-on-both-machines}
 
@@ -778,7 +785,7 @@ what crosses is its anchored rules, not its paths.
 
 | Arrangement | This machine | Target |
 | --- | --- | --- |
-| Supervised | The agent process is walled in by Landlock before it runs, with the mirror granted at the workdir's level. Where that is below `write`, every change to the workspace the supervisor would replay on the target fails `EACCES` before the target is asked, as the wall refuses it here. Where `online=False`, a proxy served by the anchor process is its only way out, passing the fence's hosts; binds are limited to a kernel-chosen port and the fence's `listen` ports, on loopback. The supervisor, its link and the mirror are outside the wall. | Every command the agent runs is sent with `{drawn, online, tmp}`, `tmp` being the agent's scratch directory here. The serving half draws the fence again (`abroad.drawn`) around its exported directories, its own `$HOME` and its own minimum, and runs the command under its own `hmz internal fence` with its scratch at that same path: made `0700` there if missing, through no link a fenced command could have made, and left afterwards; used where it is a directory of the serving user's own (not a link), and otherwise replaced by one made for the one command. A command that names the path, as Claude Code's shell commands name the file they write their working directory to, finds it. Where `online=False`, the command reaches no host. |
+| Supervised | The agent process is walled in by Landlock before it runs, with the mirror drawn as the workdir is: the access `.` has, and every rule beneath `.` beneath it (`Fence.beside`). A directory of the mirror holding a carve-out is granted as its entries as they stand when the wall goes up, so what is fetched into it later stays out of reach. Where the mirror is below `write`, every change to the workspace the supervisor would replay on the target fails `EACCES` before the target is asked, as the wall refuses it here. Where `online=False`, a proxy served by the anchor process is its only way out, passing the fence's hosts; binds are limited to a kernel-chosen port and the fence's `listen` ports, on loopback. The supervisor, its link and the mirror are outside the wall. | Every command the agent runs is sent with `{rules, online, tmp}`, `rules` being the fence's `drawn` rules as `[path, access]` pairs and `tmp` being the agent's scratch directory here. The serving half draws the fence again (`abroad.drawn`) around its exported directories (each drawn as the workdir is), its own `$HOME` and its own minimum, and runs the command under its own `hmz internal fence` with its scratch at that same path: made `0700` there if missing, through no link a fenced command could have made, and left afterwards; used where it is a directory of the serving user's own (not a link), and otherwise replaced by one made for the one command. A command that names the path, as Claude Code's shell commands name the file they write their working directory to, finds it. Where `online=False`, the command reaches no host. |
 | Native | nothing | The CLI is run under `hmz internal fence` on the target with the anchored rules, the hosts its model is at, the state it writes under its home (sent as `~/…`), the turn's credential directory, read access to its own install tree, and its `listen` ports. |
 | Afar | refused | refused |
 
@@ -807,6 +814,7 @@ what crosses is its anchored rules, not its paths.
 | agent construction, supervised | `Unfenced` | `<Agent> cannot be held to its permission: it is supervised on this machine, which has no Landlock[ ABI 4 and seccomp to cut the network]` |
 | first turn, supervised | `Unfenced` | `<id>: <target> cannot fence the commands the agent runs there: it needs Seatbelt on a Mac, or Landlock (Linux 5.13 or later, not refused by a container's seccomp profile)[, at ABI 4 (Linux 6.7) with seccomp, to cut the network]; grant the agent everything, or run it where it can be fenced` |
 | anchor start, supervised | `PermissionError` | `this machine cannot fence the agent: it needs Landlock[ ABI 4 and seccomp]` |
+| anchor start, supervised | `OSError` | `[Errno N] <why>: '<path>'`: a directory holding a carve-out cannot be listed, or a grant holding one is not a directory, so Landlock cannot hold it; nothing is started |
 | anchor start, supervised | `ValueError` | `<path>: it is a link where a fenced program could have made one, which no fence follows to write`: a path the fence writes, or the scratch, leads through a link in a directory a fence writes ([Agents › Enforcement](/reference/agents#enforcement)); nothing is started |
 | native turn | `PermissionError` | `the target cannot fence the CLI: it needs Landlock[ ABI 4 and seccomp]` |
 | a fenced command on the target | `PermissionError` | `this machine cannot fence a command: it needs Landlock[ ABI 4 and seccomp]`; on a macOS target, `… it needs Seatbelt, which a process already inside a sandbox cannot apply` |
@@ -816,15 +824,19 @@ Landlock but not the seccomp listener or `pidfd_getfd`, so a container under it 
 with `online=True` and refuses one with `online=False`; run such a container with a profile
 that allows them, or `--security-opt seccomp=unconfined`.
 
-<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`_Walls`, `_fenced`), [`src/hmz/coganchor/fence/abroad.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fence/abroad.py), [`src/hmz/coganchor/serve/fencing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/serve/fencing.py), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_abroad`, `_reached`, `_walled`).</small>
+<small>Defined in [`crates/coganchor/src/cog/walls.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/walls.rs), [`crates/coganchor/src/fence/abroad.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/fence/abroad.rs), [`crates/coganchor/src/anchor/sessions.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/anchor/sessions.rs), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_abroad`, `_reached`, `_walled`).</small>
 
 ## Serving a target {#serving-a-target}
 
 ```text
-hmz internal anchor serve --export VIRTUAL[:REAL] [--export ...]
-                          (--stdio | --listen [HOST:]PORT | --peer TICKET@HOST:PORT)
-                          [--token TOKEN] [--log-level LEVEL]
+coganchor anchor --export VIRTUAL[:REAL] [--export ...]
+                 (--stdio | --listen [HOST:]PORT | --peer TICKET@HOST:PORT)
+                 [--token TOKEN | --token-file FILE] [--log-level LEVEL]
 ```
+
+`hmz internal anchor serve` takes the same options and runs it. To leave a serving half
+listening on a machine without Humanize installed, copy the build for that machine from
+`hmz/coganchor/bin/<os>-<arch>/coganchor` in the installed package.
 
 | Mode | Serves | Started by |
 | --- | --- | --- |
@@ -851,7 +863,7 @@ An export bounds which paths a request may name; it does not confine what the co
 runs can do. Listen on a non-loopback address only with a secret `--token`.
 :::
 
-<small>Defined in [`src/hmz/cli/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/cli/anchor.py), [`src/hmz/coganchor/serve/`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/serve), [`protocol/core.md`](https://github.com/humanfia/humanize/blob/main/protocol/core.md#6-placements) §10.</small>
+<small>Defined in [`crates/coganchor/src/cli.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cli.rs), [`crates/coganchor/src/anchor/`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/anchor), [`protocol/core.md`](https://github.com/humanfia/humanize/blob/main/protocol/core.md#6-placements) §10.</small>
 
 ## Where the account lives {#where-the-account-lives}
 
@@ -871,8 +883,8 @@ from hmz.coganchor.anchor import NotInstalled
 | Call | Returns | Raises |
 | --- | --- | --- |
 | `check(config=None) -> dict` | the handshake reply (`version`, `hostname`, `platform`, `python`, `pid`, `exports`, `fence`) plus `target`, `workspace` and `entries` (entries in the workspace). Runs nothing on the target. | `ValueError` (target), `OSError` (unreachable, no workspace) |
-| `connect(command, config=None) -> int` | the agent's exit status, after everything it wrote has been pushed. Calls `drive` when `native`; spawns the afar line when the harness is elsewhere. | `ValueError`, `FileNotFoundError`, `OSError` |
-| `drive(command, config=None) -> int` | the CLI's exit status, or `128 + signal` | `ValueError` (`no agent given`, target), `NotInstalled` (a `FileNotFoundError`), `OSError`, `PermissionError` (fence) |
+| `connect(command, config=None) -> int` | the agent's exit status, after everything it wrote has been pushed, or `coganchor`'s for a turn that never ran (its message on stderr). Spawns `coganchor cog` with this process's streams, passing on `SIGTERM`, `SIGQUIT` and `SIGHUP`; calls `drive` when `native`; spawns the afar line when the harness is elsewhere. | `ValueError`, `FileNotFoundError` (no `coganchor` here), `ConnectionError`, `NotInstalled` (native) |
+| `drive(command, config=None) -> int` | the CLI's exit status, or `128 + signal`; `coganchor cog --native` runs it | `ValueError` (`no agent given`, target), `FileNotFoundError` (no `coganchor` here), `NotInstalled` (a `FileNotFoundError`, for `coganchor`'s exit 127) |
 | `AnchorConfig.command(argv, *, swaps=(), private=(), chdir="") -> list[str]` | the argv that runs `argv` under this anchor in its own process | `ValueError`, `ConnectionError` |
 | `AnchorConfig.capabilities -> frozenset[str]` | `{"anchor:native-cli"}`, `{"anchor:supervised"}` or `{"anchor:supervised", "anchor:afar"}` | |
 | `AnchorConfig.mount() -> (Target, str, str)` | the parsed target, the workspace's absolute path here, and the export spelling | `ValueError` |
@@ -883,9 +895,9 @@ from hmz.coganchor.anchor import NotInstalled
 
 | Machine | Requirement |
 | --- | --- |
-| The harness machine, supervised or afar | Linux on x86-64 or aarch64, Python >= 3.12, ptrace and seccomp permitted. |
+| The harness machine, supervised or afar | Linux on x86-64 or aarch64, ptrace and seccomp permitted. |
 | This machine, when the harness is elsewhere or the arrangement is native | none of the above; only what runs the three streams |
-| A target | a POSIX `/bin/sh` and Python >= 3.12; no root, compiler, kernel module or installed package |
+| A target | a POSIX `/bin/sh`, and Linux or macOS on x86-64 or aarch64; no Python, root, compiler, kernel module or installed package |
 | A target of a fenced session | Linux with Landlock (ABI >= 1); ABI >= 4 (Linux 6.7), seccomp user notification and `pidfd_getfd` where the network is cut. Or macOS, not itself inside a sandbox (Seatbelt) |
 | A Slurm target | the job's node sees the workspace at the same path as this machine (a shared filesystem); `srun` here; with `via: tcp`, this machine able to reach the node's ports |
 | A native target | the CLI installed and on the login's `PATH` |
@@ -950,6 +962,8 @@ Every variable Humanize reads is listed in [Environment variables](/reference/en
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
+| `HUMANIZE_COGANCHOR` | `hmz` | a `coganchor` binary to run on this machine instead of the packaged build |
+| `COGANCHOR_BINARIES` | `coganchor` | the directory of builds it copies to other machines; set by Humanize |
 | `HUMANIZE_TARGET` | `hmz internal anchor` | default `--target` |
 | `HUMANIZE_HARNESS` | `hmz internal anchor` | default `--harness` |
 | `HUMANIZE_SHADOW` | `hmz internal anchor` | default `--shadow`; set by Humanize for a harness elsewhere |

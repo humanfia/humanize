@@ -66,7 +66,7 @@ workspace's owner.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `image` | `str` | `"python:3.12"` | The image. Needs `/bin/sh` and Python >= 3.12; no sshd. |
+| `image` | `str` | `"python:3.12"` | The image. Needs `/bin/sh` and `sleep`; no Python, no sshd. |
 | `workspace` | `str \| None` | `None` (the current directory) | The project directory as the daemon's host names it. Mounted, not copied. |
 | `endpoint` | `str` | `"local"` | The daemon. See [Endpoints](#endpoints). |
 | `name` | `str \| None` | `None` (`humanize-<random>`) | The container's name, matching `[a-zA-Z0-9][a-zA-Z0-9_.-]+`. |
@@ -116,7 +116,7 @@ Validation, in `__post_init__` (`ValueError`):
      [--cpus N] [--memory BYTES] [--shm-size BYTES] [--runtime R] [--network N]
      [--device nvidia.com/gpu=<id>]... | [--gpus all | --gpus "device=<ids>"]
      <image>
-     /bin/sh -c '<first Python >= 3.12>' humanize -c 'import time; time.sleep(2**31)'
+     /bin/sh -c 'exec sleep 2147483647'
    ```
 
 5. Reaches the container as `docker://<name>[@<endpoint>]` with the mirror at `<dir>/shadow`,
@@ -129,7 +129,7 @@ Validation, in `__post_init__` (`ValueError`):
 | `NVIDIA_VISIBLE_DEVICES=void` | Set unless GPUs are handed out with `--gpus`. With no GPUs, the container sees none even under an NVIDIA default runtime. |
 | `--mount` | Written as a CSV row; a missing source is refused by docker rather than created. |
 | GPUs | `--device nvidia.com/gpu=<id>` for each id when the daemon's `DiscoveredDevices` lists every requested one as a CDI device; otherwise `--gpus all` or `--gpus "device=<ids>"`, which needs the NVIDIA container toolkit. |
-| idle process | Keeps the container up in the interpreter the serving half uses, found as the [serving half finds one](/reference/remote-execution#bootstrapping-the-serving-half). An image with no usable Python stops at once; `start()` fails. |
+| idle process | Keeps the container up, doing nothing, as the image's own `sleep`. The [serving half](/reference/remote-execution#bootstrapping-the-serving-half) is put in beside it once the container runs. An image with no `/bin/sh` stops at once; `start()` fails. |
 
 | `start()` error | Message |
 | --- | --- |
@@ -154,7 +154,7 @@ endpoint, since `container` reaches this Mac's containers only, and no GPU.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `image` | `str` | `"python:3.12"` | The image. Needs `/bin/sh` and Python >= 3.12; no sshd. |
+| `image` | `str` | `"python:3.12"` | The image. Needs `/bin/sh` and `sleep`; no Python, no sshd. |
 | `workspace` | `str \| None` | `None` (the current directory) | The project directory here. Mounted, not copied; a path holding a comma is refused, `container` having no way to quote one. |
 | `name` | `str \| None` | `None` (`humanize-<random>`) | The container's name, which is its id, matching `[a-zA-Z0-9][a-zA-Z0-9_.-]+`. |
 | `cpus` | `int \| None` | `None` (`container`'s default, 4) | `--cpus`: whole CPUs of the virtual machine. |
@@ -180,7 +180,7 @@ container run --detach --progress none
   <run_args>...
   [--cpus N] [--memory BYTES]
   <image>
-  /bin/sh -c '<first Python >= 3.12>' humanize -c 'import time; time.sleep(2**31)'
+  /bin/sh -c 'exec sleep 2147483647'
 ```
 
 The second `--mount` is for a workspace under `/private/tmp`, `/private/var` or
@@ -215,7 +215,7 @@ run as this user with the node's own tools, confined to the job's allocation.
 | `memory` | `int \| None` | `None` (the default) | `--mem`, in bytes, rounded up to a whole MiB. |
 | `gpus` | `int` | `0` | `--gpus`. |
 | `constraint` | `str` | `""` | `--constraint`: the node features the job needs. |
-| `python` | `str` | `""` (whatever the node has) | A Python >= 3.12 on the node, absolute or under `~/`, tried before any other: for nodes whose own Python is older. |
+| `python` | `str` | `""` | Accepted, and not used: the node needs no Python. |
 | `via` | `str` | `"srun"` | How the node is reached once the job runs: `srun` or `tcp` (see below). |
 | `sbatch_args` | `tuple[str, ...]` | `()` | Extra `sbatch` arguments, placed before Humanize's resource flags. |
 | `labels` | `Mapping[str, str]` | `{}` | Extra labels, written in the job's comment. `humanize`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` are dropped from it. |
@@ -250,8 +250,8 @@ and reaches its node:
 
 | `via` | The job's script | Anchor |
 | --- | --- | --- |
-| `srun` | `exec sleep 2147483647`: nothing, for as long as the job is let | `slurm://<job>[?python=<python>]`: every connection is a step of the job, `srun --jobid=<job> --overlap`, sharing its allocation (see [Remote execution › Targets](/reference/remote-execution#targets)) |
-| `tcp` | waits for the serving half's archive under `$HOME/.cache/humanize/`, then runs the serving half listening on `0.0.0.0:<free port>`, exporting the workspace and nothing else, with a random secret set in the script (`HUMANIZE_TOKEN`), never on a command line on the node | `tcp://<node>:<port>` with `token` the secret; `srun` is used once to put the archive on the node and to read the port off `/tmp/humanize-slurm-<job>.out` there (60 s) |
+| `srun` | `exec sleep 2147483647`: nothing, for as long as the job is let | `slurm://<job>`: every connection is a step of the job, `srun --jobid=<job> --overlap`, sharing its allocation (see [Remote execution › Targets](/reference/remote-execution#targets)) |
+| `tcp` | waits for `coganchor` under `$HOME/.cache/humanize/`, then runs the serving half listening on `0.0.0.0:<free port>`, exporting the workspace and nothing else, with a random secret set in the script (`HUMANIZE_TOKEN`), never on a command line on the node | `tcp://<node>:<port>` with `token` the secret; `srun` is used once to put `coganchor` on the node and to read the port off `/tmp/humanize-slurm-<job>.out` there (60 s) |
 
 The mirror is at `<dir>/shadow` of a private temporary directory here, and the anchor is
 observed as `DockerConfig`'s is. `stop()` runs `scancel <job>` (never a job it did not submit)
@@ -350,7 +350,7 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | `swarm/…` | a new service on the swarm this machine manages | the same, with provider `local` |
 | `apple-container@NAME/…` | a new Apple container on this Mac, out of what `NAME` may hand out | `target="apple-container://humanize-NAME-ROLE-<8 hex>"`, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<container>/` |
 | `apple-container/…` | a new Apple container on this Mac, with nothing saved | the same, with provider `local` |
-| `slurm@NAME/…` | a new job of one task submitted with `sbatch` as `NAME` asks, on whichever node the cluster gives it | `target="slurm://<job id>[?python=<python>]"` once the job runs (`via: srun`), or `target="tcp://<node>:<port>"` with the job's `token` (`via: tcp`); `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<job name>/` |
+| `slurm@NAME/…` | a new job of one task submitted with `sbatch` as `NAME` asks, on whichever node the cluster gives it | `target="slurm://<job id>"` once the job runs (`via: srun`), or `target="tcp://<node>:<port>"` with the job's `token` (`via: tcp`); `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<job name>/` |
 | `slurm/…` | a new job with the cluster's defaults, nothing saved | the same, with provider `local` |
 
 Where the harness goes for such a session (`local`: supervised here; `env`: native on the
@@ -699,7 +699,7 @@ mirrors, files, derived environments -- is as for an [ssh host](#environment-dri
 | Arguments | the runtime's `run_args`, given to `sbatch` before the request |
 | Environment | `--export HOME,USER`: nothing of this process's environment but whose it is |
 | Labels | in the job's comment, URL-encoded: `humanize.provider`, `humanize.role`, `humanize.host`, `humanize.pid`, `humanize.name`, plus `humanize=<uid>`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` |
-| Reached | `via: srun` (default): every connection is `srun --jobid=<job> --overlap`, a step of the job on its node; `via: tcp`: the job's batch step is the serving half, and every connection dials `<node>:<port>` with a secret only this run was told. The runtime's `python` is tried first on the node |
+| Reached | `via: srun` (default): every connection is `srun --jobid=<job> --overlap`, a step of the job on its node; `via: tcp`: the job's batch step is the serving half, and every connection dials `<node>:<port>` with a secret only this run was told. The node needs no Python; the runtime's `python` is not used |
 | Agents | anchored to the job's node; native on the node (`env`, the default, which needs the CLI there), supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<job name>/<12 hex>` (`local`, the node needing no CLI), or on another runtime, as the runtime's `harness` says. Every command lands on the job's node, within its allocation |
 
 Allocation holds an exclusive `flock` on `$TMPDIR/humanize-<uid>/.slurm.<name>.lock` while
@@ -926,7 +926,7 @@ to -- there is no daemon to name -- and how a job of Humanize's is asked for on 
 | `qos` | `str` | `""` | Its quality of service; empty for the default. |
 | `time` | `str` | `""` | How long a job may run: minutes, `MM:SS`, `HH:MM:SS`, `D-HH[:MM[:SS]]`, `UNLIMITED` or `INFINITE`; empty for the partition's default. |
 | `constraint` | `str` | `""` | The node features a job needs, as `--constraint` takes them; one word. |
-| `python` | `str` | `""` | A Python >= 3.12 on its nodes, absolute or under `~/`, tried before any other; empty for whatever they have. |
+| `python` | `str` | `""` | Accepted, so that a runtime saved before still loads, and not used: the nodes need no Python. Absolute or under `~/` where set. |
 | `via` | `str` | `"srun"` | How a job's node is reached: `srun`, a step of the job per connection, which every cluster allows; or `tcp`, a connection apiece to the serving half the job itself runs, which needs this machine to reach the nodes' ports. See [Remote execution › Slurm](/user/remote-execution#slurm). |
 | `run_args` | `tuple[str, ...]` | `()` | Extra `sbatch` arguments; no newlines. |
 | `cpus` | `float` | `0.0` | CPUs its jobs may hold all told, waiting or running; `0` for no limit. |
@@ -945,7 +945,6 @@ to -- there is no daemon to name -- and how a job of Humanize's is asked for on 
   "partition": "batch",
   "account": "myteam",
   "time": "04:00:00",
-  "python": "~/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/bin/python3.12",
   "via": "tcp",
   "max_jobs": 8,
   "max_wait": 600,

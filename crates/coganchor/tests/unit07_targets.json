@@ -1,0 +1,1598 @@
+[
+ {
+  "said": "local",
+  "describe": "local",
+  "scheme": "local",
+  "host": "",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "",
+  "mirrors": "",
+  "owned": false,
+  "line": [
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "local:",
+  "describe": "local",
+  "scheme": "local",
+  "host": "",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "",
+  "mirrors": "",
+  "owned": false,
+  "line": [
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "local:/w/real",
+  "describe": "local:/w/real",
+  "scheme": "local",
+  "host": "",
+  "port": 0,
+  "path": "/w/real",
+  "options": [],
+  "cache": "",
+  "mirrors": "",
+  "owned": false,
+  "line": [
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "local:rel dir",
+  "describe": "local:rel dir",
+  "scheme": "local",
+  "host": "",
+  "port": 0,
+  "path": "rel dir",
+  "options": [],
+  "cache": "",
+  "mirrors": "",
+  "owned": false,
+  "line": [
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "ssh://box",
+  "describe": "ssh://box",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box:2201",
+  "describe": "ssh://box:2201",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 2201,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "-p",
+   "2201",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://me@box",
+  "describe": "ssh://me@box",
+  "scheme": "ssh",
+  "host": "me@box",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "me@box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://me@box:22",
+  "describe": "ssh://me@box:22",
+  "scheme": "ssh",
+  "host": "me@box",
+  "port": 22,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "-p",
+   "22",
+   "me@box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://me@jump@box:22",
+  "describe": "ssh://me@jump@box:22",
+  "scheme": "ssh",
+  "host": "me@jump@box",
+  "port": 22,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "-p",
+   "22",
+   "me@jump@box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://@box",
+  "describe": "ssh://@box",
+  "scheme": "ssh",
+  "host": "@box",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "@box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box:0",
+  "describe": "ssh://box",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://[::1]:22",
+  "describe": "ssh://[::1]:22",
+  "scheme": "ssh",
+  "host": "[::1]",
+  "port": 22,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "-p",
+   "22",
+   "[::1]",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://[::1]",
+  "describe": "ssh://[::1]",
+  "scheme": "ssh",
+  "host": "[::1]",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "[::1]",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box:port",
+  "describe": "ssh://box:port",
+  "scheme": "ssh",
+  "host": "box:port",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box:port",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://",
+  "describe": "ssh://",
+  "scheme": "ssh",
+  "host": "",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://:22",
+  "describe": "ssh://:22",
+  "scheme": "ssh",
+  "host": ":22",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   ":22",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?F=/etc/ssh/cfg",
+  "describe": "ssh://box?F=/etc/ssh/cfg",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "F",
+    "/etc/ssh/cfg"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-F",
+   "/etc/ssh/cfg",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?IdentityFile=~/.ssh/id_x&ProxyJump=me@jump:2222",
+  "describe": "ssh://box?IdentityFile=~/.ssh/id_x&ProxyJump=me@jump:2222",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "IdentityFile",
+    "~/.ssh/id_x"
+   ],
+   [
+    "ProxyJump",
+    "me@jump:2222"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "IdentityFile=~/.ssh/id_x",
+   "-o",
+   "ProxyJump=me@jump:2222",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?User=a%20b",
+  "describe": "ssh://box?User=a%20b",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "User",
+    "a b"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "User=\"a b\"",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?User=a+b",
+  "describe": "ssh://box?User=a%20b",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "User",
+    "a b"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "User=\"a b\"",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?ProxyCommand=ssh%20-W%20%25h:%25p%20jump",
+  "describe": "ssh://box?ProxyCommand=ssh%20-W%20%25h:%25p%20jump",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "ProxyCommand",
+    "ssh -W %h:%p jump"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "ProxyCommand=\"ssh -W %h:%p jump\"",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?Opt=caf%C3%A9",
+  "describe": "ssh://box?Opt=caf%C3%A9",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "Opt",
+    "café"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "Opt=café",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?Opt=%C3",
+  "describe": "ssh://box?Opt=%EF%BF%BD",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "Opt",
+    "�"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "Opt=�",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?Opt=x%zz",
+  "describe": "ssh://box?Opt=x%25zz",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "Opt",
+    "x%zz"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "Opt=x%zz",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?Opt=a&b=c",
+  "describe": "ssh://box?Opt=a&b=c",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "Opt",
+    "a"
+   ],
+   [
+    "b",
+    "c"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "Opt=a",
+   "-o",
+   "b=c",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?Opt=a&&b=c",
+  "error": "malformed target 'ssh://box?Opt=a&&b=c'; expected ssh://HOST?KEYWORD=VALUE&..."
+ },
+ {
+  "said": "ssh://box?Opt=",
+  "error": "malformed target 'ssh://box?Opt='; Opt='' is not an ssh option"
+ },
+ {
+  "said": "ssh://box?1Opt=x",
+  "error": "malformed target 'ssh://box?1Opt=x'; 1Opt='x' is not an ssh option"
+ },
+ {
+  "said": "ssh://box?Op_t=x",
+  "error": "malformed target 'ssh://box?Op_t=x'; Op_t='x' is not an ssh option"
+ },
+ {
+  "said": "ssh://box?Opt=a%22b",
+  "error": "malformed target 'ssh://box?Opt=a%22b'; Opt='a\"b' is not an ssh option"
+ },
+ {
+  "said": "ssh://box?Opt=a%0Ab",
+  "error": "malformed target 'ssh://box?Opt=a%0Ab'; Opt='a\\nb' is not an ssh option"
+ },
+ {
+  "said": "ssh://box?Opt=a=b",
+  "describe": "ssh://box?Opt=a%3Db",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "Opt",
+    "a=b"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "Opt=a=b",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?Opt=x#frag",
+  "describe": "ssh://box?Opt=x%23frag",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "Opt",
+    "x#frag"
+   ]
+  ],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-o",
+   "Opt=x#frag",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "ssh://box?",
+  "describe": "ssh://box",
+  "scheme": "ssh",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "ssh",
+   "-T",
+   "-o",
+   "BatchMode=no",
+   "-o",
+   "ServerAliveInterval=30",
+   "box",
+   "exec prog 'a b' 'it'\"'\"'s'"
+  ]
+ },
+ {
+  "said": "docker://c1",
+  "describe": "docker://c1",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "docker",
+   "exec",
+   "-i",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1@local",
+  "describe": "docker://c1",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "docker",
+   "exec",
+   "-i",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1@",
+  "error": "unsupported target 'docker://c1@'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "docker://@local",
+  "error": "unsupported target 'docker://@local'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "docker://",
+  "error": "unsupported target 'docker://'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "docker://c1@unix:///var/run/docker.sock",
+  "describe": "docker://c1@unix:///var/run/docker.sock",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "unix:///var/run/docker.sock",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "env",
+   "-u",
+   "DOCKER_HOST",
+   "-u",
+   "DOCKER_CONTEXT",
+   "-u",
+   "DOCKER_TLS",
+   "-u",
+   "DOCKER_TLS_VERIFY",
+   "-u",
+   "DOCKER_CERT_PATH",
+   "docker",
+   "--host",
+   "unix:///var/run/docker.sock",
+   "exec",
+   "-i",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1@unix://rel",
+  "error": "unsupported docker endpoint 'unix://rel'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or context:NAME"
+ },
+ {
+  "said": "docker://c1@tcp://10.0.0.1:2375",
+  "describe": "docker://c1@tcp://10.0.0.1:2375",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "tcp://10.0.0.1:2375",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "env",
+   "-u",
+   "DOCKER_HOST",
+   "-u",
+   "DOCKER_CONTEXT",
+   "-u",
+   "DOCKER_TLS",
+   "-u",
+   "DOCKER_TLS_VERIFY",
+   "-u",
+   "DOCKER_CERT_PATH",
+   "docker",
+   "--host",
+   "tcp://10.0.0.1:2375",
+   "exec",
+   "-i",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1@tcp://10.0.0.1:2376?tls=/certs",
+  "describe": "docker://c1@tcp://10.0.0.1:2376?tls=/certs",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "tcp://10.0.0.1:2376?tls=/certs",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "env",
+   "-u",
+   "DOCKER_HOST",
+   "-u",
+   "DOCKER_CONTEXT",
+   "-u",
+   "DOCKER_TLS",
+   "-u",
+   "DOCKER_TLS_VERIFY",
+   "-u",
+   "DOCKER_CERT_PATH",
+   "docker",
+   "--host",
+   "tcp://10.0.0.1:2376",
+   "--tlsverify",
+   "--tlscacert",
+   "/certs/ca.pem",
+   "--tlscert",
+   "/certs/cert.pem",
+   "--tlskey",
+   "/certs/key.pem",
+   "exec",
+   "-i",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1@tcp://10.0.0.1:2376?tls=certs",
+  "error": "unsupported docker endpoint 'tcp://10.0.0.1:2376?tls=certs'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or context:NAME"
+ },
+ {
+  "said": "docker://c1@tcp://10.0.0.1",
+  "error": "unsupported docker endpoint 'tcp://10.0.0.1'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or context:NAME"
+ },
+ {
+  "said": "docker://c1@tcp://[::1]:2375",
+  "describe": "docker://c1@tcp://[::1]:2375",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "tcp://[::1]:2375",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "env",
+   "-u",
+   "DOCKER_HOST",
+   "-u",
+   "DOCKER_CONTEXT",
+   "-u",
+   "DOCKER_TLS",
+   "-u",
+   "DOCKER_TLS_VERIFY",
+   "-u",
+   "DOCKER_CERT_PATH",
+   "docker",
+   "--host",
+   "tcp://[::1]:2375",
+   "exec",
+   "-i",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1@ssh://me@daemon",
+  "describe": "docker://c1@ssh://me@daemon",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "ssh://me@daemon",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "env",
+   "-u",
+   "DOCKER_HOST",
+   "-u",
+   "DOCKER_CONTEXT",
+   "-u",
+   "DOCKER_TLS",
+   "-u",
+   "DOCKER_TLS_VERIFY",
+   "-u",
+   "DOCKER_CERT_PATH",
+   "docker",
+   "--host",
+   "ssh://me@daemon",
+   "exec",
+   "-i",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1@ssh://me@daemon:2222",
+  "describe": "docker://c1@ssh://me@daemon:2222",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "ssh://me@daemon:2222",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "env",
+   "-u",
+   "DOCKER_HOST",
+   "-u",
+   "DOCKER_CONTEXT",
+   "-u",
+   "DOCKER_TLS",
+   "-u",
+   "DOCKER_TLS_VERIFY",
+   "-u",
+   "DOCKER_CERT_PATH",
+   "docker",
+   "--host",
+   "ssh://me@daemon:2222",
+   "exec",
+   "-i",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1@ssh://daemon/path",
+  "error": "unsupported docker endpoint 'ssh://daemon/path'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or context:NAME"
+ },
+ {
+  "said": "docker://c1@ssh://@",
+  "error": "unsupported docker endpoint 'ssh://@'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or context:NAME"
+ },
+ {
+  "said": "docker://c1@context:prod",
+  "describe": "docker://c1@context:prod",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "context:prod",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "env",
+   "-u",
+   "DOCKER_HOST",
+   "-u",
+   "DOCKER_CONTEXT",
+   "-u",
+   "DOCKER_TLS",
+   "-u",
+   "DOCKER_TLS_VERIFY",
+   "-u",
+   "DOCKER_CERT_PATH",
+   "docker",
+   "--context",
+   "prod",
+   "exec",
+   "-i",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1@context:",
+  "error": "unsupported docker endpoint 'context:'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or context:NAME"
+ },
+ {
+  "said": "docker://c1@nowhere",
+  "error": "unsupported docker endpoint 'nowhere'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or context:NAME"
+ },
+ {
+  "said": "docker://c1?user=1000",
+  "describe": "docker://c1?user=1000",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "user",
+    "1000"
+   ]
+  ],
+  "cache": "/tmp/humanize-1000",
+  "mirrors": "/tmp/humanize-mirrors-1000",
+  "owned": true,
+  "line": [
+   "docker",
+   "exec",
+   "-i",
+   "-u",
+   "1000",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1?user=1000:1000",
+  "describe": "docker://c1?user=1000:1000",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "user",
+    "1000:1000"
+   ]
+  ],
+  "cache": "/tmp/humanize-1000",
+  "mirrors": "/tmp/humanize-mirrors-1000",
+  "owned": true,
+  "line": [
+   "docker",
+   "exec",
+   "-i",
+   "-u",
+   "1000:1000",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1?user=me",
+  "error": "malformed target 'docker://c1?user=me'; user='me' is not a docker exec option"
+ },
+ {
+  "said": "docker://c1?user=1&user=2",
+  "error": "malformed target 'docker://c1?user=1&user=2'; user='2' is not a docker exec option"
+ },
+ {
+  "said": "docker://c1?env=A=1&env=B=two%20words",
+  "describe": "docker://c1?env=A=1&env=B=two%20words",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "env",
+    "A=1"
+   ],
+   [
+    "env",
+    "B=two words"
+   ]
+  ],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "docker",
+   "exec",
+   "-i",
+   "-e",
+   "A=1",
+   "-e",
+   "B=two words",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1?env=1A=x",
+  "error": "malformed target 'docker://c1?env=1A=x'; env='1A=x' is not a docker exec option"
+ },
+ {
+  "said": "docker://c1?env=A",
+  "error": "malformed target 'docker://c1?env=A'; env='A' is not a docker exec option"
+ },
+ {
+  "said": "docker://c1?exec=tini&exec=--",
+  "describe": "docker://c1?exec=tini&exec=--",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "exec",
+    "tini"
+   ],
+   [
+    "exec",
+    "--"
+   ]
+  ],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "docker",
+   "exec",
+   "-i",
+   "c1",
+   "tini",
+   "--",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1?exec=",
+  "error": "malformed target 'docker://c1?exec='; exec='' is not a docker exec option"
+ },
+ {
+  "said": "docker://c1?exec=a%40b",
+  "describe": "docker://c1?exec=a%40b",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "exec",
+    "a@b"
+   ]
+  ],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "docker",
+   "exec",
+   "-i",
+   "c1",
+   "a@b",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1?exec=a+b",
+  "describe": "docker://c1?exec=a%20b",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "",
+  "options": [
+   [
+    "exec",
+    "a b"
+   ]
+  ],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "docker",
+   "exec",
+   "-i",
+   "c1",
+   "a b",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1?shell=sh",
+  "error": "malformed target 'docker://c1?shell=sh'; shell='sh' is not a docker exec option"
+ },
+ {
+  "said": "docker://c1?user=1000&env=PATH=/x:/y&exec=nice@tcp://h:1",
+  "describe": "docker://c1?user=1000&env=PATH=/x:/y&exec=nice@tcp://h:1",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "tcp://h:1",
+  "options": [
+   [
+    "user",
+    "1000"
+   ],
+   [
+    "env",
+    "PATH=/x:/y"
+   ],
+   [
+    "exec",
+    "nice"
+   ]
+  ],
+  "cache": "/tmp/humanize-1000",
+  "mirrors": "/tmp/humanize-mirrors-1000",
+  "owned": true,
+  "line": [
+   "env",
+   "-u",
+   "DOCKER_HOST",
+   "-u",
+   "DOCKER_CONTEXT",
+   "-u",
+   "DOCKER_TLS",
+   "-u",
+   "DOCKER_TLS_VERIFY",
+   "-u",
+   "DOCKER_CERT_PATH",
+   "docker",
+   "--host",
+   "tcp://h:1",
+   "exec",
+   "-i",
+   "-u",
+   "1000",
+   "-e",
+   "PATH=/x:/y",
+   "c1",
+   "nice",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "docker://c1?user=1000@context:ci",
+  "describe": "docker://c1?user=1000@context:ci",
+  "scheme": "docker",
+  "host": "c1",
+  "port": 0,
+  "path": "context:ci",
+  "options": [
+   [
+    "user",
+    "1000"
+   ]
+  ],
+  "cache": "/tmp/humanize-1000",
+  "mirrors": "/tmp/humanize-mirrors-1000",
+  "owned": true,
+  "line": [
+   "env",
+   "-u",
+   "DOCKER_HOST",
+   "-u",
+   "DOCKER_CONTEXT",
+   "-u",
+   "DOCKER_TLS",
+   "-u",
+   "DOCKER_TLS_VERIFY",
+   "-u",
+   "DOCKER_CERT_PATH",
+   "docker",
+   "--context",
+   "ci",
+   "exec",
+   "-i",
+   "-u",
+   "1000",
+   "c1",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "apple-container://box",
+  "describe": "apple-container://box",
+  "scheme": "apple-container",
+  "host": "box",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "/tmp/humanize",
+  "mirrors": "/tmp/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "container",
+   "exec",
+   "-i",
+   "box",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "apple-container://",
+  "error": "unsupported target 'apple-container://'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "apple-container://a/b",
+  "error": "unsupported target 'apple-container://a/b'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "apple-container://a@b",
+  "error": "unsupported target 'apple-container://a@b'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "apple-container://a?b",
+  "error": "unsupported target 'apple-container://a?b'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "slurm://12345",
+  "describe": "slurm://12345",
+  "scheme": "slurm",
+  "host": "12345",
+  "port": 0,
+  "path": "",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "srun",
+   "--jobid=12345",
+   "--overlap",
+   "--nodes=1",
+   "--ntasks=1",
+   "--unbuffered",
+   "--quiet",
+   "--export=HOME,USER",
+   "--chdir=/",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "slurm://12345?python=/opt/py/bin/python3",
+  "describe": "slurm://12345?python=/opt/py/bin/python3",
+  "scheme": "slurm",
+  "host": "12345",
+  "port": 0,
+  "path": "/opt/py/bin/python3",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "srun",
+   "--jobid=12345",
+   "--overlap",
+   "--nodes=1",
+   "--ntasks=1",
+   "--unbuffered",
+   "--quiet",
+   "--export=HOME,USER",
+   "--chdir=/",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "slurm://12345?python=~/py/bin/python3",
+  "describe": "slurm://12345?python=~/py/bin/python3",
+  "scheme": "slurm",
+  "host": "12345",
+  "port": 0,
+  "path": "~/py/bin/python3",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "srun",
+   "--jobid=12345",
+   "--overlap",
+   "--nodes=1",
+   "--ntasks=1",
+   "--unbuffered",
+   "--quiet",
+   "--export=HOME,USER",
+   "--chdir=/",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "slurm://12345?python=rel/python",
+  "error": "malformed target 'slurm://12345?python=rel/python'; expected slurm://JOBID[?python=PATH]"
+ },
+ {
+  "said": "slurm://12345?python=/a%20b/python",
+  "describe": "slurm://12345?python=/a%20b/python",
+  "scheme": "slurm",
+  "host": "12345",
+  "port": 0,
+  "path": "/a b/python",
+  "options": [],
+  "cache": "$HOME/.cache/humanize",
+  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "owned": false,
+  "line": [
+   "srun",
+   "--jobid=12345",
+   "--overlap",
+   "--nodes=1",
+   "--ntasks=1",
+   "--unbuffered",
+   "--quiet",
+   "--export=HOME,USER",
+   "--chdir=/",
+   "prog",
+   "a b",
+   "it's"
+  ]
+ },
+ {
+  "said": "slurm://12345?python=/a&x=y",
+  "error": "malformed target 'slurm://12345?python=/a&x=y'; expected slurm://JOBID[?python=PATH]"
+ },
+ {
+  "said": "slurm://12345?python=",
+  "error": "malformed target 'slurm://12345?python='; expected slurm://JOBID[?python=PATH]"
+ },
+ {
+  "said": "slurm://12x",
+  "error": "unsupported target 'slurm://12x'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "slurm://",
+  "error": "unsupported target 'slurm://'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "tcp://127.0.0.1:7000",
+  "describe": "tcp://127.0.0.1:7000",
+  "scheme": "tcp",
+  "host": "127.0.0.1",
+  "port": 7000,
+  "path": "",
+  "options": []
+ },
+ {
+  "said": "tcp://host.example:1",
+  "describe": "tcp://host.example:1",
+  "scheme": "tcp",
+  "host": "host.example",
+  "port": 1,
+  "path": "",
+  "options": []
+ },
+ {
+  "said": "tcp://[::1]:7000",
+  "describe": "tcp://[::1]:7000",
+  "scheme": "tcp",
+  "host": "[::1]",
+  "port": 7000,
+  "path": "",
+  "options": []
+ },
+ {
+  "said": "tcp://host",
+  "error": "malformed target 'tcp://host'; expected tcp://HOST:PORT"
+ },
+ {
+  "said": "tcp://:7000",
+  "error": "malformed target 'tcp://:7000'; expected tcp://HOST:PORT"
+ },
+ {
+  "said": "tcp://host:",
+  "error": "malformed target 'tcp://host:'; expected tcp://HOST:PORT"
+ },
+ {
+  "said": "peer://abc@broker:9000",
+  "describe": "peer://abc@broker:9000",
+  "scheme": "peer",
+  "host": "broker",
+  "port": 9000,
+  "path": "abc",
+  "options": []
+ },
+ {
+  "said": "peer://abc@[::1]:9000",
+  "describe": "peer://abc@::1:9000",
+  "scheme": "peer",
+  "host": "::1",
+  "port": 9000,
+  "path": "abc",
+  "options": []
+ },
+ {
+  "said": "peer://a@b@broker:9000",
+  "describe": "peer://a@b@broker:9000",
+  "scheme": "peer",
+  "host": "b@broker",
+  "port": 9000,
+  "path": "a",
+  "options": []
+ },
+ {
+  "said": "peer://@broker:9000",
+  "error": "malformed meeting '@broker:9000'; expected TICKET@HOST:PORT"
+ },
+ {
+  "said": "peer://abc@broker",
+  "error": "malformed meeting 'abc@broker'; expected TICKET@HOST:PORT"
+ },
+ {
+  "said": "peer://abc@:9000",
+  "error": "malformed meeting 'abc@:9000'; expected TICKET@HOST:PORT"
+ },
+ {
+  "said": "peer://abc",
+  "error": "malformed meeting 'abc'; expected TICKET@HOST:PORT"
+ },
+ {
+  "said": "http://x",
+  "error": "unsupported target 'http://x'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "",
+  "error": "unsupported target ''; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "box",
+  "error": "unsupported target 'box'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ },
+ {
+  "said": "SSH://box",
+  "error": "unsupported target 'SSH://box'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+ }
+]

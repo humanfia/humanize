@@ -17,18 +17,17 @@ that machine's disk rather than down a wire, which is most of what an anchored t
 and Humanize on neither. This is the arrangement nothing above could express, because the two
 machines have no way to reach each other: Humanize started both and can talk to both, and
 that is all either of them has in common. :mod:`hmz.coganchor.rendezvous` is what it is built
-on -- Humanize holds a meeting, tells each half what the other looks like from outside, and
-carries the bytes itself if the two cannot be introduced.
+on -- Humanize holds a meeting, a broker tells each half what the other looks like from
+outside, and carries the bytes itself if the two cannot be introduced.
 
 Which of the three a session is, is a setting: :attr:`~hmz.coganchor.anchor.AnchorConfig.harness`
 names where the harness runs the way `target` names where the work lands. And the whole of the
 difference is in the *line*, which is what makes this a module of its own rather than a second
-shape for the session to have. `hmz internal anchor` on another machine is `hmz internal
-anchor`: it reads the same options, runs the same supervisor and exits with the same status,
-so the layers above go on spawning one command and reading its streams and are told none of
-this.
+shape for the session to have. `coganchor cog` on another machine is `coganchor cog`: it reads
+the same options, runs the same supervisor and exits with the same status, so the layers above
+go on spawning one command and reading its streams and are told none of this.
 
-What it costs to get there is paid once. The archive is cached on the far machine by its
+What it costs to get there is paid once. `coganchor` is cached on the far machine by its
 digest, an `ssh` to a host is opened once and ridden by every command after it, and the mirror
 the harness works in is kept between turns under a name derived from what it mirrors -- so the
 second turn against a workspace starts with its files already there, which is the largest
@@ -37,7 +36,7 @@ single saving available to any of this.
 The CLI there runs in a virtual home as it would here (:mod:`hmz.coganchor.homes`): built on
 that machine, by the anchor supervising it, from that machine's user's own configuration
 (:attr:`~hmz.coganchor.anchor.AnchorConfig.home`). The flow's skills it carries are put there
-first, kept between turns under that machine's cache like the archive, by what they hold.
+first, kept between turns under that machine's cache like the program, by what they hold.
 """
 
 from __future__ import annotations
@@ -120,7 +119,7 @@ def elsewhere(config: AnchorConfig) -> bool:
 def afar(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
     """The command this machine runs to have a supervised turn happen on another one.
 
-    Everything that has to exist before the line can be run is made here: the archive is put
+    Everything that has to exist before the line can be run is made here: `coganchor` is put
     on the harness's machine, so are the flow's skills the CLI's virtual home carries, and --
     where the work lands somewhere else again -- a meeting is booked and the serving half is
     started on that third machine holding a ticket to it.
@@ -134,7 +133,7 @@ def afar(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
 
     Raises:
       ValueError: If the harness or the target cannot be read.
-      ConnectionError: If the archive or the skills cannot be put on the harness's machine.
+      ConnectionError: If `coganchor` or the skills cannot be put on the harness's machine.
       OSError: If the serving half cannot be started where the work lands.
     """
     from hmz.coganchor.argv import options
@@ -209,8 +208,8 @@ def _carried(road: Road, home: Virtual) -> Virtual:
     carried = packed.getvalue()
     at = f"{road.cache}/skills/{hashlib.sha256(carried).hexdigest()[:16]}"
     # The cache is made, and checked to be that machine's user's own where it has to be, as
-    # the archive is put there.
-    road.installed()
+    # the program is put there.
+    road.shipped()
     done = road.run(["/bin/sh", "-c", _CARRYING.format(at=at)], carried)
     landed = done.stdout.decode(errors="replace").strip()
     if done.returncode != 0 or not landed.startswith("/"):
@@ -265,7 +264,7 @@ def _booked(work: Target, config: AnchorConfig) -> Meeting:
     """
     from hmz.coganchor import rendezvous
 
-    _, host, port = rendezvous.shared(config.broker)
+    host, port = rendezvous.shared(config.broker)
     meeting = rendezvous.Meeting(rendezvous.ticket(), host, port)
     _, _, export = config.mount()
     started = subprocess.Popen(

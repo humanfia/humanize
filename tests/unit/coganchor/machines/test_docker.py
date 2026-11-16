@@ -392,6 +392,20 @@ def test_a_container_elsewhere_runs_as_whoever_owns_the_workspace_there(
     assert asked[-1] == "/w"
 
 
+def test_whose_the_workspace_is_asked_in_the_shell_where_coganchor_runs(
+    runs: Runs,
+) -> None:
+    runs.on("run", out="1000 1001\n")
+
+    said = whose(Endpoint.parse("ssh://box"), "img", "/w", dict)
+
+    assert said == "1000:1001"
+    (asked,) = runs.calls
+    assert asked[asked.index("img") + 1 :][:2] == ["/bin/sh", "-c"]
+    assert "ls -nd" in asked[-3]
+    assert asked[-2:] == ["humanize", "/w"]
+
+
 @pytest.mark.parametrize(
     ("err", "raised"),
     [

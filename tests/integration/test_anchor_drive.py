@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from hmz.coganchor import AnchorConfig
+from hmz.coganchor import AnchorConfig, binary
 from hmz.coganchor.homes import Virtual
 from tests.integration.doubles_anchor import Fakes, fakes
 
@@ -259,7 +259,8 @@ def test_a_native_turn_is_rendered_as_the_anchor_line() -> None:
         ["claude", "--print"], chdir="/w/sub"
     )
 
-    assert line[1:5] == ["-Pm", "hmz", "internal", "anchor"]
+    assert line[0] == str(binary.here())
+    assert line[1] == "cog"
     assert "--native" in line
     assert "--chdir=/w/sub" in line
     assert line[-2:] == ["claude", "--print"]

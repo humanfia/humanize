@@ -15,17 +15,15 @@ a program runs says something untrue about it. What they are is said instead of 
 one door marked `internal`, so that `hmz --help` is the whole of what this program does and
 still reads as the few commands anybody types.
 
-A command imports what it needs when it is the one asked for, and no earlier. Two things turn
-on that: `hmz exec` must not pay for the terminal interface it is not opening, and
-`hmz internal anchor serve` is what the zipapp bootstrapped onto a target runs, where
-coganchor is the only layer present and the architecture is whatever the target happens to be.
+A command imports what it needs when it is the one asked for, and no earlier: `hmz exec` must
+not pay for the terminal interface it is not opening.
 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
 one of them costs nothing for the others -- which is what `web.py`, `update.py`, `backup.py`,
-and `anchor.py`, `cli.py`, `cred.py`, `fence.py`, `hook.py` and `tools.py`, the six under
-`hmz internal`, are. `exec` has none: the line it takes is read by
-:func:`hmz.runtime.runner.read_line`, since the terminal interface starts a flow from the same
-parts.
+and `cli.py`, `hook.py` and `tools.py`, three of the six under `hmz internal`, are. The other
+three -- `anchor`, `cred` and `fence` -- are `coganchor`'s, which this process becomes. `exec`
+has none: the line it takes is read by :func:`hmz.runtime.runner.read_line`, since the
+terminal interface starts a flow from the same parts.
 
 :mod:`hmz.cli.output` is the one module every command may reach: who is reading -- somebody at
 a terminal, or a program -- is one question rather than one per command, and it costs nothing
@@ -297,6 +295,37 @@ def _ending(running: Run, ended: list[int]) -> Generator[None]:
         told.set()
 
 
+def _coganchor(command: str, argv: list[str]) -> int:
+    """Hands an internal command to `coganchor`, which carries out the anchor's three.
+
+    This process becomes that program, so nothing after this call runs where there is one.
+
+    Args:
+      command: `anchor`, `fence` or `cred`.
+      argv: What followed the command's name.
+
+    Returns:
+      127, having said so, where no `coganchor` is built for this machine.
+    """
+    import os
+    import platform
+
+    from hmz.coganchor import binary
+
+    program = binary.found()
+    if program is not None:
+        # And told where the builds for other machines are, as every `coganchor` started here
+        # is (`binary.here`): it ships the one a target needs from there.
+        os.environ.setdefault(binary.BINARIES, str(binary.shelf()))
+        os.execv(program, [str(program), *binary.translated(command, argv)])  # noqa: S606
+    print(
+        "hmz: no coganchor is built for this machine "
+        f"({platform.system()} {platform.machine()})",
+        file=sys.stderr,
+    )
+    return 127
+
+
 def _anchor(argv: list[str]) -> int:
     """Runs the agent named on the command line, with its work landing on another machine.
 
@@ -304,11 +333,9 @@ def _anchor(argv: list[str]) -> int:
       argv: What followed the command name.
 
     Returns:
-      The agent's exit status, or one of our own if it never ran.
+      127 where there is no `coganchor` to run it; otherwise this process becomes it.
     """
-    from .anchor import anchor
-
-    return anchor(argv)
+    return _coganchor("anchor", argv)
 
 
 def _cred(argv: list[str]) -> int:
@@ -318,11 +345,9 @@ def _cred(argv: list[str]) -> int:
       argv: What followed the command name.
 
     Returns:
-      The program's exit status, or one of our own if it never ran.
+      127 where there is no `coganchor` to run it; otherwise this process becomes it.
     """
-    from .cred import cred
-
-    return cred(argv)
+    return _coganchor("cred", argv)
 
 
 def _fence(argv: list[str]) -> int:
@@ -332,11 +357,9 @@ def _fence(argv: list[str]) -> int:
       argv: What followed the command name.
 
     Returns:
-      The program's exit status, or one of our own if it never ran.
+      127 where there is no `coganchor` to run it; otherwise this process becomes it.
     """
-    from .fence import fence
-
-    return fence(argv)
+    return _coganchor("fence", argv)
 
 
 def _tools(argv: list[str]) -> int:
@@ -657,8 +680,8 @@ def _at_a_terminal() -> bool:
 #: callbacks are in. A moment of a flow's is that same shape once more: a CLI takes a hook by
 #: starting a program and waiting for what it says, which is the one place a `PreToolUse` can
 #: be refused rather than watched. An anchored turn is the fourth: `AnchorConfig.command()`
-#: renders one for every turn whose work lands on another machine, and the zipapp
-#: bootstrapped onto a target answers it by running `hmz internal anchor serve`. A fenced turn
+#: renders one for every turn whose work lands on another machine, and the `coganchor`
+#: shipped to a target answers it by running `coganchor anchor`. A fenced turn
 #: is the fifth, and the same shape as the first: the wall around a CLI is put up by the
 #: process it walls in, and the one serving its proxy has to stay outside it. A flow's own
 #: command line is the sixth: a shell runs a program by finding a file on its PATH, so the

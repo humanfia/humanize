@@ -1109,7 +1109,7 @@ node the cluster gives it.
 | account, qos | what `sbatch` is told as `--account` and `--qos` | your defaults |
 | time | how long a job may run, as `--time` takes it: `4:00:00` | the partition's |
 | constraint | the node features a job needs: `a100` | any node |
-| python | a Python 3.12 or newer on the nodes, `/abs/path` or `~/path`, for nodes whose own is older | the nodes' own |
+| python | nothing: it is kept so that runtimes saved before still load, and is not used | |
 | via | `srun`, a step of the job per connection, which every cluster allows; or `tcp`, a port the job serves, which needs this machine to reach the nodes | `srun` |
 | run args | anything else `sbatch` is told | nothing |
 | max jobs | how many jobs it may have at once, waiting or running | no limit |

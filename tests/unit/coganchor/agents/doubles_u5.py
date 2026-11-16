@@ -320,7 +320,7 @@ def gatewayed(monkeypatch: pytest.MonkeyPatch, account: Provider) -> list[Preten
 def afar(monkeypatch: pytest.MonkeyPatch, workspace: Path) -> AnchoredConfig:
     """A machine the work lands on whose harness is put there too, reached by nothing.
 
-    The archive is taken to be there already, and the flow's skills land at `/far/skills/ab`.
+    `coganchor` is taken to be there already, and the flow's skills land at `/far/skills/ab`.
     """
     from hmz.coganchor import transport
     from hmz.coganchor.anchor import AnchorConfig
@@ -331,10 +331,10 @@ def afar(monkeypatch: pytest.MonkeyPatch, workspace: Path) -> AnchoredConfig:
     ) -> subprocess.CompletedProcess[bytes]:
         return subprocess.CompletedProcess(argv, 0, b"/far/skills/ab\n", b"")
 
-    def installed(road: transport.Road) -> str:
-        return "/far/hmz.pyz"
+    def shipped(road: transport.Road) -> str:
+        return "/far/coganchor-0123456789abcdef"
 
-    monkeypatch.setattr(transport.Road, "installed", installed)
+    monkeypatch.setattr(transport.Road, "shipped", shipped)
     monkeypatch.setattr(transport.Road, "run", run)
     anchor = AnchorConfig(target="ssh://box", harness="same", workspace=str(workspace))
     return AnchoredConfig(anchor=anchor)

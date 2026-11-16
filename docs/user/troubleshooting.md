@@ -1020,17 +1020,20 @@ that hook as a program on this machine, so a CLI running on the host, as the run
 
 **Verify.** The run starts, and the transcript at the prompt says `<agent>'s harness runs here`.
 
-### `Humanize: no python 3.12 or newer on this machine; looked for: …`
+### `could not install Humanize on …: no coganchor is built for …`
 
-**Symptom.** The run fails when it first reaches the machine.
+**Symptom.** The run fails when it first reaches the machine. The message ends with what the
+machine's `uname -sm` said, such as `Linux riscv64` or `FreeBSD amd64`.
 
-**Cause.** The target needs Python 3.12 or newer, and it has none that Humanize can find. It
-does not have to be on the `PATH`: the message lists every place Humanize looked.
+**Cause.** Humanize copies one program of its own, `coganchor`, to a target before the agent
+starts, and carries it built for Linux and macOS on x86-64 and aarch64 only. This target is
+another operating system or another architecture.
 
-**Fix.** Install Python 3.12 or newer there.
+**Fix.** Work on a machine that is Linux or macOS on x86-64 or aarch64. For a container, use
+an image built for one of those architectures.
 
-**Verify.** One of the places the message lists now holds a `python3` that prints 3.12 or
-newer for `--version`.
+**Verify.** `uname -sm` on the target prints `Linux` or `Darwin`, then `x86_64`, `amd64`,
+`aarch64` or `arm64`.
 
 ### `could not install Humanize on docker://…: … is not running; the container said: …`
 
@@ -1038,12 +1041,13 @@ newer for `--version`.
 
 **Cause.** Humanize copies itself to a target before the agent starts, and this target refused.
 What it said follows the colon. A container that is `not running` stopped as soon as it
-started, which is what an image with no Python 3.12 or newer does: its last words say where it
-looked.
+started, which is what an image with no `/bin/sh`, or no `sleep`, does: its last words say
+what was missing.
 
-**Fix.** Use an image with Python 3.12 or newer.
+**Fix.** Use an image with `/bin/sh` and `sleep`, as any Debian, Ubuntu, Alpine or BusyBox
+image has.
 
-**Verify.** `docker run --rm <image> python3 --version` prints 3.12 or newer.
+**Verify.** `docker run --rm <image> /bin/sh -c 'command -v sleep'` prints a path.
 
 ### `Humanize: /tmp/humanize-… is not a directory this user owns`
 
@@ -1079,7 +1083,8 @@ somewhere else.
 **Cause.** An agent supervised here while its work lands elsewhere must run on an x86-64 or
 aarch64 Linux machine.
 
-**Fix.** Run it from one of those. The target can be any architecture, this machine included.
+**Fix.** Run it from one of those. The target can be Linux or macOS on either architecture, this
+machine included.
 
 **Verify.** The agent starts.
 

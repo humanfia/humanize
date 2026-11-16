@@ -1240,17 +1240,16 @@ def test_a_carve_out_landlock_cannot_hold_is_refused_as_the_config_arrives(
 ) -> None:
     from hmz.coganchor import fence
     from hmz.coganchor.agents.config import Unfenced
-    from hmz.coganchor.fence import wrap
 
-    def unlisted(given: Fence) -> NoReturn:
-        raise PermissionError(13, "Permission denied", "/w/shut")
+    def unlisted(given: Fence) -> str | None:
+        return "[Errno 13] Permission denied: '/w/shut'" if given.deny else None
 
     def enforceable(*, net: bool) -> bool:
         return True
 
     monkeypatch.setattr("sys.platform", "linux")
     monkeypatch.setattr(fence, "enforceable", enforceable)
-    monkeypatch.setattr(wrap, "expanded", unlisted)
+    monkeypatch.setattr(fence, "unheld", unlisted)
     carved = Fence(read=("/",), write=("/w",), deny=("/w/shut/secret",))
 
     with pytest.raises(Unfenced, match="what it carves out cannot be held"):

@@ -9,7 +9,7 @@ under the workdir is the container's own, and goes with it.
 
 It is reached the way an ssh host is (:mod:`.environing_ssh`), over coganchor's road: the
 serving half is put in the container and started with `docker exec`, which is all an image
-needs besides `/bin/sh` and a Python -- no sshd -- and an agent working here is anchored to the
+needs besides `/bin/sh` -- no sshd, and no Python -- and an agent working here is anchored to the
 same container, supervised on this machine with every command it runs landing in there.
 
 What a runtime may hand out is shared between every run on this machine by a lock on the

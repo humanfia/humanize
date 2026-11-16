@@ -1,19 +1,16 @@
-"""The serving half and a client speaking to it, wired together in one process.
+"""The serving half and a client speaking to it, over the serving half's own pipes.
 
-A `Server` on one end of a socketpair and a `RemoteClient` on the other: the protocol, the
+A `coganchor anchor --stdio` and a `RemoteClient` on its stdin and stdout: the protocol, the
 filesystem operations, commands run on the target with their streams and signals, TCP opened
-from the target, and the pieces of the agent half that ride on a client -- `ExecProxy` and
-`NetProxy` -- and the fence the target puts around a command, with a stand-in for the wall.
+from the target, and the fence the target puts around a command.
 """
 
 from __future__ import annotations
 
 import errno
 import io
-import json
 import os
 import signal
-import socket
 import stat
 import sys
 import threading
@@ -22,20 +19,9 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor.execproxy import ExecProxy, ExecResult
-from hmz.coganchor.fence import READ, WRITE, Fence
-from hmz.coganchor.fence.abroad import told
-from hmz.coganchor.netproxy import NetProxy
+from hmz.coganchor.fence import READ, WRITE
 from hmz.coganchor.proto import Op, RemoteOSError, Stream, hello_fences
-from tests.integration.doubles_anchor import (
-    VIRTUAL,
-    Link,
-    echoing,
-    fence_stand_in,
-    linked,
-    policies,
-    routable_address,
-)
+from tests.integration.doubles_anchor import VIRTUAL, Link, echoing, linked
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -49,7 +35,7 @@ PATIENCE = 30
 
 @pytest.fixture
 def link(tmp_path: Path) -> Iterator[Link]:
-    """Both halves over a socketpair, handshake done."""
+    """A serving half and a client on its pipes, handshake done."""
     with linked(tmp_path / "target", timeout=PATIENCE) as held:
         yield held
 
@@ -102,7 +88,7 @@ def test_the_handshake_names_the_exports_and_the_machine(link: Link) -> None:
 
     assert info["exports"] == [{"virtual": VIRTUAL, "real": str(link.real)}]
     assert info["platform"] == sys.platform
-    assert info["pid"] == os.getpid()
+    assert info["pid"] == link.pid
 
 
 def test_a_file_written_through_the_link_lands_on_the_target_and_reads_back(
@@ -270,198 +256,47 @@ def test_a_tunnel_opened_from_the_target_carries_bytes_both_ways(link: Link) -> 
         assert b"".join(got) == b"echo:ping"
 
 
-def _pipes() -> tuple[tuple[int, int, int], tuple[int, int, int]]:
-    """Three pipes as an agent's stdio: the ends the proxy borrows, and the ends kept here."""
-    stdin_r, stdin_w = os.pipe()
-    stdout_r, stdout_w = os.pipe()
-    stderr_r, stderr_w = os.pipe()
-    return (stdin_r, stdout_w, stderr_w), (stdin_w, stdout_r, stderr_r)
-
-
-def _drained(fd: int) -> bytes:
-    with os.fdopen(fd, "rb") as reading:
-        return reading.read()
-
-
-def test_an_exec_proxy_bridges_an_agents_stdio_to_a_command_on_the_target(
-    link: Link,
-) -> None:
-    borrowed, kept = _pipes()
-    finished: list[tuple[int, ExecResult]] = []
-    done = threading.Event()
-
-    def on_finish(pid: int, result: ExecResult) -> None:
-        finished.append((pid, result))
-        done.set()
-
-    proxy = ExecProxy(
-        link.client,
-        4242,
-        ["/bin/sh", "-c", "tr a-z A-Z; echo bad >&2; exit 3"],
-        VIRTUAL,
-        {},
-        borrowed,
-        on_finish,
-    )
-    proxy.start()
-    with os.fdopen(kept[0], "wb") as writing:
-        writing.write(b"shout\n")
-
-    assert _drained(kept[1]) == b"SHOUT\n"
-    assert _drained(kept[2]) == b"bad\n"
-    assert done.wait(PATIENCE)
-    ((pid, result),) = finished
-    assert pid == 4242
-    assert result.wait_status == 3
-
-
-def test_an_exec_proxy_reports_a_missing_program_as_the_shell_would(
-    link: Link,
-) -> None:
-    borrowed, kept = _pipes()
-    done = threading.Event()
-    finished: list[ExecResult] = []
-
-    def on_finish(_pid: int, result: ExecResult) -> None:
-        finished.append(result)
-        done.set()
-
-    os.close(kept[0])
-    ExecProxy(
-        link.client, 1, ["nonesuch"], VIRTUAL, {}, borrowed, on_finish,
-        program="/no/such/nonesuch",
-    ).start()  # fmt: skip
-
-    assert b"nonesuch" in _drained(kept[2])
-    os.close(kept[1])
-    assert done.wait(PATIENCE)
-    assert finished[0].wait_status == 127
-
-
-def test_a_net_proxy_leaves_loopback_and_allowed_hosts_alone(link: Link) -> None:
-    proxy = NetProxy(link.client, keep_local=("192.0.2.10", "192.0.2.11:443"))
-    proxy.start()
-    try:
-        assert proxy.redirect("127.0.0.1", 80, socket.AF_INET) is None
-        assert proxy.redirect("::1", 80, socket.AF_INET6) is None
-        assert proxy.redirect("192.0.2.10", 22, socket.AF_INET) is None
-        assert proxy.redirect("192.0.2.11", 443, socket.AF_INET) is None
-        assert proxy.redirect("192.0.2.11", 80, socket.AF_INET) is not None
-    finally:
-        proxy.close()
-
-
-def test_a_net_proxy_gives_one_destination_one_stand_in_of_its_family(
-    link: Link,
-) -> None:
-    proxy = NetProxy(link.client)
-    proxy.start()
-    try:
-        first = proxy.redirect("192.0.2.1", 443, socket.AF_INET)
-        again = proxy.redirect("192.0.2.1", 443, socket.AF_INET)
-        other = proxy.redirect("192.0.2.2", 443, socket.AF_INET)
-        six = proxy.redirect("2001:db8::1", 443, socket.AF_INET6)
-    finally:
-        proxy.close()
-
-    assert first is not None
-    assert first == again
-    assert first[0] == "127.0.0.1"
-    assert other is not None
-    assert other != first
-    assert six is not None
-    assert six[0] == "::1"
-
-
-def test_traffic_through_a_net_proxy_reaches_its_destination_from_the_target(
-    link: Link,
-) -> None:
-    host = routable_address()
-    if host is None:
-        pytest.skip("this machine has no address but loopback")
-    proxy = NetProxy(link.client)
-    proxy.start()
-    try:
-        for destination in echoing(host):
-            stand_in = proxy.redirect(*destination, socket.AF_INET)
-            assert stand_in is not None
-            with socket.create_connection(stand_in, timeout=PATIENCE) as conn:
-                conn.sendall(b"hello")
-                assert conn.recv(64) == b"echo:hello"
-    finally:
-        proxy.close()
-
-
-@pytest.fixture
-def fences(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A fence stand-in in place of the wall, and a home of the target's own."""
-    (tmp_path / "home").mkdir()
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    return fence_stand_in(tmp_path, monkeypatch)
-
-
 def _levels(*, online: bool) -> dict[str, Any]:
-    fence = Fence.of(
-        rules=[("/", READ), ("~", READ), (".", WRITE)],
-        online=online,
-        workdir="/w",
-        home="/h",
-    )
-    return told(fence, home="/h", native=False)
+    """A fence as a target is told it: the rules, drawn again around its own paths."""
+    return {"rules": [["/", READ], ["~", READ], [".", WRITE]], "online": online}
 
 
-def test_a_fenced_command_is_walled_in_around_the_targets_own_paths(
-    tmp_path: Path, fences: Path
-) -> None:
-    with linked(tmp_path / "target") as link:
-        assert hello_fences(link.client.info, net=True)
-        ran = _run(link, ["sh", "-c", "echo ran"], fence=_levels(online=False))
+def test_a_fenced_command_runs_inside_the_targets_wall(link: Link) -> None:
+    if not hello_fences(link.client.info, net=False):
+        pytest.skip("this machine cannot fence a command")
+    (link.real / "note").write_text("on the target\n")
 
-    assert ran.error is None, ran.error
-    assert ran.result == {"exit_code": 0}
-    assert ran.out == b"ran\n"
-    (policy,) = policies(fences)
-    held = Fence.loads(json.dumps(policy))
-    assert held.allows(link.real / "a.txt", write=True)
-    assert not held.allows(f"{VIRTUAL}/a.txt", write=True)
-    # Drawn as the home rather than asked of a path in it, `tmp_path` being under /tmp,
-    # which a workdir that may be written writes: read, as `/` already is, and not written.
-    assert held.drawn == (("/", "read"), ("~", "read"), (".", "write"))
-    assert str(tmp_path / "home") not in held.write
-    assert not held.online
-    assert held.hosts == ()
-
-
-def test_an_unfenced_command_runs_without_the_wall(link: Link, fences: Path) -> None:
-    ran = _run(link, ["sh", "-c", "true"])
-
-    assert ran.result == {"exit_code": 0}
-    assert policies(fences) == []
-
-
-def test_a_target_that_cannot_cut_the_network_refuses_a_command_fenced_offline(
-    link: Link, fences: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def only_the_filesystem(*, net: bool) -> bool:
-        return not net
-
-    monkeypatch.setattr("hmz.coganchor.fence.enforceable", only_the_filesystem)
-    ran_at = link.real / "ran"
-
-    ran = _run(link, ["sh", "-c", f"touch {ran_at}"], fence=_levels(online=False))
-
-    assert isinstance(ran.error, OSError)
-    assert ran.error.errno == errno.EPERM
-    assert not ran_at.exists()
-    assert policies(fences) == []
-
-
-def test_rules_that_are_no_fences_are_refused(link: Link, fences: Path) -> None:
     ran = _run(
         link,
-        ["true"],
+        ["/bin/sh", "-c", "cat note; touch written"],
+        fence={"rules": [["/", READ], ["~", READ], [".", READ]], "online": True},
+    )
+
+    # The workspace read, and not written: the wall is the target's own, around its paths.
+    assert ran.error is None, ran.error
+    assert ran.out == b"on the target\n"
+    assert ran.result != {"exit_code": 0}
+    assert not (link.real / "written").exists()
+
+
+def test_an_unfenced_command_runs_without_the_wall(link: Link) -> None:
+    outside = link.real.parent / "outside"
+    outside.mkdir()
+
+    ran = _run(link, ["/bin/sh", "-c", f"touch {outside}/reached"])
+
+    assert ran.result == {"exit_code": 0}
+    assert (outside / "reached").exists()
+
+
+def test_rules_that_are_no_fences_are_refused(link: Link) -> None:
+    ran_at = link.real / "ran"
+
+    ran = _run(
+        link,
+        ["/bin/sh", "-c", f"touch {ran_at}"],
         fence={"rules": [["/", "most"]], "online": True},
     )
 
     assert isinstance(ran.error, OSError)
-    assert policies(fences) == []
+    assert not ran_at.exists()
