@@ -1,25 +1,22 @@
-"""`hmz.daemon.carrying`: what a host process prints and logs, and how it says what it holds."""
+"""`hmz.daemon.carrying`: a host's end of its link to the daemon, and what it prints and logs."""
 
 from __future__ import annotations
 
-import errno
 import os
-from typing import TYPE_CHECKING
+import threading
+from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import pytest
 
 from hmz.daemon import where
-from hmz.daemon.carrying import HOST_LOG, TAKEN, Carrier, Printed, keeps, logged, serves
-from hmz.daemon.proto import CONTROL, PROTOCOL
-from tests.unit.daemon.wire_u1 import Wire
+from hmz.daemon.carrying import HOST_LOG, Carrier, Printed, keeps, logged
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_taken_is_one_byte_and_the_host_log_a_file_name() -> None:
-    assert len(TAKEN) == 1
+def test_the_host_log_is_a_file_name() -> None:
     assert "/" not in HOST_LOG
 
 
@@ -91,47 +88,106 @@ def test_keeps_survives_an_epic_that_cannot_be_written(tmp_path: Path) -> None:
     assert not (tmp_path / "missing").exists()
 
 
-@pytest.mark.parametrize("answer", [b"", b"-"], ids=["closed", "refused"])
-def test_serves_refuses_a_workspace_another_host_holds(
-    monkeypatch: pytest.MonkeyPatch, answer: bytes
+class _Call:
+    """A call of the daemon's down the link, and how it was answered."""
+
+    def __init__(self, method: str, **params: Any) -> None:
+        self.method = method
+        self.params = params
+        self.answered = threading.Event()
+        self.said: dict[str, Any] = {}
+
+    def answer(self, result: Any) -> None:
+        self.said = {"result": result}
+        self.answered.set()
+
+    def fail(self, error: Any) -> None:
+        self.said = {"error": error.message}
+        self.answered.set()
+
+
+def _carried(carrier: Carrier, method: str, **params: Any) -> dict[str, Any]:
+    call = _Call(method, **params)
+    carrier.serve(call)  # pyright: ignore[reportArgumentType]
+    assert call.answered.wait(5)
+    return call.said
+
+
+@pytest.fixture
+def host() -> mock.Mock:
+    held = mock.Mock(closed=False)
+    held.attach.return_value = "c1"
+    held.status.return_value = {"clients": [{"client": "c1"}, {"client": "c2"}]}
+    held.asked.return_value = {"ok": True, "run": 1}
+    return held
+
+
+def test_attach_takes_a_frontend_on_and_tells_its_messages_up_the_link(
+    host: mock.Mock,
 ) -> None:
-    wire = Wire(arriving=[answer])
+    carrier = Carrier(host, {"pid": 1})
+    carrier.peer = mock.Mock()
 
-    def connects(at: Path, seconds: float | None = None) -> Wire:
-        del at, seconds
-        return wire
+    said = _carried(
+        carrier,
+        "attach",
+        tag="t1",
+        name="ana",
+        kind="tui",
+        replay=False,
+        since={"epoch": "e", "seq": 4},
+    )
 
-    monkeypatch.setattr(where, "connects", connects)
-    host = mock.Mock()
-    with pytest.raises(OSError, match="already held") as raised:
-        serves(host, "/w")
-    assert raised.value.errno == errno.EADDRINUSE
-    assert wire.closed
-    ((kind, said),) = wire.sent
-    assert kind == CONTROL
-    assert said["do"] == "serve"
-    assert said["workspace"] == "/w"
-    assert said["pid"] == os.getpid()
-    assert said["kind"] == "host"
-    assert said["protocol"] == PROTOCOL
-    host.close.assert_not_called()
-
-
-def test_serves_raises_where_the_daemon_cannot_be_reached(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def refuses(at: Path, seconds: float | None = None) -> Wire:
-        raise ConnectionRefusedError
-
-    monkeypatch.setattr(where, "connects", refuses)
-    with pytest.raises(ConnectionRefusedError):
-        serves(mock.Mock(), "/w")
+    assert said == {"result": {"client": "c1"}}
+    assert carrier.ever
+    name, kind, heard = host.attach.call_args.args
+    assert (name, kind) == ("ana", "tui")
+    assert host.attach.call_args.kwargs == {"replay": False, "since": ("e", 4)}
+    heard({"type": "live"})
+    carrier.peer.notify.assert_called_once_with(
+        "told", {"tag": "t1", "message": {"type": "live"}}
+    )
 
 
-def test_a_carrier_not_started_closes_its_connection() -> None:
-    wire = Wire()
-    carrier = Carrier(mock.Mock(), wire, {})  # pyright: ignore[reportArgumentType]
-    assert not carrier.wait(0)
-    carrier.close()
-    carrier.close()
-    assert wire.closed
+def test_ask_is_answered_as_the_host_answers(host: mock.Mock) -> None:
+    carrier = Carrier(host, {})
+
+    said = _carried(carrier, "ask", client="c1", said={"do": "start"})
+
+    assert said == {"result": {"ok": True, "run": 1}}
+    host.asked.assert_called_once_with("c1", {"do": "start"})
+
+
+def test_status_says_what_the_host_said_of_itself(host: mock.Mock) -> None:
+    carrier = Carrier(host, {"pid": 7, "kind": "host"})
+
+    said = _carried(carrier, "status")
+
+    assert said["result"]["pid"] == 7
+    assert said["result"]["clients"] == [{"client": "c1"}, {"client": "c2"}]
+
+
+def test_detach_all_lets_every_frontend_go(host: mock.Mock) -> None:
+    said = _carried(Carrier(host, {}), "detach_all")
+
+    assert said == {"result": {"let_go": 2}}
+    assert host.detach.call_args_list == [mock.call("c1"), mock.call("c2")]
+
+
+def test_a_call_that_fails_is_answered_as_one(host: mock.Mock) -> None:
+    host.attach.side_effect = RuntimeError("this host has closed")
+
+    said = _carried(Carrier(host, {}), "attach", tag="t", name="", kind="sdk")
+
+    assert said == {"error": "Something went wrong here: this host has closed"}
+
+
+def test_close_closes_the_host(host: mock.Mock) -> None:
+    closed = threading.Event()
+    host.close.side_effect = closed.set
+    call = _Call("close")
+
+    Carrier(host, {}).serve(call)  # pyright: ignore[reportArgumentType]
+
+    assert closed.wait(5)
+    assert not call.answered.is_set()

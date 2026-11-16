@@ -460,7 +460,7 @@ def attach(
     slot = where.slot(slot)
     for _ in range(_ATTACHES):
         try:
-            _machine(_PATIENCE)
+            start()
             return reached(where.at(), named, name, kind, slot=slot)
         except OSError as why:
             if why.errno == errno.EADDRINUSE:
