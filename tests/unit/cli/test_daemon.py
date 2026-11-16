@@ -12,6 +12,7 @@ from unittest import mock
 import pytest
 
 import hmz.daemon
+import hmz.daemon.detaching
 import hmz.daemon.link
 import hmz.daemon.routing
 from hmz.cli.daemon import daemon
@@ -144,6 +145,14 @@ def test_a_daemon_of_another_protocol_is_said_as_it_refuses(
     )
 
 
+@pytest.fixture
+def settled(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
+    held = mock.Mock()
+    monkeypatch.setattr(hmz.daemon.detaching, "settles", held)
+    return held
+
+
+@pytest.mark.usefixtures("settled")
 def test_serve_says_a_daemon_is_already_running(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -160,9 +169,13 @@ def test_serve_says_a_daemon_is_already_running(
 
 
 def test_serve_says_each_route_it_listens_on(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    settled: mock.Mock,
 ) -> None:
     def serves(**said: Any) -> None:
+        # The environment every host takes is settled before the daemon serves.
+        settled.assert_called_once_with()
         assert said["listen"] == ["tcp://127.0.0.1:0"]
         assert said["kept"] is True
         said["opened"]("tcp://127.0.0.1:4100")

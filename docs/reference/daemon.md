@@ -129,21 +129,31 @@ needing a host of one slot of a workspace at once take on one, which both use.
 ## Process {#process}
 
 The first client that needs the daemon starts it, and the daemon starts each host process,
-each by double fork. A host process closes every descriptor it inherited from the daemon but
-its end of a socket pair, which is its link:
+each a fresh interpreter -- never a fork of a process that may hold threads -- running
+`python -Pm hmz.daemon.detached <pipe> daemon` or `… <pipe> host <workspace> <slot> <link>`. It
+inherits only the standard three descriptors, the pipe it says it is up on and, for a host, its
+end of a socket pair, which is its link:
 
 | Step | Process | Action |
 | --- | --- | --- |
-| 1 | caller | Creates a pipe; flushes stdout/stderr; forks. Waits on the pipe (polled every 0.1 s, up to `seconds`), then reaps the middle process. |
-| 2 | middle | `setsid()` (no controlling terminal); forks; exits `0`. |
-| 3 | daemon or host | Ignores `SIGHUP`; stdin from `/dev/null`; fds 1, 2 to `daemon.log`. |
+| 1 | caller | Creates a pipe; flushes stdout/stderr; starts the process in a new session (`setsid`: no controlling terminal), stdin from `/dev/null`, fds 1, 2 to `daemon.log`, its environment the caller's. Waits on the pipe (polled every 0.1 s, up to `seconds`), then reaps it. |
+| 2 | started | Forks, while it has no other thread, and exits `0`, so that the fork leads no session and can never take a controlling terminal. |
+| 3 | daemon or host | Ignores `SIGHUP`; unwinds on `SIGTERM`, whatever the caller made of it. |
 | 4 | daemon | Takes the lock, binds the socket, writes `daemon.json`, writes `listening\n` to the pipe, takes [sessions](#sessions) and opens its [listeners](#listeners). |
 | 4 | host | Changes to the workspace; ignores `SIGINT`; `Hmz().reports()`; makes the `Host`; fds 1, 2 to a pipe a thread appends to the run's `host.log` (`daemon.log` before any run); replaces `sys.stdout` and `sys.stderr` with `Printed`; on `SIGTERM` closes the host from a new thread. Writes `listening\n` to the pipe and serves its [link](#links). |
 | — | either, on failure | Writes `the run could not be held: <why>\n` to the pipe, closes it, puts fds 1, 2 back on `daemon.log` and logs a traceback there, exits `1`. |
 
-The caller reads the pipe: `listening…` or EOF returns; any other text raises `OSError` with it.
-A timeout without either returns silently, and `host()` then raises only if nothing is
-listed.
+**Environment.** A host runs in the daemon's environment, and the daemon in that of the client
+that started it -- except under `hmz daemon serve` with no controlling terminal, as the service
+`hmz daemon install` writes runs it: there it first takes the environment of `$SHELL -ilc`
+(`$SHELL` unset: the account's shell), read between two marks of `env -0` and given 5 s, else
+its own; drops `PWD`, `OLDPWD`, `SHLVL` and `_`; and appends to `PATH` whichever of
+`~/.local/bin`, `$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` and `/bin`
+it lacks. A changed profile reaches the hosts once the daemon is started again.
+
+The caller reads the pipe: `listening…` returns; any other text raises `OSError` with it, and
+EOF with none `it ended before it came up; daemon.log says why`. A timeout returns silently, and
+`host()` then raises only if nothing is listed.
 
 **`Printed`.** In the host, each complete line written to `sys.stdout`/`sys.stderr` (a flow's
 `print`, a Python traceback) becomes a [`printed`](#history-records) message to every frontend.
@@ -323,7 +333,7 @@ taking `idem`.
 | `epic.<do>` | Fields (type, default) | Answer | Refusals |
 | --- | --- | --- | --- |
 | `attach` | as above | `sub`, `client`, `workspace`, `slot` | `the frontend went while it was saying hello`, `this host has closed`, `This chat has folded away.`, `This epic has ended.` |
-| `start` | `flow` (str, required), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path), `backup` | `run` (int), `slot`, `workspace` | `a flow to start is named`, `a flow is already running`, `a flow is already starting`, `this host has closed`, any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. A run that is only *stopping* does not block `start`. |
+| `start` | `flow` (str, required), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path), `backup`, `remember` (bool, `false`) | `run` (int), `slot`, `workspace` | `a flow to start is named`, `a flow is already running`, `a flow is already starting`, `this host has closed`, any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. The daemon checks the epic as `flows.check` does before the host is asked -- so a refusal starts nothing -- and with `remember` writes it down first as `flows.setup` does. A run that is only *stopping* does not block `start`. |
 ### Routing of `say` {#say-routing}
 
 | `to` | The line |

@@ -411,18 +411,14 @@ class Hosts:
 
     def _starts(self, workspace: str, slot: str) -> Hosted:
         """Starts a host process, and links it."""
-        from hmz.daemon.detaching import forks, hosts_in
+        from hmz.daemon.detaching import spawns
         from hmz.reach.pipes import SocketPipe
         from hmz.rpc import Peer
 
         ours, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             kept = theirs.fileno()
-            forks(
-                lambda telling: hosts_in(workspace, telling, kept, slot),
-                _PATIENCE,
-                keep=(kept,),
-            )
+            spawns(["host", workspace, slot, str(kept)], _PATIENCE, keep=(kept,))
         except OSError:
             ours.close()
             raise
