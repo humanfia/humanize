@@ -534,7 +534,7 @@ host.
 ### Enforcement
 
 `agent.natively(fence)` returns what the CLI does not enforce itself. That remainder is held
-from outside by putting `python -Pm hmz internal fence --policy=<Fence JSON> --` outermost around
+from outside by putting `coganchor internal fence --policy=<Fence JSON> --` outermost around
 the turn:
 
 | Mechanism | Holds |
@@ -1279,7 +1279,7 @@ right after the program's name).
 - A harness on another machine (`AnchorConfig.harness`, `hmz.coganchor.elsewhere.afar`) is
   started in one built on that machine: `AgentBase.homed` builds none here, and the anchor's
   options carry what it is made of (`AnchorConfig.home`, the session's skills and merges) to
-  the `hmz internal anchor` there, which builds it from that machine's user's own
+  the `coganchor cog` there, which builds it from that machine's user's own
   configuration around the CLI it supervises, keeps it on that machine, and removes it when
   the CLI exits. The brought skills are carried there first
   ([Remote execution › Where the harness runs](/reference/remote-execution#where-the-harness-runs)).

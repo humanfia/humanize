@@ -347,7 +347,6 @@ Every path in this section is safe to delete while Humanize is not running.
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock`, `humanize-clis-*/cli.sock` (under `/tmp` instead where `$TMPDIR` is too long for the socket's path to fit in 103 bytes) | sockets a CLI reports hooks, tool calls and preload events on, and a flow's command lines are run through | with the session |
 | `$TMPDIR/hmz-dsh-*/humanize.patch.yml` | per-session CLI configuration | with the session |
 | `$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>/` | checkouts of [`git+` refs](/reference/flows#refs), and of the releases [installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`, checked out detached at `<sha>`, renamed into place; one per commit | never; cloned again when missing |
-| `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the Humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
 | `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>/` | clones of skill repositories a role of a flow that was never installed names by URL ([Skills](/reference/flows#the-skills-a-flow-brings)), fetched again each run that names them | kept |
 | `$TMPDIR/humanize-<uid>/daemon.sock`, `daemon.json` (`0600`) | the [daemon](/reference/daemon#files) of this machine and user, which every workspace's runs are reached through: its socket, and `{"pid": int, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "daemon", "protocol": int}` via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename | when the daemon closes |
 | `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
@@ -362,7 +361,7 @@ Every path in this section is safe to delete while Humanize is not running.
 
 | Path | Is |
 | --- | --- |
-| `$HOME/.cache/humanize/humanize-<digest>.pyz` | the Humanize bundle on an `ssh` machine or a Slurm job's node (`/tmp/humanize/…` in a container, `/tmp/humanize-<UID>/…`, `0700`, for a docker target naming `user=UID`); checked against `<digest>` on arrival and when already there, written to `f.<pid>` and moved into place; every run line touches the one it runs; other `humanize-*.pyz*` untouched for 14 days are removed by the next install |
+| `$HOME/.cache/humanize/coganchor-<digest16>` (`0700`) | [`coganchor`](/reference/remote-execution#bootstrapping-the-serving-half), built for the machine's `uname -sm`, on an `ssh` machine or a Slurm job's node (`/tmp/humanize/…` in a container, `/tmp/humanize-<UID>/…`, `0700`, for a docker target naming `user=UID`); `<digest16>` the first 16 hex digits of its SHA-256; kept when already there, else written to `f.<pid>` and moved into place; every run line touches the one it runs; other `coganchor-*`, and `humanize-*.pyz` an earlier Humanize left, untouched for 14 days are removed by the next install |
 | `$HOME/.cache/humanize-mirrors/<sha256[:16]>/` on an `ssh` machine; `/tmp/humanize-mirrors/<sha256[:16]>/` in a container; `/tmp/humanize-mirrors-<UID>/<sha256[:16]>/` for a docker target naming `user=UID` | a remote harness's mirror of the workspace |
 | `${HUMANIZE_HOME:-$HOME/.hmz}/envs/` | as [above](#state-envs) |
 | `/tmp/humanize-slurm-<job>.out` on a Slurm job's node | what a `via: tcp` job's serving half says on its way up, which its port is read from; left to the node |
@@ -386,5 +385,7 @@ your own; `~/.gemini/antigravity-cli/agents/` is never written.
 Nothing prunes `epics/`, worktrees under
 `envs/`, snapshot refs, `M/compiled/`, `M/docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
-Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the
-`$TMPDIR/humanize-<uid>.pyz` and `.stamp` an earlier Humanize shared between checkouts.
+`coganchor` on other machines goes once nothing has used it for 14 days. Nothing of it is kept
+here: the builds are in the installed package, under `hmz/coganchor/bin/<os>-<arch>/`. The
+`humanize-*.pyz` and `*.digest` an earlier Humanize left in `$TMPDIR/humanize-<uid>/` can be
+deleted by hand.

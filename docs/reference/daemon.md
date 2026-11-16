@@ -56,8 +56,8 @@ interface closes its runs, so `/exit` offers **Cancel** instead of **Detach and 
 ## Files {#files}
 
 Directory: `<tmp>/humanize-<uid>/`, where `<tmp>` is Python's `tempfile.gettempdir()` (`$TMPDIR`,
-`$TEMP` or `$TMP`, else `/tmp`) and `<uid>` the user's id: `hmz.machine()`, shared with the
-[bundle cache](/reference/files#temporary). Made `0700` where missing; one that is not a
+`$TEMP` or `$TMP`, else `/tmp`) and `<uid>` the user's id: `hmz.machine()`, shared with
+[other caches](/reference/files#temporary). Made `0700` where missing; one that is not a
 directory, not this user's, or that its group or others can write is refused with
 `PermissionError: <dir> is not a directory only this user can write; remove it`. Never under
 `$HUMANIZE_HOME`: a daemon is one machine's process, and a home directory several machines

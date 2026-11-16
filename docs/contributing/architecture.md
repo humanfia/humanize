@@ -28,6 +28,7 @@ holds the same table, so an import that breaks it fails the run.
 | --- | --- |
 | how a coding agent CLI is driven, or its accounts, models, fallbacks or prices | `coganchor/` |
 | the machine an agent's turns land on | `coganchor/machines/`, per [Machines](/reference/machines#writing-a-machine-of-your-own) |
+| what runs beside the agent or on its target: mirrors, the supervisor, the fence, the serving half, the broker | `crates/coganchor/`, the `coganchor` program, in Rust; see [`coganchor`](/contributing/#coganchor) |
 | a type, mixin, hook or error a flow imports | `flows/`, then check the flows [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still work |
 | how a flow runs: the engine, budgets, resuming, the harness and environment drivers | `runtime/flowing/`, then check those flows too |
 | the `hmz exec` line: a flag, a refusal | `runtime/runner.py` |
@@ -58,9 +59,10 @@ when:
   nothing else of Humanize but `hmz.coganchor.faking`, which holds `FakeTool`, `FakeCli` and
   `FakeCommand`, and that is checked too.
 - **A top-level package is missing from the table.** `cli` is the one exemption.
-- **The anchor's target half loads more than it may.** `coganchor/serve/` runs on the target
-  machine, which may be any architecture, so it may import `coganchor.proto`, and
-  `coganchor.fence` with the `coganchor.linux` bindings it is put up with, and nothing else.
+
+Nothing of `src/hmz/` runs on a target. The halves of a session that run beside the agent and on
+the machine its work lands on are the Rust program `coganchor`, in `crates/coganchor/`, which
+the test does not read; `hmz.coganchor` finds the build for a machine and drives it.
 
 To add a layer or an edge, edit `ALLOWED` in that test. The diagram above copies it, so change
 `docs/.vitepress/theme/components/HmzStack.vue` in the same commit.

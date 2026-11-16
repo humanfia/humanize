@@ -66,7 +66,7 @@ It is normative. It is cited by the tag [FILES].
   - [7.2. Terminology](#72-terminology)
   - [7.3. The machine directory](#73-the-machine-directory)
   - [7.4. Caches in the machine directory](#74-caches-in-the-machine-directory)
-  - [7.5. The bundle](#75-the-bundle)
+  - [7.5. The coganchor builds](#75-the-coganchor-builds)
   - [7.6. The daemon](#76-the-daemon)
   - [7.7. Scratch directories in the machine directory](#77-scratch-directories-in-the-machine-directory)
   - [7.8. Other process-private temporary directories](#78-other-process-private-temporary-directories)
@@ -85,7 +85,7 @@ It is normative. It is cited by the tag [FILES].
   - [9.2. Terminology](#92-terminology)
   - [9.3. The state directory](#93-the-state-directory)
   - [9.4. Directories derived from a working directory](#94-directories-derived-from-a-working-directory)
-  - [9.5. The bundle](#95-the-bundle)
+  - [9.5. The coganchor binary](#95-the-coganchor-binary)
   - [9.6. Mirrors](#96-mirrors)
   - [9.7. Containers, services and jobs](#97-containers-services-and-jobs)
   - [9.8. Per-turn directories](#98-per-turn-directories)
@@ -611,8 +611,8 @@ validation of Section 3.8.2 and Section 3.8.4.
 
 **3.8.7.3** `constraint` MUST be empty or contain no white space and not begin with `-`.
 
-**3.8.7.4** `python` MUST be empty, absolute, or begin with `~/`, and names a Python of at least
-version 3.12 on the cluster's nodes.
+**3.8.7.4** `python` MUST be empty, absolute, or begin with `~/`; it MUST be accepted and MUST NOT
+be used.
 
 **3.8.7.5** `via` MUST be `srun` or `tcp`, defaulting to `srun`.
 
@@ -725,6 +725,13 @@ downloads (Section 3.8.5 of [DAEMON]); one that does not exist MUST be ignored.
 **3.11.2.14** `HUMANIZE_EASYTIER_NODES` MUST name the Uptime Kuma server whose status page
 `easytier` hmz reads the community's shared EasyTier nodes from (Section 3.8.5.11 of [DAEMON]), in
 place of EasyTier's own.
+
+**3.11.2.15** `HUMANIZE_COGANCHOR` MUST name a `coganchor` binary for hmz to run on this machine in
+place of the build its installation carries (Section 7.5); one that does not exist MUST be ignored.
+
+**3.11.2.16** `COGANCHOR_BINARIES` MUST name, to a `coganchor` that hmz starts, the directory holding
+the builds of Section 7.5.1 from which it copies one to another machine; hmz MUST set it to that
+directory.
 
 #### 3.11.3. Other variables
 
@@ -1658,28 +1665,19 @@ time.
 `remote.origin.url`, `remote.origin.fetch` and, where `user.email` is not set in it, `user.name` and
 `user.email`.
 
-### 7.5. The bundle
+### 7.5. The coganchor builds
 
-**7.5.1** `<mdir>/humanize-<digest>.pyz`, where `<digest>` is 16 lowercase hexadecimal digits, MUST
-be the zip application of **hmz** that **hmz** copies to a **machine** other than **this machine**,
-with mode `0600`; `<digest>` identifies its content.
+**7.5.1** The `coganchor` builds that **hmz** runs and copies to a **machine** other than **this
+machine** MUST be those its installed package carries, at `bin/<os>-<arch>/coganchor` beside the
+package `hmz.coganchor`, where `<os>-<arch>` is one of `linux-x86_64`, `linux-aarch64`,
+`darwin-x86_64` and `darwin-aarch64`, except that Section 3.11.2.15 MAY name another to run on
+**this machine**.
 
-**7.5.2** `<mdir>/<stamp>.digest`, where `<stamp>` is 64 lowercase hexadecimal digits identifying
-the files of **hmz** a bundle was built from, MUST hold the `<digest>` of that bundle followed by a
-line feed, with mode `0600`.
+**7.5.2** `hmz` MUST NOT build, and MUST NOT keep in `<mdir>` or the cache directory, a bundle or a
+copy of `coganchor`.
 
-**7.5.3** `hmz` MUST write a bundle into `<mdir>/humanize-<random>.pyz.new` and rename it into
-place, and MUST write a `.digest` file by atomic replacement.
-
-**7.5.4** `hmz` MUST update the modification time of the bundle an **epic** uses at least once an
-hour while that **epic** runs.
-
-**7.5.5** `hmz` MUST remove, each time it builds a bundle, every entry of `<mdir>` whose name begins
-with `humanize-` or ends with `.digest` and whose modification time is more than 14 days ago, and
-the files `<tmp>/humanize-<uid>.pyz` and `<tmp>/humanize-<uid>.stamp`.
-
-**7.5.6** `hmz` MUST build a bundle in a process-private temporary directory with the prefix
-`humanize-bundle-` and MUST remove it when the build ends.
+**7.5.3** The **user** MAY delete every `<mdir>/humanize-*.pyz` and `<mdir>/*.digest` that an
+earlier release of **hmz** left.
 
 ### 7.6. The daemon
 
@@ -2075,7 +2073,7 @@ runs, and MAY delete it after that process ends.
 
 Section 9 specifies everything **hmz** creates on a **machine** that an **env** or a **harness**
 is placed on, including **this machine** where an **env** runs on it: the state directory, the
-directories derived from the working directory of an **env**, the bundle of **hmz**, the
+directories derived from the working directory of an **env**, the `coganchor` binary, the
 **mirrors**, the containers, swarm services and Slurm jobs with their names and labels, and the
 per-turn directories; and it states when each is removed.
 
@@ -2098,8 +2096,8 @@ host, a docker or Apple container, a swarm service, a Slurm job, a server reache
 node, `${HUMANIZE_HOME:-$HOME/.hmz}` as the login shell of the **user** there expands it, a relative
 value taken under `$HOME`.
 
-**9.2.3** **Bundle cache** (`<cache>`): the directory on a **target** that holds the bundle of
-**hmz**: `$HOME/.cache/humanize` on an ssh host and on a Slurm node; `/tmp/humanize` in a container;
+**9.2.3** **Binary cache** (`<cache>`): the directory on a **target** that holds the `coganchor`
+binary: `$HOME/.cache/humanize` on an ssh host and on a Slurm node; `/tmp/humanize` in a container;
 `/tmp/humanize-<user>` in a docker container whose **runtime** names the user `<user>` to execute
 as.
 
@@ -2161,23 +2159,24 @@ truncated to 32 characters, or `head`; `hmz` MUST NOT remove it.
 
 **9.4.9** The **user** MAY delete `<state>/envs/` while no **epic** uses it.
 
-### 9.5. The bundle
+### 9.5. The coganchor binary
 
-**9.5.1** `<cache>/humanize-<digest>.pyz` MUST be the bundle of **hmz** of Section 7.5, copied to
-the **target**.
+**9.5.1** `<cache>/coganchor-<digest16>`, where `<digest16>` is the first 16 lowercase hexadecimal
+digits of the SHA-256 digest of its content, MUST be the build of Section 7.5.1 for the platform
+that the **target**'s `uname -sm` reports, copied to the **target**, with mode `0700`.
 
 **9.5.2** `hmz` MUST create `<cache>` where it is missing; in a docker container whose **runtime**
 names the user to execute as, `hmz` MUST give `<cache>` mode `0700` and refuse a `<cache>` that is a
 symbolic link or not owned by that user.
 
-**9.5.3** `hmz` MUST write a bundle into `<path>.<pid>` and rename it into place, and MUST NOT
-rewrite a bundle whose content matches its `<digest>`.
+**9.5.3** `hmz` MUST write the binary into `<path>.<pid>` and rename it into place, and MUST NOT
+rewrite a binary whose name it already has.
 
-**9.5.4** `hmz` MUST update the modification time of the bundle each time it runs it.
+**9.5.4** `hmz` MUST update the modification time of the binary each time it runs it.
 
-**9.5.5** `hmz` MUST remove, each time it copies a bundle to a `<cache>`, every other entry of that
-`<cache>` whose name begins with `humanize-` and contains `.pyz` and whose modification time is more
-than 14 days ago.
+**9.5.5** `hmz` MUST remove, each time it copies a binary to a `<cache>`, every other entry of that
+`<cache>` whose name begins with `coganchor-` or begins with `humanize-` and contains `.pyz`, and
+whose modification time is more than 14 days ago.
 
 **9.5.6** The **user** MAY delete `<cache>` while **hmz** is not running on that **target**.
 
@@ -2276,7 +2275,7 @@ Section 9.8.1, except as Section 9.6.2 and Section 9.8.3 permit.
 - the temporary copies and scratch directories of a resumable **epic** (Section 9.4.2 and Section
   9.4.7);
 - the worktrees of Section 9.4.8;
-- `<cache>` and the bundles in it (Section 9.5);
+- `<cache>` and the binaries in it (Section 9.5);
 - the **mirrors** of Section 9.6.3 and their records;
 - the Slurm output files of Section 9.7.7;
 - the directories of Section 9.8.4 and Section 9.8.5;
