@@ -6,7 +6,8 @@
 #   crates/coganchor/dev/linux-test.sh tests/integration/test_anchor_transport.py -x
 #
 # Caches (cargo registry, target directory, the virtualenv) persist in Docker volumes named
-# for this checkout, so a second run builds only what changed.
+# for this checkout, so a second run builds only what changed. The virtualenv is a directory
+# inside its volume rather than the volume itself, which uv could not remove to rebuild it.
 set -eu
 
 here=$(cd "$(dirname "$0")/../../.." && pwd)
@@ -23,6 +24,7 @@ exec docker run --rm ${COGANCHOR_TTY:+-it} \
   -v "coganchor-venv-$key:/venv" \
   -v "coganchor-registry:/usr/local/cargo/registry" \
   -e HUMANIZE_COGANCHOR=/target/debug/coganchor \
+  -e UV_PROJECT_ENVIRONMENT=/venv/hmz \
   "$image" sh -euc '
     cd /src/crates/coganchor
     cargo fmt --check

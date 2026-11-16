@@ -195,11 +195,11 @@ pub struct FenceArgs {
     /// The fence, as JSON, or @PATH for a file holding it.
     #[arg(long, value_name = "JSON")]
     pub policy: String,
-    /// The program to run and its arguments, after --.
+    /// The program to run and its arguments, after --. Not required here: an empty one is
+    /// refused by the command itself, with the usage line `hmz internal ...` has always printed.
     #[arg(
         trailing_var_arg = true,
         allow_hyphen_values = true,
-        required = true,
         value_name = "COMMAND"
     )]
     pub command: Vec<OsString>,
@@ -214,11 +214,11 @@ pub struct CredArgs {
     /// As --map, but never by copying; FROM may hold a glob; repeatable.
     #[arg(long = "keep", value_name = "FROM=TO")]
     pub keeps: Vec<String>,
-    /// The program to run and its arguments, after --.
+    /// The program to run and its arguments, after --. Not required here: an empty one is
+    /// refused by the command itself, with the usage line `hmz internal ...` has always printed.
     #[arg(
         trailing_var_arg = true,
         allow_hyphen_values = true,
-        required = true,
         value_name = "COMMAND"
     )]
     pub command: Vec<OsString>,
