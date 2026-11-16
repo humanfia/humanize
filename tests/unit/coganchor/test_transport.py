@@ -740,7 +740,7 @@ class Uname(Ran):
         self, argv: list[str], **kwargs: Any
     ) -> subprocess.CompletedProcess[bytes]:
         done = super().__call__(argv, **kwargs)
-        if argv[-2:] == ["uname", "-sm"] or argv[-1].endswith("exec uname -sm"):
+        if argv[-1:] == ["exec uname -sm"] or "exec uname -sm" in argv[-1]:
             return subprocess.CompletedProcess(argv, 0, self.said, b"")
         return done
 
@@ -776,7 +776,15 @@ def test_coganchor_is_shipped_once_per_machine_named_by_its_digest(
 
     name = _named(build)
     (probe, _), (install, fed) = ran.asked
-    assert probe == ["docker", "exec", "-i", "shipped-once", "/bin/sh", "-c", "exec uname -sm"]
+    assert probe == [
+        "docker",
+        "exec",
+        "-i",
+        "shipped-once",
+        "/bin/sh",
+        "-c",
+        "exec uname -sm",
+    ]
     assert fed == build.read_bytes()
     script = install[-1]
     assert f'c="{CONTAINER_CACHE}"' in script

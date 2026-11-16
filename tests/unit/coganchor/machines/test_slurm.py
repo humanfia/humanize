@@ -243,7 +243,7 @@ def test_a_job_reached_over_tcp_runs_coganchor_where_it_is_active(
     monkeypatch.setattr(platform, "system", lambda: "Linux")
     monkeypatch.setattr(platform, "machine", lambda: "x86_64")
     a_cluster(runs, "RUNNING", node="n7")
-    runs.on("uname", "-sm", out="Linux x86_64\n")
+    runs.on("/bin/sh", "-c", "exec uname -sm", out="Linux x86_64\n")
     runs.on("/bin/cat", out="hmz internal anchor serve listening 0.0.0.0 40124\n")
     machine = SlurmConfig(workspace="/w", via=TCP, python="/opt/py").create()
 

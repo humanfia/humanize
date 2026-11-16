@@ -72,7 +72,7 @@ def test_coganchor_is_shipped_over_ssh_once_and_started_as_the_anchor(
     # Asked what it is, given the program, and started twice: nothing a second time.
     asked = [argv[-1] for argv in far.calls("ssh")]
     assert len(asked) == 4
-    assert asked[0] == "exec uname -sm"
+    assert asked[0] == "exec /bin/sh -c 'exec uname -sm'"
     assert asked[2].endswith("coganchor anchor --stdio --export /w")
     assert f"/{landed.name}" in asked[2]
 
