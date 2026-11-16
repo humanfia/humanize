@@ -1,7 +1,7 @@
 // What a workspace was last set up with: the flow it opens on and every flow set up there, and
 // forgetting all of it -- which also stops it being offered, where no epic ran there.
 
-import { address, get, post } from '../../api.js'
+import { given, started } from '../../api.js'
 import { confirming, fill, h, pathText, problem } from '../../dom.js'
 
 export function draw(holder, query, parts, scope) {
@@ -40,7 +40,7 @@ export function draw(holder, query, parts, scope) {
             yes: 'Forget',
             no: 'Cancel',
             act: async () => {
-              const answer = await post(scope.at('/api/settings/forget'), { workspace: settings.workspace })
+              const answer = await scope.call('settings.forget', { workspace: settings.workspace })
               shown(answer, answer.forgot)
             },
           }),
@@ -54,14 +54,17 @@ export function draw(holder, query, parts, scope) {
   function read() {
     const mine = ++reading
     if (!body.querySelector('.loading')) body.setAttribute('aria-busy', 'true')
-    get(address(scope.at('/api/settings'), { workspace }))
+    scope.call('settings.get', given({ workspace }))
       .then((settings) => mine === reading && shown(settings))
       .catch((error) => mine === reading && fill(body, problem(error)))
       .finally(() => mine === reading && body.removeAttribute('aria-busy'))
   }
 
-  get(scope.at('/api/workspaces')).then((answer) => {
-    if (!workspace) workspace = answer.here
+  started()
+    // Where `hmz web` started is a directory of Local's alone.
+    .then((here) => scope.call('workspaces.list', given({ here: scope.name === 'local' ? here : '' })))
+    .then((answer) => {
+    if (!workspace) workspace = answer.here || answer.workspaces[0]?.path || ''
     fill(choosing, answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === workspace }, one.path)))
     read()
   }, (error) => fill(body, problem(error)))

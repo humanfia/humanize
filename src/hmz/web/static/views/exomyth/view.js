@@ -4,7 +4,7 @@
 // what it carried, or a stretch of time. An epic still going is read again every few seconds,
 // for as long as it is looked at.
 
-import { get, hash, poll, refresh } from '../../api.js'
+import { call, hash, poll, refresh } from '../../api.js'
 import { stays } from '../../app.js'
 import { badge, copier, fill, h, headline, icon, iconButton, problem } from '../../dom.js'
 import { bar, sidePanel, tabbed } from '../../shell.js'
@@ -16,8 +16,6 @@ import { timeline } from './timeline.js'
 const EVERY = 2000
 
 export function mount(root, name, query) {
-  const base = `/api/runs/${encodeURIComponent(name)}`
-  const url = `${base}/timeline`
   let tab = query.get('tab') === 'flame' ? 'flame' : 'timeline'
   let model = null
   let detail = null
@@ -171,13 +169,13 @@ export function mount(root, name, query) {
     read = { reading: true }
     let said
     try {
-      const answer = await get(`${base}/timeline/span/${id}?layout=${encodeURIComponent(model.layout)}`)
+      const answer = await call('runs.span', { name, id, layout: model.layout })
       said = { args: answer.args }
       spans.set(key, said)
     } catch (error) {
       said = { error }
       // Laid out again since it was read: read again, which leaves nothing picked.
-      if (error.status === 409) refresh(url)
+      if (error.status === 409) refresh('runs.timeline')
     }
     if (picked && picked.span === id && key === `${model.layout}:${id}`) {
       read = said
@@ -260,13 +258,12 @@ export function mount(root, name, query) {
 
   /**
    * Reads the timeline as `api.poll` reads anything: again while the epic goes, and not while
-   * the page is hidden. The browser asks again with the tag it was given, and is answered that
-   * it has it already; an answer the same as the last is told nobody.
+   * the page is hidden. An answer the same as the last is told nobody.
    */
   function watch(often) {
     const was = unwatch
     every = often
-    unwatch = poll(url, often, told)
+    unwatch = poll('runs.timeline', { name }, often, told)
     was()
   }
 
@@ -312,7 +309,7 @@ export function mount(root, name, query) {
 
   /** Reads what the epic is -- its task, how it ended -- which the bar says. */
   function described() {
-    get(base).then(
+    call('runs.get', { name }).then(
       (said) => {
         detail = said
         if (!left) drawHead()

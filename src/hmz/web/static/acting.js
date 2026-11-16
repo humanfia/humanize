@@ -2,7 +2,7 @@
 // and holds the roles a person fills -- each one request to the runs, refused with their reason.
 // And what it asks beside the run, which never reaches the run at all.
 
-import { get, post } from './api.js'
+import { call } from './api.js'
 import { acting, confirming, fill, h, icon, problem } from './dom.js'
 import { ask } from './held.js'
 import { chipSelect, composer } from './composer.js'
@@ -200,7 +200,7 @@ export function asides(workspace, epic = '') {
   const strip = h('div', { class: 'aside-strip', 'data-hmz': 'btw-asides' })
   const body = h('div', { class: 'aside-body' })
   const fresh = h('button', { class: 'chip-btn', type: 'button', 'data-hmz': 'btw-new' }, icon('plus'), 'New aside')
-  const query = `/api/btw?workspace=${encodeURIComponent(workspace)}&epic=${encodeURIComponent(epic)}`
+  const query = { workspace, ...(epic ? { epic } : {}) }
 
   /** One aside: `to` is null until its first question fixes whom it asks. */
   function aside(id, to = null) {
@@ -229,7 +229,7 @@ export function asides(workspace, epic = '') {
         tabs()
         watch()
         try {
-          one.said = [...one.said, await post('/api/btw', { question: question.trim(), aside: id, to: one.to, workspace, epic })]
+          one.said = [...one.said, await call('btw.ask', { question: question.trim(), aside: id, to: one.to, workspace, ...(epic ? { epic } : {}) })]
         } finally {
           Object.assign(one, { question: '', asked: [], posting: false })
           changed += 1
@@ -246,7 +246,7 @@ export function asides(workspace, epic = '') {
       leave.disabled = true
       leave.textContent = 'Closing…'
       try {
-        await post('/api/btw/leave', { workspace, aside: id })
+        await call('btw.leave', { workspace, aside: id })
         forget(one)
       } catch (error) {
         box.said.replaceChildren(problem(error))
@@ -357,7 +357,7 @@ export function asides(workspace, epic = '') {
   /** Reads the asides as the server holds them: what was said, and what is answering now. */
   async function read() {
     const at = changed
-    const { asides: held, default: given } = await get(query)
+    const { asides: held, default: given } = await call('btw.list', query)
     answers = given || ''
     // Read before an aside here changed: what it says of it is older than what is shown.
     if (at !== changed) return read()

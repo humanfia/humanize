@@ -5,7 +5,6 @@
 // through the local LiteLLM gateway are listed last, under a group of their own -- and where the
 // extra they need is missing, the group says so and the line that adds it is said under it.
 
-import { get, post } from '../../api.js'
 import { acting, ago, confirming, fill, h, problem } from '../../dom.js'
 
 export function draw(holder, query, parts, scope) {
@@ -38,7 +37,7 @@ export function draw(holder, query, parts, scope) {
           h(
             'div',
             { class: 'row' },
-            acting('Refresh models', async () => shown(await post(scope.at('/api/accounts/models'), { cli: one.cli, name: one.name })), { kind: 'btn small quiet', busy: 'Asking…' }),
+            acting('Refresh models', async () => shown(await scope.call('accounts.models', { cli: one.cli, name: one.name })), { kind: 'btn small quiet', busy: 'Asking…' }),
             one.serves.length ? copying(one) : null,
             one.name ? h('button', { class: 'btn small quiet', type: 'button', onclick: () => correcting(one) }, 'Edit') : null,
             one.name
@@ -47,7 +46,7 @@ export function draw(holder, query, parts, scope) {
                   ask: `Remove ${one.cli}@${one.name}, credentials and all?`,
                   yes: 'Remove',
                   small: true,
-                  act: async () => shown(await post(scope.at('/api/accounts/remove'), { cli: one.cli, name: one.name })),
+                  act: async () => shown(await scope.call('accounts.remove', { cli: one.cli, name: one.name })),
                 })
               : null,
           ),
@@ -75,7 +74,7 @@ export function draw(holder, query, parts, scope) {
       'span',
       { class: 'row' },
       into,
-      acting('Copy', async () => shown(await post(scope.at('/api/accounts/copy'), { cli: one.cli, name: one.name, into: into.value })), { kind: 'btn small quiet', busy: 'Copying…' }),
+      acting('Copy', async () => shown(await scope.call('accounts.copy', { cli: one.cli, name: one.name, into: into.value })), { kind: 'btn small quiet', busy: 'Copying…' }),
     )
   }
 
@@ -115,7 +114,7 @@ export function draw(holder, query, parts, scope) {
       save.disabled = true
       save.textContent = 'Saving…'
       try {
-        shown(await post(scope.at('/api/accounts/correct'), { cli: one.cli, name: one.name, answers: given }))
+        shown(await scope.call('accounts.correct', { cli: one.cli, name: one.name, answers: given }))
         fill(said, h('span', { class: 'dim', role: 'status' }, 'Saved.'))
         for (const input of form.querySelectorAll('input')) input.value = ''
       } catch (error) {
@@ -207,7 +206,7 @@ export function draw(holder, query, parts, scope) {
       make.disabled = true
       make.textContent = 'Creating…'
       try {
-        shown(await post(scope.at('/api/accounts'), { cli: cli.value, name: name.value.trim(), way: way.value, answers: given }))
+        shown(await scope.call('accounts.create', { cli: cli.value, name: name.value.trim(), way: way.value, answers: given }))
         fill(said, h('span', { class: 'dim', role: 'status' }, `Made ${cli.value}@${name.value.trim()}.`))
         name.value = ''
         for (const input of answers.querySelectorAll('input')) input.value = ''
@@ -222,7 +221,7 @@ export function draw(holder, query, parts, scope) {
     drawWays()
   }
 
-  get(scope.at('/api/accounts'))
+  scope.call('accounts.list')
     .then((answer) => {
       shown(answer)
       drawMaking()

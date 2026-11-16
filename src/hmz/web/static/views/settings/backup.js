@@ -4,7 +4,6 @@
 // epic they hold here. A URL is shown with nothing signed into it, and one left as shown is kept
 // as written.
 
-import { get, post } from '../../api.js'
 import { acting, confirming, fill, h, problem } from '../../dom.js'
 import { toast } from '../../ui.js'
 
@@ -36,7 +35,7 @@ export function draw(holder, query, parts, scope) {
 
   /** Writes every target down, as they are with one change made, and lists them again. */
   const save = async (targets, defaults) => {
-    data = (await post(scope.at('/api/settings'), { backup: { targets, defaults } })).backup
+    data = (await scope.call('settings.set', { backup: { targets, defaults } })).backup
     drawListing()
   }
 
@@ -95,7 +94,7 @@ export function draw(holder, query, parts, scope) {
           { class: 'row' },
           // What the targets hold, brought here onto the daemon picked.
           data.targets.length ? h('a', { class: 'btn quiet', href: scope.name === 'local' ? '#/download' : `#/@${encodeURIComponent(scope.name)}/download`, 'data-hmz': 'download' }, 'Download') : null,
-          scope.batch(() => [['/api/settings', { backup: data }]]),
+          scope.batch(() => [['settings.set', { backup: data }]]),
         ),
       ),
       rows.length
@@ -159,7 +158,7 @@ export function draw(holder, query, parts, scope) {
     fill(writing, h('h2', {}, editing ? `Edit ${editing.name}` : 'New target'), form)
   }
 
-  get(scope.at('/api/settings'))
+  scope.call('settings.get')
     .then(shown)
     .catch((error) => fill(listing, problem(error)))
 }

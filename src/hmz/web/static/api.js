@@ -1,10 +1,23 @@
-// How the page asks the server anything: one wrapper for reading and writing, which turns a
-// refusal into the sentence the server gave, and one store for what is read again and again,
-// shared by every view of it. Everything is asked of the daemon the address names -- `#/@<name>/…`,
-// Local where it names none -- under `/d/<name>/api/…`, save what is the same for every daemon.
+// How the page asks a daemon anything: one RPC client per daemon (rpc/index.js), Local's and each
+// remote daemon's kept in this browser's IndexedDB (Section 3.13 of protocol/web.md), a wrapper
+// that turns a refusal into the sentence the daemon gave, and one store for what is read again
+// and again, shared by every view of it. Everything is asked of the daemon the address names --
+// `#/@<name>/…`, Local where it names none -- unless the call names another.
 
-/** What is asked of Local whichever daemon the page is on: the daemons, and the notifications. */
-const GLOBAL = /^\/api\/(daemons|notifications)(\/|\?|$)/
+import { bridge, claim, connect, ERRORS, local, registry, RpcError, tauri, webrtc } from './rpc/index.js'
+import { fromBase64, toBase64 } from './rpc/pipe.js'
+
+/** Where the page is shown: the desktop application's web view, or a browser. */
+const DESKTOP = Boolean(globalThis.__TAURI_INTERNALS__)
+
+/** What this page is to a daemon, as `session.hello` says it. */
+const CLIENT = { name: '', kind: DESKTOP ? 'desktop' : 'web' }
+
+/** The remote daemons this browser keeps, and its WebRTC certificate and ICE servers. */
+export const daemons = registry()
+
+/** What opens a carrier for the page: the server's `/rpc` and `/dial`, or the app's pipes; and WebRTC. */
+export const providers = [DESKTOP ? tauri() : bridge(), webrtc({ certificate: () => daemons.certificate(), iceServers: () => daemons.iceServers() })]
 
 /** The daemon the address names, or '' where it names none. */
 function named(address) {
@@ -24,11 +37,6 @@ const switched = new Set()
 /** The daemon the page is on. */
 export function daemon() {
   return naming || 'local'
-}
-
-/** Where an address of the API is asked: of the daemon the page is on, unless it is global. */
-export function scoped(path) {
-  return path.startsWith('/api/') && !GLOBAL.test(path) ? `/d/${encodeURIComponent(daemon())}${path}` : path
 }
 
 /** The address of a view of the page, on the daemon the page is on, as the address names it. */
@@ -56,15 +64,15 @@ window.addEventListener('hashchange', () => {
   if (daemon() === was) return
   era += 1
   // What was read of the last daemon is not this one's: read again, once whoever leaves has.
-  for (const read of reads.values()) Object.assign(read, { text: undefined, data: undefined, error: null, failures: 0, stale: true })
+  for (const read of reads.values()) if (!read.on) Object.assign(read, { text: undefined, data: undefined, error: null, failures: 0, stale: true })
   setTimeout(() => {
-    for (const read of reads.values()) if (read.stale) fetchNow(read)
+    for (const read of reads.values()) if (read.stale) readNow(read)
   })
   for (const fn of [...switched]) fn(daemon())
   window.dispatchEvent(new CustomEvent('hmz:daemon', { detail: { daemon: daemon() } }))
 })
 
-/** A refusal: the server's own sentence, the status it came with, and what else it said. */
+/** A refusal: the daemon's own sentence, the code it came with, and what else it said. */
 export class Refused extends Error {
   constructor(message, status, said = null) {
     super(message)
@@ -73,49 +81,151 @@ export class Refused extends Error {
   }
 }
 
-/** Reads one answer, or throws the server's sentence. */
-export async function get(url) {
-  return answered(await fetch(scoped(url), { headers: { Accept: 'application/json' } }))
+/** Every daemon reached, by name. */
+const clients = new Map()
+/** Who is told each change of any daemon's state. */
+const stateWatchers = new Set()
+
+/**
+ * The client of a daemon, by name: reached in the background from the first time it is asked for.
+ *
+ * @param {string} [name]
+ * @returns {Promise<import('./rpc/client.js').Client>}
+ */
+export async function client(name = daemon()) {
+  if (clients.has(name)) return clients.get(name)
+  const entry = name === 'local' ? local() : (await daemons.list()).find((one) => one.name === name)
+  if (!entry) throw new Refused(`There is no daemon ${name}.`, ERRORS.NOT_FOUND)
+  if (clients.has(name)) return clients.get(name)
+  const made = connect(entry, providers, {
+    client: CLIENT,
+    // An id answered over a trusted route is pinned from then on (Section 3.8.2.7 of protocol/daemon.md).
+    pinned: (id) => name !== 'local' && daemons.update(name, { id }).catch(() => {}),
+  })
+  clients.set(name, made)
+  made.watch((state) => {
+    for (const fn of [...stateWatchers]) fn(name, state)
+  })
+  for (const fn of [...stateWatchers]) fn(name, made.state)
+  return made
 }
 
-/** Writes, sending JSON, and reads the answer, or throws the server's sentence. */
-export async function post(url, body = {}) {
-  return answered(
-    await fetch(scoped(url), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(body),
-    }),
-  )
+/** How a daemon stands now, `{state, detail}`: `idle` where it has not been asked for. */
+export function stateOf(name) {
+  return clients.get(name)?.state ?? { state: 'idle', detail: '' }
 }
 
-/** Sends a file as it is, under its name, and reads the answer, or throws the server's sentence. */
-export async function send(url, file, kind) {
-  return answered(
-    await fetch(scoped(url), {
-      method: 'POST',
-      headers: { 'Content-Type': kind, 'X-Hmz-Filename': encodeURIComponent(file.name), Accept: 'application/json' },
-      body: file,
-    }),
-  )
+/** Tells `fn(name, state)` each change of any daemon's state, until what it returns is called. */
+export function onState(fn) {
+  stateWatchers.add(fn)
+  return () => stateWatchers.delete(fn)
 }
 
-async function answered(response) {
-  const text = await response.text()
-  let said = null
+/**
+ * What a daemon's `session.hello` answered -- its machine, `wsl`, version, `newer` -- once it is up.
+ *
+ * @param {string} [name]
+ */
+export async function hello(name = daemon()) {
+  const one = await client(name)
+  if (one.hello) return one.hello
+  return new Promise((resolve, reject) => {
+    const stop = one.watch((now) => {
+      if (now.state === 'up' && one.hello) {
+        stop()
+        resolve(one.hello)
+      } else if (now.state === 'failed') {
+        stop()
+        reject(refused(new RpcError(ERRORS.UNAVAILABLE, now.detail), name))
+      }
+    })
+  })
+}
+
+/** Reaches a daemon again at once: one that failed, or one whose entry has changed. */
+export async function reconnect(name) {
+  forget(name)
+  return client(name)
+}
+
+/** Stops reaching a daemon, and forgets its client: once it is removed or its entry changed. */
+export function forget(name) {
+  const held = clients.get(name)
+  if (!held) return
+  clients.delete(name)
+  held.close()
+  for (const fn of [...stateWatchers]) fn(name, { state: 'idle', detail: '' })
+}
+
+/** Local and every remote daemon this browser keeps, Local first. */
+export async function known() {
+  return [local(), ...(await daemons.list()).sort((one, other) => one.name.localeCompare(other.name))]
+}
+
+/** A remote daemon's kind, as the page names it (Section 3.13.18 of protocol/web.md). */
+export function kindOf(entry) {
+  const first = entry.routes[0] || ''
+  if (first.startsWith('stdio:ssh')) return 'SSH'
+  if (first.startsWith('easytier:')) return 'P2P'
+  return 'Paired'
+}
+
+/**
+ * Adds a daemon from a pairing code, claiming it at once (Section 3.13.4 of protocol/web.md), as
+ * the machine the page is served from is called.
+ */
+export async function pair(name, code) {
+  const device = (await hello('local').catch(() => null))?.machine || 'browser'
   try {
-    said = text ? JSON.parse(text) : null
-  } catch {
-    said = null
+    return await claim(daemons, { name, code, device }, providers, CLIENT)
+  } catch (error) {
+    throw refused(error, name)
   }
-  if (response.status === 401) window.dispatchEvent(new CustomEvent('hmz:out'))
-  if (!response.ok) {
-    throw new Refused((said && said.error) || text || `The server answered ${response.status}.`, response.status, said)
-  }
-  return said
 }
 
-/** Every address read again and again, with who is reading it. */
+/** A failure, said as the page says it: a refusal keeps its words, an unreachable daemon says so. */
+function refused(error, name) {
+  if (error instanceof Refused) return error
+  if (error instanceof RpcError) {
+    if (error.code === ERRORS.UNAVAILABLE && name !== 'local') {
+      const { state, detail } = stateOf(name)
+      return new Refused(`${name} is unavailable, ${state}${detail ? `: ${detail}` : '.'}`, error.code, error.data)
+    }
+    return new Refused(error.message, error.code, error.data)
+  }
+  return new Refused(error.message || String(error), ERRORS.UNAVAILABLE)
+}
+
+/**
+ * Calls one method of a daemon, or throws its sentence as a `Refused`.
+ *
+ * @param {string} method
+ * @param {object} [params]
+ * @param {{on?: string, timeout?: number}} [options] `on` the daemon, the one shown by default.
+ */
+export async function call(method, params = {}, { on = daemon(), timeout } = {}) {
+  try {
+    return await (await client(on)).call(method, params, { timeout })
+  } catch (error) {
+    throw refused(error, on)
+  }
+}
+
+/**
+ * Attaches to one host of a daemon (`epic.attach`), telling `told` each message, and `ended`
+ * where the subscription ended on its own.
+ *
+ * @returns {Promise<{close: () => Promise<void>}>}
+ */
+export async function attach(params, told, ended, { on = daemon() } = {}) {
+  try {
+    return await (await client(on)).attach(params, told, ended)
+  } catch (error) {
+    throw refused(error, on)
+  }
+}
+
+/** Every call read again and again, with who is reading it. */
 const reads = new Map()
 
 /** The shortest a failed read waits before the next, and the longest. */
@@ -123,41 +233,44 @@ const SOON = 1600
 const LONGEST = 30000
 
 /**
- * Reads an address every so often for as long as something is watching it: once for all of
- * them, at the shortest interval any of them asked for, and not while the page is hidden. A
- * read that fails is tried again later and later, and whoever is watching keeps what it had.
+ * Calls a method every so often for as long as something is watching it: once for all of them,
+ * at the shortest interval any of them asked for, and not while the page is hidden. A call that
+ * fails is tried again later and later, and whoever is watching keeps what it had.
  *
- * @param {string} url What to read.
+ * @param {string} method What to call.
+ * @param {object} params With what.
  * @param {number|null} every How often, in milliseconds, or null for once.
  * @param {(data: any, error: Error|null) => void} told What is told each answer.
+ * @param {{on?: string}} [options] `on` a daemon of its own, which a switch of the page leaves.
  * @returns {() => void} What stops watching.
  */
-export function poll(url, every, told) {
-  let read = reads.get(url)
+export function poll(method, params, every, told, { on } = {}) {
+  const key = `${on ?? ''}\n${method}\n${JSON.stringify(params)}`
+  let read = reads.get(key)
   if (!read) {
-    read = { url, watchers: new Set(), timer: 0, failures: 0, text: undefined, data: undefined, error: null }
-    reads.set(url, read)
+    read = { key, method, params, on, watchers: new Set(), timer: 0, failures: 0, text: undefined, data: undefined, error: null }
+    reads.set(key, read)
   }
   const watcher = { every, told }
   read.watchers.add(watcher)
   if (read.text !== undefined || read.error) told(read.data, read.error)
-  if (read.watchers.size === 1 || read.text === undefined) fetchNow(read)
+  if (read.watchers.size === 1 || read.text === undefined) readNow(read)
   else schedule(read)
   return () => {
     read.watchers.delete(watcher)
     if (!read.watchers.size) {
       clearTimeout(read.timer)
-      reads.delete(url)
+      reads.delete(key)
     }
   }
 }
 
-/** Reads an address again now, for whoever watches it: after a write that changed it. */
-export function refresh(url) {
-  for (const read of reads.values()) if (read.url === url || read.url.startsWith(`${url}?`)) fetchNow(read)
+/** Calls a method again now, for whoever watches it: after a write that changed what it answers. */
+export function refresh(method) {
+  for (const read of reads.values()) if (read.method === method) readNow(read)
 }
 
-async function fetchNow(read) {
+async function readNow(read) {
   clearTimeout(read.timer)
   read.stale = false
   // A page nobody looks at reads nothing again until looked at -- but what it has never read
@@ -165,29 +278,19 @@ async function fetchNow(read) {
   if (document.hidden && read.text !== undefined) return
   const mine = era
   try {
-    const response = await fetch(scoped(read.url), { headers: { Accept: 'application/json' } })
-    const text = await response.text()
-    if (mine !== era) return
-    if (response.status === 401) window.dispatchEvent(new CustomEvent('hmz:out'))
-    if (!response.ok) {
-      let said = null
-      try {
-        said = JSON.parse(text)
-      } catch {
-        said = null
-      }
-      throw new Refused((said && said.error) || `The server answered ${response.status}.`, response.status)
-    }
+    const data = await call(read.method, read.params, { on: read.on })
+    if (mine !== era && !read.on) return
     read.failures = 0
+    const text = JSON.stringify(data)
     // An answer the same as the last is nothing new: nobody is told it again.
     if (text !== read.text || read.error) {
       read.text = text
-      read.data = JSON.parse(text)
+      read.data = data
       read.error = null
       for (const watcher of read.watchers) watcher.told(read.data, null)
     }
   } catch (error) {
-    if (mine !== era) return
+    if (mine !== era && !read.on) return
     read.failures += 1
     read.error = error
     for (const watcher of read.watchers) watcher.told(read.data, error)
@@ -197,21 +300,78 @@ async function fetchNow(read) {
 
 function schedule(read) {
   clearTimeout(read.timer)
-  if (!reads.has(read.url)) return
+  if (reads.get(read.key) !== read) return
   let every = Infinity
   for (const watcher of read.watchers) if (watcher.every) every = Math.min(every, watcher.every)
   if (read.failures) every = Math.min(SOON * 2 ** (read.failures - 1), LONGEST)
-  if (every !== Infinity) read.timer = setTimeout(() => fetchNow(read), every)
+  if (every !== Infinity) read.timer = setTimeout(() => readNow(read), every)
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) for (const read of reads.values()) fetchNow(read)
+  if (!document.hidden) for (const read of reads.values()) readNow(read)
 })
 
-/** An address with the query given, leaving out what is empty. */
-export function address(path, query = {}) {
-  const params = new URLSearchParams()
-  for (const [name, value] of Object.entries(query)) if (value !== '' && value !== undefined && value !== null) params.set(name, value)
-  const said = params.toString()
-  return said ? `${path}?${said}` : path
+/** Params with what is empty left out, as a method takes its defaults for what is not sent. */
+export function given(params = {}) {
+  const kept = {}
+  for (const [name, value] of Object.entries(params)) if (value !== '' && value !== undefined && value !== null) kept[name] = value
+  return kept
+}
+
+/** `/here`, the directory `hmz web` started in, or '' where the page is not served by it. */
+let here = null
+export function started() {
+  here ||= fetch('/here', { headers: { Accept: 'application/json' } }).then(
+    async (answer) => {
+      if (answer.status === 401) window.dispatchEvent(new CustomEvent('hmz:out'))
+      return answer.ok ? (await answer.json()).here || '' : ''
+    },
+    () => '',
+  )
+  return here
+}
+
+/** The most a chunk of a file carries (Section 6.9 of protocol/wire.md). */
+const CHUNK = 1 << 20
+
+/**
+ * Downloads an epic as one archive (`runs.bundle` then `files.read`, Section 3.6.7.3 of
+ * protocol/web.md), saving it as the daemon names it.
+ *
+ * @param {string} name The epic.
+ * @param {{on?: string}} [options]
+ */
+export async function exported(name, { on = daemon() } = {}) {
+  const { handle, filename, type } = await call('runs.bundle', { name }, { on })
+  const parts = []
+  for (let offset = 0; ; ) {
+    const { data, eof } = await call('files.read', { handle, offset, length: CHUNK }, { on })
+    const bytes = fromBase64(data)
+    parts.push(bytes)
+    offset += bytes.length
+    if (eof) break
+  }
+  await call('files.close', { handle }, { on }).catch(() => {})
+  const url = URL.createObjectURL(new Blob(parts, { type }))
+  const link = Object.assign(document.createElement('a'), { href: url, download: filename })
+  document.body.append(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
+/**
+ * Imports an exported epic into a daemon, sending it in chunks (`files.create`, `files.write` and
+ * `runs.import`, Section 3.6.8.1 of protocol/web.md).
+ *
+ * @param {File} file
+ * @param {{on?: string}} [options]
+ */
+export async function imported(file, { on = daemon() } = {}) {
+  const { handle } = await call('files.create', { name: file.name, size: file.size }, { on })
+  for (let offset = 0; offset < file.size; offset += CHUNK) {
+    const bytes = new Uint8Array(await file.slice(offset, offset + CHUNK).arrayBuffer())
+    await call('files.write', { handle, offset, data: toBase64(bytes) }, { on })
+  }
+  return call('runs.import', { handle }, { on })
 }

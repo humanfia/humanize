@@ -5,8 +5,7 @@
 // how many epics are going on it, and a picker of the daemons beside the settings and what the
 // epics spent.
 
-import * as api from './api.js'
-import { address, daemon, get, hash, poll, post, refresh, scoped } from './api.js'
+import { call, daemon, exported, given, hash, hello, known, onState, poll, reconnect, refresh, stateOf, toDaemon } from './api.js'
 import { ask } from './held.js'
 import { pick } from './importing.js'
 import { copy, menuOn, toast } from './ui.js'
@@ -21,7 +20,7 @@ const PAGE = 60
 
 /**
  * @param {HTMLElement} root The sidebar.
- * @param {{machine: string, wsl: ?string, here: string, newer: string}} context What the server said this page is of.
+ * @param {{here: string}} context Where `hmz web` started, which Local offers first.
  * @param {() => {parts: string[], query: URLSearchParams}} where Where the page is.
  */
 export function mountSidebar(root, context, where) {
@@ -29,13 +28,13 @@ export function mountSidebar(root, context, where) {
   const more = h('button', { class: 'side-more', type: 'button', hidden: true }, 'Show more')
   // How many installed flows have a newer release, as the indexes were fetched as it started.
   const updates = h('span', { class: 'side-badge', 'data-hmz': 'updates', hidden: true })
-  poll('/api/flowverses', 60000, (answer) => {
+  poll('flowverses.list', {}, 60000, (answer) => {
     const count = answer ? answer.updates.length : 0
     updates.hidden = !count
     updates.textContent = String(count)
     updates.title = count ? `${count} flow${count === 1 ? ' has' : 's have'} a newer release` : ''
   })
-  const bar = daemonBar(context)
+  const bar = daemonBar()
   // The keys the shortcuts are pressed with, as this system writes them.
   const mac = /Mac|iPhone|iPad/.test(navigator.platform)
   fill(
@@ -89,7 +88,7 @@ export function mountSidebar(root, context, where) {
   let stop = () => {}
   const watch = () => {
     stop()
-    stop = poll(address('/api/runs', { limit }), 4000, (answer, error) => {
+    stop = poll('runs.list', { limit }, 4000, (answer, error) => {
       if (answer) data = answer
       more.disabled = false
       more.textContent = 'Show more'
@@ -97,11 +96,19 @@ export function mountSidebar(root, context, where) {
       else draw()
     })
   }
-  poll('/api/workspaces', 10000, (answer) => {
-    if (!answer) return
-    places = answer
-    if (data) draw()
-  })
+  let unplace = () => {}
+  const watchPlaces = () => {
+    unplace()
+    // Where `hmz web` started is a directory of Local's alone.
+    unplace = poll('workspaces.list', given({ here: daemon() === 'local' ? context.here : '' }), 10000, (answer) => {
+      if (!answer) return
+      places = answer
+      if (data) draw()
+    })
+  }
+  watchPlaces()
+  // How many epics are going on the daemon shown, as its hosts say.
+  poll('hosts.running', {}, 4000, (answer) => answer && bar.going(answer.running.length))
 
   function draw() {
     const { parts, query } = where()
@@ -110,8 +117,6 @@ export function mountSidebar(root, context, where) {
       if (link.dataset.nav === parts[0] || (link.dataset.nav === 'new' && (!parts[0] || parts[0] === 'new'))) link.setAttribute('aria-current', 'page')
       else link.removeAttribute('aria-current')
     }
-    const going = data.runs.filter((one) => one.held).length
-    bar.going(going)
     // Every workspace offered, each with its epics: those going first, then the latest.
     const groups = new Map()
     for (const one of places ? places.workspaces : []) groups.set(one.path, { path: one.path, runs: [] })
@@ -221,7 +226,7 @@ export function mountSidebar(root, context, where) {
     if (stale && !(read && read.asking)) {
       details.set(run.name, { ...(read || {}), asking: true })
       const of = daemon()
-      get(`/api/runs/${encodeURIComponent(run.name)}`).then(
+      call('runs.get', { name: run.name }).then(
         (detail) => {
           if (of !== daemon()) return
           details.set(run.name, { how: run.how, at: Date.now(), detail })
@@ -319,6 +324,7 @@ export function mountSidebar(root, context, where) {
     details.clear()
     fill(list, h('p', { class: 'side-quiet', role: 'status' }, 'Reading the epics…'))
     watch()
+    watchPlaces()
   })
 }
 
@@ -345,7 +351,7 @@ export function epicMenu(run) {
     { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
     { label: 'Copy task', glyph: 'copy', act: () => copy(run.task, 'Task copied') },
     { label: 'Copy name', glyph: 'copy', act: () => copy(run.name, 'Name copied') },
-    going ? null : { label: 'Export', glyph: 'download', act: () => (location.href = scoped(`/api/runs/${encodeURIComponent(run.name)}/bundle`)) },
+    going ? null : { label: 'Export', glyph: 'download', act: () => working('Exporting', exported(run.name)).catch((error) => toast(error.message)) },
     { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run.name) },
     run.held && !chat ? '-' : null,
     run.held && !chat ? { label: 'Stop', glyph: 'stop', danger: true, act: () => working('Stopping', ask({ workspace: run.workspace, slot: run.slot }, 'stop')).then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
@@ -370,7 +376,7 @@ function working(said, asked) {
  * Unnoticed, it is for a button that says it is busy itself.
  */
 export function upload(name, { noticed = true } = {}) {
-  const asked = post(`/api/runs/${encodeURIComponent(name)}/backup`, {})
+  const asked = call('runs.backup', { name })
   return (noticed ? working('Uploading', asked) : asked).then((answer) => toast(`Uploading to ${answer.queued.join(', ')}`), (error) => toast(error.message))
 }
 
@@ -384,29 +390,14 @@ export function backedSaid(backed) {
 /** How a daemon stands, as its dot says it, and the word for it where it is not up. */
 const STATES = { up: 'up', connecting: 'connecting', installing: 'installing', failed: 'failed', idle: 'not connected' }
 
-/** The daemon the page is of: the address's `@<name>`, or Local without one. */
-function current() {
-  if (api.daemon) return api.daemon()
-  let first = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0]
-  try {
-    first = decodeURIComponent(first)
-  } catch {
-    // Not an address's own escaping: read as it is.
-  }
-  return first.startsWith('@') && first.length > 1 ? first.slice(1) : 'local'
-}
-
-/** Moves the page to another daemon, a new epic on it. */
-function switchTo(name) {
-  if (api.toDaemon) return api.toDaemon(name)
-  location.hash = `/@${encodeURIComponent(name)}/new`
-  // Where the page does not tell of a switch itself, it is told here.
-  if (!api.onDaemon) window.dispatchEvent(new CustomEvent('hmz:daemon', { detail: { name } }))
-}
-
 /** What a daemon is called on the page. */
 function named(name) {
   return name === 'local' ? 'Local' : name
+}
+
+/** A daemon's host, as it says it: its machine's name, or the WSL distribution hmz runs in. */
+function hostOf(said) {
+  return said.wsl ? `${said.wsl} (WSL)` : said.machine || ''
 }
 
 /**
@@ -414,91 +405,119 @@ function named(name) {
  * how many epics are going on it -- opening a menu of every daemon, beside it, and the settings
  * and what the epics spent.
  */
-function daemonBar(context) {
-  // Local's host, as Local says it: the machine's name, or the WSL distribution hmz runs in.
-  const hostOf = (held) => (held.wsl ? `${held.wsl} (WSL)` : held.machine || '')
-  const local = { name: 'local', host: daemon() === 'local' ? hostOf(context) : '', state: 'up' }
-  if (daemon() !== 'local') get('/d/local/api/held').then((held) => ((local.host = hostOf(held)), draw()), () => {})
-  let daemons = [local]
+function daemonBar() {
+  /** Every daemon this browser keeps, Local first. */
+  let daemons = [{ name: 'local', routes: [] }]
+  /** Each daemon's host, once it has said hello. */
+  const hosts = new Map()
   // How many epics are going, and on which daemon they were counted.
   let live = { of: '', count: 0 }
+  /** A newer release of hmz than the one serving the page, as Local last learned it. */
+  let newer = ''
   const avatar = h('span', { class: 'side-avatar', 'aria-hidden': 'true' })
   const title = h('b', { 'data-hmz': 'daemon-name' })
   const host = h('span', { class: 'side-host', 'data-hmz': 'daemon-host' })
   const state = h('span', { class: 'side-state', 'data-hmz': 'state' })
+  const badge = h('span', { class: 'side-badge', 'data-hmz': 'newer', hidden: true }, '↑')
   const el = h(
     'button',
     { class: 'side-account', type: 'button', 'data-hmz': 'daemon-bar' },
     avatar,
     h('span', { class: 'side-account-text' }, h('span', { class: 'side-daemon' }, title, host), state),
-    // A newer release of Humanize, as PyPI said when it was last asked.
-    context.newer ? h('span', { class: 'side-badge', 'data-hmz': 'newer', title: `hmz ${context.newer} is out` }, '↑') : null,
+    badge,
   )
-  const entry = () => daemons.find((one) => one.name === current()) || { name: current(), host: '', state: 'idle' }
-  const said = (one) => (Object.hasOwn(STATES, one.state) ? one.state : 'idle')
-  const draw = () => {
-    const one = entry()
-    const how = said(one)
-    const up = how === 'up'
-    avatar.textContent = named(one.name).slice(0, 1).toUpperCase()
-    title.textContent = named(one.name)
-    host.textContent = one.host || ''
-    el.title = [named(one.name), one.host, one.detail].filter(Boolean).join(' · ')
-    el.dataset.state = how
-    const going = live.of === one.name ? live.count : 0
-    fill(state, h('span', { class: ['dot', `daemon-${how}`, up && going && 'live'], 'aria-hidden': 'true' }), up ? (going ? `${going} live` : 'idle') : STATES[how])
+  /** Learns a daemon's host as it says hello, and Local's news of a newer release. */
+  const greet = (name) => {
+    if (hosts.has(name)) return
+    hosts.set(name, '')
+    hello(name).then(
+      (said) => {
+        hosts.set(name, hostOf(said))
+        if (name === 'local' && said.newer) {
+          newer = said.newer
+          badge.hidden = false
+          badge.title = `hmz ${newer} is out`
+        }
+        draw()
+      },
+      () => hosts.delete(name),
+    )
   }
-  // Every daemon, as the machine serving the page has them; Local alone where it keeps none.
-  poll('/api/daemons', 10000, (answer, error) => {
-    const listed = Array.isArray(answer) ? answer : answer && answer.daemons
-    if (Array.isArray(listed)) daemons = [local, ...listed.filter((one) => one.name !== 'local')]
-    else if (error && error.status === 404) daemons = [local]
-    draw()
-  })
+  const draw = () => {
+    const name = daemon()
+    greet(name)
+    const { state: how, detail } = stateOf(name)
+    const up = how === 'up'
+    avatar.textContent = named(name).slice(0, 1).toUpperCase()
+    title.textContent = named(name)
+    host.textContent = hosts.get(name) || ''
+    el.title = [named(name), hosts.get(name), detail].filter(Boolean).join(' · ')
+    el.dataset.state = how
+    const going = live.of === name ? live.count : 0
+    fill(state, h('span', { class: ['dot', `daemon-${how}`, up && going && 'live'], 'aria-hidden': 'true' }), up ? (going ? `${going} live` : 'idle') : STATES[how] || how)
+  }
+  const read = () =>
+    known().then(
+      (listed) => {
+        daemons = listed
+        draw()
+      },
+      () => {},
+    )
   const connect = (name) => {
-    working(`Connecting ${named(name)}`, post(`/api/daemons/${encodeURIComponent(name)}/connect`, {})).then(() => {
-      toast(`Connecting ${named(name)}`)
-      refresh('/api/daemons')
-    }, (error) => toast(error.message))
+    working(`Connecting ${named(name)}`, reconnect(name)).then(() => toast(`Connecting ${named(name)}`), (error) => toast(error.message))
   }
   menu(
     el,
     (close) => [
       submenu({
         label: 'Daemon',
-        about: named(current()),
+        about: named(daemon()),
         hmz: 'daemons',
         items: () => [
-          daemons.flatMap((one) => [
-            choice({ label: named(one.name), about: [one.host, STATES[said(one)]].filter(Boolean).join(' · '), chosen: one.name === current(), act: () => {
-                settleSidebar()
-                if (one.name !== current()) switchTo(one.name)
-              }, close }),
-            said(one) === 'failed' ? choice({ label: 'Connect', about: named(one.name), glyph: 'resume', act: () => connect(one.name), close }) : null,
-          ]),
+          daemons.flatMap((one) => {
+            const how = stateOf(one.name).state
+            return [
+              choice({
+                label: named(one.name),
+                about: [hosts.get(one.name), STATES[how] || how].filter(Boolean).join(' · '),
+                chosen: one.name === daemon(),
+                act: () => {
+                  settleSidebar()
+                  if (one.name !== daemon()) toDaemon(one.name)
+                },
+                close,
+              }),
+              how === 'failed' && one.name !== 'local' ? choice({ label: 'Connect', about: named(one.name), glyph: 'resume', act: () => connect(one.name), close }) : null,
+            ]
+          }),
           h('hr'),
           choice({ label: 'Manage', glyph: 'sliders', href: hash('/settings/daemons'), close }),
         ],
       }),
-      context.newer ? choice({ label: 'Update', about: `hmz ${context.newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
+      newer ? choice({ label: 'Update', about: `hmz ${newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
       choice({ label: 'Settings', glyph: 'gear', href: hash('/settings/general'), close }),
       choice({ label: 'Usage', glyph: 'chart', href: hash('/settings/usage'), close }),
     ],
     { up: true, label: 'Daemon' },
   )
+  // The menu is drawn as it opens: the daemons kept now, as another tab may have added one.
+  el.addEventListener('pointerdown', read)
   // The picker is what opened after it, once the menu has put it there.
   el.addEventListener('click', () => {
     const pop = el.nextElementSibling
     if (pop && pop.matches('.popover')) pop.dataset.hmz = 'daemon-picker'
   })
+  onState((name) => name === daemon() && draw())
   addEventListener('hashchange', draw)
   addEventListener('hmz:daemon', draw)
-  draw()
+  greet('local')
+  read()
   return {
     el,
     /** Says how many epics are going on the daemon the page is of. */
     going(count) {
-      live = { of: current(), count }
+      live = { of: daemon(), count }
       draw()
     },
   }
@@ -506,8 +525,8 @@ function daemonBar(context) {
 
 /** Forgets a workspace nothing ran in, which takes it out of the list. */
 function forget(path) {
-  working('Forgetting', post('/api/workspaces/forget', { workspace: path })).then(() => {
-    refresh('/api/workspaces')
+  working('Forgetting', call('workspaces.forget', { workspace: path })).then(() => {
+    refresh('workspaces.list')
     toast('Forgotten')
   }, (error) => toast(error.message))
 }
