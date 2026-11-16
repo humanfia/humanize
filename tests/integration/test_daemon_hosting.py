@@ -1,8 +1,8 @@
 """A workspace's runs held by a host of their own, reached through the machine's one daemon.
 
-`hmz.daemon.host()` forks for real: a daemon per machine, a host per workspace, each found
-again by `running()`, `daemons()` and `hmz.sdk.Daemons`, and each gone once nothing is left
-for it to hold.
+`hmz.daemon.host()` starts them for real: a daemon per machine, a host per workspace, each
+found again by `running()`, `daemons()` and `hmz.sdk.Daemons`, and each gone once nothing is
+left for it to hold.
 """
 
 from __future__ import annotations
@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 
 pytestmark = [
     pytest.mark.timeout(90),
-    pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
 
@@ -180,7 +179,7 @@ def test_the_daemon_ends_on_a_terminate_whatever_forked_it_made_of_one(
     import os
     import signal
 
-    # A frontend that ignores a terminate, which a process forked from it inherits.
+    # A frontend that ignores a terminate, which a process started from it inherits.
     was = signal.signal(signal.SIGTERM, signal.SIG_IGN)
     try:
         daemon.host()

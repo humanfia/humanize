@@ -105,6 +105,7 @@ class Private(Router):
 
             return checked(holding(str(call.params["workspace"])), call.params)
 
+        self.families["flows.check"] = checks
         self.dispatcher.register("flows.check", self._guarded("flows.check", checks))
 
     def paired(self) -> Pipe:

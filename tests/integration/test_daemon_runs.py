@@ -1,6 +1,6 @@
 """Runs started, read, answered and stopped through a host, by frontends of their own.
 
-The host is forked for real by `hmz.daemon.host()`; the frontends are `hmz.daemon.Link`s here
+The host is started for real by `hmz.daemon.host()`; the frontends are `hmz.daemon.Link`s here
 and programs written against `hmz.sdk` in processes of their own. The flows drive no agent:
 whoever is outside the run is a frontend, and the rest is the workspace's own files.
 """
@@ -35,7 +35,6 @@ if TYPE_CHECKING:
 
 pytestmark = [
     pytest.mark.timeout(90),
-    pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
 

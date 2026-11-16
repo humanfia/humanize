@@ -54,8 +54,18 @@ def statuses() -> dict[str, dict[str, Any]]:
       and slot; a host that would not answer is left out.
     """
     from hmz import daemon
+    from hmz.daemon import routing
 
     said: dict[str, dict[str, Any]] = {}
+    if routing.serving is not None:
+        # This process is the daemon: its hosts are asked down their links, not over its socket.
+        for hosted in routing.serving.hosts.listed():
+            said[f"{hosted.workspace}\0{hosted.slot}"] = {
+                **hosted.status(),
+                "workspace": hosted.workspace,
+                "slot": hosted.slot,
+            }
+        return said
     with contextlib.suppress(Exception):
         for one in daemon.daemons():
             with contextlib.suppress(Exception):

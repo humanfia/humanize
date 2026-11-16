@@ -632,7 +632,7 @@ hmz daemon uninstall
 
 | Subcommand | Does |
 | --- | --- |
-| `serve` | Runs this machine's [daemon](/reference/daemon#sessions) in the foreground until `SIGINT` or `SIGTERM`, listening on its socket, on every listener of the setting `listen` and on every `--listen` (`tcp://<address>:<port>`, `ws://<address>:<port>`, `relay:<ws-url>`, `webrtc:<ws-url>`, `easytier:<name>`). Prints `hmz daemon: listening on <route>` as each listener opens. It never goes for want of hosts or sessions. |
+| `serve` | Runs this machine's [daemon](/reference/daemon#sessions) in the foreground until `SIGINT` or `SIGTERM`, listening on its socket, on every listener of the setting `listen` and on every `--listen` (`tcp://<address>:<port>`, `ws://<address>:<port>`, `relay:<ws-url>`, `webrtc:<ws-url>`, `easytier:<name>`). Prints `hmz daemon: listening on <route>` as each listener opens. It never goes for want of hosts or sessions. With no controlling terminal -- as the service runs it -- it first takes the [login shell's environment](/reference/daemon#process), which every host it starts runs in. |
 | `connect --stdio` | Carries standard input to the daemon's socket and the socket to standard output, starting the daemon where none runs, until either ends; what a `stdio:ssh` or `stdio:wsl` route runs on the far machine. |
 | `pair` | Calls `pair.create` (`--route` any number of times; `--seconds` 60 to 86400, default 600), prints the `hmz-pair:…` code, and on stderr `hmz daemon pair: claim this code on the device to pair before <time>`. |
 | `devices` | One line per paired device, oldest first: name, fingerprint, added, last seen, tab-separated. `devices revoke <name>` calls `devices.revoke` and prints `hmz daemon devices: revoked <name>; <n> sessions closed`. |

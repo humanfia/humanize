@@ -57,6 +57,11 @@ def _refused(code: int, message: str) -> Exception:
     return RpcError(code, message)
 
 
+def _unanswered(call: Call, said: dict[str, Any]) -> None:
+    """Sends nothing: what a call made here, rather than over a session, answers."""
+    del call, said
+
+
 def workspace(said: object) -> str:
     """A `workspace` parameter, as the daemon knows a workspace (Section 4.5.2).
 
@@ -94,10 +99,17 @@ def _none_held(workspace: str, slot: str) -> Exception:
 
 
 class _Methods:
-    """The handlers of the daemon's own methods, over the daemon they serve."""
+    """The handlers of the daemon's own methods, over the daemon they serve.
 
-    def __init__(self, router: Router) -> None:
+    Args:
+      router: The daemon.
+      families: The methods of :mod:`hmz.daemon.api`, of which `epic.start` checks and
+        writes down an epic as `flows.check` and `flows.setup` do.
+    """
+
+    def __init__(self, router: Router, families: Mapping[str, Handler]) -> None:
         self._router = router
+        self._families = families
 
     # -- sessions and pairing
 
@@ -316,6 +328,8 @@ class _Methods:
         def asks(call: Call) -> dict[str, Any]:
             sub = self.subscription(call)
             said = {k: v for k, v in call.params.items() if k not in ("sub", "idem")}
+            if do == "start":
+                self._checks(call, sub.hosted.workspace, said)
             answer = sub.hosted.ask(sub.client, {"do": do, **said})
             if not answer.get("ok"):
                 raise _refused(409, str(answer.get("why") or "refused"))
@@ -325,6 +339,39 @@ class _Methods:
             return result
 
         return asks
+
+    def _checks(self, call: Call, workspace: str, said: dict[str, Any]) -> None:
+        """Checks an epic to start as `flows.check` does, and writes it down where asked.
+
+        Before the host is asked to start it (Section 4.8.2.2 and Section 4.8.2.3). A start
+        naming no flow is left to the host to refuse, and one of a flow fetched from another
+        machine to the host to check once fetched, which a check reaches no machine to do.
+
+        Raises:
+          RpcError: 409, with what `flows.check` or `flows.setup` refused it with.
+        """
+        from hmz.rpc import Call, RpcError
+
+        flow = said.get("flow")
+        if not isinstance(flow, str) or not flow:
+            return
+        names = [
+            *([] if flow.startswith("git+") else ["flows.check"]),
+            *(["flows.setup"] if said.get("remember") is True else []),
+        ]
+        try:
+            for name in names:
+                self._families[name](
+                    Call(
+                        call.peer,
+                        name,
+                        {**said, "workspace": workspace},
+                        None,
+                        _unanswered,
+                    )
+                )
+        except RpcError as why:
+            raise _refused(409, why.message) from why
 
     def subscription(self, call: Call) -> Subscription:
         """The epic subscription a call names on its session.
@@ -365,9 +412,9 @@ class _Methods:
         }
 
 
-def methods(router: Router) -> dict[str, Handler]:
-    """The daemon's own methods, over the daemon that serves them."""
-    return _Methods(router).methods()
+def methods(router: Router, families: Mapping[str, Handler]) -> dict[str, Handler]:
+    """The daemon's own methods, over the daemon that serves them and the other families."""
+    return _Methods(router, families).methods()
 
 
 def families() -> dict[str, Handler]:
