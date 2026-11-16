@@ -270,8 +270,6 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# The daemon's method families, named in one line every family's author writes alike.
-"src/hmz/daemon/api/__init__.py" = ["E501"]
 # The script that builds the throwaway world the documentation's terminal demos are
 # recorded in. It is copied into a container and run by path rather than imported, so it
 # is a file rather than a package, and there is nothing for an `__init__.py` to do.
@@ -318,6 +316,8 @@ ignore = [
 # `BudgetExceeded`, `TempCloneBusy` -- as the flow API's spec names them, rather than each
 # given an `Error` suffix that would say only that they are exceptions.
 "src/hmz/flows/errors.py" = ["N818"]
+# The docstring every unit adding a family of daemon methods writes, word for word, as one line.
+"src/hmz/daemon/api/__init__.py" = ["E501"]
 # What a command line writes, it prints.
 "src/hmz/cli/**" = ["T201"]
 # And so does a flow: what it prints is what its run shows whoever is watching. The flows
