@@ -1,0 +1,6093 @@
+{
+  "openrpc": "1.3.2",
+  "info": {
+    "title": "Humanize daemon",
+    "version": "3.0.0",
+    "description": "The methods an hmz daemon serves over a session of protocol/wire.md. Parameters are by name; a parameter a method does not list is refused. protocol/daemon.md states what each method does. Server-to-client notifications are listed under x-notifications.",
+    "license": {
+      "name": "Apache-2.0"
+    }
+  },
+  "methods": [
+    {
+      "name": "session.hello",
+      "summary": "Open the session: say the client's protocol and name.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "protocol",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "client",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": [
+              "name",
+              "kind"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "tui",
+                  "web",
+                  "desktop",
+                  "cli",
+                  "sdk",
+                  "bridge"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ],
+      "result": {
+        "name": "hello",
+        "schema": {
+          "type": "object",
+          "required": [
+            "daemon_id",
+            "version",
+            "protocol",
+            "capabilities",
+            "machine",
+            "wsl",
+            "newer",
+            "paired",
+            "device"
+          ],
+          "properties": {
+            "daemon_id": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "protocol": {
+              "type": "string"
+            },
+            "capabilities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "machine": {
+              "type": "string"
+            },
+            "wsl": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "newer": {
+              "type": "string"
+            },
+            "paired": {
+              "type": "boolean"
+            },
+            "device": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/ProtocolMismatch"
+        }
+      ]
+    },
+    {
+      "name": "session.cancel",
+      "summary": "Ask the daemon to give up a call (a notification; never answered).",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": [
+              "string",
+              "integer"
+            ]
+          }
+        }
+      ],
+      "x-notification": true
+    },
+    {
+      "name": "rpc.discover",
+      "summary": "This document.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "discover",
+        "schema": {
+          "type": "object",
+          "required": [
+            "openrpc",
+            "info",
+            "methods"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        }
+      ]
+    },
+    {
+      "name": "pair.create",
+      "summary": "Make a pairing code.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "routes",
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Route"
+            }
+          }
+        },
+        {
+          "name": "seconds",
+          "schema": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 86400
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "create",
+        "schema": {
+          "type": "object",
+          "required": [
+            "code",
+            "expires"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "expires": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "pair.claim",
+      "summary": "Pair this session's device with a token of a pairing code.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "token",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "claim",
+        "schema": {
+          "type": "object",
+          "required": [
+            "daemon_id",
+            "device"
+          ],
+          "properties": {
+            "daemon_id": {
+              "type": "string"
+            },
+            "device": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "devices.list",
+      "summary": "The paired devices.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "devices"
+          ],
+          "properties": {
+            "devices": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "fingerprint",
+                  "added",
+                  "seen",
+                  "live"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "fingerprint": {
+                    "type": "string"
+                  },
+                  "added": {
+                    "type": "string"
+                  },
+                  "seen": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "live": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "devices.revoke",
+      "summary": "Revoke a paired device and close its sessions.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "revoke",
+        "schema": {
+          "type": "object",
+          "required": [
+            "dropped"
+          ],
+          "properties": {
+            "dropped": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "hosts.list",
+      "summary": "Every host taken on.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "held"
+          ],
+          "properties": {
+            "held": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "pid",
+                  "workspace",
+                  "started",
+                  "slot"
+                ],
+                "properties": {
+                  "pid": {
+                    "type": "integer"
+                  },
+                  "workspace": {
+                    "type": "string"
+                  },
+                  "started": {
+                    "type": "string"
+                  },
+                  "slot": {
+                    "$ref": "#/components/schemas/Slot"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "hosts.running",
+      "summary": "Every host whose epic is going or stopping.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "running",
+        "schema": {
+          "type": "object",
+          "required": [
+            "running"
+          ],
+          "properties": {
+            "running": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "hosts.open",
+      "summary": "Start the host of a workspace and slot, without attaching.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "type": "string",
+            "pattern": "^((chat|exec):[0-9a-f]{0,32})?$"
+          }
+        }
+      ],
+      "result": {
+        "name": "open",
+        "schema": {
+          "type": "object",
+          "required": [
+            "pid",
+            "workspace",
+            "started",
+            "kind",
+            "protocol",
+            "slot"
+          ],
+          "properties": {
+            "pid": {},
+            "workspace": {},
+            "started": {},
+            "kind": {},
+            "protocol": {},
+            "slot": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        },
+        {
+          "$ref": "#/components/errors/Unavailable"
+        }
+      ]
+    },
+    {
+      "name": "hosts.status",
+      "summary": "One host's status.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "$ref": "#/components/schemas/Status"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "hosts.detach",
+      "summary": "Let every frontend of a host go.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        }
+      ],
+      "result": {
+        "name": "detach",
+        "schema": {
+          "type": "object",
+          "required": [
+            "let_go"
+          ],
+          "properties": {
+            "let_go": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "hosts.stop",
+      "summary": "Close a host.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "stop",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "epic.attach",
+      "summary": "Attach to a host as one frontend; opens an epic subscription.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "type": "string",
+            "pattern": "^((chat|exec):[0-9a-f]{0,32})?$"
+          }
+        },
+        {
+          "name": "replay",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "since",
+          "schema": {
+            "$ref": "#/components/schemas/Since"
+          }
+        },
+        {
+          "name": "figures",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "scratch",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "attach",
+        "schema": {
+          "type": "object",
+          "required": [
+            "sub",
+            "client",
+            "workspace",
+            "slot"
+          ],
+          "properties": {
+            "sub": {
+              "$ref": "#/components/schemas/Sub"
+            },
+            "client": {
+              "type": "string"
+            },
+            "workspace": {
+              "type": "string"
+            },
+            "slot": {
+              "$ref": "#/components/schemas/Slot"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        },
+        {
+          "$ref": "#/components/errors/Unavailable"
+        }
+      ]
+    },
+    {
+      "name": "epic.start",
+      "summary": "Start an epic on the host.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "flow",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "task",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "agents",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "envs",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "params",
+          "schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "budget",
+          "schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "profile_flow",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "profile_environment",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "resume",
+          "schema": {
+            "type": [
+              "boolean",
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "backup",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "remember",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "start",
+        "schema": {
+          "type": "object",
+          "required": [
+            "run",
+            "slot",
+            "workspace"
+          ],
+          "properties": {
+            "run": {
+              "type": "integer"
+            },
+            "slot": {
+              "$ref": "#/components/schemas/Slot"
+            },
+            "workspace": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.say",
+      "summary": "Say a line.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "text",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "to",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "say",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.answer",
+      "summary": "Answer a question.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "question",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "text",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "answer",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.stop",
+      "summary": "Stop the epic going.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "stop",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.force",
+      "summary": "Force a stopping epic.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "force",
+        "schema": {
+          "type": "object",
+          "required": [
+            "closed"
+          ],
+          "properties": {
+            "closed": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.afk",
+      "summary": "Set a role, or every role, away or back.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "on",
+          "schema": {}
+        },
+        {
+          "name": "role",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "afk",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.claim",
+      "summary": "Claim a role for this frontend.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "role",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "take",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "claim",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.release",
+      "summary": "Release a role.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "role",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "release",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.board",
+      "summary": "Write or remove a line of the board.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "key",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "value",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "board",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.aside",
+      "summary": "Open, ask or answer a side conversation of this frontend.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "side",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "key",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "fork",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "runs",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "recall",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "kept",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "asks",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "prompt",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "answered",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "aside",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.unaside",
+      "summary": "Close a side conversation.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "side",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "unaside",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.status",
+      "summary": "The host's status.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "$ref": "#/components/schemas/Status"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "epic.detach",
+      "summary": "Let this frontend go.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        }
+      ],
+      "result": {
+        "name": "detach",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        }
+      ]
+    },
+    {
+      "name": "epic.quit",
+      "summary": "Close the host.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "quit",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "btw.list",
+      "summary": "The side conversations about an epic.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "epic",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "asides",
+            "default"
+          ],
+          "properties": {
+            "asides": {},
+            "default": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "btw.ask",
+      "summary": "Ask a side question.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "question",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "aside",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "to",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "epic",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "ask",
+        "schema": {
+          "type": "object",
+          "required": [
+            "aside",
+            "to",
+            "question",
+            "answer",
+            "asked"
+          ],
+          "properties": {
+            "aside": {},
+            "to": {},
+            "question": {},
+            "answer": {},
+            "asked": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        },
+        {
+          "$ref": "#/components/errors/Upstream"
+        }
+      ]
+    },
+    {
+      "name": "btw.leave",
+      "summary": "Close side conversations.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "aside",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "leave",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "runs.list",
+      "summary": "The epics written down.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "status",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "flow",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "q",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "offset",
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "runs",
+            "total",
+            "offset",
+            "limit",
+            "counts",
+            "flows"
+          ],
+          "properties": {
+            "runs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/EpicRow"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "runs.get",
+      "summary": "One epic.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "get",
+        "schema": {
+          "$ref": "#/components/schemas/EpicRow"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "runs.trace",
+      "summary": "An epic's transcripts.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "trace",
+        "schema": {
+          "type": "object",
+          "required": [
+            "sessions"
+          ],
+          "properties": {
+            "sessions": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "runs.timeline",
+      "summary": "An epic's Exomyth timeline.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "timeline",
+        "schema": {
+          "type": "object",
+          "required": [
+            "version",
+            "layout",
+            "epic",
+            "origin",
+            "live",
+            "strings",
+            "processes",
+            "tracks",
+            "spawns",
+            "summary"
+          ],
+          "properties": {
+            "version": {},
+            "layout": {},
+            "epic": {},
+            "origin": {},
+            "live": {},
+            "strings": {},
+            "processes": {},
+            "tracks": {},
+            "spawns": {},
+            "summary": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "runs.span",
+      "summary": "One span of the last timeline laid out.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": [
+              "string",
+              "integer"
+            ]
+          }
+        },
+        {
+          "name": "layout",
+          "required": true,
+          "schema": {
+            "type": [
+              "string",
+              "integer"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "span",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "runs.bundle",
+      "summary": "Write an epic's .hmzepic and give a read handle of it.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "bundle",
+        "schema": {
+          "type": "object",
+          "required": [
+            "handle",
+            "filename",
+            "size",
+            "type"
+          ],
+          "properties": {
+            "handle": {
+              "$ref": "#/components/schemas/Handle"
+            },
+            "filename": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer"
+            },
+            "type": {
+              "const": "application/vnd.hmz.epic+gzip"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "runs.backup",
+      "summary": "Back an epic up.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "to",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "backup",
+        "schema": {
+          "type": "object",
+          "required": [
+            "queued"
+          ],
+          "properties": {
+            "queued": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "runs.import",
+      "summary": "Import an archive from a write handle or a path.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "handle",
+          "schema": {
+            "$ref": "#/components/schemas/Handle"
+          }
+        },
+        {
+          "name": "path",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "import",
+        "schema": {
+          "type": "object",
+          "required": [
+            "name",
+            "workspace",
+            "resumable",
+            "why"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "workspace": {
+              "type": "string"
+            },
+            "resumable": {
+              "type": "boolean"
+            },
+            "why": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "runs.usage",
+      "summary": "What epics spent.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "days",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          }
+        },
+        {
+          "name": "workspace",
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        }
+      ],
+      "result": {
+        "name": "usage",
+        "schema": {
+          "type": "object",
+          "required": [
+            "days_back",
+            "days",
+            "flows",
+            "ended",
+            "whole"
+          ],
+          "properties": {
+            "days_back": {},
+            "days": {},
+            "flows": {},
+            "ended": {},
+            "whole": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "backups.epics",
+      "summary": "The epics a backup target holds.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "target",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "epics",
+        "schema": {
+          "type": "object",
+          "required": [
+            "epics"
+          ],
+          "properties": {
+            "epics": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Upstream"
+        }
+      ]
+    },
+    {
+      "name": "backups.pull",
+      "summary": "Download an epic from a backup target.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "target",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "key",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "pull",
+        "schema": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Upstream"
+        }
+      ]
+    },
+    {
+      "name": "files.create",
+      "summary": "Make a write handle.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "size",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483648
+          }
+        }
+      ],
+      "result": {
+        "name": "create",
+        "schema": {
+          "type": "object",
+          "required": [
+            "handle"
+          ],
+          "properties": {
+            "handle": {
+              "$ref": "#/components/schemas/Handle"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "files.write",
+      "summary": "Append a chunk to a write handle.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "handle",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Handle"
+          }
+        },
+        {
+          "name": "offset",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "data",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "write",
+        "schema": {
+          "type": "object",
+          "required": [
+            "size"
+          ],
+          "properties": {
+            "size": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "files.read",
+      "summary": "Read a chunk of a read handle.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "handle",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Handle"
+          }
+        },
+        {
+          "name": "offset",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "length",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1048576
+          }
+        }
+      ],
+      "result": {
+        "name": "read",
+        "schema": {
+          "type": "object",
+          "required": [
+            "data",
+            "eof"
+          ],
+          "properties": {
+            "data": {
+              "type": "string"
+            },
+            "eof": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "files.close",
+      "summary": "End a handle.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "handle",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Handle"
+          }
+        }
+      ],
+      "result": {
+        "name": "close",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "flows.list",
+      "summary": "The flows on offer in a workspace.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "flows",
+            "flow",
+            "running"
+          ],
+          "properties": {
+            "flows": {},
+            "flow": {},
+            "running": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "flows.get",
+      "summary": "What a flow declares.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "get",
+        "schema": {
+          "$ref": "#/components/schemas/Declared"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "flows.backends",
+      "summary": "The CLIs installed, their accounts and models.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "backends",
+        "schema": {
+          "type": "object",
+          "required": [
+            "clis",
+            "installable",
+            "envs"
+          ],
+          "properties": {
+            "clis": {},
+            "installable": {},
+            "envs": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "flows.setup",
+      "summary": "Write what a workspace runs a flow with.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "flow",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "agents",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "envs",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "params",
+          "schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "budget",
+          "schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "profile_flow",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "profile_environment",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "resume",
+          "schema": {
+            "type": [
+              "boolean",
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "backup",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "setup",
+        "schema": {
+          "$ref": "#/components/schemas/Declared"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "flows.check",
+      "summary": "Check the epic a flow and its set-up make, without starting it.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "flow",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "agents",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "envs",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "params",
+          "schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "budget",
+          "schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "profile_flow",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "profile_environment",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "resume",
+          "schema": {
+            "type": [
+              "boolean",
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "backup",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "required": [
+            "flow",
+            "ref",
+            "chats",
+            "declared",
+            "names",
+            "budget",
+            "backup",
+            "unreadable"
+          ],
+          "properties": {
+            "flow": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "chats": {
+              "type": "boolean"
+            },
+            "declared": {
+              "$ref": "#/components/schemas/Declared"
+            },
+            "names": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "budget": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "backup": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "unreadable": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "flows.fork",
+      "summary": "Copy a flow into the workspace.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "flow",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "fork",
+        "schema": {
+          "type": "object",
+          "required": [
+            "said",
+            "at"
+          ],
+          "properties": {
+            "said": {},
+            "at": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "workspaces.list",
+      "summary": "Every workspace.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "here",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "$ref": "#/components/schemas/Workspaces"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "workspaces.add",
+      "summary": "Write a workspace in the settings.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "here",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "add",
+        "schema": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/Workspaces"
+            },
+            {
+              "type": "object",
+              "required": [
+                "kept"
+              ],
+              "properties": {
+                "kept": {}
+              }
+            }
+          ]
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "workspaces.forget",
+      "summary": "Forget what a workspace was set up with.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "here",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "forget",
+        "schema": {
+          "$ref": "#/components/schemas/Workspaces"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "flowverses.list",
+      "summary": "Every flowverse and installed flow.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "list",
+        "schema": {
+          "$ref": "#/components/schemas/Flowverses"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "flowverses.get",
+      "summary": "One flowverse.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "get",
+        "schema": {
+          "type": "object",
+          "required": [
+            "name",
+            "url",
+            "fetched",
+            "fixed",
+            "edited",
+            "flows",
+            "skipped"
+          ],
+          "properties": {
+            "name": {},
+            "url": {},
+            "fetched": {},
+            "fixed": {},
+            "edited": {},
+            "flows": {},
+            "skipped": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "flowverses.add",
+      "summary": "Add a flowverse.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "url",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "add",
+        "schema": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/Flowverses"
+            },
+            {
+              "type": "object",
+              "required": [
+                "said"
+              ],
+              "properties": {
+                "said": {}
+              }
+            }
+          ]
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "flowverses.fetch",
+      "summary": "Fetch a flowverse's index.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "fetch",
+        "schema": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/Flowverses"
+            },
+            {
+              "type": "object",
+              "required": [
+                "said"
+              ],
+              "properties": {
+                "said": {}
+              }
+            }
+          ]
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "flowverses.remove",
+      "summary": "Remove a flowverse and what was installed from it.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "remove",
+        "schema": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/Flowverses"
+            },
+            {
+              "type": "object",
+              "required": [
+                "said"
+              ],
+              "properties": {
+                "said": {}
+              }
+            }
+          ]
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "flowverses.install",
+      "summary": "Install a release of a flow.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "flow",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "version",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "install",
+        "schema": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/Flowverses"
+            },
+            {
+              "type": "object",
+              "required": [
+                "said"
+              ],
+              "properties": {
+                "said": {}
+              }
+            }
+          ]
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "flowverses.uninstall",
+      "summary": "Uninstall a flow.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "flow",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "uninstall",
+        "schema": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/Flowverses"
+            },
+            {
+              "type": "object",
+              "required": [
+                "said"
+              ],
+              "properties": {
+                "said": {}
+              }
+            }
+          ]
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "paths.list",
+      "summary": "List one directory.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "at",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "files",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "hidden",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "at",
+            "whole",
+            "up",
+            "entries",
+            "more"
+          ],
+          "properties": {
+            "at": {},
+            "whole": {},
+            "up": {},
+            "entries": {},
+            "more": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "paths.complete",
+      "summary": "Complete a typed path to directories.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "typed",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "complete",
+        "schema": {
+          "type": "object",
+          "required": [
+            "paths"
+          ],
+          "properties": {
+            "paths": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "settings.get",
+      "summary": "The settings of the daemon's machine, and of a workspace.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        }
+      ],
+      "result": {
+        "name": "get",
+        "schema": {
+          "$ref": "#/components/schemas/Settings"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "settings.set",
+      "summary": "Write settings.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "btw",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "details",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "reports",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "backup",
+          "schema": {
+            "$ref": "#/components/schemas/Backup"
+          }
+        },
+        {
+          "name": "listen",
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Listener"
+            }
+          }
+        },
+        {
+          "name": "ice_servers",
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IceServer"
+            }
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "set",
+        "schema": {
+          "$ref": "#/components/schemas/Settings"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "settings.forget",
+      "summary": "Forget what a workspace was set up with.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "forget",
+        "schema": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/Settings"
+            },
+            {
+              "type": "object",
+              "required": [
+                "forgot"
+              ],
+              "properties": {
+                "forgot": {}
+              }
+            }
+          ]
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "accounts.list",
+      "summary": "Every account, by its names.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "list",
+        "schema": {
+          "$ref": "#/components/schemas/Accounts"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "accounts.create",
+      "summary": "Make an account.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cli",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "way",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "answers",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "create",
+        "schema": {
+          "$ref": "#/components/schemas/Accounts"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "accounts.correct",
+      "summary": "Write an account again.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cli",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "answers",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "correct",
+        "schema": {
+          "$ref": "#/components/schemas/Accounts"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "accounts.remove",
+      "summary": "Remove an account.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cli",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "remove",
+        "schema": {
+          "$ref": "#/components/schemas/Accounts"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "accounts.models",
+      "summary": "Ask a CLI what it runs as an account.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cli",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "models",
+        "schema": {
+          "$ref": "#/components/schemas/Accounts"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Upstream"
+        }
+      ]
+    },
+    {
+      "name": "accounts.copy",
+      "summary": "Copy an account to another CLI.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cli",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "into",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "copy",
+        "schema": {
+          "$ref": "#/components/schemas/Accounts"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "fallbacks.list",
+      "summary": "Every fallback step.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "list",
+        "schema": {
+          "$ref": "#/components/schemas/Fallbacks"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "fallbacks.set",
+      "summary": "Write a fallback step.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "spec",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "to",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "tries",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "policy",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "timeout",
+          "schema": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "set",
+        "schema": {
+          "$ref": "#/components/schemas/Fallbacks"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "fallbacks.clear",
+      "summary": "Remove a fallback step.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "spec",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "clear",
+        "schema": {
+          "$ref": "#/components/schemas/Fallbacks"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "runtimes.list",
+      "summary": "Every runtime.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "list",
+        "schema": {
+          "$ref": "#/components/schemas/Runtimes"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "runtimes.set",
+      "summary": "Write a runtime.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "backend",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "fields",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "replace",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "set",
+        "schema": {
+          "$ref": "#/components/schemas/Runtimes"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "runtimes.remove",
+      "summary": "Remove a runtime.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "backend",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "remove",
+        "schema": {
+          "$ref": "#/components/schemas/Runtimes"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "runtimes.check",
+      "summary": "Reach a runtime and say what it has.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "backend",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "required": [
+            "reached",
+            "said",
+            "home",
+            "cpus",
+            "memory",
+            "gpus",
+            "usable",
+            "gpu_memory",
+            "runtimes",
+            "version",
+            "short",
+            "nodes"
+          ],
+          "properties": {
+            "reached": {},
+            "said": {},
+            "home": {},
+            "cpus": {},
+            "memory": {},
+            "gpus": {},
+            "usable": {},
+            "gpu_memory": {},
+            "runtimes": {},
+            "version": {},
+            "short": {},
+            "nodes": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
+      "name": "runtimes.hosts",
+      "summary": "The hosts of the ssh configuration.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "hosts",
+        "schema": {
+          "type": "object",
+          "required": [
+            "hosts"
+          ],
+          "properties": {
+            "hosts": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Unavailable"
+        }
+      ]
+    },
+    {
+      "name": "runtimes.import",
+      "summary": "Save an ssh runtime per host.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "names",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "update",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "import",
+        "schema": {
+          "$ref": "#/components/schemas/Runtimes"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "easytier.list",
+      "summary": "The EasyTier entries, without secrets.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "list",
+        "schema": {
+          "$ref": "#/components/schemas/EasyTier"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ]
+    },
+    {
+      "name": "easytier.set",
+      "summary": "Write an EasyTier entry.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "secret",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "nodes",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "set",
+        "schema": {
+          "$ref": "#/components/schemas/EasyTier"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "easytier.remove",
+      "summary": "Remove an EasyTier entry.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "remove",
+        "schema": {
+          "$ref": "#/components/schemas/EasyTier"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "easytier.nodes",
+      "summary": "The community's shared EasyTier nodes.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "nodes",
+        "schema": {
+          "type": "object",
+          "required": [
+            "nodes"
+          ],
+          "properties": {
+            "nodes": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Unavailable"
+        }
+      ]
+    },
+    {
+      "name": "notices.list",
+      "summary": "The notices kept after an id.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "after",
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "notices",
+            "last"
+          ],
+          "properties": {
+            "notices": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Notice"
+              }
+            },
+            "last": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "notices.subscribe",
+      "summary": "Open a notices subscription.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "after",
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ],
+      "result": {
+        "name": "subscribe",
+        "schema": {
+          "type": "object",
+          "required": [
+            "sub",
+            "last"
+          ],
+          "properties": {
+            "sub": {
+              "$ref": "#/components/schemas/Sub"
+            },
+            "last": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "notices.unsubscribe",
+      "summary": "End a notices subscription.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        }
+      ],
+      "result": {
+        "name": "unsubscribe",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        }
+      ]
+    }
+  ],
+  "components": {
+    "schemas": {
+      "Workspace": {
+        "type": "string",
+        "description": "An absolute path of the daemon's machine, ~ expanded there."
+      },
+      "Slot": {
+        "type": "string",
+        "pattern": "^((chat|exec):[0-9a-f]{1,32})?$",
+        "description": "\"\" for the workspace's own host, chat:<hex> or exec:<hex>."
+      },
+      "Idem": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "Sub": {
+        "type": "string",
+        "minLength": 1
+      },
+      "Route": {
+        "type": "string",
+        "description": "A route of Section 3.3 of [WIRE]."
+      },
+      "Listener": {
+        "type": "string",
+        "description": "A listener spec of Section 3.9.2 of [DAEMON]."
+      },
+      "Handle": {
+        "type": "string",
+        "minLength": 1
+      },
+      "Since": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "required": [
+          "epoch",
+          "seq"
+        ],
+        "properties": {
+          "epoch": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Message": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "integer"
+          },
+          "run": {
+            "type": "integer"
+          }
+        },
+        "description": "A message of Section 4.9 of [DAEMON]."
+      },
+      "Notice": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "workspace",
+          "slot",
+          "epic",
+          "flow",
+          "task",
+          "role",
+          "text",
+          "at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "done",
+              "failed",
+              "stopped",
+              "asked",
+              "listening"
+            ]
+          },
+          "workspace": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "epic": {
+            "type": "string"
+          },
+          "flow": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number"
+          }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "required": [
+          "attached",
+          "clients",
+          "slot",
+          "state",
+          "run",
+          "flow",
+          "epic",
+          "task",
+          "pending",
+          "ended",
+          "budget",
+          "usage",
+          "flows",
+          "calls"
+        ],
+        "properties": {
+          "attached": {},
+          "clients": {},
+          "slot": {},
+          "state": {},
+          "run": {},
+          "flow": {},
+          "epic": {},
+          "task": {},
+          "pending": {},
+          "ended": {},
+          "budget": {},
+          "usage": {},
+          "flows": {},
+          "calls": {}
+        }
+      },
+      "EpicRow": {
+        "type": "object",
+        "required": [
+          "name",
+          "workspace",
+          "flow",
+          "task",
+          "began",
+          "ended",
+          "how",
+          "agents",
+          "sessions",
+          "resumable",
+          "spent",
+          "held",
+          "slot",
+          "asking",
+          "backup",
+          "backed"
+        ],
+        "properties": {
+          "name": {},
+          "workspace": {},
+          "flow": {},
+          "task": {},
+          "began": {},
+          "ended": {},
+          "how": {},
+          "agents": {},
+          "sessions": {},
+          "resumable": {},
+          "spent": {},
+          "held": {},
+          "slot": {},
+          "asking": {},
+          "backup": {},
+          "backed": {}
+        }
+      },
+      "Declared": {
+        "type": "object",
+        "required": [
+          "name",
+          "ref",
+          "description",
+          "resumable",
+          "resumes",
+          "agents",
+          "envs",
+          "params",
+          "remembered"
+        ],
+        "properties": {
+          "name": {},
+          "ref": {},
+          "description": {},
+          "resumable": {},
+          "resumes": {},
+          "agents": {},
+          "envs": {},
+          "params": {},
+          "remembered": {}
+        }
+      },
+      "Settings": {
+        "type": "object",
+        "required": [
+          "workspace",
+          "flow",
+          "btw",
+          "details",
+          "reports",
+          "flows",
+          "backup",
+          "listen",
+          "ice_servers"
+        ],
+        "properties": {
+          "workspace": {},
+          "flow": {},
+          "btw": {},
+          "details": {},
+          "reports": {},
+          "flows": {},
+          "backup": {},
+          "listen": {},
+          "ice_servers": {}
+        }
+      },
+      "Accounts": {
+        "type": "object",
+        "required": [
+          "gateway",
+          "accounts",
+          "backends"
+        ],
+        "properties": {
+          "gateway": {},
+          "accounts": {},
+          "backends": {}
+        }
+      },
+      "Fallbacks": {
+        "type": "object",
+        "required": [
+          "steps",
+          "policies",
+          "default",
+          "places"
+        ],
+        "properties": {
+          "steps": {},
+          "policies": {},
+          "default": {},
+          "places": {}
+        }
+      },
+      "Runtimes": {
+        "type": "object",
+        "required": [
+          "runtimes",
+          "blanks"
+        ],
+        "properties": {
+          "runtimes": {},
+          "blanks": {}
+        }
+      },
+      "Workspaces": {
+        "type": "object",
+        "required": [
+          "here",
+          "workspaces"
+        ],
+        "properties": {
+          "here": {},
+          "workspaces": {}
+        }
+      },
+      "Flowverses": {
+        "type": "object",
+        "required": [
+          "verses",
+          "installed",
+          "updates"
+        ],
+        "properties": {
+          "verses": {},
+          "installed": {},
+          "updates": {}
+        }
+      },
+      "EasyTier": {
+        "type": "object",
+        "required": [
+          "networks"
+        ],
+        "properties": {
+          "networks": {}
+        }
+      },
+      "IceServer": {
+        "type": "object",
+        "required": [
+          "urls"
+        ],
+        "properties": {
+          "urls": {
+            "type": [
+              "string",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "username": {
+            "type": "string"
+          },
+          "credential": {
+            "type": [
+              "string",
+              "boolean"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Backup": {
+        "type": "object",
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "defaults": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "errors": {
+      "ParseError": {
+        "code": -32700,
+        "message": "Send JSON."
+      },
+      "InvalidRequest": {
+        "code": -32600,
+        "message": "Not a JSON-RPC 2.0 request, a batch, or a call before session.hello."
+      },
+      "MethodNotFound": {
+        "code": -32601,
+        "message": "There is no method <method>."
+      },
+      "InvalidParams": {
+        "code": -32602,
+        "message": "Parameters not as this document states."
+      },
+      "InternalError": {
+        "code": -32603,
+        "message": "Something went wrong here: <why>"
+      },
+      "Cancelled": {
+        "code": -32800,
+        "message": "The call was cancelled."
+      },
+      "Refused": {
+        "code": 400,
+        "message": "A value the method refuses."
+      },
+      "NotPaired": {
+        "code": 401,
+        "message": "This device is not paired: claim a pairing code first."
+      },
+      "Forbidden": {
+        "code": 403,
+        "message": "Refused to this device."
+      },
+      "NotFound": {
+        "code": 404,
+        "message": "What the call names does not exist."
+      },
+      "Conflict": {
+        "code": 409,
+        "message": "Refused in the state things are in, a host's refusal included."
+      },
+      "UnknownSubscription": {
+        "code": 410,
+        "message": "There is no subscription <sub>."
+      },
+      "TooLarge": {
+        "code": 413,
+        "message": "More than a call or an answer here may carry."
+      },
+      "ProtocolMismatch": {
+        "code": 426,
+        "message": "Another protocol version."
+      },
+      "Upstream": {
+        "code": 502,
+        "message": "A program or service the daemon asked did not answer."
+      },
+      "Unavailable": {
+        "code": 503,
+        "message": "What the call needs cannot be reached now."
+      }
+    }
+  },
+  "x-notifications": [
+    {
+      "name": "epic.event",
+      "summary": "One message of an epic subscription (Section 4.9 of [DAEMON]).",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "message",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Message"
+          }
+        }
+      ]
+    },
+    {
+      "name": "notices.event",
+      "summary": "One notice of a notices subscription, or its end where it fell behind.",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "notice",
+          "schema": {
+            "$ref": "#/components/schemas/Notice"
+          }
+        },
+        {
+          "name": "gone",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -70,6 +70,7 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.daemon': ['hmz.runtime'],
   'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where'],
   'hmz.relay': [],
+  'hmz.rpc': [],
   'hmz.rtc': [],
   'hmz.trust': ['hmz.coganchor.atomic', 'hmz.coganchor.settings'],
   'hmz.tui': [
@@ -168,6 +169,13 @@ const LAYERS: Layer[] = [
     note: 'Imports nothing of Humanize: it reads nothing of the machine it runs on.',
     spec: 'wire.md#5-the-relay',
     ref: '/user/relay',
+  },
+  {
+    id: 'rpc',
+    dotted: 'hmz.rpc',
+    here: 'Frames and JSON-RPC 2.0 over any pipe: one end of a session, the methods it serves, and `session.hello`.',
+    note: 'Imports nothing of Humanize: both ends of every session speak it.',
+    spec: 'wire.md#6-frames-and-rpc',
   },
   {
     id: 'trust',
@@ -286,7 +294,7 @@ const LAYERS: Layer[] = [
 const BANDS: { label: string; ids: string[] }[] = [
   { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
-  { label: 'reaching a daemon', ids: ['reach', 'relay', 'rtc', 'trust'] },
+  { label: 'reaching a daemon', ids: ['reach', 'relay', 'rpc', 'rtc', 'trust'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
   { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },

@@ -40,6 +40,7 @@ holds the same table, so an import that breaks it fails the run.
 | a view of the web interface, or a route it answers | `web/`: the page under `web/static/`, plain ES modules, and its routes beside the server |
 | runs kept going after the terminal closes, and the socket frontends reach them over | `daemon/` |
 | a carrier between a client and a daemon: a route, dialing it, listening, racing routes | `reach/` |
+| the frames a session carries, and JSON-RPC over them: calls, notifications, errors, `session.hello` | `rpc/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
 | a flow Humanize ships | `flows/builtin/`, for `chat` and the six loops FlowBench scores. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
