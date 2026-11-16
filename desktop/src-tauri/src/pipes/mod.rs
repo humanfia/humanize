@@ -84,6 +84,9 @@ pub struct Context {
     /// The login shell's environment `stdio:local` is run in, where an `hmz` is found in it.
     #[cfg(unix)]
     pub local: Option<crate::shell_env::Env>,
+    /// The `hmz` in WSL `stdio:wsl` runs, as the app chose it (Section 3.4 of [DESKTOP]).
+    #[cfg(windows)]
+    pub wsl: Option<String>,
 }
 
 /// An open pipe, as the page reaches it.
@@ -97,9 +100,25 @@ struct Pipe {
 static PIPES: Mutex<Option<HashMap<String, Pipe>>> = Mutex::new(None);
 static NEXT: AtomicU64 = AtomicU64::new(1);
 
-/// Opens the carrier `route` names, to the daemon `id` pins where it is untrusted; answers the
-/// pipe at once, and tells the page how it stands from then on.
-pub fn open(route: &str, id: Option<&str>, context: Context, tell: Tell) -> Result<String, String> {
+/// The page pipes are opened for: one more each time every pipe is closed, so that a pipe the
+/// page that went asked for is not opened after it.
+static PAGE: AtomicU64 = AtomicU64::new(0);
+
+/// The page pipes are opened for now.
+fn page() -> u64 {
+    PAGE.load(Ordering::SeqCst)
+}
+
+/// Opens the carrier `route` names, to the daemon `id` pins where it is untrusted, for the page
+/// `page` says -- refused where every pipe was closed since; answers the pipe at once, and tells
+/// the page how it stands from then on.
+fn open_for(
+    page: u64,
+    route: &str,
+    id: Option<&str>,
+    context: Context,
+    tell: Tell,
+) -> Result<String, String> {
     let parsed = Route::parse(route)?;
     if !parsed.offered() {
         return Err(format!("{route} cannot be reached from here."));
@@ -110,13 +129,19 @@ pub fn open(route: &str, id: Option<&str>, context: Context, tell: Tell) -> Resu
     }
     let pipe = format!("pipe-{}", NEXT.fetch_add(1, Ordering::Relaxed));
     let (closing, closed) = mpsc::unbounded_channel();
-    lock(&PIPES).get_or_insert_default().insert(
-        pipe.clone(),
-        Pipe {
-            sending: None,
-            _closing: closing,
-        },
-    );
+    {
+        let mut pipes = lock(&PIPES);
+        if PAGE.load(Ordering::SeqCst) != page {
+            return Err("The page went.".into());
+        }
+        pipes.get_or_insert_default().insert(
+            pipe.clone(),
+            Pipe {
+                sending: None,
+                _closing: closing,
+            },
+        );
+    }
     log::info!("{pipe} opens {route}");
     let carried = Carried {
         pipe: pipe.clone(),
@@ -148,6 +173,43 @@ pub fn send(pipe: &str, data: &str) -> Result<(), String> {
 /// Closes a pipe, stopping what it started; nothing where it is closed already.
 pub fn close(pipe: &str) {
     lock(&PIPES).as_mut().and_then(|pipes| pipes.remove(pipe));
+}
+
+/// Closes every pipe: the page went, or is loaded again (Section 3.12.8 of [DESKTOP]).
+pub fn close_all() {
+    let mut pipes = lock(&PIPES);
+    PAGE.fetch_add(1, Ordering::SeqCst);
+    pipes.take();
+}
+
+/// The PEP 440 version of the app's SemVer one, as PyPI has the same release: `0.5.0-rc.1` is
+/// `0.5.0rc1`. None for a development build's `0.0.0`, and for what is no release.
+pub fn pep440(semver: &str) -> Option<String> {
+    let semver = semver.split('+').next().unwrap_or_default();
+    let (release, pre) = match semver.split_once('-') {
+        Some((release, pre)) => (release, Some(pre)),
+        None => (semver, None),
+    };
+    let numbers: Vec<u64> = release
+        .split('.')
+        .map(|n| n.parse().ok())
+        .collect::<Option<_>>()?;
+    if numbers.len() != 3 || numbers == [0, 0, 0] {
+        return None;
+    }
+    let mut version = format!("{}.{}.{}", numbers[0], numbers[1], numbers[2]);
+    if let Some(pre) = pre {
+        let n = pre.trim_start_matches(|c: char| !c.is_ascii_digit());
+        let kind = match pre[..pre.len() - n.len()].trim_end_matches('.') {
+            "alpha" | "a" => "a",
+            "beta" | "b" => "b",
+            "rc" | "c" => "rc",
+            _ => return None,
+        };
+        let n: u64 = if n.is_empty() { 0 } else { n.parse().ok()? };
+        version.push_str(&format!("{kind}{n}"));
+    }
+    Some(version)
 }
 
 /// One pipe's carrier, from opening to closing.
@@ -283,7 +345,9 @@ impl Carried {
             }
             #[cfg(windows)]
             Route::Wsl(distro) => {
-                let kid = kids.spawn(&mut stdio::wsl(distro.as_deref()))?;
+                // Local's `hmz`, as the app chose it, in the default distribution alone.
+                let hmz = context.wsl.as_deref().filter(|_| distro.is_none());
+                let kid = kids.spawn(&mut stdio::wsl(distro.as_deref(), hmz))?;
                 stdio::carried(&kid, said, true)?
             }
             Route::Ssh(ssh) => {
@@ -425,7 +489,8 @@ impl Carried {
 }
 
 /// What a pipe command needs of the app: its data directory, its version, and, for
-/// `stdio:local`, the login shell's environment where an `hmz` is found in it.
+/// `stdio:local`, the login shell's environment where an `hmz` is found in it, or for
+/// `stdio:wsl`, the `hmz` the app chose there.
 async fn context(app: &AppHandle, route: &str) -> Context {
     let data = app.path().app_data_dir().unwrap_or_default();
     let version = app.package_info().version.to_string();
@@ -438,7 +503,7 @@ async fn context(app: &AppHandle, route: &str) -> Context {
                 .env
                 .get_or_init(crate::shell_env::login)
                 .clone();
-            crate::server::find(&env).map(|_| env)
+            crate::hmz::find(&env).map(|_| env)
         })
         .await
         .ok()
@@ -448,11 +513,15 @@ async fn context(app: &AppHandle, route: &str) -> Context {
     };
     #[cfg(windows)]
     let _ = route;
+    #[cfg(windows)]
+    let wsl = lock(&app.state::<crate::Shell>().hmz).clone();
     Context {
         data,
-        hmz: crate::install::pep440(&version),
+        hmz: pep440(&version),
         #[cfg(unix)]
         local,
+        #[cfg(windows)]
+        wsl,
     }
 }
 
@@ -467,13 +536,14 @@ pub async fn pipe_open(
     route: String,
     id: Option<String>,
 ) -> Result<Opened, String> {
+    let page = page();
     let context = context(&app, &route).await;
     let tell: Tell = Arc::new(move |event: Event| {
         if let Err(why) = app.emit(event.name(), &event) {
             log::warn!("the page could not be told: {why}");
         }
     });
-    open(&route, id.as_deref(), context, tell).map(|pipe| Opened { pipe })
+    open_for(page, &route, id.as_deref(), context, tell).map(|pipe| Opened { pipe })
 }
 
 #[tauri::command]
@@ -518,6 +588,11 @@ mod tests {
     use super::*;
     use std::sync::mpsc as std_mpsc;
 
+    /// Opens a pipe for the page there is now.
+    fn open(route: &str, id: Option<&str>, context: Context, tell: Tell) -> Result<String, String> {
+        open_for(super::page(), route, id, context, tell)
+    }
+
     /// What the page was told, as it was told it.
     fn page() -> (Tell, std_mpsc::Receiver<Event>) {
         let (told, heard) = std_mpsc::channel();
@@ -530,6 +605,20 @@ mod tests {
 
     fn next(heard: &std_mpsc::Receiver<Event>) -> Event {
         heard.recv_timeout(Duration::from_secs(20)).unwrap()
+    }
+
+    #[test]
+    fn says_a_semver_release_as_pypi_does() {
+        assert_eq!(pep440("0.5.0").as_deref(), Some("0.5.0"));
+        assert_eq!(pep440("0.5.0-rc.1").as_deref(), Some("0.5.0rc1"));
+        assert_eq!(pep440("1.2.3-alpha.4").as_deref(), Some("1.2.3a4"));
+        assert_eq!(pep440("1.2.3-beta.12").as_deref(), Some("1.2.3b12"));
+        assert_eq!(pep440("0.1.0-beta.1+build.7").as_deref(), Some("0.1.0b1"));
+        assert_eq!(pep440("1.0.0-rc1").as_deref(), Some("1.0.0rc1"));
+        assert_eq!(pep440("0.0.0"), None);
+        for nothing in ["", "1.2", "1.2.3.4", "x.1.2", "1.2.3-dev.1", "1.2.3-rc.x"] {
+            assert_eq!(pep440(nothing), None, "{nothing}");
+        }
     }
 
     #[test]
@@ -564,6 +653,16 @@ mod tests {
             "There is no pipe pipe-0."
         );
         assert_eq!(send("pipe-0", "!").unwrap_err(), "data is not base64.");
+    }
+
+    #[test]
+    fn opens_nothing_for_a_page_that_went() {
+        let (tell, _) = page();
+        let gone = super::page().wrapping_sub(1);
+        assert_eq!(
+            open_for(gone, "tcp://h:1", Some("x"), Context::default(), tell).unwrap_err(),
+            "The page went."
+        );
     }
 
     #[tokio::test]

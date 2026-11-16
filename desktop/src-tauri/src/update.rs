@@ -202,7 +202,7 @@ fn present<R: Runtime>(app: &AppHandle<R>, then: impl FnOnce() + Send + 'static)
 
 /// The progress window: small, its size its own, drawn in the page's paper before anything is.
 fn open<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let window = WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("update.html".into()))
+    let window = WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("app/update.html".into()))
         .title("Software Update")
         .inner_size(400.0, 104.0)
         .resizable(false)

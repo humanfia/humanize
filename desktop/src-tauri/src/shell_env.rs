@@ -1,8 +1,8 @@
-//! The environment `hmz web` is started in: the one a login shell gives this account. An app
-//! opened from the Finder is handed launchd's bare `PATH`, which misses the directories a
-//! shell profile adds -- where `hmz` is, and node, nvm or volta, and the coding agents the
-//! daemon `hmz web` forks goes on to run. On Windows, where hmz lives in WSL, it is the one a
-//! login shell gives this account there.
+//! The environment `hmz` is run in: the one a login shell gives this account (Section 3.5.2 of
+//! [DESKTOP]). An app opened from the Finder is handed launchd's bare `PATH`, which misses the
+//! directories a shell profile adds -- where `hmz` is, and node, nvm or volta, and the coding
+//! agents the daemon goes on to run. On Windows, where hmz lives in WSL, it is the one a login
+//! shell gives this account there.
 
 use std::collections::HashMap;
 use std::env;
@@ -51,8 +51,8 @@ pub fn login() -> Env {
     env.insert("PATH".into(), path);
     // WSL is not handed this process's environment, so the hmz named in Windows is carried in.
     #[cfg(windows)]
-    if let Some(named) = env::var_os(crate::server::OVERRIDE) {
-        env.insert(crate::server::OVERRIDE.into(), named);
+    if let Some(named) = env::var_os(crate::hmz::OVERRIDE) {
+        env.insert(crate::hmz::OVERRIDE.into(), named);
     }
     env
 }

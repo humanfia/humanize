@@ -119,12 +119,14 @@ A release builds it for `linux-x86_64` and `linux-aarch64`, static against musl,
 
 ## The macOS app
 
-`desktop/` is [Humanize Desktop](/user/desktop), the macOS app: a window on `hmz web`'s page, in
-Rust with [Tauri](https://tauri.app/), held to
+`desktop/` is [Humanize Desktop](/user/desktop), the app for macOS and Windows: a window on the
+page of `src/hmz/web/static`, which the build carries into it beside the splash of
+`desktop/ui/app`, and the pipes that page reaches daemons through, in Rust with
+[Tauri](https://tauri.app/), held to
 [its protocol document](https://github.com/humanfia/humanize/blob/main/protocol/desktop.md). Working on it
 takes a Mac, [Rust](https://rustup.rs/), Node and pnpm. Built from `main`, its version is
-`0.0.0`, and it installs nothing: `pnpm dev` opens it against the `hmz` on your `PATH`, and
-`HUMANIZE_HMZ` names another, such as this checkout's:
+`0.0.0`, and it installs nothing: `pnpm dev` opens it, reaching Local through the `hmz` on your
+`PATH`, and `HUMANIZE_HMZ` names another, such as this checkout's:
 
 ```sh
 cd desktop
@@ -132,8 +134,9 @@ pnpm install
 HUMANIZE_HMZ="$PWD/../.venv/bin/hmz" pnpm dev
 ```
 
-To try how a release installs `hmz`, build it with the version of a release on PyPI whose
-`hmz web` takes `--attached`: `pnpm tauri build --bundles app --config '{"version":"<it>"}'`.
+A change to the page shows in the app once it is built again. Only on Windows does a release
+install `hmz`, in WSL; to try it, build there with the version of a release on PyPI:
+`pnpm tauri build --bundles nsis --config '{"version":"<it>"}'`.
 
 Before you push a change to it, run what CI's `desktop` job runs:
 
