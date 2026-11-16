@@ -29,6 +29,12 @@ if TYPE_CHECKING:
 
     from hmz.web.site import Site
 
+# Another machine's daemon is reached over JSON-RPC now (`test_daemon_remote.py`), and serves no
+# interface for `/d/` to proxy; the page reaches it over `/rpc` once Wave 4 ports it.
+pytestmark = pytest.mark.skip(
+    reason="Wave 4 reaches remote daemons from the page over RPC"
+)
+
 
 @pytest.fixture
 def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Host:

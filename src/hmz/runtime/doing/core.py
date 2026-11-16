@@ -162,9 +162,9 @@ class Hmz:
         return self._daemons
 
     def carried(self, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
-        """This machine's settings as another daemon's interface takes them, of some pages.
+        """The RPC calls that write this machine's settings to another daemon, of some pages.
 
-        What a batch apply writes there, as `hmz.runtime.doing.daemons.carried` says it.
+        What a batch apply calls there, as `hmz.runtime.doing.daemons.carried` says it.
 
         Args:
           pages: Which of `Daemons.CARRIED`.

@@ -472,17 +472,16 @@ def reached(
     return link
 
 
-#: How long another machine's interface is given to say who this end is.
-_HELLO = 30.0
+#: How often a link to another machine's daemon looks whether it was left.
+_LEFT = 0.5
 
 
 def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Link:
-    """A frontend of the runs of one workspace on another machine, through its web interface.
+    """A frontend of the runs of one workspace on another machine, through its daemon.
 
-    What its web page reaches them by, reached over ssh: what is asked is posted as the page
-    posts it, and what the runs say is the page's stream of them, records and how each thing
-    stands, told to this end in order. It reads them as that interface's own page does, and
-    answers as that interface.
+    The session the daemons of other machines are reached by (`Remotes.client`), and
+    `epic.attach` over it, as :func:`reached` attaches over this machine's socket: its
+    `epic.event` notifications are the messages and its calls to the epic the requests.
 
     Args:
       remotes: The daemons of other machines, as they are reached here.
@@ -491,63 +490,88 @@ def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Lin
       slot: Which of its hosts: "" for its own, `chat:<hex>` for a chat's.
 
     Returns:
-      The link, following them.
+      The link, attached.
 
     Raises:
-      OSError: If that machine's interface would not say who this end is.
+      OSError: If that daemon is not reached, or would not attach.
     """
-    from urllib.parse import quote
+    from hmz.runtime import Refused
 
-    from hmz.runtime.doing.daemons import Unreached
+    try:
+        client = remotes.client(daemon)
+    except (RuntimeError, LookupError) as why:
+        raise OSError(str(why)) from why
+    held: list[Link] = []
+    early: list[tuple[object, dict[str, Any]]] = []
+    gone: list[str] = []
+    sub: list[str] = []
+    lock = threading.Lock()
 
-    going = threading.Event()
-    hello: queue.SimpleQueue[str | BaseException] = queue.SimpleQueue()
+    def delivers(told: dict[str, Any]) -> None:
+        if told.get("type") == "gone":
+            gone.append(str(told.get("why") or _WENT))
+        held[0].told(told)
+
+    def heard(method: str, params: dict[str, Any]) -> None:
+        message = params.get("message")
+        if method != "epic.event" or not isinstance(message, dict):
+            return
+        told = dict(cast("dict[str, Any]", message))
+        with lock:
+            if not sub:
+                early.append((params.get("sub"), told))
+            elif params.get("sub") == sub[0]:
+                delivers(told)
 
     def asks(said: dict[str, Any], seconds: float | None) -> dict[str, Any]:
-        del seconds  # as long as that interface takes, which bounds it itself
-        do = str(said.pop("do"))
+        do = str(said.pop("do", ""))
+        if gone:
+            return {"ok": False, "why": gone[0]}
+        idem = secrets.token_urlsafe(12) if do in _WRITES else None
         try:
-            answer = remotes.asked(
-                daemon,
-                f"/api/held/{quote(do)}",
-                {**said, "workspace": workspace, "slot": slot},
+            result: Any = client.call(
+                f"epic.{do}", {**said, "sub": sub[0]}, idem=idem, seconds=seconds
             )
-        except (Unreached, LookupError, OSError) as why:
-            return {"ok": False, "why": str(why)}
-        return {"ok": True, **(answer if isinstance(answer, dict) else {})}
+        except Refused as why:
+            return {"ok": False, "why": gone[0] if gone else str(why)}
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
 
-    link = Link(asks, going.set)
+    left = threading.Event()
 
-    def follows() -> None:
-        why = f"{daemon} stopped saying how its runs stand"
-        try:
-            stream = f"/api/held/stream?workspace={quote(workspace)}"
-            for event, data in remotes.followed(
-                daemon, f"{stream}&slot={quote(slot)}" if slot else stream, going
-            ):
-                if event == "hello":
-                    hello.put(str(data.get("me") or ""))
-                elif event in ("record", "standing"):
-                    link.told(data)
-                elif event == "gone":
-                    why = str(data.get("why") or why)
-                    break
-                elif event == "again":
-                    why = f"{daemon} let its runs go and took them again"
-                    break
-        except (Unreached, LookupError, OSError, ValueError) as error:
-            why = str(error)
-            hello.put(error)
-        if not going.is_set():
-            link.told({"type": "gone", "why": why})
+    def leaves() -> None:
+        left.set()
+        with contextlib.suppress(Refused, TimeoutError):
+            client.call("epic.detach", {"sub": sub[0]}, seconds=_PATIENCE)
+        client.close()
 
-    threading.Thread(target=follows, daemon=True, name="humanize-remote").start()
+    link = Link(asks, leaves)
+    held.append(link)
+    client.heard(heard)
     try:
-        me = hello.get(timeout=_HELLO)
-    except queue.Empty as why:
-        going.set()
-        raise OSError(f"{daemon} did not say who this end is") from why
-    if isinstance(me, BaseException):
-        raise OSError(str(me)) from me
-    link.client = me
+        attached: Any = client.call(
+            "epic.attach",
+            {"workspace": workspace, "slot": slot, "replay": True},
+            seconds=_PATIENCE * 3,
+        )
+    except (Refused, TimeoutError) as why:
+        client.close()
+        raise OSError(str(why)) from why
+    link.client = str(attached.get("client") or "")
+    with lock:
+        sub.append(str(attached["sub"]))
+        for named, told in early:
+            if named == sub[0]:
+                delivers(told)
+        early.clear()
+
+    def ends() -> None:
+        # The session is the daemon's, which outlives this link.
+        while not client.wait(_LEFT):
+            if left.is_set():
+                return
+        if not gone:
+            gone.append(_WENT)
+            link.told({"type": "gone", "why": _WENT})
+
+    threading.Thread(target=ends, daemon=True, name="hmz-link-ends").start()
     return link
