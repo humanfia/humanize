@@ -434,7 +434,7 @@ A daemon is in one of these states:
 | State | What it means |
 | --- | --- |
 | `idle` | Not connected to yet. |
-| `connecting` | `ssh` is reaching the host and starting `hmz web` there; or EasyTier is joining the server's network. |
+| `connecting` | A route is being opened: `ssh` reaching the host, EasyTier joining the network, TLS and hello. |
 | `installing` | The host has no `hmz`, or another version, and it is being installed (see [What happens on connect](#on-connect)); or, for a P2P daemon, `Downloading EasyTier <version>` here. |
 | `up` | Reached: its epics are on the page. |
 | `failed` | It could not be reached; the menu says why, and **Connect** tries again. |
@@ -457,26 +457,30 @@ in the daemon's own kind and mode; a P2P daemon's secret is never shown again, a
 empty keeps it. Removing one forgets
 how to reach it, and nothing on the host: its epics, and its `hmz`, stay there.
 
-The daemons are kept in this machine's `~/.hmz/settings.yaml`, under `daemons`.
+The daemons are kept in this machine's `~/.hmz/settings.yaml`, under `daemons`: each its name,
+the daemon id pinned, and its [routes](/reference/settings#settings-yaml).
 
 ### What happens on connect {#on-connect}
 
-Connecting runs `hmz web --no-open --attached --port 0` on the host over `ssh`, forwards a free
-port here to the one it printed with `ssh -N -L`, and passes the page's calls for that daemon
-through Local's `hmz web` to it. Nothing on the host listens beyond its own loopback, and your
-browser only ever talks to Local.
+Connecting races the daemon's routes, in the order they are kept, each a quarter of a second
+after the one before: over `ssh`, it runs `hmz daemon connect --stdio` on the host, whose
+standard streams carry the session; over a TCP port or EasyTier, it opens mutual TLS held to the
+daemon's id, which pairing gave it. The first to say hello as that daemon wins, and the others
+are closed. A daemon first reached over `ssh` has the id it answered pinned, and one that later
+answers as another fails with `<name> is not the daemon it was paired with.`
 
-- **It brings the host the same Humanize.** Before it starts `hmz web` there, it asks the host's
+- **It brings the host the same Humanize.** Before it starts anything over `ssh`, it asks the host's
   `hmz --version`, through a login shell with `~/.local/bin` on its `PATH`. Where there is none,
   or one of another version, it runs `uv tool install --force --python '>=3.12' 'hmz==<version>'`
   on the host, at this machine's version, installing uv there first where the host has none.
   The daemon says `installing` meanwhile.
 - **It never replaces an `hmz` holding running epics.** Where the host's daemon has epics
   running, or it cannot tell, the `hmz` there is left as it is, and the daemon says why.
-- **It keeps reaching it.** A connection that drops is tried again, waiting longer each time.
-- **The epics outlive it.** Stopping `hmz web` here closes every ssh connection, and the
-  `hmz web` on each host stops with it; the epics there keep going, held by that host's
-  daemon. See [Leaving it running](/user/leaving).
+- **It keeps reaching it.** A session that drops is tried again after a second, the wait
+  doubling after each further failure up to a minute.
+- **The epics outlive it.** Stopping `hmz web` here closes every session, and every `ssh` and
+  EasyTier it started; the epics there keep going, held by that host's daemon. See
+  [Leaving it running](/user/leaving).
 
 ### Over EasyTier (P2P) {#over-easytier}
 

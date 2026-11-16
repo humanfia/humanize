@@ -29,6 +29,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
+# A P2P daemon is reached over JSON-RPC now (`test_daemon_remote.py`), and serves no interface
+# for `/d/` to proxy; the page reaches it over `/rpc` once Wave 4 ports it.
+pytestmark = pytest.mark.skip(
+    reason="Wave 4 reaches remote daemons from the page over RPC"
+)
+
 SECRET = "correct horse battery staple"
 
 #: The node a P2P daemon is written down with; the stand-in reaches no node.

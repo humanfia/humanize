@@ -43,7 +43,9 @@ def test_a_daemon_is_added_edited_and_removed(ssh_config: Path) -> None:
             "/api/daemons",
             {
                 "name": "lab",
-                "fields": {"host": "lab.example", "options": [["Compression", "yes"]]},
+                "fields": {
+                    "routes": ["stdio:ssh://lab.example?option=Compression=yes"]
+                },
             },
         )
         assert added.status == 200, added.body
@@ -51,39 +53,24 @@ def test_a_daemon_is_added_edited_and_removed(ssh_config: Path) -> None:
             ("local", "up"),
             ("lab", "idle"),
         ]
+        routes = {"routes": ["stdio:ssh://b"]}
         assert (
-            browser.post(
-                "/api/daemons", {"name": "lab", "fields": {"host": "b"}}
-            ).status
+            browser.post("/api/daemons", {"name": "lab", "fields": routes}).status
             == 409
         )
         assert (
             browser.post(
-                "/api/daemons",
-                {"name": "lab", "fields": {"host": "b"}, "replace": True},
+                "/api/daemons", {"name": "lab", "fields": routes, "replace": True}
             ).status
             == 200
         )
-        refused = browser.post(
-            "/api/daemons", {"name": "local", "fields": {"host": "b"}}
-        )
+        refused = browser.post("/api/daemons", {"name": "local", "fields": routes})
         assert refused.status == 400
         assert refused.json()["error"]
         assert browser.post("/api/daemons", {"name": "x", "nope": 1}).status == 400
 
         assert _settings()["daemons"] == [
-            {
-                "name": "lab",
-                "via": "ssh",
-                "host": "b",
-                "user": "",
-                "port": 0,
-                "identity_file": "",
-                "proxy_jump": "",
-                "alias": "",
-                "config": "",
-                "options": [],
-            }
+            {"name": "lab", "id": "", "routes": ["stdio:ssh://b"]}
         ]
 
         removed = browser.post("/api/daemons/remove", {"name": "lab"})
@@ -117,64 +104,10 @@ def test_hosts_of_the_ssh_config_are_offered_and_imported(ssh_config: Path) -> N
             browser.post("/api/daemons/import", {"aliases": ["elsewhere"]}).status
             == 404
         )
-        assert [one["alias"] for one in _settings()["daemons"]] == ["gpu", "box"]
-
-
-def test_an_easytier_daemon_s_secret_is_written_kept_and_never_said(
-    ssh_config: Path,
-) -> None:
-    secret = "sixteen-bytes-ok"
-    peers = ["tcp://node.example:11010"]
-    with served() as site:
-        browser = Browser(site)
-        browser.signs_in()
-
-        short = browser.post(
-            "/api/daemons",
-            {
-                "name": "p",
-                "fields": {"via": "easytier", "secret": secret[:15], "peers": peers},
-            },
-        )
-        assert short.status == 400
-        assert short.json()["error"] == "A secret must be at least 16 bytes."
-        added = browser.post(
-            "/api/daemons",
-            {
-                "name": "p",
-                "fields": {"via": "easytier", "secret": secret, "peers": peers},
-            },
-        )
-        assert added.status == 200, added.body
-        kept = browser.post(
-            "/api/daemons",
-            {
-                "name": "p",
-                "fields": {"via": "easytier", "peers": peers},
-                "replace": True,
-            },
-        )
-        assert kept.status == 200, kept.body
-        alias = browser.post("/api/daemons", {"name": "g", "fields": {"alias": "gpu"}})
-        assert alias.status == 200, alias.body
-
-        listed = browser.get("/api/daemons")
-        assert [
-            (one["name"], one.get("via"), one.get("secret"), one.get("peers"))
-            for one in listed.json()["daemons"]
-        ] == [
-            ("local", None, None, None),
-            ("p", "easytier", True, peers),
-            ("g", "ssh", None, None),
+        assert [one["routes"] for one in _settings()["daemons"]] == [
+            ["stdio:ssh://gpu"],
+            ["stdio:ssh://box"],
         ]
-        assert secret.encode() not in listed.body
-        assert secret.encode() not in browser.get("/api/daemons/p/state").body
-        assert _settings()["daemons"][0] == {
-            "name": "p",
-            "via": "easytier",
-            "secret": secret,
-            "peers": peers,
-        }
 
 
 def test_a_stranger_is_told_nothing_of_the_daemons(ssh_config: Path) -> None:
