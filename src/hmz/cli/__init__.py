@@ -435,6 +435,20 @@ def _server(argv: list[str]) -> int:
     return server(argv)
 
 
+def _relay(argv: list[str]) -> int:
+    """Serves a relay daemons register with and devices reach them through, until stopped.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero once it has been stopped; one where it could not listen.
+    """
+    from .relay import relay
+
+    return relay(argv)
+
+
 def _update(argv: list[str]) -> int:
     """Moves this install of Humanize to its newest release, with whatever installed it.
 
@@ -690,10 +704,11 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Five are for
+#: Each command, as what carries it out and the line a listing shows it as. Six are for
 #: anybody: running a flow in a directory, serving the web interface, keeping this machine's
-#: daemon reachable from others, moving Humanize itself to its newest release, and backing an
-#: epic up from a script -- everything else Humanize
+#: daemon reachable from others, serving a relay daemons and devices meet through, moving
+#: Humanize itself to its newest release, and backing an epic up from a script -- everything
+#: else Humanize
 #: keeps is walked at the prompt
 #: rather than typed, a run already held here included, which `hmz` with no command opens.
 #: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
@@ -706,6 +721,7 @@ COMMANDS = {
         _server,
         "keep this machine's daemon reachable from others until stopped",
     ),
+    "relay": (_relay, "relay daemons and the devices that reach them"),
     "update": (_update, "update hmz to its newest release"),
     "backup": (_backup, "back epics up to git repositories, or download them"),
     "internal": (_internal, "internal commands used by Humanize; do not run directly"),

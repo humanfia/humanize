@@ -6,12 +6,24 @@ use std::ffi::{OsStr, OsString};
 use std::os::windows::process::CommandExt;
 use std::process::Command;
 
-/// No console window for `wsl.exe`.
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+/// No console window for `wsl.exe`, nor for `ssh.exe`.
+pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// `program`, a path or a name in WSL, run there; with `env`, in that environment alone.
 pub fn command(program: impl AsRef<OsStr>, env: Option<&HashMap<OsString, OsString>>) -> Command {
+    command_in(None, program, env)
+}
+
+/// As [`command`], in the distribution `distro` names, or the default one.
+pub fn command_in(
+    distro: Option<&str>,
+    program: impl AsRef<OsStr>,
+    env: Option<&HashMap<OsString, OsString>>,
+) -> Command {
     let mut command = Command::new("wsl.exe");
+    if let Some(distro) = distro {
+        command.args(["-d", distro]);
+    }
     command
         .args(["--cd", "~", "--exec"])
         .creation_flags(CREATE_NO_WINDOW);

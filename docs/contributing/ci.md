@@ -44,7 +44,7 @@ changes ─┬▶ tests    unit, a package at a time, then            │
 | the `reach` topic | `cli`, `daemon`, `reach`, `rpc` or `trust`; `doubles_ssh.py` and `doubles_easytier.py` count for it |
 | the `relay` topic | `cli`, `reach`, `relay`, `rpc`, `rtc` or `trust` |
 | `tests/unit/rpc` | also anything in `protocol/`: it holds `protocol/openrpc.json` to the protocol's text |
-| `node --test tests/js` | `src/hmz/web/static/`, `tests/js/` or `ci.yml`, once `tests/js/` exists |
+| `node --test 'tests/unit/web/js/*.test.mjs'` | `src/hmz/web/static/`, `tests/unit/web/js/` or `ci.yml` |
 | a topic | also its own files in `tests/integration/`; `doubles_core.py` counts for `core`, `anchor` and `web` |
 | `coganchor` | `crates/coganchor/` or `ci.yml` |
 | `desktop` and `desktop-windows` | `desktop/` or `ci.yml` |
@@ -57,7 +57,7 @@ the row in `ci.yml`'s `changes`.
 | Job | Checks | Run it yourself |
 | --- | --- | --- |
 | `static` | Every pre-commit hook: `ruff`, `pyright` strict, `actionlint` and `zizmor` over `.github/`, and the file hygiene. Then the wheel and the sdist build, and PyPI would render `README.md`, so any commit on a `release/*` branch can be [released](/contributing/releasing) | `uv run pre-commit run --all-files`, then `uv build --no-sources && uvx twine check --strict dist/*` |
-| `tests (<os>)` | `tests/unit/<package>`, each directory under `tests/unit/` on its own; then `tests/integration/test_<topic>_*.py`, each of `core`, `agents`, `tui`, `daemon`, `anchor`, `web`, `reach` and `relay` on its own, a topic with no tests yet skipped; then the page's modules with `node --test tests/js`, once that directory exists; each that the change touched. Skipped when the change touched none | `uv run pytest tests/unit/<package>`, `uv run pytest tests/integration/test_<topic>_*.py`, `node --test tests/js` |
+| `tests (<os>)` | `tests/unit/<package>`, each directory under `tests/unit/` on its own; then `tests/integration/test_<topic>_*.py`, each of `core`, `agents`, `tui`, `daemon`, `anchor`, `web`, `reach` and `relay` on its own, a topic with no tests yet skipped; then the page's modules with `node --test 'tests/unit/web/js/*.test.mjs'`; each that the change touched. Skipped when the change touched none | `uv run pytest tests/unit/<package>`, `uv run pytest tests/integration/test_<topic>_*.py`, `node --test 'tests/unit/web/js/*.test.mjs'` |
 | `changes` | What the change touched, by the table above. Skipped on `release.yml`'s run, which runs everything | |
 | `coganchor (<os>)` | [`coganchor`](/contributing/#coganchor) in `crates/coganchor/`, on Linux and macOS: `cargo fmt --check`, `cargo clippy` with warnings as errors, `cargo test`; on Linux, also a static build against musl, checked to be statically linked. Skipped when `crates/coganchor/` is unchanged | the commands in [`coganchor`](/contributing/#coganchor) |
 | `desktop` | [The macOS app](/contributing/#the-macos-app) in `desktop/`: `cargo fmt --check`, `cargo clippy` with warnings as errors, `cargo test`, and the app and its disk image built unoptimised, the disk image checked to be laid out by Finder. Skipped when `desktop/` is unchanged | the commands in [The macOS app](/contributing/#the-macos-app) |

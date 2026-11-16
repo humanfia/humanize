@@ -97,6 +97,7 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.tracing",
     },
     "hmz.daemon": {"hmz.runtime"},
+    "hmz.relay": set(),
     "hmz.tui": {
         "hmz.coganchor",
         "hmz.flows",

@@ -37,8 +37,9 @@ def test_many_says_a_count_as_english_does(
     assert many(count, thing) == said
 
 
-def test_the_commands_are_exec_web_server_update_backup_and_the_internal_door() -> None:
-    assert list(COMMANDS) == ["exec", "web", "server", "update", "backup", "internal"]
+def test_the_commands_are_these_and_the_internal_door() -> None:
+    commands = ["exec", "web", "server", "relay", "update", "backup", "internal"]
+    assert list(COMMANDS) == commands
     assert set(INTERNAL) == {"anchor", "cli", "cred", "fence", "hook", "tools"}
     for run, summary in (*COMMANDS.values(), *INTERNAL.values()):
         assert callable(run)

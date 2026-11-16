@@ -11,6 +11,7 @@ mod chrome;
 mod install;
 mod menu;
 mod notify;
+mod pipes;
 mod server;
 mod shell_env;
 mod update;
@@ -495,8 +496,20 @@ pub fn run() {
             notified: Mutex::default(),
         })
         .on_menu_event(menu::handle)
+        // The pipes' commands are granted to no page yet: build.rs lists none of them, so the
+        // app's manifest denies them to every window.
         .invoke_handler(tauri::generate_handler![
-            status, retry, keep, update_now, notify
+            status,
+            retry,
+            keep,
+            update_now,
+            notify,
+            pipes::pipe_open,
+            pipes::pipe_send,
+            pipes::pipe_close,
+            pipes::easytier_list,
+            pipes::easytier_set,
+            pipes::easytier_remove
         ])
         .setup(|app| {
             menu::init(app.handle())?;

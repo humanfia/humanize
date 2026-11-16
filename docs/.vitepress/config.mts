@@ -311,6 +311,7 @@ export default defineConfig({
             { text: 'Remote execution', link: '/user/remote-execution' },
             { text: 'Where the agent runs (harness setting)', link: '/user/remote-execution#where-the-agent-runs' },
             { text: 'Containers', link: '/user/containers' },
+            { text: 'Running a relay', link: '/user/relay' },
           ],
         },
         {
