@@ -9,7 +9,9 @@ once it has gone 600 seconds unused, or once the method it was given to has take
 
 What a handle holds outlives the call that made it, so the handles open are kept here, one
 registry for the daemon, each handle keyed to its session: another session naming it is told
-there is no such file.
+there is no such file. A session's handles end as it closes, through `Peer.closing`; one gone
+unused is looked for whenever a handle is made or named, with no thread of its own to outlive
+a session or to be forked with.
 """
 
 from __future__ import annotations
@@ -42,9 +44,6 @@ LARGEST = 1 << 31
 
 #: How long a handle nobody uses is kept, in seconds.
 _UNUSED = 600.0
-
-#: How often the handles open are looked over for one gone unused, in seconds.
-_LOOKING = 30.0
 
 #: What the bytes of a write handle are written to, in its directory, until they are taken.
 _BYTES = "bytes"
@@ -81,8 +80,6 @@ _lock = threading.Lock()
 _open: dict[str, _Open] = {}
 #: The sessions told to end their handles as they close.
 _watched: set[int] = set()
-#: Whether handles are being looked over for one gone unused.
-_looking = False
 
 
 def reading(peer: Peer, path: Path) -> str:
@@ -223,20 +220,16 @@ def _still(handle: str, one: _Open, *, drop: bool = False) -> None:
 
 
 def _made(one: _Open) -> str:
-    """Opens a handle, ended with its session, and looked over until it is used no more."""
+    """Opens a handle, ended with its session."""
+    _expire(time.monotonic())
     handle = secrets.token_urlsafe(16)
     peer = one.peer
     with _lock:
         _open[handle] = one
         told = id(peer) not in _watched
         _watched.add(id(peer))
-        global _looking  # noqa: PLW0603 -- the one sweeper there is, started once wanted
-        looks = not _looking
-        _looking = True
     if told:
         peer.closing(lambda: _closed(peer))
-    if looks:
-        threading.Thread(target=_sweep, daemon=True, name="hmz-files").start()
     return handle
 
 
@@ -274,18 +267,6 @@ def _closed(peer: Peer) -> None:
         gone = [h for h, one in _open.items() if one.peer is peer]
     for handle in gone:
         _end(handle, peer)
-
-
-def _sweep() -> None:
-    """Ends each handle gone unused too long, for as long as any is open."""
-    global _looking  # noqa: PLW0603 -- the one sweeper there is, gone once nothing is open
-    while True:
-        time.sleep(_LOOKING)
-        _expire(time.monotonic())
-        with _lock:
-            if not _open:
-                _looking = False
-                return
 
 
 #: The methods of `files.*`.
