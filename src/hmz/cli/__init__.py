@@ -297,6 +297,25 @@ def _ending(running: Run, ended: list[int]) -> Generator[None]:
         told.set()
 
 
+def _coganchor(command: str, argv: list[str]) -> None:
+    """Hands an internal command to `coganchor` where `HUMANIZE_COGANCHOR` names one.
+
+    The switch the Rust port is tested by: this process becomes that program, so nothing
+    after this call runs. Where the variable names nothing, it returns and the Python half
+    carries the command out as it always has.
+
+    Args:
+      command: `anchor`, `fence` or `cred`.
+      argv: What followed the command's name.
+    """
+    from hmz.coganchor import binary
+
+    if (program := binary.chosen()) is not None:
+        import os
+
+        os.execv(program, [str(program), *binary.translated(command, argv)])  # noqa: S606
+
+
 def _anchor(argv: list[str]) -> int:
     """Runs the agent named on the command line, with its work landing on another machine.
 
@@ -306,6 +325,7 @@ def _anchor(argv: list[str]) -> int:
     Returns:
       The agent's exit status, or one of our own if it never ran.
     """
+    _coganchor("anchor", argv)
     from .anchor import anchor
 
     return anchor(argv)
@@ -320,6 +340,7 @@ def _cred(argv: list[str]) -> int:
     Returns:
       The program's exit status, or one of our own if it never ran.
     """
+    _coganchor("cred", argv)
     from .cred import cred
 
     return cred(argv)
@@ -334,6 +355,7 @@ def _fence(argv: list[str]) -> int:
     Returns:
       The program's exit status, or one of our own if it never ran.
     """
+    _coganchor("fence", argv)
     from .fence import fence
 
     return fence(argv)

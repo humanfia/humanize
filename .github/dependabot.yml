@@ -63,6 +63,21 @@ updates:
       prefix: build
       include: scope
 
+  # coganchor, the anchor's own program.
+  - package-ecosystem: cargo
+    directory: /crates/coganchor
+    labels: []
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      coganchor:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+      include: scope
+
   - package-ecosystem: npm
     directory: /desktop
     labels: []

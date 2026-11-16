@@ -1,0 +1,54 @@
+# coganchor: the anchor itself, as one static program. `cog` runs beside the agent on its
+# harness machine; `anchor` runs on the machine the work lands on; `broker` holds the meeting
+# when the two cannot dial each other. Its version stays 0.0.0 on `main`, as pyproject.toml's
+# does; a release sets it.
+
+[package]
+name = "coganchor"
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "coganchor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "coganchor"
+path = "src/main.rs"
+
+[dependencies]
+# Every unit of the port builds against this list: a dependency is added here, once, and not
+# in the pull request that first needs it.
+anyhow = "1"
+caseless = "0.2"
+clap = { version = "4", features = ["derive", "env"] }
+fancy-regex = "0.14"
+glob = "0.3"
+libc = "0.2"
+nix = { version = "0.30", features = ["fs", "ioctl", "mman", "net", "poll", "process", "ptrace", "pthread", "resource", "signal", "socket", "term", "uio", "user", "dir", "hostname", "sched"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+hex = "0.4"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
+rand = "0.9"
+time = { version = "0.3", features = ["formatting", "local-offset", "macros"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"
+seccompiler = "0.5"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
