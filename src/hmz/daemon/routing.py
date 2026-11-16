@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from hmz.rpc import Call, Dispatcher, Handler, Peer, Pipe
     from hmz.trust.identity import Identity
 
-__all__ = ["Router", "serves"]
+__all__ = ["Router", "serves", "serving"]
 
 _log = logging.getLogger(__name__)
 
@@ -47,6 +47,11 @@ _GRACE = 60.0
 
 #: How long a daemon whose last host and session have gone waits before it goes as well.
 _LINGER = 2.0
+
+#: The daemon this process is, while it serves, which asks its own hosts how they stand in
+#: this process: asked over its own socket, every question would be a session that kept it
+#: from ever going.
+serving: Router | None = None
 
 #: How often the daemon's own files are marked as used (Section 7.6.6 of files.md).
 _RETOUCH = 3600.0
@@ -457,6 +462,8 @@ def serves(
             # Said and left open: the descriptor is whoever forked this one's to close.
             with contextlib.suppress(OSError):
                 os.write(telling, b"listening\n")
+        global serving  # noqa: PLW0603 -- one daemon per process, while it serves
+        serving = router
         router.start()
         try:
             # A tick at a time: a signal is handled on this thread, and one the kernel hands to
@@ -466,6 +473,7 @@ def serves(
                 pass
         finally:
             router.close()
+            serving = None
     finally:
         with contextlib.suppress(OSError):
             os.close(holding)
