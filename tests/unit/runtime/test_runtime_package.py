@@ -15,6 +15,7 @@ WRITTEN = {
     "Flows": "hmz.runtime.doing.flows",
     "Flowverses": "hmz.runtime.doing.flows",
     "Hmz": "hmz.runtime.doing.core",
+    "Holding": "hmz.runtime.doing.core",
     "Host": "hmz.runtime.doing.hosting",
     "Refused": "hmz.runtime.runner",
     "Run": "hmz.runtime.doing.running",

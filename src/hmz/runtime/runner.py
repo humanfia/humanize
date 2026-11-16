@@ -74,7 +74,19 @@ class Refused(ValueError):  # noqa: N818 -- named for what happened, as the flow
     """A run refused before anything of it ran: a line, or a setup, to correct.
 
     The message says what, in words; the exception it was refused for is its cause.
+
+    Attributes:
+      code: The error code a daemon refused it with, 409 for a host's refusal, and 0 for one
+        made in this process.
+      data: The error's further fields, or nothing.
     """
+
+    def __init__(
+        self, message: str, *, code: int = 0, data: dict[str, Any] | None = None
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.data: dict[str, Any] = dict(data or {})
 
 
 class Line(NamedTuple):
@@ -246,7 +258,7 @@ class Runner:
 
     def __init__(
         self,
-        flow: str | os.PathLike[str],
+        flow: str | os.PathLike[str] | FlowImpl,
         *,
         agents: Mapping[str, str | AgentDriver] | Iterable[AgentSpec] = (),
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
@@ -257,11 +269,13 @@ class Runner:
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
         backup: Iterable[str] | None = None,
+        local: EnvDriver | None = None,
+        journal: tuple[Path, bool] | None = None,
     ) -> None:
         """Loads the flow and checks what it is given against what it declares.
 
         Args:
-          flow: The flow, as `-f` names one.
+          flow: The flow, as `-f` names one, or the flow itself, loaded.
           agents: What each agent role runs: an `-a` spec after `<role>=` or a driver, by
             role, or the specs a line read. A role the runtime fills -- an `Outworlder` --
             is never given.
@@ -281,6 +295,9 @@ class Runner:
           workspace: Where the run happens, defaulting to this directory.
           backup: The backup targets in settings the epic goes to, by name, or None for
             the defaults settings names.
+          local: What fills every `LocalEnv` role, or None for the workspace: a test's fake.
+          journal: Where a resumable flow's journal is kept and whether to pick it up, or
+            None for its epic's: a test's own.
 
         Raises:
           Refused: For a flow that cannot be loaded; a role given that it does not declare,
@@ -291,14 +308,16 @@ class Runner:
             backup target settings has none of.
         """
         from hmz.flows import Budget, FlowException
-        from hmz.runtime.flowing import privileged, resolved
+        from hmz.runtime.flowing import FlowImpl, privileged, resolved
         from hmz.runtime.flowing.specs import EnvSpec as Spec
         from hmz.runtime.flowing.verses import spelled
 
-        self._named = spelled(flow)
+        self._named = flow.ref if isinstance(flow, FlowImpl) else spelled(flow)
         self._workspace = Path(workspace) if workspace is not None else Path.cwd()
+        self._local = local
+        self._journal = journal
         try:
-            impl = resolved(self._named)
+            impl = flow if isinstance(flow, FlowImpl) else resolved(self._named)
             declared = impl.describe()
         except FlowException as why:
             raise Refused(str(why)) from why
@@ -763,7 +782,7 @@ class Runner:
             finally:
                 given_up.set()
             await self._settled(noticed)
-            local = local_env(self._workspace)
+            local = self._local or local_env(self._workspace)
             await self._placeable(local)
         except BaseException as why:
             # Stopped, or refused, before the run began: what it was given goes either way.
@@ -835,8 +854,13 @@ class Runner:
                         params=self._params,
                         budget=self._budget,
                         outworlder=outworlder,
-                        journal=epic.resume if impl.resumable else None,
-                        resume=self._picked_up is not None,
+                        journal=self._journal[0]
+                        if self._journal is not None
+                        else epic.resume
+                        if impl.resumable
+                        else None,
+                        resume=self._picked_up is not None
+                        or (self._journal is not None and self._journal[1]),
                         local=local,
                         recorder=recorder,
                     )
