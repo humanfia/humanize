@@ -81,6 +81,9 @@ def spawns(said: Sequence[str], seconds: float, *, keep: Sequence[int] = ()) -> 
                 stderr=log,
                 pass_fds=(telling, *keep),
                 start_new_session=True,
+                # The daemon's directory is in the temporary directory, which the process
+                # started has to find where this one did.
+                env={**os.environ, "TMPDIR": tempfile.gettempdir()},
             )
         finally:
             os.close(log)
