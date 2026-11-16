@@ -109,7 +109,7 @@ if TYPE_CHECKING:
     )
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
-    from hmz.daemon.link import Link
+    from hmz.reach.routes import Route
     from hmz.runtime.epic import Ran
     from hmz.runtime.flowing import AgentRole, EnvRole
 
@@ -9990,43 +9990,56 @@ class Machines(Pages):
         self._fill()
 
 
-#: The kinds of daemon a form adds, and the modes of each, as the web's New daemon names them:
-#: over ssh, fields hmz keeps or a `Host` of the ssh config; peer to peer, over EasyTier. A
-#: kind starts on its first mode.
-_SSH_KIND, _P2P_KIND = "SSH", "P2P"
-_SSH_CONFIG, _STORED, _EASYTIER = "SSH Config", "Custom", "EasyTier"
-_MODES = {_SSH_KIND: (_STORED, _SSH_CONFIG), _P2P_KIND: (_EASYTIER,)}
+#: The modes a daemon is added or edited in: its pairing code, claimed at once; a `Host` of the
+#: ssh config; what `ssh` is told, typed in; or its routes, typed in order.
+_PAIRED, _SSH_CONFIG, _STORED, _ROUTED = (
+    "Pairing code",
+    "SSH Config",
+    "Custom",
+    "Routes",
+)
+_MODES = (_PAIRED, _SSH_CONFIG, _STORED, _ROUTED)
 
-#: The rows of the daemon form besides those an ssh host is written on: its kind, its mode,
-#: a host of the ssh config its fields are filled from, its secret, and the nodes it meets at.
-_KIND, _MODE, _BRINGS, _SECRET, _PEERS = "kind", "mode", "import", "secret", "peers"
+#: The rows of the daemon form besides those an ssh host is written on: its mode, a host of the
+#: ssh config its fields are filled from, its pairing code, and its routes.
+_MODE, _BRINGS, _CODE, _ROUTES = "mode", "import", "code", "routes"
 
-#: What a daemon's secret is at least, in bytes of UTF-8, and what a shorter one is told.
-_FEWEST_BYTES = 16
-_TOO_SHORT = "A secret must be at least 16 bytes."
+#: The `ssh` options a `stdio:ssh` route carries that a row of their own holds.
+_KEYED = {"IdentityFile": _KEY, "ProxyJump": _JUMP}
 
 
-def _mode(one: Mapping[str, Any]) -> str:
-    """Which mode a daemon is in, as it is written: derived from its fields, never stored."""
-    if one.get("via") == "easytier":
-        return _EASYTIER
-    fields = (_HOST, _USER, _PORT, _KEY, _JUMP, _OPTIONS)
-    return (
-        _SSH_CONFIG
-        if one.get(_ALIAS) and not any(one.get(each) for each in fields)
-        else _STORED
-    )
+def _aliases() -> list[str]:
+    """Every host of the ssh config, or none where it cannot be read."""
+    from hmz.coganchor.machines import sshconfig
+
+    try:
+        return sshconfig.aliases()
+    except OSError:
+        return []
+
+
+def _ssh(one: Mapping[str, Any] | None) -> Route | None:
+    """The `stdio:ssh` route a daemon is reached by alone, or None where it is not one."""
+    from hmz.reach.routes import Route
+
+    routes: list[str] = list((one or {}).get("routes") or [])
+    if len(routes) != 1:
+        return None
+    try:
+        route = Route.parse(routes[0])
+    except ValueError:
+        return None
+    return route if route.kind == "ssh" else None
 
 
 class Daemoning(Form["dict[str, Any] | str"]):
     """One daemon of another machine, on one form: what it is called, and what reaches it.
 
-    Of a kind and a mode, as the web's New daemon: over ssh, a `Host` of the ssh config alone
-    or what `ssh` is told on top of it, each blank for what that config says -- typed in, or
-    filled from a host of it; or over EasyTier, its secret and the nodes it meets its server
-    at. Opened on a daemon, it is in the mode that daemon is in; its secret is never shown,
-    and kept where it is left blank. Written as it is answered, as the daemons page writes
-    everything.
+    Added from a pairing code, which is claimed at once and gives its id and routes; or from
+    routes alone -- a `Host` of the ssh config, what `ssh` is told typed in or filled from a
+    host of it, or routes typed in order. Opened on a daemon, it is in the mode its routes are
+    in, and keeps the id it is pinned to. Written as it is answered, as the daemons page
+    writes everything.
     """
 
     def __init__(
@@ -10041,40 +10054,40 @@ class Daemoning(Form["dict[str, Any] | str"]):
         super().__init__()
         self._one = one
         self._taken = taken
-        held = one or {}
-        mode = _mode(held) if one is not None else _STORED
         #: The hosts of the ssh config, read once they are first asked for.
         self._hosts: list[str] | None = None
         #: The host of the ssh config being read to fill the fields from, while it is.
         self._bringing = ""
+        route = _ssh(one)
+        options: dict[str, str] = dict(route.options) if route is not None else {}
+        if one is None:
+            mode = _PAIRED
+        elif route is None or len(options) < len(route.options):
+            # One ssh is told an option twice is kept whole, as the route it is.
+            mode = _ROUTED
+        elif not (route.user or route.port or options) and route.host in _aliases():
+            mode = _SSH_CONFIG
+        else:
+            mode = _STORED
         self._typed_in = {
-            _CALLED: str(held.get("name", "")),
-            _KIND: _P2P_KIND if mode == _EASYTIER else _SSH_KIND,
+            _CALLED: str((one or {}).get("name", "")),
             _MODE: mode,
-            # A `Host` told on top of, as an older form wrote it, is the host ssh is given:
-            # its block of the ssh config applies to it as to the alias.
-            _HOST: str(held.get("host") or held.get("alias", ""))
-            if mode == _STORED
-            else "",
-            _USER: str(held.get("user", "")),
-            _PORT: str(held.get("port") or ""),
-            _KEY: str(held.get("identity_file", "")),
-            _JUMP: str(held.get("proxy_jump", "")),
-            _OPTIONS: ", ".join(
-                f"{key}={value}" for key, value in held.get("options", [])
-            ),
-            _ALIAS: str(held.get("alias", "")) if mode == _SSH_CONFIG else "",
+            _CODE: "",
+            _ALIAS: route.host if route is not None and mode == _SSH_CONFIG else "",
             _BRINGS: "",
-            _SECRET: "",
-            _PEERS: ", ".join(held.get("peers", [])),
+            _HOST: route.host if route is not None and mode == _STORED else "",
+            _USER: route.user if route is not None else "",
+            _PORT: str(route.port or "") if route is not None else "",
+            _KEY: options.get("IdentityFile", ""),
+            _JUMP: options.get("ProxyJump", ""),
+            _OPTIONS: ", ".join(
+                f"{key}={value}" for key, value in options.items() if key not in _KEYED
+            ),
+            _ROUTES: ", ".join((one or {}).get("routes") or []),
         }
 
-    def _keeps(self) -> bool:
-        """Whether a secret is written already, which one left blank keeps."""
-        return self._one is not None and _mode(self._one) == _EASYTIER
-
     def asked(self) -> list[Question]:
-        """Its name, where it is new, its kind and mode, then what that mode asks."""
+        """Its name, where it is new, its mode, then what that mode asks."""
         typed = self._typed_in
         mode = typed[_MODE]
         rows = [
@@ -10090,9 +10103,18 @@ class Daemoning(Form["dict[str, Any] | str"]):
                     ),
                 )
             ),
-            Question(_KIND, "kind", "SSH, or P2P", _STEPS),
             Question(_MODE, "mode", self.means(_MODE, mode), _STEPS),
         ]
+        if mode == _PAIRED:
+            return [
+                *rows,
+                Question(
+                    _CODE,
+                    "code",
+                    "hmz-pair:…, as hmz daemon pair printed it there",
+                    needed=not typed[_CODE].strip(),
+                ),
+            ]
         if mode == _SSH_CONFIG:
             return [
                 *rows,
@@ -10104,24 +10126,14 @@ class Daemoning(Form["dict[str, Any] | str"]):
                     needed=not typed[_ALIAS],
                 ),
             ]
-        if mode == _EASYTIER:
-            keeps = self._keeps()
+        if mode == _ROUTED:
             return [
                 *rows,
                 Question(
-                    _SECRET,
-                    "secret",
-                    "its server's; leave blank to keep current value"
-                    if keeps
-                    else "its server's, at least 16 bytes",
-                    secret=True,
-                    needed=not typed[_SECRET] and not keeps,
-                ),
-                Question(
-                    _PEERS,
-                    "nodes",
-                    "shared EasyTier nodes: tcp://host:port, …",
-                    needed=not typed[_PEERS].strip(),
+                    _ROUTES,
+                    "routes",
+                    "in the order tried: stdio:ssh://host, tcp://host:port, …",
+                    needed=not typed[_ROUTES].strip(),
                 ),
             ]
         return [
@@ -10148,11 +10160,9 @@ class Daemoning(Form["dict[str, Any] | str"]):
         ]
 
     def choices(self, held: str) -> Sequence[str]:
-        """The kinds, the modes of the kind chosen, and the hosts of the ssh config."""
-        if held == _KIND:
-            return tuple(_MODES)
+        """The modes, and the hosts of the ssh config."""
         if held == _MODE:
-            return _MODES[self._typed_in[_KIND]]
+            return _MODES
         if held in (_ALIAS, _BRINGS):
             return self._read_hosts()
         return ()
@@ -10162,9 +10172,10 @@ class Daemoning(Form["dict[str, Any] | str"]):
         if held != _MODE:
             return ""
         return {
+            _PAIRED: "the code hmz daemon pair printed there, claimed now",
             _SSH_CONFIG: "a Host of your ssh config, reached as it says",
-            _STORED: "what ssh is told, kept by hmz: typed in, or imported",
-            _EASYTIER: "an hmz server, met through shared nodes",
+            _STORED: "what ssh is told: typed in, or imported",
+            _ROUTED: "its routes, in the order they are tried",
         }[value]
 
     def _read_hosts(self) -> list[str]:
@@ -10173,25 +10184,19 @@ class Daemoning(Form["dict[str, Any] | str"]):
         Read once, and none where the config cannot be read.
         """
         if self._hosts is None:
-            from hmz.coganchor.machines import sshconfig
-
-            mine = str((self._one or {}).get(_ALIAS, ""))
-            try:
-                every = sshconfig.aliases()
-            except OSError:
-                every = []
+            route = _ssh(self._one)
+            mine = route.host if route is not None else ""
+            every = _aliases()
             self._hosts = [*((mine,) if mine and mine not in every else ()), *every]
         return self._hosts
 
     def stepped(self, held: str) -> None:
-        """Moves the mode to the kind's first, or fills the fields from the host imported.
+        """Fills the fields from the host imported.
 
         Args:
           held: The row that moved.
         """
-        if held == _KIND:
-            self._typed_in[_MODE] = _MODES[self._typed_in[_KIND]][0]
-        elif held == _BRINGS and self._typed_in[_BRINGS]:
+        if held == _BRINGS and self._typed_in[_BRINGS]:
             self._brings(self._typed_in[_BRINGS])
 
     @work(exclusive=True)
@@ -10247,82 +10252,77 @@ class Daemoning(Form["dict[str, Any] | str"]):
             "Add daemon" if self._one is None else escape(self._typed_in[_CALLED])
         )
         self.query_one("#about", Label).update(
-            "Another machine's hmz, reached over ssh or EasyTier: its epics are listed "
-            "with /epics @<name>, and over ssh hmz is installed there where it is missing."
+            "Another machine's hmz, added from the code hmz daemon pair prints there, or "
+            "from its routes: its epics are listed with /epics @<name>."
         )
         self._fill()
 
-    def _checks(self, typed: dict[str, str]) -> str:
-        """What is wrong with what the mode chosen asks, or "" for nothing.
+    def _routes(self, typed: dict[str, str]) -> list[str]:
+        """The routes what the mode chosen asks says, in order.
 
         Args:
-          typed: What each row holds, stripped but for the secret.
+          typed: What each row holds, stripped.
+
+        Raises:
+          ValueError: Saying what is wrong with them.
         """
+        from hmz.reach.routes import Route
+
         mode = typed[_MODE]
         if mode == _SSH_CONFIG:
-            return "" if typed[_ALIAS] else "host is required"
-        if mode == _EASYTIER:
-            if not typed[_SECRET] and not self._keeps():
-                return "secret is required"
-            if typed[_SECRET] and len(typed[_SECRET].encode()) < _FEWEST_BYTES:
-                return _TOO_SHORT
-            return "" if _listed(typed[_PEERS]) else "nodes are required"
+            if not typed[_ALIAS]:
+                raise ValueError("host is required")
+            return [str(Route("ssh", host=typed[_ALIAS]))]
+        if mode == _ROUTED:
+            said = _listed(typed[_ROUTES])
+            if not said:
+                raise ValueError("routes are required")
+            return [str(Route.parse(one)) for one in said]
         if not typed[_HOST]:
-            return "host is required"
+            raise ValueError("host is required")
         if typed[_PORT] and not typed[_PORT].isdigit():
-            return "port is a number"
-        try:
-            _options(typed[_OPTIONS])
-        except ValueError as why:
-            return str(why)
-        return ""
+            raise ValueError("port is a number")
+        options = {
+            keyword: typed[held] for keyword, held in _KEYED.items() if typed[held]
+        } | _options(typed[_OPTIONS])
+        return [
+            str(
+                Route(
+                    "ssh",
+                    host=typed[_HOST],
+                    port=int(typed[_PORT] or 0) or None,
+                    user=typed[_USER],
+                    options=tuple(options.items()),
+                )
+            )
+        ]
 
     def action_done(self) -> None:
-        """Answers with the daemon, once it is named and reached as its mode says."""
+        """Answers with the daemon's code, or its routes, once it is named and they are said."""
         typed = {key: value.strip() for key, value in self._typed_in.items()}
-        # As it was typed: a space may be part of a secret.
-        typed[_SECRET] = self._typed_in[_SECRET]
-        if not typed[_CALLED]:
+        name = typed[_CALLED]
+        self._wrong = ""
+        routes: list[str] = []
+        if not name:
             self._wrong = "name is required"
-        elif self._one is None and typed[_CALLED] in self._taken:
-            self._wrong = f"another daemon is named {typed[_CALLED]}"
+        elif self._one is None and name in self._taken:
+            self._wrong = f"another daemon is named {name}"
+        elif typed[_MODE] == _PAIRED:
+            if not typed[_CODE]:
+                self._wrong = "code is required"
         else:
-            self._wrong = self._checks(typed)
+            try:
+                routes = self._routes(typed)
+            except ValueError as why:
+                self._wrong = str(why)
         if self._wrong:
             self._fill()
             return
-        mode, name = typed[_MODE], typed[_CALLED]
-        config = str((self._one or {}).get("config", ""))
-        if mode == _EASYTIER:
-            # A secret left blank is not said, which keeps the one written.
-            secret = {_SECRET: typed[_SECRET]} if typed[_SECRET] else {}
-            self.dismiss(
-                {
-                    "name": name,
-                    "via": "easytier",
-                    **secret,
-                    "peers": _listed(typed[_PEERS]),
-                }
-            )
-        elif mode == _SSH_CONFIG:
-            self.dismiss(
-                {"name": name, "via": "ssh", "alias": typed[_ALIAS], "config": config}
-            )
-        else:
-            options = _options(typed[_OPTIONS])
-            self.dismiss(
-                {
-                    "name": name,
-                    "via": "ssh",
-                    "host": typed[_HOST],
-                    "user": typed[_USER],
-                    "port": int(typed[_PORT] or 0),
-                    "identity_file": typed[_KEY],
-                    "proxy_jump": typed[_JUMP],
-                    "options": [[key, value] for key, value in options.items()],
-                    "config": config,
-                }
-            )
+        if typed[_MODE] == _PAIRED:
+            self.dismiss({"name": name, "code": typed[_CODE]})
+            return
+        pinned = (self._one or {}).get("id", "")
+        self.dismiss({"name": name, "id": pinned, "routes": routes})
 
 
 class Bringing(Form[tuple[str, ...]]):
@@ -10443,21 +10443,128 @@ class Batching(Form[tuple[tuple[str, ...], tuple[str, ...]]]):
         self.dismiss((pages, daemons))
 
 
-#: What can be done to one daemon of another machine, which is its menu.
-_CONNECTS, _EDITS = "connect", "edit"
+#: What can be done to one daemon, which is its menu.
+_CONNECTS, _EDITS, _PAIRS, _DEVICES = "connect", "edit", "pair", "devices"
+
+
+class Devices(Picks):
+    """The devices paired with one daemon, picking one to revoke."""
+
+    asked = "Devices"
+    SEARCHES: ClassVar = False
+
+    def __init__(self, daemon: str, devices: Sequence[Mapping[str, Any]]) -> None:
+        """Lists the devices a daemon answered `devices.list` with.
+
+        Args:
+          daemon: The daemon, by name.
+          devices: Each device, as it answered.
+        """
+        super().__init__()
+        self._devices = list(devices)
+        self.about = f"Each device paired with {escape(daemon)}: enter revokes one."
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Each device: when it was added, last seen, and how many sessions it holds."""
+        return [
+            (
+                str(one["name"]),
+                str(one["name"]),
+                _DOT.join(
+                    [
+                        f"added {_when(str(one.get('added') or ''))}",
+                        f"seen {_when(str(one.get('seen') or ''))}"
+                        if one.get("seen")
+                        else "never seen",
+                        _many(int(one.get("live") or 0), "session"),
+                    ]
+                ),
+            )
+            for one in self._devices
+        ]
+
+    def nothing(self) -> str:
+        """Where there is none."""
+        return "" if self._devices else "no device is paired with it"
+
+
+class Revokes(Popup):
+    """Whether to revoke a device paired with a daemon, which closes its sessions there."""
+
+    CSS = _popup("Revokes")
+
+    def __init__(self, device: str) -> None:
+        """Initializes the question.
+
+        Args:
+          device: The device.
+        """
+        super().__init__()
+        self.asked = f"Revoke {escape(device)}?"
+        self.about = "Closes its sessions there; it pairs again only with a new code."
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Revoking it, or keeping it."""
+        return [("yes", "revoke", "revoke it now"), ("no", "keep", "keep it")]
+
+
+def _rpc(
+    daemon: str,
+    method: str,
+    params: Mapping[str, Any] | None = None,
+    *,
+    writes: bool = False,
+) -> Any:
+    """One call of a daemon, answered: this machine's over its socket, another's over its session.
+
+    Args:
+      daemon: The daemon, by name.
+      method: The method.
+      params: What it takes.
+      writes: Whether it is a write, which carries an `idem` of its own.
+
+    Raises:
+      LookupError, OSError, RuntimeError, ValueError: If it was not reached or refused it,
+        saying why.
+    """
+    import secrets
+
+    idem = secrets.token_urlsafe(12) if writes else None
+    if daemon != LOCAL_DAEMON:
+        with remotes().client(daemon) as client:
+            return client.call(method, params, idem=idem, seconds=_ASKING)
+    from hmz import daemon as here
+    from hmz.daemon import where
+    from hmz.daemon.link import dialed
+    from hmz.rpc import Closed, RpcError
+
+    here.start()
+    peer, _ = dialed(where.at(), kind="tui")
+    try:
+        return peer.call(
+            method,
+            {**(params or {}), **({"idem": idem} if idem else {})},
+            timeout=_ASKING,
+        )
+    except RpcError as why:
+        raise OSError(why.message) from why
+    except Closed as why:
+        raise OSError("the daemon went away") from why
+    finally:
+        peer.close()
 
 
 class Daemons(Pages):
-    """The daemons page of `/settings`: this machine's, and each reached over ssh or EasyTier.
+    """The daemons page of `/settings`: this machine's, and each of another machine's.
 
     Written as each is changed rather than held until the menu is saved: what is written is
-    a machine `/epics @<name>` reaches, and reaching one runs ssh. How each stands is asked
-    of the reach this interface holds, and drawn again as it changes.
+    a machine `/epics @<name>` reaches. How each stands is asked of the reach this interface
+    holds, and drawn again as it changes.
     """
 
     #: What the page says it is.
     DAEMONS_ABOUT = (
-        "This machine's daemon, and other machines' reached over ssh or EasyTier. "
+        "This machine's daemon, and other machines' reached by their routes. "
         "/epics @<name> lists the epics of one; m on one is its menu."
     )
 
@@ -10483,12 +10590,12 @@ class Daemons(Pages):
         return not getattr(self, "_home", False) and self._tab == _DAEMONS
 
     def _daemon_rows(self) -> list[str]:
-        """Each daemon's row, Local first: what reaches it, and how it stands."""
+        """Each daemon's row, Local first: its routes, and how it stands."""
         reach = remotes()
         return [
             "this machine",
             *(
-                f"{_reached_at(one)}{_DOT}{_stands(reach.state(one['name']))}"
+                f"{', '.join(one['routes'])}{_DOT}{_stands(reach.state(one['name']))}"
                 for one in self._daemons
             ),
         ]
@@ -10499,7 +10606,7 @@ class Daemons(Pages):
             Action(
                 _ACT_ADD,
                 "add daemon",
-                "another machine, reached over ssh or EasyTier",
+                "another machine, from its pairing code or its routes",
                 lambda: self._writes_daemon(None),
             ),
             Action(
@@ -10544,9 +10651,8 @@ class Daemons(Pages):
 
         def applies(name: str) -> str:
             try:
-                with remotes().client(name) as client:
-                    for method, params in sent:
-                        client.call(method, params, seconds=120)
+                for method, params in sent:
+                    _rpc(name, method, params, writes=True)
             except (LookupError, OSError, RuntimeError, ValueError) as why:
                 return f"{name}: {why}"
             return f"{name}: applied"
@@ -10594,10 +10700,13 @@ class Daemons(Pages):
         self._footed(Key("enter", "menu"), Key("esc", "close"))
 
     def menu(self) -> tuple[str, list[Action]] | None:
-        """What can be done to the daemon under the cursor: Local is only ever there."""
+        """What can be done to the daemon under the cursor: to Local, only its devices."""
         if not self._on_daemons():
             return None
-        one = next((one for one in self._daemons if one["name"] == self.under()), None)
+        under = self.under()
+        if under == "Local":
+            return ("Local", self._pairing(LOCAL_DAEMON))
+        one = next((one for one in self._daemons if one["name"] == under), None)
         if one is None:
             return None
         name = one["name"]
@@ -10626,19 +10735,38 @@ class Daemons(Pages):
                     name,
                     lambda: self.copies(name),
                 ),
+                *(
+                    self._pairing(name)
+                    if remotes().state(name).get("state") == "up"
+                    else []
+                ),
             ],
         )
 
+    def _pairing(self, name: str) -> list[Action]:
+        """Pairing another device with a daemon that is up, and the devices paired with it."""
+        return [
+            Action(
+                _PAIRS,
+                "pair a device…",
+                "a code another device adds it from",
+                lambda: self._pairs(name),
+            ),
+            Action(
+                _DEVICES,
+                "devices…",
+                "the devices paired with it, and revoking one",
+                lambda: self._lists_devices(name),
+            ),
+        ]
+
     def _took_daemon(self, named: str) -> None:
-        """Opens the menu of the daemon chosen, or says what Local is.
+        """Opens the menu of the daemon chosen.
 
         Args:
           named: The row chosen, by its id.
         """
-        if named == "Local":
-            self._said = "Local is this machine's daemon, always there"
-            self._fill()
-            return
+        del named
         self.action_menu()
 
     def _connects(self, name: str) -> None:
@@ -10650,6 +10778,57 @@ class Daemons(Pages):
         else:
             # How it stands is its row's to say.
             self._said = ""
+        self._fill()
+
+    @work
+    async def _pairs(self, name: str) -> None:
+        """Asks a daemon for a pairing code, and shows it, copied."""
+        import asyncio
+
+        self._said = f"asking {escape(name)} for a code…"
+        self._fill()
+        try:
+            said = await asyncio.to_thread(_rpc, name, "pair.create", {}, writes=True)
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            code = str(said["code"])
+            self.copies(code)
+            self._said = f"copied: {escape(code)}"
+        self._fill()
+
+    @work
+    async def _lists_devices(self, name: str) -> None:
+        """Lists the devices paired with a daemon, and revokes the one picked once confirmed."""
+        import asyncio
+
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            said = await asyncio.to_thread(_rpc, name, "devices.list")
+            picked = await showing.push_screen_wait(Devices(name, said["devices"]))
+            sure = picked and await showing.push_screen_wait(Revokes(picked))
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        finally:
+            self.opened()
+        if sure != "yes":
+            return
+        try:
+            await asyncio.to_thread(
+                _rpc, name, "devices.revoke", {"name": picked}, writes=True
+            )
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            self._said = iffy(f"{escape(str(picked))} revoked")
+            self._told.append(f"[dim]device {escape(str(picked))} revoked[/dim]")
         self._fill()
 
     def _removes_daemon(self, name: str) -> None:
@@ -10672,9 +10851,13 @@ class Daemons(Pages):
     async def _writes_daemon(self, one: dict[str, Any] | None) -> None:
         """Asks what one daemon is, on one form, and writes it down at once.
 
+        A pairing code is claimed first, off the loop, and the daemon written as it gives it.
+
         Args:
           one: The daemon as it is written down, or None for one being added.
         """
+        import asyncio
+
         if self.opening():
             return
         showing = cast(
@@ -10694,8 +10877,13 @@ class Daemons(Pages):
             return
         name = chosen.pop("name")
         try:
-            _hmz().daemons.write(name, chosen, replace=one is not None)
-        except (OSError, ValueError) as why:
+            if "code" in chosen:
+                self._said = f"pairing with {escape(name)}…"
+                self._fill()
+                await asyncio.to_thread(remotes().pair, name, chosen["code"])
+            else:
+                _hmz().daemons.write(name, chosen, replace=one is not None)
+        except (OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
             self._aim, self._said = name, f"{escape(name)} saved"
@@ -10811,13 +10999,22 @@ class Doing(NamedTuple):
         sheet did it itself.
       said: What happened while the sheet was open, for the transcript: a menu that wrote an
         archive and said nothing afterwards is one nobody can read back.
-      daemon: The daemon whose epics to list instead, by name, or "" to stay on this one.
+      daemon: The daemon whose epics to list instead, by name, or "" to stay on this one;
+        or, to follow an epic there, the daemon it is on.
+      there: The workspace there of the epic to follow.
+      slot: Which of that workspace's hosts holds it: "" for its own, `chat:<hex>` for a
+        chat's.
+      start: What to start there once attached, as `epic.start` takes it, or None to start
+        nothing.
     """
 
     epic: Path | None = None
     doing: str = ""
     said: tuple[str, ...] = ()
     daemon: str = ""
+    there: str = ""
+    slot: str = ""
+    start: dict[str, Any] | None = None
 
 
 def _many(count: int, thing: str) -> str:
@@ -11990,6 +12187,12 @@ LOCAL_DAEMON = "local"
 _REACH: list[Any] = []
 _REACHING = threading.Lock()
 
+#: How long a daemon is given to answer one call, in seconds.
+_ASKING = 120.0
+
+#: How much of an epic's archive one `files.read` brings: the most a chunk carries.
+_CHUNK = 1 << 20
+
 
 def remotes() -> Any:
     """Every daemon of another machine, as this interface reaches each."""
@@ -12012,37 +12215,20 @@ def daemon_names() -> list[str]:
 
 
 def _stands(said: dict[str, str]) -> str:
-    """How one daemon stands, as a row says it."""
-    state = said.get("state", "")
-    word = {"idle": "not connected"}.get(state, state)
+    """How one daemon stands, as a row says it: its state, and what was said last."""
+    word = said.get("state", "")
     if said.get("detail"):
         word += f": {said['detail']}"
-    elif state == "up" and said.get("version"):
+    elif word == "up" and said.get("version"):
         word += f", hmz {said['version']}"
     return word
 
 
-def _reached_at(one: dict[str, Any]) -> str:
-    """How a daemon is reached: its mode, then its Host or its login, as ssh is told it."""
-    mode = _mode(one)
-    if mode == _EASYTIER:
-        return f"P2P{_DOT}{mode}"
-    if mode == _SSH_CONFIG:
-        return f"{mode}{_DOT}{one['alias']}"
-    host = str(one.get("host") or one.get("alias", ""))
-    login = f"{one['user']}@{host}" if one.get("user") else host
-    return (
-        f"{mode}{_DOT}{login}:{one['port']}"
-        if one.get("port")
-        else f"{mode}{_DOT}{login}"
-    )
-
-
 class Daemoned(Picks):
-    """Which daemon's epics `/epics` lists: this machine's, or one reached over ssh or EasyTier."""
+    """Which daemon's epics `/epics` lists: this machine's, or another reached by its routes."""
 
     asked = "Daemon"
-    about = "Whose epics to list: this machine's, or another's reached over ssh or EasyTier."
+    about = "Whose epics to list: this machine's, or another's reached by its routes."
     SEARCHES: ClassVar = False
 
     def rows(self) -> list[tuple[str, str, str]]:
@@ -12054,7 +12240,9 @@ class Daemoned(Picks):
                 (
                     one["name"],
                     one["name"],
-                    f"{_reached_at(one)}{_DOT}{_stands(reach.state(one['name']))}",
+                    _DOT.join(
+                        [", ".join(one["routes"]), _stands(reach.state(one["name"]))]
+                    ),
                 )
                 for one in _hmz().daemons.all()
             ),
@@ -12063,11 +12251,6 @@ class Daemoned(Picks):
     def nothing(self) -> str:
         """Where more are added, where there are none."""
         return "" if len(self.rows()) > 1 else "add daemons on /settings daemons"
-
-
-def _field(said: object, key: str) -> Any:
-    """One field of what a daemon's interface answered, or None where it said none."""
-    return cast("dict[str, Any]", said).get(key) if isinstance(said, dict) else None
 
 
 def _switching(sheet: Sheet[Doing], current: str, told: list[str]) -> Action:
@@ -12101,8 +12284,11 @@ def _switching(sheet: Sheet[Doing], current: str, told: list[str]) -> Action:
     )
 
 
-#: Starting an epic on another daemon, and following one going there.
-_ACT_STARTS, _ATTACHES = "start", "follow"
+#: Following an epic on another daemon, which the interface does once a sheet answers so.
+FOLLOWS = "follow"
+
+#: Starting an epic on another daemon.
+_ACT_STARTS = "start"
 
 #: The rows a new epic on another daemon is asked on: where it runs there, which flow, what it
 #: is to do, and what its agents run.
@@ -12117,7 +12303,7 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
     """
 
     def __init__(self, daemon: str, workspace: str) -> None:
-        """Initializes the form on the directory that daemon's interface started in, and chat.
+        """Initializes the form on the directory that daemon last ran an epic in, and chat.
 
         Args:
           daemon: The daemon, by name.
@@ -12185,10 +12371,10 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
         self.dismiss((typed[_THERE], typed[_RUNS], typed[_TASK], roles))
 
 
-def _started_afar(
+def _set_up(
     daemon: str, workspace: str, flow: str, task: str, given: Mapping[str, str]
-) -> Link:
-    """Starts an epic on another daemon as its web page does, and follows that directory.
+) -> dict[str, Any]:
+    """What an epic on another daemon is started with, as that directory last ran the flow.
 
     Args:
       daemon: The daemon, by name.
@@ -12198,58 +12384,46 @@ def _started_afar(
       given: What some of its agent roles run, by role, over what that directory last ran.
 
     Returns:
-      The link the epic is followed by, the epic started.
+      What `epic.start` takes, but its `sub`.
 
     Raises:
-      OSError: If that daemon would not follow or start it, saying why.
+      LookupError, OSError, RuntimeError, ValueError: If the flow cannot be set up there, or
+        a role runs nothing, saying why.
     """
-    import urllib.parse
-
-    from hmz.daemon import Refused
-    from hmz.daemon.link import remote
-
-    reach = remotes()
-    set_up = reach.asked(
-        daemon,
-        "/api/flow?" + urllib.parse.urlencode({"name": flow, "workspace": workspace}),
-    )
-    kept: dict[str, Any] = dict(_field(set_up, "remembered") or {})
+    set_up = _rpc(daemon, "flows.get", {"workspace": workspace, "name": flow})
+    kept: dict[str, Any] = dict(set_up.get("remembered") or {})
     agents = {**dict(kept.get("agents") or {}), **given}
-    for role in cast("list[dict[str, Any]]", _field(set_up, "agents") or []):
+    for role in cast("list[dict[str, Any]]", set_up.get("agents") or []):
         if (
             role.get("required")
             and not role.get("auto")
             and not agents.get(role["name"])
         ):
-            raise OSError(
+            raise ValueError(
                 f"{role['name']} runs nothing there yet: say it as "
                 f"{role['name']}=<cli>/<model>:<effort>"
             )
-    link = remote(reach, daemon, workspace)
-    try:
-        link.start(
-            flow,
-            task,
-            agents=agents,
-            envs=kept.get("envs") or {},
-            params=kept.get("params"),
-            budget=kept.get("budget") or None,
-            profile_flow=bool(kept.get("profile_flow")),
-            profile_environment=bool(kept.get("profile_environment")),
-            backup=kept.get("backup"),
-        )
-    except Refused as why:
-        link.close()
-        raise OSError(str(why)) from why
-    return link
+    return {
+        "flow": flow,
+        "task": task,
+        "agents": agents,
+        "envs": kept.get("envs") or {},
+        "params": kept.get("params"),
+        "budget": kept.get("budget") or None,
+        "profile_flow": bool(kept.get("profile_flow")),
+        "profile_environment": bool(kept.get("profile_environment")),
+        "backup": kept.get("backup"),
+        "resume": False,
+    }
 
 
 class RemoteEpics(Sheet[Doing]):
     """Every epic of a daemon on another machine, newest first, and what to do with one.
 
-    Read through that machine's own web interface, reached over ssh, off the event loop:
-    what an epic there offers is what can be done from here -- its archive brought here,
-    backing it up there, and copying what it is -- and the rest is that machine's own.
+    Read over the session that daemon is reached by, off the event loop. An epic a host there
+    holds is followed as an epic of this machine is, by the interface itself, which this
+    answers with; the rest is its archive brought here, backing it up there, and copying what
+    it is.
     """
 
     BINDINGS: ClassVar = [Binding("n", "starts", "new epic", show=False)]
@@ -12287,7 +12461,7 @@ class RemoteEpics(Sheet[Doing]):
         self._fill()
         try:
             self._ran = await asyncio.to_thread(self._read)
-        except (LookupError, OSError, RuntimeError) as why:
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
             self._ran = []
         self._reading = False
@@ -12298,18 +12472,10 @@ class RemoteEpics(Sheet[Doing]):
         """Every epic the daemon holds, newest first, a page of them at a time."""
         ran: list[dict[str, Any]] = []
         while True:
-            said = remotes().asked(
-                self._daemon, f"/api/runs?limit=200&offset={len(ran)}"
-            )
-            page = _field(said, "runs")
-            if not isinstance(page, list) or not page:
-                return ran
-            ran += [
-                cast("dict[str, Any]", one)
-                for one in cast("list[object]", page)
-                if isinstance(one, dict)
-            ]
-            if len(ran) >= int(_field(said, "total") or 0):
+            said = _rpc(self._daemon, "runs.list", {"offset": len(ran), "limit": 200})
+            page = cast("list[dict[str, Any]]", said.get("runs") or [])
+            ran += page
+            if not page or len(ran) >= int(said.get("total") or 0):
                 return ran
 
     def actions(self) -> list[Action]:
@@ -12328,8 +12494,10 @@ class RemoteEpics(Sheet[Doing]):
 
     @work
     async def action_starts(self) -> None:
-        """Asks what to start there, starts it, and follows it here."""
+        """Asks what to start there, sets it up as that directory last ran it, and follows it."""
         import asyncio
+
+        from hmz.daemon import where
 
         if self.opening():
             return
@@ -12340,64 +12508,47 @@ class RemoteEpics(Sheet[Doing]):
         self._said = f"reaching {escape(self._daemon)}…"
         self._fill()
         try:
-            here = await asyncio.to_thread(remotes().asked, self._daemon, "/api/held")
-        except (LookupError, OSError, RuntimeError) as why:
+            here = await asyncio.to_thread(_rpc, self._daemon, "workspaces.list")
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self.opened()
             self._said = bad(escape(str(why)))
             self._fill()
             return
         self._said = ""
         self._fill()
+        places = cast("list[dict[str, Any]]", here.get("workspaces") or [])
         try:
             chosen = await showing.push_screen_wait(
-                Starting(self._daemon, str(_field(here, "here") or ""))
+                Starting(
+                    self._daemon,
+                    str(here.get("here") or (places[0]["path"] if places else "")),
+                )
             )
         finally:
             self.opened()
         if chosen is None:
             return
         workspace, flow, task, given = chosen
-        self._said = f"starting {escape(flow)} on {escape(self._daemon)}…"
+        self._said = f"setting {escape(flow)} up on {escape(self._daemon)}…"
         self._fill()
         try:
-            link = await asyncio.to_thread(
-                _started_afar, self._daemon, workspace, flow, task, given
+            start = await asyncio.to_thread(
+                _set_up, self._daemon, workspace, flow, task, given
             )
-        except (LookupError, OSError, RuntimeError) as why:
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
             self._fill()
             return
-        self._said = ""
-        await self._follows(workspace, link)
-
-    async def _attaches(self, workspace: str) -> None:
-        """Follows the runs of one directory there, the epic going in it among them."""
-        import asyncio
-
-        from hmz.daemon.link import remote
-
-        self._said = f"following {escape(workspace)} on {escape(self._daemon)}…"
-        self._fill()
-        try:
-            link = await asyncio.to_thread(remote, remotes(), self._daemon, workspace)
-        except OSError as why:
-            self._said = bad(escape(str(why)))
-            self._fill()
-            return
-        self._said = ""
-        self._fill()
-        await self._follows(workspace, link)
-
-    async def _follows(self, workspace: str, link: Link) -> None:
-        """Opens what a link follows there, and reads the list again once it is left."""
-        from .afar import Afar
-
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
+        self.dismiss(
+            Doing(
+                doing=FOLLOWS,
+                said=tuple(self._told),
+                daemon=self._daemon,
+                there=workspace,
+                slot=where.chat() if chatting(flow) else "",
+                start=start,
+            )
         )
-        await showing.push_screen_wait(Afar(self._daemon, workspace, link))
-        self._rereads()
 
     def enters(self, row: str) -> bool:
         """Every row is an epic, which the arrow right opens the menu of."""
@@ -12481,12 +12632,10 @@ class RemoteEpics(Sheet[Doing]):
                 *(
                     [
                         Action(
-                            _ATTACHES,
+                            FOLLOWS,
                             "follow",
-                            "read it as it goes, and say something to it",
-                            lambda: self.run_worker(
-                                self._attaches(str(one.get("workspace", "")))
-                            ),
+                            "read it as it goes, and steer it",
+                            lambda: self._follows(one),
                         )
                     ]
                     if one.get("held")
@@ -12526,6 +12675,18 @@ class RemoteEpics(Sheet[Doing]):
             ],
         )
 
+    def _follows(self, one: Mapping[str, Any]) -> None:
+        """Answers with the epic to follow, which the interface attaches to there."""
+        self.dismiss(
+            Doing(
+                doing=FOLLOWS,
+                said=tuple(self._told),
+                daemon=self._daemon,
+                there=str(one.get("workspace") or ""),
+                slot=str(one.get("slot") or ""),
+            )
+        )
+
     @on(OptionList.OptionSelected)
     def _took(self, _event: OptionList.OptionSelected) -> None:
         """Opens the menu of the epic chosen, which is all there is to do with one here."""
@@ -12540,21 +12701,18 @@ class RemoteEpics(Sheet[Doing]):
     async def _copies_task(self, name: str) -> None:
         """Copies the whole of what one epic was asked, which its row has only the start of."""
         import asyncio
-        import urllib.parse
 
         self._said = "fetching the task…"
         self._fill()
         try:
             said = await asyncio.to_thread(
-                remotes().asked,
-                self._daemon,
-                f"/api/runs/{urllib.parse.quote(name, safe='')}",
+                _rpc, self._daemon, "runs.get", {"name": name}
             )
-        except (LookupError, OSError, RuntimeError) as why:
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
             self._fill()
             return
-        self._copies(str(_field(said, "task") or ""), "task")
+        self._copies(str(said.get("task") or ""), "task")
 
     def leaving(self) -> None:
         """Leaves, saying in the transcript whatever was gathered while this was open."""
@@ -12567,7 +12725,6 @@ class RemoteEpics(Sheet[Doing]):
           name: The epic.
         """
         import asyncio
-        import urllib.parse
 
         from hmz.runtime.exporting import lands, sized
 
@@ -12580,19 +12737,10 @@ class RemoteEpics(Sheet[Doing]):
             return
         self._said = f"exporting {escape(name)}…"
         self._fill()
-
-        def brings() -> tuple[Path, int]:
-            at = lands(name, to)
-            at.parent.mkdir(parents=True, exist_ok=True)
-            size = remotes().asked(
-                self._daemon,
-                f"/api/runs/{urllib.parse.quote(name, safe='')}/bundle",
-                into=at,
-            )
-            return at, size
-
         try:
-            at, size = await asyncio.to_thread(brings)
+            at, size = await asyncio.to_thread(
+                _brought, self._daemon, name, lands(name, to)
+            )
         except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
@@ -12607,21 +12755,66 @@ class RemoteEpics(Sheet[Doing]):
           name: The epic.
         """
         import asyncio
-        import urllib.parse
 
         self._said = f"backing {escape(name)} up…"
         self._fill()
         try:
             said = await asyncio.to_thread(
-                remotes().asked,
+                partial(_rpc, writes=True),
                 self._daemon,
-                f"/api/runs/{urllib.parse.quote(name, safe='')}/backup",
-                {},
+                "runs.backup",
+                {"name": name},
             )
-        except (LookupError, OSError, RuntimeError) as why:
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
-            queued = cast("list[object]", _field(said, "queued") or [])
+            queued = cast("list[object]", said.get("queued") or [])
             self._said = escape(f"backing {name} up to {', '.join(map(str, queued))}")
             self._told.append(f"[dim]{self._said}[/dim]")
         self._fill()
+
+
+def _brought(daemon: str, name: str, at: Path) -> tuple[Path, int]:
+    """Brings the archive a daemon makes of one epic here, a chunk at a time.
+
+    Written beside where it goes first and moved into place, so that a file there already is
+    replaced whole or not at all.
+
+    Args:
+      daemon: The daemon, by name.
+      name: The epic.
+      at: Where it goes.
+
+    Returns:
+      Where it went, and how many bytes it is.
+
+    Raises:
+      LookupError, OSError, RuntimeError, ValueError: If it could not be brought, saying why.
+    """
+    import base64
+
+    at.parent.mkdir(parents=True, exist_ok=True)
+    beside = at.with_name(f".{at.name}.new")
+    with remotes().client(daemon) as client:
+        handle = client.call("runs.bundle", {"name": name}, seconds=_ASKING)["handle"]
+        written = 0
+        try:
+            with beside.open("wb") as file:
+                while True:
+                    chunk = client.call(
+                        "files.read",
+                        {"handle": handle, "offset": written, "length": _CHUNK},
+                        seconds=_ASKING,
+                    )
+                    read = file.write(base64.b64decode(chunk["data"]))
+                    written += read
+                    if chunk["eof"]:
+                        break
+                    if not read:
+                        raise OSError(f"{daemon} sent nothing of {name}")
+            beside.replace(at)
+        finally:
+            beside.unlink(missing_ok=True)
+            with contextlib.suppress(OSError, RuntimeError, ValueError):
+                client.call("files.close", {"handle": handle}, seconds=_ASKING)
+    return at, written
