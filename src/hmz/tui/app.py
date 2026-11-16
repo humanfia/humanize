@@ -92,6 +92,7 @@ from .monitoring import (
 from .pick import (
     CONTINUES,
     DETACHES,
+    FOLLOWS,
     LOCAL_DAEMON,
     RESUMES,
     STOPS,
@@ -113,6 +114,7 @@ from .pick import (
     params_model,
     params_of,
     reads,
+    remotes,
     settled,
 )
 from .selecting import Choices, Transcript
@@ -589,24 +591,22 @@ class Editor(TextArea):
             self.walking = False
         listing = self.screen.query_one("#offers", OptionList)
         if not listing.has_class("offering"):
-            # Out of btw mode, which is the one thing esc means while it is on.
-            if (
-                event.key == "escape"
-                and cast(
-                    "Humanize",
-                    self.app,  # pyright: ignore[reportUnknownMemberType]
-                ).leaves_btw()
+            # textual types the property off the bare generic, so what it hands back is an
+            # `App` of nothing in particular.
+            showing = cast(
+                "Humanize",
+                self.app,  # pyright: ignore[reportUnknownMemberType]
+            )
+            # Out of btw mode, which is the one thing esc means while it is on; else back
+            # from an epic followed on another daemon, to its list.
+            if event.key == "escape" and (
+                showing.leaves_btw() or showing.leaves_afar()
             ):
                 event.prevent_default()
                 event.stop()
                 return
             if event.key in ("up", "down"):
-                # textual types the property off the bare generic, so what it hands
-                # back is an `App` of nothing in particular.
-                history = cast(
-                    "Humanize",
-                    self.app,  # pyright: ignore[reportUnknownMemberType]
-                ).history
+                history = showing.history
                 row, _ = self.cursor_location
                 if event.key == "up" and row == 0:
                     said = history.back(self.text)
@@ -1018,6 +1018,11 @@ class Humanize(App[None]):
         self._quitting = False
         #: Whose epics `/epics` lists: this machine's daemon until another is turned to.
         self._daemon = LOCAL_DAEMON
+        #: The daemon of another machine and the workspace there whose host this follows,
+        #: or None for this machine's: where every host is reached, until esc comes back.
+        self._afar: tuple[str, str] | None = None
+        #: Which host the link held is attached to, as `(slot, afar)`.
+        self._linked_to: tuple[str, tuple[str, str] | None] = ("", None)
         #: Requests waiting to be asked, in order, on the one thread that asks them: a line
         #: typed twice is two lines in the order they were typed -- and moving to another host
         #: is one of them, so that what is asked after it is asked of that one.
@@ -1383,7 +1388,20 @@ class Humanize(App[None]):
         of goes on without this interface -- a flow for whoever else reads it, a chat until
         nobody has looked at it for a while, when it folds away -- and nothing it said is kept
         here: what is drawn is the host attached to now, told afresh, as it is to an interface
-        just opened on it.
+        just opened on it. Of the workspace followed on another daemon, while one is.
+
+        Args:
+          slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
+        """
+        self._moves(slot, self._afar)
+
+    def _moves(
+        self,
+        slot: str,
+        afar: tuple[str, str] | None,
+        start: dict[str, Any] | None = None,
+    ) -> None:
+        """Moves this interface onto a host of this workspace, or of one on another daemon.
 
         Forgotten at once, so that what is done next -- a line typed, a flow started -- is
         done against the host it goes to; reached on the one thread that asks the runs
@@ -1391,25 +1409,38 @@ class Humanize(App[None]):
 
         Args:
           slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
+          afar: The daemon of another machine and its workspace, or None for this one's.
+          start: What to start there once it is reached, as `epic.start` takes it, or None.
         """
         self._hearing = None
         self._forgets()
-        self._slot = slot
-        self._requests.put(lambda: self._reattaches(slot))
+        self._slot, self._afar = slot, afar
+        self._requests.put(lambda: self._reattaches(slot, afar, start))
 
-    def _reattaches(self, slot: str) -> None:
+    def _reattaches(
+        self,
+        slot: str,
+        afar: tuple[str, str] | None,
+        start: dict[str, Any] | None,
+    ) -> None:
         """Lets go of the host attached to for another, on the thread that asks the runs.
 
         Args:
           slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
+          afar: The daemon of another machine and its workspace, or None for this one's.
+          start: What to start there once it is reached, or None.
         """
         was = self._linked
         try:
-            link = self._reaches(slot)
+            link = self._reaches(slot, afar)
         except Exception as why:  # noqa: BLE001 -- a host that will not come up is said
             self._hearing = was
+            # Back on the host still attached to, unless it was moved on again meanwhile.
+            if (self._slot, self._afar) == (slot, afar):
+                self._slot, self._afar = self._linked_to
             self._on_screen(self.show, f"hmz: {why}", "red")
             return
+        self._linked_to = (slot, afar)
         self._linked = self._hearing = link
         self._me = link.client
         link.heard(self._hears(link))
@@ -1418,22 +1449,46 @@ class Humanize(App[None]):
         if self._quitting:
             # Gone while it was being reached, which nothing else is left to let go of.
             link.close()
+        elif start is not None:
+            self._on_screen(self._starts_there, start)
 
-    def _reaches(self, slot: str) -> Link:
-        """This interface's end of one of the workspace's hosts, as the runs are held.
+    def _starts_there(self, start: dict[str, Any]) -> None:
+        """Starts an epic set up on another daemon, on the host just reached there."""
+        self._starting = True
+        self._asks("start", refused=self._not_started, **start)
+        self._draw()
 
-        In this process where they always have been, each host kept for closing on the way
-        out; by the daemon otherwise, which starts one where none is.
+    def _reaches(self, slot: str, afar: tuple[str, str] | None = None) -> Link:
+        """This interface's end of one of the workspace's hosts, through the daemon holding it.
+
+        This machine's, which starts one where none is; or that of another machine, over the
+        session it is reached by.
 
         Args:
           slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
+          afar: The daemon of another machine and its workspace, or None for this one's.
 
         Returns:
           The link, attached as an interface.
         """
         from hmz import daemon
 
+        if afar is not None:
+            from hmz.daemon.link import remote
+
+            return remote(remotes(), afar[0], afar[1], slot)
         return daemon.attach("tui", workspace=self.hmz.workspace, slot=slot)
+
+    def leaves_afar(self) -> bool:
+        """Comes back from an epic followed on another daemon, for esc: to its list of epics.
+
+        The epic goes on there. Answers whether there was one to come back from.
+        """
+        if self._afar is None:
+            return False
+        self._moves("", None)
+        self.action_epics()
+        return True
 
     def _forgets(self) -> None:
         """Forgets everything one host said, for another to say how its own runs stand.
@@ -2335,6 +2390,11 @@ class Humanize(App[None]):
             left = f"[$text-muted]details[/]{_DOT}{left}"
         if away := self._away_marker():
             left = f"[$warning]{escape(away)}[/]{_DOT}{left}"
+        # And the daemon of another machine whose epic this follows, until esc comes back.
+        if self._afar is not None:
+            daemon, there = self._afar
+            named = there.rstrip("/").rsplit("/", 1)[-1] or there
+            left = f"[$accent]@{escape(daemon)}{_DOT}{escape(named)}[/]{_DOT}{left}"
         # And btw mode, in the colour its answers are in: every line typed goes to a side
         # conversation rather than to the flow while it is on.
         if (mode := self._btw) is not None:
@@ -3950,7 +4010,7 @@ class Humanize(App[None]):
         is going, on the sheet where it was asked for. Whether one is going is asked there
         rather than handed over, since this list outlives the run it was opened during.
 
-        Or of another daemon, reached over ssh: the one named `@<name>`, or the one last
+        Or of another daemon, reached by its routes: the one named `@<name>`, or the one last
         turned to, which the list is turned between from a button of its own.
 
         Args:
@@ -3972,13 +4032,15 @@ class Humanize(App[None]):
         while True:
             said = await self.push_screen_wait(
                 Epics(
-                    running=lambda: self._run is not None and not self._slot,
+                    running=lambda: (
+                        self._run is not None and not self._slot and self._afar is None
+                    ),
                     unseen=self._unseen,
                 )
                 if self._daemon == LOCAL_DAEMON
                 else RemoteEpics(self._daemon)
             )
-            if said is None or not said.daemon:
+            if said is None or said.doing or not said.daemon:
                 break
             for one in said.said:
                 self.show(one)
@@ -3990,6 +4052,17 @@ class Humanize(App[None]):
             return
         for one in said.said:
             self.show(one)
+        if said.doing == FOLLOWS:
+            # Shown as an epic of this machine is, over the session that daemon is reached by.
+            self._moves(said.slot, (said.daemon, said.there), said.start)
+            self.show(
+                f"[dim]following {escape(said.there)} on {escape(said.daemon)}; "
+                "esc comes back[/dim]"
+            )
+            return
+        if self._afar is not None and said.epic is not None:
+            # An epic of this machine, picked up here rather than there.
+            self._moves("", None)
         if said.doing == RESUMES and said.epic is not None:
             self._carries_on(said.epic)
         elif said.doing == CONTINUES and said.epic is not None:
@@ -4409,6 +4482,15 @@ class Humanize(App[None]):
         """
         from hmz.daemon import where
 
+        if self._afar is not None:
+            # What is set up here is this machine's: an epic there is set up as it ran there.
+            daemon = escape(self._afar[0])
+            self.show(
+                f"hmz: start an epic on {daemon} with n on /epics @{daemon}; "
+                "esc comes back here",
+                "red",
+            )
+            return
         # A chat on a host of its own, and every other flow on the workspace's: a conversation
         # takes no flow's turn, nor one conversation another's. A chat's host that has had its
         # chat already is that conversation's, so the next is a host of its own as well.
