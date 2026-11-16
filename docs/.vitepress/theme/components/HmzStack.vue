@@ -68,6 +68,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.tracing',
   ],
   'hmz.daemon': ['hmz.runtime'],
+  'hmz.relay': [],
   'hmz.tui': [
     'hmz.coganchor',
     'hmz.flows',
@@ -98,6 +99,7 @@ const CLI_IMPORTS = [
   'hmz.tui',
   'hmz.web',
   'hmz.daemon',
+  'hmz.relay',
   'hmz.runtime',
   'hmz.flows',
   'hmz.coganchor',
@@ -148,6 +150,14 @@ const LAYERS: Layer[] = [
     note: 'Names the runtime by its front door, `hmz.runtime`.',
     spec: 'daemon.md#4-wire-protocol',
     ref: '/reference/daemon',
+  },
+  {
+    id: 'relay',
+    dotted: 'hmz.relay',
+    here: 'The relay of `hmz relay serve`: rooms a daemon registers in, and the devices joined to them.',
+    note: 'Imports nothing of Humanize: it reads nothing of the machine it runs on.',
+    spec: 'wire.md#5-the-relay',
+    ref: '/user/relay',
   },
   {
     id: 'runtime',
@@ -253,6 +263,7 @@ const LAYERS: Layer[] = [
 const BANDS: { label: string; ids: string[] }[] = [
   { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
+  { label: 'reaching a daemon', ids: ['relay'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
   { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },
