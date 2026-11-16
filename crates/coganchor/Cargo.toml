@@ -30,6 +30,8 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
+# What a native turn brings back is a tar stream the target wrote.
+tar = { version = "0.4", default-features = false }
 hex = "0.4"
 thiserror = "2"
 tracing = "0.1"
