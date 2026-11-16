@@ -12,7 +12,7 @@ import os
 from typing import TYPE_CHECKING
 
 from hmz.coganchor.agents import MiniMaxCodeAgent, MiniMaxCodeAgentConfig
-from hmz.flows import HarnessKind, Permission, PermissionKind
+from hmz.flows import HarnessKind, Permission
 from hmz.runtime.flowing.harnessing import fenced, rung
 from tests.integration.doubles_agents import standins
 from tests.integration.test_agents_mcode import CONFIG, MCODE
@@ -48,7 +48,7 @@ def test_a_read_grant_runs_mcode_at_full_inside_a_fence_that_keeps_the_workdir_r
     mcode.install("mcode", MCODE)
     work = (tmp_path / "work").resolve()
     work.mkdir()
-    permission = Permission(local=PermissionKind.READ)
+    permission = Permission(preset="read-only")
 
     said = rung(HarnessKind.MCODE, permission, rungs=MiniMaxCodeAgent.rungs)
     fence = fenced(

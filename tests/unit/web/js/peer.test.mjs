@@ -106,9 +106,54 @@ test('a batch is refused -32600 and a frame not holding JSON -32700, with id nul
   // Not UTF-8 is not JSON either; the session stays open.
   b.send(Uint8Array.of(0, 0, 0, 2, 0xc3, 0x28))
   await until(() => answers.length === 3)
-  assert.deepEqual(answers.map((one) => [one.id, one.error.code]), [
-    [null, ERRORS.INVALID_REQUEST],
-    [null, ERRORS.PARSE],
-    [null, ERRORS.PARSE],
+  assert.deepEqual(answers.map((one) => [one.id, one.error.code, one.error.message]), [
+    [null, ERRORS.INVALID_REQUEST, 'Send one request a frame.'],
+    [null, ERRORS.PARSE, 'Send JSON.'],
+    [null, ERRORS.PARSE, 'Send JSON.'],
   ])
+})
+
+test('a frame that is JSON but no JSON-RPC 2.0 message is refused -32600, with the id of a call alone', async () => {
+  const [a, b] = duplex()
+  let release
+  const told = []
+  new Peer(a, { call: () => new Promise((resolve) => (release = resolve)), notified: (method) => told.push(method) })
+  const answers = []
+  const frames = new (await import('../../../../src/hmz/web/static/rpc/frames.js')).Frames()
+  b.listen((bytes) => answers.push(...frames.push(bytes).map((payload) => JSON.parse(new TextDecoder().decode(payload)))), () => {})
+  for (const message of [
+    42,
+    { id: 1, method: 'x' },
+    { jsonrpc: '2.0', id: 2, method: 7 },
+    { jsonrpc: '2.0', id: 3, method: 'x', params: [1] },
+    { jsonrpc: '2.0', id: 1.5, method: 'x' },
+    { jsonrpc: '2.0', id: 4 },
+    // Dropped: a notification not well formed, and a response that answers no call.
+    { jsonrpc: '2.0', method: 7 },
+    { jsonrpc: '2.0', method: 'n', params: 'x' },
+    { jsonrpc: '2.0', method: 'n', params: null },
+    { jsonrpc: '2.0', id: 9, result: {} },
+    // A call, and another reusing its id while it is unanswered.
+    { jsonrpc: '2.0', id: 'c', method: 'x' },
+    { jsonrpc: '2.0', id: 'c', method: 'x' },
+    { jsonrpc: '2.0', id: 'c', method: 7 },
+    { jsonrpc: '2.0', id: 5, method: 'x', params: null },
+  ])
+    b.send(encode(message))
+  await until(() => answers.length === 9)
+  assert.deepEqual(answers.map((one) => [one.id, one.error.code, one.error.message]), [
+    [null, ERRORS.INVALID_REQUEST, 'That is not a JSON-RPC 2.0 request.'],
+    [null, ERRORS.INVALID_REQUEST, 'That is not a JSON-RPC 2.0 request.'],
+    [2, ERRORS.INVALID_REQUEST, 'That is not a JSON-RPC 2.0 request.'],
+    [3, ERRORS.INVALID_REQUEST, 'That is not a JSON-RPC 2.0 request.'],
+    [null, ERRORS.INVALID_REQUEST, 'That is not a JSON-RPC 2.0 request.'],
+    [null, ERRORS.INVALID_REQUEST, 'That is not a JSON-RPC 2.0 request.'],
+    [null, ERRORS.INVALID_REQUEST, 'That id is in use by another call.'],
+    [null, ERRORS.INVALID_REQUEST, 'That id is in use by another call.'],
+    [5, ERRORS.INVALID_REQUEST, 'That is not a JSON-RPC 2.0 request.'],
+  ])
+  assert.deepEqual(told, [])
+  release({ ok: true })
+  await until(() => answers.length === 10)
+  assert.deepEqual(answers[9], { jsonrpc: '2.0', id: 'c', result: { ok: true } })
 })

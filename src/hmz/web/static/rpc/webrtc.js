@@ -125,15 +125,22 @@ export function webrtc({
   }
 }
 
+/** A `sha-256` value (Section 4.7.12): 32 bytes in hexadecimal, a colon between each. */
+const SHA256 = /^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){31}$/
+
 /**
- * The `sha-256` fingerprint of an SDP, as written there.
+ * The `sha-256` fingerprint of an SDP, as written there (Section 4.7.12 and 4.7.13): the one
+ * distinct value its `a=fingerprint:sha-256` lines say, which they may repeat.
  *
  * @param {string} sdp
  */
 export function fingerprint(sdp) {
-  const match = /^a=fingerprint:sha-256 (\S+)\s*$/im.exec(sdp)
-  if (!match) throw new Error('That description has no sha-256 fingerprint.')
-  return match[1]
+  const lines = [...sdp.matchAll(/^a=fingerprint:(\S+)[ \t]+(\S+)[ \t]*\r?$/gm)]
+  const values = new Set(lines.filter(([, name]) => name.toLowerCase() === 'sha-256').map(([, , value]) => value))
+  if (values.size !== 1) throw new Error('A description must say exactly one sha-256 fingerprint.')
+  const [value] = values
+  if (!SHA256.test(value)) throw new Error(`${value} is not a sha-256 fingerprint.`)
+  return value
 }
 
 /**

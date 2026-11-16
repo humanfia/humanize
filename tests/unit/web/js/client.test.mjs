@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { connect, Dropped, ERRORS, PROTOCOL, RpcError, WRITES } from '../../../../src/hmz/web/static/rpc/index.js'
+import { connect, Dropped, ERRORS, PROTOCOL, reach, RpcError, WRITES } from '../../../../src/hmz/web/static/rpc/index.js'
 import { daemon, provider, until } from './helpers.mjs'
 
 const ID = 'a'.repeat(52)
@@ -41,10 +41,34 @@ test('an id is pinned from a trusted route, and never from an untrusted one alon
   assert.deepEqual(pinned, [ID])
   client.close()
 
-  const untrusted = connect(entry(['tcp://box:1'], ''), [provider(served)])
+  // Refused before the carrier is opened.
+  const opened = []
+  const untrusted = connect(entry(['tcp://box:1'], ''), [provider(served, opened)])
   await until(() => untrusted.state.state === 'failed')
-  assert.equal(untrusted.state.detail, 'tcp://box:1 cannot be reached from here.')
+  assert.equal(untrusted.state.detail, 'tcp://box:1 needs the id of the daemon it reaches.')
+  assert.deepEqual(opened, [])
   untrusted.close()
+})
+
+test('a daemon with no route has no route to try', async () => {
+  const client = connect(entry([]), [provider(daemon())])
+  await until(() => client.state.state === 'failed')
+  assert.equal(client.state.detail, 'There is no route to try.')
+  client.close()
+})
+
+test('a route is given up where session.hello is not answered within 30 seconds of starting it', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const served = daemon({ methods: { 'session.hello': () => new Promise(() => {}) } })
+  const reaching = reach(entry(['stdio:ssh://box']), [provider(served)])
+  // `until` sleeps on the timers mocked here: settle on the event loop instead.
+  const settle = () => new Promise((resolve) => setImmediate(resolve))
+  while (served.calls.length < 1) await settle()
+  t.mock.timers.tick(29999)
+  await settle()
+  assert.ok(served.sessions[0].peer.open)
+  t.mock.timers.tick(1)
+  await assert.rejects(reaching, { message: 'stdio:ssh://box did not open within 30 seconds.' })
 })
 
 test('a route no provider opens, and a text that is not a route, are refused', async () => {

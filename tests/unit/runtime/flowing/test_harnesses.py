@@ -37,12 +37,14 @@ from hmz.flows import (
     OutputTokensExceeded,
     OutworlderAway,
     Permission,
-    PermissionKind,
     SessionError,
     SessionStartHookResult,
     StopHookResult,
     UnsupportedOperation,
     UserPromptSubmitHookResult,
+    allow,
+    deny,
+    read_only,
 )
 from hmz.runtime.flowing import harnessing
 from hmz.runtime.flowing.harnesses import (
@@ -346,7 +348,7 @@ async def test_a_session_opens_in_its_workdir_with_its_skills(
 
     session = await driver.open(
         _placed(tmp_path),
-        permission=Permission(local=PermissionKind.READ),
+        permission=Permission(preset="read-only"),
         skills=(Skill("review", tmp_path / "review"),),
         hooks=HookTable(),
     )
@@ -1411,6 +1413,45 @@ async def test_a_flows_tools_are_offered_and_called_on_the_engines_loop(
     assert isinstance(noting, FakeTool)
 
 
+@pytest.mark.parametrize(
+    ("harness", "permission", "refused"),
+    [
+        (HarnessKind.GROK, Permission(granular=(read_only("."),)), True),
+        (HarnessKind.GROK, Permission(preset="read-only"), True),
+        (
+            HarnessKind.GROK,
+            Permission(preset="read-only", granular=(allow("."),)),
+            False,
+        ),
+        (HarnessKind.GROK, Permission(granular=(read_only("./docs"),)), False),
+        (HarnessKind.CLAUDE, Permission(granular=(read_only("."),)), False),
+    ],
+)
+async def test_grok_offering_a_flows_tools_takes_no_turn_that_may_not_write_its_workdir(
+    coganchor: type[CLI],
+    tmp_path: Path,
+    harness: HarnessKind,
+    permission: Permission,
+    refused: bool,
+) -> None:
+    async def note() -> str:
+        return "noted"
+
+    session = await open_agent(_spec(harness)).open(
+        _placed(tmp_path),
+        permission=permission,
+        skills=(),
+        hooks=HookTable(),
+        tools=(FakeTool("note", "Notes.", note),),
+    )
+
+    if refused:
+        with pytest.raises(HarnessUnrecoverable, match="may not write its workdir"):
+            await session.turn(TurnRequest("hi"), Sink())
+    else:
+        assert await session.turn(TurnRequest("hi"), Sink())
+
+
 async def test_a_flows_command_lines_are_shelved_and_run_on_the_engines_loop(
     coganchor: type[CLI], tmp_path: Path
 ) -> None:
@@ -1481,11 +1522,7 @@ def test_a_sessions_config_is_settled_for_its_permission_and_hooks(
         _config(config),
         HarnessKind.KIMI,
         CLI,  # pyright: ignore[reportArgumentType]
-        Permission(
-            online=PermissionKind.NONE,
-            user=PermissionKind.NONE,
-            system=PermissionKind.NONE,
-        ),
+        Permission(network=False, granular=(deny("/"), allow("."))),
         frozenset({HookKind.ASK_USER}),
         tellable=True,
         workdir="/w",
