@@ -10544,9 +10544,10 @@ class Daemons(Pages):
 
         def applies(name: str) -> str:
             try:
-                for path, body in sent:
-                    remotes().asked(name, path, body)
-            except (LookupError, OSError, RuntimeError) as why:
+                with remotes().client(name) as client:
+                    for method, params in sent:
+                        client.call(method, params, seconds=120)
+            except (LookupError, OSError, RuntimeError, ValueError) as why:
                 return f"{name}: {why}"
             return f"{name}: applied"
 

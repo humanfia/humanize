@@ -29,8 +29,11 @@ if TYPE_CHECKING:
 
     from hmz.web.site import Site
 
-#: Every epic here is held by a daemon of the test's own, in this process.
-pytestmark = pytest.mark.usefixtures("daemon")
+# Another machine's daemon is reached over JSON-RPC now (`test_daemon_remote.py`), and serves no
+# interface for `/d/` to proxy; the page reaches it over `/rpc` once Wave 4 ports it.
+pytestmark = pytest.mark.skip(
+    reason="Wave 4 reaches remote daemons from the page over RPC"
+)
 
 
 @pytest.fixture

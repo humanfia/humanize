@@ -296,8 +296,8 @@ Every `error` but the last is the runtime's own sentence, e.g.
 | `POST /api/runtimes/check` | `backend`, `name` | What it said: `reached`, `said`, `home`, `cpus`, `memory`, `gpus`, `usable`, `gpu_memory`, `runtimes`, `version`, `short`, `nodes` |
 | `GET /api/runtimes/hosts` | | `hosts` your ssh config names (`alias`, `host`, `user`, `port`, `identity_files`, `proxy_jump`, `saved`) |
 | `POST /api/runtimes/import` | `names`; `update` (bool) | As `GET /api/runtimes` |
-| `GET /api/daemons` | | `daemons`: `Local` first, then each daemon (`name`, `label`, `via`; over `ssh`: `host`, `user`, `port`, `identity_file`, `proxy_jump`, `options` as `[keyword, value]` pairs, `alias`, `config`; over `easytier`: `secret` as `true`, never the secret itself, and `peers`) with `state`, `detail` and `version` |
-| `POST /api/daemons` | `name`, `fields` (`via`: `ssh`, the default, or `easytier` with a `secret` of at least 16 bytes and `peers`, at least one shared node's URL); `replace` (bool): an EasyTier daemon replaced with no `secret` (or `""`, or `true` as listed) keeps its own | As `GET` |
+| `GET /api/daemons` | | `daemons`: `Local` first, then each daemon (`name`, `label`, `id`, `routes`) with `state`, `detail` and `version` |
+| `POST /api/daemons` | `name`, `fields` (`id`, the daemon id pinned or `""`, and `routes`, at least one, the first trusted where `id` is `""`); `replace` (bool) | As `GET` |
 | `POST /api/daemons/remove` | `name` | As `GET` |
 | `GET /api/daemons/hosts` | | `hosts` your ssh config names that are not daemons yet (`alias`, `name`, `host`, `user`, `port`, `identity_files`, `proxy_jump`) |
 | `GET /api/daemons/easytier/nodes` | | `nodes`: EasyTier's community shared nodes, as its [status page](/reference/environment#humanize-easytier-nodes) lists them (`url` such as `tcp://host:11010`, `name`, `version`, `up`: `true`, `false` or `null`, `uptime` over 24 h from `0` to `1` or `null`), read afresh each time; `503` with the reason where the page cannot be read |

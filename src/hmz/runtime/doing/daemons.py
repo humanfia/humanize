@@ -1,67 +1,58 @@
 """The daemons a frontend may switch between: this machine's, and each other one written down.
 
 `Local` is always there and never written down. Every other daemon is kept in Humanize's one
-settings file under `daemons`, with how it is reached: its `via`. Over `ssh`, the default, it
-holds what `ssh` is told to reach it -- the same fields an ssh runtime has, checked as one is,
-but for its workdir and fallback: a `Host` of the ssh config alone, or a host typed in a part
-at a time, or brought in from the ssh config. Over `easytier` it holds the secret its network
-is joined with and the EasyTier nodes that network meets through, and nothing ssh is told.
-Every frontend that switches between them writes them, and reaches them, through here.
+settings file under `daemons` (Section 3.4.6 of the files): its name, the daemon id this
+machine pins, `""` until it is first reached over a trusted carrier, and its routes, in the
+order they are tried. An entry an earlier release wrote -- an ssh host, or an EasyTier secret
+and its nodes -- is read as the `stdio:ssh` or `easytier:` route it reached, and written so at
+the next write.
 
-What is reached there is that machine's own web interface. Over ssh, `hmz web --attached`,
-started over ssh and stopped by the ssh going, with a port of this machine's loopback forwarded
-on to it. Over EasyTier, the one its `hmz server` keeps, put on a port of this machine's
-loopback by an `easytier-core` joining its network -- downloaded first where there is none --
-and asked every few seconds whether it still answers, which nothing else would say. Whoever
-reaches it asks it with its key: the remote interface keeps its own key, its own runs and its
-own refusals.
-
-An `hmz` missing there, or of another version than this one, is installed at this version with
-`uv tool install`, uv itself fetched first where the host has none -- but never in place of one
-the host's daemon may be running epics under, which keep running the release they started
-with. A development build, `0.0.0`, installs nothing: it uses whatever `hmz` is there. Nothing is
-installed over EasyTier, where nothing can be: a server older than this one is refused.
-
-A daemon is reached when it is first asked for, or is told to connect, and reached again,
-waiting longer each time, whenever it is lost.
+A daemon is reached when it is first asked for, or is told to connect, by racing its routes
+(`hmz.reach`), mutual TLS on an untrusted one (`hmz.trust`), and `session.hello` (`hmz.rpc`);
+and reached again, waiting longer each time, whenever it is lost. Over `stdio:ssh` the host is
+asked first what `hmz` it has, and an `hmz` missing there, or of another version than this
+one, is installed at this version with `uv tool install`, uv itself fetched first where the
+host has none -- but never in place of one the host's daemon may be running epics under, which
+keep running the release they started with. A development build, `0.0.0`, installs nothing:
+it uses whatever `hmz` is there.
 """
 
 from __future__ import annotations
 
 import contextlib
-import dataclasses
 import http.client
 import json
 import queue
 import re
-import socket
 import subprocess
 import threading
-import time
-import urllib.parse
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
+
+from hmz.runtime.runner import Refused
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Sequence
+    from collections.abc import Callable, Iterator, Mapping, Sequence
     from pathlib import Path
-    from typing import IO
+    from types import TracebackType
 
     from hmz.coganchor.transport import Road
+    from hmz.reach import EasyTier, Route
+    from hmz.rpc import Call, Pipe
 
 __all__ = [
     "CARRIED",
-    "EASYTIER",
+    "CONNECTING",
     "FAILED",
+    "IDLE",
+    "INSTALLING",
     "LOCAL",
-    "SSH",
     "UP",
+    "Client",
     "Daemons",
     "Remotes",
     "Unreached",
     "carried",
-    "forwarding",
     "headers",
-    "road",
     "said",
 ]
 
@@ -74,27 +65,25 @@ _KEY = "daemons"
 #: What a daemon's name is spelled with: never starting with a dot, so never `.` or `..`.
 _NAMED = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
-#: How a daemon is reached: over ssh, the default, or over an EasyTier network.
-SSH, EASYTIER = "ssh", "easytier"
+#: What an entry holds beside its name (Section 3.4.6.2 of the files).
+_FIELDS = frozenset({"id", "routes"})
 
-#: The fewest bytes, in UTF-8, an EasyTier daemon's secret may be.
-_SECRET = 16
-
-#: How an EasyTier node may be reached, as its URL's scheme says.
-_NODES = ("tcp", "udp", "ws", "wss", "quic", "wg")
-
-#: What a daemon reached over ssh holds beside its name, as `ssh` is told it.
-_FIELDS = (
-    "host",
-    "user",
-    "port",
-    "identity_file",
-    "proxy_jump",
-    "options",
-    "alias",
-    "config",
+#: What an entry an earlier release wrote holds beside its name (Section 3.4.6.8 of the files).
+_EARLIER = frozenset(
+    {
+        "via",
+        "host",
+        "user",
+        "port",
+        "identity_file",
+        "proxy_jump",
+        "options",
+        "alias",
+        "config",
+        "secret",
+        "peers",
+    }
 )
-
 
 #: The settings a batch apply carries from one daemon to others, by the page each is set on:
 #: never the accounts, which only a secret sets.
@@ -102,19 +91,17 @@ CARRIED = ("general", "fallback", "runtimes", "backup")
 
 
 def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
-    """What one daemon's settings are written to another with, as its web interface takes them.
+    """The RPC calls that write one daemon's settings to another, of the pages asked for.
 
-    What its Settings pages' `Batch apply` sends, so that a frontend copying them sends the
-    same: each address and what is written there, of the pages asked for. A backup target's
-    URL goes with nothing signed into it, so a target that signs in is refused there rather
-    than its secret carried.
+    A backup target's URL goes with nothing signed into it, so that a target that signs in is
+    refused there rather than its secret carried.
 
     Args:
       hmz: The daemon's own Humanize, whose settings are carried.
       pages: Which of :data:`CARRIED`.
 
     Returns:
-      Each address and its body, in the order they are written.
+      Each method and its parameters, in the order they are called (Section 4.18 of daemon.md).
     """
     settings = hmz.settings
     sent: list[tuple[str, dict[str, Any]]] = []
@@ -122,11 +109,11 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
         general: dict[str, Any] = {"btw": settings.btw, "details": settings.details}
         if settings.enable_sentry is not None:
             general["reports"] = settings.enable_sentry
-        sent.append(("/api/settings", general))
+        sent.append(("settings.set", general))
     if "fallback" in pages:
         sent += [
             (
-                "/api/fallbacks",
+                "fallbacks.set",
                 {
                     "spec": one.spec,
                     "to": list(one.to),
@@ -144,7 +131,7 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
             fields.pop("made", None)
             sent.append(
                 (
-                    "/api/runtimes",
+                    "runtimes.set",
                     {
                         "backend": backend,
                         "name": name,
@@ -166,7 +153,7 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
         ]
         sent.append(
             (
-                "/api/settings",
+                "settings.set",
                 {
                     "backup": {
                         "targets": targets,
@@ -179,11 +166,11 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
 
 
 class Unreached(RuntimeError):  # noqa: N818 -- what it is, as `Refused` is named
-    """A daemon that is not up, or whose interface refused what it was asked.
+    """A daemon that is not up, or that refused what it was asked.
 
     Attributes:
       seen: How it stands, `{state, detail, version}`, where it is not up; else empty.
-      status: The HTTP status its interface refused with, or 503 where it was not reached.
+      status: The error code it refused with, or 503 where it was not reached.
     """
 
     def __init__(
@@ -194,122 +181,140 @@ class Unreached(RuntimeError):  # noqa: N818 -- what it is, as `Refused` is name
         self.status = status
 
 
-def _checked(name: str, fields: dict[str, Any]) -> dict[str, Any]:
-    """One daemon as it is written down, checked as how it is reached says.
-
-    Over ssh, as an ssh runtime is; over EasyTier, its secret, of at least 16 bytes, and the
-    nodes its network meets through, at least one.
+def _checked(
+    name: str, fields: Mapping[str, Any], *, earlier: bool = False
+) -> dict[str, Any]:
+    """One daemon as it is written down: its name, the id it is pinned to, and its routes.
 
     Args:
       name: What it is called.
-      fields: The rest of it: `via`, ssh by default; then `options` as
-        `[[KEYWORD, VALUE], ...]` or by keyword, or the `secret` and `peers`.
+      fields: `id`, `""` where absent, and `routes`.
+      earlier: Whether it may be an EasyTier daemon an earlier release wrote, which pinned no
+        id (Section 3.4.6.8 of the files): kept, though it is reached only once paired.
 
     Returns:
-      It, `options` as pairs.
+      It, as it is written.
 
     Raises:
-      ValueError: If it cannot be one; never saying its secret.
+      ValueError: If it cannot be one.
     """
-    from hmz.coganchor.machines.store import SSH as RUNTIME
-    from hmz.coganchor.machines.store import SSHRuntime, new
+    from hmz.reach import Route
+    from hmz.trust.identity import is_fingerprint
 
     if not _NAMED.fullmatch(name) or name.lower() == LOCAL:
         raise ValueError(
             f"A daemon cannot be called {name!r}: say a letter or digit, then letters, "
             f"digits, dots, dashes and underscores, and not {LOCAL}."
         )
-    given = dict(fields)
-    via: object = given.pop("via", SSH)
-    if via not in (SSH, EASYTIER):
-        raise ValueError(f"Say via as {SSH} or {EASYTIER}.")
-    takes = {"secret", "peers"} if via == EASYTIER else set(_FIELDS)
-    if extra := sorted(set(given) - takes):
-        raise ValueError(f"A daemon reached over {via} takes no {', '.join(extra)}.")
-    if via == EASYTIER:
-        secret: object = given.get("secret")
-        if not isinstance(secret, str) or len(secret.encode()) < _SECRET:
-            raise ValueError("A secret must be at least 16 bytes.")
-        return {
-            "name": name,
-            "via": EASYTIER,
-            "secret": secret,
-            "peers": _peers(given.get("peers")),
-        }
-    options: object = given.get("options", [])
-    if isinstance(options, list):
-        pairs = cast("list[object]", options)
-        if not all(
-            isinstance(one, list) and len(cast("list[object]", one)) == 2  # noqa: PLR2004
-            for one in pairs
-        ):
-            raise ValueError("Say options as pairs of a keyword and its value.")
-        given["options"] = {
-            str(key): str(value) for key, value in cast("list[list[object]]", pairs)
-        }
-    one = cast("SSHRuntime", new(RUNTIME, name, **given))
-    return {
-        "name": one.name,
-        "via": SSH,
-        **{field: getattr(one, field) for field in _FIELDS if field != "options"},
-        "options": [[key, value] for key, value in one.options.items()],
-    }
+    if extra := sorted(set(fields) - _FIELDS):
+        raise ValueError(f"A daemon takes no {', '.join(extra)}.")
+    pinned: object = fields.get("id", "")
+    if pinned != "" and not is_fingerprint(pinned):
+        raise ValueError('Say id as a daemon id, 52 base32 characters, or "".')
+    routes: object = fields.get("routes")
+    if (
+        not isinstance(routes, list)
+        or not routes
+        or not all(isinstance(one, str) for one in cast("list[object]", routes))
+    ):
+        raise ValueError("Say routes as a list of at least one route.")
+    said = cast("list[str]", routes)
+    parsed = [Route.parse(one) for one in said]
+    if pinned == "" and not (
+        parsed[0].trusted or (earlier and parsed[0].kind == "easytier")
+    ):
+        raise ValueError(f"{parsed[0]} needs the id of the daemon it reaches.")
+    return {"name": name, "id": pinned, "routes": list(said)}
 
 
-def _peers(said: object) -> list[str]:
-    """The EasyTier nodes a P2P daemon's network meets through, each `scheme://host:port`.
+def _migrated(
+    name: str, fields: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """An entry an earlier release wrote, as the entry its keys reached and its EasyTier entry.
 
     Raises:
-      ValueError: For none, or for one that is not a node's URL, naming it.
+      ValueError: If it reached nothing.
     """
-    if not isinstance(said, list) or not said:
-        raise ValueError("An EasyTier daemon needs at least one node.")
-    nodes = cast("list[object]", said)
-    for one in nodes:
-        try:
-            split = urllib.parse.urlsplit(one) if isinstance(one, str) else None
-            port = split.port if split else None
-        except ValueError:
-            split = port = None
-        if not (
-            split
-            and split.scheme in _NODES
-            and split.hostname
-            and port
-            and split.path in ("", "/")
-            and not (split.query or split.fragment or "@" in split.netloc)
-            and not any(letter.isspace() for letter in str(one))
-        ):
-            raise ValueError(
-                f"{one!r} is not an EasyTier node: say one as tcp://host:port."
-            )
-    return [str(one) for one in nodes]
+    from hmz.coganchor import easytier
+    from hmz.reach import Route
+
+    if fields.get("via") == "easytier":
+        secret: object = fields.get("secret")
+        peers: object = fields.get("peers")
+        if not isinstance(secret, str) or not isinstance(peers, list) or not peers:
+            raise ValueError(f"{name} names no EasyTier network.")
+        network = {
+            "secret": easytier.checked(secret),
+            "nodes": [easytier.node(str(one)) for one in cast("list[object]", peers)],
+        }
+        routes = [f"easytier:{name}"]
+        return _checked(name, {"id": "", "routes": routes}, earlier=True), network
+    options: Any = fields.get("options") or []
+    pairs = (
+        cast("dict[Any, Any]", options).items()
+        if isinstance(options, dict)
+        else options
+    )
+    said = [
+        (keyword, str(fields.get(field) or ""))
+        for keyword, field in (
+            ("IdentityFile", "identity_file"),
+            ("ProxyJump", "proxy_jump"),
+        )
+    ]
+    try:
+        route = Route(
+            "ssh",
+            host=str(fields.get("alias") or fields.get("host") or ""),
+            port=int(fields.get("port") or 0) or None,
+            user="" if fields.get("alias") else str(fields.get("user") or ""),
+            options=tuple(
+                (str(keyword), str(value))
+                for keyword, value in [*said, *pairs]
+                if value
+            ),
+        )
+    except (TypeError, ValueError) as why:
+        raise ValueError(f"{name} names no ssh host.") from why
+    return _checked(name, {"id": "", "routes": [str(route)]}), None
 
 
-def _valid(held: dict[str, Any]) -> list[dict[str, Any]]:
+def _read(held: Mapping[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Every daemon a reading of the settings file holds, in order, each checked.
 
     One that cannot be one -- written wrong by hand, or under a name taken before it -- is
     left out, and so is gone the next time the daemons are written.
+
+    Returns:
+      The daemons, and the EasyTier entry of each an earlier release wrote one of, by name.
     """
     there: object = held.get(_KEY)
     kept: list[dict[str, Any]] = []
+    networks: dict[str, Any] = {}
     for one in cast("list[object]", there) if isinstance(there, list) else []:
         fields = dict(cast("dict[str, Any]", one)) if isinstance(one, dict) else {}
         name = fields.pop("name", None)
-        if not isinstance(name, str):
+        if not isinstance(name, str) or any(name == each["name"] for each in kept):
             continue
         try:
-            entry = _checked(name, fields)
+            if set(fields) <= _EARLIER:
+                entry, network = _migrated(name, fields)
+            elif frozenset(fields) == _FIELDS:
+                entry, network = _checked(name, fields, earlier=True), None
+            else:
+                continue
         except ValueError:
             continue
-        if all(entry["name"] != each["name"] for each in kept):
-            kept.append(entry)
-    return kept
+        kept.append(entry)
+        if network is not None:
+            networks[name] = network
+    return kept, networks
 
 
 def _changes(change: Callable[[list[dict[str, Any]]], None]) -> None:
     """Makes one change to the daemons written down, and to nothing else in the file.
+
+    An entry an earlier release wrote is written as it is read, its EasyTier entry beside it.
 
     Raises:
       OSError: If the file cannot be written.
@@ -317,9 +322,13 @@ def _changes(change: Callable[[list[dict[str, Any]]], None]) -> None:
     from hmz.coganchor import settings
 
     def changing(held: dict[str, Any]) -> None:
-        daemons = _valid(held)
+        daemons, networks = _read(held)
         change(daemons)
         held[_KEY] = daemons
+        if networks:
+            written: object = held.get("easytier")
+            ours = cast("dict[str, Any]", written) if isinstance(written, dict) else {}
+            held["easytier"] = networks | ours
 
     settings.changes(changing)
 
@@ -329,6 +338,19 @@ def _named(alias: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]", "-", alias).lstrip("._-")
 
 
+def _offers(alias: str) -> dict[str, Any]:
+    """The daemon a host of the ssh config would be: reached by `ssh` resolving its `Host`.
+
+    Raises:
+      ValueError: If it cannot be one.
+    """
+    from hmz.reach import Route
+
+    return _checked(
+        _named(alias), {"id": "", "routes": [str(Route("ssh", host=alias))]}
+    )
+
+
 class Daemons:
     """The daemons written down, and reaching them: what every frontend switches between."""
 
@@ -336,14 +358,10 @@ class Daemons:
     CARRIED: ClassVar = CARRIED
 
     def all(self) -> list[dict[str, Any]]:
-        """Every daemon written down, in order; one that cannot be one is left out.
-
-        Each as it is written, an EasyTier one's secret too: whatever lists them for anybody
-        to see says it is set, never what it is.
-        """
+        """Every daemon written down, `{name, id, routes}`, in order."""
         from hmz.coganchor import settings
 
-        return _valid(settings.read())
+        return _read(settings.read())[0]
 
     def find(self, name: str) -> dict[str, Any] | None:
         """The daemon written down under a name, or None where there is none."""
@@ -354,10 +372,6 @@ class Daemons:
     ) -> dict[str, Any]:
         """Writes one daemon down, or over the one of its name where it is to `replace` it.
 
-        An EasyTier daemon replacing one, and saying no secret -- none, `""`, or `true` as it
-        is listed -- keeps the secret that one has, so that a page that is never told it can
-        still change the rest.
-
         Returns:
           It, as it is written.
 
@@ -366,16 +380,10 @@ class Daemons:
           FileExistsError: If one is called that already and it is not to be replaced.
           OSError: If the file cannot be written.
         """
-        said: object = fields.get("secret")
-        unsaid = said is None or said is True or said == ""
-        keeps = replace and fields.get("via") == EASYTIER and unsaid
-        entry: dict[str, Any] = {}
+        entry = _checked(name, fields)
 
         def change(daemons: list[dict[str, Any]]) -> None:
-            nonlocal entry
             at = next((i for i, one in enumerate(daemons) if one["name"] == name), -1)
-            was = daemons[at].get("secret") if keeps and at >= 0 else None
-            entry = _checked(name, fields if was is None else fields | {"secret": was})
             if at < 0:
                 daemons.append(entry)
             elif replace:
@@ -387,7 +395,7 @@ class Daemons:
         return entry
 
     def remove(self, name: str) -> None:
-        """Takes one daemon away.
+        """Forgets how to reach one daemon; what is on its machine stays as it is.
 
         Raises:
           ValueError: For Local, which is always there.
@@ -417,16 +425,14 @@ class Daemons:
 
         daemons = self.all()
         names = {one["name"] for one in daemons}
-        taken = {one.get("alias") for one in daemons}
+        taken = {route for one in daemons for route in one["routes"]}
         offered: dict[str, dict[str, Any]] = {}
         for alias in sshconfig.aliases():
-            if alias in taken:
-                continue
             try:
-                one = _checked(_named(alias), {"alias": alias})
+                one = _offers(alias)
             except ValueError:
                 continue
-            if one["name"] not in names:
+            if one["name"] not in names and one["routes"][0] not in taken:
                 names.add(one["name"])
                 offered[alias] = one
         return offered
@@ -449,19 +455,19 @@ class Daemons:
         there = sshconfig.aliases()
         if missing := [one for one in wanted if one not in there]:
             raise LookupError(f"Your ssh config has no host {', '.join(missing)}.")
-        for alias in wanted:
+        offers: list[dict[str, Any]] = []
+        for alias in dict.fromkeys(wanted):
             try:
-                _checked(_named(alias), {"alias": alias})
+                offers.append(_offers(alias))
             except ValueError as why:
                 raise ValueError(f"{alias} cannot be a daemon: {why}") from why
         added: list[str] = []
 
         def change(daemons: list[dict[str, Any]]) -> None:
             names = {one["name"] for one in daemons}
-            taken = {one.get("alias") for one in daemons}
-            for alias in dict.fromkeys(wanted):
-                one = _checked(_named(alias), {"alias": alias})
-                if alias not in taken and one["name"] not in names:
+            taken = {route for one in daemons for route in one["routes"]}
+            for one in offers:
+                if one["name"] not in names and one["routes"][0] not in taken:
                     daemons.append(one)
                     names.add(one["name"])
                     added.append(one["name"])
@@ -473,17 +479,53 @@ class Daemons:
         """Every daemon written down, each reached as it is first asked for, until closed.
 
         Args:
-          version: The version of `hmz` installed where another is found; this one's by
-            default.
+          version: The version of `hmz` installed over `stdio:ssh` where another is found;
+            this one's by default.
         """
         return Remotes(version)
+
+
+def _pins(name: str, daemon: str) -> None:
+    """Pins the id a daemon first answered over a trusted carrier, where none is pinned yet.
+
+    Raises:
+      OSError: If the file cannot be written.
+    """
+
+    def change(daemons: list[dict[str, Any]]) -> None:
+        for one in daemons:
+            if one["name"] == name and one["id"] == "":
+                one["id"] = daemon
+
+    _changes(change)
+
+
+def _networks() -> dict[str, EasyTier]:
+    """This machine's EasyTier entries, by name, an earlier release's daemons' among them."""
+    from hmz.coganchor import settings
+    from hmz.reach import EasyTier
+
+    held = settings.read()
+    written: object = held.get("easytier")
+    entries = _read(held)[1] | (
+        cast("dict[str, Any]", written) if isinstance(written, dict) else {}
+    )
+    networks: dict[str, EasyTier] = {}
+    for name, one in entries.items():
+        entry = cast("dict[str, Any]", one) if isinstance(one, dict) else {}
+        secret, nodes = entry.get("secret"), entry.get("nodes")
+        if isinstance(secret, str) and isinstance(nodes, list):
+            networks[name] = EasyTier(
+                secret, tuple(str(node) for node in cast("list[object]", nodes))
+            )
+    return networks
 
 
 #: The release of uv fetched onto a host that has none, through astral's installer for it:
 #: the one Humanize Desktop pins.
 UV = "0.12.24"
 
-#: What a daemon's state may be.
+#: What a daemon's state may be (Section 3.8.2.2 of daemon.md).
 IDLE, CONNECTING, INSTALLING, UP, FAILED = (
     "idle",
     "connecting",
@@ -533,15 +575,10 @@ _INSTALL = _PATH + (
     "exec uv tool install --force --python '>=3.12' 'hmz=={version}'"
 )
 
-#: Starts the interface there, for as long as the ssh holding its standard input lives.
-_SERVE = _PATH + "exec hmz web --no-open --attached --port 0"
-
-#: The line it says where it listens with.
-_ADDRESS = re.compile(r"hmz web: http://127\.0\.0\.1:(\d+)/\?key=(\S+)")
-
-#: What `ssh` is told for every command here before what the host's own settings and Humanize's
-#: say beside them: nothing is asked of anybody, since nobody is at a terminal to answer.
-_UNASKED = ("-o", "BatchMode=yes", "-o", "ConnectTimeout=20")
+#: What `ssh` is told for the probe and the install before what the route says, since ssh
+#: keeps the first value it is given: nothing is asked of anybody, since nobody is at a
+#: terminal to answer (Section 3.8.2.6 of daemon.md).
+_UNASKED = (("BatchMode", "yes"), ("ConnectTimeout", "20"))
 
 #: How long, in seconds, asking a host what it has may take.
 _PROBING = 60.0
@@ -549,32 +586,30 @@ _PROBING = 60.0
 #: How long installing `hmz` there may take.
 _INSTALLING = 900.0
 
-#: How long the interface there may take to say where it listens.
-_STARTING = 60.0
-
-#: How long the forwarded port may take to be listened on.
-_FORWARDING = 20.0
-
 #: How long whoever asks for a daemon not yet reached waits for it.
-_WAITING = 15.0
+_WAITING = 30.0
 
 #: How long one question to a daemon reached may go unanswered.
 _ASKING = 120.0
 
-#: The wait before reaching a daemon again, doubled each time it fails, up to the last.
-_BACKOFF = (1.0, 60.0)
-
 #: How long a process is given to stop before it is killed.
 _STOPPING = 3.0
 
-#: How often a daemon reached over EasyTier is asked whether it still answers, how soon again
-#: once it did not, how long it may take to, and how many times running it may not before it
-#: is lost: its `easytier-core` keeps running whether or not the server does.
-_BEATING, _AGAIN, _HEARING, _MISSES = 5.0, 1.0, 5.0, 3
+#: What a call on a session that has ended is refused with (Section 4.21.7 of python.md).
+_WENT = "the daemon went away"
 
 
 class _Failed(Exception):  # noqa: N818 -- the sentence a daemon's state says
     """Reaching a daemon went wrong, as its state says it."""
+
+
+class _Refused(Refused):
+    """A call a daemon answered with an error: its message, its code and its data."""
+
+    def __init__(self, message: str, code: int, data: Any = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.data = data
 
 
 def _here_version() -> str:
@@ -585,71 +620,10 @@ def _here_version() -> str:
 
 
 def _entry(name: str) -> dict[str, Any] | None:
-    """The daemon written down by that name, as it is listed, or None."""
+    """The daemon written down by that name, or None."""
     if name == LOCAL:  # This machine, whatever is written down.
         return None
     return Daemons().find(name)
-
-
-def road(said: dict[str, Any]) -> Road:
-    """How a command is run on a daemon's host, as its entry says to reach it.
-
-    Raises:
-      ValueError: For an entry that says no host, or says one wrongly.
-    """
-    from hmz.coganchor.machines.store import SSHRuntime
-    from hmz.coganchor.transport import Road, Target, ssh_flags
-
-    options: Any = said.get("options") or []
-    if isinstance(options, dict):
-        options = cast("dict[Any, Any]", options).items()
-    try:
-        pairs = cast("list[tuple[Any, Any]]", list(options))
-        runtime = SSHRuntime(
-            name="daemon",
-            host=str(said.get("host") or ""),
-            user=str(said.get("user") or ""),
-            port=int(said.get("port") or 0),
-            identity_file=str(said.get("identity_file") or ""),
-            proxy_jump=str(said.get("proxy_jump") or ""),
-            options={str(key): str(value) for key, value in pairs},
-            alias=str(said.get("alias") or ""),
-            config=str(said.get("config") or ""),
-        )
-    except (TypeError, ValueError) as why:
-        raise ValueError(str(why).removeprefix("daemon: ")) from why
-    target = Target(
-        "ssh", host=runtime.login(), port=runtime.port, options=runtime.settings()
-    )
-    road = Road.to(target)
-    # After what the host's own settings say, which win, and before what Humanize assumes.
-    own = 1 + len(ssh_flags(target.options))
-    prefix = (*road.prefix[:own], *_UNASKED, *road.prefix[own:])
-    return dataclasses.replace(road, prefix=prefix)
-
-
-def forwarding(on: Road, local: int, remote: int) -> list[str]:
-    """The `ssh` that forwards a port of this machine's loopback to one of the host's.
-
-    A connection of its own rather than one riding a shared master, whose forwards outlive
-    the client that asked for them; and one that lasts as long as its standard input, which
-    whatever started it holds, so that it goes with it however that goes.
-    """
-    ssh, *options, host = on.prefix
-    alone = (
-        ssh,
-        "-o",
-        "ControlMaster=no",
-        "-o",
-        "ControlPath=none",
-        "-o",
-        "ExitOnForwardFailure=yes",
-        *options,
-        "-L",
-        f"127.0.0.1:{local}:127.0.0.1:{remote}",
-        host,
-    )
-    return dataclasses.replace(on, prefix=alone).line(["cat"])
 
 
 def said(lines: Sequence[str]) -> dict[str, str]:
@@ -664,6 +638,7 @@ def said(lines: Sequence[str]) -> dict[str, str]:
 
 def headers(port: int, key: str) -> dict[str, str]:
     """What a request to an interface listening on `port` carries to be let in, as its page's."""
+    # Wave 4 removes this, with the web's `/d/` proxy that is all that still asks it.
     return {
         "Host": f"127.0.0.1:{port}",
         "Origin": f"http://127.0.0.1:{port}",
@@ -672,25 +647,256 @@ def headers(port: int, key: str) -> dict[str, str]:
     }
 
 
-def _free(wanted: int) -> int:
-    """A port free on this machine's loopback: `wanted` where it is, else any.
-
-    The one the other interface listens on where it can be had, so that a cookie for one is
-    named as a cookie for the other.
-    """
-    for port in (wanted, 0):
-        with socket.socket() as trying:
-            try:
-                trying.bind(("127.0.0.1", port))
-            except OSError:
-                continue
-            return int(trying.getsockname()[1])
-    raise _Failed("No port is free here to forward.")
-
-
 def _last(lines: Sequence[str], otherwise: str) -> str:
     """The last line said, or what is said otherwise."""
     return next((line for line in reversed(lines) if line.strip()), otherwise).strip()
+
+
+def _road(route: Route) -> Road:
+    """How a command is run on the host of a `stdio:ssh` route, asking nobody anything.
+
+    Raises:
+      ValueError: For a destination `ssh` would read as an option or as more than one.
+    """
+    from hmz.coganchor.transport import Road, Target
+    from hmz.reach import command
+
+    command(route)
+    login = f"{route.user}@{route.host}" if route.user else route.host
+    return Road.to(
+        Target(
+            "ssh", host=login, port=route.port or 0, options=(*_UNASKED, *route.options)
+        )
+    )
+
+
+#: Where a client's notifications wait for its listener: each `(method, params)`, then None.
+type _Inbox = queue.SimpleQueue[tuple[str, dict[str, Any]] | None]
+
+
+class _Session:
+    """One session with a daemon, `session.hello` said, shared by every client of it.
+
+    Attributes:
+      peer: Its end of the session.
+      said: What `session.hello` answered.
+    """
+
+    def __init__(self, pipe: Pipe, route: Route, pinned: str, name: str) -> None:
+        """Opens the session over a carrier secured, and holds it to the id pinned.
+
+        Raises:
+          _Failed: If the daemon refused hello, did not answer it within 30 seconds, or
+            answered as another daemon than the one pinned.
+        """
+        from hmz.reach import OPENING
+        from hmz.rpc import Closed, Peer, RpcError, hello
+        from hmz.trust.identity import host
+
+        self._lock = threading.Lock()
+        self._inboxes: list[_Inbox] = []
+        self.peer = Peer(pipe, self._serves, name=f"hmz-remote-{name}")
+        self.peer.closing(self._ended)
+        try:
+            self.said = hello(self.peer, host(), "sdk", timeout=OPENING)
+        except RpcError as why:
+            self.peer.close()
+            raise _Failed(why.message) from why
+        except Closed as why:
+            raise _Failed(f"{route} closed before it said hello.") from why
+        except TimeoutError as why:
+            self.peer.close()
+            raise _Failed(f"{route} did not open within {OPENING:g} seconds.") from why
+        if pinned and self.said.get("daemon_id") != pinned:
+            self.peer.close()
+            raise _Failed(f"{name} is not the daemon it was paired with.")
+
+    def hears(self, inbox: _Inbox) -> None:
+        """Puts every notification from here on in `inbox` too, then None once it ends."""
+        with self._lock:
+            if not self.peer.closed:
+                self._inboxes.append(inbox)
+                return
+        inbox.put(None)
+
+    def forgets(self, inbox: _Inbox) -> None:
+        """Puts no more notifications in `inbox`."""
+        with self._lock, contextlib.suppress(ValueError):
+            self._inboxes.remove(inbox)
+
+    def _serves(self, call: Call) -> None:
+        from hmz.rpc import Code, RpcError
+
+        if call.id is not None:
+            call.fail(
+                RpcError(Code.METHOD_NOT_FOUND, f"There is no method {call.method}.")
+            )
+            return
+        with self._lock:
+            inboxes = list(self._inboxes)
+        for inbox in inboxes:
+            inbox.put((call.method, call.params))
+
+    def _ended(self) -> None:
+        with self._lock:
+            inboxes, self._inboxes = self._inboxes, []
+        for inbox in inboxes:
+            inbox.put(None)
+
+    def close(self) -> None:
+        self.peer.close()
+
+
+class Client:
+    """One session of the wire protocol with one daemon (Section 4.21 of python.md).
+
+    What :meth:`Remotes.client` hands out: the one session the `Remotes` holds to that daemon,
+    which closing a client leaves open for the others, and closing the `Remotes` closes.
+    """
+
+    def __init__(self, session: _Session) -> None:
+        """Holds a session reached. Made by :meth:`Remotes.client`."""
+        self._session = session
+        self._lock = threading.Lock()
+        self._listening = False
+        self._inbox: _Inbox = queue.SimpleQueue()
+        self._closed = False
+
+    @property
+    def daemon_id(self) -> str:
+        """The daemon's id, as `session.hello` answered it."""
+        return str(self._session.said.get("daemon_id", ""))
+
+    @property
+    def version(self) -> str:
+        """The daemon's hmz version."""
+        return str(self._session.said.get("version", ""))
+
+    @property
+    def protocol(self) -> str:
+        """The daemon's protocol version."""
+        return str(self._session.said.get("protocol", ""))
+
+    @property
+    def capabilities(self) -> tuple[str, ...]:
+        """The optional features the daemon offers."""
+        return tuple(self._session.said.get("capabilities") or ())
+
+    @property
+    def device(self) -> str:
+        """The name this device is paired under there, `local` over a trusted carrier."""
+        return str(self._session.said.get("device", ""))
+
+    def call(
+        self,
+        method: str,
+        params: Mapping[str, Any] | None = None,
+        *,
+        idem: str | None = None,
+        seconds: float | None = None,
+    ) -> Any:
+        """Makes one call, and returns its result.
+
+        Raises:
+          Refused: With the error's message, `code` and `data` where the daemon answers one,
+            and `code` 503 where the session has ended.
+          TimeoutError: If no answer came within `seconds`.
+        """
+        from hmz.rpc import Closed, RpcError
+
+        if self._closed or self._session.peer.closed:
+            raise _Refused(_WENT, 503)
+        given = dict(params or {})
+        if idem is not None:
+            given["idem"] = idem
+        try:
+            return self._session.peer.call(method, given, timeout=seconds)
+        except RpcError as why:
+            raise _Refused(why.message, why.code, why.data) from why
+        except Closed as why:
+            raise _Refused(_WENT, 503) from why
+        except TimeoutError:
+            raise TimeoutError(f"no answer to {method!r} in {seconds}s") from None
+
+    def heard(self, listener: Callable[[str, dict[str, Any]], None]) -> None:
+        """Calls `listener(method, params)` with every notification, in order, on a thread.
+
+        Raises:
+          RuntimeError: If this client already has one.
+        """
+        with self._lock:
+            if self._listening:
+                raise RuntimeError("this client already has a listener")
+            self._listening = True
+        self._session.hears(self._inbox)
+
+        def pumps() -> None:
+            while (one := self._inbox.get()) is not None:
+                with contextlib.suppress(Exception):
+                    listener(*one)
+
+        threading.Thread(target=pumps, daemon=True, name="hmz-client").start()
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """Waits for the session to end, and says whether it has."""
+        return self._session.peer.wait(timeout)
+
+    def close(self) -> None:
+        """Lets go of the session; every epic goes on."""
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+        self._session.forgets(self._inbox)
+        self._inbox.put(None)
+
+    def __enter__(self) -> Self:
+        """Holds the client for as long as the block runs."""
+        return self
+
+    def __exit__(
+        self,
+        kind: type[BaseException] | None,
+        why: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Lets go of it, however the block ended."""
+        self.close()
+
+
+def _secured(
+    route: Route,
+    pinned: str,
+    name: str,
+    networks: Mapping[str, EasyTier],
+    opened: Callable[[Pipe], None],
+) -> Pipe:
+    """The carrier a route names, inside mutual TLS pinned to the daemon where it is untrusted.
+
+    Args:
+      route: It.
+      pinned: The daemon id pinned, `""` for none.
+      name: What the daemon is called, for a refusal.
+      networks: This machine's EasyTier entries.
+      opened: Told each carrier as it opens, for closing it however reaching it ends.
+
+    Raises:
+      ValueError, OSError: If it cannot be opened or secured, saying why.
+    """
+    from hmz.reach import OPENING, dial
+    from hmz.trust import identity, tls
+
+    pipe = dial(route, daemon=pinned, easytier=networks)
+    opened(pipe)
+    if route.trusted:
+        return pipe
+    # Its 30 seconds include the handshake (Section 3.4.9 of wire.md).
+    timer = threading.Timer(OPENING, pipe.close)
+    timer.start()
+    try:
+        return tls.dial(pipe, identity.device(), pinned, name)
+    finally:
+        timer.cancel()
 
 
 class _Remote:
@@ -703,15 +909,19 @@ class _Remote:
         self.state = IDLE
         self.detail = ""
         self.there = ""
-        self.port = 0
-        self.remote = 0
-        self.key = ""
+        #: Wave 4 removes these, with the HTTP members of `Remotes` that read them: nothing
+        #: serves HTTP to a daemon reached over JSON-RPC.
+        self.port, self.remote, self.key = 0, 0, ""
         self.entry: dict[str, Any] | None = None
+        self.session: _Session | None = None
         #: What is said of it while it is up: why its hmz is not this one's, where it is not.
         self._note = ""
         self._children: set[subprocess.Popen[Any]] = set()
+        self._pipes: list[Pipe] = []
         self._closed = threading.Event()
         self._again = threading.Event()
+        #: Set while its routes race: what a route that lost says after is said to nobody.
+        self._racing = threading.Event()
         self._thread: threading.Thread | None = None
 
     def seen(self) -> dict[str, str]:
@@ -729,16 +939,13 @@ class _Remote:
                 target=self._keeps, daemon=True, name=f"hmz-remote-{self.name}"
             )
             self._thread.start()
-        elif (now and self.state == FAILED) or said != self.entry:
+        elif (now and self.state == FAILED) or _moved(said, self.entry):
             self._again.set()
 
     def close(self) -> None:
         self._closed.set()
         self._again.set()
-        with self._changed:
-            children = list(self._children)
-        for child in children:
-            _stops(child)
+        self._ends()
         if self._thread is not None:
             self._thread.join(timeout=_STOPPING * 3)
 
@@ -747,206 +954,141 @@ class _Remote:
             self.state, self.detail = state, detail
             self._changed.notify_all()
 
+    def _tells(self, state: str, detail: str = "") -> None:
+        """Says how it stands from a route racing, where the race is not over."""
+        with self._changed:
+            if self._racing.is_set():
+                self._says(state, detail)
+
     def _keeps(self) -> None:
         """Reaches it, holds it while it lasts, and reaches it again after a wait."""
-        wait = _BACKOFF[0]
+        from hmz.reach import Backoff
+
+        backoff = Backoff()
         while not self._closed.is_set():
             self._again.clear()
             self._says(CONNECTING)
             try:
-                held = self._reaches()
+                session = self._reaches()
             except Exception as why:  # noqa: BLE001 -- whatever it was is what it says
                 self._ends()
                 if self._closed.is_set():
                     break
-                self._says(FAILED, str(why))
+                self._says(FAILED, str(why) or type(why).__name__)
             else:
+                with self._changed:
+                    self.session = session
                 self._says(UP, self._note)
-                wait = _BACKOFF[0]
-                self._holds(held)
+                backoff.reset()
+                while not (session.peer.wait(0.25) or self._again.is_set()):
+                    pass
                 self._ends()
                 if self._closed.is_set():
                     break
                 if self._again.is_set():
                     continue
                 self._says(CONNECTING, "Lost")
-            self._again.wait(wait)
-            wait = min(wait * 2, _BACKOFF[1])
+            self._again.wait(backoff.next())
         self._says(IDLE)
 
-    def _holds(self, held: Sequence[subprocess.Popen[Any]]) -> None:
-        """Returns once it is lost, or is to be reached again.
+    def _reaches(self) -> _Session:
+        """Races its routes, and holds the first whose daemon says hello as the one pinned.
 
-        Lost where a process it is held by goes; over EasyTier, too, where the server does not
-        answer a few times running, or answers as another version than it was reached at.
-        """
-        beats = self.entry is not None and self.entry["via"] == EASYTIER
-        asked, misses = time.monotonic(), 0
-        while not self._again.wait(0.25):
-            if any(one.poll() is not None for one in held):
-                return
-            if not beats or time.monotonic() - asked < (_AGAIN if misses else _BEATING):
-                continue
-            try:
-                there = self._answers()
-            except _Failed:
-                return
-            if there and there != self.there:
-                return
-            misses = 0 if there else misses + 1
-            if misses >= _MISSES:
-                return
-            asked = time.monotonic()
-
-    def _reaches(self) -> list[subprocess.Popen[Any]]:
-        """Reaches it.
-
-        Over ssh, probes the host, installs `hmz` there where it must, starts the interface
-        there and forwards a port to it; over EasyTier, joins its network, as `_joins` says.
-
-        Returns:
-          Every process it is held by, each of which going loses it.
+        Pins the id it answered where none was pinned and the route that won is trusted.
 
         Raises:
-          _Failed: Saying what went wrong.
+          _Failed, ValueError, OSError: Saying what went wrong; of the last route to fail,
+            where every one did.
         """
+        from hmz.reach import Route, race
+
         self.entry = _entry(self.name)
         if self.entry is None:
             raise _Failed(f"No daemon is called {self.name}.")
-        if self.entry["via"] == EASYTIER:
-            return [self._joins(self.entry)]
+        pinned: str = self.entry["id"]
+        networks = _networks()
+        routed: dict[int, Route] = {}
+        notes: dict[Route, str] = {}
+
+        def opening(route: Route) -> Pipe:
+            if route.kind == "ssh":
+                notes[route] = self._installed(route)
+            elif route.kind == "easytier":
+                self._downloads()
+            pipe = _secured(route, pinned, self.name, networks, self._opened)
+            routed[id(pipe)] = route
+            return pipe
+
+        def handshake(pipe: Pipe) -> _Session:
+            return _Session(pipe, routed[id(pipe)], pinned, self.name)
+
+        self._racing.set()
         try:
-            on = road(self.entry)
-        except ValueError as why:
-            raise _Failed(str(why)) from why
-        version = self._installed(on)
-        self.there = version
-        web = self._started(on.line(["sh", "-c", _SERVE]), apart=True)
-        address = self._listens(web)
-        self.remote, self.key = int(address[1]), address[2]
-        self.port = _free(self.remote)
-        forward = self._started(forwarding(on, self.port, self.remote))
-        told = _drained(forward)
-        ending = time.monotonic() + _FORWARDING
-        while not _listened(self.port):
-            if forward.poll() is not None:
-                time.sleep(0.1)  # For what it said last to be read.
-                raise _Failed(_last(told, "The port could not be forwarded."))
-            if self._closed.is_set() or time.monotonic() > ending:
-                raise _Failed("The port was not forwarded in time.")
-            time.sleep(0.05)
-        return [web, forward]
+            routes = [Route.parse(one) for one in self.entry["routes"]]
+            won = race(routes, opening, handshake)
+        finally:
+            with self._changed:
+                self._racing.clear()
+                children = list(self._children)
+                self._children.clear()
+            # What a route that lost was probing or installing with.
+            for child in children:
+                _stops(child)
+        self._note = notes.get(won.route, "")
+        if self._closed.is_set():
+            won.answer.close()
+            raise _Failed("Closed.")
+        if not pinned and won.route.trusted:
+            _pins(self.name, str(won.answer.said.get("daemon_id", "")))
+            self.entry = _entry(self.name)
+        self.there = str(won.answer.said.get("version", ""))
+        return won.answer
 
-    def _joins(self, entry: dict[str, Any]) -> subprocess.Popen[Any]:
-        """Joins a P2P daemon's network, once it answers there at a version not older.
+    def _opened(self, pipe: Pipe) -> None:
+        """Holds a carrier opened for it, closing it at once where it is closing."""
+        with self._changed:
+            closed = self._closed.is_set()
+            if not closed:
+                self._pipes.append(pipe)
+        if closed:
+            pipe.close()
+            raise _Failed("Closed.")
 
-        `easytier-core` is downloaded first where it must be, which is `installing`; then it
-        puts the server's interface on a port of this machine's loopback, which is waited on
-        until the server answers through it. Nothing ever said here holds the secret.
-
-        Returns:
-          The `easytier-core` joined.
-
-        Raises:
-          _Failed: Saying what went wrong.
-        """
-        from packaging.version import InvalidVersion, Version
-
+    def _downloads(self) -> None:
+        """Downloads EasyTier where there is none, `installing` while it does."""
         from hmz.coganchor import easytier
 
-        self._note = ""
-        secret: str = entry["secret"]
         try:
-            easytier.binary(lambda said: self._says(INSTALLING, said))
+            easytier.binary(lambda said: self._tells(INSTALLING, said))
         except OSError as why:
             raise _Failed(str(why)) from why
-        self._says(CONNECTING)
-        self.remote, self.key = easytier.PORT, easytier.key(secret)
-        # Any port but the server's own, which this machine's `hmz server` would want.
-        self.port = _free(0)
-        with self._changed:
-            if self._closed.is_set():
-                raise _Failed("Closed.")
-            try:
-                joined = easytier.joining(
-                    secret, self.port, port=self.remote, peers=entry["peers"]
-                )
-            except (OSError, ValueError) as why:
-                raise _Failed(f"EasyTier could not be run: {why}") from why
-            self._children.add(joined)
-        ending = time.monotonic() + _STARTING
-        while not (there := self._answers()):
-            if joined.poll() is not None:
-                raise _Failed(f"EasyTier stopped, exiting {joined.returncode}.")
-            if self._closed.is_set() or time.monotonic() > ending:
-                raise _Failed(f"{self.name} did not answer over EasyTier in time.")
-            time.sleep(0.25)
-        self.there = there
-        try:
-            older = Version(there) < Version(self._version)
-        except InvalidVersion as why:
-            raise _Failed(f"{self.name} says it is hmz {there}.") from why
-        if older:
-            raise _Failed(
-                f"{self.name} is served by an older Humanize, hmz {there}; "
-                f"serve it with hmz {self._version}."
-            )
-        return joined
+        self._tells(CONNECTING)
 
-    def _answers(self) -> str:
-        """The version of `hmz` the interface reached answers with, or "" where none answers.
+    def _installed(self, route: Route) -> str:
+        """Has the `hmz` there be this one's version, where it may be made so.
+
+        Returns:
+          Why the `hmz` there is not this one's, where it is not; else "".
 
         Raises:
-          _Failed: If it answers, refusing.
+          _Failed: If there is none it can use, saying why.
         """
-        connection = http.client.HTTPConnection(
-            "127.0.0.1", self.port, timeout=_HEARING
-        )
         try:
-            connection.request(
-                "GET",
-                f"/api/daemons/{LOCAL}/state",
-                headers=headers(self.remote, self.key),
-            )
-            answer = connection.getresponse()
-            body = answer.read()
-        except (OSError, http.client.HTTPException):
-            return ""
-        finally:
-            connection.close()
-        if answer.status != 200:  # noqa: PLR2004 -- the one success it answers with
-            raise _Failed(f"{self.name} answered {answer.status} over EasyTier.")
-        try:
-            said: object = json.loads(body)
-        except ValueError:
-            said = None
-        version = (
-            cast("dict[str, Any]", said).get("version")
-            if isinstance(said, dict)
-            else None
-        )
-        if not isinstance(version, str) or not version:
-            raise _Failed(f"{self.name} answered what cannot be read over EasyTier.")
-        return version
-
-    def _installed(self, on: Road) -> str:
-        """The version of `hmz` there, once it is this one where it may be made so."""
-        self._note = ""
+            on = _road(route)
+        except ValueError as why:
+            raise _Failed(str(why)) from why
         found = self._probed(on)
         there = found.get("hmz", "")
         wanted = self._version
         if wanted in ("0.0.0", there):
             if not there:
                 raise _Failed(f"hmz is not installed on {self.name}.")
-            return there
+            return ""
         if there and found.get("daemon") != "none":
             if found.get("daemon") == "running":
-                why = f"hmz {there} there holds running epics; hmz {wanted} waits"
-            else:
-                why = f"Whether hmz {there} there runs epics is unknown; not replaced"
-            self._note = why
-            return there
-        self._says(INSTALLING, f"hmz {wanted}")
+                return f"hmz {there} there holds running epics; hmz {wanted} waits"
+            return f"Whether hmz {there} there runs epics is unknown; not replaced"
+        self._tells(INSTALLING, f"hmz {wanted}")
         lines: list[str] = []
         installing = self._started(
             on.line(["sh", "-c", _INSTALL.format(version=wanted)])
@@ -954,13 +1096,14 @@ class _Remote:
         for line in _lines(installing, _INSTALLING):
             lines.append(line)
             if line.strip():
-                self._says(INSTALLING, line.strip())
+                self._tells(INSTALLING, line.strip())
         if installing.wait() != 0:
             raise _Failed(_last(lines, f"hmz {wanted} could not be installed."))
         there = self._probed(on).get("hmz", "")
         if there != wanted:
             raise _Failed(f"hmz {wanted} was installed, and hmz {there} answers.")
-        return there
+        self._tells(CONNECTING)
+        return ""
 
     def _probed(self, on: Road) -> dict[str, str]:
         probing = self._started(on.line(["sh", "-c", _PROBE]))
@@ -969,59 +1112,17 @@ class _Remote:
             raise _Failed(_last(lines, f"{self.name} did not answer."))
         return said(lines)
 
-    def _listens(self, web: subprocess.Popen[str]) -> re.Match[str]:
-        """Where the interface there listens, once it says."""
-        stdout = web.stdout
-        assert stdout is not None  # noqa: S101 -- it was started with one
-        assert web.stderr is not None  # noqa: S101
-        heard: queue.Queue[str | None] = queue.Queue()
-        errors = _drained(web, web.stderr)
-
-        def reads() -> None:
-            # Read to its end, which it says nothing more before.
-            with contextlib.suppress(OSError, ValueError), stdout:
-                for line in stdout:
-                    heard.put(line)
-            heard.put(None)
-
-        threading.Thread(target=reads, daemon=True, name="hmz-remote").start()
-        ending = time.monotonic() + _STARTING
-        while True:
-            try:
-                line = heard.get(timeout=min(1.0, max(0.0, ending - time.monotonic())))
-            except queue.Empty:
-                if time.monotonic() >= ending:
-                    raise _Failed(
-                        _last(errors, "hmz web there did not say where it listens.")
-                    ) from None
-                # What it says while it comes up, said as how it stands.
-                if errors:
-                    self._says(CONNECTING, _last(errors, ""))
-                continue
-            if line is None:
-                web.wait()
-                raise _Failed(_last(errors, "hmz web there stopped."))
-            found = _ADDRESS.search(line)
-            if found:
-                return found
-
-    def _started(
-        self, argv: list[str], *, apart: bool = False
-    ) -> subprocess.Popen[str]:
-        """A process, which is stopped as this daemon is closed or lost.
-
-        Its standard input is held open until then, so that it goes with this one however
-        that goes; what it says on stderr is read `apart` from its stdout, or with it.
-        """
+    def _started(self, argv: list[str]) -> subprocess.Popen[str]:
+        """A process, which is stopped as this daemon is closed or lost."""
         with self._changed:
-            if self._closed.is_set():
+            if not self._racing.is_set():
                 raise _Failed("Closed.")
             try:
                 child = subprocess.Popen(
                     argv,
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE if apart else subprocess.STDOUT,
+                    stderr=subprocess.STDOUT,
                     text=True,
                     errors="replace",
                     start_new_session=True,
@@ -1032,12 +1133,31 @@ class _Remote:
         return child
 
     def _ends(self) -> None:
-        """Stops and reaps every process started for it."""
+        """Closes its session and every carrier, and stops and reaps every process started."""
         with self._changed:
+            session, self.session = self.session, None
+            pipes, self._pipes = self._pipes, []
             children = list(self._children)
             self._children.clear()
+        if session is not None:
+            session.close()
+        for pipe in pipes:
+            with contextlib.suppress(OSError):
+                pipe.close()
         for child in children:
             _stops(child)
+
+
+def _moved(said: dict[str, Any], entry: dict[str, Any] | None) -> bool:
+    """Whether a daemon's entry says to reach it otherwise than as it was reached.
+
+    Never where it has only had the id it was reached at pinned since.
+    """
+    return (
+        entry is None
+        or said["routes"] != entry["routes"]
+        or said["id"] not in ("", entry["id"])
+    )
 
 
 def _lines(child: subprocess.Popen[str], patience: float) -> Iterator[str]:
@@ -1050,34 +1170,6 @@ def _lines(child: subprocess.Popen[str], patience: float) -> Iterator[str]:
             yield from (line.rstrip("\n") for line in child.stdout)
     finally:
         timer.cancel()
-
-
-def _drained(child: subprocess.Popen[str], said: IO[str] | None = None) -> list[str]:
-    """The last lines a process says, read as it says them so that it is never held up.
-
-    Args:
-      child: The process.
-      said: What of it is read: its stdout, by default.
-    """
-    lines: list[str] = []
-    held = said or child.stdout
-    assert held is not None  # noqa: S101 -- it was started with one
-
-    def drains() -> None:
-        with held, contextlib.suppress(OSError, ValueError):
-            for line in held:
-                lines.append(line.rstrip("\n"))
-                del lines[:-20]
-
-    threading.Thread(target=drains, daemon=True, name="hmz-remote").start()
-    return lines
-
-
-def _listened(port: int) -> bool:
-    """Whether something listens on a port of this machine's loopback."""
-    with socket.socket() as trying:
-        trying.settimeout(1.0)
-        return trying.connect_ex(("127.0.0.1", port)) == 0
 
 
 def _stops(child: subprocess.Popen[Any]) -> None:
@@ -1135,6 +1227,80 @@ class Remotes:
         self._starts(name, now=True)
         return self.state(name)
 
+    def client(self, name: str) -> Client:
+        """The client of the session to a daemon, reached first where it was not.
+
+        Raises:
+          Unreached: If it cannot be reached, with its state.
+          LookupError: If none is called that.
+        """
+        held = self._up(name)
+        with self._changed:
+            session = held.session
+        if session is None or session.peer.closed:
+            raise Unreached(f"{name} is not reached yet.", held.seen())
+        return Client(session)
+
+    def pair(
+        self, name: str, code: str, *, device: str | None = None
+    ) -> dict[str, Any]:
+        """Claims a pairing code over its routes, and writes the daemon down under `name`.
+
+        Args:
+          name: What the daemon is to be called here.
+          code: The pairing code, `hmz-pair:...`.
+          device: What this device is to be called there; this machine's host name by default.
+
+        Returns:
+          The daemon, as it is written.
+
+        Raises:
+          ValueError: For a code that is not one, or a name that cannot be one.
+          Unreached: If the claim is refused, with its error code, or no route opens, 503.
+          OSError: If the daemon cannot be written down.
+        """
+        from hmz.reach import Route, race
+        from hmz.rpc import Closed, RpcError
+        from hmz.trust import identity, pairing
+
+        given = pairing.read(code)
+        entry = _checked(name, {"id": given.id, "routes": list(given.routes)})
+        routes = [Route.parse(one) for one in given.routes]
+        with self._changed:
+            if self._closed:
+                raise Unreached("Reaching daemons is stopping.")
+        networks = _networks()
+        routed: dict[int, Route] = {}
+
+        def opening(route: Route) -> Pipe:
+            pipe = _secured(route, given.id, name, networks, lambda _: None)
+            routed[id(pipe)] = route
+            return pipe
+
+        def handshake(pipe: Pipe) -> _Session:
+            session = _Session(pipe, routed[id(pipe)], given.id, name)
+            try:
+                session.peer.call(
+                    "pair.claim",
+                    {"token": given.token, "name": device or identity.host()},
+                    timeout=_ASKING,
+                )
+            except BaseException:
+                session.close()
+                raise
+            return session
+
+        try:
+            won = race(routes, opening, handshake)
+        except RpcError as why:
+            raise Unreached(why.message, status=why.code) from why
+        except (_Failed, Closed, OSError, ValueError) as why:
+            raise Unreached(str(why) or type(why).__name__) from why
+        won.answer.close()
+        return Daemons().write(
+            name, {"id": entry["id"], "routes": entry["routes"]}, replace=True
+        )
+
     def reached(self, name: str) -> tuple[int, str]:
         """Where a daemon is reached here, and the key it lets in.
 
@@ -1147,6 +1313,7 @@ class Remotes:
           Unreached: If it is not up, with its state.
           LookupError: If none is called that.
         """
+        # Wave 4 removes this, with the web's notifications that are all that still ask it.
         held = self._up(name)
         return held.port, held.key
 
@@ -1157,6 +1324,7 @@ class Remotes:
           Unreached: As `reached` does.
           LookupError: As `reached` does.
         """
+        # Wave 4 removes this, with the web's `/d/` proxy that is all that still asks it.
         held = self._up(name)
         return held.port, headers(held.remote, held.key)
 
@@ -1184,6 +1352,7 @@ class Remotes:
           LookupError: If none is called that.
           OSError: If it went where it was asked, or the file could not be written.
         """
+        # Wave 4 removes this, with the terminal's remote epics that are all that still ask it.
         port, said = self.asks(name)
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=_ASKING)
         try:
@@ -1261,6 +1430,7 @@ class Remotes:
           Unreached: If it is not up, or refused, saying why.
           LookupError: If none is called that.
         """
+        # Wave 4 removes this, with the terminal's remote epics that are all that still ask it.
         port, said = self.asks(name)
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=_ASKING)
         try:
@@ -1285,7 +1455,7 @@ class Remotes:
             connection.close()
 
     def close(self) -> None:
-        """Stops reaching every daemon, every process started for one stopped and reaped."""
+        """Stops reaching every daemon: every session closed, every process stopped and reaped."""
         with self._changed:
             self._closed = True
             held = list(self._held.values())

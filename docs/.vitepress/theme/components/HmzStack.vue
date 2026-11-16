@@ -50,7 +50,9 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.flows': ['hmz.runtime.flowing', 'hmz.coganchor.faking'],
   'hmz.runtime.doing': [
     'hmz.coganchor',
+    'hmz.reach',
     'hmz.rpc',
+    'hmz.trust',
     'hmz.flows',
     'hmz.runtime.backing',
     'hmz.runtime.epic',

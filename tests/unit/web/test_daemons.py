@@ -67,68 +67,51 @@ def test_local_is_first_and_up_with_nothing_written_down(held: dict[str, Any]) -
     ]
 
 
-def test_a_daemon_is_written_with_its_options_as_pairs(held: dict[str, Any]) -> None:
+#: A route a daemon is reached by, and another.
+_ROUTE = "stdio:ssh://gpu.example:2222?option=Compression=yes"
+_OTHER = "stdio:ssh://b"
+
+
+def test_a_daemon_is_written_as_its_routes(held: dict[str, Any]) -> None:
     said = _asks(
-        "POST",
-        "/api/daemons",
-        {
-            "name": "gpu",
-            "fields": {
-                "host": "gpu.example",
-                "port": 2222,
-                "options": [["Compression", "yes"]],
-            },
-        },
+        "POST", "/api/daemons", {"name": "gpu", "fields": {"routes": [_ROUTE]}}
     )
 
     assert [one["name"] for one in said["daemons"]] == [LOCAL, "gpu"]
     assert said["daemons"][1]["state"] == "idle"
     assert held["other"] == {"kept": True}
-    assert held["daemons"] == [
-        {
-            "name": "gpu",
-            "via": "ssh",
-            "host": "gpu.example",
-            "user": "",
-            "port": 2222,
-            "identity_file": "",
-            "proxy_jump": "",
-            "alias": "",
-            "config": "",
-            "options": [["Compression", "yes"]],
-        }
-    ]
+    assert held["daemons"] == [{"name": "gpu", "id": "", "routes": [_ROUTE]}]
     assert found("gpu") == held["daemons"][0]
     assert found("nope") is None
 
 
 def test_one_there_already_is_replaced_only_when_asked(held: dict[str, Any]) -> None:
-    _asks("POST", "/api/daemons", {"name": "gpu", "fields": {"host": "a"}})
+    _asks("POST", "/api/daemons", {"name": "gpu", "fields": {"routes": [_ROUTE]}})
 
     with pytest.raises(Refusal) as refused:
-        _asks("POST", "/api/daemons", {"name": "gpu", "fields": {"host": "b"}})
+        _asks("POST", "/api/daemons", {"name": "gpu", "fields": {"routes": [_OTHER]}})
     assert refused.value.status == 409
     _asks(
         "POST",
         "/api/daemons",
-        {"name": "gpu", "fields": {"host": "b"}, "replace": True},
+        {"name": "gpu", "fields": {"routes": [_OTHER]}, "replace": True},
     )
 
-    assert [one["host"] for one in saved()] == ["b"]
+    assert [one["routes"] for one in saved()] == [[_OTHER]]
 
 
 @pytest.mark.parametrize(
     "body",
     [
-        {"name": "local", "fields": {"host": "a"}},
-        {"name": "Local", "fields": {"host": "a"}},
-        {"name": "a b", "fields": {"host": "a"}},
-        {"name": "..", "fields": {"host": "a"}},
+        {"name": "local", "fields": {"routes": [_ROUTE]}},
+        {"name": "Local", "fields": {"routes": [_ROUTE]}},
+        {"name": "a b", "fields": {"routes": [_ROUTE]}},
+        {"name": "..", "fields": {"routes": [_ROUTE]}},
         {"name": "gpu", "fields": {}},
-        {"name": "gpu", "fields": {"host": "a", "workdir": "/w"}},
-        {"name": "gpu", "fields": {"host": "a"}, "secret": "x"},
-        {"name": "gpu", "fields": {"host": "a", "port": "22"}},
-        {"name": "gpu", "fields": {"host": "a", "options": [["Port", "22"]]}},
+        {"name": "gpu", "fields": {"routes": [_ROUTE], "host": "a"}},
+        {"name": "gpu", "fields": {"routes": [_ROUTE]}, "secret": "x"},
+        {"name": "gpu", "fields": {"routes": ["nowhere"]}},
+        {"name": "gpu", "fields": {"routes": ["tcp://gpu:41817"]}},
     ],
 )
 def test_what_cannot_be_a_daemon_is_refused(
@@ -141,7 +124,7 @@ def test_what_cannot_be_a_daemon_is_refused(
 
 
 def test_a_daemon_is_removed_and_local_never_is(held: dict[str, Any]) -> None:
-    _asks("POST", "/api/daemons", {"name": "gpu", "fields": {"host": "a"}})
+    _asks("POST", "/api/daemons", {"name": "gpu", "fields": {"routes": [_ROUTE]}})
 
     with pytest.raises(Refusal):
         _asks("POST", "/api/daemons/remove", {"name": "local"})
@@ -157,17 +140,20 @@ def test_a_daemon_is_removed_and_local_never_is(held: dict[str, Any]) -> None:
 def test_one_written_wrong_by_hand_is_left_out(held: dict[str, Any]) -> None:
     held["daemons"] = [
         "nonsense",
-        {"name": "local", "host": "a"},
-        {"name": "ok", "host": "a"},
-        {"name": "ok", "host": "b"},
-        {"host": "nameless"},
+        {"name": "local", "id": "", "routes": ["stdio:ssh://a"]},
+        {"name": "ok", "id": "", "routes": ["stdio:ssh://a"]},
+        {"name": "ok", "id": "", "routes": ["stdio:ssh://b"]},
+        {"name": "more", "id": "", "routes": ["stdio:ssh://a"], "host": "a"},
+        {"id": "", "routes": ["stdio:ssh://nameless"]},
     ]
 
-    assert [(one["name"], one["host"]) for one in saved()] == [("ok", "a")]
+    assert [(one["name"], one["routes"]) for one in saved()] == [
+        ("ok", ["stdio:ssh://a"])
+    ]
 
 
 def test_each_stands_as_the_remote_reach_says(held: dict[str, Any]) -> None:
-    held["daemons"] = [{"name": "gpu", "host": "a"}]
+    held["daemons"] = [{"name": "gpu", "id": "", "routes": ["stdio:ssh://a"]}]
 
     def state(name: str) -> dict[str, str]:
         return {"state": "failed", "detail": f"{name} down", "version": ""}
@@ -183,7 +169,7 @@ def test_each_stands_as_the_remote_reach_says(held: dict[str, Any]) -> None:
 def test_hosts_not_yet_added_are_offered(
     held: dict[str, Any], config: list[str]
 ) -> None:
-    held["daemons"] = [{"name": "g", "alias": "gpu"}]
+    held["daemons"] = [{"name": "g", "id": "", "routes": ["stdio:ssh://gpu"]}]
 
     hosts = _asks("GET", "/api/daemons/hosts")["hosts"]
 
@@ -191,20 +177,21 @@ def test_hosts_not_yet_added_are_offered(
     assert [(one["alias"], one["name"], one["host"]) for one in hosts] == [
         ("box.one", "box.one", "box.one.example"),
         ("a+b", "a-b", "a+b.example"),
+        ("x$y", "x-y", "x$y.example"),
     ]
 
 
 def test_hosts_are_imported_by_alias_skipping_any_already_there(
     held: dict[str, Any], config: list[str]
 ) -> None:
-    held["daemons"] = [{"name": "gpu", "host": "a"}]
+    held["daemons"] = [{"name": "gpu", "id": "", "routes": ["stdio:ssh://a"]}]
 
     said = _asks("POST", "/api/daemons/import", {"aliases": ["gpu", "box.one"]})
 
     assert said["added"] == ["box.one"]
-    assert [(one["name"], one["alias"], one["host"]) for one in saved()] == [
-        ("gpu", "", "a"),
-        ("box.one", "box.one", ""),
+    assert [(one["name"], one["routes"]) for one in saved()] == [
+        ("gpu", ["stdio:ssh://a"]),
+        ("box.one", ["stdio:ssh://box.one"]),
     ]
 
 
@@ -224,76 +211,25 @@ _SECRET = "sixteen-bytes-ok"
 _PEERS = ["tcp://node.example:11010"]
 
 
-def test_an_easytier_daemon_is_listed_with_its_secret_set_never_said(
+def test_an_earlier_easytier_daemon_is_listed_as_its_route_never_its_secret(
     held: dict[str, Any],
 ) -> None:
-    said = _asks(
-        "POST",
-        "/api/daemons",
-        {
-            "name": "et",
-            "fields": {"via": "easytier", "secret": _SECRET, "peers": _PEERS},
-        },
-    )
+    held["daemons"] = [
+        {"name": "et", "via": "easytier", "secret": _SECRET, "peers": _PEERS}
+    ]
+
+    said = listed(SimpleNamespace())
 
     assert said["daemons"][1] == {
         "name": "et",
-        "via": "easytier",
-        "secret": True,
-        "peers": _PEERS,
+        "id": "",
+        "routes": ["easytier:et"],
         "label": "et",
         "state": "idle",
         "detail": "",
         "version": "",
     }
-    assert _SECRET not in repr(listed(SimpleNamespace()))
-    assert held["daemons"] == [
-        {"name": "et", "via": "easytier", "secret": _SECRET, "peers": _PEERS}
-    ]
-
-
-def test_a_secret_of_fewer_than_16_bytes_is_refused(held: dict[str, Any]) -> None:
-    with pytest.raises(Refusal, match="16 bytes") as refused:
-        _asks(
-            "POST",
-            "/api/daemons",
-            {
-                "name": "et",
-                "fields": {
-                    "via": "easytier",
-                    "secret": "fifteen-bytes!!",
-                    "peers": _PEERS,
-                },
-            },
-        )
-
-    assert refused.value.status == 400
-    assert "daemons" not in held
-
-
-def test_a_replacement_saying_no_secret_keeps_it(held: dict[str, Any]) -> None:
-    body = {
-        "name": "et",
-        "fields": {"via": "easytier", "secret": _SECRET, "peers": _PEERS},
-    }
-    _asks("POST", "/api/daemons", body)
-
-    _asks(
-        "POST",
-        "/api/daemons",
-        {"name": "et", "fields": {"via": "easytier", "peers": _PEERS}, "replace": True},
-    )
-
-    assert held["daemons"] == [
-        {"name": "et", "via": "easytier", "secret": _SECRET, "peers": _PEERS}
-    ]
-
-
-def test_an_ssh_daemon_is_listed_as_reached_over_ssh(held: dict[str, Any]) -> None:
-    said = _asks("POST", "/api/daemons", {"name": "gpu", "fields": {"alias": "gpu"}})
-
-    assert (said["daemons"][1]["via"], said["daemons"][1]["alias"]) == ("ssh", "gpu")
-    assert "secret" not in said["daemons"][1]
+    assert _SECRET not in repr(said)
 
 
 def test_an_import_beside_an_easytier_daemon_brings_in_the_hosts(
