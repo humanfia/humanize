@@ -56,8 +56,8 @@ def test_a_session_says_how_it_is_reached(
 
 
 PATH_BY_PATH = Fence(write=("/w",))
-LEVELLED = Fence(write=("/w",), scopes=("all", "read", "read"))
-CUT = Fence(write=("/w",), scopes=("all", "read", "read"), online=False)
+LEVELLED = Fence(write=("/w",), drawn=(("/", "read"), (".", "write")))
+CUT = Fence(write=("/w",), drawn=(("/", "read"), (".", "write")), online=False)
 
 
 @pytest.mark.parametrize(

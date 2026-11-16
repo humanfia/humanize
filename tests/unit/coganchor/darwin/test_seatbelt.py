@@ -133,6 +133,78 @@ def test_the_terminals_stay_writable() -> None:
     )
 
 
+def _said(profile: str, params: dict[str, str]) -> list[str]:
+    """The profile's lines with every parameter put back as the path it names."""
+    for name, path in sorted(params.items(), key=lambda one: -len(one[0])):
+        profile = profile.replace(f'(param "{name}")', path)
+    return profile.splitlines()
+
+
+def test_carve_outs_are_said_after_the_grants_deepest_last() -> None:
+    profile, params = Profile(
+        read=("/",),
+        write=("/w", "/w/k/g"),
+        keep=("/w/k",),
+        deny=("/w/d", "/w/k/g/d"),
+    ).rules()
+
+    lines = _said(profile, params)
+    granted = lines.index(
+        "(allow file-read* file-write* process-exec (subpath /w) (subpath /w/k/g))"
+    )
+    order = [
+        "(deny file-read* file-write* process-exec (subpath /w/d))",
+        "(deny file-write* (subpath /w/k))",
+        "(allow file-read* file-write* process-exec (subpath /w/k/g))",
+        "(deny file-read* file-write* process-exec (subpath /w/k/g/d))",
+    ]
+    at = [lines.index(one) for one in order]
+    assert granted < at[0] < at[1] < at[2] < at[3]
+    assert lines[at[3] + 1] == "(allow file-read-metadata)"
+
+
+def test_a_carve_out_and_every_directory_above_it_are_held_at_their_names() -> None:
+    profile, params = Profile(write=("/w",), deny=("/w/a/secret",)).rules()
+
+    lines = _said(profile, params)
+    held = "(literal /w) (literal /w/a) (literal /w/a/secret)"
+    assert f"(deny file-write-unlink (require-any {held}))" in lines
+    assert (
+        "(deny file-write-create (require-all (vnode-type SYMLINK) "
+        f"(require-any {held})))"
+    ) in lines
+
+
+def test_a_root_written_again_beneath_a_carve_out_is_held_at_its_name() -> None:
+    profile, params = Profile(write=("/", "/h/.cli"), deny=("/h",)).rules()
+
+    lines = _said(profile, params)
+    assert lines.index("(deny file-read* file-write* process-exec (subpath /h))") < (
+        lines.index("(allow file-read* file-write* process-exec (subpath /h/.cli))")
+    )
+    assert (
+        "(deny file-write-unlink (require-all (vnode-type DIRECTORY) "
+        "(require-any (literal /h/.cli))))"
+    ) in lines
+
+
+def test_a_carve_out_is_named_as_given_and_as_resolved(tmp_path: Path) -> None:
+    real = tmp_path.resolve() / "real"
+    real.mkdir()
+    (tmp_path.resolve() / "link").symlink_to(real)
+
+    _, params = Profile(write=("/",), deny=(str(tmp_path.resolve() / "link"),)).rules()
+
+    assert {str(tmp_path.resolve() / "link"), str(real)} <= set(params.values())
+
+
+def test_nothing_carved_out_says_nothing_more() -> None:
+    profile, _ = Profile(read=("/r",), write=("/w",)).rules()
+
+    assert "(deny file-write* " not in profile
+    assert "file-write-unlink (require-any" not in profile
+
+
 def test_command_runs_the_program_under_sandbox_exec(tmp_path: Path) -> None:
     here = str(tmp_path.resolve())
     profile = Profile(read=(here,), port=1)

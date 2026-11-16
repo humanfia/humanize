@@ -1,9 +1,9 @@
-"""A fence said in scope terms, for the machine an anchored turn's work lands on.
+"""A fence said in its rules, for the machine an anchored turn's work lands on.
 
 A :class:`~hmz.coganchor.fence.Fence` is paths, and paths are one machine's: the workdir a flow
 names is somewhere else on a target, its home is another user's, its Python is installed
 elsewhere or not at all. So what crosses to the target is not the fence but what it was drawn
-from -- the three levels, whether the network is cut, and for a CLI that runs there itself the
+from -- its rules, whether the network is cut, and for a CLI that runs there itself the
 hosts its model is at and the state it keeps under its home -- and the target draws the same
 fence again around its own workdir, its own home and its own minimum. :func:`told` is the
 first half, on the machine the turn is started from; :func:`drawn` is the second, in the
@@ -23,7 +23,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
-from hmz.coganchor.fence import ALL, LEVELS, READ, Fence
+from hmz.coganchor.fence import Fence
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
@@ -48,28 +48,26 @@ def told(fence: Fence, *, home: str, native: bool) -> dict[str, Any]:
         path into the commands it runs -- Claude Code ends every shell command by writing
         where it finished to a file there -- so the target keeps its scratch at the same
         path. For one that runs there, every path `fence` writes under `home` is taken for
-        the CLI's own state: a native CLI's fence is its levels and that state, and none of
-        the roots its levels grant here, which the target grants again around its own.
+        the CLI's own state: a native CLI's fence is its rules and that state, and none of
+        the roots its rules grant here, which the target grants again around its own.
 
     Returns:
-      The levels as `local`, `user` and `system`, and `online`; for a supervised CLI whose
-      fence has one, its scratch as `tmp`; for a native CLI, `hosts`, the state it writes
-      under its home as `write` -- each as `~/...`, to which a caller may add a path of the
-      target's own -- `programs`, which has the target let the CLI read its own install
-      tree, and where it names any, the ports it may `listen` on.
+      The rules as `rules`, each `[path, access]` in the order they are said, and
+      `online`; for a supervised CLI whose fence has one, its scratch as `tmp`; for a
+      native CLI, `hosts`, the state it writes under its home as `write` -- each as
+      `~/...`, to which a caller may add a path of the target's own -- `programs`, which has
+      the target let the CLI read its own install tree, and where it names any, the ports
+      it may `listen` on.
 
     Raises:
-      ValueError: If the fence was drawn path by path, and so has no levels to say.
+      ValueError: If the fence was drawn path by path, and so has no rules to say.
     """
-    if not fence.scopes:
+    if not fence.drawn:
         raise ValueError(
             "a fence drawn path by path cannot be drawn again on another machine"
         )
-    local, user, system = fence.scopes
     said: dict[str, Any] = {
-        "local": local,
-        "user": user,
-        "system": system,
+        "rules": [list(one) for one in fence.drawn],
         "online": fence.online,
     }
     if not native and fence.tmp:
@@ -100,10 +98,10 @@ def drawn(
 
     Args:
       said: What :func:`told` said.
-      workdirs: The directories the target exports, each granted as the workdir is.
+      workdirs: The directories the target exports, each drawn as the workdir is.
       home: The home of the user the target runs commands as. One that is `/` or not there
-        -- a container started as a user its image has no entry for -- is no home: the user
-        scope is then nothing past the workdir, and no state is kept under it.
+        -- a container started as a user its image has no entry for -- is no home: `~` is
+        then the workdir, and no state is kept under it.
       read: More of the target's own paths to read.
       write: More of them to write.
 
@@ -112,15 +110,20 @@ def drawn(
       and the scratch `said` names as its own, where it names one.
 
     Raises:
-      ValueError: If `said` is not a fence's levels, or names a path that is neither under
+      ValueError: If `said` is not a fence's rules, or names a path that is neither under
         the home nor absolute, or a scratch that is not an absolute path of its own, or
         there is no workdir.
     """
     if not workdirs:
         raise ValueError("a fence is drawn around a workdir, and there is none")
-    levels = [said.get(one) for one in ("local", "user", "system")]
-    if not all(one in LEVELS for one in levels):
-        raise ValueError(f"a fence's levels are each one of {', '.join(LEVELS)}")
+    rules: object = said.get("rules")
+    if not isinstance(rules, list) or not all(
+        isinstance(one, list)
+        and len(cast("list[object]", one)) == 2  # noqa: PLR2004 -- a path and an access
+        and all(isinstance(part, str) for part in cast("list[object]", one))
+        for one in cast("list[object]", rules)
+    ):
+        raise ValueError("a fence's rules are a list of [path, access]")
     online = said.get("online", True)
     if not isinstance(online, bool):
         raise ValueError("a fence's online is true or false")  # noqa: TRY004
@@ -143,10 +146,7 @@ def drawn(
             f"a fence's own paths are said under {HOME}, or as the target's own"
         )
     homed = bool(home) and os.path.normpath(home) != os.sep and Path(home).is_dir()
-    local = str(levels[0])
     first, *rest = workdirs
-    widened = [*rest] if local == ALL else []
-    seen = [*rest] if local == READ else []
     listen: object = said.get("listen", [])
     if not isinstance(listen, list) or not all(
         isinstance(one, int) and not isinstance(one, bool) and 0 < one < 65536  # noqa: PLR2004
@@ -154,16 +154,13 @@ def drawn(
     ):
         raise ValueError("a fence's listen is a list of ports")
     drawn = Fence.of(
-        local=local,
-        user=str(levels[1]),
-        system=str(levels[2]),
+        rules=[(path, access) for path, access in cast("list[list[str]]", rules)],
         online=online,
         workdir=first,
         home=home if homed else first,
         hosts=hosts,
-        read=[*seen, *read],
+        read=read,
         write=[
-            *widened,
             *write,
             *(one for one in kept if one.startswith(os.sep)),
             *(
@@ -173,6 +170,8 @@ def drawn(
             ),
         ],
     ).granting(listen=cast("list[int]", listen))
+    for one in rest:
+        drawn = drawn.beside(one, home=home if homed else first)
     return dataclasses.replace(drawn, tmp=os.path.normpath(tmp)) if tmp else drawn
 
 

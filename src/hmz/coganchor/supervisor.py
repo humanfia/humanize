@@ -141,7 +141,7 @@ class Supervisor:
         #: mirror less than `all`, and every change it would make there is then refused
         #: before it can be replayed on the target, as the wall refuses it here.
         self.writes = writes
-        #: The levels every command the agent runs on the target is fenced at, as
+        #: The rules every command the agent runs on the target is fenced to, as
         #: :func:`hmz.coganchor.fence.abroad.told` says them, or None for commands run as
         #: they are.
         self.fence = fence

@@ -29,7 +29,7 @@ from hmz.coganchor.agents import (
     Verdict,
 )
 from hmz.coganchor.faking import FakeCli, FakeCommand
-from hmz.coganchor.fence import ALL, READ, Fence
+from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
 from tests.integration.doubles_agents import (
@@ -466,10 +466,10 @@ def test_a_command_line_named_unsandboxed_is_ruled_out_of_the_sandbox(
     ("permission", "local", "user", "online"),
     [
         ("read-only", READ, READ, True),
-        ("workspace-write", ALL, READ, True),
+        ("workspace-write", WRITE, READ, True),
         # Wider than the rung: `bypass` stepped down by a Codex that forbids full access,
         # under a fence that writes the home and cuts the network.
-        ("workspace-write", ALL, ALL, False),
+        ("workspace-write", WRITE, WRITE, False),
     ],
 )
 def test_a_fence_around_codex_holds_the_rung_in_place_of_codex(
@@ -503,9 +503,7 @@ def test_a_fence_around_codex_holds_the_rung_in_place_of_codex(
     # Where the stand-in looks for rules beside Humanize's, for it to say what it was told.
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     fence = Fence.of(
-        local=local,
-        user=user,
-        system=READ,
+        rules=[("/", READ), ("~", user), (".", local)],
         online=online,
         workdir=tmp_path,
         home=tmp_path / "home",

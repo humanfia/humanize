@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.coganchor.execproxy import ExecProxy, ExecResult
-from hmz.coganchor.fence import ALL, READ, Fence
+from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.fence.abroad import told
 from hmz.coganchor.netproxy import NetProxy
 from hmz.coganchor.proto import Op, RemoteOSError, Stream, hello_fences
@@ -402,7 +402,10 @@ def fences(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _levels(*, online: bool) -> dict[str, Any]:
     fence = Fence.of(
-        local=ALL, user=READ, system=READ, online=online, workdir="/w", home="/h"
+        rules=[("/", READ), ("~", READ), (".", WRITE)],
+        online=online,
+        workdir="/w",
+        home="/h",
     )
     return told(fence, home="/h", native=False)
 
@@ -422,8 +425,8 @@ def test_a_fenced_command_is_walled_in_around_the_targets_own_paths(
     assert held.allows(link.real / "a.txt", write=True)
     assert not held.allows(f"{VIRTUAL}/a.txt", write=True)
     # Drawn as the home rather than asked of a path in it, `tmp_path` being under /tmp,
-    # which a workdir of ALL writes.
-    assert str(tmp_path / "home") in held.read
+    # which a workdir that may be written writes: read, as `/` already is, and not written.
+    assert held.drawn == (("/", "read"), ("~", "read"), (".", "write"))
     assert str(tmp_path / "home") not in held.write
     assert not held.online
     assert held.hosts == ()
@@ -453,11 +456,11 @@ def test_a_target_that_cannot_cut_the_network_refuses_a_command_fenced_offline(
     assert policies(fences) == []
 
 
-def test_levels_that_are_no_fences_are_refused(link: Link, fences: Path) -> None:
+def test_rules_that_are_no_fences_are_refused(link: Link, fences: Path) -> None:
     ran = _run(
         link,
         ["true"],
-        fence={"local": "most", "user": READ, "system": READ, "online": True},
+        fence={"rules": [["/", "most"]], "online": True},
     )
 
     assert isinstance(ran.error, OSError)

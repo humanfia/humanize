@@ -1235,6 +1235,29 @@ def test_a_fence_or_rung_or_tier_the_backend_cannot_carry_is_refused() -> None:
         Scripted(AgentConfig(model="m", effort="", web_search=False))
 
 
+def test_a_carve_out_landlock_cannot_hold_is_refused_as_the_config_arrives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.coganchor import fence
+    from hmz.coganchor.agents.config import Unfenced
+    from hmz.coganchor.fence import wrap
+
+    def unlisted(given: Fence) -> NoReturn:
+        raise PermissionError(13, "Permission denied", "/w/shut")
+
+    def enforceable(*, net: bool) -> bool:
+        return True
+
+    monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.setattr(fence, "enforceable", enforceable)
+    monkeypatch.setattr(wrap, "expanded", unlisted)
+    carved = Fence(read=("/",), write=("/w",), deny=("/w/shut/secret",))
+
+    with pytest.raises(Unfenced, match="what it carves out cannot be held"):
+        Scripted(AgentConfig(model="m", effort="", fence=carved))
+    assert Scripted(AgentConfig(model="m", effort="", fence=Fence(write=("/w",))))
+
+
 def test_reconfigure_keeps_what_it_had_when_refused() -> None:
     agent = Scripted()
     was = agent.config
