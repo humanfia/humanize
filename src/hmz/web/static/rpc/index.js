@@ -4,13 +4,13 @@
 //
 // Reaching a daemon:
 //
-//   import { bridge, connect, registry, tauri, webrtc } from './rpc/index.js'
+//   import { bridge, connect, local, registry, tauri, webrtc } from './rpc/index.js'
 //
 //   const store = registry()
 //   const providers = window.__TAURI_INTERNALS__
 //     ? [tauri(), webrtc({ certificate: () => store.certificate(), iceServers: store.iceServers })]
 //     : [bridge(), webrtc({ certificate: () => store.certificate(), iceServers: store.iceServers })]
-//   const local = connect({ name: 'local', id: '', routes: ['unix:'] }, providers, { client: { name: '', kind: 'web' } })
+//   const here = connect(local(), providers, { client: { name: '', kind: 'web' } })
 //   const remote = connect((await store.list())[0], providers, { client: { name: '', kind: 'web' } })
 //
 // `connect(entry, providers, {client, pinned})` returns a `Client` at once and reaches the daemon
@@ -40,8 +40,10 @@
 // `/dial`), `webrtc({certificate, iceServers})` for `webrtc:` routes, and `tauri()` for the
 // desktop application's pipes.
 //
-// The daemons the page keeps: `registry()` -- `list()`, `add(entry)`, `update(name, changes)`,
-// `remove(name)`, `iceServers()`, `setIceServers(servers)` and `certificate()` -- and
+// The daemons the page keeps: `local()`, Local's entry -- `unix:` in `hmz web`, `stdio:local` on
+// macOS and `stdio:wsl` on Windows in the desktop application -- and `registry()` -- `list()`,
+// `add(entry)`, `update(name, changes)`, `remove(name)`, `iceServers()`, `setIceServers(servers)`
+// and `certificate()` -- and
 // `claim(store, {name, code, device}, providers)`, which adds one from a pairing code;
 // `parsePairing(code)` reads one.
 
@@ -50,7 +52,7 @@ export { Client, connect, idem, NotPinned, PROTOCOL, reach } from './client.js'
 export { encode, Frames, FrameError, MAX } from './frames.js'
 export { Dropped, ERRORS, Peer, RpcError } from './peer.js'
 export { Pipe } from './pipe.js'
-export { claim, parsePairing, registry } from './registry.js'
+export { claim, local, parsePairing, registry } from './registry.js'
 export { race, routeKind, trusted } from './routes.js'
 export { tauri } from './tauri.js'
 export { webrtc } from './webrtc.js'

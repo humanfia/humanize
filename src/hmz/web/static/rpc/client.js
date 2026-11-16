@@ -66,8 +66,9 @@ export function reach(entry, providers, { client = { name: '', kind: 'web' }, st
   async function attempt(route, signal) {
     if (!routeKind(route)) throw new Error(`${route} is not a route.`)
     const provider = providers.find((one) => one.opens(route))
-    // An id is pinned from a trusted carrier alone (Section 4.4.7 of protocol/wire.md).
-    if (!provider || (!entry.id && !trusted(route))) throw new Error(`${route} cannot be reached from here.`)
+    if (!provider) throw new Error(`${route} cannot be reached from here.`)
+    // An id is pinned from a trusted carrier alone (Section 3.5.6 and 4.4.7 of protocol/wire.md).
+    if (!entry.id && !trusted(route)) throw new Error(`${route} needs the id of the daemon it reaches.`)
     const late = new AbortController()
     let timer
     const arm = () => {
