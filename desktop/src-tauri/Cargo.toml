@@ -43,7 +43,7 @@ ureq = { version = "3", default-features = false, features = ["rustls", "platfor
 # Pipes to daemons: the app's device identity, made with rcgen; mutual TLS 1.3 over any carrier
 # with rustls on ring, the daemon pinned by its SPKI; WebSockets, a relay's among them, over
 # tungstenite, wss trusting what the system trusts; EasyTier's release unzipped.
-base64 = "0.22"
+base64 = "0.23"
 data-encoding = "2"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
