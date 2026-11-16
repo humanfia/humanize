@@ -14,7 +14,7 @@ from __future__ import annotations
 import dataclasses
 from typing import TYPE_CHECKING, Any
 
-from .routing import Refusal, routes
+from .routing import Refusal, refused, routes
 
 if TYPE_CHECKING:
     from .routing import Asked
@@ -124,12 +124,10 @@ def _hosts(_asked: Asked) -> dict[str, Any]:
 
 
 def _nodes(_asked: Asked) -> dict[str, Any]:
-    from hmz.coganchor import easytier
+    from hmz.daemon.api import easytier
 
-    try:
-        return {"nodes": [dataclasses.asdict(one) for one in easytier.community()]}
-    except OSError as why:
-        raise Refusal(f"The community nodes could not be read: {why}", 503) from why
+    with refused():
+        return easytier.nodes()
 
 
 def _imports(asked: Asked) -> dict[str, Any]:

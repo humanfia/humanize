@@ -696,7 +696,7 @@ class AgentDriver(Protocol):
           placement: Where it works.
           permission: What it may touch, mapped onto the CLI's own sandbox and approval
             settings. Approvals are always bypassed or answered yes -- never reviewed by a
-            model -- and `online` maps onto the CLI's web access.
+            model -- and `network` maps onto the CLI's web access.
           skills: What skills it is given.
           hooks: What is hung on the agent, which the session reaches as its moments arrive.
           fork_of: A session of this driver to carry on from, or None for a fresh one.

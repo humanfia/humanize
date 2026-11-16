@@ -34,7 +34,7 @@ Nor can it be told to leave the web alone. Its `web_search` is not run here: the
 it and MiniMax's own service answers, on the very hosts a turn cannot be taken without -- so a
 proxy letting the model through lets the search through too, and nothing a driver owns takes
 the tool away. A fence that cuts the network would be one it reaches the web around, so it is
-refused, and the permission is to grant online ALL.
+refused, and the permission is to grant network=True.
 """
 
 from __future__ import annotations
@@ -646,7 +646,7 @@ class MiniMaxCodeAgent(AgentBase):
             raise Unfenced(
                 f"{_COMMAND}: this permission cuts the network, and {_COMMAND}'s web search "
                 "runs on MiniMax's own service, through the same hosts as its model, where "
-                "nothing here can take it away; grant it online ALL to use "
+                "nothing here can take it away; grant it network=True to use "
                 f"{_COMMAND}"
             )
 

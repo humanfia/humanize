@@ -820,7 +820,7 @@ class OpencodeAgent(AgentBase):
 
         What pi's `models.json` is to pi (:meth:`hmz.coganchor.agents.PiAgent.fenced`), its
         config is here: a provider of its own, at a `baseURL` written there and in no
-        variable. A gateway declared there was cut off at `online=NONE` with every other host,
+        variable. A gateway declared there was cut off at `network=False` with every other host,
         and the turn could not reach its own model. Only the provider the model is named
         under, and nothing where no config declares it.
 

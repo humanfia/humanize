@@ -32,6 +32,25 @@ def _sdp(*lines: str) -> str:
     return "\r\n".join(["v=0", "o=- 1 1 IN IP4 0.0.0.0", "s=-", *lines, ""])
 
 
+class _Offered:
+    """The signals of a join that offers one description, and the refusals sent back."""
+
+    def __init__(self, sdp: str = "") -> None:
+        self.offered = [{"type": "offer", "sdp": sdp}]
+        self.refused: list[str] = []
+
+    def send(self, data: dict[str, Any]) -> None:
+        raise AssertionError(data)
+
+    def receive(self, timeout: float) -> object:
+        if not self.offered:
+            raise EOFError
+        return self.offered.pop(0)
+
+    def refuse(self, why: str) -> None:
+        self.refused.append(why)
+
+
 def test_the_channel_is_the_one_the_protocol_fixes() -> None:
     assert LABEL == "hmz"
     assert CHUNK == 16384
@@ -80,8 +99,18 @@ def test_without_the_extra_a_channel_names_it(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr(importlib.util, "find_spec", find)
     nowhere = cast("Signals", None)
+    signals = _Offered()
     with pytest.raises(ModuleNotFoundError, match=r"\[webrtc\]") as raised:
-        answer(nowhere, cert=b"", sign=bytes)
+        answer(signals, cert=b"", sign=bytes)
     assert str(raised.value) == EXTRA
+    assert signals.refused == [EXTRA]
     with pytest.raises(ModuleNotFoundError, match=r"\[webrtc\]"):
         offer(nowhere, pin="", verify=lambda cert, text, sig: "")
+
+
+def test_an_offer_refused_is_refused_to_the_relay_too() -> None:
+    pytest.importorskip("aiortc")
+    signals = _Offered(_sdp("a=fingerprint:sha-1 AB:CD"))
+    with pytest.raises(Refused, match="exactly one") as raised:
+        answer(signals, cert=b"", sign=bytes)
+    assert signals.refused == [str(raised.value)]

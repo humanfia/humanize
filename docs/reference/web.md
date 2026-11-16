@@ -128,10 +128,13 @@ carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and
 changed). The page itself carries:
 
 ```text
-Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self';
-  script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none';
+Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:; style-src 'self';
+  script-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none';
   form-action 'self'
 ```
+
+`ws:` and `wss:` let the page reach the relay of a `webrtc:` route, whose host the server cannot
+know.
 
 Each view is an address after `#`, so it can be kept and opened again:
 
@@ -276,8 +279,8 @@ Every `error` but the last is the runtime's own sentence, e.g.
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/settings` | `workspace` | `workspace`, `flow`, `btw`, `details`, `reports` (`null` where never answered), `flows` (set up here), `backup` (`targets`: each `name`, `url` with nothing signed into it, `branch`, `policies`, `every`; `defaults`) |
-| `POST /api/settings` | any of `btw` (text), `details`, `reports` (bool), `backup` (`{targets, defaults}`, every one of them; a `url` sent back as `GET` showed it keeps the one written) | As `GET`; `400`, and nothing written, for a target that is not one |
+| `GET /api/settings` | `workspace` | `workspace`, `flow`, `btw`, `details`, `reports` (`null` where never answered), `flows` (set up here), `backup` (`targets`: each `name`, `url` with nothing signed into it, `branch`, `policies`, `every`; `defaults`), `listen` (the daemon's listener specs), `ice_servers` (each `urls`, `username`, and `credential` as `true` where one is written) |
+| `POST /api/settings` | any of `btw` (text), `details`, `reports` (bool), `backup` (`{targets, defaults}`, every one of them; a `url` sent back as `GET` showed it keeps the one written), `listen` (listener specs), `ice_servers` (a `credential` sent back as `true` keeps the one written) | As `GET`; `400`, and nothing written, for a target or a listener that is not one |
 | `POST /api/settings/forget` | `workspace` | `forgot` (whether there was anything), and as `GET` |
 | `GET /api/accounts` | | `accounts` (`cli`, `name`, `way`, `sets`, `made`, `models`, `asked`, `serves`) and `backends` (each CLI's `ways`: `name`, `about`, `terminal`, `asks`) |
 | `POST /api/accounts` | `cli`, `name`, `way`; `answers` (`{variable: value}`) | As `GET`. A way whose `terminal` is true is refused: it runs the CLI's own sign-in. |

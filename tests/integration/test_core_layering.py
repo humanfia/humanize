@@ -87,16 +87,24 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.tracing",
     },
     "hmz.daemon": {"hmz.runtime"},
-    # The carriers to a daemon: ssh and EasyTier as the anchor reaches them, and the socket of
-    # this machine's daemon where `where` says it is.
-    "hmz.reach": {"hmz.coganchor", "hmz.daemon.where"},
+    # The methods a daemon serves beyond epics and sessions, each family through what keeps it.
+    "hmz.daemon.api": {
+        "hmz.coganchor",
+        "hmz.reach.routes",
+        "hmz.rpc",
+        "hmz.runtime",
+    },
+    # The carriers to a daemon: ssh and EasyTier as the anchor reaches them, the socket of
+    # this machine's daemon where `where` says it is, and the one pipe each of them is.
+    "hmz.reach": {"hmz.coganchor", "hmz.daemon.where", "hmz.rpc.pipe"},
     "hmz.relay": set(),
     # Frames and JSON-RPC over any pipe, which every end of a session speaks: it names nothing.
     "hmz.rpc": set(),
     # A carrier to a daemon: signs and verifies through what its caller hands it.
     "hmz.rtc": set(),
-    # Who is at the other end of a carrier: a device's key, pairing, and TLS between two.
-    "hmz.trust": {"hmz.coganchor.atomic", "hmz.coganchor.settings"},
+    # Who is at the other end of a carrier: a device's key, pairing, and TLS between two, over
+    # the one pipe a carrier is.
+    "hmz.trust": {"hmz.coganchor.atomic", "hmz.coganchor.settings", "hmz.rpc.pipe"},
     "hmz.tui": {
         "hmz.coganchor",
         "hmz.flows",
@@ -113,6 +121,7 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.web": {
         "hmz.coganchor",
         "hmz.daemon",
+        "hmz.rpc",
         "hmz.runtime.epic",
         "hmz.runtime.kept",
         "hmz.runtime.watching",

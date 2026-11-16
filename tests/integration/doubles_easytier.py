@@ -5,7 +5,8 @@
 `--port-forward tcp://127.0.0.1:LOCAL/ADDRESS:PORT` for a joining one, and the network's secret
 in `ET_NETWORK_SECRET`. The serving end writes down, in a directory of the test's own under a
 name the network's name gives, its address, the one port it lets through and a digest of the
-secret, and takes it away again when it is stopped. A joining end listens on its local port and
+secret, then says `joined <name>` on its standard output, and takes it away again when it is
+stopped. A joining end listens on its local port and
 connects each connection to the serving end's loopback -- where the network it names is there,
 its secret is the same, the address is the serving end's and the port is the one let through;
 and otherwise closes it, as a network that does not reach is seen from a client. Every run
@@ -88,6 +89,7 @@ signal.signal(signal.SIGINT, gone)
 if "--ipv4" in told:
     port = int(told["--tcp-whitelist"])
     held.write_text(json.dumps({{"address": told["--ipv4"], "port": port, "proof": proof}}))
+    print(f"joined {{name}}", flush=True)
     threading.Event().wait()
 local, _, there = told["--port-forward"].removeprefix("tcp://").partition("/")
 host, _, local_port = local.rpartition(":")

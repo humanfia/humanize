@@ -1143,12 +1143,15 @@ def _about() -> dict[str, object]:
     for runner in tuple(_GOING):
         for role, driver in runner.agents.items():
             declared = runner.declaration.agent(role)
+            # The preset, the network and how many rules narrow or widen it -- never the
+            # rules' paths, which may name somebody's files.
             may = (
                 ""
                 if declared is None
-                else " ".join(
-                    f"{scope}={getattr(declared.permission, scope)}"
-                    for scope in ("local", "user", "system", "online")
+                else (
+                    f"preset={declared.permission.preset} "
+                    f"network={str(declared.permission.network).lower()} "
+                    f"rules={len(declared.permission.granular)}"
                 )
             )
             agents.append(
