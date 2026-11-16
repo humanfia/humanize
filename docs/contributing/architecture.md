@@ -207,8 +207,7 @@ uv run pytest -n0 tests/system/test_harness_task.py -k <name>
 4. **A terse help.** Every flag's help, command summary, description and epilog is thirty words
    or fewer; the detail goes in [CLI reference](/reference/cli). A unit test in
    `tests/unit/cli/` reaches every parser through `main` and fails on anything longer. A
-   subcommand a command routes by hand, as `hmz internal anchor` routes `serve`, needs a line
-   in its `ROUTES`.
+   subcommand a command routes by hand needs a line in its `ROUTES`.
 
 Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and with
 `uv run hmz <command> --help`.
