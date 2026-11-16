@@ -207,6 +207,10 @@ def checked(
         "backup": None if backup is None else list(backup),
     }
     runner = Runner(where.workspace(workspace), started, {}, fakes or None)
+    if started["flow"].startswith("git+"):
+        # Loaded only once fetched, which a check does not do: `epic.start` checks it there.
+        fakes.close()
+        return runner
     try:
         with runner.client() as client:
             runner.checked = client.call(
@@ -563,7 +567,14 @@ class Run:
                     self._claimed.add(role)
                     if outworlder.away_for(role):
                         self._asks(client, "epic.afk", on=True, role=role)
-            self._asks(client, "epic.start", task=self._task, **self._runner.started)
+            # As long as loading the flow takes, a fetch of it included.
+            self._asks(
+                client,
+                "epic.start",
+                seconds=None,
+                task=self._task,
+                **self._runner.started,
+            )
         except BaseException:
             with self._lock:
                 client, self._client = self._client, None
@@ -598,7 +609,14 @@ class Run:
             self._sub = str(said["sub"])
         return client
 
-    def _asks(self, client: Client, method: str, **params: Any) -> Any:
+    def _asks(
+        self,
+        client: Client,
+        method: str,
+        *,
+        seconds: float | None = _ANSWERING,
+        **params: Any,
+    ) -> Any:
         """Makes one write to the epic of this run's subscription."""
         with self._lock:
             sub = self._sub
@@ -606,7 +624,7 @@ class Run:
             method,
             {"sub": sub, **params},
             idem=secrets.token_urlsafe(12),
-            seconds=_ANSWERING,
+            seconds=seconds,
         )
 
     def _follows(self) -> None:

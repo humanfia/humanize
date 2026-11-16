@@ -87,7 +87,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.watching',
     'hmz.daemon',
   ],
-  'hmz.sdk': ['hmz.daemon', 'hmz.runtime'],
+  'hmz.sdk': ['hmz.daemon', 'hmz.flows', 'hmz.rpc', 'hmz.runtime'],
   'hmz.web': [
     'hmz.coganchor',
     'hmz.daemon',

@@ -15,11 +15,10 @@ from pathlib import Path
 import pytest
 
 from hmz import machine
+from hmz.runtime import Holding
 from hmz.sdk import Hmz, Refused
 from tests.integration.doubles_core import hmz_exec, install, write_flow
-
-#: Every epic here is held by a daemon of the test's own, in this process.
-pytestmark = pytest.mark.usefixtures("daemon")
+from tests.integration.doubles_daemon import hosting
 
 #: A flow that needs no agent, and adds the task it was given to a list in the workspace.
 FETCHED = """
@@ -63,6 +62,7 @@ def _commit(repository: Path) -> str:
 def test_two_runs_fetching_one_git_flow_at_once_both_get_it(
     repository: Path, project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Two processes: an epic run here, and `hmz exec`'s, held by this machine's daemon.
     ref = f"git+file://{repository}#fetched"
     renames = os.rename
     first: list[subprocess.CompletedProcess[str]] = []
@@ -81,7 +81,8 @@ def test_two_runs_fetching_one_git_flow_at_once_both_get_it(
 
     monkeypatch.setattr(os, "rename", second_to_land)
 
-    said = Hmz(project).exec(["-f", ref, "-p", "budget.cost=1", "second"])
+    with hosting():
+        said = Holding(project).run(ref, "second", budget={"cost": 1}).run()
 
     (ran,) = first
     assert ran.returncode == 0, ran.stderr
@@ -97,6 +98,7 @@ def test_two_runs_fetching_one_git_flow_at_once_both_get_it(
     [(errno.ENOTEMPTY, "unrelated"), (errno.EACCES, ".git")],
     ids=["no-checkout-landed", "another-error"],
 )
+@pytest.mark.usefixtures("daemon")
 def test_a_clone_that_cannot_be_renamed_into_place_is_not_fetched(
     repository: Path,
     project: Path,
