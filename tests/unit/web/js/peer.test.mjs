@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { Dropped, encode, ERRORS, MAX, Peer, RpcError } from '../../src/hmz/web/static/rpc/index.js'
+import { Dropped, encode, ERRORS, MAX, Peer, RpcError } from '../../../../src/hmz/web/static/rpc/index.js'
 import { duplex, sleep, until } from './helpers.mjs'
 
 /** Two peers joined end to end, each answering `add` and telling its notifications. */
@@ -98,7 +98,7 @@ test('a batch is refused -32600 and a frame not holding JSON -32700, with id nul
   const [a, b] = duplex()
   new Peer(a)
   const answers = []
-  const frames = new (await import('../../src/hmz/web/static/rpc/frames.js')).Frames()
+  const frames = new (await import('../../../../src/hmz/web/static/rpc/frames.js')).Frames()
   b.listen((bytes) => answers.push(...frames.push(bytes).map((payload) => JSON.parse(new TextDecoder().decode(payload)))), () => {})
   b.send(encode([{ jsonrpc: '2.0', id: 1, method: 'x' }]))
   const junk = new TextEncoder().encode('nope')

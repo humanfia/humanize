@@ -1,5 +1,5 @@
 // The writes of protocol/openrpc.json (Section 6.2.3 of protocol/wire.md): the methods whose
-// parameters include `idem`. tests/js checks this list against that document.
+// parameters include `idem`. tests/unit/web/js checks this list against that document.
 
 /** Every write, by its method. */
 export const WRITES = new Set([

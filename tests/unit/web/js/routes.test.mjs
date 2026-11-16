@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { race, routeKind, trusted } from '../../src/hmz/web/static/rpc/index.js'
+import { race, routeKind, trusted } from '../../../../src/hmz/web/static/rpc/index.js'
 import { sleep } from './helpers.mjs'
 
 test('each kind of route is read, and what is not a route is not', () => {

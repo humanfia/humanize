@@ -1,7 +1,7 @@
 // Fakes the RPC client's tests share: an in-memory duplex of two pipes, a daemon that answers a
 // few methods over one, a provider that opens pipes to it, and an IndexedDB held in memory.
 
-import { Peer, Pipe, RpcError } from '../../src/hmz/web/static/rpc/index.js'
+import { Peer, Pipe, RpcError } from '../../../../src/hmz/web/static/rpc/index.js'
 
 /** Two pipes, each carrying to the other, as a carrier would: asynchronously and in order. */
 export function duplex() {

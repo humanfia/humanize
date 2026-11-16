@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { claim, parsePairing, registry, RpcError, WRITES } from '../../src/hmz/web/static/rpc/index.js'
-import { toBase64url } from '../../src/hmz/web/static/rpc/pipe.js'
+import { claim, parsePairing, registry, RpcError, WRITES } from '../../../../src/hmz/web/static/rpc/index.js'
+import { toBase64url } from '../../../../src/hmz/web/static/rpc/pipe.js'
 import { daemon, fakeIndexedDB, provider } from './helpers.mjs'
 
 const ID = 'a'.repeat(52)
@@ -91,7 +91,7 @@ test('a claimed code keeps the daemon; a refused claim keeps nothing', async () 
 })
 
 test('the writes are the methods of openrpc.json taking idem', () => {
-  const document = JSON.parse(readFileSync(new URL('../../protocol/openrpc.json', import.meta.url), 'utf8'))
+  const document = JSON.parse(readFileSync(new URL('../../../../protocol/openrpc.json', import.meta.url), 'utf8'))
   const writes = document.methods.filter((method) => method.params.some((param) => param.name === 'idem')).map((method) => method.name)
   assert.deepEqual([...WRITES].sort(), writes.sort())
 })

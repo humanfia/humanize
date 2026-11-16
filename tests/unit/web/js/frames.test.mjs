@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { encode, FrameError, Frames, MAX } from '../../src/hmz/web/static/rpc/index.js'
+import { encode, FrameError, Frames, MAX } from '../../../../src/hmz/web/static/rpc/index.js'
 
 const parsed = (payload) => JSON.parse(new TextDecoder().decode(payload))
 

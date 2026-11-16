@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { connect, Dropped, ERRORS, PROTOCOL, RpcError, WRITES } from '../../src/hmz/web/static/rpc/index.js'
+import { connect, Dropped, ERRORS, PROTOCOL, RpcError, WRITES } from '../../../../src/hmz/web/static/rpc/index.js'
 import { daemon, provider, until } from './helpers.mjs'
 
 const ID = 'a'.repeat(52)

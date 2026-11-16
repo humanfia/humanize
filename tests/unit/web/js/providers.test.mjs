@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { bridge, connect, NotPinned, tauri, webrtc } from '../../src/hmz/web/static/rpc/index.js'
-import { fingerprint, publicKeyInfo, signed } from '../../src/hmz/web/static/rpc/webrtc.js'
-import { toBase32, toBase64, toBase64url } from '../../src/hmz/web/static/rpc/pipe.js'
+import { bridge, connect, NotPinned, tauri, webrtc } from '../../../../src/hmz/web/static/rpc/index.js'
+import { fingerprint, publicKeyInfo, signed } from '../../../../src/hmz/web/static/rpc/webrtc.js'
+import { toBase32, toBase64, toBase64url } from '../../../../src/hmz/web/static/rpc/pipe.js'
 import { daemon, duplex, sleep, until } from './helpers.mjs'
 
 /** A WebSocket the test drives: what the page sends is in `sent`, `onsent` told each. */
