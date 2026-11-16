@@ -47,6 +47,7 @@ import json
 import os
 import queue
 import re
+import secrets
 import shlex
 import shutil
 import tempfile
@@ -76,10 +77,7 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.running import Run
     from hmz.runtime.flowing.spi import Placement
 
-__all__ = ["FOLD", "PROTOCOL", "Host", "record"]
-
-#: Which version of the messages this speaks, said to every frontend as it arrives.
-PROTOCOL = 2
+__all__ = ["FOLD", "Host", "record"]
 
 #: How long one text in a message may be before the rest of it is counted instead. A turn's
 #: answer is kilobytes; a tool that printed a file is the case this is for, and a frame of the
@@ -617,6 +615,9 @@ class Host:
         """
         self._hmz = hmz
         self._slot = slot
+        #: What names this life of the host, which a frontend that attaches again with
+        #: `since` is told its records only where it still names.
+        self.epoch = secrets.token_hex(8)
         #: Since when a chat here has been between turns with nobody attached, and whether
         #: it has been folded away for it.
         self._alone: float | None = None
@@ -700,6 +701,7 @@ class Host:
         heard: Callable[[dict[str, Any]], None],
         *,
         replay: bool = True,
+        since: tuple[str, int] | None = None,
     ) -> str:
         """Takes a frontend on, and tells it everything it needs to read the runs from here.
 
@@ -714,6 +716,9 @@ class Host:
           kind: What it is: `tui`, `cli` or `sdk`.
           heard: What each message is handed to.
           replay: Whether to be told the run so far, or only what happens from here.
+          since: The `epoch` and `seq` of the last record a frontend attaching again was told:
+            it is told only those after it where this is the host it was told them by and
+            every one after it is still kept, and every record kept otherwise.
 
         Returns:
           Its client id, which every request of its names it by.
@@ -734,6 +739,8 @@ class Host:
             frontend = _Frontend(client, named, kind, heard)
             # A finished run kept for one frontend to come and read: this is that one.
             self._keeps = False
+            from hmz.rpc import PROTOCOL
+
             welcome = {
                 "type": "welcome",
                 "client": client,
@@ -743,11 +750,20 @@ class Host:
                 "slot": self._slot,
                 "pid": os.getpid(),
                 "protocol": PROTOCOL,
+                "epoch": self.epoch,
             }
             self._post(frontend, welcome, _sized(welcome))
+            after = 0
+            if since is not None:
+                replay = True
+                first = self._history[0][0]["seq"] if self._history else self._seq + 1
+                epoch, seq = since
+                if epoch == self.epoch and first <= seq + 1 <= self._seq + 1:
+                    after = seq
             if replay:
                 for message, size in self._history:
-                    self._post(frontend, message, size)
+                    if message["seq"] > after:
+                        self._post(frontend, message, size)
             # Everybody else hears of it now, and this one with the rest of the state below.
             self._frontends[client] = frontend
             self._snap_clients(but=client)
@@ -989,7 +1005,7 @@ class Host:
             if client != but and not self._post(frontend, message, size)
         ]
         for frontend in behind:
-            self._let_go(frontend, "fell too far behind; open it again", keep=False)
+            self._let_go(frontend, "too far behind; attach again", keep=False)
 
     def _record(self, message: dict[str, Any]) -> None:
         """Says one thing that happened, and keeps it for whoever arrives later."""

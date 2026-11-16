@@ -1,26 +1,23 @@
-"""This machine's one daemon: which workspace's host each frontend is handed to.
+"""This machine's one daemon: one JSON-RPC endpoint, on its socket and on every listener.
 
-Every workspace's runs are held by hosts of their own -- each a process standing in the
-workspace, since whatever a run starts works where its process stands: the workspace's own,
-which runs its flows one at a time, and one per chat beside it, each named by its slot (see
-:func:`hmz.daemon.where.slot`). Every host is reached through the one socket of this machine's
-daemon. A host says which workspace and slot it holds as it comes up, and keeps open the
-connection it said so on. A frontend says which it is reaching for in the first thing it
-says, and the daemon reads that without taking it off the socket, then hands the socket
-itself down that host's connection: from there on the two talk as though the
-host had accepted it, and the daemon carries none of what they say. The daemon keeps its own
-end of each socket until the host says it has it, a byte back apiece: a socket nothing but a
-message in flight refers to is one a kernel may take for garbage -- macOS does, and empties it.
+Every client -- the terminal interface, `hmz exec`, the page, the desktop application, a
+program of the SDK -- reaches the daemon over a session of `protocol/wire.md` and nothing else:
+on the socket, trusted and paired as the device `local` from its start; on a listener, only
+through mutual TLS or a WebRTC data channel, and paired only once its device has claimed a
+code. A session that is not paired may say hello, claim a code and ask what there is to call,
+and is refused everything else 401.
 
-The daemon goes once it holds no workspace, and its hosts go with it: the connection each was
-handed sockets down closing is what tells a host nobody can reach its runs any more.
+The daemon holds the hosts (:mod:`hmz.daemon.hosts`) and ends each client's session itself:
+what a client asks of an epic it asks the daemon, which asks the host down its link. It makes
+no call of its own to any client. It goes once it has held no host and no session for 2
+seconds, or a minute after it started where nothing ever came -- unless it listens beyond its
+socket or was started by `hmz daemon serve`, after which it goes on `SIGTERM` alone.
 """
 
 from __future__ import annotations
 
-import collections
 import contextlib
-import dataclasses
+import logging
 import os
 import socket
 import threading
@@ -28,142 +25,174 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from hmz.daemon import where
-from hmz.daemon.carrying import TAKEN
-from hmz.daemon.proto import (
-    CONTROL,
-    GONE,
-    MESSAGE,
-    PROTOCOL,
-    Frames,
-    asked,
-    frame,
-    spoken,
-)
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Generator, Sequence
     from pathlib import Path
+
+    from hmz.daemon.listening import Listener
+    from hmz.daemon.sessions import Session
+    from hmz.rpc import Call, Dispatcher, Handler, Peer, Pipe
+    from hmz.trust.identity import Identity
 
 __all__ = ["Router", "serves"]
 
-#: How long the first thing a connection says is waited for. A frontend says it the moment it
-#: connects; one that says nothing for this long is not a frontend of this protocol.
-_FIRST = 10.0
-
-#: How much of the first thing a connection says is looked at. A hello, a question and a host
-#: saying what it holds are each a few hundred bytes.
-_PEEK = 1 << 16
+_log = logging.getLogger(__name__)
 
 #: How often the daemon looks at whether it is still wanted.
 _TICK = 0.5
 
-#: How long a daemon nobody has handed a workspace yet waits for one: whoever started it is a
-#: moment away from starting the host, and one that never does must not leave it behind.
+#: How long a daemon nobody has reached waits for somebody to.
 _GRACE = 60.0
 
-#: How long a daemon whose last host has gone waits before it goes as well: long enough for a
-#: frontend that has just started a host to see it say what it holds.
+#: How long a daemon whose last host and session have gone waits before it goes as well.
 _LINGER = 2.0
 
-#: How often the daemon's own files are marked as used. A temporary directory is cleaned of
-#: what nothing has touched in days, and holding a lock or a socket touches neither: a lock
-#: taken away from under a running daemon is a second daemon.
+#: How often the daemon's own files are marked as used (Section 7.6.6 of files.md).
 _RETOUCH = 3600.0
 
 
-@dataclasses.dataclass(slots=True)
-class _Held:
-    """One host of a workspace, as the daemon reaches it.
+class Router:
+    """This machine's daemon: its sessions, its hosts, and every method it serves.
 
-    Attributes:
-      handing: The connection it said what it holds on, which every socket for it goes down.
-      said: What it said of itself: its pid, its workspace, its slot and when it started.
-      lock: Held while a socket is on its way down, so that two never interleave -- and
-        while the host is being told it was taken on, which goes down first.
-      sent: The sockets on their way down that the host has not said it has yet, oldest
-        first, each kept open here until it has. Never under `lock` where it is let go of:
-        waiting on a host to take one must not be what keeps its word from being heard.
+    Args:
+      at: The daemon's directory.
+      listening: Its socket, bound and listening.
+      listen: The listener specs to listen on beside it.
+      kept: Whether it goes on `SIGTERM` alone, as `hmz daemon serve` started it.
+      opened: Told the route of each listener as it opens.
     """
 
-    handing: socket.socket
-    said: dict[str, Any]
-    lock: threading.Lock = dataclasses.field(default_factory=threading.Lock)
-    sent: collections.deque[socket.socket] = dataclasses.field(
-        default_factory=collections.deque[socket.socket]
-    )
+    def __init__(
+        self,
+        at: Path,
+        listening: socket.socket,
+        *,
+        listen: Sequence[str] = (),
+        kept: bool = False,
+        opened: Callable[[str], None] | None = None,
+    ) -> None:
+        from hmz.daemon.hosts import Hosts
+        from hmz.daemon.sessions import Idems
+        from hmz.trust.devices import Devices
+        from hmz.trust.pairing import Codes
 
-
-class Router:
-    """The socket of this machine's daemon, and the hosts of each workspace it holds."""
-
-    def __init__(self, listening: socket.socket, at: Path) -> None:
-        """Holds the socket frontends and hosts arrive on.
-
-        Args:
-          listening: The socket, already bound and listening.
-          at: The daemon's directory, which is where its socket and its note are.
-        """
-        self._listening = listening
         self._at = at
+        self._listening = listening
+        self._specs = list(listen)
+        self._kept = kept or bool(self._specs)
+        self._opened = opened or (lambda _: None)
         self._lock = threading.Lock()
-        self._held: dict[tuple[str, str], _Held] = {}
-        self._routing = 0
-        self._ever = False
+        self._sessions: dict[Peer, Session] = {}
+        self._pending: set[Session] = set()
         self._since = time.monotonic()
-        self._going = True
+        self._ever = False
         self._done = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._identity: Identity | None = None
+        self._revoking = threading.local()
+        self.listeners: list[Listener] = []
+        self.hosts = Hosts(self._touched)
+        self.devices = Devices()
+        self.codes = Codes()
+        self.idems = Idems()
+        self.dispatcher = self._dispatcher()
+        self._unwatch = self.devices.watch(self._revoked)
+
+    # -- what the methods read
+
+    @property
+    def identity(self) -> Identity:
+        """This machine's device identity, made the first time it is asked for."""
+        if self._identity is None:
+            from hmz.trust.identity import device
+
+            self._identity = device()
+        return self._identity
+
+    @property
+    def daemon_id(self) -> str:
+        """This daemon's id: the SPKI fingerprint of this machine's device certificate."""
+        return self.identity.fingerprint
+
+    def routes(self) -> list[str]:
+        """The routes of every listener open, as a pairing code carries them."""
+        return [one.route for one in self.listeners if one.route]
+
+    def capabilities(self) -> list[str]:
+        """What this daemon offers of what a session may ask about: `webrtc`, where it is."""
+        from hmz import rtc
+
+        webrtc = any(one.spec.startswith("webrtc:") for one in self.listeners)
+        return ["webrtc"] if webrtc and rtc.available() else []
+
+    def session(self, call: Call) -> Session:
+        """The session a call came in on."""
+        with self._lock:
+            return self._sessions[call.peer]
+
+    def live(self) -> dict[str, int]:
+        """How many sessions each device fingerprint holds open."""
+        counted: dict[str, int] = {}
+        with self._lock:
+            for one in self._sessions.values():
+                if one.paired and not one.closed:
+                    counted[one.fingerprint] = counted.get(one.fingerprint, 0) + 1
+        return counted
+
+    @contextlib.contextmanager
+    def revoking(self, session: Session) -> Generator[None]:
+        """Revokes in a session's call: every session of the device is closed but that one."""
+        self._revoking.session = session
+        try:
+            yield
+        finally:
+            self._revoking.session = None
+
+    # -- the loop
 
     def start(self) -> None:
-        """Starts taking connections, on a thread of its own."""
-        self._thread = threading.Thread(
-            target=self._takes, name="humanize-daemon", daemon=True
+        """Starts taking sessions on the socket, and opens every listener."""
+        from hmz.daemon.listening import listener
+
+        threading.Thread(target=self._takes, name="hmz-daemon", daemon=True).start()
+        self.listeners = listener(
+            self._specs,
+            lambda pipe, fingerprint: self.admit(pipe, fingerprint=fingerprint),
+            lambda: self.identity,
+            self._opened,
         )
-        self._thread.start()
 
     def wait(self, timeout: float | None = None) -> bool:
-        """Waits for the daemon to be over: closed, or holding nothing for long enough.
-
-        Args:
-          timeout: How long to wait, or None for as long as it takes.
-
-        Returns:
-          Whether it is over.
-        """
+        """Waits for the daemon to be over: closed, or holding nothing for long enough."""
         return self._done.wait(timeout)
 
     def close(self) -> None:
-        """Stops being reachable, and lets go of every host -- which closes its runs."""
-        self._going = False
-        if self._thread is not None and self._thread is not threading.current_thread():
-            self._thread.join(timeout=_TICK * 4)
+        """Stops being reachable, closes every session, and lets go of every host."""
+        self._unwatch()
         with contextlib.suppress(OSError):
             self._listening.close()
+        for one in self.listeners:
+            one.close()
         with self._lock:
-            held, self._held = list(self._held.values()), {}
-        for one in held:
-            with contextlib.suppress(OSError):
-                one.handing.shutdown(socket.SHUT_RDWR)
-            with contextlib.suppress(OSError):
-                one.handing.close()
+            sessions = list(self._sessions.values())
+        for session in sessions:
+            session.close()
+        self.hosts.stop_all()
         for name in (where.SOCKET, where.RECORD):
             with contextlib.suppress(OSError):
                 (self._at / name).unlink()
         self._done.set()
 
     def _takes(self) -> None:
+        from hmz.reach.pipes import SocketPipe
+
         self._listening.settimeout(_TICK)
-        touched = 0.0
+        touched = time.monotonic()
         try:
-            while self._going and not self._idle():
+            while not self._done.is_set() and not self._idle():
                 if time.monotonic() - touched > _RETOUCH:
                     touched = time.monotonic()
-                    for name in (
-                        where.SOCKET,
-                        where.RECORD,
-                        where.LOCK,
-                        where.LOG,
-                        ".",
-                    ):
+                    for name in (*_FILES, "."):
                         with contextlib.suppress(OSError):
                             os.utime(self._at / name)
                 try:
@@ -172,212 +201,183 @@ class Router:
                     continue
                 except OSError:
                     break
-                with self._lock:
-                    self._routing += 1
-                threading.Thread(
-                    target=self._routes, args=(one,), daemon=True, name="humanize-route"
-                ).start()
+                one.settimeout(None)
+                self.admit(SocketPipe(one, trusted=True), fingerprint="", trusted=True)
         finally:
             self._done.set()
 
     def _idle(self) -> bool:
         """Whether nothing is left for this daemon to be reached for."""
+        if self._kept:
+            return False
         with self._lock:
-            if self._held or self._routing:
+            if self._sessions or self._pending or len(self.hosts):
                 return False
             waited = time.monotonic() - self._since
-        return waited > (_LINGER if self._ever else _GRACE)
+        return waited > (_LINGER if self._ever or self.hosts.ever else _GRACE)
 
-    # -- one connection
-
-    def _routes(self, one: socket.socket) -> None:
-        """Reads what a connection says first, and does what that says to."""
-        kept = False
-        try:
-            first = _first(one)
-            if first is None:
-                return
-            kind, said, length = first
-            if kind == CONTROL and said.get("do") == "serve":
-                one.recv(length)  # the host's own, which goes no further
-                kept = self._serves(one, said)
-            elif kind == CONTROL and "workspace" not in said:
-                one.sendall(spoken(CONTROL, self._answers(said)))
-            elif kind in (MESSAGE, CONTROL):
-                kept = self._hands(one, kind, said)
-            else:
-                # A reader speaking another protocol -- an older Humanize's terminal -- told
-                # so rather than left waiting.
-                one.sendall(
-                    frame(
-                        GONE,
-                        b"held for frontends by a newer Humanize; `hmz` of it reads it",
-                    )
-                )
-        except OSError:
-            pass
-        finally:
-            if not kept:
-                with contextlib.suppress(OSError):
-                    one.close()
-            with self._lock:
-                self._routing -= 1
-                self._since = time.monotonic()
-
-    def _answers(self, said: dict[str, Any]) -> dict[str, Any]:
-        """Answers a question about this machine's runs rather than one workspace's."""
-        if said.get("do") != "list":
-            return {"ok": False, "why": f"no such request: {said.get('do')!r}"}
+    def _touched(self) -> None:
         with self._lock:
-            held = [dict(one.said) for one in self._held.values()]
-        return {"ok": True, "held": held}
+            self._since = time.monotonic()
 
-    def _hands(self, one: socket.socket, kind: bytes, said: dict[str, Any]) -> bool:
-        """Hands a socket to the host of the workspace and slot it names, or says none holds it.
+    # -- sessions
+
+    def admit(self, pipe: Pipe, *, fingerprint: str, trusted: bool = False) -> Peer:
+        """Takes a session on: over the socket, or secured over a listener.
+
+        Args:
+          pipe: Its pipe, secured where its carrier is untrusted.
+          fingerprint: Its client's device fingerprint; "" over a trusted carrier.
+          trusted: Whether its carrier is trusted.
 
         Returns:
-          Whether it was handed, and so is kept here until the host says it has it.
+          Its JSON-RPC end, which reads it from now on.
         """
-        workspace = str(said.get("workspace") or "")
-        slot = str(said.get("slot") or "")
-        with self._lock:
-            held = self._held.get((workspace, slot))
-        if held is not None:
-            with held.lock:
-                # Kept before it is sent, since the host may say it has it before this
-                # returns; one that could not be sent is taken back off.
-                held.sent.append(one)
-                try:
-                    socket.send_fds(held.handing, [TAKEN], [one.fileno()])
-                except OSError:
-                    with contextlib.suppress(ValueError):
-                        held.sent.remove(one)
-                    held = None
-        if held is not None:
-            return True
-        why = f"no runs are held in {workspace or 'no workspace'}"
-        if slot:
-            why = f"{why} for {slot}"
-        if kind == MESSAGE:
-            one.sendall(
-                spoken(
-                    MESSAGE,
-                    {
-                        "type": "reply",
-                        "to": said.get("id", ""),
-                        "ok": False,
-                        "why": why,
-                    },
-                )
-            )
-        else:
-            one.sendall(spoken(CONTROL, {"ok": False, "why": why}))
-        return False
+        from hmz.daemon.sessions import Outgoing, Session
+        from hmz.rpc import Peer
+        from hmz.trust.devices import LOCAL
 
-    def _serves(self, one: socket.socket, said: dict[str, Any]) -> bool:
-        """Takes a host on as the one of its workspace and slot, for as long as it is connected.
-
-        Returns:
-          Whether it was taken on -- refused where another host already holds that slot of that
-          workspace, which is two flows writing over one epic.
-        """
-        workspace = str(said.get("workspace") or "")
-        slot = str(said.get("slot") or "")
-        held = _Held(
-            one,
-            {key: said.get(key) for key in ("pid", "workspace", "started")}
-            | {"slot": slot},
+        device = LOCAL if trusted else (self.devices.named(fingerprint) or "")
+        if device and not trusted:
+            self.devices.seen(fingerprint)
+        held: list[Session] = []
+        out = Outgoing(pipe, lambda: held[0].behind())  # noqa: PLW0108 -- made after
+        session = Session(
+            out, trusted=trusted, fingerprint=fingerprint or LOCAL, device=device
         )
-        # Told it was taken on before anybody can be handed to it, which is what holding its
-        # lock across both does: a socket on its way down ahead of that would be read as the
-        # word itself.
-        with held.lock:
-            with self._lock:
-                there = self._held.get((workspace, slot))
-                if not workspace or (
-                    there is not None and where.alive(int(there.said.get("pid") or 0))
-                ):
-                    return False
-                self._held[workspace, slot] = held
-                self._ever = True
-            try:
-                one.settimeout(None)
-                one.sendall(TAKEN)
-            except OSError:
-                with self._lock:
-                    if self._held.get((workspace, slot)) is held:
-                        del self._held[workspace, slot]
-                raise
-        threading.Thread(
-            target=self._watches,
-            args=((workspace, slot), held),
-            daemon=True,
-            name="humanize-host",
-        ).start()
-        return True
-
-    def _watches(self, key: tuple[str, str], held: _Held) -> None:
-        """Lets go of each socket the host says it has, and stops handing it any once it goes."""
-        with contextlib.suppress(OSError):
-            while taken := held.handing.recv(_PEEK):
-                _lets_go(held, len(taken))
+        held.append(session)
         with self._lock:
-            if self._held.get(key) is held:
-                del self._held[key]
-                self._since = time.monotonic()
-        _lets_go(held, len(held.sent))
-        with contextlib.suppress(OSError):
-            held.handing.close()
+            self._pending.add(session)
+            self._ever = True
+
+        def serve(call: Call) -> None:
+            with self._lock:
+                if session.peer is None:
+                    session.peer = call.peer
+                    self._sessions[call.peer] = session
+            self.dispatcher(call)
+
+        peer = Peer(
+            out, serve, on_close=lambda: self._closed(session), name="hmz-session"
+        )
+        with self._lock:
+            self._pending.discard(session)
+            if session.peer is None and not peer.closed:
+                session.peer = peer
+                self._sessions[peer] = session
+        return peer
+
+    def _closed(self, session: Session) -> None:
+        """Lets go of everything a session held, once it has closed."""
+        with self._lock:
+            self._pending.discard(session)
+            if session.peer is not None:
+                self._sessions.pop(session.peer, None)
+            self._since = time.monotonic()
+        session.out.close()
+        with session.lock:
+            subs = list(session.subs.values())
+        for sub in subs:
+            sub.dropped()
+
+    def _revoked(self, device: Any) -> None:
+        """Closes every session of a device revoked, but the one revoking it, which goes last."""
+        sparing = getattr(self._revoking, "session", None)
+        with self._lock:
+            dropped = [
+                one
+                for one in self._sessions.values()
+                if one.fingerprint == device.fingerprint and one is not sparing
+            ]
+        for one in dropped:
+            one.close()
+
+    # -- the methods
+
+    def _dispatcher(self) -> Dispatcher:
+        from hmz.daemon.methods import families, methods
+        from hmz.rpc import Dispatcher
+
+        dispatcher = Dispatcher()
+        served = {**families(), **methods(self)}
+        for name, handler in served.items():
+            try:
+                dispatcher.register(name, self._guarded(name, handler))
+            except ValueError:
+                _log.warning("%s is not in the OpenRPC document, so not served", name)
+        return dispatcher
+
+    def _guarded(self, name: str, handler: Handler) -> Handler:
+        """A handler held to the pairing gate (Section 4.5.10) and to `idem` (Section 6.7)."""
+        from hmz.rpc import Code, RpcError
+        from hmz.trust.pairing import NOT_PAIRED, UNPAIRED
+
+        def carried(call: Call) -> Any:
+            session = self.session(call)
+            if name not in UNPAIRED and not session.paired:
+                raise RpcError(Code.NOT_PAIRED, NOT_PAIRED)
+            idem = call.params.get("idem")
+            if not isinstance(idem, str):
+                return handler(call)
+            return self.idems.once(
+                session.fingerprint, idem, name, lambda: handler(call)
+            )
+
+        if name == "notices.subscribe":
+            return self._noticed(carried)
+        if name == "notices.unsubscribe":
+            return self._unnoticed(carried)
+        return carried
+
+    def _noticed(self, handler: Handler) -> Handler:
+        """Keeps the notices subscriptions a session opens, to end them where it falls behind."""
+
+        def carried(call: Call) -> Any:
+            said = handler(call)
+            sub = said.get("sub") if isinstance(said, dict) else None
+            if isinstance(sub, str):
+                session = self.session(call)
+                with session.lock:
+                    session.notices.add(sub)
+            return said
+
+        return carried
+
+    def _unnoticed(self, handler: Handler) -> Handler:
+        def carried(call: Call) -> Any:
+            session = self.session(call)
+            with session.lock:
+                session.notices.discard(str(call.params.get("sub")))
+            return handler(call)
+
+        return carried
 
 
-def _lets_go(held: _Held, taken: int) -> None:
-    """Closes this end of as many of the sockets on their way to a host as it has taken."""
-    for _ in range(taken):
-        try:
-            one = held.sent.popleft()
-        except IndexError:
-            return
-        one.close()
+#: The daemon's own files, which it marks as used.
+_FILES = (where.SOCKET, where.RECORD, where.LOCK, where.LOG)
 
 
-def _first(one: socket.socket) -> tuple[bytes, dict[str, Any], int] | None:
-    """The first frame a connection sends, looked at and left where it is.
-
-    Returns:
-      Its kind, what it says, and how long it is whole; or None for a connection that closed,
-      said nothing in time, or said something that is not a frame of this protocol.
-    """
-    one.settimeout(_FIRST)
-    until = time.monotonic() + _FIRST
-    while time.monotonic() < until:
-        seen = one.recv(_PEEK, socket.MSG_PEEK)
-        if not seen:
-            return None
-        try:
-            whole = Frames().feed(seen)
-        except ValueError:
-            # A length no frame has: whatever is on the other end is not speaking this.
-            return None
-        if whole:
-            kind, payload = whole[0]
-            return kind, asked(payload), 5 + len(payload)
-        if len(seen) >= _PEEK:
-            return None
-        # Half a frame: what is there stays readable, so this is a wait rather than a select.
-        time.sleep(0.01)
-    return None
-
-
-def serves(telling: int | None = None) -> None:
-    """Holds this machine's socket for every workspace's host, until none is left to hold.
+def serves(
+    telling: int | None = None,
+    *,
+    listen: Sequence[str] = (),
+    kept: bool = False,
+    opened: Callable[[str], None] | None = None,
+) -> None:
+    """Holds this machine's daemon until it goes.
 
     Args:
       telling: A descriptor to say on that it is listening, and then close, or None.
+      listen: The listener specs besides the setting `listen`'s.
+      kept: Whether it goes on `SIGTERM` alone, as `hmz daemon serve` started it.
+      opened: Told the route of each listener as it opens.
 
     Raises:
       OSError: If a daemon of this machine is already running, or the socket cannot be bound
         -- the one failure whoever asked for a daemon has to hear about.
     """
+    from hmz.rpc import PROTOCOL
+
     at = where.at()
     # Taken before anything is looked at: two started in the same second would both find
     # nothing here, and one of them would take the other's socket away as stale.
@@ -393,12 +393,18 @@ def serves(telling: int | None = None) -> None:
                 "protocol": PROTOCOL,
             },
         )
+        _logs(at)
+        router = Router(
+            at,
+            listening,
+            listen=[*_listened(), *listen],
+            kept=kept,
+            opened=opened,
+        )
         if telling is not None:
-            # Said and left open: the descriptor is whoever forked this one's to close, and
-            # one closed here could be written to again as somebody else's.
+            # Said and left open: the descriptor is whoever forked this one's to close.
             with contextlib.suppress(OSError):
                 os.write(telling, b"listening\n")
-        router = Router(listening, at)
         router.start()
         try:
             router.wait()
@@ -409,25 +415,42 @@ def serves(telling: int | None = None) -> None:
             os.close(holding)
 
 
+def _listened() -> list[str]:
+    """The listener specs of the setting `listen`, those that are none left out."""
+    from hmz.coganchor import settings
+    from hmz.daemon.listening import spec
+
+    said: object = settings.read().get("listen")
+    found: list[str] = []
+    for one in said if isinstance(said, list) else []:  # pyright: ignore[reportUnknownVariableType]
+        try:
+            spec(str(one))  # pyright: ignore[reportUnknownArgumentType]
+        except ValueError:
+            _log.warning("%s is not a listener, so not listened on", one)
+            continue
+        found.append(str(one))  # pyright: ignore[reportUnknownArgumentType]
+    return found
+
+
+def _logs(at: Path) -> None:
+    """Writes what the daemon logs to `daemon.log`, as its standard error is (Section 7.6.5)."""
+    del at
+    if logging.getLogger("hmz").handlers or logging.getLogger().handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s: %(message)s"))
+    logging.getLogger("hmz").addHandler(handler)
+    logging.getLogger("hmz").setLevel(logging.INFO)
+
+
 def _listens(at: Path) -> socket.socket:
     """Binds the socket this daemon is reached on, taking away one a daemon that is gone left.
 
     Called with this machine's daemon lock already held, so that taking a socket away as stale
     cannot be taking one from a daemon that is coming up beside this.
-
-    Args:
-      at: The daemon's directory.
-
-    Returns:
-      The socket, listening.
-
-    Raises:
-      OSError: If it cannot be bound.
     """
     path = at / where.SOCKET
     if path.exists():
-        # A socket file outlives the process that bound it, and one nothing is listening on
-        # is a reader that hangs rather than one that says nothing is running.
         with contextlib.suppress(OSError):
             path.unlink()
     listening = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
