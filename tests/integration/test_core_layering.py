@@ -100,6 +100,7 @@ ALLOWED: dict[str, set[str]] = {
     # The carriers to a daemon: ssh and EasyTier as the anchor reaches them, and the socket of
     # this machine's daemon where `where` says it is.
     "hmz.reach": {"hmz.coganchor", "hmz.daemon.where"},
+    "hmz.relay": set(),
     "hmz.tui": {
         "hmz.coganchor",
         "hmz.flows",
