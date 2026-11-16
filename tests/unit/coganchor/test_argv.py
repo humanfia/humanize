@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from hmz.coganchor import binary
 from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.argv import forget, kept, options, parser, render, settings
 from hmz.coganchor.fence import ALL, NONE, READ, Fence
@@ -214,3 +215,14 @@ def test_a_secret_is_never_on_the_command_line_but_in_a_file_only_its_user_reads
     forget("s3cret")
 
     assert not held.exists()
+
+
+def test_render_runs_coganchor_cog_where_it_is_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(binary, "active", lambda: True)
+    monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
+
+    line = render(NATIVE, ["claude", "-p", "hi"])
+
+    assert line == ["/opt/coganchor", "cog", *options(NATIVE), "claude", "-p", "hi"]

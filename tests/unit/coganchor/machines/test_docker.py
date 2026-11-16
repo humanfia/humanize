@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
+from hmz.coganchor import binary
 from hmz.coganchor.machines import (
     Allocation,
     Docker,
@@ -390,6 +391,21 @@ def test_a_container_elsewhere_runs_as_whoever_owns_the_workspace_there(
     (asked,) = runs.calls
     assert after(asked, "--mount") == ["type=bind,source=/w,target=/w"]
     assert asked[-1] == "/w"
+
+
+def test_whose_the_workspace_is_asked_in_the_shell_where_coganchor_runs(
+    runs: Runs, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(binary, "active", lambda: True)
+    runs.on("run", out="1000 1001\n")
+
+    said = whose(Endpoint.parse("ssh://box"), "img", "/w", dict)
+
+    assert said == "1000:1001"
+    (asked,) = runs.calls
+    assert asked[asked.index("img") + 1 :][:2] == ["/bin/sh", "-c"]
+    assert "ls -nd" in asked[-3]
+    assert asked[-2:] == ["humanize", "/w"]
 
 
 @pytest.mark.parametrize(

@@ -766,10 +766,20 @@ def wrapper(fence: Fence) -> list[str]:
       to find, and it is there that the serving half fences the commands it runs. With `-P` beside
       `-m`: the wrapper is started in the workdir, before the wall is up, and a
       Python that looked in its working directory first would run an `hmz` the agent wrote
-      there instead of this one.
+      there instead of this one. `coganchor internal fence` where
+      :func:`hmz.coganchor.binary.active` says so, which reads the same options.
+
+    Raises:
+      FileNotFoundError: Where `coganchor` is what runs and there is no build for this machine.
     """
     from hmz import coganchor
+    from hmz.coganchor import binary
 
+    if binary.active():
+        return [
+            str(binary.here()),
+            *binary.translated("fence", [f"--policy={fence.dumps()}", "--"]),
+        ]
     archive = getattr(getattr(coganchor, "__loader__", None), "archive", "")
     return [
         sys.executable,

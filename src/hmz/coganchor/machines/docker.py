@@ -35,24 +35,22 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from hmz.coganchor import AnchorConfig
+from hmz.coganchor import AnchorConfig, binary
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE
-from hmz.coganchor.transport import Endpoint, Road, Target, python_command
+from hmz.coganchor.transport import Endpoint, Road, Target, idling, python_command
 
 from .base import MachineBase, MachineConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
-#: What the container does while the turns come and go: nothing, in the interpreter coganchor's
-#: target half needs, looked for the way that half looks for it -- the same machine and the
-#: same Python, so an image keeping one off `PATH` is served rather than refused. An image
-#: holding none at all is a container that stops as it starts, and so is a flow that fails
-#: where it is set up rather than a turn later.
-_IDLE = tuple(python_command(["-c", "import time; time.sleep(2**31)"]))
-
-#: Asking a container whose the directory it was given is, in the same interpreter.
+#: Asking a container whose the directory it was given is, in the interpreter the zipapp's
+#: serving half needs.
 _OWNER = "import os, sys; held = os.stat(sys.argv[1]); print(held.st_uid, held.st_gid)"
+
+#: And in its shell, where `coganchor` is shipped instead and the image need hold no Python:
+#: the owner and group of `ls -n`'s long line, the third and fourth of its fields.
+_OWNER_SH = 'set -f; said=$(ls -nd -- "$1") && set -- $said && echo "$3 $4"'
 
 #: Marks a container as one of ours, and whose, for whoever has to clean up after a flow that
 #: was killed before it could. Named for the project rather than for this layer, since it is
@@ -643,7 +641,7 @@ class Docker(MachineBase):
                     *self._resources(),
                     *gpus,
                     config.image,
-                    *_IDLE,
+                    *idling(),
                 ),
                 _MAKING,
             )
@@ -866,7 +864,11 @@ def whose(
                 "--mount",
                 bound(workspace),
                 image,
-                *python_command(["-c", _OWNER, workspace]),
+                *(
+                    ["/bin/sh", "-c", _OWNER_SH, "humanize", workspace]
+                    if binary.active()
+                    else python_command(["-c", _OWNER, workspace])
+                ),
             ),
             _MAKING,
         )

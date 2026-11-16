@@ -20,6 +20,11 @@ listening. ``peer://TICKET@BROKER:PORT`` meets one through
 :mod:`hmz.coganchor.rendezvous`, which is the answer where the two halves are on two machines
 that cannot dial each other and only Humanize can reach both.
 
+Where :func:`hmz.coganchor.binary.active` says so, what is shipped is no zipapp but the
+`coganchor` program built for the far side's OS and architecture, which needs nothing there at
+all: the far side is asked its `uname -sm` once, and the build for it lands beside where the
+zipapp would, as `coganchor-<digest>`.
+
 What makes the far side cheap is that none of this is paid twice. The zipapp is built once per
 source tree and cached by its digest on both sides of the link; an `ssh` reaches a host once
 and every later command rides the connection the first one opened; and a road already walked
@@ -48,7 +53,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from hmz import coganchor
-from hmz.coganchor import atomic
+from hmz.coganchor import atomic, binary
 from hmz.coganchor.proto import Channel
 from hmz.coganchor.unix import sockets
 
@@ -62,9 +67,12 @@ __all__ = [
     "Road",
     "Target",
     "Transport",
+    "awaiting",
     "build_bundle",
     "bundled",
+    "coganchor_command",
     "connect",
+    "idling",
     "python_command",
     "serve_line",
     "ssh_flags",
@@ -310,7 +318,50 @@ def python_command(
         # on that machine never counts an archive a run of this one is still starting from as
         # one nobody uses -- a process pushes it once, and may go on running it for weeks.
         script = f'touch -c "{bundle}" 2>/dev/null; ' + script
-    # In front of the search rather than inside it, so a variable is set whichever
+    # ``/bin/sh`` by its path rather than its name, since the ``PATH`` this is reaching past
+    # is the same one that would have to hold a shell.  ``$0`` is what sh prefixes its own
+    # complaints with, so it is named for whose command this is.
+    return ["/bin/sh", "-c", _prefaced(script, setting, owned), "humanize", *args]
+
+
+def coganchor_command(
+    args: list[str],
+    program: str,
+    setting: Sequence[tuple[str, str]] = (),
+    owned: Sequence[str] = (),
+) -> list[str]:
+    """The command that runs `coganchor` on the target, where :meth:`Road.shipped` put it.
+
+    What :func:`python_command` is for the archive, with nothing to look for: the program is
+    the whole of what that machine needs. Touched as it is run, for the reason an archive is.
+
+    Args:
+      args: What follows the program's name, its mode first.
+      program: Where it is, as the *target's* shell will read it.
+      setting: As :func:`python_command` takes them.
+      owned: As :func:`python_command` takes them.
+
+    Returns:
+      The argv to run over there.
+    """
+    script = f'touch -c "{program}" 2>/dev/null; exec "{program}" "$@"'
+    return ["/bin/sh", "-c", _prefaced(script, setting, owned), "coganchor", *args]
+
+
+def _prefaced(
+    script: str, setting: Sequence[tuple[str, str]], owned: Sequence[str]
+) -> str:
+    """A far-side script, with the directories it needs checked and its variables set first.
+
+    Args:
+      script: What runs once they are.
+      setting: As :func:`python_command` takes them.
+      owned: As :func:`python_command` takes them.
+
+    Returns:
+      The whole script.
+    """
+    # In front of what runs rather than inside it, so a variable is set whichever
     # interpreter answers -- and `mkdir` with it, since a directory named by one of these is
     # one the far side has to have and nothing over there is going to make it first.
     for name, value in setting:
@@ -326,10 +377,94 @@ def python_command(
             f'{{ echo "Humanize: {path} is not a directory this user owns" >&2; '
             "exit 1; }; " + script
         )
-    # ``/bin/sh`` by its path rather than its name, since the ``PATH`` this is reaching past
-    # is the same one that would have to hold a shell.  ``$0`` is what sh prefixes its own
-    # complaints with, so it is named for whose command this is.
-    return ["/bin/sh", "-c", script, "humanize", *args]
+    return script
+
+
+#: Putting `coganchor` on a target, in its `/bin/sh`, which is all a machine with nothing of
+#: Humanize on it is sure to have. A build already there under its name is touched and left:
+#: it is named by its digest, and rewriting it would be rewriting a program a live session may
+#: be running. One that is not is read off the input into `<path>.<pid>` -- two sessions
+#: shipping to one machine at once being the ordinary case -- checked to be as long as what
+#: was sent, so that a link cut half-way leaves nothing under the name, made `0700` and moved
+#: into place. Then every other build and half-written copy nobody has touched in `{days}`
+#: whole days and more goes. `{cache}`, `{name}` and `{size}` are the far side's directory,
+#: the build's name there and its length in bytes.
+_SHIPPING = (
+    'c="{cache}"; mkdir -p "$c" || exit 1; p="$c/{name}"; '
+    'if [ -f "$p" ]; then touch "$p"; else '
+    't="$p.$$"; '
+    'if cat > "$t" && n=$(wc -c < "$t") && [ $n -eq {size} ] && chmod 700 "$t" '
+    '&& mv -f "$t" "$p"; then :; else rm -f "$t"; '
+    'echo "Humanize: coganchor did not arrive whole at $p" >&2; exit 1; fi; fi; '
+    'find "$c" -maxdepth 1 -type f -name "coganchor-*" ! -name "{name}" -mtime +{days} '
+    "-exec rm -f {{}} + 2>/dev/null; exit 0"
+)
+
+
+def _shipping(cache: str, name: str, size: int, *, owned: bool = False) -> list[str]:
+    """The command that puts a build arriving on its input on the far side.
+
+    Args:
+      cache: The directory it goes in, as that machine's own shell spells it.
+      name: What it is called there.
+      size: How many bytes it is.
+      owned: Whether `cache` has to be the far side's user's alone first, as
+        :func:`python_command` says.
+
+    Returns:
+      The argv to run over there.
+    """
+    # Whole days, as `find` counts them: `+13` is fourteen days or more.
+    days = _KEPT_FOR // (24 * 3600) - 1
+    script = _SHIPPING.format(cache=cache, name=name, size=size, days=days)
+    return ["/bin/sh", "-c", _prefaced(script, (), (cache,) if owned else ())]
+
+
+def awaiting(cache: str) -> str:
+    """A far-side script that waits for the right `coganchor` to land in `cache`.
+
+    For a machine that starts the anchor itself -- a Slurm job's batch step -- before anybody
+    has asked it what it is: every build there is to ship is named, by the `uname -sm` it is
+    for, and the one for the machine the script runs on is waited for, as `$p`.
+
+    Args:
+      cache: Where :meth:`Road.shipped` puts it, as that machine's shell spells it.
+
+    Returns:
+      The script, which leaves `$p` naming the program, or fails saying no build fits.
+    """
+    builds: dict[Path, list[str]] = {}
+    for system in ("Linux", "Darwin"):
+        for machine in ("x86_64", "amd64", "aarch64", "arm64"):
+            build = binary.shipped(system, machine)
+            if build is not None:
+                builds.setdefault(build, []).append(f'"{system} {machine}"')
+    cases = "".join(
+        f'{"|".join(spellings)}) p="{cache}/coganchor-{binary.digest(build)}";; '
+        for build, spellings in builds.items()
+    )
+    return (
+        f'case "$(uname -sm)" in {cases}'
+        '*) echo "Humanize: no coganchor is built for $(uname -sm)" >&2; exit 1;; esac; '
+        'while [ ! -f "$p" ]; do sleep 1; done'
+    )
+
+
+def idling() -> list[str]:
+    """What a container does while the turns come and go: nothing, for as long as it is let.
+
+    In the interpreter the zipapp's serving half needs, looked for the way that half looks
+    for it, while that is what is shipped: an image keeping one off `PATH` is served rather
+    than refused, and an image holding none is a container that stops as it starts, and so a
+    flow that fails where it is set up rather than a turn later. Where `coganchor` is shipped
+    instead, the image needs no interpreter, and a `sleep` is all it does.
+
+    Returns:
+      The container's command.
+    """
+    if binary.active():
+        return ["/bin/sh", "-c", "exec sleep 2147483647"]
+    return python_command(["-c", "import time; time.sleep(2**31)"])
 
 
 #: What a `docker` sent to any daemon but this machine's default is run without. Each of them
@@ -977,7 +1112,9 @@ class Road:
 
         The bundle is installed on the way, and installed once: it is named by its digest, so
         a machine that already has this one is left with it and this process does not ask a
-        second time.
+        second time. Where :func:`hmz.coganchor.binary.active` says so, the bundle is
+        `coganchor` and the line is its own spelling of the same command: `internal anchor
+        serve ...` is `coganchor anchor ...`, `internal anchor ...` is `coganchor cog ...`.
 
         Args:
           argv: What follows `hmz`, e.g. `["internal", "anchor", "serve", "--stdio"]`.
@@ -989,28 +1126,69 @@ class Road:
           The local command to spawn.
 
         Raises:
+          ValueError: For a line `coganchor` does not carry out, where it is what runs.
           ConnectionError: If the bundle cannot be put on the target.
         """
+        if binary.active():
+            return self._coganchor(argv, setting)
         if self.target.scheme == "local":
             return [*_myself(), *argv]
-        # The archive's directory, and the mirrors' where a setting puts something in it.
-        owned = [self.cache] if self.owned else []
-        if self.owned and any(
-            value.startswith(f"{self.mirrors}/") for _, value in setting
-        ):
-            owned.append(self.mirrors)
         return self.line(
             python_command(
                 list(argv),
                 bundle=self.installed(),
                 setting=setting,
                 python=self.python,
-                owned=owned,
+                owned=self._owning(setting),
             )
         )
 
+    def _coganchor(
+        self, argv: Sequence[str], setting: Sequence[tuple[str, str]]
+    ) -> list[str]:
+        """What :meth:`hmz` answers where `coganchor` is what runs the anchor.
+
+        Raises:
+          ValueError: For a line `coganchor` does not carry out.
+          ConnectionError: If there is no `coganchor` for this machine, or it cannot be put
+            on the target.
+        """
+        if list(argv[:1]) != ["internal"] or len(argv) < 2:  # noqa: PLR2004 -- `internal` and a command
+            raise ValueError(f"coganchor does not run `hmz {shlex.join(argv)}`")
+        translated = binary.translated(argv[1], list(argv[2:]))
+        if self.target.scheme == "local":
+            try:
+                return [str(binary.here()), *translated]
+            except FileNotFoundError as missing:
+                raise ConnectionError(str(missing)) from missing
+        if self.python:
+            log.debug(
+                "%s names a Python, which coganchor has no use for",
+                self.target.describe(),
+            )
+        return self.line(
+            coganchor_command(
+                translated, self.shipped(), setting=setting, owned=self._owning(setting)
+            )
+        )
+
+    def _owning(self, setting: Sequence[tuple[str, str]]) -> list[str]:
+        """The directories a line has to find the far side's user's own, as `owned` says.
+
+        The archive's directory, and the mirrors' where a setting puts something in it.
+        """
+        owned = [self.cache] if self.owned else []
+        if self.owned and any(
+            value.startswith(f"{self.mirrors}/") for _, value in setting
+        ):
+            owned.append(self.mirrors)
+        return owned
+
     def installed(self) -> str:
         """Puts the bundle on the target if it is not already there, and says where.
+
+        The bundle is `coganchor` where :func:`hmz.coganchor.binary.active` says so, which
+        :meth:`shipped` puts there; the zipapp otherwise.
 
         Returns:
           The archive's path over there, as that machine's shell reads it.
@@ -1018,6 +1196,8 @@ class Road:
         Raises:
           ConnectionError: If it cannot be written, or what arrived is not what was sent.
         """
+        if binary.active():
+            return self.shipped()
         try:
             archive, digest = bundled()
         except OSError as failed:
@@ -1055,18 +1235,97 @@ class Road:
             _PUSHED.add(already)
         return where
 
+    def shipped(self) -> str:
+        """Puts `coganchor` on the target if it is not already there, and says where.
+
+        The build for the target's own OS and architecture, which it is asked once, named
+        `coganchor-<digest>` in :attr:`cache` and installed by :data:`_SHIPPING`. Once per
+        machine per build for the life of this process, as the archive is.
+
+        Returns:
+          The program's path over there, as that machine's shell reads it.
+
+        Raises:
+          ConnectionError: If the target cannot say what it is, there is no build for it, or
+            the build cannot be written there.
+        """
+        system, machine = self._platform()
+        program = binary.shipped(system, machine)
+        if program is None:
+            raise ConnectionError(
+                f"could not install coganchor on {self.target.describe()}: no coganchor "
+                f"is built for {system} {machine}"
+            )
+        try:
+            digest = binary.digest(program)
+        except OSError as failed:
+            raise ConnectionError(
+                f"could not install coganchor on {self.target.describe()}: {failed}"
+            ) from failed
+        name = f"coganchor-{digest}"
+        where = f"{self.cache}/{name}"
+        already = (self.target.describe(), digest)
+        with _PUSHED_LOCK:
+            if already in _PUSHED:
+                return where
+        try:
+            carried = program.read_bytes()
+        except OSError as failed:
+            raise ConnectionError(
+                f"could not install coganchor on {self.target.describe()}: {failed}"
+            ) from failed
+        result = self.run(
+            _shipping(self.cache, name, len(carried), owned=self.owned), carried
+        )
+        if result.returncode != 0:
+            raise ConnectionError(
+                f"could not install coganchor on {self.target.describe()}: "
+                f"{result.stderr.decode(errors='replace').strip()}"
+                f"{self._said()}"
+            )
+        with _PUSHED_LOCK:
+            _PUSHED.add(already)
+        return where
+
+    def _platform(self) -> tuple[str, str]:
+        """The target's `uname -sm`, asked once per machine for the life of this process.
+
+        Raises:
+          ConnectionError: If it could not be asked, or did not answer as `uname` does.
+        """
+        described = self.target.describe()
+        with _PUSHED_LOCK:
+            known = _UNAMES.get(described)
+        if known is not None:
+            return known
+        said = self.run(["uname", "-sm"])
+        words = said.stdout.decode(errors="replace").split()
+        if said.returncode != 0 or len(words) != 2:  # noqa: PLR2004 -- the OS, and the machine
+            raise ConnectionError(
+                f"could not ask {described} what it is: "
+                f"{said.stderr.decode(errors='replace').strip() or ' '.join(words)}"
+                f"{self._said()}"
+            )
+        known = (words[0], words[1])
+        with _PUSHED_LOCK:
+            _UNAMES[described] = known
+        return known
+
     def forget(self) -> None:
         """Forgets that this machine was given the bundle, for one that has been replaced.
 
         A container made again under a name one had before is a new machine holding nothing,
         and the memo would otherwise answer for it with what the old one was given -- as
-        every user a target of it named, each of whom was given one of their own.
+        every user a target of it named, each of whom was given one of their own. What it said
+        it was goes too, a machine made again being free to be another kind.
         """
         named = _machine(self.target.describe())
         with _PUSHED_LOCK:
             _PUSHED.difference_update(
                 [one for one in _PUSHED if _machine(one[0]) == named]
             )
+            for one in [one for one in _UNAMES if _machine(one) == named]:
+                del _UNAMES[one]
 
     def _said(self) -> str:
         """The tail of what a container printed, for an error that does not say enough.
@@ -1101,6 +1360,9 @@ class Road:
 #: about to be asked to run. And the digest, because a rebuilt bundle is a different file.
 _PUSHED: set[tuple[str, str]] = set()
 _PUSHED_LOCK = threading.Lock()
+
+#: What each machine said its `uname -sm` was, as `(OS, machine)`, by its target's spelling.
+_UNAMES: dict[str, tuple[str, str]] = {}
 
 
 def _machine(spelled: str) -> str:
@@ -1520,6 +1782,9 @@ def _stamped(source: Path) -> str:
         for path in sorted(tree.rglob("*")):
             if "__pycache__" in path.parts or path.is_dir():
                 continue
+            # Nor what the archive leaves out of it: the builds of `coganchor` beside it.
+            if tree == source and path.relative_to(tree).parts[0] == "bin":
+                continue
             found = path.stat()
             seen.update(
                 f"{path.relative_to(tree)}\0{found.st_size}\0{found.st_mtime_ns}\n".encode()
@@ -1561,6 +1826,23 @@ def _publish(destination: Path, writing: Callable[[Path], None]) -> None:
         raise
 
 
+def _ignored(source: Path) -> Callable[[str, list[str]], set[str]]:
+    """What of the package the archive leaves out, for :func:`shutil.copytree`.
+
+    Caches, the docs, :data:`DRIVING` -- and, at the top alone, the builds of `coganchor` the
+    wheel carries in `bin/`: megabytes the zipapp never runs.
+    """
+    every = shutil.ignore_patterns("__pycache__", "*.md", *DRIVING)
+
+    def ignored(directory: str, names: list[str]) -> set[str]:
+        left = set(every(directory, names))
+        if Path(directory) == source and "bin" in names:
+            left.add("bin")
+        return left
+
+    return ignored
+
+
 def _write_bundle(source: Path, destination: Path) -> None:
     """Builds the archive itself, which is what a changed source tree costs.
 
@@ -1576,7 +1858,7 @@ def _write_bundle(source: Path, destination: Path) -> None:
         shutil.copytree(
             source,
             root.joinpath(*parts),
-            ignore=shutil.ignore_patterns("__pycache__", "*.md", *DRIVING),
+            ignore=_ignored(source),
         )
         for depth in range(1, len(parts)):
             # A namespace of its own rather than the installed ``hmz/__init__.py``: the

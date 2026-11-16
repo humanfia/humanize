@@ -274,7 +274,8 @@ def render(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
     """Writes the settings back out as the `hmz internal anchor` line that would read as them.
 
     The interpreter is named explicitly, so the child is the one Humanize is installed in
-    whether or not the console script is on PATH.
+    whether or not the console script is on PATH. Where :func:`hmz.coganchor.binary.active`
+    says so, the line is `coganchor cog` with the same options instead, which reads them alike.
 
     Args:
       config: The settings to run the agent under.
@@ -282,7 +283,14 @@ def render(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
 
     Returns:
       The command to spawn, which exits with the agent's own status.
+
+    Raises:
+      FileNotFoundError: Where `coganchor` is what runs and there is no build for this machine.
     """
+    from hmz.coganchor import binary
+
+    if binary.active():
+        return [str(binary.here()), "cog", *options(config), *argv]
     return [sys.executable, "-Pm", "hmz", "internal", "anchor", *options(config), *argv]
 
 

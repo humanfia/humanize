@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
+from hmz.coganchor import binary
 from hmz.coganchor.providers.redirect import Swaps, command, failed, read
 
 
@@ -106,3 +108,23 @@ def test_the_command_runs_the_supervisor_with_every_swap() -> None:
 )
 def test_a_wait_status_comes_to_an_exit_status(status: int, code: int) -> None:
     assert failed(status) == code
+
+
+def test_the_supervisor_is_coganchor_where_it_is_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(binary, "active", lambda: True)
+    monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
+
+    said = command([("/a", "/b")], ["codex"], kept=[("/s", "/t")])
+
+    assert said == [
+        "/opt/coganchor",
+        "internal",
+        "cred",
+        "--map=/a=/b",
+        "--keep=/s=/t",
+        "--",
+        "codex",
+    ]
+    assert command([], ["codex"]) == ["codex"]
