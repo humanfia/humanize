@@ -36,6 +36,7 @@ pytestmark = [
     pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
+
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     at = project(tmp_path, monkeypatch)
