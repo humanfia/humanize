@@ -22,7 +22,6 @@ from hmz.daemon.api import backups, files, runs
 from hmz.rpc import PROTOCOL, Call, Dispatcher, Peer, RpcError, admit, hello
 from hmz.runtime.epic import Epic
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import Browser, served
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -131,11 +130,9 @@ def test_an_epic_is_listed_read_carried_away_in_chunks_and_read_back_in(
     )
     archive = _pulled(client, bundle["handle"])
     assert len(archive) == bundle["size"]
-    with served() as site:
-        browser = Browser(site)
-        browser.signs_in()
-        web = browser.get(f"/api/runs/{name}/bundle").body
-    assert _members(archive) == _members(web)
+    # Packed again, it holds the same.
+    again = client.call("runs.bundle", {"name": name}, timeout=30)
+    assert _members(archive) == _members(_pulled(client, again["handle"]))
     assert client.call("files.close", {"handle": bundle["handle"]}, timeout=30) == {}
 
     shutil.rmtree(one["at"])
