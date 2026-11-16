@@ -19,14 +19,14 @@ class End:
         self.cond = threading.Condition()
         self.other: End = self
 
-    def read(self, size: int) -> bytes:
+    def recv(self, size: int) -> bytes:
         with self.cond:
             self.cond.wait_for(lambda: bool(self.inbox) or self.shut)
             data = bytes(self.inbox[:size])
             del self.inbox[:size]
             return data
 
-    def write(self, data: bytes) -> None:
+    def sendall(self, data: bytes) -> None:
         if self.shut:
             raise OSError("closed")
         with self.other.cond:
@@ -70,7 +70,7 @@ def received() -> Callable[[Pipe], dict[str, Any]]:
     def receive(pipe: Pipe) -> dict[str, Any]:
         reader, held = frames.setdefault(id(pipe), (Frames(), []))
         while not held:
-            data = pipe.read(1 << 16)
+            data = pipe.recv(1 << 16)
             if not data:
                 raise EOFError
             held.extend(reader.feed(data))

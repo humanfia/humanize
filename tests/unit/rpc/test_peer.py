@@ -50,9 +50,9 @@ def test_answers_settle_the_calls_they_name_in_any_order(
     one, two = peer.request("a"), peer.request("b")
     received(far)
     received(far)
-    far.write(encode({"jsonrpc": "2.0", "id": two.id, "result": "two"}))
-    far.write(encode({"jsonrpc": "2.0", "id": 999, "result": "nobody's"}))
-    far.write(encode({"jsonrpc": "2.0", "id": one.id, "result": "one"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": two.id, "result": "two"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 999, "result": "nobody's"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": one.id, "result": "one"}))
     assert one.result(5) == "one"
     assert two.result(5) == "two"
 
@@ -100,7 +100,7 @@ def test_a_notification_is_sent_without_an_id(pipes: Pipes, received: Received) 
 def test_a_call_with_no_serve_is_no_method(pipes: Pipes, received: Received) -> None:
     near, far = pipes()
     Peer(near)
-    far.write(encode({"jsonrpc": "2.0", "id": "q", "method": "nope"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": "q", "method": "nope"}))
     assert received(far) == {
         "jsonrpc": "2.0",
         "id": "q",
@@ -116,8 +116,8 @@ def test_a_call_is_answered_once(pipes: Pipes, received: Received) -> None:
 
     near, far = pipes()
     Peer(near, twice)
-    far.write(encode({"jsonrpc": "2.0", "id": 7, "method": "a"}))
-    far.write(encode({"jsonrpc": "2.0", "id": 8, "method": "a"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 7, "method": "a"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 8, "method": "a"}))
     assert received(far)["result"] == 1
     assert received(far) == {"jsonrpc": "2.0", "id": 8, "result": 1}
 
@@ -145,7 +145,7 @@ def test_what_is_not_a_request_is_refused_with_no_id(
 ) -> None:
     near, far = pipes()
     Peer(near, echo)
-    far.write(frame(payload))
+    far.sendall(frame(payload))
     answer = received(far)
     assert answer["id"] is None
     assert answer["error"]["code"] == code
@@ -158,7 +158,7 @@ def test_params_by_position_are_refused_with_the_calls_id(
 ) -> None:
     near, far = pipes()
     Peer(near, echo)
-    far.write(encode({"jsonrpc": "2.0", "id": 3, "method": "a", "params": [1]}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 3, "method": "a", "params": [1]}))
     answer = received(far)
     assert (answer["id"], answer["error"]["code"]) == (3, -32600)
 
@@ -167,8 +167,8 @@ def test_an_id_still_in_use_is_refused(pipes: Pipes, received: Received) -> None
     held: list[Call] = []
     near, far = pipes()
     Peer(near, held.append)
-    far.write(encode({"jsonrpc": "2.0", "id": 1, "method": "a"}))
-    far.write(encode({"jsonrpc": "2.0", "id": 1, "method": "b"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 1, "method": "a"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 1, "method": "b"}))
     answer = received(far)
     assert (answer["id"], answer["error"]["code"]) == (None, -32600)
     held[0].answer("first")
@@ -181,7 +181,7 @@ def test_a_failing_serve_still_answers(pipes: Pipes, received: Received) -> None
 
     near, far = pipes()
     Peer(near, broken)
-    far.write(encode({"jsonrpc": "2.0", "id": 1, "method": "a"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 1, "method": "a"}))
     error = received(far)["error"]
     assert error["code"] == -32603
     assert error["message"].startswith("Something went wrong here: ")
@@ -210,10 +210,10 @@ def test_a_timeout_gives_the_call_up_and_asks_the_far_end_to(
         "method": "session.cancel",
         "params": {"id": call["id"]},
     }
-    far.write(encode({"jsonrpc": "2.0", "id": call["id"], "result": "late"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": call["id"], "result": "late"}))
     again = peer.request("again")
     assert received(far)["id"] == again.id != call["id"]
-    far.write(encode({"jsonrpc": "2.0", "id": again.id, "result": "now"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": again.id, "result": "now"}))
     assert again.result(5) == "now"
 
 
@@ -268,7 +268,7 @@ def test_a_frame_of_a_length_no_frame_has_closes_the_session(pipes: Pipes) -> No
     near, far = pipes()
     peer = Peer(near)
     pending = peer.request("a")
-    far.write(struct.pack(">I", LONGEST + 1))
+    far.sendall(struct.pack(">I", LONGEST + 1))
     assert peer.wait(5)
     with pytest.raises(Closed):
         pending.result(5)
@@ -279,7 +279,7 @@ def test_a_result_too_large_to_carry_is_answered_413(
 ) -> None:
     near, far = pipes()
     Peer(near, lambda call: call.answer("x" * LONGEST))
-    far.write(encode({"jsonrpc": "2.0", "id": 1, "method": "a"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 1, "method": "a"}))
     assert received(far) == {
         "jsonrpc": "2.0",
         "id": 1,
@@ -313,7 +313,7 @@ def test_an_error_answer_out_of_shape_is_still_an_error(
     near, far = pipes()
     pending = Peer(near).request("a")
     received(far)
-    far.write(encode({"jsonrpc": "2.0", "id": pending.id, "error": "bad"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": pending.id, "error": "bad"}))
     with pytest.raises(RpcError) as refused:
         pending.result(5)
     assert refused.value.code == Code.INTERNAL_ERROR
@@ -330,7 +330,7 @@ def test_the_far_end_closing_closes_the_session(pipes: Pipes) -> None:
 def test_json_written_is_utf8_without_escapes(pipes: Pipes) -> None:
     near, far = pipes()
     Peer(near).notify("x", {"name": "日本"})
-    data = far.read(1 << 16)
+    data = far.recv(1 << 16)
     assert json.loads(data[4:]) == {
         "jsonrpc": "2.0",
         "method": "x",
@@ -342,11 +342,11 @@ def test_json_written_is_utf8_without_escapes(pipes: Pipes) -> None:
 def test_nan_is_not_json_either_way(pipes: Pipes, received: Received) -> None:
     near, far = pipes()
     Peer(near, lambda call: call.answer(float("nan")))
-    far.write(
+    far.sendall(
         frame(b'{"jsonrpc": "2.0", "id": 1, "method": "a", "params": {"n": NaN}}')
     )
     assert received(far)["error"]["code"] == -32700
-    far.write(encode({"jsonrpc": "2.0", "id": 2, "method": "a"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 2, "method": "a"}))
     assert received(far)["error"]["code"] == -32603
 
 
@@ -355,7 +355,7 @@ def test_a_result_json_cannot_hold_is_still_answered(
 ) -> None:
     near, far = pipes()
     Peer(near, lambda call: call.answer({(1, 2): "tuple key"}))
-    far.write(encode({"jsonrpc": "2.0", "id": 1, "method": "a"}))
+    far.sendall(encode({"jsonrpc": "2.0", "id": 1, "method": "a"}))
     answer = received(far)
     assert (answer["id"], answer["error"]["code"]) == (1, -32603)
 
@@ -366,6 +366,6 @@ def test_frames_whole_ahead_of_a_bad_length_are_still_handed_out(
     served: list[str] = []
     near, far = pipes()
     peer = Peer(near, lambda call: served.append(call.method))
-    far.write(encode({"jsonrpc": "2.0", "method": "first"}) + struct.pack(">I", 0))
+    far.sendall(encode({"jsonrpc": "2.0", "method": "first"}) + struct.pack(">I", 0))
     assert peer.wait(5)
     assert served == ["first"]

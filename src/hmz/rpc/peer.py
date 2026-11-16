@@ -294,7 +294,7 @@ class Peer:
             raise Closed("the session has closed")
         try:
             with self._writing:
-                self._pipe.write(frame)
+                self._pipe.sendall(frame)
         except OSError as e:
             self.close()
             raise Closed("the session closed") from e
@@ -336,7 +336,7 @@ class Peer:
         frames = Frames()
         try:
             while not self.closed:
-                data = self._pipe.read(_READ)
+                data = self._pipe.recv(_READ)
                 if not data:
                     break
                 for payload in frames.feed(data):

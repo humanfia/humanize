@@ -23,22 +23,13 @@ from hmz.rpc import (
 )
 
 
-class Sock:
-    """A connected stream socket as a pipe."""
-
-    def __init__(self, sock: socket.socket) -> None:
-        self.sock = sock
-
-    def read(self, size: int) -> bytes:
-        return self.sock.recv(size)
-
-    def write(self, data: bytes) -> None:
-        self.sock.sendall(data)
+class Shut(socket.socket):
+    """A stream socket shut down before it is closed, so that closing it wakes its reader."""
 
     def close(self) -> None:
         with contextlib.suppress(OSError):
-            self.sock.shutdown(socket.SHUT_RDWR)
-        self.sock.close()
+            self.shutdown(socket.SHUT_RDWR)
+        super().close()
 
 
 #: What the client end serves: a method the daemon end calls back on, outside the protocol's
@@ -63,7 +54,10 @@ class Ends:
         self.event = threading.Event()
         self.cancelled = threading.Event()
         self.big = False
-        self.sockets = socket.socketpair()
+        daemon_end, client_end = socket.socketpair()
+        # The daemon's end wakes its reader on close; the client's is a socket as it is, which
+        # is a pipe with no wrapper at all.
+        self.sockets = (Shut(fileno=daemon_end.detach()), client_end)
         daemon_side = Dispatcher()
         daemon_side.register("session.hello", self.hello)
         daemon_side.register("files.close", self.files_close)
@@ -71,8 +65,8 @@ class Ends:
         client_side = Dispatcher(CLIENT_DOCUMENT)
         client_side.register("client.ping", lambda call: call.params["n"] + 1)
         client_side.register("epic.event", self.told)
-        self.daemon = Peer(Sock(self.sockets[0]), daemon_side, name="daemon")
-        self.client = Peer(Sock(self.sockets[1]), client_side, name="client")
+        self.daemon = Peer(self.sockets[0], daemon_side, name="daemon")
+        self.client = Peer(self.sockets[1], client_side, name="client")
 
     def hello(self, call: Call) -> dict[str, Any]:
         admit(call.params["protocol"])
@@ -100,8 +94,8 @@ class Ends:
 def ends() -> Iterator[Ends]:
     made = Ends()
     yield made
-    made.client.close()
     made.daemon.close()
+    made.client.close()
 
 
 @pytest.fixture
