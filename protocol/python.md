@@ -52,6 +52,7 @@ It is normative. It is cited by the tag [PYTHON].
   - [4.18. `Link`](#418-link)
   - [4.19. `fakes`](#419-fakes)
   - [4.20. Returned types](#420-returned-types)
+  - [4.21. `Client`](#421-client)
 - [5. Security Considerations](#5-security-considerations)
 - [6. References](#6-references)
   - [6.1. Normative References](#61-normative-references)
@@ -2032,15 +2033,17 @@ removed.
 
 Section 4 governs the Python module `hmz.sdk`: every name it offers, the signature of every public
 member of each, what each member does as observed by its caller, and what each raises. The module is
-the supported way for a program that is not **hmz** to drive **hmz** on **this machine**: one
-**workspace** straight in the calling process (`Hmz`), and the **epics** held by the **daemon** for
-every **frontend** (`Daemons`, `Daemon`, `Link`).
+the supported way for a program that is not **hmz** to drive **hmz**: the library one **epic** is
+run with in a host process and in the tests of a flow (`Hmz`, `Run`, `Host`, `fakes`), the settings
+of **this machine** (`Flows`, `Accounts`, `Runtimes` and the rest), and the client of a **daemon**,
+through which a program holds its epics as every **frontend** does (`Hmz.exec`, `Daemons`, `Daemon`,
+`Link`, `Client`).
 
 Out of scope:
 
 - The flow API a **flow author** writes against, and the in-memory drivers of `fakes`: Section 3.
-- The wire protocol between a frontend and the daemon: Section 4 of [DAEMON].
-- The HTTP API served by `hmz web`: Section 4 of [WEB].
+- The sessions between a client and a daemon: [WIRE]; the methods a daemon serves: Section 4 of
+  [DAEMON].
 - The settings files and every other file on disk: Section 3 of [FILES], Section 4 of [FILES],
   Section 6 of [FILES], Section 7 of [FILES].
 - The `-a`, `-e`, `-f` and `-p` spellings and the `hmz exec` command line: [CLI].
@@ -2070,7 +2073,8 @@ offered under, a ref, or a path.
 **4.2.8** The term host MUST carry the meaning Section 3.2.1 of [DAEMON] gives it.
 
 **4.2.9** **Slot**: the text naming one of a workspace's hosts, as Section 4.2.6 of [DAEMON] defines
-it: `""` for the workspace's own host, `chat:<hex>` for one chat's.
+it: `""` for the workspace's own host, `chat:<hex>` for one chat's, `exec:<hex>` for one `hmz
+exec`'s.
 
 **4.2.10** **Epic directory**: the directory one epic is written into, as Section 6 of [FILES]
 defines it. An epic is named by its epic directory's base name.
@@ -2078,12 +2082,12 @@ defines it. An epic is named by its epic directory's base name.
 ### 4.3. The module
 
 ```python
-__all__ = ["Accounts", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses", "Hmz",
-           "Host", "Link", "Refused", "Run", "Runtimes", "fakes"]
+__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses",
+           "Hmz", "Host", "Link", "Refused", "Run", "Runtimes", "fakes"]
 def __getattr__(name: str) -> object: ...
 ```
 
-**4.3.1** `hmz.sdk.__all__` MUST be exactly the fourteen names listed above.
+**4.3.1** `hmz.sdk.__all__` MUST be exactly the fifteen names listed above.
 
 **4.3.2** Importing `hmz.sdk` MUST NOT import any other module of the `hmz` package.
 
@@ -2204,8 +2208,8 @@ are being reported.
 **4.4.3.2** `Hmz.reports()` MUST NOT ask the user anything.
 
 **4.4.3.3** `Hmz.carried(pages)` MUST return, for each page named out of `general`, `fallback`,
-`runtimes` and `backup`, the HTTP path and the JSON body that writes that page's settings of this
-machine to another daemon's `hmz web`, as Section 4.13 of [WEB] defines those paths.
+`runtimes` and `backup`, the RPC methods and their parameters that write that page's settings of
+this machine to another daemon, as Section 4.18 of [DAEMON] defines those methods.
 
 **4.4.3.4** `Hmz.carried(pages)` MUST NOT include any value that only a secret sets.
 
@@ -2283,21 +2287,33 @@ identical in effect to the one `Hmz.exec` makes of the same `argv`.
 **4.4.5.19** Where each agent's harness runs MUST NOT be a parameter of `Hmz.run`: it MUST follow
 from the runtime the work is placed on, as Section 6 of [CORE] states.
 
+**4.4.5.20** `Hmz.run`, `Hmz.runner` and `Run` MUST drive the epic in the calling process: they are
+what a host runs its epics with (Section 4.15) and what `fakes` drive (Section 4.19). A program that
+is a frontend MUST NOT hold an epic with them, and MUST hold it through the daemon with `Hmz.exec`,
+`Link.start` or `Client` (Section 3.3.8 of [DAEMON]).
+
 #### 4.4.6. Executing a command line
 
-**4.4.6.1** `Hmz.exec(argv)` MUST do `Hmz.read(argv)`, then `Hmz.run(...)` with every field of the
-`Line`, then `Run.run()`, and return what the flow returned.
+**4.4.6.1** `Hmz.exec(argv)` MUST do `Hmz.read(argv)`, and then start the epic of every field of
+the `Line` through this machine's daemon, on a new exec slot of the workspace, with every role away,
+as `hmz exec` does (Section 7.1.1 of [CLI]), MUST follow it to its end, and MUST return the `result`
+of its `ended` record (Section 4.9.2.9 of [DAEMON]).
 
 **4.4.6.2** `Hmz.exec(argv)` MUST draw nothing, MUST install no signal handler, and MUST raise
-`Refused`, `BudgetExceeded` and what the flow raises unchanged rather than exit.
+rather than exit: `Refused` where `epic.start` is refused, `BudgetExceeded` where the epic ended
+`budget`, and `RuntimeError` with the `why` of its `ended` record where it ended `failed` or
+`crashed`.
+
+**4.4.6.3** `Hmz.exec(argv)` MUST raise `OSError` where the daemon cannot be reached, as
+`Client.local` does (Section 4.21.1).
 
 #### 4.4.7. Hosts
 
 **4.4.7.1** `Hmz.host(slot)` MUST return one `Host` per `Hmz` instance and slot, made on the first
 call with that slot and returned unchanged on every later call.
 
-**4.4.7.2** `Hmz.host(slot)` MUST raise `ValueError` for a slot that is neither `""` nor
-`chat:<hex>`.
+**4.4.7.2** `Hmz.host(slot)` MUST raise `ValueError` for a slot that is neither `""`, `chat:<hex>`
+nor `exec:<hex>`.
 
 ### 4.5. `Run`
 
@@ -2400,7 +2416,9 @@ epic has been stopped.
 ### 4.6. `Refused`
 
 ```python
-class Refused(ValueError): ...
+class Refused(ValueError):
+    code: int
+    data: dict[str, Any]
 ```
 
 **4.6.1** `Refused` MUST be raised for an epic, or a request to a host, refused before anything of
@@ -2411,6 +2429,10 @@ exec` prints after `hmz exec: error: ` and to what a host answers every frontend
 
 **4.6.3** Where an underlying exception caused the refusal, it MUST be the `__cause__` of the
 `Refused`.
+
+**4.6.4** `Refused.code` MUST be the error code of Section 6.6 of [WIRE] a daemon refused with,
+`409` for a host's refusal, and `0` for a refusal made in the calling process; `Refused.data` MUST
+be the error's `data`, or `{}`.
 
 ### 4.7. `Flows`
 
@@ -2903,42 +2925,38 @@ class Registry:  # the class's own name is Daemons
 class Remotes:
     def state(self, name: str) -> dict[str, str]: ...
     def connect(self, name: str) -> dict[str, str]: ...
-    def reached(self, name: str) -> tuple[int, str]: ...
-    def asks(self, name: str) -> tuple[int, dict[str, str]]: ...
-    def asked(self, name: str, path: str, body: dict[str, Any] | None = None, *,
-              into: Path | None = None) -> Any: ...
-    def followed(self, name: str, path: str, going: threading.Event
-                 ) -> Iterator[tuple[str, Any]]: ...
+    def client(self, name: str) -> Client: ...
+    def pair(self, name: str, code: str, *, device: str | None = None) -> dict[str, Any]: ...
     def close(self) -> None: ...
 class Unreached(RuntimeError):
     seen: dict[str, str]
     status: int
 ```
 
-**4.14.1** The registry MUST read and write the `daemons` list of Section 3 of [FILES]; `local` MUST
-name this machine's own daemon, which is never written there.
+**4.14.1** The registry MUST read and write the `daemons` list of Section 3.4.6 of [FILES]; `local`
+MUST name this machine's own daemon, which is never written there.
 
-**4.14.2** `Registry.all()` MUST return every daemon written, ssh or EasyTier, in order, leaving out
-an entry that cannot be one; `Registry.find(name)` MUST return one of them, or `None`.
+**4.14.2** `Registry.all()` MUST return every daemon written, `{name, id, routes}`, in order,
+leaving out an entry that cannot be one; `Registry.find(name)` MUST return one of them, or `None`.
 
-**4.14.3** `Registry.write(name, fields, replace=...)` MUST write the daemon, or overwrite the one
-of that name where `replace`, and return it as written; it MUST raise `ValueError` where it cannot
-be one, `FileExistsError` where the name is taken and `replace` is false, and `OSError` where the
-write fails. Where `replace` and `fields` are of an EasyTier daemon without `secret`, it MUST keep
-the secret written; a secret shorter than 16 bytes MUST raise `ValueError`.
+**4.14.3** `Registry.write(name, fields, replace=...)` MUST write the daemon of `fields` `id` and
+`routes`, or overwrite the one of that name where `replace`, and return it as written; it MUST raise
+`ValueError` where it cannot be one, `FileExistsError` where the name is taken and `replace` is
+false, and `OSError` where the write fails.
 
 **4.14.4** `Registry.remove(name)` MUST remove the daemon; it MUST raise `ValueError` for `local`,
 `LookupError` for an unknown name, and `OSError` where the write fails.
 
 **4.14.5** `Registry.offered()` MUST map each `Host` entry of the ssh config not yet written to the
-daemon it would be; `Registry.imported(wanted)` MUST write a daemon for each `Host` entry named,
-skipping those already written, and return their names. `Registry.imported` MUST raise `ValueError`
-for an empty list or a host that cannot be one, `LookupError` for a host the config does not name,
-and `OSError` where the config cannot be read or the file written.
+daemon it would be, with the route `stdio:ssh://<Host>`; `Registry.imported(wanted)` MUST write a
+daemon for each `Host` entry named, skipping those already written, and return their names.
+`Registry.imported` MUST raise `ValueError` for an empty list or a host that cannot be one,
+`LookupError` for a host the config does not name, and `OSError` where the config cannot be read or
+the file written.
 
 **4.14.6** `Registry.remotes(version)` MUST return a `Remotes` that reaches each daemon as it is
-first asked for, installing `hmz` at `version` over ssh, or at the calling process's version where
-`version` is `None`, as Section 3 of [DAEMON] defines reaching.
+first asked for, as Section 3.8.2 of [DAEMON] states, installing `hmz` at `version` over a
+`stdio:ssh` route, or at the calling process's version where `version` is `None`.
 
 **4.14.7** `Remotes.state(name)` MUST return `{state, detail, version}`, `state` being one of
 `idle`, `connecting`, `installing`, `up` and `failed`; `local` MUST be `up` at the calling process's
@@ -2948,25 +2966,19 @@ version.
 it failed, and return its state; it MUST raise `LookupError` for an unknown name and `Unreached`
 where the `Remotes` is closing.
 
-**4.14.9** `Remotes.reached(name)` MUST return the port of this machine's loopback that leads to the
-daemon's `hmz web`, over ssh or EasyTier, and that server's key, reaching it first where needed;
-`Remotes.asks(name)` MUST return that port and the headers a request carries to be admitted. Both
-MUST raise `Unreached` where it is not up and `LookupError` for an unknown name.
+**4.14.9** `Remotes.client(name)` MUST return the `Client` (Section 4.21) of the session to that
+daemon, reaching it first where needed, and MUST pin the id it answers where the entry's `id` is
+`""` (Section 3.8.2.7 of [DAEMON]); it MUST raise `Unreached` where the daemon cannot be reached,
+with `Unreached.seen` its state, and `LookupError` for an unknown name.
 
-**4.14.10** `Remotes.asked(name, path, body, into=...)` MUST send the request `path` (a path of
-Section 4 of [WEB], with its query) to the daemon's `hmz web`, as a `POST` of `body` where `body` is
-not `None` and a `GET` otherwise, and MUST return its JSON answer, or, where `into` is given, the
-number of bytes written there.
+**4.14.10** `Remotes.pair(name, code, device=...)` MUST claim the pairing code over its routes as
+Section 4.5.7 of [WIRE] states, under the device name `device`, this machine's host name where it is
+`None`, MUST then write the daemon under `name` with the code's id and routes, and MUST return it as
+written; it MUST raise `ValueError` for a code that is not one and `Unreached` where the claim is
+refused or no route opens, with `Unreached.status` the error code of the refusal, or `503`.
 
-**4.14.11** `Remotes.followed(name, path, going)` MUST yield the name and JSON data of each
-server-sent event the daemon's `hmz web` sends at `path`, until the stream ends or `going` is set.
-
-**4.14.12** `Remotes.asked` and `Remotes.followed` MUST raise `Unreached` where the daemon is not up
-or its `hmz web` refused, with `Unreached.status` the HTTP status it refused with, or `503` where it
-was not reached, and `Unreached.seen` its state where it is not up.
-
-**4.14.13** `Remotes.close()` MUST stop reaching every daemon and stop every process started for
-one.
+**4.14.11** `Remotes.close()` MUST close every session and stop every process started to reach a
+daemon.
 
 ### 4.15. `Host`
 
@@ -2988,8 +3000,8 @@ class Host:
 [DAEMON] states a host behaves: the same messages, in the same order, and the same answers and
 refusals to the same requests.
 
-**4.15.2** `Host.attach(name, kind, heard, replay=...)` MUST attach a frontend as the `hello`
-request of Section 4.7 of [DAEMON] does, MUST call `heard` with every message for it, in order, on a
+**4.15.2** `Host.attach(name, kind, heard, replay=...)` MUST attach a frontend as `epic.attach`
+of Section 4.7 of [DAEMON] does, MUST call `heard` with every message for it, in order, on a
 thread that is not the caller's, and MUST return its client id; it MUST raise `RuntimeError` once
 the host is closed.
 
@@ -3010,8 +3022,9 @@ of the last, or `None`.
 
 **4.15.9** `Host.printed(text)` MUST send one `printed` record carrying `text` to every frontend.
 
-**4.15.10** `Host.asked(client, said)` MUST carry out one request of Section 4.8 of [DAEMON] for
-that frontend and return its answer without the `type` and `to` fields of a reply.
+**4.15.10** `Host.asked(client, said)` MUST carry out one call to an epic of Section 4.8 of
+[DAEMON] for that frontend, `said["do"]` naming it by what follows `epic.` and its other fields its
+parameters, and return its result.
 
 **4.15.11** `Host.status()` MUST return the keys of Section 4.6.4.1 of [DAEMON].
 
@@ -3035,21 +3048,21 @@ the current directory where it is `None`.
 Section 4.4 of [DAEMON] finds it, or `None` where the daemon holds no live host of it.
 
 **4.16.3** Where this machine's daemon speaks another protocol version, `Daemons.here` MUST return a
-`Daemon` describing that daemon, its `protocol` the version it wrote or `0`.
+`Daemon` describing that daemon, its `protocol` the version it wrote or `""`.
 
 **4.16.4** `Daemons.all()` MUST return a `Daemon` for every live host of every workspace and slot
 the daemon holds, oldest first; `[]` where no daemon answers; and only the daemon itself where it
 speaks another protocol version.
 
 **4.16.5** `Daemons.host(workspace)` MUST return the `Daemon` of the workspace's own host, starting
-this machine's daemon and then that host where they are absent, and waiting at most 10 seconds for
-each to come up.
+this machine's daemon where it is absent and asking it for that host (`hosts.open`, Section 4.6.2.3
+of [DAEMON]), and waiting at most 10 seconds for each to come up.
 
 **4.16.6** `Daemons.host` MUST raise `OSError` where this machine's daemon speaks another protocol
 version, with the message of Section 4.17.9 prefixed by `[Errno <EADDRINUSE>] `, and where no host
 could be started.
 
-**4.16.7** `Daemons` MUST NOT consult `HUMANIZE_DAEMON`.
+**4.16.7** `Daemons` MUST reach this machine's daemon over `unix:` (Section 3.4.1 of [WIRE]).
 
 ### 4.17. `Daemon`
 
@@ -3060,7 +3073,7 @@ class Daemon:
     workspace: str
     pid: int
     started: str
-    protocol: int = 0
+    protocol: str = ""
     slot: str = ""
     alive: bool  # property
     def link(self, name: str = "", kind: str = "sdk", *, replay: bool = True) -> Link: ...
@@ -3074,29 +3087,29 @@ class Daemon:
 **4.17.1** `Daemon.at` MUST be this machine's daemon directory (Section 4.3 of [DAEMON]);
 `Daemon.workspace` the workspace path, with every link followed; `Daemon.pid` the host's process;
 `Daemon.started` when that process started, in UTC as `%Y-%m-%dT%H:%M:%SZ`; `Daemon.protocol` the
-protocol version of Section 4.12 of [DAEMON] the daemon speaks, `0` for one that wrote none; and
+protocol version of Section 4.12 of [DAEMON] the daemon speaks, `""` for one that wrote none; and
 `Daemon.slot` the host's slot.
 
 **4.17.2** `Daemon.alive` MUST be whether a process of `pid` exists, counting a process the caller
 cannot signal as existing.
 
-**4.17.3** `Daemon.link(name, kind, replay=...)` MUST open a connection to the host, say `hello`
-with `name`, `kind`, `replay`, the workspace and the slot, and return the attached `Link`.
+**4.17.3** `Daemon.link(name, kind, replay=...)` MUST open a session to the daemon, say
+`session.hello` with `name` and `kind`, call `epic.attach` with the workspace, the slot and
+`replay`, and return the attached `Link`.
 
-**4.17.4** `Daemon.link` MUST raise `OSError` where nothing accepts the connection, or `hello` is
-refused or not answered within 10 seconds.
+**4.17.4** `Daemon.link` MUST raise `OSError` where nothing accepts the session, or `session.hello`
+or `epic.attach` is refused or not answered within 10 seconds.
 
-**4.17.5** `Daemon.status()` MUST return the host's answer to the control request `status`; where
-the host does not answer, it MUST return `pid`, `workspace`, `slot` (where not `""`), `started`,
-`kind` `host` and `protocol` from the `Daemon` itself, with `attached` `0`, `flows` `[]` and `calls`
-`[]`.
+**4.17.5** `Daemon.status()` MUST return the daemon's answer to `hosts.status`; where it does not
+answer, it MUST return `pid`, `workspace`, `slot` (where not `""`), `started`, `kind` `host` and
+`protocol` from the `Daemon` itself, with `attached` `0`, `flows` `[]` and `calls` `[]`.
 
-**4.17.6** `Daemon.detach()` MUST send the control request `detach` and return how many frontends
-were let go, or `0` where the host did not answer.
+**4.17.6** `Daemon.detach()` MUST call `hosts.detach` and return how many frontends were let go, or
+`0` where it was not answered.
 
-**4.17.7** `Daemon.stop(seconds=...)` MUST send the control request `stop` and wait at most
-`seconds` for the host process to exit, returning whether it exited; where the request is not
-answered `ok`, it MUST return whether the process no longer exists.
+**4.17.7** `Daemon.stop(seconds=...)` MUST call `hosts.stop` and wait at most `seconds` for the host
+process to exit, returning whether it exited; where the call is refused, it MUST return whether the
+process no longer exists.
 
 **4.17.8** `Daemon.kill(seconds=...)` MUST send `SIGTERM` to the host process, then `SIGKILL` where
 it has not exited after `seconds`, MUST leave the daemon and every other host running, and MUST
@@ -3106,8 +3119,9 @@ return whether the process exited.
 <workspace> are held by an older Humanize (pid <pid>); stop it with that version`, with `on this
 machine` in place of `in <workspace>` where `workspace` is `""`.
 
-**4.17.10** `Daemon.asked(said)` MUST send one control request with `workspace` and, where not `""`,
-`slot` added, and return the answer, or `{}` where none came within 5 seconds.
+**4.17.10** `Daemon.asked(said)` MUST call `hosts.<do>` (Section 4.6 of [DAEMON]), `said["do"]`
+naming it, with `workspace` and, where not `""`, `slot` added, and return the result, or `{}` where
+none came within 5 seconds or the call was refused.
 
 ### 4.18. `Link`
 
@@ -3139,9 +3153,9 @@ class Link:
 
 #### 4.18.1. Delivery
 
-**4.18.1.1** A `Link` MUST be one frontend of one host, whether the host is in the calling process
-or reached through the daemon, and MUST behave identically in both cases except as Section 4.18.4
-states.
+**4.18.1.1** A `Link` MUST be one frontend of one host -- one epic subscription where the host is
+reached through a daemon -- whether the host is in the calling process or reached through a daemon,
+and MUST behave identically in both cases except as Section 4.18.4 states.
 
 **4.18.1.2** `Link.client` MUST be the client id the host gave the frontend.
 
@@ -3158,20 +3172,21 @@ suppressed; a second call MUST raise `RuntimeError`.
 
 #### 4.18.2. Requests
 
-**4.18.2.1** `Link.asked(said, seconds=...)` MUST send one request of Section 4.8 of [DAEMON] and
-return its answer, without the `type` and `to` fields of the reply.
+**4.18.2.1** `Link.asked(said, seconds=...)` MUST make one call to an epic of Section 4.8 of
+[DAEMON], `said["do"]` naming it by what follows `epic.` and its other fields its parameters, and
+return its result.
 
-**4.18.2.2** `Link.asked` MUST raise `Refused` with the reply's `why` where the reply says `ok`
-`false`, and `TimeoutError` with the message `no answer to '<do>' in <seconds>s` where no reply came
-within `seconds`.
+**4.18.2.2** `Link.asked` MUST raise `Refused` with the host's `why` where it refuses, and
+`TimeoutError` with the message `no answer to '<do>' in <seconds>s` where no answer came within
+`seconds`.
 
-**4.18.2.3** `Link.start(...)` MUST send the request `start` with every argument, `agents` and
+**4.18.2.3** `Link.start(...)` MUST call `epic.start` with every argument, `agents` and
 `envs` as mappings of role to agent spec and environment spec, `params` and `budget` as JSON values
 of the mapping or model given, and `resume` as a boolean or the text of the path.
 
 **4.18.2.4** `Link.say`, `Link.answer`, `Link.stop`, `Link.force`, `Link.afk`, `Link.claim`,
-`Link.release`, `Link.board` and `Link.aside` MUST each send the request of the same name with its
-arguments as that request's fields.
+`Link.release`, `Link.board` and `Link.aside` MUST each call `epic.<name>` with its arguments as
+that call's parameters, writes with an `idem` of their own.
 
 **4.18.2.5** Once the host has let the frontend go, every request MUST raise `Refused` with the
 reason the `gone` message gave.
@@ -3192,8 +3207,7 @@ on the calling thread.
 host could not be reached: <error>`.
 
 **4.18.4.3** A `Link` through the daemon MUST deliver a `gone` message with `why` `the host went
-away` where the connection ends, fails or carries a frame of no valid length without a `gone`
-message, and with `why` the text of a `GONE` frame where one arrives.
+away` where its session ends, fails or carries a frame of no valid length without a `gone` message.
 
 ### 4.19. `fakes`
 
@@ -3301,6 +3315,50 @@ the property `at`, and the method `held()` returning its fields as a mapping.
 None`, `gpu_memory: int`, `runtimes: tuple[str, ...]`, `version: str`, `short: tuple[str, ...]` and
 `nodes: tuple[str, ...]`.
 
+### 4.21. `Client`
+
+```python
+class Client:
+    daemon_id: str; version: str; protocol: str; capabilities: tuple[str, ...]
+    device: str                                                          # properties
+    @classmethod
+    def local(cls, *, name: str = "", kind: str = "sdk") -> Client: ...
+    def call(self, method: str, params: Mapping[str, Any] | None = None, *,
+             idem: str | None = None, seconds: float | None = None) -> Any: ...
+    def heard(self, listener: Callable[[str, dict[str, Any]], None]) -> None: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(self, kind, why, traceback) -> None: ...
+```
+
+One `Client` is one session of [WIRE] with one daemon.
+
+**4.21.1** `Client.local(name, kind)` MUST open a session to this machine's daemon over `unix:`,
+starting the daemon where none runs, MUST say `session.hello` with `name` and `kind`, and MUST
+return the `Client`; it MUST raise `OSError` where the daemon cannot be reached, and where it speaks
+another protocol, with the message of Section 3.7.5 of [DAEMON].
+
+**4.21.2** `Client.daemon_id`, `version`, `protocol`, `capabilities` and `device` MUST be what
+`session.hello` answered (Section 6.5.4 of [WIRE]).
+
+**4.21.3** `Client.call(method, params, idem=..., seconds=...)` MUST make one call of [OPENRPC],
+with `idem` added to `params` where it is given, and MUST return its result.
+
+**4.21.4** `Client.call` MUST raise `Refused` with the error's message, its `code` and its `data`
+where the daemon answers an error, and `TimeoutError` with the message `no answer to '<method>' in
+<seconds>s` where no answer came within `seconds`.
+
+**4.21.5** `Client.heard(listener)` MUST call `listener(method, params)` with every notification of
+the session, in order, on a thread of the client's own; an exception raised by `listener` MUST be
+suppressed; a second call MUST raise `RuntimeError`.
+
+**4.21.6** `Client.close()` MUST close the session, ending every subscription of it and leaving
+every epic going; a second call MUST do nothing, and leaving a `with` block over a `Client` MUST
+call it.
+
+**4.21.7** A call on a `Client` whose session has ended MUST raise `Refused` with `code` `503` and
+the message `the daemon went away`.
+
 ## 5. Security Considerations
 
 This section states no requirement of its own. It names the properties stated elsewhere in this
@@ -3330,6 +3388,8 @@ document on which the security of a user's machine, credentials and work depends
   3.13.1.3, Section 3.13.3 and Section 3.14.4.5).
 - `Hmz.carried` returns the settings of this machine for another daemon without any value that only
   a secret sets (Section 4.4.3.4).
+- `Hmz.exec` holds its epic through the daemon, and `Hmz.run` is for the host and the tests of a
+  flow alone (Section 4.4.5.20 and Section 4.4.6.1).
 - `Flowverses.plain` and `Flowverses.whence` return a flowverse's URL with its credentials removed
   (Section 4.8.21 and Section 4.8.22).
 - `Accounts.environ` returns the environment a turn run as an account receives, and
@@ -3339,15 +3399,12 @@ document on which the security of a user's machine, credentials and work depends
   does not answer rather than raising (Section 4.10.13).
 - `Epics.bundled` writes a `.hmzepic` archive with credentials struck out, and `Epics.imported`
   refuses an archive holding an unsafe member (Section 4.12.17 and Section 4.12.19).
-- `Registry.write` keeps the written secret of an EasyTier daemon overwritten without one and
-  refuses a secret shorter than 16 bytes (Section 4.14.3).
-- `Remotes` reaches another machine's `hmz web` only through a port of this machine's loopback
-  carried over ssh or EasyTier, installs `hmz` on that machine over ssh, and returns to the calling
-  program the server's key and the headers that admit a request (Section 4.14.6 and
-  Section 4.14.9).
-- `Daemons` finds this machine's daemon without consulting `HUMANIZE_DAEMON`, and `Daemon.kill`
-  signals only the one host process, leaving the daemon and every other host running
-  (Section 4.16.7 and Section 4.17.8).
+- `Remotes` reaches another machine's daemon only over its routes, pinning its id, installs `hmz`
+  on that machine over ssh, and pairs this machine's device with a daemon from a pairing code
+  (Section 4.14.6, Section 4.14.9 and Section 4.14.10); a `Client` it returns is as whole on that
+  daemon as any frontend (Section 4.21).
+- `Daemons` finds this machine's daemon over its socket, and `Daemon.kill` signals only the one host
+  process, leaving the daemon and every other host running (Section 4.16.7 and Section 4.17.8).
 
 ## 6. References
 
@@ -3358,6 +3415,8 @@ document on which the security of a user's machine, credentials and work depends
 - **[RFC8174]** Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words", BCP 14, RFC
   8174, May 2017, <https://www.rfc-editor.org/info/rfc8174>.
 - **[CORE]** "The Humanize Protocol: Core Concepts and Functional Behaviour", [`core.md`](core.md).
+- **[WIRE]** "The Humanize Protocol: Carriers, Sessions and RPC", [`wire.md`](wire.md).
+- **[OPENRPC]** "The Humanize Protocol: OpenRPC Document", [`openrpc.json`](openrpc.json).
 - **[CLI]** "The Humanize Protocol: Command-Line Interface", [`cli.md`](cli.md).
 - **[DAEMON]** "The Humanize Protocol: Daemon", [`daemon.md`](daemon.md).
 - **[WEB]** "The Humanize Protocol: Web Interface", [`web.md`](web.md).

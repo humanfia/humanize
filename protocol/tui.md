@@ -955,8 +955,8 @@ targets the epic was started with, else the defaults, without waiting for it.
 ### 17.3. Another daemon's epics
 
 **17.3.1** On a daemon of another machine, `/epics` MUST list the epics that daemon holds, read
-through its own web interface reached over ssh in the background, and MUST say why where it
-cannot be reached.
+over a session to it (Section 3.8 of [DAEMON]) in the background, and MUST say why where it cannot
+be reached.
 
 **17.3.2** `enter`, `m` or a click on such an epic MUST offer `follow` for one a host there holds,
 `export` for one not going, `upload`, `copy name`, `copy task` and `copy workspace`.
@@ -964,9 +964,9 @@ cannot be reached.
 **17.3.3** `n` or **New epic…** MUST start an epic there from a directory, a flow, a task and its
 agents, set up otherwise as that directory last ran the flow, and MUST follow it.
 
-**17.3.4** Following an epic there MUST show what was asked, what each agent said, what the flow
-asks and how it stands; a line typed MUST answer what it asks, or otherwise be said to it; `esc`
-MUST go back to the list, leaving the epic going there.
+**17.3.4** Following an epic there MUST attach to its host there and show it as an epic of Local
+is shown, with every command that steers it (Section 3.8.4 of [DAEMON]); `esc` MUST go back to the
+list, leaving the epic going there.
 
 ## 18. `/resume`
 
@@ -1025,26 +1025,31 @@ transcript; details off MUST show the agents' answers only.
 
 **19.4.1** The Notifications page MUST offer, each on or off, the kinds Done, Failed, Stopped,
 Questions and Chat turns, and **System**, whether the terminal's bell rings and a system
-notification is shown too; these MUST be the same settings as the web interface's.
+notification is shown too, kept in the settings file (Section 3.4.5 of [FILES]); the page keeps
+its own (Section 3.15 of [WEB]).
 
-**19.4.2** For every epic on this machine, the interface MUST show each notice of a kind turned on
-(Section 10 of [CORE]) as a card that goes after a while, and, with **System** on, MUST ring the
-bell and show a system notification.
+**19.4.2** For every epic of Local and of every remote daemon that is `up`, the interface MUST show
+each notice of a kind turned on (Section 10 of [CORE]) as a card that goes after a while, and, with
+**System** on, MUST ring the bell and show a system notification.
 
 **19.4.3** The interface MUST NOT give a notice of an epic of this directory while its log or the
 monitor is on the screen.
 
-**19.4.4** The interface MUST work out notices from each host's status, without attaching to it.
+**19.4.4** The interface MUST be told notices by each daemon (`notices.subscribe`, Section 4.19 of
+[DAEMON]), resuming after the last notice heard of it.
 
 ### 19.5. Daemons
 
 **19.5.1** The Daemons page MUST list this machine's daemon, `Local`, and every daemon of another
-machine the web interface keeps (Section 3.13 of [WEB]), the same list, each with what reaches it
-and how it stands, redrawn as that changes.
+machine kept in the settings file (Section 3.4.6 of [FILES]), each with its routes and how it stands
+(Section 3.8.2 of [DAEMON]), redrawn as that changes.
 
-**19.5.2** The Daemons page MUST offer **Add daemon** and **edit…** on one form; **Import…** of the
-hosts of the ssh config not added yet; and per daemon **connect**, **remove** and **copy name**;
-each written at once.
+**19.5.2** The Daemons page MUST offer **Add daemon** and **edit…** on one form, which takes a name
+and either a pairing code, claimed at once (Section 4.5.7 of [WIRE]), or routes in order;
+**Import…** of the hosts of the ssh config not added yet, each as a `stdio:ssh` route; per daemon
+**connect**, **remove** and **copy name**; and, for each daemon that is `up`, **Pair a device…**,
+which shows a pairing code of it, and **Devices…**, which lists the devices paired with it and
+revokes one after confirmation; each written at once.
 
 **19.5.3** The Daemons page MUST offer **Batch apply…**: this machine's settings of the pages
 picked, the accounts excluded, written to each daemon picked as the web interface's `Batch apply`
@@ -1370,8 +1375,10 @@ in this document that bear on security.
   of hmz (Section 3.5). Those fetches install nothing (Section 3.5), and a flow is installed,
   updated or uninstalled only from `/flow` (Section 16.1.2) and not while an epic is going
   (Section 3.9).
-- **Other machines.** The epics of another machine's daemon are read through that daemon's web
-  interface reached over ssh (Section 17.3.1), and an epic can be started there (Section 17.3.3).
+- **Other machines.** The epics of another machine's daemon are read over a session to it, over
+  ssh or over mutual TLS with a paired device (Section 17.3.1), an epic can be started and steered
+  there (Section 17.3.3 and Section 17.3.4), and a device can be paired with a daemon or revoked
+  from it (Section 19.5.2).
   Importing the hosts of an ssh config does not write to that config (Section 19.9.2).
 - **Files taken in and written out.** Importing takes a `.hmzepic` at a path the user gives or
   drops onto the terminal and refuses a file it cannot import (Section 17.1.5); **Download…**
@@ -1399,6 +1406,7 @@ in this document that bear on security.
 - **[CORE]** "The Humanize Protocol: Core Concepts and Functional Behaviour", [`core.md`](core.md).
 - **[CLI]** "The Humanize Protocol: Command-Line Interface", [`cli.md`](cli.md).
 - **[DAEMON]** "The Humanize Protocol: Daemon", [`daemon.md`](daemon.md).
+- **[WIRE]** "The Humanize Protocol: Carriers, Sessions and RPC", [`wire.md`](wire.md).
 - **[WEB]** "The Humanize Protocol: Web Interface", [`web.md`](web.md).
 - **[PYTHON]** "The Humanize Protocol: Python Interfaces", [`python.md`](python.md).
 - **[FILES]** "The Humanize Protocol: Settings, Environment Variables and Files", [`files.md`](files.md).
