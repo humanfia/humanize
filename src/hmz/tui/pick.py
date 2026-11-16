@@ -11600,7 +11600,8 @@ class Epics(Sheet[Doing]):
         self._reading = True
         self._fill()
         ran = await asyncio.to_thread(self._read, every=every)
-        if every == self._every:
+        # Gone while it read: closed, or an epic opened from it, it has nothing to show.
+        if every == self._every and self.is_attached:
             self._ran = ran
             self._reading = False
             self._was, self._from = was, start
@@ -12465,6 +12466,9 @@ class RemoteEpics(Sheet[Doing]):
             self._said = bad(escape(str(why)))
             self._ran = []
         self._reading = False
+        # Gone while it read -- an epic started from it closes it -- it has nothing to show.
+        if not self.is_attached:
+            return
         self._fill()
         self._settles_focus()
 
