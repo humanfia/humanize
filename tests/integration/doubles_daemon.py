@@ -144,15 +144,18 @@ def project(
 
 
 def folds(seconds: float, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Has every host started from here on fold a chat nobody reads `seconds` after its turn.
+    """Has every host from here on fold a chat nobody reads `seconds` after its turn.
 
-    A host is a fresh interpreter, which inherits no attribute set here: it is told through a
-    `sitecustomize` on `PYTHONPATH`, which every process started from here inherits and which
-    sets the fold in a host process alone.
+    One held in this process is told here. A host process is a fresh interpreter, which
+    inherits no attribute set here: it is told through a `sitecustomize` on `PYTHONPATH`, which
+    every process started from here inherits and which sets the fold in a host process alone.
     """
     import tempfile
     from pathlib import Path
 
+    from hmz.runtime.doing import hosting
+
+    monkeypatch.setattr(hosting, "FOLD", seconds)
     at = Path(tempfile.mkdtemp(prefix="folds-"))
     (at / "sitecustomize.py").write_text(
         "import sys\n"
