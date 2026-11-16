@@ -567,23 +567,25 @@ hmz web [--port <port>] [--no-open] [--attached]
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--port <port>` | `0` | The port to listen on, on `127.0.0.1` and, where this machine has IPv6, on `::1`; `0` picks any free one on both. |
+| `--port <port>` | the port the last `hmz web` of this home listened on (`~/.hmz/web-port`), else `0` | The port to listen on, on `127.0.0.1` and, where this machine has IPv6, on `::1`; `0` picks any free one on both, as does a kept port that is taken now. |
 | `--no-open` | off | Print the address and open no browser. |
 | `--attached` | off | Stop once standard input closes. |
 
-Serves this directory's runs to a browser on this machine until `SIGINT`, `SIGTERM` or
-`SIGHUP` -- or, with `--attached`, until standard input closes, which is how a program that
-started it takes it down even when that program crashes or is killed -- as one more frontend
-of them, named `browser`, of `kind` `web`. Once listening it prints
+Serves the page to a browser on this machine until `SIGINT`, `SIGTERM` or `SIGHUP` -- or,
+with `--attached`, until standard input closes, which is how a program that started it takes it
+down even when that program crashes or is killed. The page is one more frontend of every
+daemon it reaches, of `kind` `web`, speaking JSON-RPC to this machine's daemon -- reached, and
+started where none runs, before `hmz web` listens -- and to any other the user adds; `hmz web`
+holds no epic itself, and this directory is only the one a new epic is offered first. Once
+listening it writes the port to `~/.hmz/web-port`, prints
 `hmz web: http://127.0.0.1:<port>/?key=<key>` to stdout and opens that address in a browser.
-The runs are held as `hmz` holds them: by this directory's host process, through this
-machine's daemon. What it serves, refuses and answers is the [Web reference](/reference/web).
+What it serves, refuses and answers is the [Web reference](/reference/web).
 
 | Condition | stderr | Exit |
 | --- | --- | --- |
 | Interrupted, terminated or hung up on, or, attached, standard input closed | — | `0` |
-| An older Humanize holds the runs | `hmz: the runs in <dir> are held by an older Humanize (pid <n>); stop it with that version` | `1` |
-| The runs could not be reached, or the port listened on | `hmz: the web interface cannot be served: <OSError>` | `1` |
+| This machine's daemon is an older Humanize's | `hmz: <why>` | `1` |
+| The daemon could not be reached, or the port listened on | `hmz: the web interface cannot be served: <OSError>` | `1` |
 
 ## `hmz server` {#hmz-server}
 
@@ -989,7 +991,7 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 | --- | --- | --- |
 | `0` | all | Success. For `hmz exec`, including a run its budget stopped. |
 | `1` | `hmz` | Runs held by an older Humanize; the daemon could not be reached; or the host let go of the interface. |
-| `1` | `hmz web` | Runs held by an older Humanize; or the runs or the port could not be had. |
+| `1` | `hmz web` | This machine's daemon is an older Humanize's; or the daemon or the port could not be had. |
 | `1` | `hmz server` | A server already running on `start`, none on `stop`, or it could not be started. |
 | `1` | `hmz daemon` | A daemon already running on `serve`; the daemon unreachable, of another protocol, or refusing; the service could not be installed. |
 | `1` | `hmz relay` | The address could not be listened on. |
@@ -1044,6 +1046,7 @@ is [Files](/reference/files).
 | `epics/<workspace>/<datetime>-<hex>/host.log` | `hmz` | appended: what the [host process](/reference/daemon#files) wrote while it held that run. The daemon's socket, record, lock and log are in the machine's temporary directory, not here |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
 | `releases.json` (in the machine's directory) | `hmz`, `hmz web`, `hmz update` | the newest release, refreshed when older than a day by the interfaces as they open and by `hmz update` |
+| `web-port` | `hmz web` | read as it starts, for `--port`'s default; written, replaced whole, when the port it listens on changes |
 | `server.json` | `hmz server` | written by `start`, removed by `stop`: the server's `pid`, `mode`, `port` and `version`, never the secret |
 | `easytier/<version>/` | `hmz server`, `hmz web` | written once: the `easytier-core` downloaded and checked, reused after |
 | `settings.yaml`, `providers/` | all | read when an agent or environment is opened |
@@ -1060,5 +1063,5 @@ Every command is a shell around [`hmz.sdk.Hmz`](/reference/sdk#hmz):
 | `hmz exec` without the line | [`Hmz().run(flow, task, agents=…, envs=…, params=…, budget=…, profile_flow=…, profile_environment=…, resume=…)`](/reference/sdk#hmz-run) |
 | `hmz` (as a frontend of held runs) | [`Daemons().host().link()`](/reference/sdk#daemons) |
 
-`hmz web` is a frontend of held runs as `hmz` is; in Python it is `hmz.web.serve()`, which is
-not part of the SDK. See [Web › Module](/reference/web#module).
+`hmz web` serves a page that is a client of the daemons as `hmz` is; in Python it is
+`hmz.web.serve()`, which is not part of the SDK. See [Web › Module](/reference/web#module).
