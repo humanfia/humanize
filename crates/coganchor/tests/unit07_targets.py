@@ -1,3 +1,5 @@
+# A script beside the crate's tests, not a module of any package.
+# ruff: noqa: INP001
 """Writes unit07_targets.json: what Python's transport makes of many target spellings.
 
 Run from the repository root, and commit what it writes beside it:
@@ -116,6 +118,7 @@ SPELLINGS = [
 
 
 def entry(spelling: str) -> dict[str, object]:
+    """What Python's transport makes of one spelling, or the error it refuses it with."""
     try:
         target = Target.parse(spelling)
     except ValueError as error:
@@ -143,4 +146,6 @@ def entry(spelling: str) -> dict[str, object]:
 
 
 here = pathlib.Path(__file__).with_name("unit07_targets.json")
-here.write_text(json.dumps([entry(one) for one in SPELLINGS], indent=1, ensure_ascii=False) + "\n")
+here.write_text(
+    json.dumps([entry(one) for one in SPELLINGS], indent=1, ensure_ascii=False) + "\n"
+)
