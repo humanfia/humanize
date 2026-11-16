@@ -126,8 +126,10 @@ you are away. See [Being away](/user/afk).
 
 ## Permission
 
-What an agent may touch, declared by the flow for each role: its working directory, the rest
-of the home directory, the machine, and the web. See [Permissions](/user/permissions) and
+What an agent may touch, declared by the flow for each role: a `preset` (`read-only`,
+`workspace-write` or `danger-full-access`), whether it may reach the `network`, and
+`granular` rules that allow, keep read-only or deny one path each, the last that matches
+winning. See [Permissions](/user/permissions) and
 [Security](/user/security).
 
 ## Provider
