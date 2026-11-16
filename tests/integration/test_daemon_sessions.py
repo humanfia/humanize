@@ -43,9 +43,7 @@ METHODS = {"settings.get": lambda call: {"settings": {"stub": True}}}
 
 
 @pytest.fixture
-def workspace(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> Iterator[Path]:
+def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     at = project(tmp_path, monkeypatch)
     written(at, "waits", WAITS)
     # A family module of the test's own, found beside those of `hmz.daemon.api`.
@@ -95,7 +93,9 @@ class Client:
     def until(self, kind: str, **fields: Any) -> dict[str, Any]:
         while True:
             said = self.events.get(timeout=30)["message"]
-            if said["type"] == kind and all(said.get(k) == v for k, v in fields.items()):
+            if said["type"] == kind and all(
+                said.get(k) == v for k, v in fields.items()
+            ):
                 return said
 
 
@@ -185,9 +185,17 @@ def test_a_device_pairs_over_tcp_and_attaches_and_is_dropped_once_revoked(
 
     sub = afar.call("epic.attach", workspace=str(workspace))["sub"]
     afar.until("live")
-    assert afar.call(
-        "epic.start", sub=sub, flow="./waits", task="t", budget={"cost": 1}, idem="a"
-    )["run"] == 1
+    assert (
+        afar.call(
+            "epic.start",
+            sub=sub,
+            flow="./waits",
+            task="t",
+            budget={"cost": 1},
+            idem="a",
+        )["run"]
+        == 1
+    )
     afar.until("started", run=1)
 
     near = local()
@@ -250,8 +258,7 @@ def relay() -> Iterator[str]:
     async def serves() -> None:
         async with listening("127.0.0.1", 0) as taken:
             port.put(taken)
-            while not stopping.is_set():
-                await asyncio.sleep(0.05)
+            await asyncio.to_thread(stopping.wait)
 
     thread = threading.Thread(target=asyncio.run, args=(serves(),), daemon=True)
     thread.start()

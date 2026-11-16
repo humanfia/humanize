@@ -39,7 +39,11 @@ class _Peer:
 def peer(monkeypatch: pytest.MonkeyPatch) -> _Peer:
     held = _Peer({})
     monkeypatch.setattr(hmz.daemon, "start", mock.Mock())
-    monkeypatch.setattr(hmz.daemon.link, "dialed", lambda *_, **__: (held, {}))
+
+    def dialed(*_: object, **__: object) -> tuple[_Peer, dict[str, Any]]:
+        return held, {}
+
+    monkeypatch.setattr(hmz.daemon.link, "dialed", dialed)
     return held
 
 
@@ -148,7 +152,7 @@ def test_serve_says_a_daemon_is_already_running(
         "serves",
         mock.Mock(side_effect=BlockingIOError(errno.EAGAIN, "locked")),
     )
-    monkeypatch.setattr(hmz.daemon.where, "held", lambda at: {"pid": 77})
+    monkeypatch.setattr(hmz.daemon.where, "held", mock.Mock(return_value={"pid": 77}))
     monkeypatch.setattr("signal.signal", mock.Mock())
 
     assert daemon(["serve"]) == 1

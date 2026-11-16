@@ -411,7 +411,6 @@ def test_a_frontend_attaching_again_to_another_life_of_its_host_is_told_everythi
 
 
 def test_the_same_name_twice_is_told_apart(
-
     host: Host, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HUMANIZE_NAME", "dana")

@@ -270,7 +270,6 @@ def _may_name(layer: str, other: str) -> bool:
     )
 
 
-
 def test_no_two_layers_name_each_other_but_the_flow_api_and_its_engine() -> None:
     both = {
         (one, other)

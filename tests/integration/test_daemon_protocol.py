@@ -114,7 +114,7 @@ def test_a_chat_whose_host_has_gone_is_not_held_again(workspace: Path) -> None:
     assert chat.kill()
     assert until(lambda: daemon.running(workspace, slot="chat:0a") is None)
 
-    with pytest.raises(OSError, match="This chat has folded away."):
+    with pytest.raises(OSError, match=r"This chat has folded away\."):
         reached(where.at(), chat.workspace, slot="chat:0a")
 
 
@@ -135,7 +135,9 @@ def test_a_hello_arriving_in_pieces_is_still_answered(held: daemon.Daemon) -> No
         one.sendall(frame[:7])
         time.sleep(0.1)
         one.sendall(frame[7:])
-        (said,) = _said(one)  if False else _said(one, {"id": 1, "method": "rpc.discover"})
+        (said,) = (
+            _said(one) if False else _said(one, {"id": 1, "method": "rpc.discover"})
+        )
 
     assert said["result"]["info"]["version"] == PROTOCOL
 
@@ -146,7 +148,9 @@ def test_runs_held_by_an_older_humanize_are_left_alone(workspace: Path) -> None:
         found = daemon.running()
         assert found is not None
         assert found.protocol == ""
-        assert [(one.pid, one.protocol) for one in daemon.daemons()] == [(found.pid, "")]
+        assert [(one.pid, one.protocol) for one in daemon.daemons()] == [
+            (found.pid, "")
+        ]
         with pytest.raises(OSError, match="older Humanize"):
             daemon.host()
         with pytest.raises(OSError, match="did not say hello"):

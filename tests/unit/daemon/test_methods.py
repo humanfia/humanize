@@ -45,7 +45,7 @@ def test_a_slot_is_one_of_the_workspaces_hosts(said: str | None) -> None:
 
 def test_a_new_slot_is_named_by_its_kind_alone_where_one_may_be() -> None:
     assert slot("chat:", new=True) == "chat:"
-    with pytest.raises(RpcError, match="chat: is not a slot."):
+    with pytest.raises(RpcError, match=r"chat: is not a slot\."):
         slot("chat:")
 
 

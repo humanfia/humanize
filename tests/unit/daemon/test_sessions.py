@@ -73,7 +73,7 @@ def test_a_session_too_far_behind_keeps_its_answers_and_drops_what_it_was_told(
     pipe = _Pipe()
     behind = mock.Mock()
     called = threading.Event()
-    behind.side_effect = lambda: called.set()
+    behind.side_effect = called.set
     out = Outgoing(pipe, behind)
     out.sendall(_answer(0))  # being written while the rest wait
     out.sendall(_told("s1", 400))

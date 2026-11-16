@@ -171,6 +171,7 @@ def test_running_finds_the_host_of_a_workspace(
     assert found == Daemon(
         at=at, workspace=workspace, pid=os.getpid(), started="t2", protocol=PROTOCOL
     )
+    assert found is not None
     assert found.alive
     assert daemon.running("/nowhere") is None
     assert [one.started for one in daemon.daemons()] == ["t1", "t2"]
@@ -375,7 +376,7 @@ def lives(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
         return said.pop(0) if said else False
 
     monkeypatch.setattr(where, "alive", alive)
-    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(time, "sleep", mock.Mock())
     return said
 
 
