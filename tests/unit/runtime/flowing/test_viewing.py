@@ -34,7 +34,6 @@ from hmz.flows import (
     OutworlderAway,
     OutworlderRunHookResult,
     Permission,
-    PermissionKind,
     ScratchDirEnvMixin,
     SessionError,
     ShellEnvMixin,
@@ -42,6 +41,7 @@ from hmz.flows import (
     TemporaryClonedDirEnvMixin,
     UnsupportedOperation,
     Usage,
+    allow,
     flow,
 )
 from hmz.runtime.flowing.declaring import Grant
@@ -274,10 +274,10 @@ def test_an_agent_view_says_what_its_driver_is() -> None:
 def test_derive_narrows_and_never_widens() -> None:
     view, _, _ = _agent(
         frozenset({SteeringAgentMixin}),
-        Permission(local=PermissionKind.ALL),
+        Permission(),
         ("a", "b"),
     )
-    reading = Permission(local=PermissionKind.READ)
+    reading = Permission(preset="read-only")
 
     narrowed = view.derive(permission=reading, skills=("a",))
     same = view.derive()
@@ -422,7 +422,7 @@ async def test_a_role_granted_what_it_declared_runs_forks_and_answers_its_schema
     )
 
 
-READING = Permission(local=PermissionKind.READ, online=PermissionKind.NONE)
+READING = Permission(preset="read-only", network=False)
 
 
 @flow(agents=Plain, envs=NoEnvs, params=Prompt)
@@ -591,7 +591,7 @@ async def test_a_flow_handed_an_agent_offers_its_own_roles_tools_every_call() ->
 
 
 class Wide(Agent, FakeToolAgentMixin):
-    _permission = Permission(user=PermissionKind.ALL, system=PermissionKind.ALL)
+    _permission = Permission(preset="danger-full-access")
 
 
 class Wides(AgentCollection):
@@ -727,9 +727,9 @@ async def test_the_runs_outworlder_answers_as_the_role_it_was_filled_for() -> No
     assert await view.run("ok?", session=session) == "yes"
     assert await view.run("why?", session=session, output_schema=Away) == Away(note="n")
     assert view.derive() is view
-    assert view.derive(permission=Permission(local=PermissionKind.READ)) is view
+    assert view.derive(permission=Permission(preset="read-only")) is view
     with pytest.raises(CapabilityNotGranted, match="wider"):
-        view.derive(permission=Permission(user=PermissionKind.ALL))
+        view.derive(permission=Permission(granular=(allow("~"),)))
     with pytest.raises(TypeError, match="not a Permission"):
         view.derive(permission="all")  # pyright: ignore[reportArgumentType]
     with pytest.raises(CapabilityNotGranted, match="no skills"):

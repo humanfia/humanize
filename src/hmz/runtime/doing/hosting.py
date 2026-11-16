@@ -2294,8 +2294,8 @@ def _read_only(source: AgentBase, name: str, asks: _Asks | None = None) -> Agent
     from hmz.coganchor.agents import Moment, Unhooked
     from hmz.coganchor.agents.skills import Loaded
 
-    # The read-only rung is what a flow's NONE maps to; a backend that cannot express it is
-    # refused here rather than running a side question with write permissions.
+    # The read-only rung is what a flow's `read-only` preset maps to; a backend that cannot
+    # express it is refused here rather than running a side question with write permissions.
     if "read-only" not in type(source).rungs:
         raise ValueError(
             f"{source.backend} cannot answer a side question: it has no read-only rung"

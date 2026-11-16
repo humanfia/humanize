@@ -1419,5 +1419,5 @@ class AcpAgent(AgentBase):
             f"model is at to leave it; declare them where it was added, under clis in "
             f"{settings.where()}, as "
             f"{cli}: {{command: [...], hosts: [api.example.com], "
-            f"state: [~/.{cli}]}} -- or grant it online ALL"
+            f"state: [~/.{cli}]}} -- or grant it network=True"
         )
