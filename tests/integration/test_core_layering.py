@@ -103,6 +103,8 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.relay": set(),
     # Frames and JSON-RPC over any pipe, which every end of a session speaks: it names nothing.
     "hmz.rpc": set(),
+    # A carrier to a daemon: signs and verifies through what its caller hands it.
+    "hmz.rtc": set(),
     # Who is at the other end of a carrier: a device's key, pairing, and TLS between two.
     "hmz.trust": {"hmz.coganchor.atomic", "hmz.coganchor.settings"},
     "hmz.tui": {
