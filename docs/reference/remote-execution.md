@@ -268,9 +268,9 @@ also runs).
 
 - `--log-level {debug,info,warning,error}` defaults to `$HUMANIZE_LOG`, else `warning`, and
   logs to stderr.
-- The environment-variable defaults apply to the command line only. `check()`, `connect()` and
-  `drive()` called in-process do not read `$HUMANIZE_TOKEN` or `$HUMANIZE_SHADOW`; a spawned
-  turn is the rendered command line and does.
+- The environment-variable defaults apply to the command line only. `check()` called
+  in-process does not read `$HUMANIZE_TOKEN` or `$HUMANIZE_SHADOW`; `connect()` and `drive()`
+  spawn the rendered command line, `coganchor cog`, and a spawned turn is that line and does.
 - A turn spawned from an agent is `AnchorConfig.command(argv, swaps=…, private=…, chdir=…)`:
   the provider's credential paths and kept session paths are added as `redirects`, the
   provider's variables as `private`, and the session's directory as `chdir`.
@@ -335,7 +335,7 @@ export      /srv/project -> /srv/project
 workspace   /srv/project (184 entries)
 ```
 
-<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py), [`src/hmz/coganchor/argv.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/argv.py), [`src/hmz/cli/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/cli/anchor.py).</small>
+<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py), [`src/hmz/coganchor/argv.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/argv.py), [`crates/coganchor/src/cli.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cli.rs).</small>
 
 ## Where the harness runs {#where-the-harness-runs}
 
@@ -677,7 +677,7 @@ workspace all the same, and what is beside it in that directory stays here.
 - A command that cannot be started, or that the supervisor loses track of, fails. Nothing it
   started is left running when the session ends.
 
-<small>Defined in [`src/hmz/coganchor/supervisor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/supervisor.py), [`src/hmz/coganchor/linux/syscalls.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/linux/syscalls.py), [`src/hmz/coganchor/shadow.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/shadow.py), [`src/hmz/coganchor/statepaths.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/statepaths.py), [`src/hmz/coganchor/policy.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/policy.py).</small>
+<small>Defined in [`crates/coganchor/src/cog/supervisor.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/supervisor.rs), [`crates/coganchor/src/sys/syscalls.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/sys/syscalls.rs), [`crates/coganchor/src/cog/shadow/mod.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/shadow/mod.rs), [`crates/coganchor/src/cog/statepaths.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/statepaths.rs), [`crates/coganchor/src/cog/policy.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/policy.rs).</small>
 
 ## Native arrangement {#native-the-target-s-own-cli}
 
@@ -735,7 +735,7 @@ refused rather than run as whatever account the target is signed into.
 - The CLI keeps its sessions on the target; a run copies what they log into its epic
   ([Providers › Sessions on another machine](/reference/providers#sessions-on-another-machine)).
 
-<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`drive`, `_installed`, `_projected`, `_homed`, `_swept`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_reaching`, `_projecting`).</small>
+<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`drive`), [`crates/coganchor/src/cog/drive/mod.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/drive/mod.rs), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_reaching`, `_projecting`).</small>
 
 ## Afar arrangement and the rendezvous {#being-introduced}
 
@@ -774,7 +774,7 @@ machine, Humanize books a meeting:
   `hmz internal anchor rendezvous listening HOST PORT` on stderr. `coganchor` needs no Python,
   so a broker can run on any Linux or macOS machine both halves can reach.
 
-<small>Defined in [`src/hmz/coganchor/elsewhere.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/elsewhere.py) (`afar`, `_carried`), [`src/hmz/coganchor/rendezvous.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/rendezvous.py).</small>
+<small>Defined in [`src/hmz/coganchor/elsewhere.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/elsewhere.py) (`afar`, `_carried`), [`src/hmz/coganchor/rendezvous.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/rendezvous.py), [`crates/coganchor/src/broker/server.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/broker/server.rs).</small>
 
 ## A fence on both machines {#a-fence-on-both-machines}
 
@@ -822,7 +822,7 @@ Landlock but not the seccomp listener or `pidfd_getfd`, so a container under it 
 with `online=True` and refuses one with `online=False`; run such a container with a profile
 that allows them, or `--security-opt seccomp=unconfined`.
 
-<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`_Walls`, `_fenced`), [`src/hmz/coganchor/fence/abroad.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fence/abroad.py), [`src/hmz/coganchor/serve/fencing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/serve/fencing.py), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_abroad`, `_reached`, `_walled`).</small>
+<small>Defined in [`crates/coganchor/src/cog/walls.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/walls.rs), [`crates/coganchor/src/fence/abroad.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/fence/abroad.rs), [`crates/coganchor/src/anchor/sessions.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/anchor/sessions.rs), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_abroad`, `_reached`, `_walled`).</small>
 
 ## Serving a target {#serving-a-target}
 
@@ -881,8 +881,8 @@ from hmz.coganchor.anchor import NotInstalled
 | Call | Returns | Raises |
 | --- | --- | --- |
 | `check(config=None) -> dict` | the handshake reply (`version`, `hostname`, `platform`, `python`, `pid`, `exports`, `fence`) plus `target`, `workspace` and `entries` (entries in the workspace). Runs nothing on the target. | `ValueError` (target), `OSError` (unreachable, no workspace) |
-| `connect(command, config=None) -> int` | the agent's exit status, after everything it wrote has been pushed. Calls `drive` when `native`; spawns the afar line when the harness is elsewhere. | `ValueError`, `FileNotFoundError`, `OSError` |
-| `drive(command, config=None) -> int` | the CLI's exit status, or `128 + signal` | `ValueError` (`no agent given`, target), `NotInstalled` (a `FileNotFoundError`), `OSError`, `PermissionError` (fence) |
+| `connect(command, config=None) -> int` | the agent's exit status, after everything it wrote has been pushed, or `coganchor`'s for a turn that never ran (its message on stderr). Spawns `coganchor cog` with this process's streams, passing on `SIGTERM`, `SIGQUIT` and `SIGHUP`; calls `drive` when `native`; spawns the afar line when the harness is elsewhere. | `ValueError`, `FileNotFoundError` (no `coganchor` here), `ConnectionError`, `NotInstalled` (native) |
+| `drive(command, config=None) -> int` | the CLI's exit status, or `128 + signal`; `coganchor cog --native` runs it | `ValueError` (`no agent given`, target), `FileNotFoundError` (no `coganchor` here), `NotInstalled` (a `FileNotFoundError`, for `coganchor`'s exit 127) |
 | `AnchorConfig.command(argv, *, swaps=(), private=(), chdir="") -> list[str]` | the argv that runs `argv` under this anchor in its own process | `ValueError`, `ConnectionError` |
 | `AnchorConfig.capabilities -> frozenset[str]` | `{"anchor:native-cli"}`, `{"anchor:supervised"}` or `{"anchor:supervised", "anchor:afar"}` | |
 | `AnchorConfig.mount() -> (Target, str, str)` | the parsed target, the workspace's absolute path here, and the export spelling | `ValueError` |

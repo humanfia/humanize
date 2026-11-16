@@ -87,8 +87,8 @@ class SwarmConfig(MachineConfig):
     """What the service is created from, on which swarm, and how its nodes are reached.
 
     Attributes:
-      image: The image to run, which needs `/bin/sh` and a Python of at least 3.12, and has
-        to be one every node it may land on can pull.
+      image: The image to run, which needs `/bin/sh` and `sleep`, and has to be one every
+        node it may land on can pull.
       workspace: The project directory to give the task, absolute, as every node it may land
         on names it.
       endpoint: A manager of the swarm, as :class:`~hmz.coganchor.transport.Endpoint` reads

@@ -14,11 +14,13 @@ process stays local, keeping its credentials, its state directory and its link t
 provider: a seccomp-filtered ptrace supervisor intercepts the cold syscalls that name a path,
 spawn a process or open a socket, and the serving half replays them on the target machine.
 Under :func:`drive` nothing stays local at all -- the CLI already installed on the target is
-the one that runs, and this side is a pipe carrying its streams.
+the one that runs, and this side is a pipe carrying its streams. Both halves of both are
+`coganchor`, one program built from `crates/coganchor` (:mod:`hmz.coganchor.binary`); what
+this package keeps of the anchor is the settings, the line that starts it, and the wire.
 
 What the front door offers is fetched when it is named. The facts about a CLI are a leaf and
-are read where a figure is drawn: naming this package to reach one must not cost the ptrace
-layer, the register map and the wire the anchor is made of.
+are read where a figure is drawn: naming this package to reach one must not cost the wire
+the anchor is spoken over.
 """
 
 from __future__ import annotations

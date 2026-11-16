@@ -1,17 +1,13 @@
 """Where `coganchor` is: the anchor, as one program built from `crates/coganchor`.
 
-The anchor is being ported from this package to Rust, unit by unit, and until the port is
-whole the Python halves still run by default. `HUMANIZE_COGANCHOR` naming a built binary
-switches `hmz internal anchor`, `hmz internal fence` and `hmz internal cred` over to it, which
-is how the port is tested against the suites that test the Python halves.
+Every layer that launches the anchor -- the `hmz internal anchor` line a turn is spawned as,
+the serving half shipped to a target, the `cred` and `fence` wrappers -- starts this program,
+and nothing of the anchor runs as Python: a target needs no interpreter at all.
 
-Once it is whole, the wheel carries a build for every platform a target can be, under
-`bin/<os>-<arch>/coganchor` beside this module, and :func:`found` is what reaches it.
-
-Whether the layers that launch the anchor -- the `hmz internal anchor` line a turn is spawned
-as, the serving half shipped to a target, the `cred` and `fence` wrappers -- start this program
-rather than the Python halves is :func:`active`, and nothing else: it is the one line to change
-when the Python halves go.
+The wheel carries a build for every platform a target can be, under `bin/<os>-<arch>/coganchor`
+beside this module, and :func:`found` is what reaches it: that build, else one in this
+checkout's `crates/coganchor/target`. `HUMANIZE_COGANCHOR` naming a build overrides both, for
+running one built elsewhere.
 """
 
 from __future__ import annotations
@@ -24,7 +20,6 @@ from pathlib import Path
 __all__ = [
     "BINARIES",
     "VARIABLE",
-    "active",
     "chosen",
     "digest",
     "found",
@@ -36,7 +31,7 @@ __all__ = [
     "translated",
 ]
 
-#: The variable naming a built `coganchor` to run instead of the Python halves.
+#: The variable naming a built `coganchor` to run instead of the one this install carries.
 VARIABLE = "HUMANIZE_COGANCHOR"
 
 #: The variable telling a `coganchor` where the builds for other platforms are, so that one
@@ -117,19 +112,6 @@ def found() -> Path | None:
     return None
 
 
-def active() -> bool:
-    """Whether the anchor is launched as `coganchor` rather than as the Python halves.
-
-    While the port is under way, only where `HUMANIZE_COGANCHOR` names a build. Once it is
-    whole, this answers True and the Python halves' launching goes; nothing else that launches
-    the anchor asks anything but this.
-
-    Returns:
-      True where every line that starts the anchor, here or on a target, starts `coganchor`.
-    """
-    return chosen() is not None
-
-
 def shelf() -> Path:
     """The directory the wheel carries a build for each platform in, as `<os>-<arch>/coganchor`.
 
@@ -166,10 +148,12 @@ def here() -> Path:
 def shipped(system: str, machine: str) -> Path | None:
     """The build to put on a machine, as its `uname -sm` names it.
 
-    This machine's own where the target is the same OS and architecture -- which is the one
-    :func:`found` reaches, and so the one `HUMANIZE_COGANCHOR` names while it names one -- and
-    otherwise the wheel's, else one cross-built in this checkout's `crates/coganchor/target`
-    for that machine's Rust target, as `cargo zigbuild --target` leaves it.
+    The wheel's build for it, wherever the wheel carries one: what is copied to another machine
+    is what the install carries, whatever `HUMANIZE_COGANCHOR` names to run here. Where it
+    carries none -- a checkout -- this machine's own where the target is the same OS and
+    architecture, which is the one :func:`found` reaches, and otherwise one cross-built in this
+    checkout's `crates/coganchor/target` for that machine's Rust target, as `cargo zigbuild
+    --target` leaves it.
 
     Args:
       system: As :func:`named` takes it.
@@ -181,10 +165,10 @@ def shipped(system: str, machine: str) -> Path | None:
     where = named(system, machine)
     if where is None:
         return None
-    if where == named(platform.system(), platform.machine()):
-        return found()
     if (path := packaged(system, machine)) is not None:
         return path
+    if where == named(platform.system(), platform.machine()):
+        return found()
     crate = Path(__file__).resolve().parents[3] / "crates" / "coganchor" / "target"
     for profile in ("release", "debug"):
         if (path := crate / _TRIPLES[where] / profile / "coganchor").is_file():

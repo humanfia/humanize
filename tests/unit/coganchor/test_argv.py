@@ -1,116 +1,18 @@
-"""The `hmz internal anchor` line, read into settings and written back out as the same line."""
+"""The `coganchor cog` line, written out from the settings a session runs under."""
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-import pytest
+from typing import TYPE_CHECKING
 
 from hmz.coganchor import binary
 from hmz.coganchor.anchor import AnchorConfig
-from hmz.coganchor.argv import forget, kept, options, parser, render, settings
+from hmz.coganchor.argv import forget, kept, options, render
 from hmz.coganchor.fence import ALL, NONE, READ, Fence
 from hmz.coganchor.homes import Virtual
 
-ENVIRONMENT = (
-    "HUMANIZE_TARGET",
-    "HUMANIZE_HARNESS",
-    "HUMANIZE_RENDEZVOUS",
-    "HUMANIZE_SHADOW",
-    "HUMANIZE_TOKEN",
-)
-
-
-@pytest.fixture(autouse=True)
-def unset(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in ENVIRONMENT:
-        monkeypatch.delenv(name, raising=False)
-
-
-def read(*argv: str) -> AnchorConfig:
-    return settings(parser().parse_args(argv))
-
-
-def test_nothing_said_is_every_default() -> None:
-    args = parser().parse_args([])
-
-    assert settings(args) == AnchorConfig()
-    assert args.command == []
-    assert not args.check
-    assert args.log_level is None
-
-
-def test_the_environment_is_the_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("HUMANIZE_TARGET", "ssh://box")
-    monkeypatch.setenv("HUMANIZE_RENDEZVOUS", "meet.example")
-    monkeypatch.setenv("HUMANIZE_SHADOW", "/mirror")
-    monkeypatch.setenv("HUMANIZE_TOKEN", "secret")
-
-    config = read()
-
-    assert config.target == "ssh://box"
-    assert config.broker == "meet.example"
-    assert config.shadow == "/mirror"
-    assert config.token == "secret"
-
-
-def test_everything_after_the_options_is_the_agent() -> None:
-    args = parser().parse_args(
-        ["--target=local", "claude", "--model", "opus", "--net=x"]
-    )
-
-    assert args.command == ["claude", "--model", "opus", "--net=x"]
-
-
-def test_pairs_are_read_on_their_first_equals_sign() -> None:
-    config = read(
-        "--redirect=/a=/b=c",
-        "--project=CODEX_HOME=/creds",
-        "--bring=CODEX_HOME/sessions=/epic/codex",
-        "--tell=/tmp/homes",
-    )
-
-    assert config.redirects == (("/a", "/b=c"),)
-    assert config.projects == (("CODEX_HOME", "/creds"),)
-    assert config.brings == (("CODEX_HOME/sessions", "/epic/codex"),)
-    assert config.tells == "/tmp/homes"
-
-
-def test_a_fence_is_read_from_its_json() -> None:
-    fence = Fence(write=("/",), hosts=("api.example.com",))
-
-    assert read(f"--fence={fence.dumps()}").fence == fence
-
-
-@pytest.mark.parametrize(
-    "argv",
-    [
-        ["--redirect=relative=/b"],
-        ["--redirect=/only-half"],
-        ["--hush=A=B"],
-        ["--project=NAME=relative"],
-        ["--bring=CODEX_HOME=/epic"],
-        ["--bring=CODEX_HOME/../x=/epic"],
-        ["--bring=CODEX_HOME/sessions=relative"],
-        ["--tell=relative"],
-        ["--target=nonsense://x"],
-    ],
-)
-def test_settings_no_session_could_run_under_are_refused(argv: list[str]) -> None:
-    with pytest.raises(ValueError):  # noqa: PT011 -- each says its own
-        read(*argv)
-
-
-@pytest.mark.parametrize(
-    "argv", [["--net=sideways"], ["--log-level=loud"], ["--bogus"]]
-)
-def test_options_the_parser_does_not_take_are_refused(
-    capsys: pytest.CaptureFixture[str], argv: list[str]
-) -> None:
-    with pytest.raises(SystemExit):
-        parser().parse_args(argv)
-    assert "hmz internal anchor" in capsys.readouterr().err
+if TYPE_CHECKING:
+    import pytest
 
 
 def test_the_defaults_are_written_as_the_target_and_net_alone() -> None:
@@ -167,19 +69,57 @@ FENCED = AnchorConfig(
 )
 
 
-@pytest.mark.parametrize(
-    "config",
-    [
-        AnchorConfig(),
-        SUPERVISED,
-        NATIVE,
-        FENCED,
-        AnchorConfig(harness="same", target="ssh://box"),
-    ],
-    ids=["defaults", "supervised", "native", "fenced", "harnessed"],
-)
-def test_what_is_written_reads_back_as_the_same_settings(config: AnchorConfig) -> None:
-    assert read(*options(config)) == config
+def test_a_supervised_session_is_written_option_by_option() -> None:
+    assert options(SUPERVISED) == [
+        "--target=ssh://box",
+        "--net=remote",
+        "--workspace=/srv/project",
+        "--chdir=/srv/project/sub",
+        "--remote-path=/data/project",
+        "--shadow=/mirror",
+        f"--token-file={kept('-starts-with-a-dash')}",
+        "--broker=meet.example",
+        "--local-path=/srv/project/.venv",
+        "--local-path=/srv/project/node_modules",
+        "--local-exec=/usr/local/bin",
+        "--net-allow=api.example.com:443",
+        "--redirect=/home/me/.claude=/accounts/one/.claude",
+        "--private=ANTHROPIC_API_KEY",
+        "--force",
+    ]
+
+
+def test_a_native_session_is_written_option_by_option() -> None:
+    assert NATIVE.home is not None
+    assert options(NATIVE) == [
+        "--target=docker://box",
+        "--net=local",
+        "--installs=npm install -g some-cli",
+        f"--home={NATIVE.home.dumps()}",
+        "--hush=ANTHROPIC_API_KEY",
+        "--project=CODEX_HOME=/accounts/codex",
+        "--bring=CODEX_HOME/sessions=/epic/codex",
+        "--tell=/tmp/homes",
+        "--native",
+    ]
+
+
+def test_a_fence_is_written_as_its_json() -> None:
+    assert FENCED.fence is not None
+    assert options(FENCED) == [
+        "--target=local",
+        "--net=local",
+        f"--fence={FENCED.fence.dumps()}",
+    ]
+    assert Fence.loads(options(FENCED)[-1].removeprefix("--fence=")) == FENCED.fence
+
+
+def test_a_harness_elsewhere_is_written_after_the_settings() -> None:
+    assert options(AnchorConfig(harness="same", target="ssh://box")) == [
+        "--target=ssh://box",
+        "--net=local",
+        "--harness=same",
+    ]
 
 
 def test_a_local_harness_and_empty_settings_are_not_written() -> None:
@@ -189,14 +129,6 @@ def test_a_local_harness_and_empty_settings_are_not_written() -> None:
         one.startswith(("--harness", "--installs", "--broker", "--fence"))
         for one in written
     )
-
-
-def test_render_runs_this_interpreter_with_the_agent_after() -> None:
-    line = render(NATIVE, ["claude", "-p", "hi"])
-
-    assert line[:5] == [sys.executable, "-Pm", "hmz", "internal", "anchor"]
-    assert line[5:-3] == options(NATIVE)
-    assert line[-3:] == ["claude", "-p", "hi"]
 
 
 def test_a_secret_is_never_on_the_command_line_but_in_a_file_only_its_user_reads() -> (
@@ -209,7 +141,6 @@ def test_a_secret_is_never_on_the_command_line_but_in_a_file_only_its_user_reads
     held = Path(named.partition("=")[2])
     assert held.read_text() == "s3cret"
     assert held.stat().st_mode & 0o077 == 0
-    assert read(*written).token == "s3cret"
     assert kept("s3cret") == str(held)
 
     forget("s3cret")
@@ -217,10 +148,9 @@ def test_a_secret_is_never_on_the_command_line_but_in_a_file_only_its_user_reads
     assert not held.exists()
 
 
-def test_render_runs_coganchor_cog_where_it_is_active(
+def test_render_runs_coganchor_cog_with_the_agent_after(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(binary, "active", lambda: True)
     monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
 
     line = render(NATIVE, ["claude", "-p", "hi"])

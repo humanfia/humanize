@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.fence import NONE, READ, Fence, enforceable, landlocked
+from hmz.coganchor.fence import NONE, READ, Fence, enforceable, landlocked, wrapper
 from hmz.coganchor.providers import redirect
 
 if TYPE_CHECKING:
@@ -156,9 +156,7 @@ print(json.dumps({how.__name__: tried(how) for how in hows}))
 def test_a_root_a_seatbelt_profile_writes_cannot_be_swapped_for_a_link(
     tmp_path: Path,
 ) -> None:
-    from hmz.coganchor.darwin import seatbelt
-
-    if not seatbelt.available():
+    if not enforceable(net=False):
         pytest.skip("this Mac is already inside a sandbox")
     tmp_path = tmp_path.resolve()
     d, e, f, out = (tmp_path / name for name in ("d", "e", "f", "out"))
@@ -167,12 +165,18 @@ def test_a_root_a_seatbelt_profile_writes_cannot_be_swapped_for_a_link(
     out.mkdir()
     f.write_text("kept")
     (out / "secret").write_text("secret")
-    profile = seatbelt.Profile(read=("/",), write=(str(d), str(e), str(f)))
+    fence = Fence(read=("/",), write=(str(d), str(e), str(f)))
 
     done = subprocess.run(
-        profile.command(
-            [sys.executable, "-I", "-B", "-c", _SWAPS, *map(str, (d, e, f, out))]
-        ),
+        [
+            *wrapper(fence),
+            sys.executable,
+            "-I",
+            "-B",
+            "-c",
+            _SWAPS,
+            *map(str, (d, e, f, out)),
+        ],
         capture_output=True,
         text=True,
         timeout=60,

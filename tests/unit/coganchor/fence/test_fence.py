@@ -1,7 +1,7 @@
 """A fence's paths, levels and wire form, and whether this host can hold one.
 
 Read off objects in this process: nothing is spawned and no wall is put up. Whether the host
-can fence is asked of collaborators replaced by stand-ins.
+can fence is asked of `coganchor internal able`, which a stand-in for running it answers.
 """
 
 from __future__ import annotations
@@ -10,16 +10,15 @@ import dataclasses
 import itertools
 import os
 import stat
+import subprocess
 import sys
-import types
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
-import hmz.coganchor
 from hmz.coganchor import binary
 from hmz.coganchor import fence as fencing
-from hmz.coganchor.darwin import seatbelt
 from hmz.coganchor.fence import (
     ALL,
     DARWIN_DEVICES,
@@ -33,11 +32,14 @@ from hmz.coganchor.fence import (
     SYSTEM,
     TEMPORARY,
     Fence,
+    able,
     enforceable,
     landlocked,
     wrapper,
 )
-from hmz.coganchor.linux import landlock
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 HOME = "/home/someone"
 WORK = "/home/someone/work"
@@ -348,36 +350,9 @@ def test_loads_refuses_what_is_not_a_fence(said: str) -> None:
         Fence.loads(said)
 
 
-def test_wrapper_runs_the_fence_command_with_the_policy(
+def test_wrapper_runs_coganchor_with_the_policy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(hmz.coganchor, "__loader__", None)
-    fence = drawn(READ, NONE, NONE)
-
-    command = wrapper(fence)
-
-    assert command[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
-    assert command[-1] == "--"
-    policy = command[5].removeprefix("--policy=")
-    assert Fence.loads(policy) == fence
-
-
-def test_wrapper_runs_from_the_archive_humanize_was_loaded_from(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        hmz.coganchor, "__loader__", types.SimpleNamespace(archive="/opt/hmz.pyz")
-    )
-
-    command = wrapper(Fence())
-
-    assert command[:4] == [sys.executable, "/opt/hmz.pyz", "internal", "fence"]
-
-
-def test_wrapper_runs_coganchor_where_it_is_active(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(binary, "active", lambda: True)
     monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
     fence = drawn(READ, NONE, NONE)
 
@@ -388,93 +363,91 @@ def test_wrapper_runs_coganchor_where_it_is_active(
     assert command[4:] == ["--"]
 
 
-def stand_in(
-    monkeypatch: pytest.MonkeyPatch, *, notifiable: bool, supervisable: bool
-) -> None:
-    """Puts stand-ins for the socket filter and the loopback supervisor in their place."""
-    monkeypatch.setitem(
-        sys.modules,
-        "hmz.coganchor.linux.seccomp",
-        types.SimpleNamespace(notifiable=lambda: notifiable),
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "hmz.coganchor.fence.loopback",
-        types.SimpleNamespace(supervisable=lambda: supervisable),
-    )
+@pytest.fixture
+def asked(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[list[str]]]:
+    """`coganchor internal able` asked afresh, of a build at `/opt/coganchor`."""
+    held: list[list[str]] = []
+    monkeypatch.setattr(binary, "found", lambda: Path("/opt/coganchor"))
+    able.cache_clear()
+    yield held
+    able.cache_clear()
 
 
-@pytest.mark.parametrize("net", [False, True])
-def test_landlocked_needs_landlock(monkeypatch: pytest.MonkeyPatch, net: bool) -> None:
-    asked: list[bool] = []
-
-    def available(*, net: bool = False) -> bool:
-        asked.append(net)
-        return False
-
-    monkeypatch.setattr(landlock, "available", available)
-
-    assert not landlocked(net=net)
-    assert asked == [net]
-
-
-def test_landlocked_needs_nothing_more_for_the_filesystem(
+def answering(
     monkeypatch: pytest.MonkeyPatch,
+    asked: list[list[str]],
+    said: bytes,
+    status: int = 0,
 ) -> None:
-    monkeypatch.setattr(landlock, "available", lambda *, net=False: True)
-    stand_in(monkeypatch, notifiable=False, supervisable=False)
+    """Has running a program answer with `said` on its stdout and `status`."""
 
-    assert landlocked(net=False)
+    def run(argv: list[str], **_: Any) -> subprocess.CompletedProcess[bytes]:
+        asked.append(argv)
+        return subprocess.CompletedProcess(argv, status, said, b"")
+
+    monkeypatch.setattr(subprocess, "run", run)
 
 
 @pytest.mark.parametrize(
-    ("notifiable", "supervisable", "held"),
-    [(True, True, True), (False, True, False), (True, False, False)],
+    ("said", "held"),
+    [
+        (b'{"fs":true,"net":true}', (True, True)),
+        (b'{"fs":true,"net":false}', (True, False)),
+        (b'{"fs":false,"net":false}', (False, False)),
+    ],
 )
-def test_landlocked_needs_seccomp_and_a_supervisor_for_the_network(
-    monkeypatch: pytest.MonkeyPatch, notifiable: bool, supervisable: bool, held: bool
-) -> None:
-    monkeypatch.setattr(landlock, "available", lambda *, net=False: True)
-    stand_in(monkeypatch, notifiable=notifiable, supervisable=supervisable)
-
-    assert landlocked(net=True) is held
-
-
-def test_landlocked_says_no_where_seccomp_cannot_load(
+def test_what_this_machine_can_fence_is_what_coganchor_says(
     monkeypatch: pytest.MonkeyPatch,
+    asked: list[list[str]],
+    said: bytes,
+    held: tuple[bool, bool],
 ) -> None:
-    monkeypatch.setattr(landlock, "available", lambda *, net=False: True)
-    # A module set to None in `sys.modules` is one that cannot be imported.
-    monkeypatch.setitem(sys.modules, "hmz.coganchor.linux.seccomp", None)
+    answering(monkeypatch, asked, said)
 
+    assert able() == held
+    assert enforceable(net=False) is held[0]
+    assert enforceable(net=True) is held[1]
+    assert asked == [["/opt/coganchor", "internal", "able"]]
+
+
+@pytest.mark.parametrize(
+    ("said", "status"),
+    [(b'{"fs":true,"net":true}', 1), (b"not json", 0), (b"[true]", 0)],
+)
+def test_a_coganchor_that_cannot_say_is_a_machine_that_cannot_fence_until_it_can(
+    monkeypatch: pytest.MonkeyPatch, asked: list[list[str]], said: bytes, status: int
+) -> None:
+    answering(monkeypatch, asked, said, status)
+
+    with pytest.raises(OSError, match="internal able"):
+        able()
+    assert not enforceable(net=False)
+    answering(monkeypatch, asked, b'{"fs":true,"net":false}')
+    assert enforceable(net=False)
+    assert len(asked) == 3
+
+
+def test_a_machine_with_no_coganchor_cannot_fence(
+    monkeypatch: pytest.MonkeyPatch, asked: list[list[str]]
+) -> None:
+    answering(monkeypatch, asked, b'{"fs":true,"net":true}')
+    monkeypatch.setattr(binary, "found", lambda: None)
+
+    assert not enforceable(net=False)
+    with pytest.raises(FileNotFoundError, match="no coganchor is built"):
+        able()
+    assert asked == []
+
+
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
+def test_landlocked_is_what_linux_can_fence(
+    monkeypatch: pytest.MonkeyPatch, asked: list[list[str]], platform: str
+) -> None:
+    answering(monkeypatch, asked, b'{"fs":true,"net":false}')
+    monkeypatch.setattr(sys, "platform", platform)
+
+    assert landlocked(net=False) is (platform == "linux")
     assert not landlocked(net=True)
-
-
-@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt is a Mac's")
-@pytest.mark.parametrize("able", [True, False])
-def test_enforceable_on_a_mac_is_seatbelt(
-    monkeypatch: pytest.MonkeyPatch, able: bool
-) -> None:
-    def landlocked(*, net: bool) -> bool:
-        return not able
-
-    monkeypatch.setattr(seatbelt, "available", lambda: able)
-    monkeypatch.setattr(fencing, "landlocked", landlocked)
-
-    assert enforceable(net=True) is able
-
-
-@pytest.mark.skipif(sys.platform == "darwin", reason="Landlock is Linux's")
-@pytest.mark.parametrize("net", [False, True])
-def test_enforceable_elsewhere_is_landlock(
-    monkeypatch: pytest.MonkeyPatch, net: bool
-) -> None:
-    def landlocked(*, net: bool) -> bool:
-        return net
-
-    monkeypatch.setattr(fencing, "landlocked", landlocked)
-
-    assert enforceable(net=net) is net
 
 
 @pytest.fixture
@@ -503,8 +476,6 @@ def test_reach_refuses_a_link_where_a_fenced_program_could_have_made_it(
 
     with pytest.raises(ValueError, match="it is a link where a fenced program could"):
         fence.reach(str(state / "scratch"), make=True)
-    with pytest.raises(ValueError, match="a link where a fenced program could"):
-        fence.ready()
 
 
 def test_reach_refuses_a_link_on_the_way_in_a_written_directory(
@@ -551,27 +522,3 @@ def test_reach_makes_what_is_missing_as_the_users_own(reachable: Path) -> None:
     assert at == str(made)
     assert made.is_dir()
     assert stat.S_IMODE(made.stat().st_mode) == 0o700
-
-
-def test_ready_grants_nothing_past_what_is_not_there(reachable: Path) -> None:
-    there, file = reachable / "there", reachable / "file"
-    there.mkdir()
-    file.write_text("")
-    fence = Fence(
-        write=(
-            str(there),
-            str(there / "new.json"),
-            str(file / "under"),
-            str(reachable / "x" / "y"),
-        )
-    )
-
-    reached = fence.ready()
-    for fd in reached.values():
-        if fd is not None:
-            os.close(fd)
-
-    # Seatbelt grants a name to be made, where Landlock grants only what is there.
-    named = () if hasattr(os, "O_PATH") else (str(reachable / "x" / "y"),)
-    assert set(reached) == {str(there), str(there / "new.json"), *named}
-    assert reached[str(there / "new.json")] is None

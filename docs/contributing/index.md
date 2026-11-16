@@ -96,12 +96,13 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 ```
 
-The Python suites drive whichever `coganchor` `HUMANIZE_COGANCHOR` names, so build it and point
-them at it:
+The anchor runs only as `coganchor`, and a checkout's `hmz` finds the build in
+`crates/coganchor/target/{release,debug}`, so build it before the Python suites; a build
+elsewhere is named by `HUMANIZE_COGANCHOR`:
 
 ```sh
 cargo build --manifest-path crates/coganchor/Cargo.toml
-HUMANIZE_COGANCHOR="$PWD/crates/coganchor/target/debug/coganchor" uv run pytest tests/integration/test_anchor_transport.py
+uv run pytest tests/integration/test_anchor_transport.py
 ```
 
 Much of it, the supervisor, Landlock and seccomp among it, runs only on Linux. From a Mac, or

@@ -881,7 +881,9 @@ reaches. Each mode takes the options, defaults, variables, messages and exit sta
 Its messages begin `hmz: ` as theirs do, and `coganchor anchor --listen` prints `hmz internal
 anchor serve listening HOST PORT`. `--version` prints `coganchor <version>`. `internal` is
 left out of its help. [`HUMANIZE_COGANCHOR`](/reference/environment#humanize-coganchor) names a
-`coganchor` for `hmz` to run here instead of the packaged one.
+`coganchor` for `hmz` to run here instead of the packaged one. Where there is neither, nor a
+build in a checkout's `crates/coganchor/target/{release,debug}`, the `hmz internal` command
+exits `127` saying `hmz: no coganchor is built for this machine (<system> <machine>)`.
 
 ### `hmz internal hook` {#hmz-internal-hook}
 

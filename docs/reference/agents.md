@@ -1476,7 +1476,7 @@ same CLI is a place on the chain. A turn taken at another place is interrupted a
 `interrupt` reaches the stand-in's turn, and `cut` also puts the stand-in's transport down. A cut
 turn that lands goes on in the stand-in's conversation, as far as it got.
 
-<small>Defined in [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py), [`src/hmz/coganchor/standin.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/standin.py).</small>
+<small>Defined in [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py), [`crates/coganchor/src/cog/standin.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/standin.rs).</small>
 
 ## Watchdog {#when-a-cli-stops-answering}
 
