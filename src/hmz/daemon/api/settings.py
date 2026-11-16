@@ -180,7 +180,7 @@ def _listen(said: object, held: Mapping[str, Any]) -> list[str]:
     entries: object = held.get("easytier")
     for one in specs:
         try:
-            route = Route.parse(one) if isinstance(one, str) else None
+            route = Route.parse(_any_port(one)) if isinstance(one, str) else None
         except ValueError:
             route = None
         if route is None or not _listener(route):
@@ -190,6 +190,23 @@ def _listen(said: object, held: Mapping[str, Any]) -> list[str]:
         ):
             raise _refused(f"There is no EasyTier entry {route.name}.")
     return cast("list[str]", specs)
+
+
+def _any_port(spec: str) -> str:
+    """A listener spec read as the route it otherwise is, its port `0` read as any port.
+
+    A route names a port from 1 to 65535 (Section 3.3.4 of [WIRE]), but a listener spec may
+    name `0` for any free port (Section 3.9.2 of [DAEMON]); in the one place the two differ,
+    the spec is checked as the route it becomes once a port is taken.
+    """
+    scheme, _, rest = spec.partition("://")
+    if scheme not in {"tcp", "ws"}:
+        return spec
+    address, slash, path = rest.partition("/")
+    host, colon, port = address.rpartition(":")
+    if colon and port == "0":
+        return f"{scheme}://{host}:1{slash}{path}"
+    return spec
 
 
 def _listener(route: Route) -> bool:

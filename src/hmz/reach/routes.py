@@ -59,6 +59,9 @@ _KEYWORD = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 #: value's quoting by.
 _UNSAYABLE = frozenset('\n\r\0"')
 
+#: The highest port there is.
+_PORTS = 65535
+
 #: What a percent-decoded part keeps unencoded when it is written back.
 _KEPT = "-._~"
 
@@ -106,7 +109,8 @@ class Route:
 
         Raises:
           ValueError: `<route> is not a route.`, for text the grammar of Section 3.3 does not
-            match, or a `stdio:ssh` parameter that is no ssh option once decoded.
+            match, a port not from 1 to 65535 or an empty host (Section 3.3.4), or a
+            `stdio:ssh` parameter that is no ssh option once decoded.
         """
         try:
             route = _parsed(text)
@@ -177,14 +181,18 @@ def _parsed(text: str) -> Route | None:
     if found := _EASYTIER.fullmatch(text):
         return Route("easytier", name=found["name"])
     if (found := _WS_URL.fullmatch(text)) and _bare(found["host"]) is not None:
+        _port(found["port"])
         return Route("ws", url=text)
     if (found := _THROUGH.fullmatch(text)) and _bare(found["host"]) is not None:
+        _port(found["port"])
         return Route(found["kind"], url=found["url"])
     return None
 
 
 def _bare(host: str) -> str | None:
     """A host as it is dialed: decoded, an IP literal out of its brackets; None if it is none."""
+    if not host:
+        return None
     if not host.startswith("["):
         return unquote(host, errors="strict")
     inside = host[1:-1]
@@ -212,7 +220,17 @@ def _host(host: str) -> str:
 
 
 def _port(said: str | None) -> int | None:
-    return int(said) if said else None
+    """The port a route gives, or None where it gives none.
+
+    Raises:
+      ValueError: For one that is not a number from 1 to 65535, an empty one among them.
+    """
+    if said is None:
+        return None
+    port = int(said)
+    if not 1 <= port <= _PORTS:
+        raise ValueError(said)
+    return port
 
 
 def _options(params: str) -> tuple[tuple[str, str], ...] | None:

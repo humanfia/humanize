@@ -41,6 +41,7 @@ __all__ = [
     "BINARY",
     "PINGING",
     "SILENT",
+    "SPEAKING",
     "TEXT",
     "Peer",
     "Relay",
@@ -59,8 +60,12 @@ BINARY = 1_048_576
 #: How often every connection is pinged.
 PINGING = 30.0
 
-#: How long a connection may stay silent before it is closed.
-SILENT = 90.0
+#: How long a ping may go without its pong before the connection is closed.
+SILENT = 60.0
+
+#: How long a connection has to say its first message, and a daemon its `prove` after
+#: `challenge`.
+SPEAKING = 10.0
 
 #: How many random bytes a nonce and a conn are made of.
 _NONCE = 32
@@ -138,7 +143,7 @@ class Relay:
           peer: The connection.
         """
         with contextlib.suppress(ConnectionClosed, _RefusedError):
-            said = await _read(peer)
+            said = await _heard(peer)
             match said.get("t"):
                 case "register":
                     await self._register(peer, said)
@@ -154,7 +159,7 @@ class Relay:
         daemon = _text(said, "id")
         nonce = secrets.token_urlsafe(_NONCE)
         await _send(peer, {"t": "challenge", "nonce": nonce})
-        proof = await _read(peer)
+        proof = await _heard(peer)
         if proof.get("t") != "prove":
             await _refuse(peer, f"{_kind(proof.get('t'))} is not expected here.")
         cert, sig = _text(proof, "cert"), _text(proof, "sig")
@@ -197,6 +202,10 @@ class Relay:
                     join = room.joins.get(conn)
                     if join is not None and not join.answer.done():
                         join.answer.set_result(why)
+                        if join.kind == "webrtc":
+                            # Told beside the control connection, which a browser slow to
+                            # close must not hold up.
+                            self._aside(_told(join.client, why))
                 case kind:
                     await _refuse(room.control, f"{_kind(kind)} is not expected here.")
 
@@ -294,6 +303,20 @@ async def _pump(source: Peer, sink: Peer) -> None:
             await sink.send(message)
 
 
+async def _heard(peer: Peer) -> dict[str, Any]:
+    """The next control message on a connection, which must come within :data:`SPEAKING`.
+
+    Raises:
+      _RefusedError: Once the connection has been closed for saying nothing in time, or for
+        what :func:`_read` closes it for.
+    """
+    try:
+        async with asyncio.timeout(SPEAKING):
+            return await _read(peer)
+    except TimeoutError:
+        await _refuse(peer, "Nothing was said in time.")
+
+
 async def _read(peer: Peer) -> dict[str, Any]:
     """The next control message on a connection.
 
@@ -358,6 +381,12 @@ async def _refuse(peer: Peer, why: str) -> NoReturn:
     raise _RefusedError
 
 
+async def _told(peer: Peer, why: str) -> None:
+    """Answers `error` with why and closes the connection, which another task is serving."""
+    with contextlib.suppress(_RefusedError):
+        await _refuse(peer, why)
+
+
 @contextlib.asynccontextmanager
 async def listening(host: str, port: int) -> AsyncGenerator[int]:
     """A relay serving plain WebSockets at an address, until the block is left.
@@ -379,6 +408,6 @@ async def listening(host: str, port: int) -> AsyncGenerator[int]:
         port,
         max_size=BINARY,
         ping_interval=PINGING,
-        ping_timeout=SILENT - PINGING,
+        ping_timeout=SILENT,
     ) as server:
         yield next(iter(server.sockets)).getsockname()[1]

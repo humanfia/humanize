@@ -33,6 +33,7 @@ from hmz.reach import KINDS, TRUSTED, Route
         ("stdio:wsl", Route("wsl")),
         ("stdio:wsl:Ubuntu-22.04", Route("wsl", name="Ubuntu-22.04")),
         ("tcp://10.0.0.2:7000", Route("tcp", host="10.0.0.2", port=7000)),
+        ("tcp://box:65535", Route("tcp", host="box", port=65535)),
         ("tcp://[fe80::1]:7000", Route("tcp", host="fe80::1", port=7000)),
         ("ws://box:80/hmz", Route("ws", url="ws://box:80/hmz")),
         ("wss://box", Route("ws", url="wss://box")),
@@ -79,6 +80,18 @@ def test_a_route_is_read_into_its_parts_and_written_back_as_it_was(
         "relay:",
         "webrtc:tcp://relay:1",
         "unix:/%ff",
+        # Section 3.3.4: a port from 1 to 65535, and a host that is not empty.
+        "tcp://box:",
+        "tcp://box:0",
+        "tcp://box:65536",
+        "tcp://:1",
+        "stdio:ssh://",
+        "stdio:ssh://box:",
+        "stdio:ssh://me@:22",
+        "ws://box:0/hmz",
+        "wss://:443",
+        "relay:ws://relay:99999",
+        "webrtc:wss://",
     ],
 )
 def test_text_the_grammar_does_not_match_is_not_a_route(text: str) -> None:
@@ -98,16 +111,6 @@ def test_an_option_naming_an_identity_or_a_jump_is_written_as_that_parameter() -
     assert route.options == (("IdentityFile", "k"), ("ProxyJump", "j"))
     assert str(route) == "stdio:ssh://box?identity=k&jump=j"
     assert Route.parse(str(route)) == route
-
-
-def test_a_tcp_route_with_an_empty_port_keeps_it_empty() -> None:
-    assert Route.parse("tcp://box:") == Route("tcp", host="box")
-    assert str(Route("tcp", host="box")) == "tcp://box:"
-
-
-def test_an_empty_host_matches_as_rfc_3986_lets_a_reg_name_be_empty() -> None:
-    assert Route.parse("stdio:ssh://") == Route("ssh")
-    assert Route.parse("tcp://:1") == Route("tcp", port=1)
 
 
 def test_a_name_holding_a_colon_is_written_encoded_not_as_an_ip_literal() -> None:

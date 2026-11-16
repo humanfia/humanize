@@ -30,11 +30,13 @@ SIGNED = "hmz-webrtc/1"
 #: How many bytes a `sha-256` fingerprint is.
 _SHA256 = 32
 
-#: A description's `sha-256` fingerprint line, and the fingerprint as written there.
+#: A description's `sha-256` fingerprint line, and the value as written there.
 _FINGERPRINT = re.compile(
-    r"^a=fingerprint:sha-256[ \t]+([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){31})[ \t]*\r?$",
-    re.MULTILINE | re.IGNORECASE,
+    r"^a=fingerprint:sha-256[ \t]+(\S+)[ \t]*\r?$", re.MULTILINE | re.IGNORECASE
 )
+
+#: A `sha-256` fingerprint's value: 32 bytes in hex, a colon between each.
+_VALUE = re.compile(r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){31}")
 
 
 def fingerprint_in(sdp: str) -> str:
@@ -44,15 +46,19 @@ def fingerprint_in(sdp: str) -> str:
       sdp: The offer or the answer.
 
     Returns:
-      The first `sha-256` fingerprint it gives: 32 bytes in hex, colon-separated.
+      Its one `sha-256` value, which each media section may say again: 32 bytes in hex,
+      colon-separated, the case of its letters kept.
 
     Raises:
-      ValueError: If it gives none.
+      ValueError: If it gives no `sha-256` value, two distinct ones, or one not of that form.
     """
-    found = _FINGERPRINT.search(sdp)
-    if found is None:
-        raise ValueError("That description gives no sha-256 fingerprint.")
-    return found.group(1)
+    values = set(_FINGERPRINT.findall(sdp))
+    if len(values) != 1:
+        raise ValueError("A description must say exactly one sha-256 fingerprint.")
+    (value,) = values
+    if _VALUE.fullmatch(value) is None:
+        raise ValueError(f"{value} is not a sha-256 fingerprint.")
+    return value
 
 
 def signs(identity: Identity, offer: str, answer: str) -> dict[str, str]:
