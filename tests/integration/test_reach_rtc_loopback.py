@@ -49,10 +49,15 @@ class _Signals:
         self.inbox = inbox
         self.outbox = outbox
         self.sent: list[dict[str, Any]] = []
+        self.refused: list[str] = []
 
     def send(self, data: dict[str, Any]) -> None:
         self.sent.append(data)
         self.outbox.put(json.loads(json.dumps(data)))
+
+    def refuse(self, why: str) -> None:
+        self.refused.append(why)
+        self.outbox.put(_END)
 
     def receive(self, timeout: float) -> object:
         try:
@@ -280,9 +285,10 @@ def test_the_daemon_refuses_a_channel_the_protocol_does_not_fix(
     client, served = _joined()
     answered = _answering(pool, served, daemon, timeout=20)
     stray = pool.submit(_raw_offer, client, "other")
-    with pytest.raises(Refused, match="ordered and reliable"):
+    with pytest.raises(Refused, match="ordered and reliable") as raised:
         answered.result(30)
     stray.result(30)
+    assert served.refused == [str(raised.value)]
 
 
 def test_a_text_message_closes_the_channel(

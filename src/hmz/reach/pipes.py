@@ -2,15 +2,10 @@
 
 Every carrier comes to the same thing once it is open -- a socket, the standard streams of a
 child, a WebSocket whose binary messages carry the bytes -- and what is put over it next, TLS
-or the frames themselves, should not have to know which it was. :class:`Pipe` is that one
-shape, and the rest of this module is a pipe of each kind there is.
-
-It is a structural type rather than a base class, and the shape of a socket -- `recv`,
-`sendall`, `close` -- so that a plain connected socket is one: the TLS of `hmz.trust` and the
-frames of `hmz.rpc` take and give pipes too, and the three meet by shape without importing one
-another. `hmz.rpc.Pipe` is to be the one definition; this one is its shape until then. Whether
-a carrier is trusted is its route's to say (:attr:`hmz.reach.Route.trusted`), and each pipe
-here also says it as `trusted`.
+or the frames themselves, should not have to know which it was. :class:`hmz.rpc.Pipe` is that
+one shape, of a socket's `recv`, `sendall` and `close`, and this module is a pipe of each kind
+there is. Whether a carrier is trusted is its route's to say
+(:attr:`hmz.reach.Route.trusted`), and each pipe here also says it as `trusted`.
 """
 
 from __future__ import annotations
@@ -25,10 +20,11 @@ from typing import IO, TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from hmz.rpc.pipe import Pipe
+
 __all__ = [
     "MESSAGE",
     "Messages",
-    "Pipe",
     "ProcessPipe",
     "SocketPipe",
     "StreamPipe",
@@ -45,37 +41,6 @@ _CHUNK = 1 << 16
 
 #: How long a child is given to stop before it is killed.
 _STOPPING = 5.0
-
-
-class Pipe(Protocol):
-    """An ordered, reliable stream of bytes each way between a client and a daemon.
-
-    Blocking, and safe to receive on one thread while another sends, and to close from any.
-    A connected socket is one.
-    """
-
-    def recv(self, size: int, /) -> bytes:
-        """At least one byte and at most `size`, waiting for one; b"" once the far end closed.
-
-        Raises:
-          OSError: If the carrier failed rather than closed.
-        """
-        ...
-
-    def sendall(self, data: bytes, /) -> None:
-        """All of `data`, in order after what was written before.
-
-        Raises:
-          OSError: If the carrier is closed or failed.
-        """
-        ...
-
-    def close(self) -> None:
-        """Closes both ways, and whatever was started to carry it; more than once is once.
-
-        A `recv` waiting on another thread is answered b"".
-        """
-        ...
 
 
 class SocketPipe:

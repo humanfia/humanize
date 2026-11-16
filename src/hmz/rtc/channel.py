@@ -18,6 +18,7 @@ import asyncio
 import base64
 import binascii
 import concurrent.futures
+import contextlib
 import importlib.util
 import queue
 import threading
@@ -74,7 +75,10 @@ def answer(
 
     The offer's SHA-256 fingerprint is the device fingerprint of the side that made it, which
     DTLS holds it to; the answer carries the daemon's certificate and its signature over both
-    fingerprints, so that the offering side can tell the answer is the daemon's own.
+    fingerprints, so that the offering side can tell the answer is the daemon's own. Where
+    aiortc is not installed, or the offer or its data channel is refused, the join is refused
+    through `signals`, saying why, so that the browser need not wait out its own deadline
+    (Section 4.7.10 of wire.md).
 
     Args:
       signals: The signals of the join, the offer first.
@@ -96,8 +100,13 @@ def answer(
       EOFError: If the signals end before it opens.
       ValueError: If an ICE server names no URL.
     """
-    _needed()
-    return _connect(_answering(signals, cert, sign, _servers(ice_servers)), timeout)
+    try:
+        _needed()
+        return _connect(_answering(signals, cert, sign, _servers(ice_servers)), timeout)
+    except (ModuleNotFoundError, Refused) as why:
+        with contextlib.suppress(OSError):
+            signals.refuse(str(why))
+        raise
 
 
 def offer(

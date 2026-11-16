@@ -83,7 +83,12 @@ def test_a_credential_is_shown_as_written_and_never_by_its_value(
 def test_listeners_and_a_credential_sent_back_as_true_are_written(
     held: dict[str, Any],
 ) -> None:
-    listen = ["tcp://0.0.0.0:0", "ws://127.0.0.1:8080", "easytier:lab"]
+    listen = [
+        "tcp://0.0.0.0:0",
+        "ws://127.0.0.1:0",
+        "ws://127.0.0.1:8080",
+        "easytier:lab",
+    ]
     servers = [{"urls": "turn:t:3478", "username": "u", "credential": True}]
 
     said = settings.write(_hmz(), {"listen": listen, "ice_servers": servers})
@@ -99,6 +104,7 @@ def test_listeners_and_a_credential_sent_back_as_true_are_written(
         ({"listen": ["unix:/x"]}, "unix:/x is not a listener."),
         ({"listen": ["tcp://h"]}, "tcp://h is not a listener."),
         ({"listen": ["ws://h/x"]}, "ws://h/x is not a listener."),
+        ({"listen": ["tcp://h:65536"]}, "tcp://h:65536 is not a listener."),
         ({"listen": ["easytier:gone"]}, "There is no EasyTier entry gone."),
         ({"ice_servers": [{"urls": "http://x"}]}, "ice_servers is a list of"),
         ({"ice_servers": [{"urls": "turn:new", "credential": True}]}, "Type the"),

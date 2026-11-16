@@ -124,7 +124,9 @@ def test_a_daemon_of_another_key_is_refused_before_anything_is_sent(
 
 def test_nothing_pinned_admits_no_daemon(client: identity.Identity) -> None:
     near, _ = pipe()
-    with pytest.raises(tls.RefusedError, match="no daemon id pinned") as refused:
+    with pytest.raises(
+        tls.RefusedError, match=r"^box needs the id of the daemon it reaches\.$"
+    ) as refused:
         tls.dial(near, client, "", "box")
     assert not isinstance(refused.value, tls.ImpostorError)
     assert near.closed
