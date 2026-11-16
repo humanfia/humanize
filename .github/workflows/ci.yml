@@ -231,6 +231,8 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           status=0
+          LIMIT=""; DIAG=""
+          if [[ $RUNNER_OS == Linux ]]; then LIMIT="timeout -s QUIT 900"; DIAG="-o faulthandler_timeout=200 -p no:randomly -v"; fi
           for dir in tests/unit/*/; do
             package=$(basename "$dir")
             if ! grep -q "^ *unit-$package:" .github/workflows/ci.yml; then
@@ -241,7 +243,7 @@ jobs:
               continue
             fi
             echo "::group::unit $package"
-            uv run --frozen --all-extras pytest "$dir" --durations=10 \
+            $LIMIT uv run --frozen --all-extras pytest "$dir" --durations=10 $DIAG \
               || { status=1; echo "::error::tests/unit/$package failed"; }
             echo "::endgroup::"
           done
