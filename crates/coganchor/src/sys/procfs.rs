@@ -14,8 +14,9 @@ use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io::{self, Read};
-use std::os::fd::{FromRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::fs::OpenOptionsExt;
 use std::sync::OnceLock;
 
 use std::io::{IoSlice, IoSliceMut};
@@ -405,16 +406,35 @@ pub fn steal_fd(pid: Pid, fd: i32) -> io::Result<OwnedFd> {
     };
     // Read for the input and write for the other two, because that is what each is: a pipe
     // reopened the wrong way round cannot be used, and `O_RDWR` on a pipe's read end fails.
+    // Non-blocking to open, which a FIFO with nobody at its other end would otherwise wait on
+    // for ever, then blocking again for the pumps that read and write it; and appending where
+    // the tracee's own descriptor appends, so output lands after what the file holds.
+    let flags = fs::read_to_string(format!("/proc/{pid}/fdinfo/{fd}"))
+        .ok()
+        .and_then(|info| {
+            let line = info.lines().find(|line| line.starts_with("flags:"))?;
+            i32::from_str_radix(line.trim_start_matches("flags:").trim(), 8).ok()
+        })
+        .unwrap_or(0);
     let mut options = fs::OpenOptions::new();
     if fd == 0 {
         options.read(true);
     } else {
-        options.write(true);
+        options.write(true).append(flags & libc::O_APPEND != 0);
     }
-    match options.open(format!("/proc/{pid}/fd/{fd}")) {
-        Ok(file) => Ok(file.into()),
-        Err(_) => Err(refused),
+    options.custom_flags(libc::O_NONBLOCK);
+    let file = match options.open(format!("/proc/{pid}/fd/{fd}")) {
+        Ok(file) => file,
+        Err(_) => return Err(refused),
+    };
+    // SAFETY: F_GETFL/F_SETFL on a descriptor this function owns.
+    unsafe {
+        let now = libc::fcntl(file.as_raw_fd(), libc::F_GETFL);
+        if now >= 0 {
+            libc::fcntl(file.as_raw_fd(), libc::F_SETFL, now & !libc::O_NONBLOCK);
+        }
     }
+    Ok(file.into())
 }
 
 /// The head of `/proc/<pid>/status`, where `Tgid` and the pending masks are.
