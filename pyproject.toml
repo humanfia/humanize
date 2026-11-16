@@ -283,10 +283,7 @@ ignore = [
 "src/hmz/coganchor/{anchor,argv,execproxy,handlers,netproxy,policy,proto,remote,shadow,standin,statepaths,supervisor,transport}.py" = [
     "PTH",
 ]
-# The one line every family of the daemon's methods agrees its package says, word for word.
-"src/hmz/daemon/api/__init__.py" = ["E501"]
 "src/hmz/coganchor/linux/**" = ["PTH"]
-
 "src/hmz/coganchor/serve/**" = ["PTH"]
 # The same, for the half of a redirected run that reads paths out of a tracee: what
 # it holds is what the process itself named, byte for byte, and back again.
@@ -319,6 +316,8 @@ ignore = [
 # `BudgetExceeded`, `TempCloneBusy` -- as the flow API's spec names them, rather than each
 # given an `Error` suffix that would say only that they are exceptions.
 "src/hmz/flows/errors.py" = ["N818"]
+# The docstring every unit adding a family of daemon methods writes, word for word, as one line.
+"src/hmz/daemon/api/__init__.py" = ["E501"]
 # What a command line writes, it prints.
 "src/hmz/cli/**" = ["T201"]
 # And so does a flow: what it prints is what its run shows whoever is watching. The flows

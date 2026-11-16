@@ -58,7 +58,8 @@ class Router:
     Args:
       at: The daemon's directory.
       listening: Its socket, bound and listening.
-      listen: The listener specs to listen on beside it.
+      listen: The listener specs `--listen` named, kept beside those the setting `listen`
+        names, which are opened and closed as it changes.
       kept: Whether it goes on `SIGTERM` alone, as `hmz daemon serve` started it.
       opened: Told the route of each listener as it opens.
     """
@@ -79,8 +80,10 @@ class Router:
 
         self._at = at
         self._listening = listening
-        self._specs = list(listen)
-        self._kept = kept or bool(self._specs)
+        self._given = list(listen)
+        self._kept = kept
+        #: When the settings file was last changed, as last read for `listen`.
+        self._stamp: int | None = None
         self._opened: Callable[[str], None] = opened or _nothing
         self._lock = threading.Lock()
         self._sessions: dict[Peer, Session] = {}
@@ -152,11 +155,32 @@ class Router:
 
     def start(self) -> None:
         """Starts taking sessions on the socket, and opens every listener."""
+        self._relistens()
+        threading.Thread(target=self._takes, name="hmz-daemon", daemon=True).start()
+
+    def _relistens(self) -> None:
+        """Opens and closes listeners as the setting `listen` names them, once it changes.
+
+        Those `hmz daemon serve --listen` named are kept whatever the setting says.
+        """
+        from hmz.coganchor import settings
         from hmz.daemon.listening import listener
 
-        threading.Thread(target=self._takes, name="hmz-daemon", daemon=True).start()
-        self.listeners = listener(
-            self._specs,
+        try:
+            stamp = settings.where().stat().st_mtime_ns
+        except OSError:
+            stamp = 0
+        if stamp == self._stamp:
+            return
+        self._stamp = stamp
+        wanted = list(dict.fromkeys([*_listened(), *self._given]))
+        kept = [one for one in self.listeners if one.spec in wanted]
+        for one in self.listeners:
+            if one.spec not in wanted:
+                one.close()
+        held = {one.spec for one in kept}
+        self.listeners = kept + listener(
+            [one for one in wanted if one not in held],
             lambda pipe, fingerprint: self.admit(pipe, fingerprint=fingerprint),
             lambda: self.identity,
             self._opened,
@@ -190,6 +214,7 @@ class Router:
         touched = time.monotonic()
         try:
             while not self._done.is_set() and not self._idle():
+                self._relistens()
                 if time.monotonic() - touched > _RETOUCH:
                     touched = time.monotonic()
                     for name in (*_FILES, "."):
@@ -208,7 +233,7 @@ class Router:
 
     def _idle(self) -> bool:
         """Whether nothing is left for this daemon to be reached for."""
-        if self._kept:
+        if self._kept or self.listeners:
             return False
         with self._lock:
             if self._sessions or self._pending or len(self.hosts):
@@ -346,7 +371,6 @@ class Router:
                     session.notices.add(sub)
             return answer
 
-
         return carried
 
     def _unnoticed(self, handler: Handler) -> Handler:
@@ -407,7 +431,7 @@ def serves(
         router = Router(
             at,
             listening,
-            listen=[*_listened(), *listen],
+            listen=listen,
             kept=kept,
             opened=opened,
         )
