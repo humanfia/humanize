@@ -1223,8 +1223,7 @@ class Host:
         self._folded = True
         self._away_all = True
         self._away_of.clear()
-        self._snap("away", all=True, of={})
-        self._spoke.notify_all()
+        self._goes_away()
 
     def _calls(self, now: float | None = None) -> list[dict[str, Any]]:
         """Every flow call going here, oldest first: since when, or how long for `now`."""
@@ -1973,8 +1972,8 @@ class Host:
                     self._answers(asked, line.text, line.by, line.client)
                     self._snap_waiting()
                     continue
-                # Re-asked every tick as well as on every word, so that `/afk` and a run
-                # that has gone are noticed however they came about.
+                # Re-asked every tick as well as on every word, so that a run that has
+                # gone is noticed however it came about.
                 self._spoke.wait(_TICK)
 
     def _line_for(self, current: _Run, role: str) -> _Line | None:
@@ -2110,9 +2109,19 @@ class Host:
                     one for one in self._away_of if self._may(frontend.client, one)
                 ]:
                     del self._away_of[held]
-            self._snap("away", all=self._away_all, of=dict(self._away_of))
-            self._spoke.notify_all()
+            self._goes_away()
         return _ok()
+
+    def _goes_away(self) -> None:
+        """Says who is away, and withdraws every question of a role that is. Under the lock.
+
+        Withdrawn now, not when the asking thread next looks: away set and cleared again
+        before it looks would leave its question waiting for nobody.
+        """
+        self._snap("away", all=self._away_all, of=dict(self._away_of))
+        for asked in [one for one in self._questions if self.away_for(one.role)]:
+            self._withdraws(asked, "away")
+        self._spoke.notify_all()
 
     # --------------------------------------------------------------------- board
 
