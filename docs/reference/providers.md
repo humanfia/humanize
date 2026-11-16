@@ -352,10 +352,10 @@ console account, which lives in the same SQLite database as its sessions; any pa
 A turn under a provider whose `swaps()` is non-empty is spawned as:
 
 ```text
-python -Pm hmz internal cred --map=FROM=TO [--map=…] [--keep=FROM=TO …] -- CLI ARGS…
+coganchor internal cred --map=FROM=TO [--map=…] [--keep=FROM=TO …] -- CLI ARGS…
 ```
 
-`hmz internal cred` runs the CLI under a seccomp-filtered ptrace supervisor that stops only
+`coganchor internal cred` (`hmz internal cred`) runs the CLI under a seccomp-filtered ptrace supervisor that stops only
 path-naming syscalls: the same set an anchored supervisor stops, less `execve`, `execveat` and
 `connect` ([Remote execution › Interception](/reference/remote-execution#interception)). A
 path is matched after `.`, `..` and doubled `/` are resolved and `/proc/<pid>/fd/<n>`, `cwd`,

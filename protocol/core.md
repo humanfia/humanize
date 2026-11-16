@@ -2198,8 +2198,9 @@ env's workdir, or a directory under it that the session names.
 **6.2.2** **Target**: a string that names an env machine and the way hmz reaches it, as Section 6.9
 defines.
 
-**6.2.3** **Serving half**: the program hmz starts on, or connects to on, a target to carry out the
-file operations, commands and outbound connections that a harness elsewhere asks for.
+**6.2.3** **Serving half**: `coganchor anchor` (Section 11.2 of [CLI]), the program hmz starts on,
+or connects to on, a target to carry out the file operations, commands and outbound connections
+that a harness elsewhere asks for.
 
 **6.2.4** **Env location**: where a session's env machine is, as Section 6.3.1 defines: `local` or
 `standalone`.
@@ -2273,12 +2274,18 @@ names the platforms on which it can run, where its harness machine is not Linux 
 aarch64.
 
 **6.3.2.2** An env machine of a session with env location standalone MUST provide a POSIX `/bin/sh`
-and a Python of version 3.12 or later. hmz MUST NOT require root, a compiler, a kernel module or an
-installed package on that machine.
+and MUST be Linux or macOS on x86-64 or aarch64. hmz MUST NOT require root, a compiler, a kernel
+module, a Python or an installed package on that machine.
 
 **6.3.2.3** A session with harness location env MUST require the harness program to be installed on
 the env machine and found on the `PATH` of the login hmz reaches it as, without looking in any other
 directory.
+
+**6.3.2.4** hmz MUST carry `coganchor` (Section 11.2 of [CLI]) within its own installation, built
+for each platform Section 6.3.2.2 names, and MUST copy to an env machine or a harness machine other
+than this machine the build for the platform that machine's `uname -sm` reports. A session whose
+env machine is a platform with no build MUST fail at the start of its first turn with an error that
+names that platform.
 
 ### 6.4. Settling the harness location
 
@@ -2633,9 +2640,9 @@ before anything is put in or run from it.
 this machine.
 
 **6.9.1.10** `slurm://JOBID[?python=PATH]` MUST name the node of a running Slurm job of this user's.
-Every command on it MUST be a step of that job sharing its allocation on its one node, MUST receive
-nothing of this process's environment but `HOME` and `USER`, and MUST try the Python at `PATH`,
-absolute or under `~/`, before any other.
+Every command on it MUST be a step of that job sharing its allocation on its one node and MUST
+receive nothing of this process's environment but `HOME` and `USER`. The option `python=PATH` MUST
+be accepted and MUST NOT be used.
 
 **6.9.1.11** `tcp://HOST:PORT` MUST name a serving half listening at that address.
 
@@ -2898,8 +2905,8 @@ own, or with a value holding a newline or `"` MUST be refused when saved.
 on the daemon its runtime names, started when the env is probed.
 
 **7.7.1.2** The container MUST be started from the role's declared image, else the runtime's image,
-else `python:3.12-slim`, and MUST need nothing in the image but `/bin/sh` and a Python of version
-3.12 or later.
+else `python:3.12-slim`, and MUST need nothing in the image but `/bin/sh` on a platform that Section
+6.3.2.2 names.
 
 **7.7.1.3** The workdir MUST be a directory of the daemon's host, mounted into the container at its
 own path; hmz MUST refuse with `EnvUnavailable` a workdir the daemon's host has not got, and MUST
@@ -3091,8 +3098,8 @@ of Section 7.7.1.9 and `humanize.name`.
 
 **7.10.6** hmz MUST reach the job's node by a step of the job per connection where the runtime's way
 in is `srun`, and by a connection per session to a serving half that the job itself runs, presenting
-a secret the job was given on no command line, where it is `tcp`; the runtime's Python MUST be tried
-before any other on the node.
+a secret the job was given on no command line, where it is `tcp`; the runtime's Python MUST NOT be
+used.
 
 **7.10.7** Before any agent starts, hmz MUST hold what the role asks against the runtime's job
 limit, and its CPUs and memory where saved, less what the runtime's jobs hold, waiting or running; a

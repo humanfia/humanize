@@ -703,8 +703,8 @@ hmz internal anchor rendezvous …
 
 Runs a coding agent here whose work lands on another machine. A first word of `serve` or
 `rendezvous` selects the subcommand; otherwise every word after the options is the agent and
-its own arguments. Loads `coganchor` and nothing else of Humanize. Semantics:
-[Remote execution](/reference/remote-execution).
+its own arguments. Each runs the program [`coganchor`](#coganchor), which does the work, and
+exits with its status. Semantics: [Remote execution](/reference/remote-execution).
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -734,7 +734,7 @@ its own arguments. Loads `coganchor` and nothing else of Humanize. Semantics:
 | `--check` | off | Connect, print what was found, exit. |
 | `--log-level {debug,info,warning,error}` | `$HUMANIZE_LOG`, else `warning` | Logging to stderr. |
 
-`--check` prints, on stdout, lines `target`, `hostname`, `python … (pid …)`, one `export <virtual> -> <real>` per export, and `workspace <path> (<n> entries)`.
+`--check` prints, on stdout, lines `target`, `hostname`, `python coganchor <version> (pid …)`, one `export <virtual> -> <real>` per export, and `workspace <path> (<n> entries)`.
 
 | Exit | When |
 | --- | --- |
@@ -839,6 +839,27 @@ hosts; `TMPDIR` set to the fence's scratch directory.
 | `2` | no `--policy`; no program (`no program given; try `hmz internal fence --policy=... -- claude``) |
 | `126` | the fence cannot be put up here (no Landlock, or no way to cut TCP; on macOS, a process already inside a sandbox; a path it writes leads through a link a fenced program could have made); the program never ran (`hmz internal fence: <why>`) |
 
+### `coganchor` {#coganchor}
+
+```text
+coganchor cog [options] AGENT [ARGS...]           # hmz internal anchor
+coganchor anchor --export VIRTUAL[:REAL] …        # hmz internal anchor serve
+coganchor broker [--listen [HOST:]PORT] …         # hmz internal anchor rendezvous
+coganchor internal fence --policy JSON [--] …     # hmz internal fence
+coganchor internal cred --map FROM=TO … [--] …    # hmz internal cred
+coganchor --version
+```
+
+The anchor, as one static program in Rust, built from `crates/coganchor/`. The package
+carries a build for Linux (static, against musl) and macOS on x86-64 and aarch64, at
+`hmz/coganchor/bin/<os>-<arch>/coganchor`, and copies the right one to each machine a session
+reaches. Each mode takes the options, defaults, variables, messages and exit statuses of the
+`hmz internal` command beside it above, which runs it; `anchor` also takes `--token-file`.
+Its messages begin `hmz: ` as theirs do, and `coganchor anchor --listen` prints `hmz internal
+anchor serve listening HOST PORT`. `--version` prints `coganchor <version>`. `internal` is
+left out of its help. [`HUMANIZE_COGANCHOR`](/reference/environment#humanize-coganchor) names a
+`coganchor` for `hmz` to run here instead of the packaged one.
+
 ### `hmz internal hook` {#hmz-internal-hook}
 
 ```text
@@ -922,6 +943,7 @@ Variables these commands read. The complete list, with every layer's, is
 | `NO_COLOR`, `TERM`, `FORCE_COLOR` | all | see [Colour](#colour) | Escapes. |
 | `TEXTUAL_THEME` | `hmz` | a Textual theme name | The interface's theme; unknown names are ignored. |
 | `TMUX`, `TERM_PROGRAM`, `LC_TERMINAL` | `hmz` | | Decide `TEXTUAL_DISABLE_KITTY_KEY` ([Terminal preparation](#terminal-preparation)). |
+| `HUMANIZE_COGANCHOR` | `internal anchor`, `cred`, `fence` | a path | The [`coganchor`](#coganchor) to run here in place of the packaged build; ignored where it does not exist. |
 | `HUMANIZE_TARGET` | `internal anchor` | a target URL | Default `--target`. |
 | `HUMANIZE_HARNESS` | `internal anchor` | a harness spelling | Default `--harness`. |
 | `HUMANIZE_SHADOW` | `internal anchor` | a path | Default `--shadow`. |

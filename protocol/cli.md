@@ -3,7 +3,8 @@
 ## Abstract
 
 This document specifies the command-line interface of hmz: every command, its options and their
-grammars, what it writes to its standard streams, and its exit statuses.
+grammars, what it writes to its standard streams, and its exit statuses; and the command line of
+`coganchor`, the program that carries hmz's anchor.
 
 ## Status of This Document
 
@@ -251,6 +252,10 @@ status 130 where it was interrupted.
 or after it has ended, as Section 7.15.5 specifies.
 
 **5.2.8** `hmz internal hook` MUST exit with status 1 on a usage error.
+
+**5.2.9** `coganchor cog`, `coganchor anchor`, `coganchor broker`, `coganchor internal fence` and
+`coganchor internal cred` MUST exit with the statuses Section 5.2.2 to Section 5.2.6 assign to the
+`hmz internal` command each stands for (Section 11.2.12), in the same cases.
 
 ## 6. The terminal interface (`hmz` with no command)
 
@@ -924,6 +929,10 @@ hook    relay agent hooks to a flow
 tools   relay agent tool calls to a flow
 ```
 
+**11.1.6** `hmz internal anchor`, `hmz internal cred` and `hmz internal fence` MUST each run the
+`coganchor` of this machine (Section 7.5 of [FILES]) with the command line Section 11.2.13 gives,
+handing it its standard streams, and MUST exit with its status.
+
 ### 11.2. `hmz internal anchor`
 
 ```text
@@ -933,6 +942,15 @@ hmz internal anchor serve --export <virtual>[:<real>]... (--stdio | --listen [<h
                           [--log-level <level>]
 hmz internal anchor rendezvous [--listen [<host>:]<port>] [--punching <seconds>]
                                [--log-level <level>]
+
+coganchor cog [<options>] <program> [<args>...]
+coganchor anchor --export <virtual>[:<real>]... (--stdio | --listen [<host>:]<port>
+                 | --peer <ticket>@<host>:<port>) [--token <secret> | --token-file <file>]
+                 [--log-level <level>]
+coganchor broker [--listen [<host>:]<port>] [--punching <seconds>] [--log-level <level>]
+coganchor internal fence --policy (<json> | @<path>) [--] <program> [<args>...]
+coganchor internal cred (--map <from>=<to> | --keep <from>=<to>)... [--] <program> [<args>...]
+coganchor --version
 ```
 
 **11.2.1** `hmz internal anchor` MUST run `<program>` with its work landing on the machine
@@ -976,6 +994,28 @@ any case and with surrounding white space removed, `hmz internal anchor`, `hmz i
 serve` and `hmz internal anchor rendezvous` MUST each write `hmz: ignoring HUMANIZE_LOG='<value>',
 which is not one of debug, info, warning, error` to standard error and log at the default level of
 Section 11.2.3.
+
+**11.2.12** `coganchor cog`, `coganchor anchor` and `coganchor broker` MUST be `hmz internal
+anchor`, `hmz internal anchor serve` and `hmz internal anchor rendezvous`, and `coganchor internal
+fence` and `coganchor internal cred` MUST be `hmz internal fence` and `hmz internal cred`: each MUST
+take the same options with the same defaults, read the same variables, and write the same messages,
+`hmz: <reason>`, `hmz internal anchor serve listening <host> <port>` and `hmz internal anchor
+rendezvous listening <bound> <landed>` among them, word for word.
+
+**11.2.13** `hmz internal anchor serve <args>` MUST run `coganchor anchor <args>`; `hmz internal
+anchor rendezvous <args>` MUST run `coganchor broker <args>`; `hmz internal anchor <args>` otherwise
+MUST run `coganchor cog <args>`; and `hmz internal fence <args>` and `hmz internal cred <args>` MUST
+run `coganchor internal fence <args>` and `coganchor internal cred <args>`.
+
+**11.2.14** `coganchor` with no mode, or with a mode it does not have, MUST be a usage error. A usage
+error of `coganchor`, and of each command Section 11.2.13 runs it for, MUST write its reason to
+standard error and exit with status 2, and MAY do so in another form than Section 2.3 gives.
+
+**11.2.15** `coganchor --version` MUST write `coganchor <version>` to standard output, where
+`<version>` is the version of hmz it was built with, and exit with status 0.
+
+**11.2.16** The help of `coganchor` MUST list `cog`, `anchor` and `broker`, and MUST NOT list
+`internal`.
 
 ### 11.3. `hmz internal cred`
 
@@ -1205,12 +1245,13 @@ document states.
   that user's own command line. No option of `hmz exec` has an equivalent environment variable
   (Section 7.1.8).
 - **Listening addresses.** `hmz web` listens on loopback addresses only (Section 8.2.2). `hmz
-  internal anchor serve` refuses to listen on a non-loopback address without a token and refuses a
-  client that presents another token (Section 11.2.8, Section 11.2.9). `hmz internal anchor
-  rendezvous` listens on `0.0.0.0` by default (Section 11.2.10). `hmz daemon serve` makes this
-  machine's daemon reachable on every listener it is given, each admitting only paired devices over
-  mutual TLS or WebRTC (Section 13.2.1). `hmz relay serve` listens where it is told, on plain
-  WebSockets, admits anybody, and carries only what is secured end to end (Section 14.2.1).
+  internal anchor serve`, which is `coganchor anchor` (Section 11.2.12), refuses to listen on a
+  non-loopback address without a token and refuses a client that presents another token (Section
+  11.2.8, Section 11.2.9). `hmz internal anchor rendezvous` listens on `0.0.0.0` by default
+  (Section 11.2.10). `hmz daemon serve` makes this machine's daemon reachable on every listener it
+  is given, each admitting only paired devices over mutual TLS or WebRTC (Section 13.2.1). `hmz
+  relay serve` listens where it is told, on plain WebSockets, admits anybody, and carries only what
+  is secured end to end (Section 14.2.1).
 - **Services.** `hmz daemon install` makes the daemon start at login and keeps it running with its
   listeners (Section 13.2.6). `hmz daemon connect --stdio` gives whoever runs it, as this user, the
   daemon's socket on its standard streams (Section 13.2.3).
