@@ -198,20 +198,31 @@ def test_a_later_rule_takes_away_every_earlier_one_beneath_it() -> None:
     assert not fence.allows("/tmp/x", write=True)
 
 
-def test_a_later_rule_has_the_last_word_over_what_a_written_workdir_brings(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "rules",
+    [
+        [("/", READ), (".", WRITE), ("/tmp", NONE)],
+        [("/", READ), ("/tmp", NONE), (".", WRITE)],
+    ],
+)
+def test_a_rule_at_a_temporary_loses_to_it_and_one_beneath_it_wins(
+    monkeypatch: pytest.MonkeyPatch, rules: list[tuple[str, str]]
 ) -> None:
     monkeypatch.setenv("TMPDIR", "/var/folders/xy/T")
 
-    later = drawn(("/", READ), (".", WRITE), ("/tmp", NONE))
-    earlier = drawn(("/", READ), ("/tmp", NONE), (".", WRITE))
+    at = drawn(*rules)
+    beneath = drawn(*rules, ("/tmp/x", NONE), ("/var/tmp/y", READ))
 
-    assert later.level("/tmp/x") == NONE
-    assert later.allows("/var/tmp/x", write=True)
-    assert earlier.allows("/tmp/x", write=True)
+    # At one depth the wider wins, wherever the rule is said.
+    assert at.allows("/tmp/a", write=True)
+    assert beneath.allows("/tmp/a", write=True)
+    # Beneath it, the deeper decides.
+    assert beneath.level("/tmp/x/key") == NONE
+    assert beneath.level("/var/tmp/y/z") == READ
+    assert beneath.allows("/var/tmp/z", write=True)
 
 
-def test_a_later_rule_has_the_last_word_over_what_a_written_home_brings(
+def test_a_rule_beneath_what_a_written_home_brings_wins(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("os.geteuid", lambda: 1000)
@@ -221,6 +232,8 @@ def test_a_later_rule_has_the_last_word_over_what_a_written_home_brings(
     assert fence.level("/opt/x") == NONE
     assert fence.level("/etc/hosts") == READ
     assert fence.level(ELSEWHERE) == WRITE
+    # At `/` itself the grant is the wider, whatever the rule there says.
+    assert drawn(("/", READ), ("~", WRITE)).level(ELSEWHERE) == WRITE
 
 
 def test_a_rule_for_the_home_takes_the_workdir_beneath_it_with_it() -> None:

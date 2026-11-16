@@ -50,7 +50,7 @@ from typing import TYPE_CHECKING, Any, Final, Self, cast
 from hmz.coganchor.fence.proxy import Proxy, permits
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable
 
 __all__ = [
     "DARWIN_DEVICES",
@@ -337,18 +337,6 @@ def _compiled(
     return held
 
 
-def _deciding(
-    rules: Sequence[tuple[str, str]], path: str, *, dots: Iterable[str], home: str
-) -> int:
-    """Which of the rules is the last to hold a path, which it does decide."""
-    workdirs = list(dots)
-    return max(
-        index
-        for index, (said, _) in enumerate(rules)
-        if any(_under(path, one) for one in _resolved(said, dots=workdirs, home=home))
-    )
-
-
 def _deepest(held: dict[str, str], path: str) -> str:
     """The access compiled rules give a path: the deepest one it is at or beneath."""
     over = [one for one in held if _under(path, one)]
@@ -510,7 +498,10 @@ class Fence:
         written writes :data:`TEMPORARY` as well, as a workspace Codex may write does; a home
         that may be written -- by a rule at it or above it, and not only as part of a workdir
         it is inside -- writes whatever the user may change, which for anyone but root is the
-        whole filesystem held by its own permissions.
+        whole filesystem held by its own permissions. Those are granted as the minimum is,
+        not as rules: where one of them and a rule's path nest, the deeper decides, and at
+        one depth the wider -- so `("/tmp", "none")` leaves `/tmp` written, and
+        `("/tmp/x", "none")` keeps `/tmp/x` out of reach.
 
         Args:
           rules: The rules, as `(path, access)`, in the order they are said.
@@ -533,38 +524,24 @@ class Fence:
         dots = _normal((workdir, *((cwd,) if cwd else ())))
         homed = _normal((home,))[0] if home else ""
         held = _compiled(drawn, dots=dots, home=homed)
-        # What a workdir, or a home, that may be written brings with it is said as rules of
-        # its own, right after the rule that decided it: so that a rule said later about the
-        # scratch, or about anywhere the user may change, still has the last word.
-        brought: dict[int, list[str]] = {}
+        writing: list[str] = []
         if _deepest(held, dots[0]) == WRITE:
-            at = _deciding(drawn, dots[0], dots=dots, home=homed)
-            brought.setdefault(at, []).extend(_temporary())
+            writing.extend(_temporary())
         # The home written as the home, and not as a workdir it happens to be inside.
-        users = [
-            (index, one)
-            for index, one in enumerate(drawn)
-            if one[0].partition("/")[0] != _WORKDIR
-        ]
+        users = [one for one in drawn if one[0].partition("/")[0] != _WORKDIR]
         if (
             homed
             and _deepest(held, homed) == WRITE
-            and _deepest(
-                _compiled([one for _, one in users], dots=dots, home=homed), homed
-            )
-            == WRITE
+            and _deepest(_compiled(users, dots=dots, home=homed), homed) == WRITE
         ):
-            at = users[
-                _deciding([one for _, one in users], homed, dots=dots, home=homed)
-            ][0]
-            brought.setdefault(at, []).extend(_users())
-        said = [
-            rule
-            for index, one in enumerate(drawn)
-            for rule in (one, *((path, WRITE) for path in brought.get(index, ())))
-        ]
-        fence = cls(online=online, hosts=tuple(hosts), drawn=drawn)
-        return fence._at(_compiled(said, dots=dots, home=homed)).granting(
+            writing.extend(_users())
+        # Granted before the rules are set against them, so that a rule carves out what it
+        # holds beneath them and loses to them at their own path: the deeper decides, and at
+        # one depth the wider.
+        fence = cls(online=online, hosts=tuple(hosts), drawn=drawn).granting(
+            write=writing
+        )
+        return fence._at(held).granting(  # noqa: SLF001 -- its own class's
             read=(*SYSTEM, *_ours(), *read),
             write=(*DEVICES, *_accelerators(), *write),
         )
@@ -585,6 +562,9 @@ class Fence:
                     if LEVELS[want] == WRITE
                     else fence.granting(read=[path])
                 )
+            elif path in fence.write:
+                # Written at that very path, which a carve-out there could not take back.
+                continue
             elif want < now and LEVELS[want] == READ:
                 fence = dataclasses.replace(fence, keep=(*fence.keep, path))
             elif want < now:
