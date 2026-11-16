@@ -8,16 +8,26 @@ refuses, it refuses with a sentence the page shows as it is.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Generator, Iterator
     from pathlib import Path
     from threading import Event
 
-__all__ = ["Asked", "Download", "Made", "Refusal", "Route", "Stream", "routes"]
+__all__ = [
+    "Asked",
+    "Download",
+    "Made",
+    "Refusal",
+    "Route",
+    "Stream",
+    "answered",
+    "routes",
+]
 
 
 class Refusal(Exception):  # noqa: N818 -- what the page is told, not what went wrong here
@@ -32,6 +42,21 @@ class Refusal(Exception):  # noqa: N818 -- what the page is told, not what went 
         super().__init__(sentence)
         self.status = status
         self.said = said
+
+
+@contextlib.contextmanager
+def answered() -> Generator[None]:
+    """Refuses what a daemon's method refuses as a page is refused: its code, its sentence.
+
+    A route that is the method of the daemon's own, served over HTTP until the page calls the
+    method, answers what the method answers.
+    """
+    from hmz.rpc import RpcError
+
+    try:
+        yield
+    except RpcError as why:
+        raise Refusal(why.message, why.code) from why
 
 
 @dataclass(frozen=True, slots=True)
