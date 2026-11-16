@@ -226,6 +226,7 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: pytest tests/unit/<package>, a package at a time
+        timeout-minutes: 12
         env:
           CHANGES: ${{ needs.changes.outputs.changes || '' }}
           EVENT: ${{ github.event_name }}
