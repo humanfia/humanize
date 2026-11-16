@@ -457,11 +457,11 @@ strings, the command that starts it, or a mapping with the keys `command`, `host
 **3.7.1.2** `command` MUST be a non-empty list of strings, the command that starts the harness,
 speaking the Agent Client Protocol.
 
-**3.7.1.3** `hosts` MUST be a list of hosts the harness MAY reach while a flow's permission cuts the
-network.
+**3.7.1.3** `hosts` MUST be a list of hosts the harness MAY reach while a flow's permission has
+`network` false.
 
-**3.7.1.4** `state` MUST be a list of paths the harness MAY write while a flow's permission forbids
-writing them.
+**3.7.1.4** `state` MUST be a list of paths the harness MAY write beyond what a flow's permission
+gives (Section 4.14.1.8 of [CORE]).
 
 **3.7.1.5** An entry whose command is not a non-empty list MUST be ignored when read.
 

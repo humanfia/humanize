@@ -776,10 +776,10 @@ answering the last question`.
 **4.8.8.11** `unaside` MUST take `side`, MUST close that side conversation, and MUST be refused with
 `no aside <side> is open`.
 
-**4.8.8.12** Every side conversation MUST be read-only, MUST carry no skills but The Epic's
-`ask-conversation` (Section 9.6.10 of [CORE]), MUST NOT be seen by the epic, MUST be answered only
-to the frontend that opened it, and MUST NOT write where any epic keeps its sessions nor into the
-harness's own home.
+**4.8.8.12** Every side conversation MUST run at the `read-only` rung, MUST carry no skills but The
+Epic's `ask-conversation` (Section 9.6.10 of [CORE]), MUST NOT be seen by the epic, MUST be answered
+only to the frontend that opened it, and MUST NOT write where any epic keeps its sessions nor into
+the harness's own home.
 
 **4.8.8.13** A side conversation MUST be closed by `unaside`, when its frontend leaves, when an epic
 starts on the host, and when the host closes; no message announces side conversations.

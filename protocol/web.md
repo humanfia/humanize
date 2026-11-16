@@ -1321,10 +1321,11 @@ task}]`).
 
 **4.11.2.1** `GET /api/flow` MUST take `name` and the workspace parameter, and MUST answer what the
 flow declares: `name`, `ref`, `description`, `resumable`, `resumes`, `agents` (each `name`,
-`required`, `auto`, `harness`, `permission`, `skills`, and `clis`: the CLIs installed here that can
-fill it), `envs` (each `name`, `required`, `auto`, `cpu`, `memory`, `gpu`, `image`), `params` (its
-JSON schema) and `remembered` (`agents`, `envs`, `params`, `budget`, `profile_flow`,
-`profile_environment`, `backup`, as the workspace last set the flow up).
+`required`, `auto`, `harness`, `permission` (`{preset, network, granular: [{path, access}]}`),
+`skills`, and `clis`: the CLIs installed here that can fill it), `envs` (each `name`, `required`,
+`auto`, `cpu`, `memory`, `gpu`, `image`), `params` (its JSON schema) and `remembered` (`agents`,
+`envs`, `params`, `budget`, `profile_flow`, `profile_environment`, `backup`, as the workspace last
+set the flow up).
 
 **4.11.2.2** A missing `name` MUST be refused 400; a name that is not one of `GET /api/flows` 404,
 `<name> is not a flow on offer here.`; a flow that will not load 404.
