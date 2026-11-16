@@ -68,6 +68,10 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.tracing',
   ],
   'hmz.daemon': ['hmz.runtime'],
+  'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where'],
+  'hmz.relay': [],
+  'hmz.rtc': [],
+  'hmz.trust': ['hmz.coganchor.atomic', 'hmz.coganchor.settings'],
   'hmz.tui': [
     'hmz.coganchor',
     'hmz.flows',
@@ -80,7 +84,6 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.daemon',
   ],
   'hmz.sdk': ['hmz.daemon', 'hmz.runtime'],
-  'hmz.rtc': [],
   'hmz.web': [
     'hmz.coganchor',
     'hmz.daemon',
@@ -99,6 +102,7 @@ const CLI_IMPORTS = [
   'hmz.tui',
   'hmz.web',
   'hmz.daemon',
+  'hmz.relay',
   'hmz.runtime',
   'hmz.flows',
   'hmz.coganchor',
@@ -149,6 +153,27 @@ const LAYERS: Layer[] = [
     note: 'Names the runtime by its front door, `hmz.runtime`.',
     spec: 'daemon.md#4-wire-protocol',
     ref: '/reference/daemon',
+  },
+  {
+    id: 'reach',
+    dotted: 'hmz.reach',
+    here: 'The carriers between a client and a daemon: the routes that name them, dialing, listening and racing.',
+    note: 'Reaches `ssh` and EasyTier through `coganchor`, and this machine\'s daemon socket through `daemon.where` alone.',
+    spec: 'wire.md#3-carriers-and-routes',
+  },
+  {
+    id: 'relay',
+    dotted: 'hmz.relay',
+    here: 'The relay of `hmz relay serve`: rooms a daemon registers in, and the devices joined to them.',
+    note: 'Imports nothing of Humanize: it reads nothing of the machine it runs on.',
+    spec: 'wire.md#5-the-relay',
+    ref: '/user/relay',
+  },
+  {
+    id: 'trust',
+    dotted: 'hmz.trust',
+    here: "Who is at the other end of a carrier that proves nothing by itself: this machine's device key, pairing codes, the paired devices, and mutual TLS between two devices over any pipe.",
+    spec: 'wire.md#4-session-security',
   },
   {
     id: 'rtc',
@@ -261,7 +286,7 @@ const LAYERS: Layer[] = [
 const BANDS: { label: string; ids: string[] }[] = [
   { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
-  { label: 'reaching a daemon', ids: ['rtc'] },
+  { label: 'reaching a daemon', ids: ['reach', 'relay', 'rtc', 'trust'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
   { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },
