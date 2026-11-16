@@ -26,7 +26,8 @@ use crate::proto::json;
 pub(super) struct Ledger {
     journal: File,
     /// Only ever locked: its lock is what says a turn is in the mirror.
-    live: File,
+    /// Held, shared, for the life of the turn: that is what tells a lone opener it is alone.
+    _live: File,
     /// How far into the journal this turn has read (and written).
     seen: u64,
     /// How many [`Ledger::enter`]s are open: the lock is taken by the first, let go by the last.
@@ -62,7 +63,7 @@ impl Ledger {
         joined?;
         Ok(Ledger {
             journal,
-            live,
+            _live: live,
             seen: 0,
             depth: 0,
             told: Vec::new(),

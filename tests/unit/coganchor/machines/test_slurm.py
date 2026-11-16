@@ -216,7 +216,7 @@ def test_a_job_reached_over_tcp_runs_coganchor_and_is_dialled_with_its_secret(
     runs: Runs, handshake: Handshake, built: Path
 ) -> None:
     a_cluster(runs, "RUNNING", node="n7")
-    runs.on("exec uname -sm", out="Linux x86_64\n")
+    runs.on("/bin/sh", "-c", "exec uname -sm", out="Linux x86_64\n")
     runs.on("/bin/cat").answers = [
         (1, "", "No such file"),
         (0, "hmz internal anchor serve listening 0.0.0.0 40124\n", ""),
@@ -251,7 +251,7 @@ def test_a_serving_half_that_never_listens_is_an_error_and_its_job_goes(
     clock = iter(range(0, 10_000, 30))
     monkeypatch.setattr(time, "monotonic", lambda: float(next(clock)))
     a_cluster(runs, "RUNNING")
-    runs.on("exec uname -sm", out="Linux x86_64\n")
+    runs.on("/bin/sh", "-c", "exec uname -sm", out="Linux x86_64\n")
     runs.on("/bin/cat", out="coganchor: cannot listen\n")
 
     with pytest.raises(RuntimeError, match="did not say it was listening"):

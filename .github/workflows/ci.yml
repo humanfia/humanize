@@ -134,7 +134,7 @@ jobs:
             js:
               - .github/workflows/ci.yml
               - src/hmz/web/static/**
-              - tests/js/**
+              - tests/unit/web/js/**
             coganchor:
               - crates/coganchor/**
               - .github/workflows/ci.yml
@@ -262,16 +262,16 @@ jobs:
           done
           exit "$status"
 
-      # The page's modules are plain ES modules with no build step, tested by node's own runner;
-      # skipped until tests/js exists.
+      # The page's modules are plain ES modules with no build step, tested by node's own runner.
+      # Named by a glob: node 24 loads a directory given alone as one module, not its tests.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: ${{ !cancelled() && hashFiles('tests/js/**') != '' && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
         with:
           node-version: 24
 
-      - name: node --test tests/js
-        if: ${{ !cancelled() && hashFiles('tests/js/**') != '' && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
-        run: node --test tests/js
+      - name: node --test tests/unit/web/js
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
+        run: node --test 'tests/unit/web/js/*.test.mjs'
 
   # The anchor's own program in crates/coganchor: held to rustfmt and clippy, and tested, on
   # Linux, where its ptrace, seccomp and Landlock halves build, and on macOS, where the anchor

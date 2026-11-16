@@ -22,6 +22,7 @@ hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
 hmz server start --mode p2p --secret <s> --peer <url>...  keep this machine reachable
 hmz server stop                        stop that server
+hmz relay serve [--listen <host>:<port>]  relay daemons and the devices that reach them
 hmz update                             update hmz to its newest release
 hmz backup <epic> [--to <target>]...   back epics up to git repositories, or download them
 hmz internal <command> [<args>...]     processes Humanize spawns for itself
@@ -33,6 +34,7 @@ hmz internal <command> [<args>...]     processes Humanize spawns for itself
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
 | [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
 | [`server`](#hmz-server) | `_server` | `keep this machine's daemon reachable from others until stopped` |
+| [`relay`](#hmz-relay) | `_relay` | `relay daemons and the devices that reach them` |
 | [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
 | [`backup`](#hmz-backup) | `_backup` | `back epics up to git repositories, or download them` |
 | [`internal`](#hmz-internal) | `_internal` | `internal commands used by Humanize; do not run directly` |
@@ -611,6 +613,27 @@ records itself in `~/.hmz/server.json`. It runs until `hmz server stop`, which s
 | `stop` waited 30 seconds and the server is still there | `hmz: the server did not stop in 30 seconds (pid <n>)` | `1` |
 | `--mode`, `--secret` or `--peer` missing, another mode, a node that is not a URL as above, or a secret under 16 bytes | argparse usage error; `A secret must be at least 16 bytes.` for the last | `2` |
 
+## `hmz relay` {#hmz-relay}
+
+```text
+hmz relay serve [--listen <host>:<port>]
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--listen <host>:<port>` | `127.0.0.1:8765` | Where the relay listens. The port is `0` to `65535`, `0` for any free one; an IPv6 host goes in brackets, `[::1]:8765`. |
+
+`serve` serves the [relay](/user/relay) on plain WebSockets, on any path, until `SIGINT` or
+`SIGTERM`. Once listening it prints `hmz relay: listening on ws://<host>:<port>`, the port the
+one it was given, or the one it got for `0`. It reads no settings, no home and no identity, and
+starts or reaches no daemon. TLS, for a `wss://` URL, is a proxy's in front of it.
+
+| Condition | stderr | Exit |
+| --- | --- | --- |
+| Interrupted or terminated | — | `0` |
+| The address could not be listened on | `hmz: the relay cannot listen: <OSError>` | `1` |
+| No subcommand or another, or a `--listen` that is not `<host>:<port>` as above | argparse usage error | `2` |
+
 ## `hmz update` {#hmz-update}
 
 ```text
@@ -917,6 +940,7 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 | `1` | `hmz` | Runs held by an older Humanize; or the host let go of the interface. |
 | `1` | `hmz web` | Runs held by an older Humanize; or the runs or the port could not be had. |
 | `1` | `hmz server` | A server already running on `start`, none on `stop`, or it could not be started. |
+| `1` | `hmz relay` | The address could not be listened on. |
 | `1` | `hmz update` | Installed from a source, or no installer, PyPI or install that worked. |
 | `1` | `hmz exec` | The flow raised (traceback on stderr; the crash is reported where reporting is on). |
 | `1` | `internal …` | Could not connect, listen, supervise, or reach a socket. |

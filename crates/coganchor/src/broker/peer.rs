@@ -497,18 +497,20 @@ fn ipv4_of(name: &std::ffi::OsStr) -> Vec<String> {
     let mut hints: libc::addrinfo = unsafe { std::mem::zeroed() };
     hints.ai_family = libc::AF_INET;
     hints.ai_socktype = libc::SOCK_STREAM;
-    let mut list: *mut libc::addrinfo = std::ptr::null_mut();
-    // SAFETY: `name` is NUL-terminated, the service may be null, and `list` receives a list
-    // that is freed below and not used after.
-    let failed = unsafe { libc::getaddrinfo(name.as_ptr(), std::ptr::null(), &hints, &mut list) };
+    let mut head = std::mem::MaybeUninit::<*mut libc::addrinfo>::uninit();
+    // SAFETY: `name` is NUL-terminated, the service may be null, and the list it receives is
+    // freed below and not used after.
+    let failed =
+        unsafe { libc::getaddrinfo(name.as_ptr(), std::ptr::null(), &hints, head.as_mut_ptr()) };
     if failed != 0 {
         return Vec::new();
     }
+    // SAFETY: a successful getaddrinfo wrote the list's head, possibly null.
+    let list = unsafe { head.assume_init() };
     let mut found = Vec::new();
     let mut at = list;
-    while !at.is_null() {
-        // SAFETY: `at` is a node of the list `getaddrinfo` returned, which is still alive.
-        let one = unsafe { &*at };
+    // SAFETY: `at` is a node of the list `getaddrinfo` returned, which is still alive.
+    while let Some(one) = unsafe { at.as_ref() } {
         if one.ai_family == libc::AF_INET && !one.ai_addr.is_null() {
             // SAFETY: an `AF_INET` entry's address is a `sockaddr_in`.
             let v4 = unsafe { &*(one.ai_addr as *const libc::sockaddr_in) };
@@ -516,8 +518,10 @@ fn ipv4_of(name: &std::ffi::OsStr) -> Vec<String> {
         }
         at = one.ai_next;
     }
-    // SAFETY: `list` came from a successful `getaddrinfo` and is freed once.
-    unsafe { libc::freeaddrinfo(list) };
+    if !list.is_null() {
+        // SAFETY: `list` came from a successful `getaddrinfo` and is freed once.
+        unsafe { libc::freeaddrinfo(list) };
+    }
     found
 }
 

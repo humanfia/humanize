@@ -238,9 +238,10 @@ fn resolve(host: &str, port: u16) -> Result<Vec<SocketAddr>, RemoteError> {
     let mut hints: libc::addrinfo = unsafe { std::mem::zeroed() };
     hints.ai_family = libc::AF_UNSPEC;
     hints.ai_socktype = libc::SOCK_STREAM;
-    let mut found: *mut libc::addrinfo = std::ptr::null_mut();
-    // SAFETY: every pointer is valid for the call; `found` is freed below.
-    let rc = unsafe { libc::getaddrinfo(node.as_ptr(), service.as_ptr(), &hints, &mut found) };
+    let mut list = std::mem::MaybeUninit::<*mut libc::addrinfo>::uninit();
+    // SAFETY: every pointer is valid for the call; the list is freed below.
+    let rc =
+        unsafe { libc::getaddrinfo(node.as_ptr(), service.as_ptr(), &hints, list.as_mut_ptr()) };
     if rc != 0 {
         if rc == libc::EAI_SYSTEM {
             return Err(RemoteError::from_io(&io::Error::last_os_error(), None));
@@ -249,13 +250,18 @@ fn resolve(host: &str, port: u16) -> Result<Vec<SocketAddr>, RemoteError> {
         let message = unsafe { CStr::from_ptr(libc::gai_strerror(rc)) };
         return Err(RemoteError::new(rc, message.to_string_lossy()));
     }
+    // SAFETY: a successful getaddrinfo wrote the list's head, possibly null.
+    let found = unsafe { list.assume_init() };
     let mut addresses = Vec::new();
     let mut at = found;
-    while !at.is_null() {
-        // SAFETY: `at` walks the list getaddrinfo returned, each `ai_addr` sized for its
-        // family.
+    // SAFETY: `at` walks the list getaddrinfo returned, which is alive until freed below.
+    while let Some(info) = unsafe { at.as_ref() } {
+        // SAFETY: each non-null `ai_addr` is sized for its family.
         unsafe {
-            let info = &*at;
+            if info.ai_addr.is_null() {
+                at = info.ai_next;
+                continue;
+            }
             match info.ai_family {
                 libc::AF_INET => {
                     let addr = &*(info.ai_addr as *const libc::sockaddr_in);
@@ -278,8 +284,10 @@ fn resolve(host: &str, port: u16) -> Result<Vec<SocketAddr>, RemoteError> {
             at = info.ai_next;
         }
     }
-    // SAFETY: `found` came from getaddrinfo and is freed once.
-    unsafe { libc::freeaddrinfo(found) };
+    if !found.is_null() {
+        // SAFETY: `found` came from getaddrinfo and is freed once.
+        unsafe { libc::freeaddrinfo(found) };
+    }
     Ok(addresses)
 }
 

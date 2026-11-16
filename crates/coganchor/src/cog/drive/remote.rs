@@ -436,6 +436,7 @@ pub(crate) struct Signals {
 
 impl Signals {
     /// Signals that are never taken, whose interrupts a test says.
+    #[cfg(test)]
     pub fn quiet() -> Signals {
         Signals {
             shared: Arc::default(),

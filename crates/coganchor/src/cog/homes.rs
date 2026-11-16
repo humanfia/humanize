@@ -281,8 +281,6 @@ pub struct Home {
     real: PathBuf,
     /// The variables a process started in it is started with.
     sets: Vec<(String, String)>,
-    /// What in it is a copy of its own.
-    rewrites: Vec<String>,
     /// Globs of what of it is moved into the user's home as it is dropped.
     kept: Vec<String>,
     /// What the CLI is told after its own name: the flag naming it, for one no variable moves.
@@ -371,7 +369,6 @@ pub fn build_with(
         dir,
         real,
         sets,
-        rewrites: spec.rewrites.clone(),
         kept: spec.kept.clone(),
         argv,
         linked,

@@ -13,6 +13,11 @@ use std::io;
 const LD_W_ABS: u16 = (libc::BPF_LD | libc::BPF_W | libc::BPF_ABS) as u16;
 const JMP_JEQ_K: u16 = (libc::BPF_JMP | libc::BPF_JEQ | libc::BPF_K) as u16;
 const RET_K: u16 = (libc::BPF_RET | libc::BPF_K) as u16;
+#[cfg(target_arch = "x86_64")]
+const JMP_JGE_K: u16 = (libc::BPF_JMP | libc::BPF_JGE | libc::BPF_K) as u16;
+/// x32's syscalls on x86-64: the same numbers with this bit set, under the same audit arch.
+#[cfg(target_arch = "x86_64")]
+const X32_SYSCALL_BIT: u32 = 0x4000_0000;
 
 /// Offsets into `struct seccomp_data`.
 const OFFSET_NR: u32 = 0;
@@ -44,7 +49,7 @@ pub fn build(numbers: &[i64]) -> io::Result<Vec<libc::sock_filter>> {
         .collect();
     ordered.sort_unstable();
     ordered.dedup();
-    if ordered.len() * 2 + 4 > MAX_JUMP {
+    if ordered.len() * 2 + 6 > MAX_JUMP {
         return Err(io::Error::from_raw_os_error(libc::E2BIG));
     }
     let mut program = vec![
@@ -53,6 +58,14 @@ pub fn build(numbers: &[i64]) -> io::Result<Vec<libc::sock_filter>> {
         insn(RET_K, 0, 0, RET_ALLOW),
         insn(LD_W_ABS, 0, 0, OFFSET_NR),
     ];
+    // An x32 call is the x86-64 one with a bit set, under the same audit arch, and none of
+    // them would match a number below: let through, it would name a path nobody answered.
+    // Refused instead, as `ENOSYS`, which is what a kernel without x32 says of them anyway.
+    #[cfg(target_arch = "x86_64")]
+    program.extend([
+        insn(JMP_JGE_K, 0, 1, X32_SYSCALL_BIT),
+        insn(RET_K, 0, 0, libc::SECCOMP_RET_ERRNO | libc::ENOSYS as u32),
+    ]);
     for number in ordered {
         program.push(insn(JMP_JEQ_K, 0, 1, number));
         program.push(insn(RET_K, 0, 0, RET_TRACE));
@@ -105,6 +118,10 @@ pub fn install(numbers: &[i64]) -> io::Result<()> {
 mod tests {
     use super::*;
 
+    /// The instructions every program has besides the two per number: the architecture check,
+    /// its allow and the load of the number, the final allow, and on x86-64 the x32 refusal.
+    const AROUND: usize = if cfg!(target_arch = "x86_64") { 7 } else { 5 };
+
     /// Runs `program` over one `seccomp_data` the way the kernel would, for the instructions
     /// this module emits.
     fn run(program: &[libc::sock_filter], nr: u32, arch: u32) -> u32 {
@@ -116,6 +133,10 @@ mod tests {
                 LD_W_ABS => acc = if i.k == OFFSET_NR { nr } else { arch },
                 JMP_JEQ_K => {
                     pc += usize::from(if acc == i.k { i.jt } else { i.jf });
+                }
+                #[cfg(target_arch = "x86_64")]
+                JMP_JGE_K => {
+                    pc += usize::from(if acc >= i.k { i.jt } else { i.jf });
                 }
                 RET_K => return i.k,
                 code => panic!("unexpected instruction {code:#x}"),
@@ -146,14 +167,26 @@ mod tests {
     fn the_whole_trap_set_fits() {
         let numbers = crate::sys::syscalls::trapped();
         let program = build(&numbers).unwrap();
-        assert_eq!(program.len(), numbers.len() * 2 + 5);
+        assert_eq!(program.len(), numbers.len() * 2 + AROUND);
     }
 
     #[test]
     fn an_empty_trap_set_traps_nothing_and_negatives_are_dropped() {
         let program = build(&[-1, -1000]).unwrap();
-        assert_eq!(program.len(), 5);
-        assert_eq!(run(&program, u32::MAX, super::super::ARCH.audit), RET_ALLOW);
+        assert_eq!(program.len(), AROUND);
+        assert_eq!(run(&program, 1000, super::super::ARCH.audit), RET_ALLOW);
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[test]
+    fn an_x32_call_is_refused_rather_than_let_through_untrapped() {
+        let program = build(&[2]).unwrap();
+        let refused = libc::SECCOMP_RET_ERRNO | libc::ENOSYS as u32;
+        assert_eq!(
+            run(&program, X32_SYSCALL_BIT | 2, super::super::ARCH.audit),
+            refused
+        );
+        assert_eq!(run(&program, 2, super::super::ARCH.audit), RET_TRACE);
     }
 
     #[test]

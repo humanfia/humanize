@@ -10,10 +10,6 @@
 //! Linux-only parts (ptrace, seccomp, Landlock) are compiled only for Linux; the anchor and
 //! the broker build for macOS as well.
 
-// The port is filled in unit by unit against the signatures declared here; until every unit
-// has landed, a parameter a stub does not read yet is not an error. Removed at integration.
-#![allow(unused_variables, dead_code)]
-
 pub mod anchor;
 pub mod broker;
 pub mod cli;

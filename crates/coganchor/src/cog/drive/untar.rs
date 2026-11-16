@@ -10,7 +10,7 @@
 //! left in place, as `extractall` at its default `errorlevel` does.
 
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::Path;
 
@@ -20,32 +20,6 @@ const BLOCK: usize = 512;
 
 fn refused(why: impl Into<String>) -> io::Error {
     io::Error::other(why.into())
-}
-
-/// A NUL-terminated field, as text.
-fn text(field: &[u8]) -> String {
-    let end = field.iter().position(|b| *b == 0).unwrap_or(field.len());
-    String::from_utf8_lossy(&field[..end]).into_owned()
-}
-
-/// A numeric field: octal, or base-256 where its first byte has the high bit set.
-fn number(field: &[u8]) -> io::Result<u64> {
-    if field.first().is_some_and(|b| b & 0x80 != 0) {
-        let mut value: u64 = u64::from(field[0] & 0x7f);
-        for byte in &field[1..] {
-            value = value
-                .checked_mul(256)
-                .and_then(|v| v.checked_add(u64::from(*byte)))
-                .ok_or_else(|| refused("invalid header"))?;
-        }
-        return Ok(value);
-    }
-    let said = text(field);
-    let said = said.trim_matches(|c: char| c == ' ' || c == '\0');
-    if said.is_empty() {
-        return Ok(0);
-    }
-    u64::from_str_radix(said, 8).map_err(|_| refused("invalid header"))
 }
 
 /// The records of a pax extended header, as `(key, value)`.
@@ -106,103 +80,64 @@ fn utime(path: &Path, mtime: f64) -> io::Result<()> {
     nix::sys::stat::utimes(path, &when, &when).map_err(io::Error::from)
 }
 
-/// Unpacks `archive` into `into` under the `data` filter.
+/// Unpacks `archive` into `into` under the `data` filter. Reading the archive (ustar, GNU long
+/// names, pax) is the `tar` crate's; what may land where, and with which mode, is the filter's.
 pub(super) fn extract(archive: &[u8], into: &Path) -> io::Result<()> {
+    if archive.len() < BLOCK {
+        return Err(refused("empty file"));
+    }
     let into = std::path::absolute(into)?;
     let dest = resolved(&into);
-    let mut at = 0;
-    let mut long_name: Option<String> = None;
-    let mut long_link: Option<String> = None;
-    let mut extended: Vec<(String, String)> = Vec::new();
     // A pax global header's records, which hold for every member after it.
     let mut global: Vec<(String, String)> = Vec::new();
     let mut directories: Vec<(String, f64)> = Vec::new();
-    loop {
-        if at + BLOCK > archive.len() {
-            if at == 0 {
-                return Err(refused("empty file"));
-            }
-            break;
-        }
-        let header = &archive[at..at + BLOCK];
-        if header.iter().all(|b| *b == 0) {
-            break;
-        }
-        let sum: u64 = header
-            .iter()
-            .enumerate()
-            .map(|(i, b)| {
-                if (148..156).contains(&i) {
-                    32
-                } else {
-                    u64::from(*b)
-                }
-            })
-            .sum();
-        if number(&header[148..156])? != sum {
-            return Err(refused("bad checksum"));
-        }
-        let flag = header[156];
-        let mut size = number(&header[124..136])? as usize;
-        let start = at + BLOCK;
-        if matches!(flag, b'L' | b'K' | b'x' | b'g') {
-            let end = start
-                .checked_add(size)
-                .filter(|end| *end <= archive.len())
-                .ok_or_else(|| refused("unexpected end of data"))?;
-            let data = &archive[start..end];
-            at = start + size.div_ceil(BLOCK) * BLOCK;
-            match flag {
-                b'L' => long_name = Some(text(data)),
-                b'K' => long_link = Some(text(data)),
-                b'x' => extended = pax(data),
-                _ => global.extend(pax(data)),
-            }
+    let mut reader = tar::Archive::new(archive);
+    for entry in reader.entries()? {
+        let mut entry = entry?;
+        // The type flag as written: the crate reads a pre-POSIX NUL as `0`, which loses the
+        // old way of saying a directory (a NUL flag and a name ending in `/`).
+        let flag = entry.header().as_bytes()[156];
+        let mut data = Vec::new();
+        if flag == b'g' {
+            entry.read_to_end(&mut data)?;
+            global.extend(pax(&data));
             continue;
         }
-        // The member's own pax records, then the global ones.
+        let own: Vec<(String, String)> = match entry.pax_extensions()? {
+            Some(records) => records
+                .filter_map(Result::ok)
+                .filter_map(|one| Some((one.key().ok()?.to_owned(), one.value().ok()?.to_owned())))
+                .collect(),
+            None => Vec::new(),
+        };
         let said = |key: &str| {
-            extended
-                .iter()
+            own.iter()
                 .rev()
                 .chain(global.iter().rev())
                 .find(|(k, _)| k == key)
                 .map(|(_, v)| v.clone())
         };
-        if let Some(n) = said("size").and_then(|n| n.parse().ok()) {
-            size = n;
-        }
-        let ustar = &header[257..263] == b"ustar\0";
-        let mut name = said("path").or(long_name.take()).unwrap_or_else(|| {
-            let name = text(&header[0..100]);
-            let prefix = text(&header[345..500]);
-            if ustar && !prefix.is_empty() {
-                format!("{prefix}/{name}")
-            } else {
-                name
-            }
+        let mut name = said("path")
+            .unwrap_or_else(|| String::from_utf8_lossy(&entry.path_bytes()).into_owned());
+        let link = said("linkpath").unwrap_or_else(|| {
+            entry
+                .link_name_bytes()
+                .map(|link| String::from_utf8_lossy(&link).into_owned())
+                .unwrap_or_default()
         });
-        let link = said("linkpath")
-            .or(long_link.take())
-            .unwrap_or_else(|| text(&header[157..257]));
-        let mtime = said("mtime")
-            .and_then(|n| n.parse::<f64>().ok())
-            .unwrap_or(number(&header[136..148])? as f64);
-        let mode = number(&header[100..108])? as u32;
-        extended.clear();
+        let mtime = match said("mtime").and_then(|n| n.parse::<f64>().ok()) {
+            Some(mtime) => mtime,
+            None => entry.header().mtime()? as f64,
+        };
+        let mode = entry.header().mode()?;
         // A pre-POSIX member named with a trailing slash is a directory, as tarfile reads it.
         let kind = match Kind::of(flag) {
             Kind::File if flag == 0 && name.ends_with('/') => Kind::Directory,
             kind => kind,
         };
-        // Only a file's data follows its header.
-        let length = if kind == Kind::File { size } else { 0 };
-        let end = start
-            .checked_add(length)
-            .filter(|end| *end <= archive.len())
-            .ok_or_else(|| refused("unexpected end of data"))?;
-        let data = &archive[start..end];
-        at = start + length.div_ceil(BLOCK) * BLOCK;
+        if kind == Kind::File {
+            entry.read_to_end(&mut data)?;
+        }
         if kind == Kind::Directory {
             name = name.trim_end_matches('/').to_owned();
         }
@@ -231,7 +166,7 @@ pub(super) fn extract(archive: &[u8], into: &Path) -> io::Result<()> {
             }
             Kind::File => {
                 let mut file = fs::File::create(&target)?;
-                file.write_all(data)?;
+                file.write_all(&data)?;
             }
             Kind::Symbolic => {
                 if fs::symlink_metadata(&target).is_ok() {
