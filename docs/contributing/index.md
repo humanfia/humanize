@@ -74,9 +74,48 @@ runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
 | `tests/unit/` | ✓ | ✓ each package alone, when it changed, on Linux and macOS |
 | `tests/integration/` | ✓ | ✓ each topic alone, when what it runs changed, on Linux and macOS |
 | `tests/system/` | ✓ by hand, a file at a time, when your change needs it | never |
+| [`coganchor`](#coganchor) | ✓ when you change `crates/coganchor/` | ✓ `coganchor`, on Linux and macOS, when `crates/coganchor/` changed |
 | [the macOS app](#the-macos-app) | ✓ on a Mac, when you change `desktop/` | ✓ `desktop`, on macOS, when `desktop/` changed |
 
 [CI](/contributing/ci) has every job, and how to read a run.
+
+## `coganchor` {#coganchor}
+
+`crates/coganchor/` is the anchor: one static program, in Rust, that runs beside the agent on
+its harness machine (`coganchor cog`), on the machine its work lands on (`coganchor anchor`),
+and wherever two halves that cannot dial each other meet (`coganchor broker`). `hmz internal
+anchor`, `hmz internal fence` and `hmz internal cred` run it, held to
+[its protocol](https://github.com/humanfia/humanize/blob/main/protocol/cli.md#112-hmz-internal-anchor).
+Working on it takes [Rust](https://rustup.rs/). Before you push a change to it, run what CI's
+`coganchor` job runs:
+
+```sh
+cd crates/coganchor
+cargo fmt --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+```
+
+The anchor runs only as `coganchor`, and a checkout's `hmz` finds the build in
+`crates/coganchor/target/{release,debug}`, so build it before the Python suites; a build
+elsewhere is named by `HUMANIZE_COGANCHOR`:
+
+```sh
+cargo build --manifest-path crates/coganchor/Cargo.toml
+uv run pytest tests/integration/test_anchor_transport.py
+```
+
+Much of it, the supervisor, Landlock and seccomp among it, runs only on Linux. From a Mac, or
+from any machine with Docker, `crates/coganchor/dev/linux-test.sh` runs the crate's checks in a
+Linux container, then the pytest arguments it is given against the binary just built:
+
+```sh
+crates/coganchor/dev/linux-test.sh tests/integration/test_anchor_transport.py -x
+```
+
+A release builds it for `linux-x86_64` and `linux-aarch64`, static against musl, and for
+`darwin-x86_64` and `darwin-aarch64`, and puts each in the wheel at
+`src/hmz/coganchor/bin/<os>-<arch>/coganchor`.
 
 ## The macOS app
 

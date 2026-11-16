@@ -352,10 +352,10 @@ console account, which lives in the same SQLite database as its sessions; any pa
 A turn under a provider whose `swaps()` is non-empty is spawned as:
 
 ```text
-python -Pm hmz internal cred --map=FROM=TO [--map=…] [--keep=FROM=TO …] -- CLI ARGS…
+coganchor internal cred --map=FROM=TO [--map=…] [--keep=FROM=TO …] -- CLI ARGS…
 ```
 
-`hmz internal cred` runs the CLI under a seccomp-filtered ptrace supervisor that stops only
+`coganchor internal cred` (`hmz internal cred`) runs the CLI under a seccomp-filtered ptrace supervisor that stops only
 path-naming syscalls: the same set an anchored supervisor stops, less `execve`, `execveat` and
 `connect` ([Remote execution › Interception](/reference/remote-execution#interception)). A
 path is matched after `.`, `..` and doubled `/` are resolved and `/proc/<pid>/fd/<n>`, `cwd`,
@@ -395,7 +395,7 @@ which is how a token is rotated by rename).
   pairs as `redirects` and its own supervisor answers them
   ([Remote execution › Where the account lives](/reference/remote-execution#where-the-account-lives)).
 
-<small>Defined in [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py), [`_trace.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_trace.py), [`_staging.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_staging.py), [`src/hmz/coganchor/pathcalls.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/pathcalls.py).</small>
+<small>Defined in [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py), [`crates/coganchor/src/cred/tracer.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cred/tracer.rs), [`crates/coganchor/src/cred/staging.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cred/staging.rs), [`crates/coganchor/src/cog/pathcalls.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/pathcalls.rs).</small>
 
 ### A sign-in that refreshes itself {#a-sign-in-that-refreshes-itself}
 
@@ -429,7 +429,7 @@ If a login was revoked anyway (`refresh token was revoked`, `(refused: that acco
 in again)`), sign it in again: `codex login` or `claude auth login` for this machine's own, or
 **sign in again** on the account under `/settings accounts`. Nothing else restores it.
 
-<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`_lending`, `_brought_back`), [`src/hmz/coganchor/_lending.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/_lending.py).</small>
+<small>Defined in [`crates/coganchor/src/cog/lending.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/lending.rs), [`crates/coganchor/src/cog/drive/remote.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/drive/remote.rs), [`src/hmz/coganchor/_lending.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/_lending.py).</small>
 
 ## Where sessions are kept {#where-sessions-are-kept}
 

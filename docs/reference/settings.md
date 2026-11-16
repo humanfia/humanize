@@ -228,7 +228,7 @@ entry that does not validate is skipped. A runtime an earlier Humanize wrote wit
 | --- | --- |
 | `partition`, `account`, `qos`, `constraint`, `workdir` | `str` |
 | `time` | `str`: minutes, `MM:SS`, `HH:MM:SS`, `D-HH[:MM[:SS]]`, `UNLIMITED` or `INFINITE` |
-| `python` | `str`: absolute, or under `~/` |
+| `python` | `str`: absolute, or under `~/`; accepted and not used |
 | `via` | `"srun"` or `"tcp"` |
 | `run_args`, `fallback` | `[str]` |
 | `harness` | `str`, as for `ssh` |
@@ -243,7 +243,6 @@ runtimes:
       partition: batch
       account: myteam
       time: '04:00:00'
-      python: ~/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/bin/python3.12
       via: tcp
       max_jobs: 8
       max_wait: 600

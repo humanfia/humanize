@@ -1,0 +1,852 @@
+{
+ "agy": {
+  "argv": [
+   "--app_data_dir=../../{home}"
+  ],
+  "at_left": false,
+  "built": {
+   "agents": {
+    "dir": true
+   },
+   "agents/hmz-offline.md": {
+    "mode": 420,
+    "text": "---\nname: hmz-offline\ndescription: Works on this machine, without the web.\ntools: [view_file, grep_search, find_by_name, list_dir, run_command, write_to_file, replace_file_content, manage_task, generate_image, ask_question]\nsubagent: false\n---\n# Offline\n\nYou have no tool that reaches the web, and the commands you run cannot reach it either.\n"
+   },
+   "agents/hmz-read-only-web.md": {
+    "mode": 420,
+    "text": "---\nname: hmz-read-only-web\ndescription: Reads, the web included, and changes nothing.\ntools: [view_file, grep_search, find_by_name, list_dir, read_url_content, search_web]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files and search them, and read and search the web. You have no way of changing\nanything: no tool here writes a file or runs a command. When asked to change something, say\nthat you cannot.\n"
+   },
+   "agents/hmz-read-only.md": {
+    "mode": 420,
+    "text": "---\nname: hmz-read-only\ndescription: Reads, and changes nothing.\ntools: [view_file, grep_search, find_by_name, list_dir]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files and search them. You have no way of changing anything: no tool here writes\na file or runs a command. When asked to change something, say that you cannot.\n"
+   },
+   "agents/mine.md": {
+    "link": "{root}/user/.gemini/antigravity-cli/agents/mine.md"
+   },
+   "conversations": {
+    "link": "{root}/user/.gemini/antigravity-cli/conversations"
+   },
+   "skills": {
+    "dir": true
+   }
+  },
+  "dropped": {
+   "user": {
+    "dir": true
+   },
+   "user/.gemini": {
+    "dir": true
+   },
+   "user/.gemini/antigravity-cli": {
+    "dir": true
+   },
+   "user/.gemini/antigravity-cli/agents": {
+    "dir": true
+   },
+   "user/.gemini/antigravity-cli/agents/hmz-offline.md": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "an old one\n"
+   },
+   "user/.gemini/antigravity-cli/agents/mine.md": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "the user's own\n"
+   },
+   "user/.gemini/antigravity-cli/conversations": {
+    "dir": true
+   },
+   "user/.gemini/antigravity-cli/conversations/c.pb": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "c\n"
+   }
+  },
+  "dumps": "{\"variable\":\"\",\"default\":\".gemini/antigravity-cli\",\"rewrites\":[],\"outside\":[],\"lodges\":\"skills\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"--app_data_dir\",\"merges\":[[\"hmz.coganchor.agents.agy:_agents\",\"null\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [
+   "conversations"
+  ],
+  "sets": []
+ },
+ "agy-bare": {
+  "argv": [
+   "--app_data_dir=../../{home}"
+  ],
+  "at_left": false,
+  "built": {
+   "agents": {
+    "dir": true
+   },
+   "agents/hmz-offline.md": {
+    "mode": 420,
+    "text": "---\nname: hmz-offline\ndescription: Works on this machine, without the web.\ntools: [view_file, grep_search, find_by_name, list_dir, run_command, write_to_file, replace_file_content, manage_task, generate_image, ask_question]\nsubagent: false\n---\n# Offline\n\nYou have no tool that reaches the web, and the commands you run cannot reach it either.\n"
+   },
+   "agents/hmz-read-only-web.md": {
+    "mode": 420,
+    "text": "---\nname: hmz-read-only-web\ndescription: Reads, the web included, and changes nothing.\ntools: [view_file, grep_search, find_by_name, list_dir, read_url_content, search_web]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files and search them, and read and search the web. You have no way of changing\nanything: no tool here writes a file or runs a command. When asked to change something, say\nthat you cannot.\n"
+   },
+   "agents/hmz-read-only.md": {
+    "mode": 420,
+    "text": "---\nname: hmz-read-only\ndescription: Reads, and changes nothing.\ntools: [view_file, grep_search, find_by_name, list_dir]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files and search them. You have no way of changing anything: no tool here writes\na file or runs a command. When asked to change something, say that you cannot.\n"
+   }
+  },
+  "dropped": {},
+  "dumps": "{\"variable\":\"\",\"default\":\".gemini/antigravity-cli\",\"rewrites\":[],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"--app_data_dir\",\"merges\":[[\"hmz.coganchor.agents.agy:_agents\",\"null\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": []
+ },
+ "claude": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   ".claude.json": {
+    "mode": 420,
+    "text": "{\"outside\": true}\n"
+   },
+   ".credentials.json": {
+    "link": "{root}/user/.claude/.credentials.json"
+   },
+   "backups": {
+    "dir": true
+   },
+   "dangling": {
+    "link": "{root}/user/.claude/dangling"
+   },
+   "history.jsonl": {
+    "link": "{root}/user/.claude/history.jsonl"
+   },
+   "plans": {
+    "link": "{root}/user/.claude/plans"
+   },
+   "projects": {
+    "link": "{root}/user/.claude/projects"
+   },
+   "settings.json": {
+    "mode": 416,
+    "text": "{\"theirs\": true}\n"
+   },
+   "skills": {
+    "dir": true
+   },
+   "skills/fresh": {
+    "link": "{root}/flow/fresh"
+   },
+   "skills/mine": {
+    "link": "{root}/user/.claude/skills/mine"
+   },
+   "skills/review": {
+    "link": "{root}/flow/review"
+   },
+   "todos": {
+    "link": "{root}/user/.claude/todos"
+   }
+  },
+  "dropped": {
+   "flow": {
+    "dir": true
+   },
+   "flow/fresh": {
+    "dir": true
+   },
+   "flow/fresh/SKILL.md": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "fresh\n"
+   },
+   "flow/review": {
+    "dir": true
+   },
+   "flow/review/SKILL.md": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "the flow's review\n"
+   },
+   "user": {
+    "dir": true
+   },
+   "user/.claude": {
+    "dir": true
+   },
+   "user/.claude.json": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "{\"outside\": true}\n"
+   },
+   "user/.claude/.claude.json": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "{\"inside\": true}\n"
+   },
+   "user/.claude/.credentials.json": {
+    "mode": 384,
+    "mtime": 1700000000000000000,
+    "text": "refreshed\n"
+   },
+   "user/.claude/backups": {
+    "dir": true
+   },
+   "user/.claude/backups/old.json": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "theirs\n"
+   },
+   "user/.claude/dangling": {
+    "link": "{root}/nowhere"
+   },
+   "user/.claude/history.jsonl": {
+    "mode": 420,
+    "mtime": 1700000000000000000,
+    "text": "said\n"
+   },
+   "user/.claude/plans": {
+    "dir": true
+   },
+   "user/.claude/plans/a.md": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "plan\n"
+   },
+   "user/.claude/projects": {
+    "dir": true
+   },
+   "user/.claude/projects/deep": {
+    "dir": true
+   },
+   "user/.claude/projects/deep/x.jsonl": {
+    "mode": 420,
+    "mtime": 1700000000000000000,
+    "text": "deep\n"
+   },
+   "user/.claude/projects/made.jsonl": {
+    "mode": 420,
+    "mtime": 1700000000000000000,
+    "text": "made\n"
+   },
+   "user/.claude/projects/newer.jsonl": {
+    "mode": 420,
+    "mtime": 1800000000000000000,
+    "text": "newer\n"
+   },
+   "user/.claude/projects/old.jsonl": {
+    "mode": 420,
+    "mtime": 1700000000000000000,
+    "text": "changed\n"
+   },
+   "user/.claude/settings.json": {
+    "mode": 416,
+    "mtime": 1600000000000000000,
+    "text": "{\"theirs\": true}\n"
+   },
+   "user/.claude/skills": {
+    "dir": true
+   },
+   "user/.claude/skills/mine": {
+    "dir": true
+   },
+   "user/.claude/skills/mine/SKILL.md": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "theirs\n"
+   },
+   "user/.claude/skills/review": {
+    "dir": true
+   },
+   "user/.claude/skills/review/SKILL.md": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "their review\n"
+   },
+   "user/.claude/todos": {
+    "dir": true
+   }
+  },
+  "dumps": "{\"variable\":\"CLAUDE_CONFIG_DIR\",\"default\":\".claude\",\"rewrites\":[\".claude.json\",\"settings.json\",\"backups\"],\"outside\":[[\".claude.json\",\".claude.json\"]],\"lodges\":\"skills\",\"secures\":\"CLAUDE_SECURESTORAGE_CONFIG_DIR\",\"private\":[],\"made\":[\"projects\",\"history.jsonl\",\"todos\"],\"kept\":[],\"skills\":[[\"review\",\"{root}/flow/review\"],[\"fresh\",\"{root}/flow//fresh/\"]],\"flag\":\"\",\"merges\":[],\"records\":[],\"keeps\":\"\"}",
+  "linked": [
+   ".credentials.json",
+   "dangling",
+   "history.jsonl",
+   "plans",
+   "projects",
+   "todos"
+  ],
+  "sets": [
+   [
+    "CLAUDE_CONFIG_DIR",
+    "{at}"
+   ],
+   [
+    "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+    ""
+   ]
+  ]
+ },
+ "claude-moved": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   ".claude.json": {
+    "mode": 420,
+    "text": "{\"inside\": true}\n"
+   },
+   "keep.txt": {
+    "link": "{root}/user/conf/keep.txt"
+   },
+   "state_1.sqlite": {
+    "link": "{root}/user/conf/state_1.sqlite"
+   }
+  },
+  "dropped": {
+   "user": {
+    "dir": true
+   },
+   "user/.claude.json": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "{\"outside\": true}\n"
+   },
+   "user/conf": {
+    "dir": true
+   },
+   "user/conf/.claude.json": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "{\"inside\": true}\n"
+   },
+   "user/conf/a.lock": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "lock\n"
+   },
+   "user/conf/keep.txt": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "theirs\n"
+   },
+   "user/conf/sessions": {
+    "dir": true
+   },
+   "user/conf/sessions/x": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "private\n"
+   },
+   "user/conf/state_1.sqlite": {
+    "mode": 420,
+    "text": "theirs\n"
+   },
+   "user/conf/state_2.sqlite": {
+    "mode": 420,
+    "text": "new\n"
+   }
+  },
+  "dumps": "{\"variable\":\"CLAUDE_CONFIG_DIR\",\"default\":\".claude\",\"rewrites\":[\".claude.json\"],\"outside\":[[\".claude.json\",\".claude.json\"]],\"lodges\":\"\",\"secures\":\"CLAUDE_SECURESTORAGE_CONFIG_DIR\",\"private\":[\"sess*\",\"*.lock\"],\"made\":[],\"kept\":[\"state_*.sqlite*\"],\"skills\":[],\"flag\":\"\",\"merges\":[],\"records\":[],\"keeps\":\"\"}",
+  "linked": [
+   "keep.txt",
+   "state_1.sqlite"
+  ],
+  "sets": [
+   [
+    "CLAUDE_CONFIG_DIR",
+    "{at}"
+   ],
+   [
+    "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+    "{root}/user/conf/"
+   ]
+  ]
+ },
+ "codex-keeping": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "auth.json": {
+    "link": "{root}/user/.codex/auth.json"
+   },
+   "session_index.jsonl": {
+    "link": "{root}/epic/codex/session_index.jsonl"
+   },
+   "sessions": {
+    "link": "{root}/epic/codex/sessions"
+   },
+   "state_4.sqlite": {
+    "link": "{root}/epic/codex/state_4.sqlite"
+   },
+   "state_6.sqlite": {
+    "link": "{root}/epic/codex/state_6.sqlite"
+   }
+  },
+  "dropped": {
+   "epic": {
+    "dir": true
+   },
+   "epic/codex": {
+    "dir": true
+   },
+   "epic/codex/session_index.jsonl": {
+    "mode": 420,
+    "mtime": 1700000000000000000,
+    "text": "renamed over\n"
+   },
+   "epic/codex/sessions": {
+    "dir": true
+   },
+   "epic/codex/sessions/a.jsonl": {
+    "mode": 420,
+    "mtime": 1700000000000000000,
+    "text": "{}\n"
+   },
+   "epic/codex/state_4.sqlite": {
+    "mode": 420,
+    "text": ""
+   },
+   "epic/codex/state_5.sqlite": {
+    "sqlite": {
+     "threads": [
+      [
+       "a",
+       "{root}/epic/codex/sessions/a.jsonl"
+      ]
+     ]
+    }
+   },
+   "epic/codex/state_6.sqlite": {
+    "sqlite": {
+     "threads": [
+      [
+       "b",
+       "{root}/epic/codex/sessions/a.jsonl"
+      ]
+     ]
+    }
+   },
+   "user": {
+    "dir": true
+   },
+   "user/.codex": {
+    "dir": true
+   },
+   "user/.codex/auth.json": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "token\n"
+   },
+   "user/.codex/state_4.sqlite": {
+    "mode": 420,
+    "text": "theirs\n"
+   }
+  },
+  "dumps": "{\"variable\":\"CODEX_HOME\",\"default\":\".codex\",\"rewrites\":[\"config.toml\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[\"sessions\",\"session_index.jsonl\"],\"kept\":[\"state_*.sqlite*\"],\"skills\":[],\"flag\":\"\",\"merges\":[],\"records\":[[\"state_*.sqlite\",\"threads\",\"rollout_path\"]],\"keeps\":\"{root}/epic/codex\"}",
+  "linked": [
+   "auth.json",
+   "session_index.jsonl",
+   "sessions",
+   "state_4.sqlite",
+   "state_6.sqlite"
+  ],
+  "sets": [
+   [
+    "CODEX_HOME",
+    "{at}"
+   ]
+  ]
+ },
+ "codex-records": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "config.toml": {
+    "mode": 420,
+    "text": "model = \"outside\"\n"
+   },
+   "rules": {
+    "dir": true
+   },
+   "rules/default.rules": {
+    "link": "{root}/user/.codex/rules/default.rules"
+   },
+   "rules/hmz.rules": {
+    "mode": 420,
+    "text": "prefix_rule(pattern=[\"hmz-git\"], decision=\"allow\")\nprefix_rule(pattern=[\"caf\\u00e9 \\\"q\\\"\"], decision=\"allow\")\n"
+   },
+   "sessions": {
+    "link": "{root}/user/.codex/sessions"
+   },
+   "skills": {
+    "dir": true
+   },
+   "skills/mine": {
+    "link": "{root}/user/.codex/skills/mine"
+   },
+   "state_5.sqlite": {
+    "link": "{root}/user/.codex/state_5.sqlite"
+   }
+  },
+  "dropped": {
+   "user": {
+    "dir": true
+   },
+   "user/.codex": {
+    "dir": true
+   },
+   "user/.codex.toml": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "model = \"outside\"\n"
+   },
+   "user/.codex/config.toml": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "model = \"gpt-5\"\n"
+   },
+   "user/.codex/rules": {
+    "dir": true
+   },
+   "user/.codex/rules/default.rules": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "theirs\n"
+   },
+   "user/.codex/rules/hmz.rules": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "an old one\n"
+   },
+   "user/.codex/sessions": {
+    "dir": true
+   },
+   "user/.codex/sessions/a.jsonl": {
+    "mode": 420,
+    "mtime": 1700000000000000000,
+    "text": "{}\n"
+   },
+   "user/.codex/skills": {
+    "dir": true
+   },
+   "user/.codex/skills/mine": {
+    "dir": true
+   },
+   "user/.codex/skills/mine/SKILL.md": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "mine\n"
+   },
+   "user/.codex/state_5.sqlite": {
+    "sqlite": {
+     "threads": [
+      [
+       "before",
+       "{root}/user/.codex/sessions/z.jsonl"
+      ],
+      [
+       "kept",
+       "{root}/user/.codex/sessions/a.jsonl"
+      ],
+      [
+       "gone",
+       "{at}/sessions/b.jsonl"
+      ],
+      [
+       "other",
+       "{root}/user/.codex/sessions/c.jsonl"
+      ]
+     ]
+    }
+   }
+  },
+  "dumps": "{\"variable\":\"CODEX_HOME\",\"default\":\".codex\",\"rewrites\":[\"config.toml\"],\"outside\":[[\"config.toml\",\".codex.toml\"]],\"lodges\":\"skills\",\"secures\":\"\",\"private\":[],\"made\":[\"sessions\"],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.codex:_ruled\",\"[\\\"hmz-git\\\", \\\"caf\\\\u00e9 \\\\\\\"q\\\\\\\"\\\"]\"]],\"records\":[[\"state_*.sqlite\",\"threads\",\"rollout_path\"]],\"keeps\":\"\"}",
+  "linked": [
+   "sessions",
+   "state_5.sqlite"
+  ],
+  "sets": [
+   [
+    "CODEX_HOME",
+    "{at}"
+   ]
+  ]
+ },
+ "grok": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "config.toml": {
+    "mode": 420,
+    "text": "# theirs\ntheme = \"dark\" # a comment\n\n[model.\"mine\"]\nmodel = \"m\"\nlist = [\n  1, # one\n  2,\n]\n\n[model.\"hmz-0123456789ab/grok-4\"]\nmodel = \"grok-4\"\nbase_url = \"http://gw.example/v1\"\napi_backend = \"responses\"\nenv_key = \"XAI_API_KEY\"\nhidden = true\n[ui]\nwrap = true\n"
+   },
+   "skills": {
+    "dir": true
+   }
+  },
+  "dropped": {
+   "user": {
+    "dir": true
+   },
+   "user/.grok": {
+    "dir": true
+   },
+   "user/.grok/config.toml": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "# theirs\ntheme = \"dark\" # a comment\n\n[model.\"mine\"]\nmodel = \"m\"\nlist = [\n  1, # one\n  2,\n]\n\n[ui]\nwrap = true\n"
+   }
+  },
+  "dumps": "{\"variable\":\"GROK_HOME\",\"default\":\".grok\",\"rewrites\":[\"config.toml\"],\"outside\":[],\"lodges\":\"skills\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.grok:_entered\",\"{\\\"named\\\": \\\"hmz-0123456789ab/grok-4\\\", \\\"entry\\\": {\\\"model\\\": \\\"grok-4\\\", \\\"base_url\\\": \\\"http://gw.example/v1\\\", \\\"api_backend\\\": \\\"responses\\\", \\\"env_key\\\": \\\"XAI_API_KEY\\\", \\\"hidden\\\": true}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": [
+   [
+    "GROK_HOME",
+    "{at}"
+   ]
+  ]
+ },
+ "grok-bare": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "config.toml": {
+    "mode": 420,
+    "text": "[model.\"hmz-x/mé\"]\nmodel = \"mé\\n\"\nhidden = true\n"
+   }
+  },
+  "dropped": {},
+  "dumps": "{\"variable\":\"GROK_HOME\",\"default\":\".grok\",\"rewrites\":[\"config.toml\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.grok:_entered\",\"{\\\"named\\\": \\\"hmz-x/m\\\\u00e9\\\", \\\"entry\\\": {\\\"model\\\": \\\"m\\\\u00e9\\\\n\\\", \\\"hidden\\\": true}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": [
+   [
+    "GROK_HOME",
+    "{at}"
+   ]
+  ]
+ },
+ "grok-crlf-dotted": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "config.toml": {
+    "mode": 420,
+    "text": "a = 1\nmodel.foo.x = 1 # theirs\n\n[model.k]\nmodel = \"x\"\nhidden = true\n# c\n[ui]\nz = 1\n"
+   }
+  },
+  "dropped": {
+   "user": {
+    "dir": true
+   },
+   "user/.grok": {
+    "dir": true
+   },
+   "user/.grok/config.toml": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "a = 1\r\nmodel.foo.x = 1 # theirs\r\n# c\r\n[ui]\rz = 1\r\n"
+   }
+  },
+  "dumps": "{\"variable\":\"GROK_HOME\",\"default\":\".grok\",\"rewrites\":[\"config.toml\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.grok:_entered\",\"{\\\"named\\\": \\\"k\\\", \\\"entry\\\": {\\\"model\\\": \\\"x\\\", \\\"hidden\\\": true}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": [
+   [
+    "GROK_HOME",
+    "{at}"
+   ]
+  ]
+ },
+ "grok-flat": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "config.toml": {
+    "mode": 420,
+    "text": "theme = 'dark'\ntext = \"\"\"\n[model.not]\n\"\"\"\n\n[model.plain]\nmodel = \"x\"\n"
+   }
+  },
+  "dropped": {
+   "user": {
+    "dir": true
+   },
+   "user/.grok": {
+    "dir": true
+   },
+   "user/.grok/config.toml": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "theme = 'dark'\ntext = \"\"\"\n[model.not]\n\"\"\"\n"
+   }
+  },
+  "dumps": "{\"variable\":\"GROK_HOME\",\"default\":\".grok\",\"rewrites\":[\"config.toml\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.grok:_entered\",\"{\\\"named\\\": \\\"plain\\\", \\\"entry\\\": {\\\"model\\\": \\\"x\\\"}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": [
+   [
+    "GROK_HOME",
+    "{at}"
+   ]
+  ]
+ },
+ "grok-not-toml": {
+  "dumps": "{\"variable\":\"GROK_HOME\",\"default\":\".grok\",\"rewrites\":[\"config.toml\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.grok:_entered\",\"{\\\"named\\\": \\\"plain\\\", \\\"entry\\\": {\\\"model\\\": \\\"x\\\"}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "error": "Unrecoverable",
+  "left": []
+ },
+ "grok-replaced": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "config.toml": {
+    "mode": 420,
+    "text": "[model.a]\nx = 1\n\n[model.k]\nmodel = \"x\"\nhidden = true\n[ui]\nz = 1\n"
+   }
+  },
+  "dropped": {
+   "user": {
+    "dir": true
+   },
+   "user/.grok": {
+    "dir": true
+   },
+   "user/.grok/config.toml": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "[model.a]\nx = 1\n\n[model.k]\nmodel = \"old\"\n\n[model.k.sub]\ny = 2\n\n[ui]\nz = 1\n"
+   }
+  },
+  "dumps": "{\"variable\":\"GROK_HOME\",\"default\":\".grok\",\"rewrites\":[\"config.toml\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.grok:_entered\",\"{\\\"named\\\": \\\"k\\\", \\\"entry\\\": {\\\"model\\\": \\\"x\\\", \\\"hidden\\\": true}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": [
+   [
+    "GROK_HOME",
+    "{at}"
+   ]
+  ]
+ },
+ "grok-twice": {
+  "dumps": "{\"variable\":\"GROK_HOME\",\"default\":\".grok\",\"rewrites\":[\"config.toml\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.grok:_entered\",\"{\\\"named\\\": \\\"k\\\", \\\"entry\\\": {\\\"model\\\": \\\"x\\\"}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "error": "Unrecoverable",
+  "left": []
+ },
+ "no-merger": {
+  "dumps": "{\"variable\":\"CLAUDE_CONFIG_DIR\",\"default\":\".claude\",\"rewrites\":[],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.nowhere:_merge\",\"null\"]],\"records\":[],\"keeps\":\"\"}",
+  "error": "ValueError",
+  "left": []
+ },
+ "pi": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "models.json": {
+    "mode": 420,
+    "text": "{\n  \"providers\": {\n    \"mine\": {\n      \"baseUrl\": \"https://gw.example\",\n      \"cost\": 1.5e-07,\n      \"n\": 10,\n      \"big\": 1e+16,\n      \"name\": \"caf\\u00e9 \\ud83d\\ude00\"\n    },\n    \"humanize-0123456789ab\": {\n      \"baseUrl\": \"http://127.0.0.1:4321/v1\",\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"$PI_GATEWAY_KEY\",\n      \"models\": [\n        {\n          \"id\": \"openai/gpt-5\"\n        }\n      ]\n    }\n  },\n  \"extra\": [],\n  \"empty\": {}\n}\n"
+   },
+   "settings.json": {
+    "mode": 420,
+    "text": "{}\n"
+   },
+   "skills": {
+    "dir": true
+   }
+  },
+  "dropped": {
+   "user": {
+    "dir": true
+   },
+   "user/.pi": {
+    "dir": true
+   },
+   "user/.pi/agent": {
+    "dir": true
+   },
+   "user/.pi/agent/models.json": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "{\"providers\": {\"mine\": {\"baseUrl\": \"https://gw.example\", \"cost\": 1.5e-7, \"n\": 10, \"big\": 1e16, \"name\": \"café 😀\"}}, \"extra\": [], \"empty\": {}}"
+   },
+   "user/.pi/agent/settings.json": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "{}\n"
+   }
+  },
+  "dumps": "{\"variable\":\"PI_CODING_AGENT_DIR\",\"default\":\".pi/agent\",\"rewrites\":[\"models.json\",\"settings.json\"],\"outside\":[],\"lodges\":\"skills\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.pi:_declare\",\"{\\\"named\\\": \\\"humanize-0123456789ab\\\", \\\"declared\\\": {\\\"baseUrl\\\": \\\"http://127.0.0.1:4321/v1\\\", \\\"api\\\": \\\"openai-completions\\\", \\\"apiKey\\\": \\\"$PI_GATEWAY_KEY\\\", \\\"models\\\": [{\\\"id\\\": \\\"openai/gpt-5\\\"}]}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": [
+   [
+    "PI_CODING_AGENT_DIR",
+    "{at}"
+   ]
+  ]
+ },
+ "pi-bare": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "models.json": {
+    "mode": 420,
+    "text": "{\n  \"providers\": {\n    \"humanize-x\": {\n      \"baseUrl\": \"http://x\",\n      \"models\": []\n    }\n  }\n}\n"
+   }
+  },
+  "dropped": {},
+  "dumps": "{\"variable\":\"PI_CODING_AGENT_DIR\",\"default\":\".pi/agent\",\"rewrites\":[\"models.json\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.pi:_declare\",\"{\\\"named\\\": \\\"humanize-x\\\", \\\"declared\\\": {\\\"baseUrl\\\": \\\"http://x\\\", \\\"models\\\": []}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": [
+   [
+    "PI_CODING_AGENT_DIR",
+    "{at}"
+   ]
+  ]
+ },
+ "pi-not-json": {
+  "dumps": "{\"variable\":\"PI_CODING_AGENT_DIR\",\"default\":\".pi/agent\",\"rewrites\":[\"models.json\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.pi:_declare\",\"{\\\"named\\\": \\\"humanize-x\\\", \\\"declared\\\": {\\\"baseUrl\\\": \\\"http://x\\\", \\\"models\\\": []}}\"]],\"records\":[],\"keeps\":\"\"}",
+  "error": "ValueError",
+  "left": []
+ },
+ "qwen": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "settings.json": {
+    "mode": 420,
+    "text": "{\n  \"$version\": 3,\n  \"general\": {\n    \"preventSystemSleep\": false,\n    \"enableAutoUpdate\": true,\n    \"vimMode\": true\n  },\n  \"model\": {\n    \"name\": \"theirs\",\n    \"reasoningEffort\": \"high\"\n  },\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"x\"\n      },\n      {\n        \"matcher\": \"\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"hmz gate\",\n            \"timeout\": 600000\n          }\n        ]\n      }\n    ],\n    \"Other\": 1,\n    \"Stop\": [\n      {\n        \"hooks\": []\n      }\n    ]\n  },\n  \"disableAllHooks\": false,\n  \"mcpServers\": {\n    \"theirs\": {\n      \"command\": \"t\"\n    },\n    \"humanize\": {\n      \"command\": \"hmz\",\n      \"args\": [\n        \"toolbox\"\n      ],\n      \"trust\": true\n    }\n  }\n}\n"
+   },
+   "skills": {
+    "dir": true
+   }
+  },
+  "dropped": {
+   "user": {
+    "dir": true
+   },
+   "user/.qwen": {
+    "dir": true
+   },
+   "user/.qwen/settings.json": {
+    "mode": 420,
+    "mtime": 1600000000000000000,
+    "text": "{\"$version\": 3, \"general\": {\"enableAutoUpdate\": true, \"vimMode\": true}, \"model\": {\"name\": \"theirs\", \"reasoningEffort\": \"low\"}, \"hooks\": {\"PreToolUse\": [{\"matcher\": \"x\"}], \"Other\": 1}, \"disableAllHooks\": true, \"mcpServers\": {\"theirs\": {\"command\": \"t\"}}}"
+   }
+  },
+  "dumps": "{\"variable\":\"QWEN_HOME\",\"default\":\".qwen\",\"rewrites\":[\"settings.json\"],\"outside\":[],\"lodges\":\"skills\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.qwen:_merged\",\"{\\\"managed\\\": {\\\"model\\\": {\\\"reasoningEffort\\\": \\\"high\\\"}, \\\"hooks\\\": {\\\"PreToolUse\\\": [{\\\"matcher\\\": \\\"\\\", \\\"hooks\\\": [{\\\"type\\\": \\\"command\\\", \\\"command\\\": \\\"hmz gate\\\", \\\"timeout\\\": 600000}]}], \\\"Stop\\\": [{\\\"hooks\\\": []}]}, \\\"disableAllHooks\\\": false, \\\"mcpServers\\\": {\\\"humanize\\\": {\\\"command\\\": \\\"hmz\\\", \\\"args\\\": [\\\"toolbox\\\"], \\\"trust\\\": true}}}, \\\"headless\\\": true}\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": [
+   [
+    "QWEN_HOME",
+    "{at}"
+   ]
+  ]
+ },
+ "qwen-bare": {
+  "argv": [],
+  "at_left": false,
+  "built": {
+   "settings.json": {
+    "mode": 420,
+    "text": "{\n  \"$version\": 4,\n  \"model\": {\n    \"reasoningEffort\": \"medium\"\n  }\n}\n"
+   }
+  },
+  "dropped": {},
+  "dumps": "{\"variable\":\"QWEN_HOME\",\"default\":\".qwen\",\"rewrites\":[\"settings.json\"],\"outside\":[],\"lodges\":\"\",\"secures\":\"\",\"private\":[],\"made\":[],\"kept\":[],\"skills\":[],\"flag\":\"\",\"merges\":[[\"hmz.coganchor.agents.qwen:_merged\",\"{\\\"managed\\\": {\\\"model\\\": {\\\"reasoningEffort\\\": \\\"medium\\\"}}, \\\"headless\\\": false}\"]],\"records\":[],\"keeps\":\"\"}",
+  "linked": [],
+  "sets": [
+   [
+    "QWEN_HOME",
+    "{at}"
+   ]
+  ]
+ }
+}

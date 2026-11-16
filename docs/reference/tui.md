@@ -1841,7 +1841,7 @@ the cluster is the one this machine's `sbatch` submits to.
 | `qos` | `quality of service; blank for the default` |
 | `time` | `max run time per job, e.g. 4:00:00; blank for the partition's` |
 | `constraint` | `node features a job needs, e.g. a100` |
-| `python` | `Python 3.12+ on its nodes, /abs or ~/path; blank for theirs` |
+| `python` | `not used; the nodes need no Python` |
 | `via` | ▾ `srun` (`a step of the job per connection, which every cluster allows`) / `tcp` (`a port the job serves; needs this machine to reach its nodes`) |
 | `run args` | `extra arguments for sbatch` |
 | `max jobs` | `max concurrent jobs; blank for no limit` |

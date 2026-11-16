@@ -13,14 +13,14 @@ runs -- which a cluster may give `srun` only a few dozen of, shared by everybody
 Or `tcp`: the job's own batch step is coganchor's serving half, left listening on the node for
 as many connections as there are, each presenting a secret only this machine was told. Nothing
 holds a port here, and every command still runs inside the job -- its CPUs, its memory, its
-end. `srun` is then only what puts the serving half's archive on the node and reads which port
-it was given, each once.
+end. `srun` is then only what puts `coganchor` on the node and reads which port the serving half
+was given, each once.
 
 Nothing is a container here. The workspace is the directory as the node names it, which is
 whatever the node's filesystems say: a cluster's shared filesystem, in practice, at the same
 path on every node a job may land on and on this one. What a turn runs runs as the user who
-submitted the job, with the node's own tools -- and, since a cluster's nodes may have no Python
-young enough for coganchor's serving half, with one the runtime names where they have not.
+submitted the job, with the node's own tools; the serving half is `coganchor`, which needs no
+Python there, so a Python the runtime names is kept for its spelling and not used.
 
 What a job asks for is what it is limited to: the cluster confines a job to its allocation.
 The labels a container of :mod:`.docker` carries go in the job's comment, so that what a
@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import contextlib
 import errno
+import logging
 import math
 import os
 import re
@@ -52,8 +53,7 @@ from hmz.coganchor.transport import (
     SLURM,
     Road,
     Target,
-    bundled,
-    python_command,
+    awaiting,
 )
 
 from .base import MachineBase, MachineConfig
@@ -63,6 +63,8 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 __all__ = ["SRUN", "TCP", "VIA", "Slurm", "SlurmConfig", "Unplaced", "jobs"]
+
+log = logging.getLogger(__name__)
 
 #: The two ways a job's node is reached: a step of the job's own per command, by `srun`; or a
 #: connection to the serving half the job itself runs, over TCP.
@@ -108,7 +110,7 @@ _GONE = "Invalid job id"
 #: How long each question asked of the cluster may take.
 _ASKING = 60.0
 
-#: How long a job's serving half is given to be listening once the job runs and its archive
+#: How long a job's serving half is given to be listening once the job runs and `coganchor`
 #: is on the node.
 _LISTENING = 60.0
 
@@ -315,8 +317,7 @@ class Slurm(MachineBase):
         Raises:
           FileNotFoundError: If there is no `sbatch` here.
           RuntimeError: If it could not be submitted.
-          OSError: If `sbatch` did not answer in time, or the serving half's archive cannot
-            be built.
+          OSError: If `sbatch` did not answer in time.
         """
         if self.job:
             return self.job
@@ -390,7 +391,7 @@ class Slurm(MachineBase):
             road.forget()
             target = stepped
             if config.via == TCP:
-                road.installed()
+                road.shipped()
                 target = Target.parse(f"tcp://{node}:{self._listening(road)}")
             assert self._mirror is not None  # noqa: S101 -- made as the job was submitted
             anchor = AnchorConfig(
@@ -494,33 +495,25 @@ class Slurm(MachineBase):
         return ["--output", os.devnull]
 
     def _script(self) -> str:
-        """What the job runs: nothing, or its serving half once its archive is on the node.
+        """What the job runs: nothing, or its serving half once `coganchor` is on the node.
 
-        The archive is put there by `srun` once the job runs, under a name only the archive
-        built from this source has, so the job waits for that name to be there. The secret is
-        set in the script rather than on a command line, which anybody on the node could read.
+        `coganchor` is put there by `srun` once the job runs, named by the build for the node's
+        platform -- which nobody has asked it yet, so the script asks and waits for that one --
+        and run with no Python, whatever `python` says. The secret is set in the script rather
+        than on a command line, which anybody on the node could read.
         """
         config = self._config
         if config.via != TCP:
             return _IDLE
-        _, digest = bundled()
-        archive = f"{REMOTE_CACHE}/humanize-{digest}.pyz"
-        serving = python_command(
-            [
-                "internal",
-                "anchor",
-                "serve",
-                "--listen",
-                "0.0.0.0:0",
-                "--export",
-                config.workspace,
-            ],
-            bundle=archive,
-            python=config.python,
-        )
-        return (
+        secret = (
             f"HUMANIZE_TOKEN={shlex.quote(self.token or '')}; export HUMANIZE_TOKEN; "
-            f'while [ ! -f "{archive}" ]; do sleep 1; done; exec {shlex.join(serving)}'
+        )
+        if config.python:
+            log.debug("job %s names a Python, which coganchor has no use for", self.job)
+        serving = ["anchor", "--listen", "0.0.0.0:0", "--export", config.workspace]
+        return (
+            f"{secret}{awaiting(REMOTE_CACHE)}; "
+            f'touch -c "$p"; exec "$p" {shlex.join(serving)}'
         )
 
     def _labelled(self) -> str:

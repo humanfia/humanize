@@ -1,280 +1,26 @@
-"""The `hmz internal anchor` line, both ways round: read into settings, and written back out.
+"""The `coganchor cog` line, written out from the settings a session runs under.
 
-Here rather than in the command line, because the two directions have to agree and only one
-of them is a command line. :meth:`~hmz.coganchor.anchor.AnchorConfig.command` renders a
-turn as this same invocation for a process of its own, so a flag added to the parser and not
-to the renderer is a setting a spawned turn silently loses. All three -- the flags, what they
-become, and what they are written back as -- are in this one file, where that is visible.
+`coganchor cog` takes the options `hmz internal anchor` always took and reads them into the
+same settings; :meth:`~hmz.coganchor.anchor.AnchorConfig.command` renders a turn as that line
+for a process of its own, so a setting that :func:`options` does not write is one a spawned
+turn silently loses.
 """
 
 from __future__ import annotations
 
-import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from argparse import ArgumentParser, Namespace
     from collections.abc import Sequence
     from pathlib import Path
 
     from .anchor import AnchorConfig
 
-__all__ = ["forget", "kept", "options", "parser", "render", "settings"]
-
-
-def parser() -> ArgumentParser:
-    """Builds the parser for `hmz internal anchor`, whose every option is a setting of the session.
-
-    Returns:
-      A parser whose result is what :class:`~hmz.coganchor.anchor.AnchorConfig` takes.
-    """
-    import argparse
-    import os
-
-    built = argparse.ArgumentParser(
-        prog="hmz internal anchor",
-        # Wrapped by hand: the raw formatter below keeps the epilog's own line breaks,
-        # and pays for that by not re-wrapping the description either.
-        description="Run a coding agent on this machine that acts on another one.\n"
-        "Humanize renders this line for remote turns; do not type it by hand.",
-        epilog="What Humanize renders looks like this:\n"
-        "  hmz internal anchor --target ssh://build-box claude --model opus",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    built.add_argument(
-        "--target",
-        default=os.environ.get("HUMANIZE_TARGET", "local"),
-        metavar="URL",
-        help="ssh://HOST, docker://CONTAINER[?OPTIONS][@ENDPOINT], "
-        "apple-container://CONTAINER, "
-        "tcp://HOST:PORT, peer://TICKET@HOST:PORT, or local[:DIR] (default: $HUMANIZE_TARGET)",
-    )
-    built.add_argument(
-        "--harness",
-        default=os.environ.get("HUMANIZE_HARNESS", "local"),
-        metavar="WHERE",
-        help="where the agent and its supervisor run: local, same (as --target), or a "
-        "target URL of their own (default: $HUMANIZE_HARNESS)",
-    )
-    built.add_argument(
-        "--broker",
-        default=os.environ.get("HUMANIZE_RENDEZVOUS", ""),
-        metavar="HOST",
-        help="where the two halves meet when harness and target differ (default: "
-        "$HUMANIZE_RENDEZVOUS, else this machine's outward-facing address)",
-    )
-    built.add_argument(
-        "--workspace",
-        metavar="PATH",
-        default=None,
-        help="the project directory as it exists on the target (default: this directory)",
-    )
-    built.add_argument(
-        "--remote-path",
-        metavar="PATH",
-        default=None,
-        help="where the workspace really lives on the target, if not --workspace",
-    )
-    built.add_argument(
-        "--shadow",
-        metavar="PATH",
-        default=os.environ.get("HUMANIZE_SHADOW"),
-        help="mirror directory on the harness's machine (default: $HUMANIZE_SHADOW, "
-        "else --workspace, so paths match)",
-    )
-    built.add_argument(
-        "--local-path",
-        metavar="PATH",
-        action="append",
-        default=[],
-        help="keep this path on the local machine even inside the workspace",
-    )
-    built.add_argument(
-        "--local-exec",
-        metavar="PATH",
-        action="append",
-        default=[],
-        help="run programs under this path locally instead of on the target",
-    )
-    built.add_argument(
-        "--redirect",
-        metavar="FROM=TO",
-        action="append",
-        default=[],
-        help="answer this path (a file, or a whole directory) with that one, kept "
-        "local",
-    )
-    built.add_argument(
-        "--chdir",
-        metavar="PATH",
-        help="where in the workspace the agent starts, as the target names it "
-        "(default: the workspace)",
-    )
-    built.add_argument(
-        "--private",
-        metavar="NAME",
-        action="append",
-        default=[],
-        help="keep this variable, such as the agent's own model credential, out of "
-        "the commands it runs on the target",
-    )
-    built.add_argument(
-        "--net",
-        choices=["local", "remote"],
-        default="local",
-        help="where the agent's own TCP connections go (default: local); its commands "
-        "always use the target's network",
-    )
-    built.add_argument(
-        "--net-allow",
-        metavar="HOST[:PORT]",
-        action="append",
-        default=[],
-        help="with --net remote, keep connections to this host local",
-    )
-    built.add_argument(
-        "--token",
-        default=os.environ.get("HUMANIZE_TOKEN"),
-        help="shared secret expected by a tcp:// target (default: $HUMANIZE_TOKEN)",
-    )
-    built.add_argument(
-        "--token-file",
-        metavar="FILE",
-        help="read that secret from FILE instead, which no other user's ps can",
-    )
-    built.add_argument(
-        "--force",
-        action="store_true",
-        help="use the mirror directory even if it holds unrelated files",
-    )
-    built.add_argument(
-        "--native",
-        action="store_true",
-        help="run the CLI installed on the target instead of supervising one here: "
-        "no mirror, no tracing",
-    )
-    built.add_argument(
-        "--hush",
-        metavar="NAME",
-        action="append",
-        default=[],
-        help="with --native, unset this variable for the CLI on the target, so its "
-        "shell profile cannot override its account",
-    )
-    built.add_argument(
-        "--project",
-        metavar="NAME=DIR",
-        action="append",
-        default=[],
-        help="with --native, copy this credentials directory to the target for the "
-        "turn and set NAME to its path there",
-    )
-    built.add_argument(
-        "--bring",
-        metavar="NAME/PATH=DIR",
-        action="append",
-        default=[],
-        help="with --native, copy what is at PATH inside the directory --project put "
-        "NAME at back into DIR before that directory is removed",
-    )
-    built.add_argument(
-        "--tell",
-        metavar="DIR",
-        default="",
-        help="with --native, keep a file of NAME=PATH lines in DIR while the turn runs, "
-        "one for each --project that landed at PATH on the target",
-    )
-    built.add_argument(
-        "--home",
-        metavar="JSON",
-        default=None,
-        help="with --native, start the CLI in a virtual home built on the target for the "
-        "turn, made as this says",
-    )
-    built.add_argument(
-        "--installs",
-        metavar="LINE",
-        default="",
-        help="with --native, the line that installs this CLI, reported where the "
-        "target lacks it",
-    )
-    built.add_argument(
-        "--fence",
-        metavar="JSON",
-        default=None,
-        help="hold the agent to this fence here and on the target, as "
-        "`hmz internal fence --policy` takes it",
-    )
-    built.add_argument(
-        "--check",
-        action="store_true",
-        help="connect to the target, report what was found, and exit",
-    )
-    built.add_argument(
-        "--log-level",
-        default=None,
-        choices=["debug", "info", "warning", "error"],
-        help="logging verbosity (default: $HUMANIZE_LOG, else warning)",
-    )
-    built.add_argument(
-        "command",
-        nargs=argparse.REMAINDER,
-        metavar="AGENT [ARGS...]",
-        help="the agent to run, e.g. claude, codex or kimi, plus its own arguments",
-    )
-    return built
-
-
-def settings(args: Namespace) -> AnchorConfig:
-    """Reads what the parser answered with into the settings a session runs under.
-
-    Args:
-      args: What :func:`parser` parsed. Its `check`, `log_level` and `command` are the command
-        line's own business rather than settings, and are not read here.
-
-    Returns:
-      The settings. Every option is one, and every one is an option.
-
-    Raises:
-      ValueError: If they are settings no session could run under, which a command line
-        reports as the bad arguments they are.
-    """
-    from .anchor import AnchorConfig
-    from .fence import Fence
-    from .homes import Virtual
-
-    return AnchorConfig(
-        target=args.target,
-        harness=args.harness,
-        broker=args.broker,
-        workspace=args.workspace,
-        chdir=args.chdir,
-        remote_path=args.remote_path,
-        shadow=args.shadow,
-        local_paths=tuple(args.local_path),
-        local_execs=tuple(args.local_exec),
-        redirects=tuple(_pair(said) for said in args.redirect),
-        private=tuple(args.private),
-        net=args.net,
-        net_allow=tuple(args.net_allow),
-        token=_secret(args.token_file) if args.token_file else args.token,
-        force=args.force,
-        native=args.native,
-        hushes=tuple(args.hush),
-        projects=tuple(_pair(said) for said in args.project),
-        home=Virtual.loads(args.home) if args.home else None,
-        brings=tuple(_pair(said) for said in args.bring),
-        tells=args.tell,
-        installs=args.installs,
-        fence=Fence.loads(args.fence) if args.fence else None,
-    )
+__all__ = ["forget", "kept", "options", "render"]
 
 
 def render(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
-    """Writes the settings back out as the `hmz internal anchor` line that would read as them.
-
-    The interpreter is named explicitly, so the child is the one Humanize is installed in
-    whether or not the console script is on PATH.
+    """Writes the settings back out as the `coganchor cog` line that would read as them.
 
     Args:
       config: The settings to run the agent under.
@@ -282,8 +28,13 @@ def render(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
 
     Returns:
       The command to spawn, which exits with the agent's own status.
+
+    Raises:
+      FileNotFoundError: Where there is no `coganchor` for this machine.
     """
-    return [sys.executable, "-Pm", "hmz", "internal", "anchor", *options(config), *argv]
+    from hmz.coganchor import binary
+
+    return [str(binary.here()), "cog", *options(config), *argv]
 
 
 def options(config: AnchorConfig) -> list[str]:
@@ -346,17 +97,6 @@ def options(config: AnchorConfig) -> list[str]:
     return written
 
 
-def _pair(said: str) -> tuple[str, str]:
-    """Reads one `FROM=TO` as the two paths it names.
-
-    Whether they are paths a session could answer anything with is
-    :class:`~hmz.coganchor.anchor.AnchorConfig`'s to say, so one with no `=` in it comes
-    back as half a pair and is refused there along with everything else it refuses.
-    """
-    named, _, instead = said.partition("=")
-    return named, instead
-
-
 def kept(token: str) -> str:
     """The file a secret is kept in for a command line to name, written where it is not yet.
 
@@ -397,10 +137,3 @@ def _keeping(token: str) -> Path:
     from hmz import machine
 
     return machine() / "tokens" / hashlib.sha256(token.encode()).hexdigest()[:32]
-
-
-def _secret(path: str) -> str:
-    """The secret a file holds, as :func:`kept` wrote it."""
-    from pathlib import Path
-
-    return Path(path).read_text(encoding="utf-8")

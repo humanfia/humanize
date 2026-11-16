@@ -67,17 +67,17 @@ def test_a_harness_is_elsewhere_only_on_another_machine(
     assert elsewhere(AnchorConfig(harness=harness, target=target)) is away
 
 
-ARCHIVE = "$HOME/.cache/humanize/humanize-test.pyz"
+PROGRAM = "$HOME/.cache/humanize/coganchor-0123456789abcdef"
 
 
 @pytest.fixture
 def installed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every road already holds the archive, so that none is built or pushed."""
+    """Every road already holds `coganchor`, so that none is shipped."""
 
     def held(road: transport.Road) -> str:
-        return ARCHIVE
+        return PROGRAM
 
-    monkeypatch.setattr(transport.Road, "installed", held)
+    monkeypatch.setattr(transport.Road, "shipped", held)
 
 
 class Started:
@@ -97,8 +97,8 @@ def broker(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
     """A broker at `hub:7000` that is never listened on, and serving halves never started."""
     Started.lines = []
 
-    def shared(advertise: str = "") -> tuple[None, str, int]:
-        return None, "hub", 7000
+    def shared(advertise: str = "") -> tuple[str, int]:
+        return "hub", 7000
 
     monkeypatch.setattr(rendezvous, "shared", shared)
     monkeypatch.setattr(rendezvous, "ticket", lambda: "t0")
@@ -123,7 +123,7 @@ def test_the_same_machine_supervises_its_own_work_as_a_local_target(
     assert "--target=local:/srv/w" in words
     assert not any(word.startswith("--harness") for word in words)
     assert "--force" in words
-    assert ARCHIVE in words[3]
+    assert PROGRAM in words[3]
     assert f'HUMANIZE_SHADOW="{REMOTE_MIRRORS}/' in words[3]
     assert broker == []
 
@@ -179,7 +179,7 @@ def test_two_machines_meet_through_the_broker(
     assert len(broker) == 1
     started = broker[0]
     assert started[:4] == ["docker", "exec", "-i", "work"]
-    assert started[-5:] == ["serve", "--peer", "t0@hub:7000", "--export", "/w"]
+    assert started[-5:] == ["anchor", "--peer", "t0@hub:7000", "--export", "/w"]
 
 
 class Carried:

@@ -29,7 +29,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | [Agents](/reference/agents) | Coding-agent drivers below the flow API: backends, sessions, hooks, fences | `hmz.coganchor` |
 | [Machines](/reference/machines) | Environments: local, ssh, docker, swarm, Apple containers, Slurm; runtimes | `hmz.coganchor` |
 | [Providers](/reference/providers) | Accounts an agent runs as, ways in | `hmz.coganchor` |
-| [Remote execution](/reference/remote-execution) | `hmz internal anchor`: harness placement, targets, mirrors | `hmz.coganchor` |
+| [Remote execution](/reference/remote-execution) | `coganchor` and `hmz internal anchor`: harness placement, targets, mirrors | `hmz.coganchor` |
 | [Tracing](/reference/tracing) | Epics, journals, traces, profiling, export | `hmz.runtime` |
 | [Files](/reference/files) | Everything under `$HUMANIZE_HOME` and a workspace's `.hmz/` | — |
 | [Environment variables](/reference/environment) | Every variable any part of Humanize reads or sets | — |

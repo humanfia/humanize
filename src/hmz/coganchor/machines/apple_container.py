@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any, cast
 from hmz.coganchor import AnchorConfig
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE
 from hmz.coganchor.proto import path_spellings
-from hmz.coganchor.transport import APPLE, Road, Target, python_command
+from hmz.coganchor.transport import APPLE, Road, Target, idling
 
 from .base import MachineBase, MachineConfig
 from .docker import CPUS, MEMORY, Allocation
@@ -44,12 +44,6 @@ if TYPE_CHECKING:
 
 #: The command that drives Apple's containers.
 CONTAINER = "container"
-
-#: What the container does while the turns come and go: nothing, in the interpreter
-#: coganchor's target half needs, looked for the way that half looks for it -- as a docker
-#: container idles, and for the same reason: an image holding no Python is a container that
-#: stops as it starts, and so a flow that fails where it is set up rather than a turn later.
-_IDLE = tuple(python_command(["-c", "import time; time.sleep(2**31)"]))
 
 #: Marks a container as one of ours, and whose: the label a docker container carries, read by
 #: whoever lists the containers, to whom the backends are not two things.
@@ -67,8 +61,8 @@ class AppleContainerConfig(MachineConfig):
     """What the container is run from.
 
     Attributes:
-      image: The image to run, which needs `/bin/sh` and a Python of at least 3.12 for
-        coganchor's target half, and whatever else the agent is expected to reach for.
+      image: The image to run, which needs `/bin/sh` and `sleep` for coganchor's target
+        half, and whatever else the agent is expected to reach for.
       workspace: The project directory to give the container, defaulting to this directory.
         It is the directory itself that goes there, not a copy of it, so the work outlives
         the container.
@@ -354,9 +348,9 @@ class AppleContainer(MachineBase):
             `container` to give it to.
           ValueError: If the workspace's path holds a comma, which `container` reads a mount
             as several fields at and has no way to quote.
-          RuntimeError: If the container cannot be started -- an image with no shell in it, or
-            none holding a Python new enough, is refused here. What `container` said is
-            attached. Or if what came up is not the machine these settings promised.
+          RuntimeError: If the container cannot be started -- an image with no shell in it is
+            refused here. What `container` said is attached. Or if what came up is not the
+            machine these settings promised.
           OSError: If the container cannot serve the workspace it was given, which is a turn
             that would fail on its first file, reported before the first turn instead.
         """
@@ -412,7 +406,9 @@ class AppleContainer(MachineBase):
                     *config.run_args,
                     *self._resources(),
                     config.image,
-                    *_IDLE,
+                    # What the container does while the turns come and go, as a docker
+                    # container does.
+                    *idling(),
                 ],
                 capture_output=True,
                 text=True,
@@ -426,7 +422,7 @@ class AppleContainer(MachineBase):
                     f"could not start a container of {config.image}: "
                     f"{started.stderr.strip()}"
                 )
-            # A container made just now holds no bundle, whatever one of the same name was
+            # A container made just now holds no `coganchor`, whatever one of the same name was
             # given before it.
             Road.to(target).forget()
             anchor = AnchorConfig(

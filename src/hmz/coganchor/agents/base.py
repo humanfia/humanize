@@ -4564,15 +4564,13 @@ class AgentBase(ABC):
         if (rest.keep or rest.deny) and sys.platform != "darwin":
             # Landlock holds a carve-out only by granting what is around it, which needs
             # every directory above it listed; asked now rather than where a turn is spawned.
-            from hmz.coganchor.fence.wrap import expanded
+            from hmz.coganchor.fence import unheld
 
-            try:
-                expanded(rest)
-            except OSError as why:
+            if (why := unheld(rest)) is not None:
                 raise Unfenced(
                     f"{type(self).__name__} cannot be held to its permission on this "
                     f"machine: what it carves out cannot be held ({why})"
-                ) from why
+                )
 
     def _abroad(self, config: AgentConfig) -> None:
         """Refuses a fence an anchored agent cannot be held to, as its config arrives.
@@ -5431,11 +5429,12 @@ class AgentBase(ABC):
           brought back as the turn ends (:meth:`_bringing`).
         """
         from hmz.coganchor.backends import named
-        from hmz.coganchor.serve.sessions import (
+        from hmz.coganchor.tailing import (
             HOST_SPECIFIC_ENV,
             HOST_SPECIFIC_PREFIXES,
+            Tail,
+            road,
         )
-        from hmz.coganchor.tailing import Tail, road
 
         with self._holding:
             if self._tailed or not self._tailing():

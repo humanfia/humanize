@@ -20,8 +20,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.transport import build_bundle
-
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -32,14 +30,6 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 #: module is under is its layer, and naming a layer covers every module inside it.
 ALLOWED: dict[str, set[str]] = {
     "hmz.coganchor": {"hmz.runtime.telemetry"},
-    # The target half runs on any architecture with only what the bundle carried.
-    "hmz.coganchor.serve": {
-        "hmz.coganchor.proto",
-        "hmz.coganchor.fence",
-        "hmz.coganchor.linux.landlock",
-        "hmz.coganchor.linux.seccomp",
-        "hmz.coganchor.linux.syscalls",
-    },
     "hmz.runtime": set(),
     "hmz.runtime.kept": {"hmz.coganchor.spelling"},
     "hmz.runtime.settings": {
@@ -112,6 +102,8 @@ ALLOWED: dict[str, set[str]] = {
     # The methods a daemon serves beyond epics and sessions, each family through what keeps it.
     "hmz.daemon.api": {
         "hmz.coganchor",
+        # The hosts the daemon holds, as `workspaces.list` says how each stands.
+        "hmz.daemon",
         "hmz.reach.routes",
         "hmz.rpc",
         "hmz.runtime",
@@ -377,41 +369,3 @@ def test_reading_an_exec_line_loads_neither_the_interface_nor_the_daemon() -> No
     assert "hmz.cli" in loaded
     assert not {one for one in loaded if _covers("hmz.tui", one)}, loaded
     assert not {one for one in loaded if _covers("hmz.daemon", one)}, loaded
-
-
-def test_the_target_half_loads_only_what_it_may(tmp_path: Path) -> None:
-    """What a real target half loads out of the bundle, against what its layer may name."""
-    bundle = build_bundle(tmp_path / "coganchor.pyz")
-    # A line read all the way to the serving half, and refused there for its port.
-    probe = (
-        "import contextlib, io, sys\n"
-        "sys.path.insert(0, sys.argv[1])\n"
-        "from hmz import cli\n"
-        "with contextlib.redirect_stdout(io.StringIO()):\n"
-        "    cli.main(['internal', 'anchor', 'serve', '--export', '/project:/tmp',\n"
-        "              '--listen', 'not-a-port'])\n"
-        "print(' '.join(m for m in sys.modules if m.split('.')[0] == 'hmz'))\n"
-    )
-    ran = subprocess.run(
-        [sys.executable, "-c", probe, str(bundle)],
-        capture_output=True,
-        text=True,
-        env={"PATH": "/usr/bin:/bin", "PYTHONPATH": ""},
-        cwd="/",
-        check=False,
-        timeout=60,
-    )
-    assert ran.returncode == 0, ran.stderr
-    loaded = set(ran.stdout.split())
-    serve = "hmz.coganchor.serve"
-    assert f"{serve}.server" in loaded, "the target half did not actually run"
-    startup = {
-        "hmz",
-        "hmz.cli",
-        "hmz.cli.anchor",
-        "hmz.coganchor",
-        "hmz.coganchor.anchor",
-    }
-    assert loaded <= ALLOWED[serve] | startup | {
-        one for one in loaded if _covers(serve, one)
-    }

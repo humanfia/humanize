@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from hmz.runtime.watching.notices import KINDS, prefer, preferences
 
-from .routing import Refusal, Stream, routes
+from .routing import Refusal, Stream, refused, routes
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -359,12 +359,10 @@ def _prefers(asked: Asked) -> dict[str, Any]:
 
 
 def _notices(asked: Asked) -> dict[str, Any]:
-    notices: Notices = asked.site.notices
-    try:
-        found = notices.since(asked.query.get("after", "0"))
-    except ValueError as why:
-        raise Refusal("Say after as a whole number.") from why
-    return {"notices": found, "last": notices.last}
+    from hmz.daemon.api import notices
+
+    with refused():
+        return notices.listed(asked.site.notices, asked.query.get("after", "0"))
 
 
 def _stream(asked: Asked) -> Stream:
