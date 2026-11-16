@@ -80,6 +80,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.daemon',
   ],
   'hmz.sdk': ['hmz.daemon', 'hmz.runtime'],
+  'hmz.rtc': [],
   'hmz.web': [
     'hmz.coganchor',
     'hmz.daemon',
@@ -148,6 +149,13 @@ const LAYERS: Layer[] = [
     note: 'Names the runtime by its front door, `hmz.runtime`.',
     spec: 'daemon.md#4-wire-protocol',
     ref: '/reference/daemon',
+  },
+  {
+    id: 'rtc',
+    dotted: 'hmz.rtc',
+    here: 'A WebRTC data channel as a carrier: the daemon answering a browser through a relay, with pinned DTLS fingerprints.',
+    note: 'Imports nothing of Humanize: the device key signs and verifies through what its caller hands it.',
+    spec: 'wire.md#47-webrtc',
   },
   {
     id: 'runtime',
@@ -253,6 +261,7 @@ const LAYERS: Layer[] = [
 const BANDS: { label: string; ids: string[] }[] = [
   { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
+  { label: 'reaching a daemon', ids: ['rtc'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
   { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },

@@ -109,6 +109,8 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.daemon",
     },
     "hmz.sdk": {"hmz.daemon", "hmz.runtime"},
+    # A carrier to a daemon: signs and verifies through what its caller hands it.
+    "hmz.rtc": set(),
     # A way in like the terminal interface: the runs through `daemon`, drawn with `watching`.
     "hmz.web": {
         "hmz.coganchor",
