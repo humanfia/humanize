@@ -898,13 +898,13 @@ match without resolving `~` and `.`, except that `/` MUST match every path.
 **3.7.2.5** When a session opens, `~` MUST resolve to the home directory of the operating-system
 user the harness runs as, and `.` to the workdir of the environment the turn works in and, where
 the session's working directory is elsewhere, to that directory too. The session MUST be held to
-the access its rules so resolved give each path.
+the access its rules so resolved give each path, subject to Section 3.7.2.6.
 
-**3.7.2.6** Where the preset's expansion lets a session write the workdir, as that of
-`workspace-write` and `danger-full-access` does, hmz MUST hold the session as though `allow` rules
-for the temporary directories `/tmp`, `/var/tmp` and `$TMPDIR` followed the expansion, so that a
-rule of `granular` still narrows them. The harness's own state, sign-in and temporary files MUST lie
-outside the rules: hmz MUST let the harness reach them whatever the rules say.
+**3.7.2.6** hmz MUST always grant the harness its own state, sign-in and temporary files, and,
+where the rules give `.` `WRITE`, MUST also grant writing the temporary directories `/tmp`,
+`/var/tmp` and `$TMPDIR`. Where such a grant and a rule lie one beneath the other, the deeper MUST
+decide, and where they name the same path, the more permissive MUST decide, so that `deny("/tmp")`
+does not take `/tmp` away while `deny("/tmp/x")` does take `/tmp/x`.
 
 **3.7.2.7** `network` MUST govern the network, including the harness's own web search and fetch
 tools, and MUST be independent of the rules: `danger-full-access` with `network=False` MUST hold a
@@ -913,10 +913,10 @@ session off the network.
 **3.7.2.8** `covers(other)` MUST return `True` exactly where `network >= other.network` and,
 wherever the home directory and the workdir lie, this permission gives each path at least the
 access `other` gives it once both are resolved (Section 3.7.2.5 and Section 3.7.2.6). `covers` MUST
-decide this by comparing the two at every path of a rule of either permission, at `/tmp` and
-`/var/tmp`, and at a fresh child of each, under every consistent layout that places each of `~` and
-`.` at a fresh directory beneath none, or beneath any one, of the paths of the rules of either
-permission not anchored at itself.
+decide this by comparing the two at every path of a rule of either permission, at each temporary
+directory, and at a fresh child of each, under every consistent layout that places each of `~`, `.`
+and `$TMPDIR` at a fresh directory beneath none, or beneath any one, of the paths of the rules of
+either permission not anchored at itself, `/tmp` and `/var/tmp`.
 
 **3.7.2.9** hmz MUST NOT run a session with wider access than its permission, at any path or on the
 network. Where neither the harness nor the machine can hold a session to its permission, a rule
