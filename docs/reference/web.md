@@ -128,10 +128,13 @@ carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and
 changed). The page itself carries:
 
 ```text
-Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self';
-  script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none';
+Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:; style-src 'self';
+  script-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none';
   form-action 'self'
 ```
+
+`ws:` and `wss:` let the page reach the relay of a `webrtc:` route, whose host the server cannot
+know.
 
 Each view is an address after `#`, so it can be kept and opened again:
 

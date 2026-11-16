@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import socket
 import subprocess
 import urllib.parse
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -14,9 +15,6 @@ from hmz.coganchor import providers
 from hmz.runtime import backing
 from tests.integration.doubles_core import AGENT, hmz_exec, install
 from tests.integration.doubles_web import Browser, backed_up_elsewhere, served
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 @pytest.fixture
@@ -131,6 +129,16 @@ def test_any_name_this_machine_is_reached_by_is_answered_but_only_with_the_key(
         assert browser.get("/api/settings").json()["details"] is True
 
 
+def _policy() -> str:
+    """The Content-Security-Policy protocol/web.md (Section 4.5.5) serves a page with."""
+    text = " ".join(
+        (Path(__file__).parents[2] / "protocol" / "web.md").read_text().split()
+    )
+    found = re.search(r"\*\*4\.5\.5\*\* .*?`Content-Security-Policy: ([^`]*)`", text)
+    assert found is not None
+    return found[1]
+
+
 def test_the_page_is_its_own_files_and_nothing_beside_them(project: Path) -> None:
     with served() as site:
         browser = Browser(site)
@@ -139,7 +147,8 @@ def test_the_page_is_its_own_files_and_nothing_beside_them(project: Path) -> Non
         page = browser.get("/")
         assert page.status == 200
         assert page.headers["content-type"].startswith("text/html")
-        assert "default-src 'self'" in page.headers["content-security-policy"]
+        assert page.headers["content-security-policy"] == _policy()
+        assert page.headers["cache-control"] == "no-cache"
         assert (
             browser.get("/app.js").headers["content-type"].startswith("text/javascript")
         )

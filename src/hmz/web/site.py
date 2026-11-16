@@ -117,10 +117,12 @@ _KINDS = {
     ".json": "application/json",
 }
 
-#: What a page of the interface may load and run: its own files and nothing else.
+#: What a page of the interface may load and run: its own files and nothing else, but that it
+#: may reach the relay of any `webrtc:` route, whose host the server cannot know.
 _POLICY = (
-    "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
-    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; "
+    "script-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none'; "
+    "base-uri 'none'; form-action 'self'"
 )
 
 #: What each part of the name of a file the page is made of is spelled with: words, never a dot,
