@@ -122,6 +122,9 @@ as the daemon's user, and **untrusted** otherwise (Section 3.5).
 **3.2.4** A **listener** is a carrier end a daemon offers to clients beside its socket, named by a
 listener spec (Section 3.9.2 of [DAEMON]).
 
+**3.2.5** The **hmz a login shell finds** on a machine is the `hmz` found on the `PATH` that
+`"$SHELL" -lc` of the user there gives, `/bin/sh` standing for `$SHELL` where it is not set.
+
 ### 3.3. Route grammar
 
 **3.3.1** A route MUST match `route` of the following grammar, in which `host`, `port`, `userinfo`,
@@ -156,6 +159,15 @@ identity file, `jump` the proxy jump, and each `option` one ssh option `<Keyword
 order given; a host that is the alias of a `Host` of the ssh configuration MUST be resolved by `ssh`
 itself each time the route is opened.
 
+**3.3.4** `port` MUST be a decimal number from 1 to 65535 and `host` MUST NOT be empty, in every
+route that holds them; a route that breaks either MUST be refused as one the grammar does not
+match.
+
+**3.3.5** A `stdio:ssh` route whose destination -- `<user>@<host>` after percent-decoding, or
+`<host>` where it names no user -- starts with `-`, or holds a space, a tab, a carriage return, a
+line feed or a NUL, MUST be refused with `<route> cannot be reached from here.`, so that `ssh` reads
+no destination as an option or as more than one.
+
 ### 3.4. Carriers
 
 **3.4.1** `unix:` MUST be a connection to the socket of the daemon of this machine (Section 4.2.3 of
@@ -163,18 +175,20 @@ itself each time the route is opened.
 the Unix stream socket at `<path>`, started nowhere.
 
 **3.4.2** `stdio:local` MUST be the standard input and output of `hmz daemon connect --stdio`
-(Section 13 of [CLI]), started on this machine with the hmz a login shell finds, `~/.local/bin`
-included.
+(Section 13 of [CLI]), started on this machine with the hmz a login shell finds (Section 3.2.5),
+`$HOME/.local/bin` added to that `PATH` where it lacks it.
 
 **3.4.3** `stdio:ssh://…` MUST be the standard input and output of `hmz daemon connect --stdio` run
 on the host the route names through `ssh` with the user, port, identity file, proxy jump and options
 it names, after the hmz there is found and, where needed, installed as Section 3.8.3 of [DAEMON]
 states; `ssh` MUST be run in batch mode, so that it asks for no password and accepts no unknown host
-key.
+key. The command MUST be run by the shell `ssh` starts there, which MAY run it through a login
+shell, with `$HOME/.local/bin` put in front of `PATH`.
 
 **3.4.4** `stdio:wsl[:<distro>]` MUST be the standard input and output of `wsl.exe [-d <distro>]
---exec <hmz> daemon connect --stdio`, `<hmz>` being the hmz a login shell of that distribution
-finds, `~/.local/bin` included; without `<distro>` it MUST be the default distribution.
+--exec`, running `"$SHELL" -lc` there as Section 3.2.5 states, which runs `hmz daemon connect
+--stdio` with `$HOME/.local/bin` put in front of `PATH`; without `<distro>` it MUST be the default
+distribution.
 
 **3.4.5** `tcp://<host>:<port>` MUST be a TCP connection to that host and port.
 
@@ -189,8 +203,18 @@ joined as Section 3.8.5 of [DAEMON] states.
 (Section 5.5), and `webrtc:<url>` the data channel of a WebRTC connection signalled through the
 relay at `<url>` (Section 4.7).
 
-**3.4.9** A client that opens a carrier MUST give up on it where it is not open within 30 seconds,
-except a `stdio:ssh` carrier while hmz is installed there.
+**3.4.9** A client that opens a carrier MUST give up on it unless, within 30 seconds of starting it,
+the carrier has opened, its security of Section 4, if any, is established and `session.hello`
+(Section 6.5) over it is answered, and MUST then report `<route> did not open within 30 seconds.`;
+a `stdio:` carrier opens as soon as its process starts and says nothing until it is spoken to, so
+that its 30 seconds are those of its handshake. The time hmz is installed over a `stdio:ssh` carrier
+MUST NOT count, and the 30 seconds MUST start afresh once it is installed.
+
+**3.4.10** A carrier MUST NOT be half-closed: a side that stops reading or writing it MUST close it
+both ways, and whatever splices a carrier to another or to standard streams -- `hmz daemon connect
+--stdio` (Section 13.2.3 of [CLI]), the relay (Section 5.5.3), `/rpc` and `/dial` (Section 4.7 of
+[WEB] and Section 4.8 of [WEB]) and the pipes of the desktop application (Section 3.12 of
+[DESKTOP]) -- MUST close both once either direction ends.
 
 ### 3.5. Trust
 
@@ -207,6 +231,9 @@ channel of Section 4.7.
 
 **3.5.5** `wss` and the TLS a user puts in front of a relay MUST NOT make a carrier trusted.
 
+**3.5.6** A client MUST refuse to open an untrusted route of a daemon whose id it does not pin,
+before it opens the carrier, with `<route> needs the id of the daemon it reaches.`
+
 ### 3.6. Racing and reconnecting
 
 **3.6.1** A client that knows several routes of one daemon MUST try them in the order kept, starting
@@ -217,7 +244,7 @@ it has failed.
 with a result whose `daemon_id` is the one the client pins, and MUST close every other attempt.
 
 **3.6.3** A client MUST read a daemon as unreachable once every route has failed, with the failure
-of the last route to fail.
+of the last route to fail, and a daemon that has no route with `There is no route to try.`
 
 **3.6.4** A session that drops or fails MUST be tried again after 1 second, the wait doubling after
 each further failure up to at most 60 seconds, and starting again at 1 second once a session is up.
@@ -294,7 +321,8 @@ and MUST instead check the other's certificate as Section 4.4.4 and Section 4.4.
 
 **4.4.4** The client MUST close the carrier, sending no frame, where the SPKI fingerprint of the
 daemon's certificate is not the daemon id it pins, and MUST report `<name> is not the daemon it was
-paired with.`
+paired with.`, `<name>` being the client's name for the daemon (Section 3.8.1 of [DAEMON]), or the
+route where whatever opens TLS is given no name, as a pipe of [DESKTOP] is not.
 
 **4.4.5** The daemon MUST admit every client certificate whose self-signature verifies under the
 public key that certificate holds, and MUST read the session as paired or unpaired by the client's
@@ -352,7 +380,8 @@ and on; a device MUST be renamed by revoking it and pairing it again.
 MUST answer the call, and MUST then close, at once, every session of the daemon whose device
 fingerprint is that device's, the one that called included.
 
-**4.6.4** `local` MUST NOT be revocable.
+**4.6.4** `local` MUST NOT be revocable: revoking it MUST be refused with `local cannot be
+revoked.`
 
 ### 4.7. WebRTC
 
@@ -360,9 +389,10 @@ fingerprint is that device's, the one that called included.
 offerer, signalled through the relay at `<url>` (Section 5.5), with the daemon as the answerer.
 
 **4.7.2** A browser MUST make its DTLS certificate with `RTCPeerConnection.generateCertificate` on
-ECDSA P-256 with the longest lifetime the browser allows, MUST keep it in its IndexedDB, and MUST
-use it for every connection until it expires; a browser whose certificate expired or was lost is a
-new device and MUST be paired again.
+ECDSA P-256 with the longest lifetime the browser allows, asked as 100 years (`expires` 3 153 600
+000 000 milliseconds) and cut to its own longest by the browser, MUST keep it in its IndexedDB, and
+MUST use it for every connection until it expires; a browser whose certificate expired or was lost
+is a new device and MUST be paired again.
 
 **4.7.3** The offer MUST open exactly one data channel, labelled `hmz`, ordered and reliable, whose
 binary messages carry consecutive bytes of the carrier, each at most 16 384 bytes; a text message on
@@ -377,7 +407,7 @@ it MUST close it.
 and `sig` the base64url of the ECDSA P-256 SHA-256 signature, as the 64 bytes of `r` and `s`, by the
 daemon's device key over the UTF-8 text `hmz-webrtc/1`, a line feed, the `sha-256` fingerprint of
 the offer's SDP as written there, a line feed, and the `sha-256` fingerprint of the answer's SDP as
-written there.
+written there (Section 4.7.12).
 
 **4.7.6** The browser MUST close the connection, before it carries any frame, where the SPKI
 fingerprint of `cert` is not the daemon id it pins, where `sig` does not verify under the key of
@@ -393,6 +423,26 @@ base32 of the bytes of the offer's `sha-256` fingerprint, which DTLS has held th
 **4.7.9** A daemon MUST answer WebRTC only where its `listen` names a `webrtc:` listener and the
 optional dependency `webrtc` is installed, and MUST say `webrtc` among its capabilities (Section
 6.5.4) then alone.
+
+**4.7.10** A daemon that will not answer a WebRTC join -- one that cannot answer WebRTC (Section
+4.7.9), an offer refused by Section 4.7.13, or a data channel other than that of Section 4.7.3 --
+MUST send `refuse` with its `why` for that join's `conn` on its control connection (Section 5.5.3),
+which the relay passes to the browser (Section 5.5.8), so that the browser need not wait out
+Section 3.4.9.
+
+**4.7.11** WebRTC MUST be offered by a browser alone: a native WebRTC stack makes a new DTLS
+certificate for each connection, so that its device fingerprint would change each time and could
+never be paired. A native client MUST reach a daemon through a relay by its `relay:` route, and MUST
+refuse a `webrtc:` route as Section 3.3.2 states.
+
+**4.7.12** The `sha-256` fingerprint of a description MUST be the value that follows `sha-256` and
+its spaces on an `a=fingerprint:` line of it, the algorithm's name read in any case: 32 bytes in
+hexadecimal, a colon between each, signed with the case of its letters kept as written.
+
+**4.7.13** A description MUST carry exactly one distinct `sha-256` value, which it MAY repeat in
+each media section and beside fingerprints of other algorithms; a description that carries none or
+two MUST be refused with `A description must say exactly one sha-256 fingerprint.`, and one whose
+value is not of the form of Section 4.7.12 with `<value> is not a sha-256 fingerprint.`
 
 ## 5. The Relay
 
@@ -428,6 +478,15 @@ a binary message MUST carry bytes of a splice alone (Section 5.5.3).
 **5.3.3** The relay MUST answer a message it cannot read, or one of a kind it does not expect there,
 with `{"t": "error", "why": "<sentence>"}` and close the connection.
 
+**5.3.4** The sentence MUST be `That message cannot be read.` for a text message that is not a JSON
+object whose `t` is a text, and for a `signal` whose `data` is not an object; `A binary message is
+not expected here.` for a binary message where a control message is expected; and `A <t> is not
+expected here.` for a control message whose kind `<t>` is not expected there.
+
+**5.3.5** The relay MUST close, with `error` `Nothing was said in time.`, a connection whose first
+message has not come within 10 seconds of its opening, and a control connection whose `prove` has
+not come within 10 seconds of its `challenge`.
+
 ### 5.4. Registering a daemon
 
 **5.4.1** A daemon with a `relay:` or `webrtc:` listener MUST keep one control connection to that
@@ -437,7 +496,8 @@ relay, opened again as Section 3.6.4 states where it drops, and MUST send `{"t":
 **5.4.2** The relay MUST answer `{"t": "challenge", "nonce": <32 random bytes in base64url>}`, and
 the daemon `{"t": "prove", "cert": <its device certificate, base64 of DER>, "sig": <base64url of the
 64-byte ECDSA P-256 SHA-256 signature by its device key over the UTF-8 text `hmz-relay/1`, a line
-feed and the nonce>}`.
+feed and the nonce>}`, the nonce signed as the base64url text it was sent as, not as the bytes it
+decodes to.
 
 **5.4.3** The relay MUST answer `{"t": "registered"}` where the SPKI fingerprint of `cert` is `id`
 and `sig` verifies, and MUST refuse with `error` `That daemon id is not proven.` otherwise.
@@ -451,7 +511,8 @@ join of it that is not yet spliced.
 ### 5.5. Joining a client
 
 **5.5.1** A client MUST send `{"t": "join", "id": <daemon id>, "kind": "native" | "webrtc"}` first;
-the relay MUST refuse with `error` `No daemon <id> is here.` where no room has that id.
+the relay MUST refuse with `error` `A join of kind <kind> cannot be made.` where `kind` is neither,
+and otherwise `No daemon <id> is here.` where no room has that id.
 
 **5.5.2** The relay MUST send the daemon `{"t": "join", "conn": <conn>, "kind": <kind>}` on its
 control connection.
@@ -462,8 +523,8 @@ control connection; the relay MUST then send the client `{"t": "joined"}`, or `e
 and from `joined` on MUST carry every binary message of either WebSocket to the other, unchanged and
 in order, closing each when the other closes.
 
-**5.5.4** A native join not accepted within 10 seconds MUST be refused with `error` `The daemon did
-not answer.`
+**5.5.4** A native join not accepted within 10 seconds of the client's `join` MUST be refused with
+`error` `The daemon did not answer.`
 
 **5.5.5** For a WebRTC join, the relay MUST send the client `{"t": "joined"}` at once, and then MUST
 pass each `{"t": "signal", "data": <object>}` the client sends to the daemon as `{"t": "signal",
@@ -473,12 +534,25 @@ pass each `{"t": "signal", "data": <object>}` the client sends to the daemon as 
 **5.5.6** The relay MUST NOT read, keep or log the bytes of a splice, and MUST NOT keep anything on
 disk.
 
+**5.5.7** The relay MUST refuse with `error` `A native join sends nothing before it is joined.` a
+native client that sends anything before `joined`; with `No join <conn> is waiting.` an `accept`
+whose `conn` names no native join still waiting for its answer; and with `A splice carries binary
+messages alone.` a text message on either WebSocket of a splice, which then closes the splice.
+
+**5.5.8** For a WebRTC join, the relay MUST answer a `refuse` of the daemon by sending the client
+`error` with its `why` and closing the client's connection.
+
+**5.5.9** The relay MUST drop, unanswered, a `signal` or a `refuse` of a daemon whose `conn` names
+no join of its room still open, a `signal` whose `conn` names a native join, and a `refuse` of a
+native join already answered.
+
 ### 5.6. Limits
 
 **5.6.1** The relay MUST close a connection that sends a text message over 65 536 bytes or a binary
 message over 1 048 576 bytes.
 
-**5.6.2** The relay MUST ping every connection every 30 seconds and close one silent for 90 seconds.
+**5.6.2** The relay MUST ping every connection every 30 seconds, and MUST close one that has not
+answered a ping with a pong within 60 seconds of it.
 
 **5.6.3** The relay MUST close a client connection that sends anything but `join` and, for a WebRTC
 join, `signal`, before `joined`, and a binary message before `joined`.
@@ -525,13 +599,21 @@ value that is not JSON-native as its text.
 ### 6.4. JSON-RPC
 
 **6.4.1** Every frame MUST carry one JSON-RPC 2.0 request, notification or response [JSONRPC]; a
-batch MUST be answered with the error -32600 and `id` `null`.
+batch MUST be answered with the error -32600, `Send one request a frame.`, and `id` `null`. A frame
+that is JSON but neither a batch nor a request, notification or response of JSON-RPC 2.0 MUST be
+answered with -32600, `That is not a JSON-RPC 2.0 request.`, its `id` that of the call where it is a
+call whose `id` is a text or an integer, and `null` otherwise; a notification whose `method` is not
+a text or whose `params` is not an object, and a response that answers no call of the session still
+unanswered, MUST be dropped.
 
 **6.4.2** A client MUST send calls and the notification `session.cancel`; the daemon MUST send
-responses and notifications, and MUST NOT send a call.
+responses and notifications, and MUST NOT send a call; a call a client is sent MUST be answered
+with -32601.
 
 **6.4.3** Every call MUST carry `id`, a text or an integer not in use by another call of the session
-still unanswered, and `params` as an object, or none for no parameters.
+still unanswered, and `params` as an object, or none for no parameters; a call whose `id` is that of
+such a call MUST be refused with -32600, `That id is in use by another call.`, and `id` `null`, so
+that the refusal answers neither call.
 
 **6.4.4** The daemon MUST answer every call exactly once on the session it came in on, and MAY
 answer calls in another order than they were made, but for Section 6.4.5.
@@ -557,7 +639,8 @@ with -32600, `A client says session.hello first.`, and `session.hello` called ag
 
 **6.5.3** `session.hello` MUST take `protocol`, the client's protocol version, and `client`, `{name,
 kind}`: `name` the user's name for the client (Section 4.7.1.5 of [DAEMON]) and `kind` one of `tui`,
-`web`, `desktop`, `cli`, `sdk` and `bridge`.
+`web`, `desktop`, `cli`, `sdk` and `bridge`. A `protocol` that is not a version of [SEMVER] MUST be
+refused with -32602, `session.hello takes protocol as a version.`
 
 **6.5.4** `session.hello` MUST be answered with `daemon_id`, `version` (the daemon's hmz version),
 `protocol` (the daemon's protocol version), `capabilities` (a list of text naming optional features
@@ -673,16 +756,20 @@ and MUST then be removed from this machine with what it held.
 
 ### 6.10. Limits and backpressure
 
-**6.10.1** The daemon MUST NOT wait on a slow session: where more than 64 MiB of notifications wait
-for one session, it MUST drop them, and MUST end every epic subscription of the session with `gone`
-`too far behind; attach again` and every notices subscription with `notices.event` `{sub, gone:
-"too far behind; subscribe again"}`, sent after the frame in progress.
+**6.10.1** The daemon MUST NOT wait on a slow session: it MUST keep one queue of the frames it sends
+each session, responses and notifications alike, in the order sent, and where more than 64 MiB wait
+in it, it MUST drop the notifications among them, keeping every response, and MUST end every epic
+subscription of the session with `gone` `too far behind; attach again` and every notices
+subscription with `notices.event` `{sub, gone: "too far behind; subscribe again"}`, sent after the
+frame in progress.
 
 **6.10.2** A result or notification whose frame would exceed Section 6.3.2 MUST NOT be sent: a
 result MUST be replaced by the error 413, `That is more than an answer here may carry.`, and a
 notification MUST be dropped and written to `daemon.log`.
 
-**6.10.3** A call whose frame exceeds Section 6.3.2 MUST close the session.
+**6.10.3** A call whose frame exceeds Section 6.3.2 MUST close the session; a client MUST NOT send
+one, and MUST instead refuse it itself, sending nothing, with 413, `That is more than a call here
+may carry.`
 
 ### 6.11. The OpenRPC document
 
@@ -736,8 +823,9 @@ document on which the security of a user's machine and work depends.
   4.7). It learns which daemon ids register, which addresses join them, when and how many bytes, and
   keeps none of it (Section 5.5.6).
 - **Limits.** Frames, relay messages, chunks and queued notifications are bounded (Section 6.3.2,
-  Section 5.6.1, Section 6.9 and Section 6.10.1), so that one peer cannot hold up the daemon or
-  another session (Section 6.4.6).
+  Section 5.6.1, Section 6.9 and Section 6.10.1), and the relay closes a connection that says
+  nothing in time (Section 5.3.5), so that one peer cannot hold up the daemon, the relay or another
+  session (Section 6.4.6).
 - **Keys.** A device's private key never leaves it and is never on a command line (Section 4.3.4);
   its files are readable by the user alone (Section 4.14 of [FILES]).
 
