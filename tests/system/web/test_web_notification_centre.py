@@ -46,7 +46,10 @@ window.Notification = class {
 #: before, the page would take itself for the app and reach every daemon through its pipes.
 _APP_NOTIFIES = """() => {
   window.__TAURI_INTERNALS__ = {
-    invoke: (command, args) => { window.shown.push({ command, ...args }); return Promise.resolve() },
+    invoke: (command, args) => {
+      window.shown.push({ command, ...args })
+      return Promise.resolve()
+    },
   }
 }"""
 
