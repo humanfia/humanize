@@ -120,6 +120,8 @@ def test_a_file_written_in_chunks_is_taken_whole_under_its_name(
         (0, _b64(bytes(CHUNK + 1)), 413, "That is more than a call here may carry."),
         (0, "not base64!", 400, "data is not base64."),
     ],
+    # Each named, not spelled out: a chunk too big as its own name is a line of megabytes.
+    ids=["out-of-place", "past-declared", "past-a-chunk", "not-base64"],
 )
 def test_a_chunk_out_of_place_or_too_big_is_refused(
     session: _Session, offset: int, data: str, code: int, message: str
