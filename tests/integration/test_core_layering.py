@@ -132,8 +132,8 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.watching",
         "hmz.daemon",
     },
-    # A client of a daemon: the socket to it, the flow API's budget, and this machine's settings.
-    "hmz.sdk": {"hmz.daemon", "hmz.flows", "hmz.reach", "hmz.runtime"},
+    # A client of a daemon: its socket and JSON-RPC, the flow API's budget, the settings.
+    "hmz.sdk": {"hmz.daemon", "hmz.flows", "hmz.reach", "hmz.rpc", "hmz.runtime"},
     # A way in like the terminal interface: the runs through `daemon`, drawn with `watching`.
     "hmz.web": {
         "hmz.coganchor",
