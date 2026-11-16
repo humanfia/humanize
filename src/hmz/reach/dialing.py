@@ -12,6 +12,7 @@ the daemon a client pinned is for the TLS over it, or the `session.hello` over i
 
 from __future__ import annotations
 
+import contextlib
 import socket
 import subprocess
 import sys
@@ -208,14 +209,10 @@ def websocket(url: str, timeout: float = OPENING) -> ClientConnection:
     from websockets.sync.client import connect
 
     try:
-        # Held open rather than for a block: a carrier lives as long as its session.
-        return connect(
-            url,
-            open_timeout=timeout,
-            max_size=MESSAGE,
-            compression=None,
-            legacy=True,
-        )
+        opening = connect(url, open_timeout=timeout, max_size=MESSAGE, compression=None)
+        # Entered as the context manager `connect` is, and never left: a carrier lives as
+        # long as its session rather than for a block, and is ended by its own `close`.
+        return contextlib.ExitStack().enter_context(opening)
     except (InvalidHandshake, InvalidURI) as why:
         raise ConnectionError(f"{url}: {why}") from why
 
