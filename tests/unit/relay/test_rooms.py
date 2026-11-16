@@ -275,3 +275,33 @@ async def test_registering_again_takes_the_room(world: World) -> None:
     client.say({"t": "join", "id": daemon, "kind": "webrtc"})
     assert await client.heard() == {"t": "joined"}
     assert (await controls[1].heard())["t"] == "join"
+
+
+async def test_a_refused_webrtc_join_tells_the_browser_why(world: World) -> None:
+    control, daemon = await world.register()
+    client = world.connect()
+    client.say({"t": "join", "id": daemon, "kind": "webrtc"})
+    assert await client.heard() == {"t": "joined"}
+    conn = (await control.heard())["conn"]
+    control.say(
+        {"t": "refuse", "conn": conn, "why": "This daemon cannot answer WebRTC."}
+    )
+    await refused(client, "This daemon cannot answer WebRTC.")
+    control.say({"t": "refuse", "conn": conn, "why": "Again."})
+    control.say({"t": "signal", "conn": "nothing", "data": {}})
+    later = world.connect()
+    later.say({"t": "join", "id": daemon, "kind": "webrtc"})
+    assert await later.heard() == {"t": "joined"}
+    assert (await control.heard())["t"] == "join"
+
+
+async def test_a_connection_that_says_nothing_in_time_is_closed(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hmz.relay.rooms, "SPEAKING", 0.05)
+    silent = world.connect()
+    await refused(silent, "Nothing was said in time.")
+    unproven = world.connect()
+    unproven.say({"t": "register", "id": "x"})
+    assert (await unproven.heard())["t"] == "challenge"
+    await refused(unproven, "Nothing was said in time.")

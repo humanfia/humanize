@@ -16,6 +16,7 @@ import json
 import logging
 import queue
 import threading
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.reach.dialing import OPENING, websocket
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
 
     from websockets.sync.client import ClientConnection
 
-    from hmz.reach.pipes import Pipe
+    from hmz.rpc.pipe import Pipe
 
 __all__ = ["RelayListener", "join"]
 
@@ -40,21 +41,26 @@ def join(url: str, daemon: str, timeout: float = OPENING) -> WebSocketPipe:
     Args:
       url: The relay's WebSocket URL.
       daemon: The daemon id to join.
-      timeout: How long joining may take.
+      timeout: How long joining may take, opening the WebSocket included.
 
     Returns:
       The splice, untrusted: whoever answers it is proven only by the TLS put over it.
 
     Raises:
+      TimeoutError: If the relay did not answer within `timeout`.
       OSError: If the relay could not be reached or refused the join, with what it said why.
     """
     from websockets.exceptions import ConnectionClosed
 
+    ending = time.monotonic() + timeout
     connection = websocket(url, timeout)
     try:
         connection.send(json.dumps({"t": "join", "id": daemon, "kind": "native"}))
-        said = _read(connection.recv(timeout))
-    except (ConnectionClosed, TimeoutError) as why:
+        said = _read(connection.recv(max(ending - time.monotonic(), 0.0)))
+    except TimeoutError:
+        connection.close()
+        raise
+    except ConnectionClosed as why:
         connection.close()
         raise ConnectionError(f"The relay at {url} did not join: {why}") from why
     if said.get("t") == "joined":

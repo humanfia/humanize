@@ -31,7 +31,6 @@ from websockets.exceptions import ConnectionClosed
 from websockets.sync.server import Server, ServerConnection, serve
 
 from hmz.reach import (
-    Pipe,
     ProcessPipe,
     RelayListener,
     SocketPipe,
@@ -42,6 +41,8 @@ from hmz.reach import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+    from hmz.rpc import Pipe
 
 
 def _b64url(data: bytes) -> str:

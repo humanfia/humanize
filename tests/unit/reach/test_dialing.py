@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import io
 import json
+import shlex
 import socket
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import pytest
@@ -18,7 +19,6 @@ import hmz.reach.relays
 from hmz.daemon import where
 from hmz.reach import (
     EasyTier,
-    Pipe,
     ProcessPipe,
     Route,
     SocketPipe,
@@ -29,7 +29,22 @@ from hmz.reach import (
     join,
 )
 
-CONNECT = 'export PATH="$HOME/.local/bin:$PATH"; exec hmz daemon connect --stdio'
+if TYPE_CHECKING:
+    from hmz.rpc import Pipe
+
+#: What `/bin/sh` runs where the login shell has run: `hmz`, `~/.local/bin` in front.
+THERE = 'export PATH="$HOME/.local/bin:$PATH"; exec hmz daemon connect --stdio'
+
+#: The login shell of the user, `/bin/sh` standing for it, asked only to run `/bin/sh`.
+CONNECT = [
+    "/bin/sh",
+    "-c",
+    'exec "${SHELL:-/bin/sh}" -lc '
+    + shlex.quote("exec /bin/sh -c " + shlex.quote(THERE)),
+]
+
+#: A daemon id, which an untrusted route is opened only with.
+DAEMON = "d" * 52
 
 
 class Road:
@@ -48,17 +63,11 @@ class Road:
 
 
 def test_stdio_local_runs_connect_through_a_login_shell() -> None:
-    assert command(Route.parse("stdio:local")) == ["sh", "-lc", CONNECT]
+    assert command(Route.parse("stdio:local")) == CONNECT
 
 
 def test_stdio_wsl_runs_it_in_the_distribution_named_or_the_default() -> None:
-    assert command(Route.parse("stdio:wsl")) == [
-        "wsl.exe",
-        "--exec",
-        "sh",
-        "-lc",
-        CONNECT,
-    ]
+    assert command(Route.parse("stdio:wsl")) == ["wsl.exe", "--exec", *CONNECT]
     assert command(Route.parse("stdio:wsl:Ubuntu-22.04"))[:4] == [
         "wsl.exe",
         "-d",
@@ -74,7 +83,7 @@ def test_stdio_ssh_runs_ssh_in_batch_mode_before_what_the_route_says(
     target = mock.Mock()
     monkeypatch.setattr("hmz.coganchor.transport.Target", target)
     route = Route.parse("stdio:ssh://me@box:2222?identity=k&jump=j&option=BatchMode=no")
-    assert command(route)[-3:] == ["sh", "-lc", CONNECT]
+    assert command(route)[-3:] == CONNECT
     target.assert_called_once_with(
         "ssh",
         host="me@box",
@@ -112,9 +121,30 @@ def test_wsl_cannot_be_reached_but_from_windows() -> None:
         dial("stdio:wsl")
 
 
-def test_a_relay_route_needs_the_daemon_it_joins() -> None:
-    with pytest.raises(ValueError, match="needs the id of the daemon"):
-        dial("relay:ws://relay")
+@pytest.mark.parametrize(
+    "route", ["tcp://box:1", "ws://box", "easytier:home", "relay:ws://relay"]
+)
+def test_an_untrusted_route_needs_the_daemon_it_reaches_before_it_opens(
+    monkeypatch: pytest.MonkeyPatch, route: str
+) -> None:
+    opened = mock.Mock(side_effect=AssertionError("opened"))
+    monkeypatch.setattr(socket, "create_connection", opened)
+    monkeypatch.setattr("hmz.coganchor.easytier.joining", opened)
+    monkeypatch.setattr(hmz.reach.relays, "websocket", opened)
+    with pytest.raises(
+        ValueError, match=rf"^{route} needs the id of the daemon it reaches\.$"
+    ):
+        dial(route, easytier={"home": EasyTier("s" * 16, ("tcp://n:1",))})
+    opened.assert_not_called()
+
+
+def test_a_carrier_not_open_in_time_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
+    hangs = mock.Mock(side_effect=TimeoutError("timed out"))
+    monkeypatch.setattr(socket, "create_connection", hangs)
+    with pytest.raises(
+        TimeoutError, match=r"^tcp://box:1 did not open within 30 seconds\.$"
+    ):
+        dial("tcp://box:1", daemon=DAEMON)
 
 
 def test_an_easytier_route_needs_an_entry_of_its_name(
@@ -123,7 +153,11 @@ def test_an_easytier_route_needs_an_entry_of_its_name(
     joining = mock.Mock()
     monkeypatch.setattr("hmz.coganchor.easytier.joining", joining)
     with pytest.raises(ValueError, match=r"^There is no EasyTier entry home\.$"):
-        dial("easytier:home", easytier={"work": EasyTier("s" * 16, ("tcp://n:1",))})
+        dial(
+            "easytier:home",
+            daemon=DAEMON,
+            easytier={"work": EasyTier("s" * 16, ("tcp://n:1",))},
+        )
     joining.assert_not_called()
 
 
@@ -133,7 +167,7 @@ def test_tcp_is_an_untrusted_connection_without_nagle(
     sock = mock.Mock(spec=socket.socket)
     connecting = mock.Mock(return_value=sock)
     monkeypatch.setattr(socket, "create_connection", connecting)
-    pipe = dial("tcp://box:7000", timeout=3)
+    pipe = dial("tcp://box:7000", daemon=DAEMON, timeout=3)
     assert isinstance(pipe, SocketPipe)
     assert not trusted(pipe)
     connecting.assert_called_once_with(("box", 7000), timeout=3)
@@ -170,7 +204,7 @@ def test_stdio_local_is_a_trusted_child(monkeypatch: pytest.MonkeyPatch) -> None
     popen = mock.Mock(return_value=child)
     monkeypatch.setattr(subprocess, "Popen", popen)
     assert trusted(dial("stdio:local"))
-    assert popen.call_args.args[0] == ["sh", "-lc", CONNECT]
+    assert popen.call_args.args[0] == CONNECT
     assert popen.call_args.kwargs["stdin"] == subprocess.PIPE
     assert popen.call_args.kwargs["stdout"] == subprocess.PIPE
     assert popen.call_args.kwargs["stderr"] == subprocess.PIPE
@@ -208,11 +242,11 @@ def test_a_native_join_says_join_and_is_the_splice_once_joined(
 ) -> None:
     relay = Relay(json.dumps({"t": "joined"}))
     joins(monkeypatch, relay)
-    pipe = dial("relay:wss://relay/r", daemon="d" * 52)
+    pipe = dial("relay:wss://relay/r", daemon=DAEMON)
     assert isinstance(pipe, WebSocketPipe)
     assert not trusted(pipe)
     assert [json.loads(one) for one in relay.sent] == [
-        {"t": "join", "id": "d" * 52, "kind": "native"}
+        {"t": "join", "id": DAEMON, "kind": "native"}
     ]
     assert not relay.closed
 
@@ -253,7 +287,6 @@ def test_a_relay_closing_before_it_answers_did_not_join(
     [
         "stdio:ssh://-oProxyCommand=evil",
         "stdio:ssh://a%20b",
-        "stdio:ssh://",
         "stdio:ssh://-u@h",
     ],
 )

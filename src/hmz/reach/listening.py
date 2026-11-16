@@ -16,7 +16,7 @@ from hmz.reach.pipes import SocketPipe
 from hmz.reach.routes import Route
 
 if TYPE_CHECKING:
-    from hmz.reach.pipes import Pipe
+    from hmz.rpc.pipe import Pipe
 
 __all__ = ["TcpListener"]
 

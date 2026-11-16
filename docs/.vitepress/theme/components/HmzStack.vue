@@ -68,11 +68,11 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.tracing',
   ],
   'hmz.daemon': ['hmz.runtime'],
-  'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where'],
+  'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where', 'hmz.rpc.pipe'],
   'hmz.relay': [],
   'hmz.rpc': [],
   'hmz.rtc': [],
-  'hmz.trust': ['hmz.coganchor.atomic', 'hmz.coganchor.settings'],
+  'hmz.trust': ['hmz.coganchor.atomic', 'hmz.coganchor.settings', 'hmz.rpc.pipe'],
   'hmz.tui': [
     'hmz.coganchor',
     'hmz.flows',

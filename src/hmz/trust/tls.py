@@ -18,7 +18,7 @@ from __future__ import annotations
 import contextlib
 import socket
 import threading
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 from OpenSSL import SSL
 
@@ -31,31 +31,16 @@ if TYPE_CHECKING:
     from cryptography import x509
     from OpenSSL.crypto import X509
 
+    from hmz.rpc.pipe import Pipe
     from hmz.trust.identity import Identity
 
-__all__ = ["ALPN", "ImpostorError", "Pipe", "RefusedError", "Secured", "answer", "dial"]
+__all__ = ["ALPN", "ImpostorError", "RefusedError", "Secured", "answer", "dial"]
 
 #: The one application protocol either side offers, and the one it closes a handshake without.
 ALPN = b"hmz"
 
 #: How much is read off the pipe at a time: a TLS record and then some.
 _CHUNK = 1 << 16
-
-
-class Pipe(Protocol):
-    """A carrier as this reads and writes it: what a connected socket already is.
-
-    `recv` gives back what has arrived, at least a byte and at most as many as asked for,
-    and `b""` once the other side has closed; `sendall` writes all of what it is given;
-    `close` ends it, and makes a `recv` or `sendall` waiting on it in another thread return
-    or raise -- which a socket does once it is shut down, as :meth:`Secured.close` does.
-    """
-
-    def recv(self, bufsize: int, /) -> bytes: ...
-
-    def sendall(self, data: bytes, /) -> None: ...
-
-    def close(self) -> None: ...
 
 
 class RefusedError(ConnectionError):
@@ -67,7 +52,7 @@ class ImpostorError(RefusedError):
 
 
 class Secured:
-    """A pipe whose bytes cross inside TLS: itself a pipe, of the same three calls.
+    """A :class:`hmz.rpc.Pipe` whose bytes cross inside TLS: itself one, of the same three calls.
 
     One thread may read while another writes, which is how a session is carried: a reader
     waiting on what the other side says next, and whoever has something to say. Two
@@ -212,19 +197,21 @@ def dial(pipe: Pipe, identity: Identity, pinned: str, name: str) -> Secured:
       pipe: The carrier, open.
       identity: This device's.
       pinned: The daemon id the client pins.
-      name: What the client calls the daemon, for the refusal.
+      name: What the client calls the daemon, or the route where it is given no name, for
+        the refusal.
 
     Returns:
       The session, before any byte of it was sent.
 
     Raises:
       ImpostorError: If the daemon's key is not `pinned`.
-      RefusedError: If nothing is pinned, which no key matches, or the handshake fails
-        otherwise.
+      RefusedError: If nothing is pinned, which no key matches -- which a client refuses
+        before it opens the carrier, as Section 3.5.6 of wire.md has it -- or the handshake
+        fails otherwise.
     """
     if not pinned:
         pipe.close()
-        raise RefusedError(f"{name} has no daemon id pinned: pair with it first.")
+        raise RefusedError(f"{name} needs the id of the daemon it reaches.")
     wrong: list[bool] = []
 
     def pins(certificate: x509.Certificate) -> bool:
