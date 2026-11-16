@@ -458,7 +458,11 @@ def serves(
                 os.write(telling, b"listening\n")
         router.start()
         try:
-            router.wait()
+            # A tick at a time: a signal is handled on this thread, and one the kernel hands to
+            # another thread never wakes one blocked here for good -- so a terminate would
+            # wait for whatever ended the daemon next.
+            while not router.wait(_TICK):
+                pass
         finally:
             router.close()
     finally:
