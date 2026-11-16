@@ -510,9 +510,12 @@ true: nothing is put around the CLI.
   last that holds a path deciding it: a later rule removes every earlier entry at or beneath
   its own path, and is then put in `write`, `read` (`keep` beneath a `write`) or `deny`
   (beneath a grant; left out otherwise).
-- Where the rules write the workdir, `TEMPORARY` (`/tmp`, `/var/tmp`) and `$TMPDIR` where it
-  is absolute are written too, unless a later rule narrows them. Where `home` is written, `/` is written for any user but root, the
-  files' permissions holding it; for root, `TEMPORARY`, `$TMPDIR` and `/run/user/0`.
+- Whenever the rules give the workdir `write`, `TEMPORARY` (`/tmp`, `/var/tmp`) and
+  `$TMPDIR` where it is absolute are written too. They are held as the minimum below is: where
+  one of them and a rule's path nest, the deeper decides, and at the same path the more
+  permissive wins, so `("/tmp", "none")` leaves `/tmp` written and `("/tmp/x", "none")` denies
+  `/tmp/x`. Where `home` is written, `/` is written for any user but root, the files'
+  permissions holding it; for root, `TEMPORARY`, `$TMPDIR` and `/run/user/0`.
 - `read` and `write` widen the fence; being more specific, they beat a carve-out they sit
   beneath.
 - Always added to `read`: `/usr`, `/bin`, `/sbin`, `/lib`, `/lib32`, `/lib64`, `/libx32`,

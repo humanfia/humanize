@@ -650,11 +650,13 @@ A permission reaches a session twice: as a **fence** around the CLI's process tr
 
 **The fence.** Each rule of `rules` is resolved to an absolute path and held at its access,
 the last rule that matches a path deciding it, so a `deny` or `read_only` beneath a wider grant
-carves that subtree out of it. Rules that write the workdir, as those of `workspace-write`
-and `danger-full-access` do, also write `/tmp`, `/var/tmp` and an absolute `$TMPDIR`, as Codex's
-`workspace-write` does, as though `allow` rules for them followed the preset's, so a granular
-rule still narrows them. A rule that writes `~`
-also writes whatever the user may change: all of `/`, held by the files' own permissions,
+carves that subtree out of it. Whenever the rules give the workdir `.` `WRITE`
+(`workspace-write`, `danger-full-access`, or `read-only` with `allow(".")`), `/tmp`, `/var/tmp`
+and an absolute `$TMPDIR` are writable too, as Codex's `workspace-write` does. They are held as
+the CLI's own always-granted paths below are: where one of them and a rule's path nest, the
+deeper of the two decides, and at the same path the more permissive wins. So `deny("/tmp")`
+does not take `/tmp` away, and `deny("/tmp/x")` does keep the agent out of `/tmp/x`. A rule
+that writes `~` also writes whatever the user may change: all of `/`, held by the files' own permissions,
 except for root, which gets those temporary directories and `/run/user/0` and keeps the rest
 as the other rules say. Independently of the rules, the CLI may:
 
@@ -1418,9 +1420,15 @@ declaration order), and the params serialized as JSON.
 
 | Role | Spec in the digest |
 | --- | --- |
-| agent | `<harness>@<provider>/<model>:<effort>\|<preset>\|<network>\|<path>:<access>;…\|<skill,skill…>`, one `<path>:<access>` per `granular` rule in order, `<network>` being `True` or `False` |
+| agent | `<harness>@<provider>/<model>:<effort>\|<permission>\|<skill,skill…>`, `<permission>` being canonical JSON (below) |
 | outworlder | `outworlder`, or `outworlder:new` for one from `Outworlder.new()` |
 | environment | its derivation chain: `<backend>@<provider><workdir>` followed by `#subdir(<path>)`, `#worktree(<ref>,<dir>)`, `#temp_clone(<id>)`, `#scratch(<id>)` per derivation; never the path a copy landed at |
+
+An agent's `<permission>` is
+`json.dumps({"preset": preset, "network": network, "granular": [[path, access], ...]},
+separators=(",", ":"))`: `granular` in declared order, each rule's normalised path and access
+value, and the preset's expansion left out. `Permission(granular=(deny("~/.ssh"),))` is
+`{"preset":"workspace-write","network":true,"granular":[["~/.ssh","none"]]}`.
 
 `seq` counts earlier calls under the same parent with the same digest.
 

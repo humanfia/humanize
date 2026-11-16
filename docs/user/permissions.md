@@ -73,8 +73,13 @@ Each is read when the session opens, on the machine it opens on. A path that sta
 way, or holds a glob such as `*.env`, is refused when the flow is loaded. The rules are
 `allow(path)` (write), `read_only(path)` (read) and `deny(path)` (none), all from `hmz.flows`.
 
-`workspace-write` and `danger-full-access` also write the temporary directories every user
-shares (a rule of yours can still narrow them), `/tmp` and `/var/tmp`, and the one `$TMPDIR` names, as Codex's `workspace-write` does.
+Whenever the rules let the agent write its workdir `.` (`workspace-write`,
+`danger-full-access`, or `read-only` with `allow(".")`), it also writes the temporary
+directories every user shares, `/tmp` and `/var/tmp`, and the one `$TMPDIR` names, as Codex's
+`workspace-write` does. They are held like the agent's own paths below: where one of them and a
+rule's path nest, the deeper one decides, and at the same path the more permissive wins. So
+`deny("/tmp")` does not take `/tmp` away, but `deny("/tmp/x")` does keep the agent out of
+`/tmp/x`.
 A rule that lets the agent write `~` writes whatever your user account may change, wherever it
 is: a disk of yours mounted outside your home, a device your groups may use. The file
 permissions are what hold it. Run as root, it is your home, those temporary directories and
