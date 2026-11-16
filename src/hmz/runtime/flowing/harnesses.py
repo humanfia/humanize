@@ -74,6 +74,7 @@ import time
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from hmz.flows import (
+    Access,
     AskUserHookAgentMixin,
     CostExceeded,
     DurationExceeded,
@@ -1540,6 +1541,18 @@ class HarnessSession:
                 raise SessionError("a turn is already in flight in this session")
         limits = request.limits
         _refuse_spent(limits)
+        if (
+            self._driver.harness is HarnessKind.GROK
+            and self._tools
+            and self._permission.access(".") != Access.WRITE
+        ):
+            # Grok Build's own driver refuses the turns its read-only rung sends to `grok -p`;
+            # a workdir held from writing by a rule over a wider preset is refused the same,
+            # so that whether the flow's tools reach grok turns on the permission alone.
+            raise HarnessUnrecoverable(
+                f"{self._driver.harness}: a turn that may not write its workdir cannot be "
+                "offered the flow's own callbacks"
+            )
         goal = (
             request.prompt.startswith(_GOAL)
             and GoalCommandAgentMixin in self._driver.capabilities

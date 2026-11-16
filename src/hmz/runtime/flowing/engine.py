@@ -1537,10 +1537,21 @@ class Run:
         if said is None:
             driver, grant = key
             permission = grant.permission
+            # The permission as the role said it: its rules in the order said, and the
+            # preset by name rather than the rules it comes to.
+            granted = json.dumps(
+                {
+                    "preset": permission.preset,
+                    "network": permission.network,
+                    "granular": [
+                        [rule.path, rule.access] for rule in permission.granular
+                    ],
+                },
+                separators=(",", ":"),
+            )
             said = self.specs[key] = (
                 f"{driver.harness}@{driver.provider}/{driver.model}:{driver.effort}"
-                f"|{permission.local},{permission.user},{permission.system},"
-                f"{permission.online}|{','.join(grant.skills)}"
+                f"|{granted}|{','.join(grant.skills)}"
             )
         return said
 

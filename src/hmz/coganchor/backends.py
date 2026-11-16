@@ -4949,10 +4949,10 @@ _ROUTING = ("_URL", "_BASE", "_HOST", "_ENDPOINT", "_ORIGIN", "_ISSUER")
 def reachable(profile: Profile, environ: Mapping[str, str]) -> tuple[str, ...]:
     """The hosts a turn of this backend may still reach when a flow grants it no network.
 
-    This is the one hole `online=NONE` leaves, and it is left on purpose. A coding agent CLI
+    This is the one hole `network=False` leaves, and it is left on purpose. A coding agent CLI
     thinks on somebody else's machine: with its model API cut it is not an agent working
-    offline but a process that cannot take a turn at all, and a scope that made every turn
-    fail would be a scope nobody could use. So the fence lets through exactly what the CLI
+    offline but a process that cannot take a turn at all, and a permission that made every turn
+    fail would be a permission nobody could use. So the fence lets through exactly what the CLI
     cannot run without -- its model API, and where its sign-in is refreshed -- and nothing
     else: not the web its agent would search, not a package index, not a host a command it
     runs names.

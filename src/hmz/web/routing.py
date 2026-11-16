@@ -11,7 +11,10 @@ from __future__ import annotations
 import contextlib
 import re
 from dataclasses import dataclass, field
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
+
+from hmz.rpc import RpcError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator
@@ -25,7 +28,7 @@ __all__ = [
     "Refusal",
     "Route",
     "Stream",
-    "answered",
+    "refused",
     "routes",
 ]
 
@@ -45,18 +48,18 @@ class Refusal(Exception):  # noqa: N818 -- what the page is told, not what went 
 
 
 @contextlib.contextmanager
-def answered() -> Generator[None]:
-    """Refuses what a daemon's method refuses as a page is refused: its code, its sentence.
+def refused() -> Generator[None]:
+    """What a daemon method refuses, refused as the page is told it: the same sentence and code.
 
-    A route that is the method of the daemon's own, served over HTTP until the page calls the
-    method, answers what the method answers.
+    Raises:
+      Refusal: For each `hmz.rpc.RpcError` raised inside it.
     """
-    from hmz.rpc import RpcError
-
     try:
         yield
     except RpcError as why:
-        raise Refusal(why.message, why.code) from why
+        # A JSON-RPC code of its own, below zero, is no HTTP status: a failure here.
+        status = why.code if why.code > 0 else HTTPStatus.INTERNAL_SERVER_ERROR
+        raise Refusal(why.message, status, **(why.data or {})) from why
 
 
 @dataclass(frozen=True, slots=True)

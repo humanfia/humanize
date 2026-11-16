@@ -37,7 +37,6 @@ from hmz.flows import (
     OpenCodeAgent,
     Outworlder,
     Permission,
-    PermissionKind,
     PiAgent,
     QwenCodeAgent,
     ShellEnvMixin,
@@ -85,7 +84,7 @@ class Goal(Agent, GoalCommandAgentMixin): ...
 
 
 class Offline(Agent):
-    _permission = Permission(online=PermissionKind.NONE)
+    _permission = Permission(network=False)
     _skills = ("https://example.com/s#one",)
 
 
@@ -113,7 +112,7 @@ def test_agent_roles_read_each_key() -> None:
     assert (coder.required, coder.auto, coder.harness) == (True, False, None)
     assert coder.grant is Grant.of(frozenset({GoalCommandAgentMixin}))
     assert reviewer.required is False
-    assert reviewer.permission == Permission(online=PermissionKind.NONE)
+    assert reviewer.permission == Permission(network=False)
     assert reviewer.skills == ("https://example.com/s#one",)
     assert reviewer.grant.skills == reviewer.skills
     assert claude.harness is HarnessKind.CLAUDE

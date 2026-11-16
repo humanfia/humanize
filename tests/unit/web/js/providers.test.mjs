@@ -196,8 +196,12 @@ test('the daemon id of a real certificate is the base32 SHA-256 of its SubjectPu
   assert.equal(REAL_ID.length, 52)
 })
 
-const OFFER = 'v=0\r\no=- 1 2 IN IP4 0.0.0.0\r\na=fingerprint:sha-256 AA:BB:CC\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n'
-const ANSWER = 'v=0\r\no=- 3 4 IN IP4 0.0.0.0\r\na=fingerprint:sha-256 DD:EE:FF\r\n'
+/** A `sha-256` value: 32 bytes of `byte` in hexadecimal. */
+const hex = (byte) => Array(32).fill(byte).join(':')
+const AA = hex('AA')
+const DD = hex('DD')
+const OFFER = `v=0\r\no=- 1 2 IN IP4 0.0.0.0\r\na=fingerprint:sha-256 ${AA}\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n`
+const ANSWER = `v=0\r\no=- 3 4 IN IP4 0.0.0.0\r\na=fingerprint:sha-256 ${DD}\r\n`
 
 /** A daemon's key, its certificate and id, and a signer of the fingerprints given. */
 async function daemonKey() {
@@ -209,15 +213,25 @@ async function daemonKey() {
   return { id, der: certificate(spki), sign }
 }
 
+test('a description says exactly one sha-256 value, of 32 bytes, read as written', () => {
+  const lower = hex('ab')
+  // Spaces or a tab after the name, read in any case, repeated, beside other algorithms.
+  assert.equal(fingerprint(`a=fingerprint:SHA-256\t${lower}\r\nm=x\r\na=fingerprint:sha-256  ${lower} \r\na=fingerprint:sha-1 00:11\r\n`), lower)
+  for (const sdp of ['v=0\r\n', `a=fingerprint:sha-1 ${AA}\r\n`, `a=fingerprint:sha-256 ${AA}\r\na=fingerprint:sha-256 ${DD}\r\n`, `a=fingerprint:sha-256 ${AA}\r\na=fingerprint:sha-256 ${AA.toLowerCase()}\r\n`])
+    assert.throws(() => fingerprint(sdp), { message: 'A description must say exactly one sha-256 fingerprint.' })
+  for (const value of ['AA:BB:CC', `${AA}:AA`, AA.replace('AA', 'GG'), AA.replaceAll(':', '')])
+    assert.throws(() => fingerprint(`a=fingerprint:sha-256 ${value}\r\n`), { message: `${value} is not a sha-256 fingerprint.` })
+})
+
 test('an answer is the pinned daemon\'s only where its id and its signature over both fingerprints hold', async () => {
-  assert.equal(fingerprint(OFFER), 'AA:BB:CC')
+  assert.equal(fingerprint(OFFER), AA)
   const { id, der, sign } = await daemonKey()
-  const sig = await sign('AA:BB:CC', 'DD:EE:FF')
+  const sig = await sign(AA, DD)
   assert.equal(sig.length, 64)
   assert.ok(await signed(crypto.subtle, id, der, sig, OFFER, ANSWER))
   assert.ok(!(await signed(crypto.subtle, 'b'.repeat(52), der, sig, OFFER, ANSWER)))
-  assert.ok(!(await signed(crypto.subtle, id, der, await sign('00:00', 'DD:EE:FF'), OFFER, ANSWER)))
-  assert.ok(!(await signed(crypto.subtle, id, der, sig, OFFER, ANSWER.replace('DD', '11'))))
+  assert.ok(!(await signed(crypto.subtle, id, der, await sign(hex('00'), DD), OFFER, ANSWER)))
+  assert.ok(!(await signed(crypto.subtle, id, der, sig, OFFER, ANSWER.replace('DD:', '11:'))))
 })
 
 /** RTCPeerConnection as far as the provider uses it; its data channel opens once answered. */
@@ -315,8 +329,8 @@ test('webrtc refuses an answer not signed by the daemon pinned, before any frame
   const { id, der, sign } = await daemonKey()
   const other = await daemonKey()
   for (const answer of [
-    async (offer) => ({ type: 'answer', sdp: ANSWER, cert: toBase64(other.der), sig: toBase64url(await other.sign(fingerprint(offer), 'DD:EE:FF')) }),
-    async () => ({ type: 'answer', sdp: ANSWER, cert: toBase64(der), sig: toBase64url(await sign('00:11', 'DD:EE:FF')) }),
+    async (offer) => ({ type: 'answer', sdp: ANSWER, cert: toBase64(other.der), sig: toBase64url(await other.sign(fingerprint(offer), DD)) }),
+    async () => ({ type: 'answer', sdp: ANSWER, cert: toBase64(der), sig: toBase64url(await sign(hex('00'), DD)) }),
   ]) {
     const provider = webrtc({ certificate: async () => ({}), RTCPeerConnection: FakeConnection, WebSocket: relayAnswering(answer) })
     await assert.rejects(provider.open('webrtc:ws://relay', id, { state: noState, signal: new AbortController().signal }), NotPinned)
@@ -334,4 +348,27 @@ test('webrtc fails with what the relay says', async () => {
   }
   const provider = webrtc({ certificate: async () => ({}), RTCPeerConnection: FakeConnection, WebSocket: Refusing })
   await assert.rejects(provider.open('webrtc:ws://relay', 'x', { state: noState, signal: new AbortController().signal }), /No daemon x is here\./)
+})
+
+test('webrtc fails at once with the daemon\'s refusal the relay passes on after joined', async () => {
+  const Refused = class extends FakeSocket {
+    constructor(url) {
+      super(url)
+      this.onsent = (text) => {
+        const message = JSON.parse(text)
+        if (message.t === 'join') this.says(JSON.stringify({ t: 'joined' }))
+        if (message.t === 'signal' && message.data.type === 'offer') {
+          this.says(JSON.stringify({ t: 'error', why: 'This daemon cannot answer WebRTC.' }))
+          this.close()
+        }
+      }
+    }
+  }
+  const provider = webrtc({ certificate: async () => ({}), RTCPeerConnection: FakeConnection, WebSocket: Refused })
+  const started = Date.now()
+  await assert.rejects(provider.open('webrtc:ws://relay', 'x', { state: noState, signal: new AbortController().signal }), {
+    message: 'This daemon cannot answer WebRTC.',
+  })
+  assert.ok(Date.now() - started < 1000)
+  assert.ok(FakeConnection.last.closed)
 })

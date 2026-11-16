@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .routing import answered, routes
+from .routing import refused, routes
 
 if TYPE_CHECKING:
     from .routing import Asked
@@ -32,7 +32,7 @@ def listed(at: str, *, files: bool, hidden: bool) -> dict[str, Any]:
     """
     from hmz.daemon.api import paths
 
-    with answered():
+    with refused():
         return paths.listed(at, files=files, hidden=hidden)
 
 

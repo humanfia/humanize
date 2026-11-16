@@ -151,7 +151,7 @@ def test_a_fence_that_cuts_the_network_is_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(fence, "enforceable", fenceable)
-    with pytest.raises(Unfenced, match="grant it online ALL"):
+    with pytest.raises(Unfenced, match="grant it network=True"):
         _mcode(fence=Fence(read=("/",), write=("/tmp",), online=False))
 
 

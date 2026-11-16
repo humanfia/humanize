@@ -38,12 +38,14 @@ from hmz.flows import (
     NotificationHookResult,
     OutputSchemaError,
     Permission,
-    PermissionKind,
     PermissionRequestHookResult,
     PreToolUseHookResult,
     SessionError,
     StopHookResult,
     UnsupportedOperation,
+    allow,
+    deny,
+    read_only,
 )
 from hmz.runtime.flowing.harnessing import (
     ASKING,
@@ -68,13 +70,8 @@ from hmz.runtime.flowing.harnessing import (
     verdict,
 )
 
-READ = Permission(local=PermissionKind.READ)
-NONE = Permission(
-    local=PermissionKind.NONE,
-    user=PermissionKind.NONE,
-    system=PermissionKind.NONE,
-    online=PermissionKind.NONE,
-)
+READ = Permission(preset="read-only")
+NONE = Permission(preset="read-only", network=False, granular=(deny("/"),))
 ALL = Permission()
 LADDER = (READ_ONLY, WORKSPACE_WRITE, ASKING, BYPASS)
 
@@ -87,6 +84,34 @@ LADDER = (READ_ONLY, WORKSPACE_WRITE, ASKING, BYPASS)
         (HarnessKind.CLAUDE, ALL, LADDER, frozenset[HookKind](), BYPASS),
         (HarnessKind.CLAUDE, READ, LADDER, frozenset[HookKind](), READ_ONLY),
         (HarnessKind.CLAUDE, NONE, LADDER, frozenset[HookKind](), READ_ONLY),
+        (
+            HarnessKind.CLAUDE,
+            Permission(preset="read-only", granular=(allow("."),)),
+            LADDER,
+            frozenset[HookKind](),
+            BYPASS,
+        ),
+        (
+            HarnessKind.CLAUDE,
+            Permission(preset="read-only", granular=(allow("./out"),)),
+            LADDER,
+            frozenset[HookKind](),
+            READ_ONLY,
+        ),
+        (
+            HarnessKind.CLAUDE,
+            Permission(granular=(read_only("."),)),
+            LADDER,
+            frozenset[HookKind](),
+            BYPASS,
+        ),
+        (
+            HarnessKind.CLAUDE,
+            Permission(preset="danger-full-access"),
+            LADDER,
+            frozenset[HookKind](),
+            BYPASS,
+        ),
         (HarnessKind.DSH, READ, (BYPASS,), frozenset[HookKind](), BYPASS),
         (HarnessKind.KIMI, ALL, LADDER, frozenset({HookKind.ASK_USER}), ASKING),
         (
@@ -104,6 +129,10 @@ LADDER = (READ_ONLY, WORKSPACE_WRITE, ASKING, BYPASS)
         "all-is-bypass",
         "read-is-read-only",
         "none-is-read-only",
+        "read-only-writing-the-workdir-is-bypass",
+        "read-only-writing-beneath-the-workdir-is-read-only",
+        "only-a-read-only-preset-is-read-only",
+        "full-access-is-bypass",
         "a-cli-with-one-rung",
         "kimi-asks-for-a-question",
         "kimi-asks-for-a-permission",
@@ -154,13 +183,13 @@ def test_claude_prompts_while_a_permission_hook_is_hung() -> None:
     ("permission", "tellable", "said"),
     [(ALL, True, True), (NONE, True, False), (ALL, False, None), (NONE, False, None)],
 )
-def test_the_web_is_on_for_all_off_for_none_and_left_where_it_cannot_be_told(
+def test_the_web_is_on_with_the_network_off_without_and_left_where_it_cannot_be_told(
     permission: Permission, tellable: bool, said: bool | None
 ) -> None:
     assert searching(permission, tellable=tellable) is said
 
 
-def test_the_fence_is_the_permissions_scopes_around_the_workdir(
+def test_the_fence_is_the_permissions_rules_around_the_workdir(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     drawn: list[dict[str, Any]] = []
@@ -179,19 +208,25 @@ def test_the_fence_is_the_permissions_scopes_around_the_workdir(
     profile: Any = object()
 
     known = fenced(NONE, workdir="/w", home="/h", profile=profile, environ={"K": "V"})
-    unknown = fenced(ALL, workdir="/w", home="/h", profile=None, environ={})
+    carved = Permission(granular=(deny("~/.ssh"), read_only("./out")))
+    unknown = fenced(carved, workdir="/w", home="/h", profile=None, environ={})
 
     assert (known, unknown) == ("the fence", "the fence")
     assert drawn == [
         {
-            "rules": [("/", "none"), ("~", "none"), (".", "none")],
+            "rules": [("/", "read"), ("/", "none")],
             "online": False,
             "workdir": "/w",
             "home": "/h",
             "hosts": ("api.example.com",),
         },
         {
-            "rules": [("/", "read"), ("~", "read"), (".", "write")],
+            "rules": [
+                ("/", "read"),
+                (".", "write"),
+                ("~/.ssh", "none"),
+                ("./out", "read"),
+            ],
             "online": True,
             "workdir": "/w",
             "home": "/h",

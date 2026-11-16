@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .routing import Refusal, answered, routes
+from .routing import Refusal, refused, routes
 
 if TYPE_CHECKING:
     from .routing import Asked
@@ -25,7 +25,7 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
     """
     from hmz.daemon.api import flows
 
-    with answered():
+    with refused():
         return flows.declared(hmz, name)
 
 
@@ -38,7 +38,7 @@ def remembered(hmz: Any, said: dict[str, Any]) -> None:
     """
     from hmz.daemon.api import flows
 
-    with answered():
+    with refused():
         flows.remembered(hmz, said)
 
 
@@ -67,7 +67,7 @@ def _flow(asked: Asked) -> dict[str, Any]:
     name = asked.query.get("name", "")
     if not name:
         raise Refusal("Say which flow, as name.")
-    with answered():
+    with refused():
         return flows.offered(hmz, name)
 
 
