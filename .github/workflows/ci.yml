@@ -267,7 +267,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends musl-tools
           rustup target add x86_64-unknown-linux-musl
           cargo build --locked --release --target x86_64-unknown-linux-musl
-          file target/x86_64-unknown-linux-musl/release/coganchor | grep -q 'statically linked'
+          file target/x86_64-unknown-linux-musl/release/coganchor | grep -Eq 'static(ally|-pie) linked'
 
   # The macOS app in desktop/: its Rust held to rustfmt and clippy, its tests, and the app built
   # and its disk image as a release builds them, but unoptimised.
