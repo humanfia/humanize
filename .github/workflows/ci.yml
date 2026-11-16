@@ -231,26 +231,43 @@ jobs:
         run: |
           mkdir -p /tmp/diag
           cat > /tmp/diag/sitecustomize.py <<'PY'
-          import os, sys, traceback, signal
+          import os, sys, traceback
+          ROOT = int(os.environ.setdefault("DIAG_ROOT", str(os.getpid())))
+          def _ours(pid):
+              while pid > 1:
+                  if pid == ROOT:
+                      return True
+                  try:
+                      with open(f"/proc/{pid}/stat") as f:
+                          pid = int(f.read().rsplit(")", 1)[1].split()[1])
+                  except OSError:
+                      return False
+              return False
+          def _cmd(pid):
+              try:
+                  with open(f"/proc/{pid}/cmdline", "rb") as f:
+                      return f.read().replace(b"\0", b" ")[:150].decode(errors="replace")
+              except OSError:
+                  return "?"
           _kill, _killpg = os.kill, os.killpg
           def kill(pid, sig):
-              if pid <= 0 and sig != 0:
-                  sys.stderr.write(f"\n!!!!! os.kill({pid}, {sig}) in {os.getpid()}\n" + "".join(traceback.format_stack()))
+              if sig != 0 and not _ours(pid):
+                  sys.stderr.write(f"\n!!!!! os.kill({pid} [{_cmd(pid)}], {sig}) from {os.getpid()}\n" + "".join(traceback.format_stack()))
                   sys.stderr.flush()
                   raise PermissionError("diag refused")
               return _kill(pid, sig)
           def killpg(pg, sig):
-              sys.stderr.write(f"\n!!!!! os.killpg({pg}, {sig}) in {os.getpid()} (mine {os.getpgrp()})\n" + "".join(traceback.format_stack()))
-              sys.stderr.flush()
-              if pg <= 1 or pg == os.getpgrp():
+              if sig != 0 and not _ours(pg):
+                  sys.stderr.write(f"\n!!!!! os.killpg({pg} [{_cmd(pg)}], {sig}) from {os.getpid()}\n" + "".join(traceback.format_stack()))
+                  sys.stderr.flush()
                   raise PermissionError("diag refused")
               return _killpg(pg, sig)
           os.kill, os.killpg = kill, killpg
           PY
           for dir in tests/unit/daemon tests/unit/web; do
             echo "##### $dir"
-            PYTHONPATH=/tmp/diag timeout -k 10 300 unshare -r --pid --fork --mount-proc \
-              uv run --frozen --all-extras pytest "$dir" -p no:randomly -v --timeout=60 2>&1 | grep -v PASSED | cut -c1-300 || echo "##### $dir exit $?"
+            ( ulimit -u 800; PYTHONPATH=/tmp/diag timeout -k 10 240 \
+              uv run --frozen --all-extras pytest "$dir" -p no:randomly -v --timeout=60 2>&1 | grep -v PASSED | cut -c1-300 ) || echo "##### $dir exit $?"
           done
           exit 1
 
