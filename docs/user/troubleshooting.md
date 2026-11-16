@@ -649,11 +649,11 @@ another machine, sign its CLI in there instead.
 **Symptom.** A turn fails with this bracket, after the CLI said
 `hmz: <host>:<port> is not a host this run may reach`, often beside a `403 Forbidden`.
 
-**Cause.** The role has `online` of `NONE`, so its [fence](/user/permissions) lets it reach only
+**Cause.** The role has `network=False`, so its [fence](/user/permissions) lets it reach only
 the hosts its model and login are at, and the CLI reached for another. Nothing was wrong with
 the account. Humanize moves straight on to the next place of the fallback chain.
 
-**Fix.** Give the role `online` of `ALL`, or point it at a model whose host the fence knows.
+**Fix.** Give the role `network=True`, or point it at a model whose host the fence knows.
 
 **Verify.** The next turn goes through.
 
@@ -996,8 +996,9 @@ allows Landlock.
 harness setting (ssh:gpu-box) says: …`, before the flow starts, with exit status 2.
 
 **Cause.** The harness setting of the runtime the work is on puts the CLI on another runtime,
-where Humanize cannot hold a permission narrower than everything. Only a role granted `ALL` in
-every scope can run that way; any other is refused.
+where Humanize cannot hold a permission narrower than everything. Only a role at
+`danger-full-access` with `network=True`, and no rule that takes anything back, can run that
+way; any other is refused.
 
 **Fix.** Set the runtime's harness to `local` or `env`, or copy the flow and grant the role
 everything.

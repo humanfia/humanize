@@ -420,18 +420,19 @@ Per-backend rules:
 Under a flow the rung is derived from the role's `Permission` by
 `hmz.runtime.flowing.harnessing.rung()`, and nothing is put to anybody for approval:
 
-1. `local` of `READ` or `NONE` gives `read-only`; `local` of `ALL` gives `bypass`.
+1. `preset` of `read-only` whose rules do not give the workdir `write` (`access(".")` is not
+   `WRITE`) gives `read-only`; anything else gives `bypass`.
 2. If that is not `read-only` and the harness is in `ASKS` and a hook in its `ASKS` set is
    hung, it becomes `auto`. `ASKS` is `{kimi: {PERMISSION_REQUEST, ASK_USER}}`.
 3. A rung the backend does not take becomes `bypass` (`dsh`, `mcode`, ACP CLIs).
 
-| `local` | every harness but `dsh`, `mcode`, ACP | `dsh`, `mcode`, ACP |
+| `Permission` | every harness but `dsh`, `mcode`, ACP | `dsh`, `mcode`, ACP |
 | --- | --- | --- |
-| `NONE`, `READ` | `read-only` | `bypass` |
-| `ALL` | `bypass` (`auto` for `kimi` with a `PermissionRequest` or `AskUser` hook hung) | `bypass` |
+| `read-only`, `access(".")` not `WRITE` | `read-only` | `bypass` |
+| anything else | `bypass` (`auto` for `kimi` with a `PermissionRequest` or `AskUser` hook hung) | `bypass` |
 
-- `user`, `system` and `online` are held by the [fence](#the-fence), not the rung; so is `local`
-  on `dsh`, `mcode` and ACP CLIs.
+- Every other rule, and `network`, is held by the [fence](#the-fence), not the rung; so is
+  the whole permission on `dsh`, `mcode` and ACP CLIs.
 - **Claude Code** with a `PermissionRequest` hook hung is given `asks=True`
   (`harnessing.prompting`), so `bypass` runs at `manual` and every tool that would change
   something reaches the hook. It takes hold from the session's next turn (the process is
@@ -449,7 +450,7 @@ Under a flow the rung is derived from the role's `Permission` by
   "enabled"|"restricted"}` instead, the fence holding the rung. So is each such turn on Linux,
   where Codex's own sandbox cannot start inside Landlock either, whether or not the fence is as
   narrow as the rung (`bypass` stepped down to `auto` under a fence that writes the home).
-- `online` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
+- `network` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
 
 <small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `prompting`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
 
@@ -473,7 +474,7 @@ Under a flow the rung is derived from the role's `Permission` by
 | `agy` | `--agent hmz-offline` (default tools less `read_url_content`, `search_web` and the subagent tools) when off or when the fence cuts the network; at `read-only`, `hmz-read-only-web` when on |
 | `cursor-agent`, `mcode`, `omp`, `pi`, an ACP CLI | cannot be told: `False` is refused |
 
-Under a flow, `online` of `ALL` (the default) is `True` and `NONE` is `False`, on a backend that
+Under a flow, it is the role's `network` (`True` by default), on a backend that
 can be told; elsewhere `None`. A command the agent runs reaches the network regardless of this
 setting; only the [fence](#the-fence) stops that.
 
@@ -481,7 +482,8 @@ setting; only the [fence](#the-fence) stops that.
 
 `AgentConfig.fence` is what the agent's processes may reach: the CLI's own process and every
 command it runs. A flow sets one on every session from the role's `Permission`
-(`harnessing.fenced`).
+(`harnessing.fenced`): `Fence.of(rules=[(r.path, r.access) for r in permission.rules],
+online=permission.network, …)`, the rules in their last-wins order.
 
 `hmz.coganchor.fence.Fence` (frozen):
 
@@ -489,24 +491,33 @@ command it runs. A flow sets one on every session from the role's `Permission`
 | --- | --- | --- |
 | `read` | `tuple[str, ...]` | absolute paths that may be read, listed and executed |
 | `write` | `tuple[str, ...]` | absolute paths that may be read and changed; a path in both is written |
+| `keep` | `tuple[str, ...]` | absolute paths beneath a `write` grant that may only be read |
+| `deny` | `tuple[str, ...]` | absolute paths beneath a grant that may not be reached at all |
 | `online` | `bool` | `True`: the network is unrestricted. `False`: cut, except through a proxy to `hosts` |
 | `hosts` | `tuple[str, ...]` | what the proxy passes while `online` is False: `host`, `*.suffix`, or `host:port` |
 | `tmp` | `str` | the scratch directory, exported as `TMPDIR`, `TMP`, `TEMP`; `""` for one made per run |
-| `scopes` | `tuple[str, ...]` | `(local, user, system)` levels it was drawn from, or `()` for one drawn path by path |
+| `drawn` | `tuple[tuple[str, str], ...]` | the anchored `(path, level)` rules it was drawn from, in last-wins order, or `()` for one drawn path by path |
 | `listen` | `tuple[int, ...]` | TCP ports that may be bound while `online` is False, on loopback |
 
-`Fence.open` is true when `/` is in `write` and `online` is true: nothing is put around the CLI.
+A path's level is that of the longest of `read`, `write`, `keep` and `deny` that holds it.
+`Fence.open` is true when `/` is in `write`, nothing is in `keep` or `deny`, and `online` is
+true: nothing is put around the CLI.
 
-`Fence.of(*, local, user, system, online, workdir, home, cwd="", hosts=(), read=(), write=())`:
+`Fence.of(*, rules, online, workdir, home, cwd="", hosts=(), read=(), write=())`:
 
-- Each scope is a root (`system` is `/`, `user` is `home`, `local` is `workdir` and `cwd`) and
-  a level: `read` puts the root in `read`, `all` in `write`, `none` leaves it out.
-- `local="all"` also writes `TEMPORARY` (`/tmp`, `/var/tmp`) and `$TMPDIR` where it is
-  absolute. `user="all"` also writes `/` for any user but root, the files' permissions holding
-  it; for root, `TEMPORARY`, `$TMPDIR` and `/run/user/0`.
-- The levels must nest, `local >= user >= system`: `ValueError: scopes must nest, local >= user
-  >= system; got local=read, user=all, system=none`. A level outside `none`/`read`/`all`:
-  `ValueError: a scope is one of none, read, all, not 'x'`.
+- Each rule is an anchored path (`/…`, `~…`, `.…`; `~` is `home`, `.` is `workdir` and `cwd`)
+  and a level, one of `none`, `read`, `write` (`LEVELS`). The rules are read in order, the
+  last that holds a path deciding it: a later rule removes every earlier entry at or beneath
+  its own path, and is then put in `write`, `read` (`keep` beneath a `write`) or `deny`
+  (beneath a grant; left out otherwise).
+- Whenever the rules give the workdir `write`, `TEMPORARY` (`/tmp`, `/var/tmp`) and
+  `$TMPDIR` where it is absolute are written too. They are held as the minimum below is: where
+  one of them and a rule's path nest, the deeper decides, and at the same path the more
+  permissive wins, so `("/tmp", "none")` leaves `/tmp` written and `("/tmp/x", "none")` denies
+  `/tmp/x`. Where `home` is written, `/` is written for any user but root, the files'
+  permissions holding it; for root, `TEMPORARY`, `$TMPDIR` and `/run/user/0`.
+- `read` and `write` widen the fence; being more specific, they beat a carve-out they sit
+  beneath.
 - Always added to `read`: `/usr`, `/bin`, `/sbin`, `/lib`, `/lib32`, `/lib64`, `/libx32`,
   `/etc/ssl`, `/etc/ca-certificates`, `/etc/pki`, `/etc/resolv.conf`, `/etc/hosts`,
   `/etc/host.conf`, `/etc/gai.conf`, `/etc/nsswitch.conf`, `/etc/passwd`, `/etc/group`,
@@ -561,7 +572,7 @@ past a file, not searchable) is granted nothing, as before; on a Mac, a path not
 is granted by the path it would be reached at. The agent makes the directories its CLI keeps
 its state in the same way before the turn, through no such link.
 
-The minimum granted whatever the scopes is `LINUX_SYSTEM` and `LINUX_DEVICES` on Linux, and
+The minimum granted whatever the rules is `LINUX_SYSTEM` and `LINUX_DEVICES` on Linux, and
 `DARWIN_SYSTEM` (`/usr`, `/bin`, `/sbin`, `/System`, `/private/var/select`,
 `/private/var/db/timezone` and the handful of files under `/etc` a program reads to start) and
 `DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
@@ -582,9 +593,9 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | `dsh` | the bundle has no confining shell executor; the runtime the SDK launches is wrapped, its composition file and native module cache (`PKG_NATIVE_CACHE_PATH`) put in the fence's `tmp` |
 | `grok` | its sandbox profiles write `/tmp` and `/var/tmp`, block only commands' network, and fail without user namespaces on 1.0.24 |
 | `kimi` | 0.42 has no sandbox; the daemon is fenced once, when it starts |
-| `mimo`, `opencode` | neither confines its shell; the permission table additionally denies `edit` outside writable paths, `read`/`external_directory` outside readable ones (only where `system` is `NONE`), and web tools where `online` is `NONE` |
-| `omp` | no sandbox; no `--offline` under `online` `NONE` |
-| `pi` | no gate and no sandbox; `--offline` under `online` `NONE` |
+| `mimo`, `opencode` | neither confines its shell; the permission table additionally denies `edit` outside writable paths, `read`/`external_directory` outside readable ones (only where `/` is not readable), and web tools where `online` is False |
+| `omp` | no sandbox; no `--offline` under `online=False` |
+| `pi` | no gate and no sandbox; `--offline` under `online=False` |
 | `qwen` | `--sandbox` is a container or Seatbelt; its rules hold its own tools only |
 | an ACP CLI | nothing is known of it; declared `hosts` and `state` under `clis` in `settings.yaml` are granted |
 
@@ -604,7 +615,10 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | `mcode` with `online=False` | `mcode: this permission cuts the network, and mcode's web search runs on MiniMax's own service, through the same hosts as its model, where nothing here can take it away; grant it online ALL to use mcode` |
 | `grok` with `leader=True` and a non-open fence | `GrokBuildAgent: a fenced conversation cannot join the leader, which runs its tools outside the fence; set leader to False or None` |
 
-Under a flow, `Unfenced` becomes `HarnessSandboxed`. An ACP CLI with `online` `NONE` and no
+A carve-out (`keep` or `deny`) that this machine's Landlock or Seatbelt cannot hold is refused
+the same way: the fence is never run wider than drawn.
+
+Under a flow, `Unfenced` becomes `HarnessSandboxed`. An ACP CLI with `network=False` and no
 declared hosts is refused `HarnessSandboxed`, naming what to declare. For anchored agents, what
 each machine holds is in [Remote execution › A fence on both machines](/reference/remote-execution#a-fence-on-both-machines).
 
@@ -1884,7 +1898,7 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
   so `PRE_TOOL_USE` is read off the turn only.
 - The fence also lets through the `baseUrl` of the model's provider in `models.yml` (else
   `models.yaml`) in omp's home, and of that provider's models; for a model named without a
-  provider, of every provider declared there. Nothing is sent to omp under `online` `NONE`.
+  provider, of every provider declared there. Nothing is sent to omp under `network=False`.
 - No credential files: omp keeps its sign-ins in `agent.db`, beside its settings, which an
   account does not copy. An agent with no account runs as this machine's omp sign-in.
 
@@ -1934,7 +1948,7 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
 | `compiled` | `True` | `NODE_COMPILE_CACHE` at `$TMPDIR/humanize-<uid>/compiled/pi` unless already set; not for anchored turns |
 | `context_files` | `True` | `False` is `--no-context-files` |
 | `extensions` | `True` | `False` is `--no-extensions` |
-| `offline` | `False` | `--offline`; forced under `online` `NONE` |
+| `offline` | `False` | `--offline`; forced under `network=False` |
 | `append_system_prompt` | `()` | `--append-system-prompt` per entry (text or path) |
 | `skill_paths` | `()` | `--skill` per entry |
 
@@ -1998,8 +2012,8 @@ clis:
 | Key | Meaning |
 | --- | --- |
 | `command` | argv that starts it |
-| `hosts` | hosts reachable under `online` `NONE`, spelled as `Profile.hosts` spells them; none: a network-cutting permission is refused (`HarnessSandboxed`) naming what to declare |
-| `state` | paths it writes its state to, granted whatever `user` says; none: nothing of the home is writable |
+| `hosts` | hosts reachable under `network=False`, spelled as `Profile.hosts` spells them; none: a network-cutting permission is refused (`HarnessSandboxed`) naming what to declare |
+| `state` | paths it writes its state to, granted whatever the permission's rules say; none: nothing of the home is writable but what the rules give |
 
 `backends.declared(name)` returns `(hosts, state)`; `backends.forget(name)` removes one. An
 unreadable settings file reads as no added CLIs.
