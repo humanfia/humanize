@@ -22,6 +22,9 @@ if TYPE_CHECKING:
     import subprocess
     from pathlib import Path
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 #: A flow that keeps its session in its state, and goes on with it as `then` says; a run picking
 #: it up carries the session on from where it was kept, in the environment it is given.
 REMEMBERS = """

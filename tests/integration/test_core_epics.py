@@ -20,6 +20,9 @@ from tests.integration.doubles_core import AGENT, hmz_exec, install, started
 if TYPE_CHECKING:
     from pathlib import Path
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 #: Not a key anybody has: a value an account holds, long enough to be struck as one.
 SECRET = "sk-ant-standin-0123456789abcdef"
 

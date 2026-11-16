@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from hmz.coganchor.backends import Model
+    from hmz.daemon.private import Private
 
 #: Asking a backend what it runs, kept so that `asking` can give it back.
 _ASKS = hmz.coganchor.models.ask
@@ -46,11 +47,10 @@ _ASKS = hmz.coganchor.models.ask
 
 @pytest.fixture(autouse=True)
 def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A home of the test's own; no crash reports, no daemon, no price or release fetch."""
+    """A home of the test's own; no crash reports, no price or release fetch."""
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize-home"))
     monkeypatch.setenv("HUMANIZE_SENTRY", "off")
     monkeypatch.setenv("HUMANIZE_SHADOWS", str(tmp_path / "shadows"))
-    monkeypatch.setenv("HUMANIZE_DAEMON", "off")
     monkeypatch.setenv("HUMANIZE_PRICES", "off")
     monkeypatch.setenv("HUMANIZE_RELEASES", "off")
     telemetry.again()
@@ -269,3 +269,43 @@ def _asks_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
 def asking(_asks_nothing: None, monkeypatch: pytest.MonkeyPatch) -> None:
     """Gives a test about the asking the real `hmz.coganchor.models.ask` back."""
     monkeypatch.setattr(hmz.coganchor.models, "ask", _ASKS)
+
+
+@pytest.fixture
+def daemon(_machine_temp: None, _humanize_home: None) -> Iterator[Private]:
+    """This machine's daemon, stood in for one test by a daemon of this process.
+
+    It listens on the test's own socket (`_machine_temp`) as this machine's daemon would, so
+    every frontend and `hmz exec` the test starts finds it there; its hosts are held on
+    threads of this process, with the test's own home, so nothing forks and nothing outlives
+    the test.
+    """
+    import socket
+
+    from hmz.daemon import where
+    from hmz.daemon.private import Private
+    from hmz.rpc import PROTOCOL
+    from hmz.runtime import Holding
+
+    at = where.at()
+    holding = where.holds(at)
+    listening = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    with where.reached(at) as reaching:
+        listening.bind(reaching)
+    listening.listen(64)
+    where.wrote(
+        at,
+        {
+            "pid": os.getpid(),
+            "started": where.now(),
+            "kind": "daemon",
+            "protocol": PROTOCOL,
+        },
+    )
+    held = Private(at, listening, Holding)
+    held.start()
+    try:
+        yield held
+    finally:
+        held.close()
+        os.close(holding)

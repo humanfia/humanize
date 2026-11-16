@@ -5,37 +5,24 @@
     hmz = Hmz()
     hmz.run("chat", "say hello", agents={"assistant": "claude/claude-haiku-4-5:low"}).run()
 
-There are two ways to reach a run from out here, and both are offered.
+:class:`Hmz` is a workspace and everything that can be done in it: what was set up to run
+there, the accounts, the runtimes, the epics already written. Its epics are run by a daemon
+and never in the process that asked: :meth:`Hmz.run` has this machine's daemon check the epic
+and hold it on a slot of its own, and :class:`Run` follows it there as one more frontend, so
+the epic outlives the program that asked for it. An epic given driver objects -- the scripted
+agents and dictionary filesystems of :mod:`fakes` -- is run by a private daemon of the
+program's own, in its own process, since nothing else can hold them.
 
-:class:`Hmz` is the runtime, straight at it, in the process that asked: a workspace and
-everything that can be done in it. It is the same object the command line holds -- so a tool
-that wants what `hmz exec` does, or what a sheet of the interface does, writes the call rather
-than the command line, and a tool with something better in mind than either has what it would
-need to write its own.
-
-:class:`Daemons` is a workspace's runs held where a terminal closing cannot end them -- a
-process of its own, per workspace, reached over its socket. That is what a tool looking after
-runs somebody else started asks: what is being held here, what it is running, letting go of
-the frontends on it, stopping it. Runs held that way outlive the program that asked for them.
-
-A workspace's runs are :class:`Host`, and a tool is one of their frontends through a
-:class:`Link` -- the same one an interface holds -- claiming the roles it
-answers for and saying what the others type:
+:class:`Client` is one session with a daemon, for a tool that wants the methods themselves;
+:class:`Daemons`, :class:`Daemon` and :class:`Link` are a workspace's hosts, reached the way an
+interface reaches them, claiming the roles a tool answers for and saying what the others type:
 
     with (Daemons().here() or Daemons().host()).link(name="ci") as link:
         link.claim("reviewer")
         for said in link:
             ...
 
-:mod:`fakes` is the third thing a tool outside wants: the in-memory drivers a flow is tested
-on -- scripted agents, dictionary filesystems, an outworlder that answers from a list -- which
-are :mod:`hmz.runtime.flowing.fakes`, handed through whole.
-
-Nothing under this names it. What is here is not a layer Humanize is built out of -- every
-answer is written where it is carried out, in :mod:`hmz.runtime` and :mod:`hmz.daemon`, and
-this restates none of it. That is the whole of the difference between this and the seam every
-way in used to pass through: a seam somebody outside reaches in through is a different job,
-and doing both at once was doing this one badly.
+What runs an epic in a host is internal to Humanize, and is not offered here.
 
 Everything here is fetched when it is named, for the reason a workspace's own layers are: a
 tool that only lists the places flows come from must not pay for the runs, the accounts and
@@ -54,17 +41,17 @@ if TYPE_CHECKING:
         Fallbacks,
         Flows,
         Flowverses,
-        Hmz,
-        Host,
         Refused,
-        Run,
         Runtimes,
     )
-    from hmz.runtime.flowing import fakes
+    from hmz.sdk import faking as fakes
+    from hmz.sdk.client import Client
     from hmz.sdk.daemons import Daemons
+    from hmz.sdk.running import Hmz, Run
 
 __all__ = [
     "Accounts",
+    "Client",
     "Daemon",
     "Daemons",
     "Epics",
@@ -72,7 +59,6 @@ __all__ = [
     "Flows",
     "Flowverses",
     "Hmz",
-    "Host",
     "Link",
     "Refused",
     "Run",
@@ -80,29 +66,27 @@ __all__ = [
     "fakes",
 ]
 
-#: Which front door each of them is behind: the runtime, reached straight, and the daemon
-#: holding a workspace's runs apart from a terminal. The name of the layer rather than the
-#: module inside it that happens to hold the class, so that what is offered out here follows
-#: what is done in there -- and one entry apiece, so that `from hmz.sdk import Hmz` costs the
-#: one module `Hmz` is in rather than every layer Humanize has.
+#: Where each of them is written: the runtime's settings of this machine, the daemon's hosts,
+#: and the clients of a daemon written here. One entry apiece, so that `from hmz.sdk import
+#: Hmz` costs the modules `Hmz` needs rather than every layer Humanize has.
 _WRITTEN = {
     "Accounts": "hmz.runtime",
+    "Client": "hmz.sdk.client",
     "Daemon": "hmz.daemon",
     "Daemons": "hmz.sdk.daemons",
     "Epics": "hmz.runtime",
     "Fallbacks": "hmz.runtime",
     "Flows": "hmz.runtime",
     "Flowverses": "hmz.runtime",
-    "Hmz": "hmz.runtime",
-    "Host": "hmz.runtime",
+    "Hmz": "hmz.sdk.running",
     "Link": "hmz.daemon",
     "Refused": "hmz.runtime",
-    "Run": "hmz.runtime",
+    "Run": "hmz.sdk.running",
     "Runtimes": "hmz.runtime",
 }
 
 #: What is offered as a module rather than out of one: the fakes are a kit, used as one.
-_MODULES = {"fakes": "hmz.runtime.flowing.fakes"}
+_MODULES = {"fakes": "hmz.sdk.faking"}
 
 
 def __getattr__(name: str) -> object:

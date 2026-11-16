@@ -33,7 +33,6 @@ pytestmark = [
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     at = install(tmp_path, monkeypatch)
-    monkeypatch.delenv("HUMANIZE_DAEMON", raising=False)
     # Inherited by every host forked from here: a chat nobody reads folds in a moment.
     monkeypatch.setattr(hosted, "FOLD", 1.0)
     with hosting():

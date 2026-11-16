@@ -15,8 +15,11 @@ from pathlib import Path
 import pytest
 
 from hmz import machine
-from hmz.runtime import Hmz, Refused
+from hmz.sdk import Hmz, Refused
 from tests.integration.doubles_core import hmz_exec, install, write_flow
+
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
 
 #: A flow that needs no agent, and adds the task it was given to a list in the workspace.
 FETCHED = """

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.daemon.link import linked
-from hmz.runtime.doing.core import Hmz
+from hmz.runtime import Holding
 from hmz.runtime.doing.hosting import Host
 from hmz.runtime.watching.btw import Btw, FlowSnapshot
 from tests.system.real import needs
@@ -47,7 +47,7 @@ def _spec(harness: str) -> str:
 def test_the_epic_asks_the_conversation_that_knows(epic: str, workspace: Path) -> None:
     runs = _spec(epic)
     chat = _spec("claude")
-    host = Host(Hmz(workspace))
+    host = Host(Holding(workspace))
     link = linked(host, "system")
     idle = threading.Event()
     keys: list[str] = []

@@ -14,7 +14,7 @@ import pytest
 
 from hmz import daemon
 from hmz.daemon import linked
-from hmz.runtime import Hmz, Refused
+from hmz.runtime import Holding, Host, Refused
 from tests.integration.doubles_daemon import (
     ASKS,
     PATIENCE,
@@ -167,7 +167,7 @@ def test_a_second_run_while_one_is_running_is_refused(held: daemon.Daemon) -> No
 def test_a_refusal_reads_the_same_through_the_daemon_as_in_this_process(
     held: daemon.Daemon,
 ) -> None:
-    host = Hmz().host()
+    host = Host(Holding())
     here = linked(host, name="here")
     try:
         with held.link(name="there") as there:
