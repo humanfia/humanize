@@ -6,13 +6,14 @@ daemon -- `hmz daemon connect --stdio` here, over `ssh` or under WSL -- a TCP co
 WebSocket, a port EasyTier forwards, and a join through a relay. A `webrtc:` route is a
 browser's way in, opened by `hmz.rtc` where it is opened at all, and refused here.
 
-What comes back is a :class:`~hmz.reach.pipes.Pipe` and nothing more: whether its far end is
+What comes back is a :class:`hmz.rpc.Pipe` and nothing more: whether its far end is
 the daemon a client pinned is for the TLS over it, or the `session.hello` over it, to say.
 """
 
 from __future__ import annotations
 
 import contextlib
+import shlex
 import socket
 import subprocess
 import sys
@@ -21,28 +22,44 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from hmz.reach.pipes import MESSAGE, ProcessPipe, SocketPipe, WebSocketPipe
-from hmz.reach.routes import Route
+from hmz.reach.routes import KINDS, TRUSTED, Route
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
     from websockets.sync.client import ClientConnection
 
-    from hmz.reach.pipes import Pipe
+    from hmz.rpc.pipe import Pipe
 
 __all__ = ["OPENING", "EasyTier", "command", "dial", "websocket"]
 
 #: How long a carrier may take to open before it is given up on (Section 3.4.9).
 OPENING = 30.0
 
-#: What a child reaching the far daemon runs there: `hmz daemon connect --stdio`, as a login
-#: shell finds `hmz`, with where `uv tool` puts it in front, which a login shell may not have.
-_CONNECT = 'export PATH="$HOME/.local/bin:$PATH"; exec hmz daemon connect --stdio'
+#: What a child reaching the daemon runs there: `hmz daemon connect --stdio` through the login
+#: shell of the user there, `/bin/sh` where `$SHELL` is not set, with where `uv tool` puts `hmz`
+#: in front of the `PATH` it gives, which that shell may not have (Section 3.2.5 of wire.md).
+#: The login shell is asked only to run `/bin/sh`, which any shell can, and `/bin/sh` the rest.
+_CONNECT = (
+    "/bin/sh",
+    "-c",
+    'exec "${SHELL:-/bin/sh}" -lc '
+    + shlex.quote(
+        "exec /bin/sh -c "
+        + shlex.quote(
+            'export PATH="$HOME/.local/bin:$PATH"; exec hmz daemon connect --stdio'
+        )
+    ),
+)
 
 #: What every `ssh` a route opens is told before anything the route says, since ssh keeps the
 #: first value it is given: batch mode, so that it asks for no password and accepts no host key
 #: it does not know (Section 3.4.3), and as long to connect as any carrier has to open.
 _BATCH = (("BatchMode", "yes"), ("ConnectTimeout", str(int(OPENING))))
+
+#: The kinds of route a native client opens untrusted, and so only to a daemon it pins: every
+#: untrusted kind but `webrtc`, which it does not open at all (Section 4.7.11 of wire.md).
+_PINNED = KINDS - TRUSTED - {"webrtc"}
 
 #: What no destination handed to `ssh` may hold: a space, a second line or a NUL.
 _UNSAYABLE = frozenset(" \t\n\r\0")
@@ -71,30 +88,29 @@ def command(route: Route) -> list[str]:
       route: A `stdio:local`, `stdio:ssh` or `stdio:wsl` route.
 
     Returns:
-      `sh` for `stdio:local`; `ssh` in batch mode, with the user, port, identity file, proxy
-      jump and options the route names; `wsl.exe`, in the distribution it names. Each runs
-      `hmz daemon connect --stdio` through a login shell there.
+      `/bin/sh` for `stdio:local`; `ssh` in batch mode, with the user, port, identity file,
+      proxy jump and options the route names; `wsl.exe`, in the distribution it names. Each
+      runs `hmz daemon connect --stdio` through the login shell of the user there.
 
     Raises:
       ValueError: For a route of another kind.
     """
-    shell = ["sh", "-lc", _CONNECT]
     if route.kind == "local":
-        return shell
+        return list(_CONNECT)
     if route.kind == "wsl":
         distro = ["-d", route.name] if route.name else []
-        return ["wsl.exe", *distro, "--exec", *shell]
+        return ["wsl.exe", *distro, "--exec", *_CONNECT]
     if route.kind == "ssh":
         from hmz.coganchor.transport import Road, Target
 
         login = f"{route.user}@{route.host}" if route.user else route.host
-        if login.startswith("-") or _UNSAYABLE & set(login) or not route.host:
+        if login.startswith("-") or _UNSAYABLE & set(login):
             # A destination ssh would read as an option, or as more than one line.
             raise ValueError(f"{route} cannot be reached from here.")
         target = Target(
             "ssh", host=login, port=route.port or 0, options=(*_BATCH, *route.options)
         )
-        return Road.to(target).line(shell)
+        return Road.to(target).line(_CONNECT)
     raise ValueError(f"{route} is not run as a command.")
 
 
@@ -110,7 +126,8 @@ def dial(
 
     Args:
       route: It.
-      daemon: The daemon id a `relay:` route joins.
+      daemon: The daemon id the client pins, without which an untrusted route is not opened
+        (Section 3.5.6 of wire.md), and which a `relay:` route joins.
       easytier: This machine's EasyTier entries, by name, which an `easytier:` route names one
         of.
       start: What starts the daemon of this machine where `unix:` finds none running.
@@ -120,13 +137,31 @@ def dial(
       The carrier, trusted or not as its kind is.
 
     Raises:
-      ValueError: `<route> is not a route.`, `<route> cannot be reached from here.`, or what
-        else keeps a route from being dialed: an EasyTier entry that is not there, a relay
-        route with no daemon id to join.
-      OSError: If the carrier could not be opened, saying why.
+      ValueError: `<route> is not a route.`, `<route> cannot be reached from here.`,
+        `<route> needs the id of the daemon it reaches.`, or `There is no EasyTier entry
+        <name>.`
+      TimeoutError: `<route> did not open within 30 seconds.`, the seconds being `timeout`.
+      OSError: If the carrier could not be opened otherwise, saying why.
     """
     if isinstance(route, str):
         route = Route.parse(route)
+    try:
+        return _opened(route, daemon, easytier or {}, start, timeout)
+    except TimeoutError as why:
+        msg = f"{route} did not open within {timeout:g} seconds."
+        raise TimeoutError(msg) from why
+
+
+def _opened(
+    route: Route,
+    daemon: str,
+    easytier: Mapping[str, EasyTier],
+    start: Callable[[], object] | None,
+    timeout: float,
+) -> Pipe:
+    """The carrier a route names, as :func:`dial` opens it, timing out as it may."""
+    if route.kind in _PINNED and not daemon:
+        raise ValueError(f"{route} needs the id of the daemon it reaches.")
     if route.kind == "unix":
         return _unix(route, start, timeout)
     if route.kind in ("local", "ssh") or (
@@ -145,12 +180,10 @@ def dial(
     if route.kind == "ws":
         return WebSocketPipe(websocket(route.url, timeout))
     if route.kind == "easytier":
-        return _easytier(route, easytier or {}, timeout)
+        return _easytier(route, easytier, timeout)
     if route.kind == "relay":
         from hmz.reach.relays import join
 
-        if not daemon:
-            raise ValueError(f"{route} needs the id of the daemon it joins.")
         return join(route.url, daemon, timeout)
     raise ValueError(f"{route} cannot be reached from here.")
 
@@ -175,9 +208,11 @@ def _unix(route: Route, start: Callable[[], object] | None, timeout: float) -> P
     while True:
         try:
             one = where.connects(at, timeout)
-        except OSError:
-            if start is None or time.monotonic() > ending:
+        except OSError as why:
+            if start is None:
                 raise
+            if time.monotonic() > ending:
+                raise TimeoutError from why
             if not started:
                 start()
                 started = True
@@ -188,11 +223,7 @@ def _unix(route: Route, start: Callable[[], object] | None, timeout: float) -> P
 
 
 def _tcp(host: str, port: int, timeout: float) -> socket.socket:
-    try:
-        one = socket.create_connection((host, port), timeout=timeout)
-    except OverflowError as why:
-        # A port past 65535, which the grammar lets a route name.
-        raise OSError(f"{host} has no port {port}") from why
+    one = socket.create_connection((host, port), timeout=timeout)
     one.settimeout(None)
     # Nagle off: a session is a small call and a small answer, over and over.
     one.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -253,7 +284,7 @@ def _easytier(
                 ) from why
             if time.monotonic() > ending:
                 stops()
-                raise
+                raise TimeoutError from why
             time.sleep(_AGAIN)
             continue
         return SocketPipe(one, trusted=False, ending=stops)

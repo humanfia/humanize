@@ -18,6 +18,7 @@ import pytest
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 
+import hmz.relay.rooms
 from hmz.relay import TEXT, fingerprint, listening
 from tests.unit.relay.doubles_relay import der, made, signed
 
@@ -137,6 +138,33 @@ async def test_signals_pass_through_for_a_webrtc_join(relay: str) -> None:
         await told(control, {"t": "signal", "conn": conn, "data": candidate})
         assert await heard(browser) == {"t": "signal", "data": candidate}
     await control.close()
+
+
+@pytest.mark.timeout(60)
+async def test_a_daemon_refusing_a_webrtc_join_tells_the_browser(relay: str) -> None:
+    control, daemon = await registered(relay)
+    async with connect(relay) as browser:
+        await told(browser, {"t": "join", "id": daemon, "kind": "webrtc"})
+        assert await heard(browser) == {"t": "joined"}
+        conn = (await heard(control))["conn"]
+        why = "This daemon cannot answer WebRTC."
+        await told(control, {"t": "refuse", "conn": conn, "why": why})
+        assert await heard(browser) == {"t": "error", "why": why}
+        await closed(browser)
+    await control.close()
+
+
+@pytest.mark.timeout(60)
+async def test_a_connection_that_says_nothing_in_time_is_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(hmz.relay.rooms, "SPEAKING", 0.2)
+    async with (
+        listening("127.0.0.1", 0) as port,
+        connect(f"ws://127.0.0.1:{port}") as silent,
+    ):
+        assert await heard(silent) == {"t": "error", "why": "Nothing was said in time."}
+        await closed(silent)
 
 
 @pytest.mark.timeout(60)

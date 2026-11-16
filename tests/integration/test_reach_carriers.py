@@ -11,6 +11,7 @@ import contextlib
 import json
 import os
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -23,13 +24,13 @@ import pytest
 from hmz.coganchor import easytier
 from hmz.reach import (
     EasyTier,
-    Pipe,
     ProcessPipe,
     Route,
     SocketPipe,
     StreamPipe,
     TcpListener,
     WebSocketPipe,
+    command,
     dial,
     race,
 )
@@ -38,8 +39,13 @@ from tests.integration import doubles_easytier, doubles_ssh
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    from hmz.rpc import Pipe
+
 SECRET = "correct horse battery staple"
 NODES = ("tcp://node.example:11010",)
+
+#: A daemon id, which an untrusted route is opened only with; what answers here pins nothing.
+DAEMON = "d" * 52
 
 
 def echoes(accept: Callable[[], socket.socket]) -> None:
@@ -96,6 +102,27 @@ def test_a_unix_route_names_a_socket_by_its_path(unix_echo: Path) -> None:
     pipe.close()
 
 
+def test_stdio_local_runs_connect_in_the_login_shell_with_local_bin_first(
+    tmp_path: Path,
+) -> None:
+    """`"$SHELL" -lc`, `/bin/sh` standing for it where unset (Section 3.2.5 of wire.md)."""
+    shell = tmp_path / "shell"
+    shell.write_text('#!/bin/sh\nprintf "login %s\\n" "$1"\nexec /bin/sh "$@"\n')
+    hmz = tmp_path / ".local" / "bin" / "hmz"
+    hmz.parent.mkdir(parents=True)
+    hmz.write_text('#!/bin/sh\nprintf "hmz %s" "$*"\n')
+    for one in (shell, hmz):
+        one.chmod(0o755)
+    argv = command(Route.parse("stdio:local"))
+    home = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}
+    for env, said in (
+        ({**home, "SHELL": str(shell)}, b"login -lc\nhmz daemon connect --stdio"),
+        (home, b"hmz daemon connect --stdio"),
+    ):
+        ran = subprocess.run(argv, env=env, capture_output=True, check=True)
+        assert ran.stdout == said
+
+
 def test_stdio_over_ssh_reaches_connect_stdio_spliced_to_the_daemon_there(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unix_echo: Path
 ) -> None:
@@ -129,7 +156,8 @@ def test_stdio_over_ssh_reaches_connect_stdio_spliced_to_the_daemon_there(
     ]
     assert told[told.index("-p") + 1] == "2222"
     assert "me@box" in told
-    assert told[-1].startswith("exec sh -lc ")
+    assert told[-1].startswith("exec /bin/sh -c ")
+    assert "exec /bin/sh -c" in told[-1].removeprefix("exec /bin/sh -c ")
 
 
 def test_stdio_over_ssh_that_cannot_reach_the_host_fails_with_what_ssh_said(
@@ -149,7 +177,7 @@ def test_tcp_is_listened_on_and_dialed_untrusted() -> None:
     accepted: list[Pipe] = []
     taking = threading.Thread(target=lambda: accepted.append(listener.accept()))
     taking.start()
-    pipe = dial(str(listener.route))
+    pipe = dial(str(listener.route), daemon=DAEMON)
     taking.join(5)
     (far,) = accepted
     assert not trusted(pipe)
@@ -187,10 +215,14 @@ def test_easytier_joins_and_dials_the_daemon_port_it_forwards(
     threading.Thread(
         target=echoes, args=(lambda: daemon.accept()[0],), daemon=True
     ).start()
-    serving = easytier.serving(SECRET, port, peers=NODES)
+    serving = easytier.serving(SECRET, port, peers=NODES, out=subprocess.PIPE)
     try:
+        # Dialed once the daemon's side is in the network: a joining end whose far side is
+        # not there yet reaches nothing, and closes what it accepts.
+        assert serving.stdout is not None
+        assert serving.stdout.readline().startswith(b"joined ")
         entries = {"home": EasyTier(SECRET, NODES)}
-        pipe = dial("easytier:home", easytier=entries)
+        pipe = dial("easytier:home", daemon=DAEMON, easytier=entries)
         assert not trusted(pipe)
         assert round_trip(pipe) == b"hello, daemon"
         # The two ends write their runs down in whichever order they start in.
@@ -207,7 +239,7 @@ def test_easytier_joins_and_dials_the_daemon_port_it_forwards(
             os.kill(pid, 0)
     finally:
         serving.terminate()
-        serving.wait()
+        serving.communicate()
         daemon.close()
 
 
@@ -230,7 +262,11 @@ def test_routes_race_and_the_second_wins_where_the_first_hangs() -> None:
         return said
 
     began = time.monotonic()
-    won = race([str(hangs.route), str(answers.route)], dial, handshake)
+    won = race(
+        [str(hangs.route), str(answers.route)],
+        lambda route: dial(route, daemon=DAEMON),
+        handshake,
+    )
     assert won.route == str(answers.route)
     assert won.answer == b"hello"
     assert 0.25 <= time.monotonic() - began < 5

@@ -31,9 +31,16 @@ def test_the_fingerprint_is_read_as_written() -> None:
     assert webrtc.fingerprint_in(f"a=fingerprint:SHA-256 {ANSWER}\n") == ANSWER
 
 
-def test_a_description_without_one_is_refused() -> None:
-    with pytest.raises(ValueError, match="sha-256"):
-        webrtc.fingerprint_in("v=0\r\n")
+def test_a_description_must_say_exactly_one_sha256_value() -> None:
+    assert webrtc.fingerprint_in(SDP + f"a=fingerprint:sha-256 {OFFER}\r\n") == OFFER
+    for sdp in ("v=0\r\n", SDP + f"a=fingerprint:sha-256 {ANSWER}\r\n"):
+        with pytest.raises(
+            ValueError,
+            match=r"^A description must say exactly one sha-256 fingerprint\.$",
+        ):
+            webrtc.fingerprint_in(sdp)
+    with pytest.raises(ValueError, match=r"^AB:CD is not a sha-256 fingerprint\.$"):
+        webrtc.fingerprint_in("a=fingerprint:sha-256 AB:CD\r\n")
 
 
 def test_an_answer_signed_by_the_pinned_daemon_verifies() -> None:

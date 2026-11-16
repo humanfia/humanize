@@ -59,6 +59,8 @@ class Signals(Protocol):
     What is sent and received is the `data` of a relay's `signal` message: the relay's own
     envelope, and which join it belongs to, are the caller's to add and take off. A queue in
     each direction is one; the relay's control connection, read for one `conn`, is another.
+    The daemon's refusal of the join is the relay's `refuse` for that `conn`, which the relay
+    passes to the browser (Section 4.7.10 of wire.md).
     """
 
     def send(self, data: dict[str, Any]) -> None:
@@ -84,6 +86,17 @@ class Signals(Protocol):
         Raises:
           TimeoutError: If none arrives within `timeout`.
           EOFError: If none ever will: the relay or the other side has gone.
+        """
+        ...
+
+    def refuse(self, why: str) -> None:
+        """Refuses the join, saying why: the relay's `refuse`, sent once, and no signal after.
+
+        Args:
+          why: One sentence, which the browser is told.
+
+        Raises:
+          OSError: If the relay cannot be reached any more.
         """
         ...
 

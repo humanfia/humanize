@@ -14,7 +14,6 @@ from websockets.exceptions import ConnectionClosedOK
 
 from hmz.reach import (
     MESSAGE,
-    Pipe,
     ProcessPipe,
     SocketPipe,
     StreamPipe,
@@ -26,6 +25,8 @@ from tests.unit.reach.memory import Memory
 
 if TYPE_CHECKING:
     import subprocess
+
+    from hmz.rpc import Pipe
 
 
 class Connection:
