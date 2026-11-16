@@ -145,7 +145,11 @@ def test_a_machine_is_shipped_the_build_the_install_carries_for_it(
 def test_where_the_install_carries_none_a_machine_like_this_one_is_shipped_this_ones(
     built: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(binary, "packaged", lambda system, machine: None)
+    def packaged(system: str, machine: str) -> Path | None:
+        del system, machine
+        return None
+
+    monkeypatch.setattr(binary, "packaged", packaged)
     assert binary.shipped("Linux", "amd64") == built
 
 

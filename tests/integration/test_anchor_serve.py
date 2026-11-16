@@ -264,20 +264,19 @@ def _levels(*, online: bool) -> dict[str, Any]:
 def test_a_fenced_command_runs_inside_the_targets_wall(link: Link) -> None:
     if not hello_fences(link.client.info, net=False):
         pytest.skip("this machine cannot fence a command")
-    outside = link.real.parent / "outside"
-    outside.mkdir()
+    (link.real / "note").write_text("on the target\n")
 
     ran = _run(
         link,
-        ["/bin/sh", "-c", f"echo ran; touch inside; touch {outside}/escaped"],
-        fence=_levels(online=True),
+        ["/bin/sh", "-c", "cat note; touch written"],
+        fence={"local": READ, "user": READ, "system": READ, "online": True},
     )
 
+    # The workspace read, and not written: the wall is the target's own, around its paths.
     assert ran.error is None, ran.error
-    assert ran.out == b"ran\n"
-    assert (link.real / "inside").exists()
-    assert not (outside / "escaped").exists()
+    assert ran.out == b"on the target\n"
     assert ran.result != {"exit_code": 0}
+    assert not (link.real / "written").exists()
 
 
 def test_an_unfenced_command_runs_without_the_wall(link: Link) -> None:
