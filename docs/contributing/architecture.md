@@ -40,7 +40,7 @@ holds the same table, so an import that breaks it fails the run.
 | a slash command, a key, a menu; what the interface draws of a message | `tui/` |
 | a view of the web interface, or a route it answers | `web/`: the page under `web/static/`, plain ES modules, and its routes beside the server |
 | runs kept going after the terminal closes, and the one JSON-RPC endpoint every client reaches them through, on its socket and its listeners | `daemon/` |
-| a method the daemon serves beyond epics and sessions: settings, accounts, fallbacks, runtimes, EasyTier, flows, workspaces, paths, notices | `daemon/api/`, a module per family naming its own in `METHODS` |
+| a method the daemon serves beyond epics and sessions: settings, accounts, fallbacks, runtimes, EasyTier, flows, workspaces, paths, notices, runs, backups, files | `daemon/api/`, a module per family naming its own in `METHODS` |
 | a carrier between a client and a daemon: a route, dialing it, listening, racing routes | `reach/` |
 | the frames a session carries, and JSON-RPC over them: calls, notifications, errors, `session.hello` | `rpc/` |
 | a new command | `cli/` |
