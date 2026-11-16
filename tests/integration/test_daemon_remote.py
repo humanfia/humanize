@@ -4,17 +4,17 @@ Over `stdio:ssh`, the other machine is this one under a home of its own, reached
 stand-in `ssh` of `doubles_ssh`, whose `hmz daemon connect --stdio` starts that home's daemon
 as the real one would start the one installed there. Over `tcp`, it is `hmz daemon serve`
 under a home of its own, listening on loopback, paired from the code `hmz daemon pair` makes.
-Over `easytier`, it is this machine's daemon, listening on the stand-in EasyTier network of
-`doubles_easytier`.
+Over `easytier`, it is that same daemon behind the stand-in EasyTier network of
+`doubles_easytier`, whose serving end lets its TCP port through, never EasyTier's fixed one.
 """
 
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 import os
 import signal
-import socket
 import subprocess
 import sys
 import tempfile
@@ -25,13 +25,12 @@ from typing import TYPE_CHECKING
 import pytest
 import yaml
 
-from hmz import daemon, home
+from hmz import home
 from hmz.coganchor import easytier, settings
 from hmz.daemon import link, where
 from hmz.runtime.doing.daemons import Remotes, Unreached
 
 from . import doubles_easytier
-from .doubles_daemon import hosting
 from .doubles_ssh import Host, faked, written
 
 if TYPE_CHECKING:
@@ -192,8 +191,27 @@ def test_a_daemon_no_longer_written_down_is_let_go(host: Host) -> None:
         remotes.close()
 
 
+@dataclasses.dataclass(frozen=True)
+class _Served:
+    """`hmz daemon serve` under a home of its own: its environment and the TCP port it took."""
+
+    env: dict[str, str]
+    port: int
+
+    def code(self, *routes: str) -> str:
+        """A pairing code it makes, over `routes` or its listener's."""
+        said = [one for route in routes for one in ("--route", route)]
+        return subprocess.run(
+            [sys.executable, "-m", "hmz", "daemon", "pair", *said],
+            env=self.env,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()[0]
+
+
 @pytest.fixture
-def served(tmp_path: Path) -> Iterator[dict[str, str]]:
+def served(tmp_path: Path) -> Iterator[_Served]:
     """`hmz daemon serve` under a home of its own, listening on a TCP port of loopback."""
     there = dict(
         os.environ,
@@ -217,29 +235,22 @@ def served(tmp_path: Path) -> Iterator[dict[str, str]]:
     )
     try:
         assert serving.stdout is not None
-        assert "listening on tcp://" in serving.stdout.readline()
-        yield there
+        said = serving.stdout.readline()
+        assert "listening on tcp://" in said
+        yield _Served(there, int(said.strip().rsplit(":", 1)[1]))
     finally:
         serving.terminate()
         serving.wait(10)
 
 
-def test_a_daemon_over_tcp_is_paired_by_its_code_and_reached(
-    served: dict[str, str],
-) -> None:
-    code = subprocess.run(
-        [sys.executable, "-m", "hmz", "daemon", "pair"],
-        env=served,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()[0]
+def test_a_daemon_over_tcp_is_paired_by_its_code_and_reached(served: _Served) -> None:
+    code = served.code()
     remotes = Remotes()
     try:
         with pytest.raises(ValueError, match="not a pairing code"):
             remotes.pair("lab", "hmz-pair:nope")
         written_ = remotes.pair("lab", code, device="laptop")
-        assert written_["routes"][0].startswith("tcp://127.0.0.1:")
+        assert written_["routes"] == [f"tcp://127.0.0.1:{served.port}"]
         assert _daemons() == [written_]
         with pytest.raises(Unreached) as claimed:
             remotes.pair("again", code)
@@ -263,21 +274,32 @@ _SECRET, _NODES = "correct horse battery staple", ["tcp://127.0.0.1:11010"]
 
 @pytest.fixture
 def network(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    served: _Served, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[doubles_easytier.Core]:
-    """This machine's daemon listening on the stand-in EasyTier network `far`, on a port free."""
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        monkeypatch.setattr(easytier, "PORT", probe.getsockname()[1])
+    """The stand-in EasyTier network `far`, whose serving end lets through the daemon's port.
+
+    The serving end is started here rather than by that daemon, at the port its TCP listener
+    took: a daemon listening on `easytier:far` itself takes EasyTier's one fixed port, which
+    another test may hold.
+    """
     core = doubles_easytier.faked(tmp_path, monkeypatch)
+    monkeypatch.setattr(easytier, "PORT", served.port)
     settings.changes(
-        lambda held: held.update(
-            easytier={"far": {"secret": _SECRET, "nodes": _NODES}},
-            listen=["easytier:far"],
+        lambda held: held.__setitem__(
+            "easytier", {"far": {"secret": _SECRET, "nodes": _NODES}}
         )
     )
-    with hosting():
+    serving = easytier.serving(_SECRET, served.port, peers=_NODES)
+    try:
+        # Joined once it has written its network down, as a real one has once it says so.
+        ending = time.monotonic() + PATIENCE
+        while not any(core.networks.iterdir()):
+            assert time.monotonic() < ending, "the network was never joined"
+            time.sleep(0.05)
         yield core
+    finally:
+        serving.terminate()
+        serving.wait(10)
 
 
 def _runs(core: doubles_easytier.Core, *, of: str) -> list[int]:
@@ -287,17 +309,11 @@ def _runs(core: doubles_easytier.Core, *, of: str) -> list[int]:
 
 
 def test_a_daemon_over_easytier_is_paired_reached_again_and_its_easytier_reaped(
-    network: doubles_easytier.Core,
+    served: _Served, network: doubles_easytier.Core
 ) -> None:
-    daemon.start()
-    peer, _ = link.dialed(where.at(), "test", "cli")
-    try:
-        code = peer.call("pair.create", {}, timeout=30)["code"]
-    finally:
-        peer.close()
     remotes = Remotes()
     try:
-        paired = remotes.pair("far", code)
+        paired = remotes.pair("far", served.code("easytier:far"))
         assert paired["routes"] == ["easytier:far"]
         assert remotes.client("far").call("hosts.list") == {"held": []}
         # Its end of the network stopped, as this machine's network going would stop it.
