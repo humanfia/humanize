@@ -6,7 +6,7 @@ sessions of and takes turns in. A flow declares the agents it needs as an
 the role's type carries::
 
     class Worker(Agent, GoalCommandAgentMixin, SteeringAgentMixin):
-        _permission = Permission(system=PermissionKind.NONE)
+        _permission = Permission(granular=(deny("~/.ssh"),))
 
     class Agents(AgentCollection):
         worker: Worker
@@ -18,17 +18,19 @@ agent declared without :class:`SteeringAgentMixin`, or a `/goal` prompt without
 whatever the harness underneath could do. A role typed as one harness's own protocol --
 :class:`ClaudeCodeAgent` and the rest -- asks for that harness and everything it can do.
 
-Everything here but the enums, :class:`Permission`, :class:`Budget`, :class:`Graceful` and
-:class:`Usage` is a
-protocol for a type checker. What a flow is handed at run time is the
-runtime's own object, shaped however is fastest, and answers to these structurally.
+Everything here but the enums, :class:`Rule` and its three makers, :class:`Permission`,
+:class:`Budget`, :class:`Graceful` and :class:`Usage` is a protocol for a type checker. What a
+flow is handed at run time is the runtime's own object, shaped however is fastest, and answers
+to these structurally.
 """
 
 from __future__ import annotations
 
 import datetime
+import functools
+import itertools
 from dataclasses import dataclass
-from enum import StrEnum, auto
+from enum import StrEnum
 from types import MappingProxyType
 from typing import TYPE_CHECKING, ClassVar, Protocol, Self, cast, overload
 
@@ -69,6 +71,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "HARNESS_AGENTS",
+    "PRESETS",
+    "Access",
     "Agent",
     "AgentCollection",
     "AntigravityAgent",
@@ -92,15 +96,18 @@ __all__ = [
     "OpenCodeAgent",
     "Outworlder",
     "Permission",
-    "PermissionKind",
     "PermissionRequestHookAgentMixin",
     "PiAgent",
     "QwenCodeAgent",
+    "Rule",
     "Session",
     "SteeringAgentMixin",
     "SubagentStartHookAgentMixin",
     "SubagentStopHookAgentMixin",
     "Usage",
+    "allow",
+    "deny",
+    "read_only",
 ]
 
 
@@ -127,31 +134,31 @@ class HarnessKind(StrEnum):
     ACP = "acp"
 
 
-#: How far each kind reaches, so that the kinds order the way they widen.
-_RANKS = {"none": 0, "read": 1, "all": 2}
+#: How far each access reaches, so that the three order the way they widen.
+_RANKS = {"none": 0, "read": 1, "write": 2}
 
 
-def _rank(kind: object) -> int:
-    """Where one kind stands among the three, for ordering them.
+def _rank(access: object) -> int:
+    """Where one access stands among the three, for ordering them.
 
     Raises:
       TypeError: For anything that is not one of them.
     """
-    rank = _RANKS.get(kind) if isinstance(kind, str) else None
+    rank = _RANKS.get(access) if isinstance(access, str) else None
     if rank is None:
-        raise TypeError(f"{kind!r} is not a permission kind")
+        raise TypeError(f"{access!r} is not an access")
     return rank
 
 
-class PermissionKind(StrEnum):
-    """How much of one scope an agent may touch, ordered `NONE < READ < ALL`."""
+class Access(StrEnum):
+    """How much of a path an agent may touch, ordered `NONE < READ < WRITE`."""
 
     #: Nothing at all.
-    NONE = auto()
+    NONE = "none"
     #: Read, and not write.
-    READ = auto()
+    READ = "read"
     #: Read and write.
-    ALL = auto()
+    WRITE = "write"
 
     def __lt__(self, other: str, /) -> bool:
         return _rank(self) < _rank(other)
@@ -166,13 +173,117 @@ class PermissionKind(StrEnum):
         return _rank(self) >= _rank(other)
 
 
+#: What a rule's path may not hold: a glob would name paths a rule cannot be held to one by
+#: one, and a NUL no path at all.
+_UNSAID = frozenset("*?[\0")
+
+
+def _normal(path: object) -> str:
+    """A rule's path, tidied: its anchor, then its components, none empty and none `.`.
+
+    Raises:
+      ValueError: If it is not anchored at `/`, `~` or `.`, climbs out with `..`, or holds a
+        glob or a NUL.
+    """
+    said = path if isinstance(path, str) else ""
+    head, _, rest = said.partition("/")
+    parts = [part for part in rest.split("/") if part not in ("", ".")]
+    if (
+        not said
+        or head not in ("", "~", ".")
+        or ".." in parts
+        or not _UNSAID.isdisjoint(said)
+    ):
+        raise ValueError(
+            "a rule's path is /..., ~, ~/..., . or ./..., with no '..' and no glob; "
+            f"not {path!r}"
+        )
+    return "/" + "/".join(parts) if not head else "/".join((head, *parts))
+
+
+def _under(rule: str, path: str) -> bool:
+    """Whether a rule at `rule` matches `path`, component by component, unresolved."""
+    return rule in ("/", path) or path.startswith(rule + "/")
+
+
+@dataclass(frozen=True, slots=True)
+class Rule:
+    """How much of one path, and everything beneath it, an agent may touch.
+
+    The path is anchored, and is not resolved until a session opens: an absolute path is
+    where it says, `~` the home directory of the user the harness runs as, and `.` the
+    workdir the session works in. It is kept tidied -- `~/a//b/` is `~/a/b`, `./` is `.` --
+    and names a path exactly: no glob, and no `..` climbing out of its anchor.
+
+    Attributes:
+      path: The path, `/abs`, `~` or `~/...`, `.` or `./...`.
+      access: How much of it may be touched.
+
+    Raises:
+      ValueError: If `path` is anchored nowhere, climbs out of its anchor or holds a glob or
+        a NUL, or `access` is not an :class:`Access`.
+    """
+
+    path: str
+    access: Access
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "path", _normal(self.path))
+        object.__setattr__(self, "access", Access(self.access))
+
+
+def allow(path: str) -> Rule:
+    """A rule that lets `path` be read and written."""
+    return Rule(path, Access.WRITE)
+
+
+def read_only(path: str) -> Rule:
+    """A rule that lets `path` be read, and not written."""
+    return Rule(path, Access.READ)
+
+
+def deny(path: str) -> Rule:
+    """A rule that keeps `path` from being touched at all."""
+    return Rule(path, Access.NONE)
+
+
+#: Where a permission starts from: each comes to rules said ahead of its own.
+PRESETS = ("read-only", "workspace-write", "danger-full-access")
+
+_EXPANSIONS: Mapping[str, tuple[Rule, ...]] = MappingProxyType(
+    {
+        "read-only": (read_only("/"),),
+        "workspace-write": (read_only("/"), allow(".")),
+        "danger-full-access": (allow("/"),),
+    }
+)
+
+#: The temporary directories a session that may write its workdir may write too, `$TMPDIR`
+#: standing for wherever that is.
+_TMPDIR = "$TMPDIR"
+_TEMPORARY = ("/tmp", "/var/tmp", _TMPDIR)  # noqa: S108 -- named, not written to
+
+#: What a fresh directory is named by where :meth:`Permission.covers` lays the anchors out:
+#: a NUL, which no rule's path holds, so that it is beneath no rule but those above it.
+_FRESH = "\0"
+
+#: A path laid out, component by component from the root.
+type _Laid = tuple[str, ...]
+
+
 @dataclass(frozen=True, slots=True)
 class Permission:
-    """What an agent may touch, scope by scope.
+    """What an agent may touch: a preset, the network, and rules over them path by path.
 
-    Scopes nest, and a wider one may never be granted more than a narrower one inside it:
-    `local >= user >= system`. `online` is all or nothing. Left alone, an agent may change
-    its workdir, read the rest of the machine, and go online.
+    The preset is where the rules start -- `read-only` reads the whole machine,
+    `workspace-write` writes the workdir besides, `danger-full-access` writes everything --
+    and `granular` follows it. Each rule matches its path and everything beneath it, and the
+    last that matches a path decides it; a path no rule matches is not touched at all. A
+    session that may write its workdir may write the temporary directories as well, and
+    whatever the rules say, a harness keeps its own state, its sign-in and its temporary
+    files. `network` is the network, the harness's own web search and fetching included, and
+    is independent of the rules. Left alone, an agent may change its workdir, read the rest
+    of the machine, and go online.
 
     Whatever is granted, an agent's actions are never put to anybody for approval: every
     harness runs with approvals bypassed, or where a managed policy refuses that, in the most
@@ -180,50 +291,142 @@ class Permission:
     limits an agent is this, and whatever hooks the flow hangs on it.
 
     Attributes:
-      local: The environment's workdir the session runs in.
-      user: The rest of the home directory of the user the agent runs as.
-      system: Everything else on the machine.
-      online: The network: web search and fetching.
+      preset: One of :data:`PRESETS`.
+      network: Whether the agent may reach the network.
+      granular: Rules over the preset's, in the order they are said.
 
     Raises:
-      ValueError: If a field is not a permission kind, the scopes do not nest, or `online`
-        is `READ`.
+      ValueError: If `preset` is not one of :data:`PRESETS`.
+      TypeError: If `network` is not a bool or a rule is not a :class:`Rule`.
     """
 
-    local: PermissionKind = PermissionKind.ALL
-    user: PermissionKind = PermissionKind.READ
-    system: PermissionKind = PermissionKind.READ
-    online: PermissionKind = PermissionKind.ALL
+    preset: str = "workspace-write"
+    network: bool = True
+    granular: tuple[Rule, ...] = ()
 
     def __post_init__(self) -> None:
-        for scope in ("local", "user", "system", "online"):
-            said: object = getattr(self, scope)
-            if not isinstance(said, str) or said not in _RANKS:
-                raise ValueError(f"{scope}={said!r} is not a permission kind")
-            object.__setattr__(self, scope, PermissionKind(said))
-        if not self.local >= self.user >= self.system:
+        if self.preset not in PRESETS:
             raise ValueError(
-                "a wider scope may not be granted more than a narrower one: "
-                f"local={self.local}, user={self.user}, system={self.system}"
+                f"preset is one of {', '.join(PRESETS)}, not {self.preset!r}"
             )
-        if self.online == PermissionKind.READ:
-            raise ValueError("online is all or nothing: NONE or ALL, not READ")
+        if not isinstance(self.network, bool):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise TypeError(f"network is a bool, not {self.network!r}")
+        granular = tuple(self.granular)
+        for rule in granular:
+            if not isinstance(rule, Rule):  # pyright: ignore[reportUnnecessaryIsInstance]
+                raise TypeError(f"{rule!r} is not a Rule")
+        object.__setattr__(self, "granular", granular)
+
+    @property
+    def rules(self) -> tuple[Rule, ...]:
+        """The preset's rules, then :attr:`granular`: the last that matches a path decides it."""
+        return _EXPANSIONS[self.preset] + self.granular
+
+    def access(self, path: str) -> Access:
+        """How much of a path this lets an agent touch, read without resolving `~` or `.`.
+
+        Args:
+          path: A path as a rule's is said: `/abs`, `~` or `~/...`, `.` or `./...`.
+
+        Returns:
+          The access of the last rule that matches it -- `/` matching every path -- or NONE
+          where none does.
+
+        Raises:
+          ValueError: If `path` is not one a rule could name.
+        """
+        said = _normal(path)
+        found = Access.NONE
+        for rule in self.rules:
+            if _under(rule.path, said):
+                found = rule.access
+        return found
 
     def covers(self, other: Permission) -> bool:
-        """Whether this grants at least what `other` does, in every scope.
+        """Whether this grants at least what `other` does, at every path and on the network.
+
+        Wherever the home directory, the workdir and `$TMPDIR` turn out to be: the two are
+        compared at every path a rule of either names, at each temporary directory and at a
+        fresh child of each, with each anchor laid out at a fresh directory beneath nothing,
+        or beneath any one of those paths not anchored at itself -- every way the rules of
+        either could fall one beneath another once resolved.
 
         Args:
           other: The permission asked for.
 
         Returns:
-          True if no scope of this is narrower than the same scope of `other`.
+          True if no path, and not the network, is granted `other` more than this.
         """
-        return (
-            self.local >= other.local
-            and self.user >= other.user
-            and self.system >= other.system
-            and self.online >= other.online
+        return other.network <= self.network and (
+            self.rules == other.rules or _covers(self, other)
         )
+
+
+@functools.lru_cache(maxsize=1024)
+def _covers(wide: Permission, narrow: Permission) -> bool:
+    """:meth:`Permission.covers` on the paths alone, kept: a flow asks it of every call."""
+    paths = {rule.path for rule in (*wide.rules, *narrow.rules)}
+    # Where no rule says `~`, where the home lies changes nothing; and beneath `/` is
+    # beneath nothing.
+    anchors = [".", _TMPDIR, *(["~"] if any(p[0] == "~" for p in paths) else [])]
+    parents = sorted({*paths, *_TEMPORARY[:2]} - {"/"})
+    for chosen in itertools.product(
+        *([None, *(p for p in parents if p.partition("/")[0] != a)] for a in anchors)
+    ):
+        where = _placed(dict(zip(anchors, chosen, strict=True)))
+        if where is None:
+            continue
+        ours, theirs = _resolved(wide, where), _resolved(narrow, where)
+        for laid in {_at(path, where) for path in (*paths, *_TEMPORARY)}:
+            for at in (laid, (*laid, _FRESH)):
+                if _held(*ours, at) < _held(*theirs, at):
+                    return False
+    return True
+
+
+def _at(path: str, where: Mapping[str, _Laid]) -> _Laid:
+    """A rule's path, or `$TMPDIR`, laid out where its anchor was put."""
+    head, _, rest = path.partition("/")
+    return (where[head] if head else ()) + (tuple(rest.split("/")) if rest else ())
+
+
+def _placed(chosen: Mapping[str, str | None]) -> dict[str, _Laid] | None:
+    """Each anchor at a fresh directory beneath what was chosen for it; None for a cycle."""
+    where: dict[str, _Laid] = {}
+    for _ in chosen:
+        for anchor, parent in chosen.items():
+            head = parent.partition("/")[0] if parent else ""
+            if anchor not in where and (not head or head in where):
+                laid = _at(parent, where) if parent else ()
+                where[anchor] = (*laid, _FRESH + anchor)
+    return where if len(where) == len(chosen) else None
+
+
+def _resolved(
+    permission: Permission, where: Mapping[str, _Laid]
+) -> tuple[list[tuple[_Laid, Access]], list[_Laid]]:
+    """A permission's rules laid out, and the temporary directories it writes besides."""
+    rules = [(_at(rule.path, where), rule.access) for rule in permission.rules]
+    writes = _held(rules, [], where["."]) is Access.WRITE
+    return rules, [_at(path, where) for path in _TEMPORARY] if writes else []
+
+
+def _held(
+    rules: list[tuple[_Laid, Access]], granted: list[_Laid], path: _Laid
+) -> Access:
+    """How much of a laid-out path the rules and the grants allow: the deeper decides.
+
+    The last rule that matches decides among the rules; a grant as deep as it or deeper
+    writes the path all the same, so that a rule takes a temporary directory's grant away
+    only beneath it.
+    """
+    depth, found = -1, Access.NONE
+    for laid, access in rules:
+        if path[: len(laid)] == laid:
+            depth, found = len(laid), access
+    if any(path[: len(one)] == one and len(one) >= depth for one in granted):
+        return Access.WRITE
+    return found
 
 
 class Graceful(pydantic.BaseModel):

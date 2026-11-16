@@ -18,7 +18,7 @@ from hmz.coganchor.agents import (
     ClaudeCodeAgentConfig,
     Question,
 )
-from hmz.flows import HarnessKind, HookKind, Permission, PermissionKind
+from hmz.flows import HarnessKind, HookKind, Permission
 from hmz.runtime.flowing.harnesses import settled
 from tests.integration.doubles_agents import Standins, standins
 
@@ -50,7 +50,7 @@ for line in sys.stdin:
 """
 
 #: What the flow grants: the workdir read-only, nothing else written.
-READ = Permission(local=PermissionKind.READ)
+READ = Permission(preset="read-only")
 
 
 @pytest.fixture

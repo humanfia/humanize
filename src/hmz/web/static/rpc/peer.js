@@ -6,6 +6,9 @@ import { encode, Frames, FrameError } from './frames.js'
 
 const decoder = new TextDecoder('utf-8', { fatal: true })
 
+/** What a frame that is JSON but no JSON-RPC 2.0 message is refused with (Section 6.4.1). */
+const NOT_REQUEST = 'That is not a JSON-RPC 2.0 request.'
+
 /** The error codes of Section 6.6.2 of protocol/wire.md. */
 export const ERRORS = Object.freeze({
   PARSE: -32700,
@@ -161,26 +164,38 @@ export class Peer {
     if (this.#frames.broken !== null) this.close(this.#frames.broken)
   }
 
+  /** Takes one message (Section 6.4.1 and 6.4.3): a call, a notification or a response. */
   #take(message) {
-    if (Array.isArray(message) || message === null || typeof message !== 'object' || message.jsonrpc !== '2.0') {
-      this.#write({ jsonrpc: '2.0', id: null, error: { code: ERRORS.INVALID_REQUEST, message: 'Send one JSON-RPC 2.0 request.' } })
-      return
+    if (Array.isArray(message)) return this.#refuse(null, 'Send one request a frame.')
+    if (message === null || typeof message !== 'object' || message.jsonrpc !== '2.0') return this.#refuse(null, NOT_REQUEST)
+    if ('method' in message) {
+      const params = 'params' in message ? message.params : {}
+      const formed = typeof message.method === 'string' && params !== null && typeof params === 'object' && !Array.isArray(params)
+      if (!('id' in message)) {
+        if (!formed) return
+        if (message.method === 'session.cancel') this.#answering.get(params.id)?.abort()
+        else this.#handlers.notified?.(message.method, params)
+        return
+      }
+      const id = message.id
+      if (typeof id !== 'string' && !Number.isInteger(id)) return this.#refuse(null, NOT_REQUEST)
+      // A refusal with the id of a call still unanswered would answer it (Section 6.4.3).
+      if (this.#answering.has(id)) return this.#refuse(null, 'That id is in use by another call.')
+      if (!formed) return this.#refuse(id, NOT_REQUEST)
+      return this.#answer(id, message.method, params)
     }
-    if (typeof message.method !== 'string') {
-      const pending = this.#pending.get(message.id)
-      if (!pending) return
-      this.#pending.delete(message.id)
-      if (message.error) pending.reject(new RpcError(message.error.code, message.error.message, message.error.data))
-      else pending.resolve(message.result)
-      return
-    }
-    const params = message.params ?? {}
-    if (!('id' in message)) {
-      if (message.method === 'session.cancel') this.#answering.get(params.id)?.abort()
-      else this.#handlers.notified?.(message.method, params)
-      return
-    }
-    this.#answer(message.id, message.method, params)
+    if (!('id' in message) || !('result' in message || 'error' in message)) return this.#refuse(null, NOT_REQUEST)
+    // A response that answers no call still unanswered is dropped.
+    const pending = this.#pending.get(message.id)
+    if (!pending) return
+    this.#pending.delete(message.id)
+    if (message.error) pending.reject(new RpcError(message.error.code, message.error.message, message.error.data))
+    else pending.resolve(message.result)
+  }
+
+  /** Refuses a frame -32600 (Section 6.4.1). @param {string | number | null} id @param {string} why */
+  #refuse(id, why) {
+    this.#write({ jsonrpc: '2.0', id, error: { code: ERRORS.INVALID_REQUEST, message: why } })
   }
 
   async #answer(id, method, params) {

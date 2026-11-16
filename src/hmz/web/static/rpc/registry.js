@@ -29,6 +29,33 @@ function routed(routes) {
   for (const route of routes) if (typeof route !== 'string' || !routeKind(route)) throw new Error(`${route} is not a route.`)
 }
 
+/** Local's one route, by where the page is shown (Section 4.9.1 and 4.9.2 of protocol/web.md). */
+const LOCAL = /** @type {const} */ ({ web: 'unix:', macos: 'stdio:local', windows: 'stdio:wsl' })
+
+/**
+ * Where the page is shown: `web`, served by `hmz web`, or the desktop application on `macos` or
+ * `windows`.
+ *
+ * @returns {keyof typeof LOCAL}
+ */
+function shown() {
+  if (!(/** @type {any} */ (globalThis).__TAURI_INTERNALS__)) return 'web'
+  return /^Win/.test(globalThis.navigator?.platform ?? '') ? 'windows' : 'macos'
+}
+
+/**
+ * Local, the daemon of the machine the page is served from or shown on, as the page keeps it:
+ * reached over `unix:` through `/rpc` in `hmz web`, and over `stdio:local` on macOS or
+ * `stdio:wsl` on Windows in the desktop application (Section 3.5 of protocol/desktop.md), its id
+ * pinned once first reached.
+ *
+ * @param {keyof typeof LOCAL} [where] Where the page is shown; found out where not given.
+ * @returns {import('./client.js').DaemonEntry}
+ */
+export function local(where = shown()) {
+  return { name: 'local', id: '', routes: [LOCAL[where]] }
+}
+
 /**
  * The page's keeping of remote daemons.
  *

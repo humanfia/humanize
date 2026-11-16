@@ -38,14 +38,17 @@ from hmz.flows import (
     Outworlder,
     OutworlderRunHookResult,
     ParamsError,
+    Permission,
     RequirementError,
     ResourceUnmet,
     SessionEndHookResult,
     SessionError,
+    allow,
+    deny,
     flow,
     load,
 )
-from hmz.runtime.flowing import fakes, loading
+from hmz.runtime.flowing import engine, fakes, journaling, loading
 from hmz.runtime.flowing.engine import (
     DEPTH,
     Call,
@@ -636,6 +639,49 @@ async def test_a_session_is_journaled_by_each_name_it_goes_by(
 
 async def test_a_resumable_flow_without_a_journal_keeps_state_in_memory() -> None:
     assert await run_fake(keeps, "go") == (False, 1)
+
+
+class Careful(Agent):
+    _permission = Permission(network=False, granular=(deny("~/.ssh/"), allow("./out")))
+
+
+class Carved(AgentCollection):
+    coder: Careful
+
+
+@flow(agents=Carved, envs=EnvCollection, params=Nothing, resumable=True)
+async def carved(
+    task: str, *, agents: Carved, envs: EnvCollection, params: Nothing, ctx: FlowContext
+) -> None:
+    del task, agents, envs, params, ctx
+
+
+@pytest.mark.usefixtures("plain_writes")
+async def test_a_journal_knows_an_agent_by_its_permission_as_said(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    keyed: list[list[str]] = []
+
+    def spy(ref: str, task: str, roles: list[str], params: bytes) -> str:
+        keyed.append(roles)
+        return journaling.digest(ref, task, roles, params)
+
+    monkeypatch.setattr(engine, "digest", spy)
+
+    await run_fake(carved, journal=tmp_path / "run.jsonl")
+
+    ((role,),) = keyed
+    # The preset by name and the rules in the order said, tidied; never the preset's rules.
+    said = json.loads(role.split("|")[1])
+    assert role.split("|")[1:] == [
+        json.dumps(said, separators=(",", ":")),
+        "",
+    ]
+    assert said == {
+        "preset": "workspace-write",
+        "network": False,
+        "granular": [["~/.ssh", "none"], ["./out", "write"]],
+    }
 
 
 async def test_a_flow_that_is_not_resumable_has_no_state() -> None:

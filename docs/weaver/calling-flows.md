@@ -356,7 +356,7 @@ Everything is checked before a line of the callee runs:
 | The callee's role asks for | What you pass must have | Otherwise |
 | --- | --- | --- |
 | a mixin, such as `ShellEnvMixin` | that mixin, declared by **your** role | `CapabilityMissing` |
-| a `_permission` | at least that, scope by scope | `PermissionTooNarrow` |
+| a `_permission` | at least that, on every path and the network | `PermissionTooNarrow` |
 | one CLI, such as `ClaudeCodeAgent` | that CLI | `HarnessMismatch` |
 | CPUs, memory or GPUs | a machine with at least that many | `ResourceUnmet` |
 | a required role | anything at all | `MissingRole` |
@@ -389,10 +389,10 @@ hang a hook on it. See [The person as an agent](/weaver/human-agent#stand-in-for
 `derive` gives you the same agent under a narrower grant: a smaller permission, fewer skills.
 
 ```python
-from hmz.flows import Permission, PermissionKind
+from hmz.flows import Permission
 
-read_only = Permission(local=PermissionKind.READ)
-reader = agents["builder"].derive(permission=read_only)
+reading_only = Permission("read-only")
+reader = agents["builder"].derive(permission=reading_only)
 reading = await reader.spawn()  # may not write, whichever of the two runs it
 ```
 
@@ -400,7 +400,7 @@ It only narrows: asking for more than was granted raises `CapabilityNotGranted`.
 stretch of your own flow, such as a session that reads beside one that writes. You do not need
 it to hand an agent on, since the callee's sessions already run under what *its* role
 declares. You cannot go below the callee's declaration either: `reader` passed to a role typed
-plain `Agent`, whose default permission is `local=ALL`, is refused with `PermissionTooNarrow`.
+plain `Agent`, whose default permission is `workspace-write`, is refused with `PermissionTooNarrow`.
 
 Environments narrow by being derived too: a subdirectory, a [worktree or a
 copy](/weaver/worktrees).

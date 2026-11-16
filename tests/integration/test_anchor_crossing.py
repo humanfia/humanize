@@ -20,7 +20,6 @@ from hmz.flows import (
     EnvBackendKind,
     HarnessKind,
     Permission,
-    PermissionKind,
     UnsupportedOperation,
 )
 from hmz.runtime.flowing.harnesses import open_agent
@@ -28,9 +27,7 @@ from hmz.runtime.flowing.specs import AgentSpec
 from hmz.runtime.flowing.spi import HookTable, Placement
 
 #: Everything granted, so that nothing is fenced: a fence is another refusal than this one.
-_ALL = Permission(
-    local=PermissionKind.ALL, user=PermissionKind.ALL, system=PermissionKind.ALL
-)
+_ALL = Permission(preset="danger-full-access")
 
 
 class _Here:
