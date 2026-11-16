@@ -225,19 +225,61 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends bubblewrap
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
-      - name: DIAGNOSTIC hang hunt
+      - name: DIAG tests/unit/daemon/test_api_accounts.py
+tests/unit/daemon/test_api_easytier.py
+tests/unit/daemon/test_api_fallbacks.py
+tests/unit/daemon/test_api_files.py
+tests/unit/daemon/test_api_flows.py
+tests/unit/daemon/test_api_runs.py
+tests/unit/daemon/test_api_runtimes.py
+tests/unit/daemon/test_api_settings.py
+tests/unit/daemon/test_carrying.py
+tests/unit/daemon/test_daemon.py
+tests/unit/daemon/test_hosts.py
+tests/unit/daemon/test_link.py
+tests/unit/daemon/test_methods.py
+tests/unit/daemon/test_sessions.py
+tests/unit/daemon/test_where.py
+tests/unit/web/test_accounts.py
+tests/unit/web/test_daemons.py
+tests/unit/web/test_notifications.py
+tests/unit/web/test_paths.py
+tests/unit/web/test_places.py
+tests/unit/web/test_runs.py
+tests/unit/web/test_runtimes.py
+tests/unit/web/test_verses.py
         if: runner.os == 'Linux'
         continue-on-error: true
-        run: |
-          uv run --frozen python -c "import sys, sitecustomize; print('SITE', sitecustomize.__file__, sys.excepthook, sys.executable, sys.base_prefix)" || true
-          cat /etc/python3.12/sitecustomize.py 2>/dev/null | head -30 || true
-          systemctl is-active apport || true
-          mkdir -p /tmp/diag && : > /tmp/diag/sitecustomize.py
-          for dir in tests/unit/daemon tests/unit/web; do
-            echo "##### $dir with an empty sitecustomize"
-            ( PYTHONPATH=/tmp/diag timeout -k 10 120 uv run --frozen --all-extras pytest "$dir" --durations=10 2>&1 | tail -n 30 ) || echo "##### $dir exit $?"
-          done
-          exit 1
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_accounts.py
+tests/unit/daemon/test_api_easytier.py
+tests/unit/daemon/test_api_fallbacks.py
+tests/unit/daemon/test_api_files.py
+tests/unit/daemon/test_api_flows.py
+tests/unit/daemon/test_api_runs.py
+tests/unit/daemon/test_api_runtimes.py
+tests/unit/daemon/test_api_settings.py
+tests/unit/daemon/test_carrying.py
+tests/unit/daemon/test_daemon.py
+tests/unit/daemon/test_hosts.py
+tests/unit/daemon/test_link.py
+tests/unit/daemon/test_methods.py
+tests/unit/daemon/test_sessions.py
+tests/unit/daemon/test_where.py
+tests/unit/web/test_accounts.py
+tests/unit/web/test_daemons.py
+tests/unit/web/test_notifications.py
+tests/unit/web/test_paths.py
+tests/unit/web/test_places.py
+tests/unit/web/test_runs.py
+tests/unit/web/test_runtimes.py
+tests/unit/web/test_verses.py --durations=5
+
+      - name: DIAG all daemon then web
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon --durations=5 && uv run --frozen --all-extras pytest tests/unit/web --durations=5
 
       - name: pytest tests/unit/<package>, a package at a time
         if: runner.os != 'Linux'
