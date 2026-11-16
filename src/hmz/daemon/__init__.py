@@ -6,17 +6,17 @@
         link.start("chat", "say hello", agents={"assistant": "claude/MODEL:low"})
 
 One daemon per machine and user, reached through one socket in the machine's temporary
-directory, and holding the runs of every workspace there. Each workspace's are held by hosts
-of their own -- :class:`hmz.runtime.Host`, the runs and who is outside them, in a process
-standing in the workspace -- the way `screen` holds a shell: a process of its own, in a session
-of its own, that a terminal closing cannot reach. A workspace has its own host, which runs its
-flows one at a time, and a host per chat beside it, each named by its slot (see
-:func:`hmz.daemon.where.slot`): a conversation takes no flow's turn, nor a flow a conversation's.
-The daemon hands every frontend to the host of the workspace and slot it names
-(:mod:`hmz.daemon.routing`), and any number of frontends read one at
-once, each a :class:`Link` of its own saying JSON: an interface, or a program written against
-the SDK. Letting go of one is not stopping the run: the flow goes on taking its turns, and the
-next frontend to arrive is told it from the top.
+directory, and on whatever it listens on beside it, and holding the runs of every workspace
+there (`protocol/daemon.md`). Each workspace's are held by hosts of their own --
+:class:`hmz.runtime.Host`, the runs and who is outside them, in a process standing in the
+workspace -- the way `screen` holds a shell: a process of its own, in a session of its own,
+that a terminal closing cannot reach. A workspace has its own host, which runs its flows one at
+a time, and a host per chat and per `hmz exec` beside it, each named by its slot (see
+:func:`hmz.daemon.where.slot`). Every client speaks JSON-RPC to the daemon over a session of
+`protocol/wire.md` (:mod:`hmz.daemon.routing`), and the daemon speaks for it to the host; any
+number of frontends read one host at once, each a :class:`Link` of its own. Letting go of one is
+not stopping the run: the flow goes on taking its turns, and the next frontend to arrive is told
+it from the top.
 
 What the runs *are* is the runtime's, and it is reached from here: :class:`Hmz`, :class:`Host`
 and the :class:`Refused` a link raises are handed through from :mod:`hmz.runtime` under this
@@ -29,17 +29,14 @@ from __future__ import annotations
 import contextlib
 import errno
 import os
-import sys
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.daemon import where
 from hmz.daemon.link import Link, linked
-from hmz.daemon.proto import CONTROL, PROTOCOL, Frames, asked, spoken
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from pathlib import Path
 
     from hmz.runtime import Hmz, Host, Refused
@@ -56,17 +53,16 @@ __all__ = [
     "host",
     "linked",
     "running",
+    "start",
 ]
 
 #: How long a daemon or a host is given to come up before whoever asked for one gives up.
-#: It is a fork and a bind; a second is already generous, and ten is a machine under load.
 _PATIENCE = 10.0
 
-#: How many times a host is started where the daemon it was to say what it holds to went as
-#: it came up -- the daemon's last host having gone in the same breath.
+#: How many times the daemon is started where the one found went as it was reached.
 _TRIES = 2
 
-#: How long a question about a run is given to be answered.
+#: How long a question about a host is given to be answered.
 _ANSWERING = 5.0
 
 #: How long a run told to stop is given to go before whoever asked is told it has not.
@@ -75,37 +71,26 @@ _UNWINDING = 20.0
 #: How often a process being waited on is looked at.
 _TICK = 0.1
 
-#: How long a host process that is done is given to finish backing its epics up before it
-#: goes: within what a stop waits for it, so that a stop is never taken for one that failed.
-_BACKING = 15.0
-
-
-#: How many times a frontend reaches for the host of its workspace before it gives up holding
-#: runs apart from itself, and how long it waits between: a host found on its way out -- the
-#: last frontend on it has just gone -- is found gone the next time, and one started in its
-#: place.
+#: How many times a frontend reaches for the host of its workspace before it gives up, and
+#: how long it waits between: a host found on its way out is found gone the next time.
 _ATTACHES = 3
 _AGAIN = 0.5
 
-#: How long the socket of a daemon that may not be listening is given to answer at all. It
-#: is a connect to a file on this machine: either it is refused at once or it is taken, and a
-#: wedged one must not be what a listing of every run on the machine waits on.
+#: How long the socket of a daemon that may not be listening is given to answer at all.
 _ANSWERS_AT_ONCE = 1.0
 
 
 def __getattr__(name: str) -> object:
     """Hands through the runtime this holds runs in, out of the layer it is written in.
 
-    Fetched when it is named rather than imported at the top, for the reason every layer here
-    is: what holds runs apart from a terminal is a process and a socket, and a line that only
-    asks which runs are being held must not pay for the flows, the drivers and the traces.
+    Fetched when it is named rather than imported at the top: a line that only asks which runs
+    are being held must not pay for the flows, the drivers and the traces.
 
     Args:
       name: What was asked for.
 
     Returns:
-      The same object :mod:`hmz.runtime` holds, so that there is one of each however it was
-      reached.
+      The same object :mod:`hmz.runtime` holds.
 
     Raises:
       AttributeError: If nothing here is called that, as for any other module.
@@ -119,7 +104,7 @@ def __getattr__(name: str) -> object:
 
 @dataclass(frozen=True, slots=True)
 class Daemon:
-    """One workspace's runs, held where a terminal closing cannot end them.
+    """One host of a workspace's runs, held where a terminal closing cannot end them.
 
     Attributes:
       at: This machine's daemon's directory, which is where the socket they are reached
@@ -128,8 +113,8 @@ class Daemon:
         says it.
       pid: The host process holding them.
       started: When it was started, in UTC.
-      protocol: Which version of the frontends' protocol the daemon speaks, or 0 for one of
-        an older Humanize that said none -- which no frontend of this one reaches.
+      protocol: The protocol version the daemon speaks, or "" for one of an older Humanize
+        that wrote none.
       slot: Which of the workspace's hosts it is: "" for its own, `chat:<hex>` for a chat's.
     """
 
@@ -137,7 +122,7 @@ class Daemon:
     workspace: str
     pid: int
     started: str
-    protocol: int = 0
+    protocol: str = ""
     slot: str = ""
 
     @property
@@ -146,7 +131,7 @@ class Daemon:
         return where.alive(self.pid)
 
     def link(self, name: str = "", kind: str = "sdk", *, replay: bool = True) -> Link:
-        """Attaches a frontend to the runs this daemon hosts.
+        """Attaches a frontend to the runs this host holds.
 
         Args:
           name: What the frontend is called, or "" for whoever is at this end and `kind`.
@@ -157,31 +142,23 @@ class Daemon:
           The link, attached; a context manager, closed to let go.
 
         Raises:
-          OSError: If nothing answers there, or what does is a daemon of an older Humanize.
+          OSError: If nothing answers there, or what does refused it.
         """
         from hmz.daemon.link import reached
 
         return reached(
-            self.at,
-            self.workspace,
-            name,
-            kind,
-            replay=replay,
-            slot=self.slot,
+            self.at, self.workspace, name, kind, replay=replay, slot=self.slot
         )
 
     def status(self) -> dict[str, Any]:
-        """What the run says about itself: how many are reading, and what is running.
+        """What the host says about itself: how many are reading, and what is running.
 
         Returns:
-          What it said, and what is written down beside its socket for a run that would not
-          answer -- which is a daemon that is starting up, or one that is wedged. The same
-          keys either way: a run that could not be asked answers as one reading nothing and
-          running nothing, so that whoever asked reads an answer rather than guessing which
-          of the two they got.
+          The daemon's answer to `hosts.status`; where there is none, what is known of the
+          host without asking it, as one reading nothing and running nothing.
         """
         said = self.asked({"do": "status"})
-        if said.get("ok"):
+        if said:
             return said
         return {**self._written(), "attached": 0, "flows": [], "calls": []}
 
@@ -191,12 +168,11 @@ class Daemon:
         Returns:
           How many were let go of.
         """
-        said = self.asked({"do": "detach"})
-        held = said.get("let go")
+        held = self.asked({"do": "detach"}).get("let_go")
         return held if isinstance(held, int) else 0
 
     def stop(self, *, seconds: float = _UNWINDING) -> bool:
-        """Closes the runs and lets every frontend go, and waits for the daemon to go.
+        """Closes the runs and lets every frontend go, and waits for the host to go.
 
         Args:
           seconds: How long to wait for it to go.
@@ -204,16 +180,14 @@ class Daemon:
         Returns:
           Whether it has gone.
         """
-        if not self.asked({"do": "stop"}).get("ok"):
+        if _asks(self.at, "hosts.stop", self._named) is None:
             return not self.alive
         return self._gone(seconds)
 
     def kill(self, *, seconds: float = _UNWINDING) -> bool:
         """Ends the process holding this workspace's runs, whatever it was doing.
 
-        The last thing there is to do about a host: whatever the run was in the middle of is
-        what a killed process is in the middle of. The daemon, and the other workspaces' hosts,
-        go on: it stops handing anybody to this one the moment it has gone.
+        The daemon, and the other workspaces' hosts, go on.
 
         Args:
           seconds: How long to wait for it to go before saying it has not.
@@ -232,14 +206,6 @@ class Daemon:
         return not self.alive
 
     def _gone(self, seconds: float) -> bool:
-        """Waits for the process holding this run to go.
-
-        Args:
-          seconds: How long to wait.
-
-        Returns:
-          Whether it has gone.
-        """
         until = time.monotonic() + seconds
         while time.monotonic() < until:
             if not self.alive:
@@ -248,7 +214,7 @@ class Daemon:
         return not self.alive
 
     def asked(self, said: dict[str, Any]) -> dict[str, Any]:
-        """Puts one question to this workspace's runs, and reads the answer.
+        """Asks the daemon one thing about this host: `hosts.<do>`, `said["do"]` naming it.
 
         Args:
           said: What to ask.
@@ -256,23 +222,59 @@ class Daemon:
         Returns:
           What it answered, and nothing at all where it would not answer.
         """
-        return _asked(self.at, {**said, "workspace": self.workspace, **self._slotted})
+        params = {key: value for key, value in said.items() if key != "do"}
+        answer = _asks(self.at, f"hosts.{said.get('do')}", {**params, **self._named})
+        return answer if isinstance(answer, dict) else {}  # pyright: ignore[reportUnknownVariableType]
 
     @property
-    def _slotted(self) -> dict[str, str]:
-        """Which of its workspace's hosts this is, as said: nothing for the workspace's own."""
-        return {"slot": self.slot} if self.slot else {}
+    def _named(self) -> dict[str, str]:
+        """Which host this is, as a call names it."""
+        return {
+            "workspace": self.workspace,
+            **({"slot": self.slot} if self.slot else {}),
+        }
 
     def _written(self) -> dict[str, Any]:
-        """What the daemon knows of this host without asking it."""
+        """What is known of this host without asking it."""
         return {
             "pid": self.pid,
             "workspace": self.workspace,
-            **self._slotted,
+            **({"slot": self.slot} if self.slot else {}),
             "started": self.started,
             "kind": "host",
             "protocol": self.protocol,
         }
+
+
+def _asks(at: Path, method: str, params: dict[str, Any]) -> Any:
+    """Makes one call of this machine's daemon over a session of its own.
+
+    Returns:
+      Its result, or None where nothing answered it in time or it was refused.
+    """
+    from hmz.daemon.link import dialed
+    from hmz.rpc import Closed, RpcError
+
+    try:
+        peer, _ = dialed(at, seconds=_ANSWERING)
+    except OSError:
+        return None
+    try:
+        return peer.call(method, params, timeout=_ANSWERING)
+    except (RpcError, Closed, TimeoutError):
+        return None
+    finally:
+        peer.close()
+
+
+def _speaks(said: dict[str, Any]) -> bool:
+    """Whether a daemon record names a protocol of this one's major version."""
+    from hmz.rpc import PROTOCOL
+
+    protocol = said.get("protocol")
+    return (
+        isinstance(protocol, str) and protocol.split(".")[0] == PROTOCOL.split(".")[0]
+    )
 
 
 def running(
@@ -285,16 +287,15 @@ def running(
       slot: Which of its hosts: "" for its own, `chat:<hex>` for a chat's.
 
     Returns:
-      It, or None where nothing is being held there -- which is what a daemon whose process
-      has gone reads as, a socket file outliving the process that bound it. Where this
-      machine's daemon speaks another protocol, it is that daemon, with what it speaks.
+      It, or None where nothing is being held there. Where this machine's daemon speaks
+      another protocol, it is that daemon, with what it speaks.
     """
     named = where.workspace(workspace)
     try:
         said = _daemon()
     except OSError:
         said = None
-    if said is not None and said.get("protocol") != PROTOCOL:
+    if said is not None and not _speaks(said):
         return _other(said, named)
     found = _hosts() if said is not None else []
     return next(
@@ -303,14 +304,14 @@ def running(
 
 
 def daemons() -> list[Daemon]:
-    """Every workspace's runs being held on this machine, oldest first."""
+    """Every host of every workspace held on this machine, oldest first."""
     try:
         said = _daemon()
     except OSError:
         return []
     if said is None:
         return []
-    if said.get("protocol") != PROTOCOL:
+    if not _speaks(said):
         return [_other(said, "")]
     return sorted(_hosts(), key=lambda one: one.started)
 
@@ -323,11 +324,8 @@ def host(
 ) -> Daemon:
     """Holds a workspace's runs where a terminal closing cannot end them, for frontends.
 
-    This machine's daemon first, started where none is, and then a host of the workspace's own
-    that says what it holds to it: a process of its own -- two forks and a session of its own
-    -- standing in the workspace and holding :class:`hmz.runtime.Host`. What it prints is said
-    to its frontends, and it goes once nothing is running or stopping and nobody is attached,
-    or once it is stopped; the daemon goes once no host is left.
+    This machine's daemon first, started where none is, and then the host of that workspace
+    and slot, which the daemon starts where none is (`hosts.open`).
 
     Args:
       workspace: The project directory, or None for wherever Humanize is being run.
@@ -335,38 +333,48 @@ def host(
       slot: Which of its hosts: "" for its own, `chat:<hex>` for a chat's.
 
     Returns:
-      The host of this workspace's runs, reachable: the one already there, or one started now.
+      The host of this workspace's runs, reachable.
 
     Raises:
       OSError: If this machine's daemon is of an older Humanize, or no host could be started.
     """
+    from hmz.daemon.link import dialed
+    from hmz.rpc import Closed, RpcError
+
     named = where.workspace(workspace)
     failed: OSError | None = None
     for tried in range(_TRIES):
         if tried:
             time.sleep(_TICK)
         try:
+            at = where.at()
             _machine(seconds)
+            peer, _ = dialed(at, seconds=seconds)
         except OSError as why:
             if why.errno == errno.EADDRINUSE:
                 raise
             # A daemon on its way out still holding its lock as this one came up.
             failed = why
             continue
-        found = running(named, slot=slot)
-        if found is not None and found.protocol != PROTOCOL:
-            raise OSError(errno.EADDRINUSE, older(found))
-        if found is not None:
-            return found
         try:
-            _forks(lambda telling: _hosts_in(named, telling, slot), seconds)
-        except OSError as why:
-            # Another started one in the same breath, which is the one this answers with --
-            # or the daemon went as this one came up, and is started again.
-            failed = why
-        found = running(named, slot=slot)
-        if found is not None:
-            return found
+            said: Any = peer.call(
+                "hosts.open", {"workspace": named, "slot": slot}, timeout=seconds * 2
+            )
+        except RpcError as why:
+            raise OSError(why.message) from why
+        except (Closed, TimeoutError) as why:
+            failed = OSError(f"the runs in {named} did not come up: {why}")
+            continue
+        finally:
+            peer.close()
+        return Daemon(
+            at=at,
+            workspace=str(said.get("workspace") or named),
+            pid=int(said.get("pid") or 0),
+            started=str(said.get("started") or ""),
+            protocol=str(said.get("protocol") or ""),
+            slot=str(said.get("slot") or ""),
+        )
     raise failed or OSError(f"the runs in {named} did not come up")
 
 
@@ -386,26 +394,39 @@ def _machine(seconds: float) -> dict[str, Any]:
     failed: OSError | None = None
     if said is None:
         from hmz.daemon import routing
+        from hmz.daemon.detaching import forks
 
         try:
-            _forks(routing.serves, seconds)
+            forks(routing.serves, seconds)
         except OSError as why:
             # Another started one in the same breath, which is the one this answers with.
             failed = why
         said = _daemon()
     if said is None:
         raise failed or OSError("this machine's daemon did not come up")
-    if said.get("protocol") != PROTOCOL:
+    if not _speaks(said):
         raise OSError(errno.EADDRINUSE, older(_other(said, "")))
     return said
+
+
+def start(seconds: float = _PATIENCE) -> None:
+    """Starts this machine's daemon where none runs, as the first client that needs it does.
+
+    Args:
+      seconds: How long to wait for it to come up.
+
+    Raises:
+      OSError: If it is a daemon of an older Humanize -- `EADDRINUSE`, saying so -- or none
+        could be started.
+    """
+    _machine(seconds)
 
 
 class Older(RuntimeError):  # noqa: N818 -- what holds the runs, not what went wrong
     """The runs asked for are held by an older Humanize, which no frontend of this one reads.
 
-    Apart from failing to reach a host at all: a second daemon started beside it would fight
-    it over the socket, so a frontend says so and opens nothing rather than holding the runs
-    itself.
+    A second daemon started beside it would fight it over the socket, so a frontend says so
+    and opens nothing rather than holding the runs itself.
     """
 
 
@@ -417,9 +438,6 @@ def attach(
     slot: str = "",
 ) -> Link:
     """Links a frontend to the runs held for a workspace, starting a host where none is.
-
-    What every frontend holding runs apart from itself does first, so that each frontend opened
-    here -- in this terminal, in the next one, in a browser -- is one more of the same runs.
 
     Args:
       kind: What the frontend is, as the runs list their frontends: `tui`, `web`.
@@ -435,15 +453,18 @@ def attach(
       Older: If this workspace's runs are held by an older Humanize.
       OSError: If no host could be reached or started, after a few tries.
     """
-    failed = OSError(f"the runs in {where.workspace(workspace)} could not be reached")
+    from hmz.daemon.link import reached
+
+    named = where.workspace(workspace)
+    failed = OSError(f"the runs in {named} could not be reached")
     slot = where.slot(slot)
     for _ in range(_ATTACHES):
-        found = running(workspace, slot=slot)
-        if found is not None and found.protocol != PROTOCOL:
-            raise Older(older(found))
         try:
-            return (found or host(workspace, slot=slot)).link(name=name, kind=kind)
+            start()
+            return reached(where.at(), named, name, kind, slot=slot)
         except OSError as why:
+            if why.errno == errno.EADDRINUSE:
+                raise Older(why.strerror or str(why)) from why
             failed = why
             time.sleep(_AGAIN)
     raise failed
@@ -465,206 +486,6 @@ def older(daemon: Daemon) -> str:
     )
 
 
-def _forks(serving: Callable[[int], object], seconds: float) -> None:
-    """Starts a process doing `serving` apart from the terminal, and comes back once it is up.
-
-    A fork so that whatever asked for it is not waiting on it, `setsid` so that the terminal
-    which started it is no longer its own -- which is what keeps a hangup from reaching it --
-    and a second fork so that it can never take a controlling terminal again.
-
-    Args:
-      serving: What the process does, handed the descriptor to say it is listening on.
-      seconds: How long to wait for it to say so.
-
-    Raises:
-      OSError: If it could not be started, or did not come up in the time it was given.
-    """
-    reading, telling = os.pipe()
-    # Before the fork: what this process has written and not yet flushed is buffered in it,
-    # and a fork copies the buffer -- so anything left in one would be written twice, once
-    # by each of them.
-    for stream in (sys.stdout, sys.stderr):
-        with contextlib.suppress(Exception):
-            stream.flush()
-    proxied = _proxied()
-    middle = os.fork()
-    if middle == 0:  # pragma: no cover -- the child never comes back to be covered
-        os.close(reading)
-        proxied()
-        _detaches(serving, telling)
-    os.close(telling)
-    try:
-        _waits(reading, seconds)
-    finally:
-        with contextlib.suppress(OSError):
-            os.close(reading)
-        # The middle process has already gone: it forked the one that holds the run and
-        # exited, so that the run's own parent is whatever adopts it rather than this.
-        with contextlib.suppress(ChildProcessError):
-            os.waitpid(middle, 0)
-
-
-def _proxied() -> Callable[[], None]:
-    """This machine's proxies as asked here, told to a child forked after this.
-
-    macOS answers through CoreFoundation, which crashes a child forked from a process that has
-    used it -- and anything sending a request asks, a report among them, first thing in a host.
-    So it is asked before the fork, and the child is handed the answer instead of asking.
-
-    Returns:
-      What the child calls to take the answer, which elsewhere does nothing.
-    """
-    if sys.platform != "darwin":
-        return lambda: None
-    import urllib.request
-
-    # What `getproxies` and `proxy_bypass` ask on macOS, by these names, which no public
-    # function of urllib's lets a caller answer instead.
-    asked = cast("Any", urllib.request)
-    proxies = asked._get_proxies()  # noqa: SLF001
-    settings = asked._get_proxy_settings()  # noqa: SLF001
-
-    def told() -> None:  # pragma: no cover -- runs only in the forked child
-        asked._get_proxies = lambda: proxies  # noqa: SLF001
-        asked._get_proxy_settings = lambda: settings  # noqa: SLF001
-
-    return told
-
-
-def _detaches(
-    serving: Callable[[int], object], telling: int
-) -> None:  # pragma: no cover -- runs only in the forked child
-    """The two forks and the session, and then the serving, in the process that does it."""
-    status = 0
-    try:
-        with contextlib.suppress(OSError):
-            os.setsid()
-        if os.fork() != 0:
-            os._exit(0)  # the middle process, which must unwind nothing at all
-        # Nobody types at this process, and nobody reads its terminal -- which is still the
-        # terminal of whoever asked for it until this: what it writes straight to a
-        # descriptor belongs to no run yet, and goes beside the daemon's socket.
-        _quiet()
-        # A hangup cannot reach a process with no controlling terminal, and this one has
-        # none; refusing it as well costs nothing and says what is meant.
-        import signal
-
-        with contextlib.suppress(OSError, ValueError):
-            signal.signal(signal.SIGHUP, signal.SIG_IGN)
-            # A terminate is this process's own to take, whatever the one that forked it made
-            # of one -- ignored, or its own way out: unwound, so that what it holds is let go.
-            signal.signal(signal.SIGTERM, _terminated)
-        serving(telling)
-    except _Terminated:
-        pass
-    except BaseException as why:  # noqa: BLE001 -- the last frame of a process nobody reads
-        status = 1
-        # Said back down the pipe as well as written down: whoever asked for a daemon is
-        # still waiting, and `could not be held` on its own is a line nobody can act on.
-        with contextlib.suppress(OSError):
-            os.write(telling, f"the run could not be held: {why}\n".encode())
-            os.close(telling)
-        from hmz.daemon.carrying import logged
-
-        # Into the daemon's log itself rather than whatever the process had made of its
-        # descriptors by then -- a host's pipe, which nobody reads once this exits.
-        with contextlib.suppress(OSError):
-            _quiet()
-        logged("these runs could not be held apart from the terminal")
-    finally:
-        with contextlib.suppress(Exception):
-            sys.stdout.flush()
-            sys.stderr.flush()
-        os._exit(status)  # nothing of this process is anybody's to unwind
-
-
-class _Terminated(BaseException):
-    """A detached process told to end, on its way out."""
-
-
-def _terminated(
-    _signal: int, _frame: object
-) -> None:  # pragma: no cover -- in the child
-    """Ends a detached process by unwinding it."""
-    raise _Terminated
-
-
-def _quiet() -> None:  # pragma: no cover -- runs only in the forked child
-    """Takes this process off the terminal it was started from, onto the daemon's log."""
-    nothing = os.open(os.devnull, os.O_RDONLY)
-    os.dup2(nothing, 0)
-    os.close(nothing)
-    try:
-        written = os.open(
-            where.at() / where.LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600
-        )
-    except OSError:
-        # A directory refused as somebody else's says so down the pipe, where it is read.
-        written = os.open(os.devnull, os.O_WRONLY)
-    for fd in (1, 2):
-        os.dup2(written, fd)
-    os.close(written)
-
-
-def _hosts_in(
-    workspace: str, telling: int, slot: str = ""
-) -> None:  # pragma: no cover -- runs only in the forked child
-    """The runs of a workspace, or of one chat in it, hosted, in the process that holds them."""
-    import signal
-    import threading
-
-    from hmz.daemon.carrying import Printed, keeps, serves
-    from hmz.runtime import Hmz
-
-    os.chdir(workspace)
-    with contextlib.suppress(OSError, ValueError):
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-    hmz = Hmz()
-    # If it has been answered yes, and never otherwise: nobody is here to ask.
-    hmz.reports()
-    held = hmz.host(slot)
-    # What a CLI a run starts writes straight to a descriptor goes into that run's epic, and
-    # what is printed in Python is said to every frontend. Only now, with something reading
-    # the pipe: a failure before this goes into the daemon's log as it is.
-    reading, writing = os.pipe()
-    threading.Thread(
-        target=keeps, args=(reading, held), daemon=True, name="humanize-kept"
-    ).start()
-    for fd in (1, 2):
-        os.dup2(writing, fd)
-    os.close(writing)
-    sys.stdout = sys.stderr = Printed(held)
-
-    def closes(_signal: int, _frame: object) -> None:
-        # Off the signal's frame: closing waits on threads the frame may be holding up.
-        threading.Thread(target=held.close, daemon=True).start()
-
-    with contextlib.suppress(OSError, ValueError):
-        signal.signal(signal.SIGTERM, closes)
-    serves(held, workspace, telling, slot=slot)
-    # A backup of the last epic still going is let finish, for so long: nothing waits on it.
-    hmz.backups.wait(_BACKING)
-
-
-def _waits(reading: int, seconds: float) -> None:
-    """Waits for the detached process to say it is listening, or for the time to run out."""
-    import selectors
-
-    selector = selectors.DefaultSelector()
-    selector.register(reading, selectors.EVENT_READ)
-    try:
-        until = time.monotonic() + seconds
-        while time.monotonic() < until:
-            if not selector.select(0.1):
-                continue
-            said = os.read(reading, 1 << 12)
-            if not said or said.startswith(b"listening"):
-                return
-            raise OSError(said.decode(errors="replace").strip())
-    finally:
-        selector.close()
-
-
 def _daemon() -> dict[str, Any] | None:
     """What this machine's daemon wrote down about itself, or None where none is listening.
 
@@ -681,14 +502,17 @@ def _daemon() -> dict[str, Any] | None:
 def _hosts() -> list[Daemon]:
     """Every host of every workspace this machine's daemon holds, as it says."""
     at = where.at()
-    said = _asked(at, {"do": "list"})
+    said = _asks(at, "hosts.list", {})
+    listed: object = (
+        cast("dict[str, Any]", said).get("held") if isinstance(said, dict) else None
+    )
     found: list[Daemon] = []
-    listed: object = said.get("held")
     for one in cast("list[dict[str, Any]]", listed if isinstance(listed, list) else []):
         pid = one.get("pid")
         if not isinstance(pid, int) or not where.alive(pid):
-            # Gone, and the daemon not told yet: a socket handed it would go nowhere.
             continue
+        from hmz.rpc import PROTOCOL
+
         found.append(
             Daemon(
                 at=at,
@@ -710,48 +534,12 @@ def _other(said: dict[str, Any], workspace: str) -> Daemon:
         workspace=workspace,
         pid=pid if isinstance(pid, int) else 0,
         started=str(said.get("started") or ""),
-        protocol=protocol if isinstance(protocol, int) else 0,
+        protocol=protocol if isinstance(protocol, str) else "",
     )
 
 
-def _asked(at: Path, said: dict[str, Any]) -> dict[str, Any]:
-    """Puts one question to this machine's daemon, or through it to a workspace's host.
-
-    Args:
-      at: The daemon's directory.
-      said: What to ask, with the workspace it is about where it is about one.
-
-    Returns:
-      What it answered, and nothing at all where it would not answer.
-    """
-    try:
-        one = where.connects(at)
-    except OSError:
-        return {}
-    try:
-        one.settimeout(_ANSWERING)
-        one.sendall(spoken(CONTROL, said))
-        frames = Frames()
-        while True:
-            read = one.recv(1 << 16)
-            if not read:
-                return {}
-            for kind, payload in frames.feed(read):
-                if kind == CONTROL:
-                    return asked(payload)
-    except (OSError, ValueError):
-        return {}
-    finally:
-        with contextlib.suppress(OSError):
-            one.close()
-
-
 def _listening(at: Path) -> bool:
-    """Whether something is actually listening on the socket there.
-
-    A process of that number may be there and be something else entirely -- numbers come
-    round -- so the note beside the socket is not the whole of the answer.
-    """
+    """Whether something is actually listening on the socket there."""
     try:
         where.connects(at, _ANSWERS_AT_ONCE).close()
     except OSError:

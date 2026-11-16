@@ -171,7 +171,7 @@ def test_a_refusal_reads_the_same_through_the_daemon_as_in_this_process(
     here = linked(host, name="here")
     try:
         with held.link(name="there") as there:
-            for request in ({"do": "nope"}, {"do": "start", "flow": "./missing"}):
+            for request in ({"do": "start", "flow": "./missing"}, {"do": "claim"}):
                 with pytest.raises(Refused) as far:
                     there.asked(request)
                 with pytest.raises(Refused) as near:

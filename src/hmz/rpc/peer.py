@@ -158,6 +158,8 @@ class Peer:
         self._pipe = pipe
         self._serve = serve
         self._on_close = on_close
+        #: What else is told the session closed, as `closing` was given it.
+        self._closing: list[Callable[[], None]] = []
         #: Guards what follows, and makes closing and registering a call one or the other.
         self._lock = threading.Lock()
         #: One frame written at a time, whichever thread writes it.
@@ -173,6 +175,20 @@ class Peer:
     def closed(self) -> bool:
         """Whether the session has closed."""
         return self._closed.is_set()
+
+    def closing(self, told: Callable[[], None]) -> None:
+        """Has the session's closing told to a callback: once, at once where it has closed.
+
+        What keeps something for the session -- a subscription -- lets go of it here.
+
+        Args:
+          told: Called once, on whichever thread closes the session, after `on_close`.
+        """
+        with self._lock:
+            if not self.closed:
+                self._closing.append(told)
+                return
+        told()
 
     def wait(self, timeout: float | None = None) -> bool:
         """Waits for the session to close, and says whether it has."""
@@ -287,6 +303,10 @@ class Peer:
             call.cancelled.set()
         if self._on_close is not None:
             self._on_close()
+        with self._lock:
+            closing, self._closing = self._closing, []
+        for told in closing:
+            told()
 
     def _write(self, frame: bytes) -> None:
         """Writes one frame, closing the session where the pipe will not take it."""

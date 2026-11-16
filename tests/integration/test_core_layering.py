@@ -76,6 +76,7 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.flows": {"hmz.runtime.flowing", "hmz.coganchor.faking"},
     "hmz.runtime.doing": {
         "hmz.coganchor",
+        "hmz.rpc",
         "hmz.flows",
         "hmz.runtime.backing",
         "hmz.runtime.epic",
@@ -86,8 +87,18 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.telemetry",
         "hmz.runtime.tracing",
     },
-    # And serves its methods over `rpc`, as the other end of every session calls them.
-    "hmz.daemon": {"hmz.runtime", "hmz.rpc"},
+    # One endpoint per machine: frames and JSON-RPC, the devices it trusts, the carriers it
+    # listens on, and the settings that name them; the runs themselves are the runtime's.
+    "hmz.daemon": {
+        "hmz.coganchor",
+        "hmz.reach",
+        "hmz.rpc",
+        "hmz.rtc",
+        "hmz.runtime",
+        "hmz.trust",
+    },
+    # Where this machine's daemon is, which the carriers to it look up too.
+    "hmz.daemon.where": set(),
     # The methods a daemon serves beyond epics and sessions, each family through what keeps it.
     "hmz.daemon.api": {
         "hmz.coganchor",
@@ -253,8 +264,11 @@ def test_every_top_level_package_but_the_command_line_is_a_layer() -> None:
 
 
 def _may_name(layer: str, other: str) -> bool:
-    """Whether the table lets `layer` name `other`, or any module inside it."""
-    return any(_covers(one, other) or _covers(other, one) for one in ALLOWED[layer])
+    """Whether the table lets `layer` name `other`, or any module of `other`'s own layer."""
+    return any(
+        _covers(one, other) or (_covers(other, one) and _layer(one) == other)
+        for one in ALLOWED[layer]
+    )
 
 
 def test_no_two_layers_name_each_other_but_the_flow_api_and_its_engine() -> None:

@@ -432,6 +432,20 @@ def _server(argv: list[str]) -> int:
     return server(argv)
 
 
+def _daemon(argv: list[str]) -> int:
+    """Runs, reaches, pairs or installs this machine's daemon.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      That command's exit status.
+    """
+    from .daemon import daemon
+
+    return daemon(argv)
+
+
 def _relay(argv: list[str]) -> int:
     """Serves a relay daemons register with and devices reach them through, until stopped.
 
@@ -718,6 +732,7 @@ COMMANDS = {
         _server,
         "keep this machine's daemon reachable from others until stopped",
     ),
+    "daemon": (_daemon, "run, reach, pair and install this machine's daemon"),
     "relay": (_relay, "relay daemons and the devices that reach them"),
     "update": (_update, "update hmz to its newest release"),
     "backup": (_backup, "back epics up to git repositories, or download them"),
