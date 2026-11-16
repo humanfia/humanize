@@ -68,6 +68,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.tracing',
   ],
   'hmz.daemon': ['hmz.runtime'],
+  'hmz.rpc': [],
   'hmz.tui': [
     'hmz.coganchor',
     'hmz.flows',
@@ -148,6 +149,13 @@ const LAYERS: Layer[] = [
     note: 'Names the runtime by its front door, `hmz.runtime`.',
     spec: 'daemon.md#4-wire-protocol',
     ref: '/reference/daemon',
+  },
+  {
+    id: 'rpc',
+    dotted: 'hmz.rpc',
+    here: 'Frames and JSON-RPC 2.0 over any pipe: one end of a session, the methods it serves, and `session.hello`.',
+    note: 'Imports nothing of Humanize: both ends of every session speak it.',
+    spec: 'wire.md#6-frames-and-rpc',
   },
   {
     id: 'runtime',
@@ -253,6 +261,7 @@ const LAYERS: Layer[] = [
 const BANDS: { label: string; ids: string[] }[] = [
   { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
+  { label: 'the wire', ids: ['rpc'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
   { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },

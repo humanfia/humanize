@@ -97,6 +97,8 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.tracing",
     },
     "hmz.daemon": {"hmz.runtime"},
+    # Frames and JSON-RPC over any pipe, which every end of a session speaks: it names nothing.
+    "hmz.rpc": set(),
     "hmz.tui": {
         "hmz.coganchor",
         "hmz.flows",
