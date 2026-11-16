@@ -10,7 +10,8 @@ from textual.widgets import OptionList
 
 import hmz.daemon
 from hmz.coganchor import settings
-from hmz.daemon import Hmz, linked
+from hmz.daemon import linked
+from hmz.runtime import Holding, Host
 from hmz.tui import Humanize
 from hmz.tui.pick import Epics
 from hmz.tui.settings import Adjusts
@@ -34,7 +35,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-    from hmz.daemon import Host
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
 
 
 @pytest.fixture
@@ -52,7 +54,7 @@ def elsewhere(
     del workspace
     other = tmp_path / "elsewhere"
     other.mkdir()
-    host = Hmz(other).host()
+    host = Host(Holding(other))
     held = SimpleNamespace(workspace=str(other), status=host.status)
     monkeypatch.setattr(hmz.daemon, "daemons", lambda: [held])
     try:

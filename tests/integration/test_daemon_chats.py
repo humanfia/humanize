@@ -38,7 +38,6 @@ pytestmark = [
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     at = install(tmp_path, monkeypatch)
-    monkeypatch.delenv("HUMANIZE_DAEMON", raising=False)
     # A chat nobody reads folds in a moment.
     folds(1.0, monkeypatch)
     with hosting():

@@ -76,24 +76,19 @@ the current directory, as it was [last left](/reference/tui#what-it-remembers). 
 
 ### Where the runs are held {#where-runs-are-held}
 
-The interface is one frontend of a [host](/reference/daemon#hosting). Which host is decided
-once, at start, in this order:
+The interface is always one frontend of a [host](/reference/daemon#hosting) of this
+machine's daemon, reached over its unix socket, whatever the terminal. The runs are never held
+in the interface's process. Which host is decided once, at start, in this order:
 
 | # | Condition | The interface |
 | --- | --- | --- |
-| 1 | `HUMANIZE_DAEMON` stripped and lower-cased is `off`, `0` or `no` | holds the runs in this process. Nothing is said. |
-| 2 | stdin or stdout is not a TTY | holds the runs in this process. Nothing is said. |
-| 3 | this machine's daemon is found and its `protocol` is not `2`, or a host an older Humanize left holds this directory | is not opened. See [Errors](#hmz-errors). |
-| 4 | a host for this directory is found through the daemon | links to it as `kind="tui"`. |
-| 5 | no host is found | starts one, and the daemon where none is, with [`hmz.daemon.host()`](/reference/daemon#discovery), and links to it. |
+| 1 | this machine's daemon is found and its `protocol` is not `2`, or a host an older Humanize left holds this directory | is not opened. See [Errors](#hmz-errors). |
+| 2 | a host for this directory is found through the daemon | links to it as `kind="tui"`. |
+| 3 | no host is found | starts one, and the daemon where none is, with [`hmz.daemon.host()`](/reference/daemon#discovery), and links to it. |
 
-Steps 3–5 are tried up to **3** times, **0.5 s** apart, while linking raises `OSError`
-(a host found on its way out). After the third failure the interface holds the runs in this
-process and prints the last `OSError` (below).
-
-Holding the runs in this process changes one thing a person sees: `/exit` with a flow running
-offers **Cancel** instead of **Detach and exit**. See
-[TUI › `/exit`](/reference/tui#leaving-and-letting-go).
+Steps 1–3 are tried up to **3** times, **0.5 s** apart, while linking raises `OSError`
+(a host found on its way out). After the third failure the interface is not opened and the
+last `OSError` is printed (below).
 
 ### Terminal preparation
 
@@ -108,12 +103,19 @@ Before Textual is imported, `hmz` sets `TEXTUAL_DISABLE_KITTY_KEY=1` in its own 
 | The interface closed normally | — | `0` |
 | This machine's runs are held by an older Humanize (daemon `protocol` not `2`), or this directory's by a host one left | `hmz: the runs on this machine are held by an older Humanize (pid <n>); stop it with that version`, or `the runs in <dir> …` | `1` |
 | The host let go of the interface ([`gone`](/reference/daemon#gone)) | `hmz: <why>` (or `hmz: disconnected from the epics`), printed as the interface closes | `1` |
-| No host could be linked in 3 tries | `hmz: runs cannot be detached from the terminal (<OSError>), so they will run in this process instead` | the interface's |
+| No host could be linked in 3 tries | `hmz: the daemon cannot be reached: <OSError>` | `1` |
 
 ## `hmz exec` {#hmz-exec}
 
 Runs one [flow](/reference/flows) in the current directory (the *workspace*) to its return,
 with no interface. The run's [outworlder](#nobody-is-at-the-prompt) is always away.
+
+The flow does not run in `hmz exec`'s process. `hmz exec` attaches to a new exec slot
+(`exec:<hex>`, see [Daemon › Slots](/reference/daemon#slots)) of the workspace on this machine's
+daemon, starting the daemon where none runs, sets every role away, starts the epic there
+(`epic.start`), and follows its messages until `ended`, drawing them as below. Killing
+`hmz exec` (`SIGKILL`, or the terminal closing under it) does not stop the epic: the daemon's
+host runs it to its end. Only the [signals](#signals) it handles stop it.
 
 ```text
 usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
@@ -135,7 +137,7 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | `--profile-environment` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them. |
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
 | <span id="exec-json"></span>`--json` | flag | 0‥1 | off | Write the run as [NDJSON](#ndjson) on stdout. |
-| <span id="exec-backup"></span>`--backup` | a [backup target](/reference/settings#backup) name, or `none` | 0‥n, merged | `backup.defaults` | Where the epic is [backed up](/user/backups); `none` anywhere: nowhere. A name settings has none of exits `2`. Once the run has said how it went, `hmz exec` waits up to 60 s for the epic's backups, saying `hmz exec: backing the epic up` on stderr, and says where it left one. |
+| <span id="exec-backup"></span>`--backup` | a [backup target](/reference/settings#backup) name, or `none` | 0‥n, merged | `backup.defaults` | Where the epic is [backed up](/user/backups); `none` anywhere: nowhere. A name settings has none of exits `2`. The host holding the epic backs it up; `hmz exec` does not wait for it. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | <span id="exec-task"></span>`task` | positional string | exactly 1 (**required**) | — | What the flow is to do. Put `--` before a task that starts with `-`. |
 
@@ -379,8 +381,8 @@ the epic it `picked_up`. Without `--resume` every run starts from the top.
 | --- | --- | --- |
 | 1. argparse | Options, `-f` and `task` present. | Usage on stderr, `hmz exec: error: <why>`, exit `2`. |
 | 2. Spec parsing (`Hmz.read`) | Every `-a`, `-e`, `-p` against its grammar, and every `-e` provider against the runtimes saved; duplicate roles and keys. | Same as 1. |
-| 3. Loading (`Hmz.run` → `Runner`) | Flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`. | `hmz exec: error: <why>` (no usage), exit `2`. |
-| 4. Opening (`Run.run`, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's harness setting puts it, and the runtimes it goes to reached; skills fetched; with `--resume`, the journal picked up copied into the new epic. | `hmz exec: error: <why>`, exit `2`. |
+| 3. Loading (`Hmz.run` → `Runner`, the daemon's `flows.check`) | The daemon reached (else `hmz: the daemon cannot be reached: <why>`, exit `1`); flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`. | `hmz exec: error: <why>` (no usage), exit `2`. |
+| 4. Opening (`epic.start`, in the host, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's harness setting puts it, and the runtimes it goes to reached; skills fetched; with `--resume`, the journal picked up copied into the new epic. | `hmz exec: error: <why>`, exit `2`. |
 | 5. The flow | — | See [Exit statuses](#exit-statuses). |
 
 Nothing of an agent has started before stage 5. What a flow module does when imported (stage
@@ -511,6 +513,9 @@ key:
 
 Lines that are not events (`hmz exec: …` notes, the flow's own prints) go to stderr.
 
+What the flow prints in the host arrives as `printed` records: written to stdout without
+`--json`, to stderr with it.
+
 ```console
 $ hmz exec -f chat -a assistant=claude/claude-opus-5:high --json "say hello" | jq -c 'select(.kind == "result")'
 {"at":1789026740.6,"agent":"NeiKos496","cli":"claude","model":"claude-opus-5","session":"1d1ff959","kind":"result","text":"Hello.","whose":"","tokens":{"claude-opus-5":2080},"spent":{"input":2000,"output":80}}
@@ -543,9 +548,10 @@ nobody. `asks` events still appear in the output.
 
 | Signal | Effect | Exit |
 | --- | --- | --- |
-| `SIGINT`, `SIGTERM`, `SIGHUP` | The run is stopped as by `Run.stop()` (from a helper thread). The process waits until the run has let go of what it made — sessions closed, containers removed. `hmz exec` prints no traceback of its own. A signal already set to `SIG_IGN` (a hangup under `nohup`, an interrupt to a background job of a non-interactive shell) stays ignored. | `128 + signum` of the first: `130`, `143`, `129` |
-| a second `SIGTERM` or `SIGHUP` | Ignored while the run lets go. | as the first |
-| a second `SIGINT` | Ends the process at once, by `SIGINT` itself, without waiting for the run to let go: what it made may be left behind. | `130` (killed by `SIGINT`) |
+| `SIGINT`, `SIGTERM`, `SIGHUP` | The epic is stopped (`epic.stop`, as by `Run.stop()`, from a helper thread). The process waits for its `ended` record, once it has let go of what it made — sessions closed, containers removed. `hmz exec` prints no traceback of its own. A signal already set to `SIG_IGN` (a hangup under `nohup`, an interrupt to a background job of a non-interactive shell) stays ignored. | `128 + signum` of the first: `130`, `143`, `129` |
+| a second `SIGTERM` or `SIGHUP` | Ignored while the epic lets go. | as the first |
+| a second `SIGINT` | Forces the epic (`epic.force`: every session with a turn open closed), then ends the process at once, by `SIGINT` itself, without waiting for the epic to end. | `130` (killed by `SIGINT`) |
+| `SIGKILL`, or anything else that ends the process | The epic is not stopped: the daemon's host runs it to its end. | — |
 
 An interrupt that arrives while the flow is still being loaded, or after the run has ended,
 also exits `130` without a traceback.
@@ -570,9 +576,8 @@ Serves this directory's runs to a browser on this machine until `SIGINT`, `SIGTE
 started it takes it down even when that program crashes or is killed -- as one more frontend
 of them, named `browser`, of `kind` `web`. Once listening it prints
 `hmz web: http://127.0.0.1:<port>/?key=<key>` to stdout and opens that address in a browser.
-The runs are held as `hmz` holds them, but for the terminal: in this process where
-`HUMANIZE_DAEMON` is `off`, `0` or `no`, by this directory's host process otherwise. What it
-serves, refuses and answers is the [Web reference](/reference/web).
+The runs are held as `hmz` holds them: by this directory's host process, through this
+machine's daemon. What it serves, refuses and answers is the [Web reference](/reference/web).
 
 | Condition | stderr | Exit |
 | --- | --- | --- |
@@ -983,19 +988,19 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 | Status | Command | Meaning |
 | --- | --- | --- |
 | `0` | all | Success. For `hmz exec`, including a run its budget stopped. |
-| `1` | `hmz` | Runs held by an older Humanize; or the host let go of the interface. |
+| `1` | `hmz` | Runs held by an older Humanize; the daemon could not be reached; or the host let go of the interface. |
 | `1` | `hmz web` | Runs held by an older Humanize; or the runs or the port could not be had. |
 | `1` | `hmz server` | A server already running on `start`, none on `stop`, or it could not be started. |
 | `1` | `hmz daemon` | A daemon already running on `serve`; the daemon unreachable, of another protocol, or refusing; the service could not be installed. |
 | `1` | `hmz relay` | The address could not be listened on. |
 | `1` | `hmz update` | Installed from a source, or no installer, PyPI or install that worked. |
-| `1` | `hmz exec` | The flow raised (traceback on stderr; the crash is reported where reporting is on). |
+| `1` | `hmz exec` | The daemon could not be reached (`hmz: the daemon cannot be reached: <why>`); or the flow failed (the `why` of its `ended` record, the exception or traceback, on stderr; the host reports the crash where reporting is on). |
 | `1` | `internal …` | Could not connect, listen, supervise, or reach a socket. |
 | `2` | all | The line was wrong: argparse rejections and everything in [What is refused](#what-is-refused-before-anything-runs). |
 | `126` | `internal fence` | The fence could not be put up; the program never ran. |
 | `127` | `internal anchor --native` | The target has no such CLI. |
-| `130` | `hmz exec`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the run has let go of what it made. |
-| `129`, `143` | `hmz exec` | `SIGHUP`, `SIGTERM`, after the run has let go of what it made. |
+| `130` | `hmz exec`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the epic has let go of what it made. |
+| `129`, `143` | `hmz exec` | `SIGHUP`, `SIGTERM`, after the epic has let go of what it made. |
 | *program's* | `internal anchor`, `cred`, `fence` | The wrapped program's own status. |
 | *flow's* | `internal cli` | What the flow answered the run with. |
 
@@ -1007,7 +1012,6 @@ Variables these commands read. The complete list, with every layer's, is
 | Variable | Read by | Values | Effect |
 | --- | --- | --- | --- |
 | `HUMANIZE_HOME` | all | a path | Where Humanize keeps what outlives a run. Default `~/.hmz`, which a `~/.humanize` is moved to. Empty is unset. Not created until written. |
-| `HUMANIZE_DAEMON` | `hmz`, `hmz web` | `off`, `0`, `no` (case-insensitive, stripped) | Hold runs in the interface's process. Anything else, empty included, holds them apart. |
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
 | `HUMANIZE_RELEASES` | `hmz`, `hmz web`, `hmz update` | a URL, a path, or `off`, `0`, `no`, `none`, empty | Where the newest release is read from (PyPI's JSON for `hmz` by default); off, nothing asks. |

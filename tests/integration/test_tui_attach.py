@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.daemon import Hmz, linked
+from hmz.daemon import linked
+from hmz.runtime import Holding, Host
 from hmz.tui import Humanize
 from hmz.tui.pick import DETACHES, Leaves
 from tests.integration.doubles_tui import (
@@ -28,7 +29,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
     from pathlib import Path
 
-    from hmz.daemon import Host, Link
+    from hmz.daemon import Link
+
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
 
 
 @pytest.fixture
@@ -40,7 +44,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 @pytest.fixture
 def host(workspace: Path) -> Iterator[Host]:
     """The workspace's runs, held apart from any interface, and closed with the test."""
-    held = Hmz(workspace).host()
+    held = Host(Holding(workspace))
     try:
         yield held
     finally:

@@ -191,12 +191,12 @@ class Run:
 
     @property
     def raised(self) -> BaseException | None:
-        """Whatever the flow raised, for a run started on a thread of its own and now over."""
+        """Whatever the flow raised, once the run is over."""
         return self._raised
 
     @property
     def result(self) -> Any:
-        """What the flow returned, for a run started on a thread of its own and now over."""
+        """What the flow returned, once the run is over."""
         return self._result
 
     # ------------------------------------------------------------------------- running
@@ -252,8 +252,9 @@ class Run:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(self._main())
-        self.start()
+            self._drives()
+        else:
+            self.start()
         self.wait()
         if self._raised is not None:
             raise self._raised

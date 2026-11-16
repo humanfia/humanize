@@ -201,10 +201,6 @@ running, it asks first:
 <kbd>←</kbd> <kbd>→</kbd> or <kbd>tab</kbd> move between the buttons, and <kbd>enter</kbd>
 presses the one with the focus. A click presses one too.
 
-When Humanize cannot hold the run apart from the terminal (input or output is not a terminal,
-or `HUMANIZE_DAEMON=off` is set), the second button is **Cancel** instead, and the line under
-the question is not there.
-
 ## After a stop
 
 **Pick the run up** with `/resume`, or with the same `hmz exec` line plus `--resume`. This

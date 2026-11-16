@@ -8,9 +8,10 @@ import '../.vitepress/theme/components/ref-cli/ref.css'
 
 # SDK reference
 
-`hmz.sdk`: the supported import path for programs that drive Humanize. It defines nothing of
-its own but `Daemons`; every other name is the object the runtime or the daemon layer holds,
-handed through unchanged. Notation: [Conventions](/reference/#conventions).
+`hmz.sdk`: the supported import path for programs that drive Humanize. It defines `Hmz`,
+`Run`, `Client`, `Daemons` and `fakes`; every other name is the object the runtime or the
+daemon layer holds, handed through unchanged. Its epics are run by a daemon, never in the
+calling process. Notation: [Conventions](/reference/#conventions).
 
 ```python
 from hmz.sdk import Hmz, Daemons, Refused, fakes
@@ -19,15 +20,15 @@ from hmz.sdk import Hmz, Daemons, Refused, fakes
 ## Module {#module}
 
 ```python
-__all__ = ["Accounts", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses", "Hmz",
-           "Host", "Link", "Refused", "Run", "Runtimes", "fakes"]
+__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses",
+           "Hmz", "Link", "Refused", "Run", "Runtimes", "fakes"]
 def __getattr__(name: str) -> object: ...
 ```
 
 | Name | Kind | Defined in | Section |
 | --- | --- | --- | --- |
-| `Hmz` | class | `hmz.runtime` | [Hmz](#hmz) |
-| `Run` | class | `hmz.runtime` | [Run](#run) |
+| `Hmz` | class | `hmz.sdk.running` | [Hmz](#hmz) |
+| `Run` | class | `hmz.sdk.running` | [Run](#run) |
 | `Refused` | exception | `hmz.runtime` | [Refused](#refused) |
 | `Flows` | class | `hmz.runtime` | [Flows](#flows) |
 | `Flowverses` | class | `hmz.runtime` | [Flowverses](#flowverses) |
@@ -35,19 +36,19 @@ def __getattr__(name: str) -> object: ...
 | `Runtimes` | class | `hmz.runtime` | [Runtimes](#runtimes) |
 | `Fallbacks` | class | `hmz.runtime` | [Fallbacks](#fallbacks) |
 | `Epics` | class | `hmz.runtime` | [Epics](#epics) |
-| `Host` | class | `hmz.runtime` | [Host](#host) |
+| `Client` | class | `hmz.sdk.client` | [Client](#client) |
 | `Daemons` | class | `hmz.sdk.daemons` | [Daemons](#daemons) |
 | `Daemon` | frozen dataclass | `hmz.daemon` | [Daemon](#daemon) |
 | `Link` | class | `hmz.daemon` | [Link](#link) |
-| `fakes` | module | `hmz.runtime.flowing.fakes` | [fakes](#fakes) |
+| `fakes` | module | `hmz.sdk.faking` | [fakes](#fakes) |
 
 | Rule | |
 | --- | --- |
 | Lazy | Each name is imported from its layer on first access (module `__getattr__`). `import hmz.sdk` imports nothing else. |
-| Identity | `hmz.sdk.X is <layer>.X`: the same class, not a wrapper. |
+| Identity | `hmz.sdk.X is <layer>.X`: the same class, not a wrapper. `hmz.sdk.Hmz` subclasses `hmz.runtime.Hmz`. |
 | Unknown names | `AttributeError: module 'hmz.sdk' has no attribute '<name>'`. |
 | `fakes` | A module attribute: `from hmz.sdk import fakes` works; `import hmz.sdk.fakes` raises `ModuleNotFoundError`. |
-| Stability | Names in `__all__` are stable. Types they return that are not in `__all__` (`Line`, `Offer`, `Declaration`, `Provider`, …, listed under [Returned types](#returned-types)) are internal: their fields are documented as they are. |
+| Stability | Names in `__all__` are stable. Types they return that are not in `__all__` (`Line`, `Opened`, `Offer`, `Declaration`, `Provider`, …, listed under [Returned types](#returned-types)) are internal: their fields are documented as they are. |
 
 ## `Hmz` {#hmz}
 
@@ -84,17 +85,13 @@ cached on the instance.
 
 | Method | Returns | Raises |
 | --- | --- | --- |
-| [`run(flow, task, *, …)`](#hmz-run) | [`Run`](#run) | `Refused` |
-| [`runner(flow, *, …)`](#hmz-runner) | `Runner` | `Refused` |
+| [`run(flow, task, *, …)`](#hmz-run) | [`Run`](#run) | `Refused`, `OSError` |
+| [`runner(flow, *, …)`](#hmz-runner) | `Runner` | `Refused`, `OSError` |
 | [`read(argv)`](#hmz-read) | [`Line`](#line) | `SystemExit` |
-| [`exec(argv)`](#hmz-exec) | `Any` | `SystemExit`, `Refused`, what the flow raises |
-| `host(slot="")` | [`Host`](#host) | `ValueError` |
+| [`exec(argv)`](#hmz-exec) | `Any` | `SystemExit`, `Refused`, `OSError`, what the flow raised |
 | `backends()` | `tuple[Profile, ...]` | — |
 | `reports()` | `bool` | — |
 
-- `host(slot="")`: a [`Host`](#host) of this workspace, created on first call with that slot
-  and cached on the instance. Frontends attached to it share one run. `slot` is `""` for the
-  workspace's own, or `chat:<hex>` for one chat's; anything else raises `ValueError`.
 - `backends()`: every coding-agent CLI Humanize drives, installed or not, as internal
   `hmz.coganchor.backends.Profile` objects (`.name`, `.aliases`, `.efforts`, `.installs`, …).
   `[p.name for p in Hmz().backends()]` is `['claude', 'agy', 'codex', 'dsh', 'grok', 'kimi',
@@ -125,6 +122,11 @@ Equivalent to `Run(self.runner(flow, agents=…, envs=…, params=…, budget=�
 profile_environment=…, resume=…), task, outworlder=outworlder)`. Nothing starts. Where each agent's harness runs is not a parameter:
 it is the `harness` setting of the [runtime](#runtimes) its work is on.
 
+The epic is held by this machine's [daemon](/reference/daemon), started where none runs, and
+outlives the program that asked for it. Where any role is given a driver object (a
+`fakes.FakeAgentDriver`, …), it is held instead by a private daemon of the calling program's
+own, as [`run_fake`](#fakes) holds it.
+
 | Parameter | Accepts | Default |
 | --- | --- | --- |
 | `flow` | A [`-f` ref](/reference/cli#naming-a-flow) or a path. | — |
@@ -136,10 +138,10 @@ it is the `harness` setting of the [runtime](#runtimes) its work is on.
 | `profile_flow` | Whether to [profile](/reference/tracing#profiling-a-run) the flow's own Python, as well as tracing the run; as `--profile-flow`. | `False` |
 | `profile_environment` | Whether to [profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them; as `--profile-environment`. | `False` |
 | `resume` | `False`: from the top. `True`: the newest resumable epic of this flow here. A path: that epic. | `False` |
-| `outworlder` | The driver filling `Outworlder` roles (e.g. `fakes.FakeOutworlder`). `None`: always away, as under `hmz exec`. | `None` |
+| `outworlder` | The driver answering `Outworlder` roles (e.g. `fakes.FakeOutworlder`), from this process: the run claims each such role, sets away those its `away_for` says, and answers each question with what its `run(text, None, role)` returns. `None`: every role away, as under `hmz exec`. | `None` |
 
-Raises [`Refused`](#refused) for everything [`hmz exec` refuses at stage
-3](/reference/cli#processing-order), in the same words, plus:
+Raises `OSError` where the daemon cannot be reached, and [`Refused`](#refused) for everything
+[`hmz exec` refuses at stage 3](/reference/cli#processing-order), in the same words, plus:
 
 | Condition | Message |
 | --- | --- |
@@ -163,9 +165,10 @@ def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, profile_
            profile_environment=False, resume=False) -> Runner
 ```
 
-Parameters and refusals as [`run`](#hmz-run), without `task` and `outworlder`. Returns the
-internal `hmz.runtime.runner.Runner`: the flow loaded (its module imported), a driver made for
-every role, everything checked. Making a driver starts no CLI and reaches no machine.
+Parameters and refusals as [`run`](#hmz-run), without `task` and `outworlder`. Asks the
+daemon that is to hold the epic to check it (`flows.check`), and returns the internal
+`hmz.sdk.running.Runner`: what `epic.start` will be called with, and what the check answered.
+Nothing is started, and no CLI or machine is reached.
 
 ### `Hmz.read` {#hmz-read}
 
@@ -193,7 +196,8 @@ run = hmz.run(line.flow, line.task, agents=line.agents, envs=line.envs,
 def exec(self, argv: list[str]) -> Any
 ```
 
-`read(argv)`, then `run(…)`, then `Run.run()`. Returns what the flow returned. Unlike the
+`read(argv)`, then `run(…)`, then `Run.run()`. Returns what the flow returned, as the
+`ended` record says it. Raises `OSError` where the daemon cannot be reached. Unlike the
 `hmz exec` command it draws nothing, installs no signal handlers and does not convert
 `Refused` or `BudgetExceeded` into an exit status.
 
@@ -205,7 +209,11 @@ class Run:
                  outworlder: OutworlderDriver | None = None) -> None
 ```
 
-One run of one flow. Made by [`Hmz.run`](#hmz-run). Constructing one starts nothing.
+One epic, held by a daemon on a new exec slot (`exec:<hex>`) of the workspace and followed
+by a subscription of a [`Client`](#client) of its own. Made by [`Hmz.run`](#hmz-run).
+Constructing one starts nothing. If its session ends before the `ended` record, the run
+attaches again where it left off; where it cannot, it ends with
+`RuntimeError("the daemon went away")`.
 
 ### Properties {#run-properties}
 
@@ -214,42 +222,49 @@ One run of one flow. Made by [`Hmz.run`](#hmz-run). Constructing one starts noth
 | `flow` | `str` | The flow as named. |
 | `ref` | `str` | Its canonical ref (`chat:chat`, `humanize1:rlcr`). |
 | `task` | `str` | |
-| `declaration` | [`Declaration`](#declaration) | What the flow declares. |
+| `declaration` | `dict` | What the flow declares: the `declared` mapping the daemon's check answered. |
 | `budget` | `Budget` | What the run may spend. |
 | `profile_flow`, `profile_environment` | `bool` | Whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run) as well as traced. |
-| `usage` | `hmz.flows.Usage` | Spent so far: `duration: timedelta`, `cost: float`, `output_tokens: int`. |
-| `agents` | `tuple[AgentBase, ...]` | The coganchor agent behind each **open** session, oldest first. Empty for fake drivers. |
-| `epic` | `Path \| None` | The epic directory, once started. |
-| `running` | `bool` | Whether a run started with `start()` (or `run()` from a thread already running an event loop) is still going. Always `False` for `run()` on a thread without a loop. |
-| `raised` | `BaseException \| None` | For a run started with `start()` and over: what the flow raised (`asyncio.CancelledError` after `stop()`). |
-| `result` | `Any` | For a run started with `start()` and over: what the flow returned. |
+| `usage` | `hmz.flows.Usage` | Spent so far, as the latest `usage` record says: `duration: timedelta`, `cost: float`, `output_tokens: int`. |
+| `agents` | `tuple[Opened, ...]` | Each **open** session, oldest first, as its `opened` record said it. |
+| `epic` | `Path \| None` | The epic directory, once the daemon names it. |
+| `running` | `bool` | Whether it is going: from `start()` until its `ended` record. |
+| `raised` | `BaseException \| None` | Once over: `asyncio.CancelledError` (stopped), `BudgetExceeded` (budget), `Refused` (refused), `RuntimeError(why)` (failed or crashed), else `None`. On a private daemon, the very exception the flow raised. |
+| `result` | `Any` | Once over: the `result` of the `ended` record (JSON). On a private daemon, the very object the flow returned. |
 
 ### Methods {#run-methods}
 
 | Method | Returns | Behaviour |
 | --- | --- | --- |
-| `run()` | `Any` | Runs the flow on an event loop in this thread until it returns; returns its result or raises what it raised. From a thread already running an event loop, runs on a new thread and waits. Raises `Refused` before the flow is called if an environment cannot be reached or is too small. |
-| `start()` | `None` | Runs it on a new thread and returns at once. `RuntimeError` if already started. |
-| `wait(timeout: float \| None = None)` | `bool` | Blocks until the run ends or `timeout` seconds pass; returns whether it ended. |
-| `stop()` | `None` | Interrupts the turn under way; every flow call raises `CancelledError` where it stands; sessions are closed and temporary directories removed as the flow unwinds. Thread-safe. Does not wait. |
-| `close()` | `None` | `stop()`, then closes every open session and agent at once. The flow sees a failed turn. |
-| `unreadable()` | `str` | The budget cap nothing driven can enforce, in words (the [`hmz exec` note](/reference/cli#writing-a-budget)), or `""`. A finite `cost` limit first brings a missing or stale price list up to date (at most 20 s), as `run` and `start` do. Raises `Refused` if the price list gives a price that is not a finite number. |
-| `watch(listener)` | `None` | Registers `listener(agent: AgentBase, session: SessionBase \| None, event: Event)`, called for every event of every session from the thread that read it. Watching also stops CLIs writing their own progress to this process's streams. |
-| `noticed(callback)` | `None` | Registers `callback(text: str)`, called on the run's loop with Humanize's own word about the run before the flow is called: an environment moved down its runtime's [fallback list](/reference/machines#falling-back) (`docker:a cannot hold 'box': <why>; using docker:b`). |
-| `opened(callback)` | `None` | Registers `callback(role: str, agent: AgentBase, session: SessionBase, where: Placement | None)` (`where` is `None` where the driver reports no placement), called on the run's loop as each session opens, before its first turn. |
+| `run()` | `Any` | `start()`, then waits for the `ended` record; returns `result` or raises `raised`. |
+| `start()` | `None` | Attaches to a new exec slot of the workspace, sets every role away (or, with an outworlder, claims its roles), and starts the epic (`epic.start`); returns at once. `Refused` if `epic.start` is refused; `OSError` if the daemon cannot be reached; `RuntimeError` if already started. |
+| `wait(timeout: float \| None = None)` | `bool` | Blocks until the `ended` record comes or `timeout` seconds pass; returns whether it came. |
+| `stop()` | `None` | Stops the epic (`epic.stop`); every flow call raises `CancelledError` where it stands. Thread-safe. Does not wait. |
+| `close()` | `None` | `stop()`, then forces the epic (`epic.force`) where it has not ended, and lets go of the daemon. |
+| `unreadable()` | `str` | The budget cap nothing driven can enforce, in words (the [`hmz exec` note](/reference/cli#writing-a-budget)), or `""`, as the daemon's check answered it. |
+| `watch(listener)` | `None` | Registers `listener(agent: str, session: str \| None, event: dict)`, called with the agent's name, its session's key, and the `event` record, for every event of every session, from the client's thread. |
+| `noticed(callback)` | `None` | Registers `callback(text: str)`, called with every `notice` record: Humanize's own word about the run, such as an environment moved down its runtime's [fallback list](/reference/machines#falling-back) (`docker:a cannot hold 'box': <why>; using docker:b`). |
+| `printed(callback)` | `None` | Registers `callback(text: str)`, called with every line the host printed while it held the epic (`printed` records). |
+| `opened(callback)` | `None` | Registers `callback(role: str, opened: Opened)`, called as each `opened` record comes, before any event of that session. |
 
-`AgentBase`, `SessionBase` and `Event` are coganchor's ([Agents](/reference/agents)).
+`Opened` (`hmz.sdk.running`, frozen dataclass): `key` (`<agent>/<n>`), `role`, `agent`, `cli`,
+`model`, `person: bool`, `env: dict \| None`, `harness`. Records: [Daemon](/reference/daemon).
 
 ## `Refused` {#refused}
 
 ```python
-class Refused(ValueError): ...
+class Refused(ValueError):
+    def __init__(self, message: str, *, code: int = 0, data: dict | None = None) -> None
+    code: int
+    data: dict[str, Any]
 ```
 
-A run, or a request to a host, refused before anything of it ran. `str(error)` is the message
-`hmz exec` prints after `hmz exec: error: `, and the reason a host gives every frontend.
-`__cause__` is the underlying exception where there was one (`FlowException`, `SpecError`,
-`pydantic.ValidationError`).
+A run, or a request to a daemon or host, refused before anything of it ran. `str(error)` is
+the message `hmz exec` prints after `hmz exec: error: `, and the reason a host gives every
+frontend. `code` is the daemon's error code (409 for a host's refusal, 503 once a
+[`Client`](#client)'s session has ended, 0 for a refusal made in the calling process); `data`
+is the error's further fields, or `{}`. `__cause__` is the underlying exception where there
+was one (`FlowException`, `SpecError`, `pydantic.ValidationError`).
 
 ## `Flows` {#flows}
 
@@ -399,29 +414,43 @@ places tried after it, in order.
 | `bundled(epic, *, output, transcript=None)` | `tuple[Path, dict]` | One `.hmzepic` of the whole run, credentials struck out. `output` (required): a file, or a directory to put it in. Returns the path and its manifest. [Exporting a run](/user/export). |
 | `imported(archive)` | `Path` | Reads a `.hmzepic` back in as an epic of the workspace it ran in, wherever that is. `ValueError` for anything else, an unsafe member, or an epic already here. [Importing a run](/user/export#importing-a-run). |
 
-## `Host` {#host}
+## `Client` {#client}
 
 ```python
-class Host:
-    def __init__(self, hmz: Hmz) -> None
+class Client:
+    @classmethod
+    def local(cls, *, name: str = "", kind: str = "sdk") -> Client
+    def call(self, method: str, params: Mapping[str, Any] | None = None, *,
+             idem: str | None = None, seconds: float | None = None) -> Any
+    def heard(self, listener: Callable[[str, dict[str, Any]], None]) -> None
+    def close(self) -> None
+    def __enter__(self) -> Self
+    def __exit__(self, *exc) -> None      # close()
+    daemon_id: str
+    version: str
+    protocol: str
+    capabilities: tuple[str, ...]
+    device: str
 ```
 
-A workspace's runs as every attached frontend shares them. `Hmz().host()` holds one in this
-process; a [daemon](/reference/daemon) holds one in its own. Frontends reach it through
-[`Link`](#link) rather than calling it directly.
+One session of the [wire protocol](/reference/daemon) with one daemon, for a program that
+wants the methods themselves. What [`Run`](#run) follows its epic with.
 
-| Member | Returns | Behaviour |
-| --- | --- | --- |
-| `attach(name, kind, heard, *, replay=True)` | `str` | Attaches a frontend; returns its client id. `kind`: `tui`, `web`, `cli` or `sdk`. `name` `""`: login + `@kind`; duplicates get `#2`, `#3`. `heard(message)` is called on a thread of the host's. `RuntimeError` once closed. |
-| `detach(client)` | `None` | Lets one frontend go: its claims are released and its asides closed. |
-| `attached` | `int` | Property: frontends attached. |
-| `idle` | `bool` | Property: nothing running or stopping, nobody attached, and no unread ended run. |
-| `closed` | `bool` | Property. |
-| `away_for(role)` | `bool` | What `afk` last said of that role, else of every role. |
-| `printed(text)` | `None` | Sends one `printed` line to every frontend. |
-| `asked(client, said)` | `dict` | Carries out one [request](/reference/daemon#requests); returns `{"ok": …, "why"?: …}`. |
-| `status()` | `dict` | See [`Daemon.status`](/reference/daemon#status). |
-| `close()` | `None` | Closes every run, tells every frontend `gone`, and waits a bounded time for runs to release what they made. |
+| Member | Behaviour |
+| --- | --- |
+| `local(name="", kind="sdk")` | A session with this machine's daemon over its unix socket, the daemon started where none runs. `OSError`: it cannot be reached or started, or speaks another protocol. |
+| `call(method, params=None, *, idem=None, seconds=None)` | Makes one call (a method `protocol/openrpc.json` lists) and waits for its result. `idem`, where given, is added to `params` as the write's idempotency key. Raises [`Refused`](#refused) with the error's message, `code` and `data`, or with code 503 (`the daemon went away`) once the session has ended; `TimeoutError("no answer to '<method>' in <s>s")`, the call then cancelled. |
+| `heard(listener)` | Hands every notification, those already waiting first, to `listener(method, params)` on a thread of the client's own, in order; what it raises is let go. `RuntimeError` if a listener is already set. |
+| `close()` | Ends the session and every subscription of it; every epic goes on. Idempotent. |
+| `closed` | Property: whether the session has ended. |
+| `daemon_id`, `version`, `protocol`, `capabilities`, `device` | What `session.hello` answered. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local(name="ci") as client:
+    print(client.call("hosts.list"))
+```
 
 ## `Daemons` {#daemons}
 
@@ -491,9 +520,8 @@ class Link:
     def __exit__(self, *exc) -> None      # close()
 ```
 
-One frontend of a [`Host`](#host), in this process or over a daemon's socket; the same class
-either way. Obtained from [`Daemon.link`](#daemon), or `hmz.daemon.linked(host, …)` for a host
-in this process.
+One frontend of a workspace's host, over this machine's daemon. Obtained from
+[`Daemon.link`](#daemon).
 
 | Member | Behaviour |
 | --- | --- |
@@ -501,7 +529,7 @@ in this process.
 | `told(message)` | Called by the transport to deliver a message. Not for callers. |
 | `heard(listener)` | Delivers every message, already-queued ones first, to `listener` on a thread of the link's own, in order. `RuntimeError` if a listener is already set. |
 | `__iter__` | Yields every message in order until `gone` or `close()`. `RuntimeError` if a listener is set. |
-| `asked(said, *, seconds=None)` | Sends one [request](/reference/daemon#requests) and waits (`seconds=None`: indefinitely; ignored in process). Returns the reply (`ok: true`). Raises [`Refused`](#refused) with the reply's `why`, or `TimeoutError("no answer to '<do>' in <s>s")`. |
+| `asked(said, *, seconds=None)` | Sends one [request](/reference/daemon#requests) and waits (`seconds=None`: indefinitely). Returns the reply (`ok: true`). Raises [`Refused`](#refused) with the reply's `why`, or `TimeoutError("no answer to '<do>' in <s>s")`. |
 | `start(…)` | `start` request. `agents`/`envs`: specs as `-a`/`-e` after `<role>=`. `params`, `budget`: mappings or models (serialised). `profile_flow`, `profile_environment`: whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run). Reply carries `run`. |
 | `say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board`, `aside` | The request of the same name. |
 | `close()` | Lets go of the host; runs continue. |
@@ -509,8 +537,7 @@ in this process.
 Every method that sends a request goes through `asked` and raises `Refused` when refused,
 including after the host has gone (the reason is then the [`gone`](/reference/daemon#gone)
 reason). `Link` has no helpers for the `unaside`, `status`, `detach` and `quit` requests: send
-them with `asked({"do": …})`. Transport differences (socket or in process) are in
-[Daemon › Link](/reference/daemon#link).
+them with `asked({"do": …})`. Transport behaviour is in [Daemon › Link](/reference/daemon#link).
 
 ```python
 from hmz.sdk import Daemons
@@ -526,16 +553,25 @@ with (Daemons().here() or Daemons().host()).link(name="ci", replay=False) as lin
 
 ## `fakes` {#fakes}
 
-`hmz.runtime.flowing.fakes`, whole. `__all__`:
+`hmz.sdk.faking`: the drivers of `hmz.runtime.flowing.fakes`, handed through, and `run_fake`. `__all__`:
 
 | Name | Is |
 | --- | --- |
-| `run_fake(flow, task="", *, agents=None, envs=None, params=None, budget=None, outworlder=None, local=None, journal=None, resume=False, recorder=None)` | Runs a flow on fakes in memory. |
-| `FakeAgentDriver(harness=HarnessKind.CLAUDE, *, reply=None, model="fake", effort="", provider="", capabilities=None, cost=0.0, output_tokens=1, seconds=0.0, forks=None, names_late=False)` | A scripted agent driver. Also accepted by `Hmz.run(agents=…)`, which then writes a real epic. |
+| `run_fake(flow, task="", *, agents=None, envs=None, params=None, budget=None, outworlder=None, local=None, journal=None, resume=False)` | Runs a flow on fakes through a private daemon; returns or raises the very object the flow returned or raised. |
+| `FakeAgentDriver(harness=HarnessKind.CLAUDE, *, reply=None, model="fake", effort="", provider="", capabilities=None, cost=0.0, output_tokens=1, seconds=0.0, forks=None, names_late=False)` | A scripted agent driver. Also accepted by `Hmz.run(agents=…)`, which then runs the epic on a private daemon. |
 | `FakeSession` | A session of a `FakeAgentDriver`. |
 | `FakeEnvDriver(files=None, *, workdir="/work", backend=EnvBackendKind.LOCAL, provider="", capabilities=None, cpu_count=8, memory=64 GiB, gpu_count=0, gpu_memory=0, run=None, refs=("HEAD", "main"), repo=True)` | An in-memory environment. |
 | `FakeOutworlder(reply=None, *, away=False)` | An outworlder answering from a script. |
 | `Answer`, `Command`, `Handler`, `Reply` | Type aliases for the scripts above. |
+
+Driver objects cannot be handed to another process, so an epic given any (`run_fake`, or
+`Hmz.run` with a driver for a role) is held by a **private daemon** the calling program starts
+in its own process, reached over a socket pair. Its hosts run in that process too, so a fake's
+`prompts` and the rest are filled in; each driver is named to it as `fake:<key>`. It has a
+temporary home and machine directory of its own (with a copy of the settings file), never
+touches this machine's daemon, and is torn down when `run_fake` returns or raises, or the
+[`Run`](#run) has ended -- the epic written in its home with it, so `Hmz().epics` never lists a
+run on fakes.
 
 Semantics: [Flows › Testing a flow](/reference/flows#testing-a-flow).
 

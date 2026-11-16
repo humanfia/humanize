@@ -35,6 +35,9 @@ from tests.integration.doubles_core import (
 if TYPE_CHECKING:
     from pathlib import Path
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 #: A flow working somewhere other than the workspace, which `-e` names.
 ELSEWHERE = """
 from typing import NotRequired

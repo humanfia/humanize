@@ -17,19 +17,16 @@ from hmz.runtime import (
     Flows,
     Flowverses,
     Hmz,
-    Host,
+    Holding,
     Run,
     Runtimes,
     runner,
     telemetry,
 )
-from hmz.runtime.doing import running
 from hmz.runtime.settings import Settings
 from tests.unit.runtime import doubles_u12 as doubles
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     from tests.unit.runtime.doubles_u12 import Stands
 
 
@@ -162,7 +159,7 @@ def making(monkeypatch: pytest.MonkeyPatch) -> Making:
 
 
 def test_a_runner_is_made_in_this_workspace(making: Making, tmp_path: Path) -> None:
-    made: Any = Hmz(tmp_path).runner(
+    made: Any = Holding(tmp_path).runner(
         "ralph",
         agents={"builder": "claude/opus"},
         envs={"box": "local/x"},
@@ -191,7 +188,7 @@ def test_a_runner_is_made_in_this_workspace(making: Making, tmp_path: Path) -> N
 def test_a_runner_of_no_workspace_named_runs_wherever_humanize_is(
     making: Making,
 ) -> None:
-    Hmz().runner("chat")
+    Holding().runner("chat")
 
     assert making.made[0].said == {
         "agents": (),
@@ -211,7 +208,9 @@ def test_a_run_is_a_runner_and_its_task_with_nothing_started(
 ) -> None:
     someone: Any = object()
 
-    run = Hmz(tmp_path).run("ralph", "fix it", budget={"cost": 1}, outworlder=someone)
+    run = Holding(tmp_path).run(
+        "ralph", "fix it", budget={"cost": 1}, outworlder=someone
+    )
 
     assert isinstance(run, Run)
     assert run.task == "fix it"
@@ -220,97 +219,9 @@ def test_a_run_is_a_runner_and_its_task_with_nothing_started(
     assert run.running is False
 
 
-@dataclass
-class Ran:
-    """A run stood in for: what it was made with, and what running it returns."""
-
-    held: list[Ran] = field(default_factory=list["Ran"])
-    runner: Any = None
-    task: str = ""
-    outworlder: Any = None
-
-    def __call__(self, runner: Any, task: str, *, outworlder: Any = None) -> Ran:
-        made = Ran(runner=runner, task=task, outworlder=outworlder)
-        self.held.append(made)
-        return made
-
-    def run(self) -> str:
-        return f"ran {self.task}"
-
-
-def test_a_line_is_run_to_its_return_on_what_it_names(
-    making: Making, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    ran = Ran()
-    monkeypatch.setattr(running, "Run", ran)
-
-    said = Hmz(tmp_path).exec(
-        [
-            "-f",
-            "ralph",
-            "-a",
-            "builder=claude/opus:high",
-            "-e",
-            "box=local/srv",
-            "-p",
-            "rounds=2,budget.cost=3",
-            "--profile-flow",
-            "--profile-environment",
-            "--resume",
-            "fix it",
-        ]
-    )
-
-    assert said == "ran fix it"
-    (made,) = making.made
-    assert made.flow == "ralph"
-    assert [str(one) for one in made.said["agents"]] == ["builder=claude/opus:high"]
-    assert [str(one) for one in made.said["envs"]] == ["box=local/srv"]
-    assert made.said["params"] == {"rounds": "2"}
-    assert made.said["budget"].cost == 3.0
-    assert made.said["profile_flow"] is True
-    assert (made.said["profile_environment"], made.said["resume"]) == (True, True)
-    assert made.said["workspace"] == tmp_path
-    assert ran.held[0].runner is made
-    assert ran.held[0].outworlder is None
-
-
-def test_a_line_that_is_not_one_runs_nothing(making: Making) -> None:
-    with pytest.raises(SystemExit):
-        Hmz().exec(["--nope"])
-    assert making.made == []
-
-
-@pytest.fixture
-def hmz(tmp_path: Path) -> Iterator[Hmz]:
-    made = Hmz(tmp_path)
-    yield made
-    made.host().close()
-
-
-def test_the_host_is_one_however_often_asked(hmz: Hmz) -> None:
-    host = hmz.host()
-
-    assert isinstance(host, Host)
-    assert hmz.host() is host
-
-
-def test_a_chat_has_a_host_of_its_own(hmz: Hmz) -> None:
-    host = hmz.host("chat:3fa9")
-
-    try:
-        assert host is not hmz.host()
-        assert hmz.host("chat:3fa9") is host
-    finally:
-        host.close()
-
-
-@pytest.mark.parametrize(
-    "slot", ["foo", "chat:", "chat:XYZ", "chat:3FA9", " chat:3fa9"]
-)
-def test_any_other_slot_is_refused(hmz: Hmz, slot: str) -> None:
-    with pytest.raises(ValueError, match="a slot is '' or chat:<hex>"):
-        hmz.host(slot)
+def test_the_workspace_itself_neither_runs_nor_holds_an_epic() -> None:
+    for name in ("run", "runner", "exec", "host"):
+        assert not hasattr(Hmz, name)
 
 
 def test_the_line_adding_an_extra_is_the_one_installed_says(

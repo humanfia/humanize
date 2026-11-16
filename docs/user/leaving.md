@@ -80,17 +80,13 @@ Start a flow, as in [Your first run](/user/first-run). Then type `/exit`, or pre
   <span class="p">│</span>  <span class="p b">A flow is running.</span>                                            <span class="p">│</span>
   <span class="p">│</span>  <span class="m">Detached, it keeps running: run `hmz` here to reattach.</span>       <span class="p">│</span>
   <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">│</span> <span class="sel"> Stop the flow and exit </span> <span class="btn"> Detach and exit </span>                     <span class="p">│</span> <span class="n">1</span>
+  <span class="p">│</span> <span class="sel"> Stop the flow and exit </span> <span class="btn"> Detach and exit </span>                     <span class="p">│</span>
   <span class="p">│</span>                                                                <span class="p">│</span>
   <span class="p">│</span>  <b>enter</b> stop   <b>esc</b> stay                                         <span class="p">│</span>
   <span class="p">│</span>                                                                <span class="p">│</span>
   <span class="p">╰────────────────────────────────────────────────────────────────╯</span></pre>
 
 </Term>
-
-1. **Detach and exit**, and the line under the question, are only there where the run can
-   outlive the terminal. Where it cannot, the button in its place is **Cancel**; see
-   [below](#when-it-cant-be-left-running).
 
 **Stop the flow and exit** has the focus as the box opens. Press <kbd>→</kbd> to move to
 **Detach and exit**, then <kbd>enter</kbd>, or click it. Your shell comes back, and the flow is
@@ -142,23 +138,6 @@ What to look at, by number:
 - **Nobody watching at all.** A run with no one at any window belongs on a command line: see
   [Run it unattended](/user/unattended).
 
-## When it can't be left running {#when-it-cant-be-left-running}
-
-Then the interface holds the run in its own process, and closing the terminal ends the run.
-`/exit` offers **Cancel** in place of **Detach and exit**. That happens when:
-
-- **stdin or stdout is not a terminal**: output redirected to a file, or input from a pipe;
-- **`HUMANIZE_DAEMON` is `off`**, `0` or `no`, for a machine where a run should end with its
-  window:
-
-  ```sh
-  HUMANIZE_DAEMON=off hmz
-  ```
-
-- **Humanize could not set it up**, which it says as it opens:
-  `hmz: runs cannot be detached from the terminal (…), so they will run in this process
-  instead`.
-
 ## Troubleshooting
 
 ### `hmz` opened on an idle prompt, not on my run
@@ -176,10 +155,11 @@ finished. `/epics` lists it with how it ended. A flow that can be picked up carr
 
 A question was put to you and nobody answered. Turn [`/afk`](/user/afk) on before you leave.
 
-### `/exit` offers `Cancel` instead of `Detach and exit`
+### `hmz: the daemon cannot be reached: …`
 
-The run cannot outlive this terminal. See
-[When it can't be left running](#when-it-cant-be-left-running).
+`hmz` always holds its runs through this machine's daemon, starting it where none runs, and
+could not reach or start it; the reason follows the colon. `hmz` does not open without it.
+Fix what the reason names and run `hmz` again.
 
 ## Next steps
 

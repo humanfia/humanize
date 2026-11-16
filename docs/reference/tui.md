@@ -30,7 +30,7 @@ class Humanize(App[None]):
 | `flow` | `""` | The flow to open on. `""`: the flow remembered for this directory, else `chat`. |
 | `agents` | `None` | What each agent role runs. `None`: what is remembered for the flow, with unremembered roles [filled by default](#default-fill). |
 | `params` | `None` | The flow's params. `None`: remembered, else the flow's defaults. |
-| `link` | `None` | The [link](/reference/daemon#link) to a host. `None`: a `Host` in this process, linked as `kind="tui"`. |
+| `link` | `None` | The [link](/reference/daemon#link) to a host. `None`: the workspace's host, attached through this machine's daemon as `kind="tui"` when it mounts. |
 
 `hmz` constructs `Humanize(link=…)` or `Humanize()` as described in
 [CLI › Where the runs are held](/reference/cli#where-runs-are-held); `app.return_code or 0` is
@@ -266,7 +266,7 @@ Each command's line in the completion list:
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
 | `/stop` | `Stop the flow without confirmation` | |
-| `/exit` | `Exit` | `Exit; a running flow can be left running` (daemon) or `Exit; asks before stopping the running flow` (in process) — a run but a [chat](#chat) is going |
+| `/exit` | `Exit` | `Exit; a running flow can be left running` — a run but a [chat](#chat) is going |
 
 The completion list shows the commands that are available in the view, not refused and not
 unlisted, alphabetically. Availability and about texts are re-evaluated whenever the view, the
@@ -364,13 +364,13 @@ stopping, the next `ctrl+c` [forces](#ctrl-c) it.
 
 ### `/exit` {#leaving-and-letting-go}
 
-Same as `ctrl+q`. In a [chat](#chat) it asks nothing: a chat held in process ends with the
-interface, and one a host holds is left to it.
+Same as `ctrl+q`. In a [chat](#chat) it asks nothing: the chat is left to the host that holds
+it.
 
 | State | Effect |
 | --- | --- |
 | no run going (and none stopping) | Leaves at once. |
-| a run stopping, host is a daemon | Leaves at once and sends `force` (closes the run's conversations). |
+| a run stopping | Leaves at once and sends `force` (closes the run's conversations). |
 | a run going | Opens the [box](#boxes) below. |
 
 ```text
@@ -386,13 +386,10 @@ interface, and one a host holds is left to it.
 ╰────────────────────────────────────────────────────────────────╯
 ```
 
-The second line only where a daemon holds the run.
-
 | Button | Tooltip | Effect |
 | --- | --- | --- |
-| `Stop the flow and exit` (focused) | `stop it for everybody reading it` | In process: closes the host. Daemon: sends `force` (waits up to 10 s), then leaves. Stops the run for every frontend. |
-| `Detach and exit` (daemon) | ``run `hmz` here to reattach`` | Closes btw and the link, and leaves. The run continues; claims are released; away settings remain. `hmz` here reads the run again from the top. |
-| `Cancel` (in process; replaces `Detach and exit`) | `keep the interface open` | Stays. |
+| `Stop the flow and exit` (focused) | `stop it for everybody reading it` | Sends `force` (waits up to 10 s), then leaves. Stops the run for every frontend. |
+| `Detach and exit` | ``run `hmz` here to reattach`` | Closes btw and the link, and leaves. The run continues; claims are released; away settings remain. `hmz` here reads the run again from the top. |
 | `esc` · click outside the box | | Stays. |
 
 ## Starting a flow outright (`$`) {#starting-a-flow-outright}
@@ -1494,7 +1491,7 @@ default on.
 | Shown | **System** ▾ `ring the terminal's bell and show a system notification too`: `on` (`ring the bell and notify the system`), `off` (`a card in hmz alone`) | `notifications.system` |
 
 Every epic on this machine is watched from the start of `hmz`, asking each host the daemon
-holds (and the runs held in this process) how it stands every 2 seconds, never attaching. A
+holds how it stands every 2 seconds, never attaching. A
 notice of a kind turned on is a toast at the bottom right, titled `Done`, `Failed`, `Stopped`,
 `Question` or `Chat turn`, reading `<flow> · <workspace directory> · <what it asked or said,
 else its task>`, `Failed` as an error; with **System** on, also the terminal bell and OSC 9
@@ -2225,7 +2222,6 @@ Textual.
 | Variable | Effect |
 | --- | --- |
 | `HUMANIZE_HOME` | Location of `settings.yaml`, `history.jsonl`, and everything else not this machine's alone ([Files › Roots](/reference/files#roots)). |
-| `HUMANIZE_DAEMON` | `off`/`0`/`no`: [runs held in process](/reference/cli#where-runs-are-held). |
 | `HUMANIZE_NAME` | This frontend's name before `@tui`. |
 | `HUMANIZE_SENTRY` | `on`/`1`/`true`/`yes` or `off`/`0`/`false`/`no`: answers reporting for this process. |
 | `HUMANIZE_PRICES` | Price source URL or path; `""`, `off`, `0`, `no`, `none`: none. |

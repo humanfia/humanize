@@ -340,8 +340,9 @@ class Router:
         from hmz.rpc import Dispatcher
 
         dispatcher = Dispatcher()
-        found = families()
-        served = {**found, **methods(self, found)}
+        #: The families' methods, which `epic.start` checks an epic with as it is served.
+        self.families = families()
+        served = {**self.families, **methods(self, self.families)}
         for name, handler in served.items():
             try:
                 dispatcher.register(name, self._guarded(name, handler))

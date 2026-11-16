@@ -12,7 +12,6 @@ daemon instead, which starts nothing.
 
 from __future__ import annotations
 
-import contextlib
 import threading
 import time
 from dataclasses import dataclass, field
@@ -52,7 +51,6 @@ class Place:
       held: Each of its hosts' runs as this interface follows them, while it does.
       used: When a page last asked anything of each, on the monotonic clock.
       streams: How many pages follow each now.
-      hosting: The runs held in this process, where they are not held apart.
     """
 
     workspace: Path
@@ -60,7 +58,6 @@ class Place:
     held: dict[str, Held] = field(default_factory=dict[str, "Held"])
     used: dict[str, float] = field(default_factory=dict[str, float])
     streams: dict[str, int] = field(default_factory=dict[str, int])
-    hosting: dict[str, Any] = field(default_factory=dict[str, Any])
 
 
 class Places:
@@ -68,15 +65,12 @@ class Places:
 
     Args:
       here: Where the interface was started, which a new epic is offered first.
-      apart: Whether the runs are held apart from this process, by each workspace's host --
-        which is what lets them outlive it -- or in it.
     """
 
-    def __init__(self, here: Path, *, apart: bool) -> None:
+    def __init__(self, here: Path) -> None:
         from hmz import daemon
 
         self.here = here.resolve()
-        self._apart = apart
         self._lock = threading.Lock()
         self._places: dict[Path, Place] = {}
         self._closed = threading.Event()
@@ -136,16 +130,7 @@ class Places:
             there = place.held.get(slot)
             if there is not None and not (slot and there.gone):
                 return there
-            hosting = place.hosting.get(slot)
-        if (
-            slot
-            and not starts
-            and not (
-                hosting is not None and not hosting.closed
-                if not self._apart
-                else self._daemon.running(place.workspace, slot=slot)
-            )
-        ):
+        if slot and not starts and not self._daemon.running(place.workspace, slot=slot):
             raise Refusal("This chat has folded away.", 409)
         try:
             held = Held(lambda: self._linking(place, slot), again=not slot)
@@ -221,26 +206,19 @@ class Places:
         ]
 
     def close(self) -> None:
-        """Lets go of every link, and of the runs held in this process where they are."""
+        """Lets go of every link; the daemon goes on holding the runs."""
         self._closed.set()
         with self._lock:
             places, self._places = list(self._places.values()), {}
         for place in places:
             for held in place.held.values():
                 held.close()
-            for hosting in place.hosting.values():
-                hosting.close()
 
     def _linking(self, place: Place, slot: str) -> Link:
-        """A link to one of a workspace's hosts, attached: apart, or in this process."""
-        daemon = self._daemon
-        if self._apart:
-            return daemon.attach("web", "browser", workspace=place.workspace, slot=slot)
-        with self._lock:
-            hosting = place.hosting.get(slot)
-            if hosting is None:
-                hosting = place.hosting[slot] = place.hmz.host(slot)
-        return daemon.linked(hosting, "browser", kind="web")
+        """A link to one of a workspace's hosts, attached through the daemon."""
+        return self._daemon.attach(
+            "web", "browser", workspace=place.workspace, slot=slot
+        )
 
     def _looking(self) -> None:
         """Lets go of links nobody uses, and asks the daemon what runs, until closed."""
@@ -265,44 +243,18 @@ class Places:
                         threading.Thread(
                             target=held.close, daemon=True, name="hmz-web"
                         ).start()
-                    # A chat's runs held here, folded away and read by nobody, are let go of
-                    # as its host process would go.
-                    for slot, hosting in list(one.hosting.items()):
-                        if slot and slot not in one.held and hosting.idle:
-                            del one.hosting[slot]
-                            threading.Thread(
-                                target=hosting.close, daemon=True, name="hmz-web"
-                            ).start()
-            if self._apart:
-                self._asks_the_daemon()
+            self._asks_the_daemon()
 
     def statuses(self) -> dict[str, dict[str, Any]]:
         """How the runs of every host on this machine stand, attaching to none.
 
-        Apart, what each host the daemon holds says of itself; otherwise, what the runs held
-        in this process say, of each workspace a page has reached.
-
         Returns:
-          Each host's status with its `workspace`, its whole path, by workspace and slot.
+          What each host the daemon holds says of itself, with its `workspace`, its whole
+          path, by workspace and slot.
         """
-        if self._apart:
-            from hmz.daemon.api import workspaces
+        from hmz.daemon.api import workspaces
 
-            return workspaces.statuses()
-        said: dict[str, dict[str, Any]] = {}
-        with self._lock:
-            hosts = [
-                (str(one.workspace), slot, hosting)
-                for one in self._places.values()
-                for slot, hosting in one.hosting.items()
-            ]
-        for workspace, slot, hosting in hosts:
-            with contextlib.suppress(Exception):
-                said[f"{workspace}\0{slot}"] = {
-                    **hosting.status(),
-                    "workspace": workspace,
-                }
-        return said
+        return workspaces.statuses()
 
     def _asks_the_daemon(self) -> None:
         """What the daemon says runs in each host no link here follows."""

@@ -348,7 +348,6 @@ def test_the_server_keeps_easytier_going_until_terminated(
     assert serving.read.read() == b"up\n"
     assert serving.listened == {
         "port": easytier.PORT,
-        "apart": True,
         "key": f"key-of-{SECRET}",
     }
     assert serving.told == [(SECRET, {"peers": [PEER]})] * 2
