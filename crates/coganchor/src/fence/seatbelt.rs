@@ -24,6 +24,7 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::Path;
 
+use crate::fence::policy::{depth, under};
 use crate::fence::{Able, Fence};
 
 /// The command a profile is applied with (`SANDBOX_EXEC`).
@@ -216,25 +217,12 @@ fn carved(
     lines
 }
 
-/// The names a path is looked up by, `/` left out (`_names`).
-fn names(path: &str) -> Vec<&str> {
-    path.split('/')
-        .filter(|one| !one.is_empty() && *one != ".")
-        .collect()
-}
-
-fn depth(path: &str) -> usize {
-    names(path).len()
-}
-
-/// Whether `path` is `root` or beneath it (`_under`).
-fn under(path: &str, root: &str) -> bool {
-    path == root || path.starts_with(&format!("{}/", root.trim_end_matches('/')))
-}
-
 /// Every directory a path is beneath, but `/` (`_above`).
 fn above(path: &str) -> Vec<String> {
-    let names = names(path);
+    let names: Vec<&str> = path
+        .split('/')
+        .filter(|one| !one.is_empty() && *one != ".")
+        .collect();
     (1..names.len())
         .map(|index| format!("/{}", names[..index].join("/")))
         .collect()

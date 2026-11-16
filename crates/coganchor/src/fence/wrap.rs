@@ -190,8 +190,6 @@ pub fn expanded(fence: &Fence) -> std::io::Result<(Vec<String>, Vec<String>)> {
             ranked.push((one.clone(), rank(fence.level(one)).unwrap_or(0)));
         }
     }
-    let strictly =
-        |path: &str, root: &str| path.starts_with(&format!("{}/", root.trim_end_matches('/')));
     let mut read: Vec<String> = Vec::new();
     let mut write: Vec<String> = Vec::new();
     let mut granted = |path: String, level: usize| {
@@ -211,8 +209,6 @@ pub fn expanded(fence: &Fence) -> std::io::Result<(Vec<String>, Vec<String>)> {
         ranked: &[(String, usize)],
         granted: &mut dyn FnMut(String, usize),
     ) -> std::io::Result<()> {
-        let strictly =
-            |path: &str, root: &str| path.starts_with(&format!("{}/", root.trim_end_matches('/')));
         let unlisted =
             |why: std::io::Error| os_error(why.raw_os_error().unwrap_or(libc::EIO), directory);
         let mut entries: Vec<std::fs::DirEntry> = std::fs::read_dir(directory)
@@ -266,6 +262,11 @@ pub fn expanded(fence: &Fence) -> std::io::Result<(Vec<String>, Vec<String>)> {
         }
     }
     Ok((read, write))
+}
+
+/// Whether `path` is strictly beneath `root`.
+fn strictly(path: &str, root: &str) -> bool {
+    path.starts_with(&format!("{}/", root.trim_end_matches('/')))
 }
 
 /// A scratch made for one run, removed when it is dropped.

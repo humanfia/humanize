@@ -813,12 +813,12 @@ fn resolved(path: &str, dots: &[String], home: &str) -> Vec<String> {
     };
     roots
         .into_iter()
-        .map(|root| normpath(&format!("{root}/{rest}")))
+        .map(|root| normpath(&joined_to(root, rest)))
         .collect()
 }
 
 /// How many names deep a path is (`_depth`).
-fn depth(path: &str) -> usize {
+pub(crate) fn depth(path: &str) -> usize {
     names(OsStr::new(path)).len()
 }
 
@@ -960,7 +960,17 @@ pub fn absolute(path: &str) -> String {
     let here = std::env::current_dir()
         .map(|dir| dir.to_string_lossy().into_owned())
         .unwrap_or_else(|_| "/".into());
-    normpath(&format!("{here}/{path}"))
+    normpath(&joined_to(&here, path))
+}
+
+/// `os.path.join(root, rest)` for a relative `rest`: no second `/` after a root that ends in
+/// one, which `normpath` would keep as POSIX's `//`.
+fn joined_to(root: &str, rest: &str) -> String {
+    if root.ends_with('/') {
+        format!("{root}{rest}")
+    } else {
+        format!("{root}/{rest}")
+    }
 }
 
 /// Paths as a fence holds them: absolute, with no `..`, each once, in order (`_normal`).
@@ -1286,6 +1296,16 @@ mod tests {
         let homeless = Fence::of(&rules, true, WORK, "", "", &[], &[], &[]).unwrap();
         assert_eq!(homeless.level(WORK), READ);
         assert_eq!(homeless.level("/home/someone/x"), NONE);
+    }
+
+    #[test]
+    fn a_workdir_or_home_at_the_root_carves_out_beneath_it() {
+        let rules = ruled(&[(".", WRITE), ("./secret", NONE), ("~/.ssh", NONE)]);
+        let fence = Fence::of(&rules, true, "/", "/", "", &[], &[], &[]).unwrap();
+        assert_eq!(fence.level("/secret/key"), NONE);
+        assert_eq!(fence.level("/.ssh/id"), NONE);
+        assert_eq!(fence.level("/src"), WRITE);
+        assert_eq!(fence.beside("/", "/").level("/secret/key"), NONE);
     }
 
     #[test]

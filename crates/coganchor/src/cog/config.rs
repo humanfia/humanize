@@ -214,7 +214,7 @@ pub fn refused(config: &AnchorConfig, harness: &Target, net: &str) -> Result<(),
         }
     }
     if let Some(fence) = &config.fence
-        && !open(fence)
+        && !fence.open()
     {
         fenceable(fence, &harness.scheme, config.net_remote || net == "remote")?;
     }
@@ -241,17 +241,6 @@ pub fn refused(config: &AnchorConfig, harness: &Target, net: &str) -> Result<(),
         }
     }
     Ok(())
-}
-
-/// `Fence.open`: the whole filesystem to write, nothing carved out of it, and the network.
-fn open(fence: &Fence) -> bool {
-    fence.online
-        && fence
-            .write
-            .iter()
-            .any(|one| abspath(one).is_ok_and(|one| one == "/"))
-        && fence.keep.is_empty()
-        && fence.deny.is_empty()
 }
 
 /// `AnchorConfig._fenceable` (anchor.py:348-371): a fence this session could not hold.
