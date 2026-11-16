@@ -2,8 +2,10 @@
 
 What every turn of an agent whose permission fences anything is spawned as, outermost of
 whatever else the turn is wrapped in: the program runs here, unchanged and on this terminal,
-walled in by Landlock and, where the network is cut, by a socket filter and a proxy that
-passes only the hosts its model is at. :mod:`hmz.coganchor.fence.wrap` is what does it.
+walled in -- by Landlock on Linux, which a grant something is carved out of is taken apart
+entry by entry for, or by Seatbelt on a Mac -- and, where the network is cut, by a socket
+filter and a proxy that passes only the hosts its model is at.
+:mod:`hmz.coganchor.fence.wrap` is what does it.
 
 Its own command rather than something the driver does in this process, for the reason
 `hmz internal cred` is: a wall can only be put up by the process it walls in, just before it

@@ -1,6 +1,6 @@
 """Running a command on this machine held to the fence its turn is held to.
 
-A client whose agent is fenced says so with every command it has run here, in the levels its
+A client whose agent is fenced says so with every command it has run here, in the rules its
 flow's permission was drawn from (:func:`hmz.coganchor.fence.abroad.told`). This end draws the
 fence again around its own paths -- the directories it exports as the workdir, this user's own
 home, this machine's minimum -- and runs the command under ``hmz internal fence``, the same
@@ -58,7 +58,7 @@ def fenced(
     """The command to run in place of one, so that it runs inside its fence.
 
     Args:
-      said: The levels the client said, as :func:`~hmz.coganchor.fence.abroad.told` says them.
+      said: The rules the client said, as :func:`~hmz.coganchor.fence.abroad.told` says them.
       table: What this machine exports, each directory of which is a workdir.
       argv: The command.
       program: The path the client's agent ran it by, or None to look `argv[0]` up. One this
@@ -70,7 +70,7 @@ def fenced(
 
     Raises:
       PermissionError: If this machine cannot hold the fence.
-      ValueError: If what was said is not a fence's levels.
+      ValueError: If what was said is not a fence's rules.
     """
     from hmz.coganchor import fence
     from hmz.coganchor.fence import abroad

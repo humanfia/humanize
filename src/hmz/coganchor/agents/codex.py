@@ -338,8 +338,8 @@ def _abroad(config: AgentConfig, sandbox: object) -> bool:
     """Whether a rung's sandbox is held by the fence rather than by Codex.
 
     Where the agent's turns land on another machine and its fence -- held there by the
-    anchor, on both machines -- is at least as narrow as the rung: nothing of the workdir, the
-    home or the system written at `read-only`, nothing of the home or the system at
+    anchor, on both machines -- is at least as narrow as the rung: no rule it was drawn from
+    writing anything at `read-only`, none writing anything but the workdir at
     `workspace-write`. A fence wider than the rung, or none, leaves the rung to Codex's own
     sandbox, which is what it always was.
 
@@ -365,18 +365,18 @@ def _abroad(config: AgentConfig, sandbox: object) -> bool:
       True where the turn is to be told its commands are sandboxed from outside
       (:data:`_EXTERNAL`).
     """
-    from hmz.coganchor.fence import ALL
+    from hmz.coganchor.fence import WRITE
 
     fence = config.fence
     if fence is None or fence.open or sandbox not in _SANDBOXED:
         return False
     if config.machine is None:
         return sys.platform in ("darwin", "linux")
-    if len(fence.scopes) != 3:  # noqa: PLR2004
+    if not fence.drawn:
         return False
-    local, user, system = fence.scopes
-    written = (local, user, system) if sandbox == "read-only" else (user, system)
-    return ALL not in written
+    if sandbox == "read-only":
+        return all(access != WRITE for _, access in fence.standing)
+    return not fence.outward
 
 
 @functools.cache

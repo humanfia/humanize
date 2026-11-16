@@ -349,15 +349,15 @@ class AnchorConfig:
         """Refuses a fence this session could not hold, as the settings are read.
 
         Raises:
-          ValueError: If the fence was drawn path by path, and so has no levels to draw it
+          ValueError: If the fence was drawn path by path, and so has no rules to draw it
             again on the target with; if the harness is on another machine, whose paths the
             fence does not name; or if the agent's own connections are sent to the target
             while its network is to be cut here, which would send them past the proxy.
         """
-        if not self.fence or not self.fence.scopes:
+        if not self.fence or not self.fence.drawn:
             raise ValueError(
                 "a fence drawn path by path cannot be held on another machine; draw it "
-                "from its levels with Fence.of"
+                "from its rules with Fence.of"
             )
         if harness != "local":
             raise ValueError(
@@ -793,14 +793,16 @@ class _Walls:
     """The fence around a supervised agent, on both sides of the anchor.
 
     Here, the agent process itself: the fence as it was drawn on this machine, with the
-    mirror granted as the workspace is -- the mirror being the workspace, to a process whose
+    mirror drawn as the workspace is -- the mirror being the workspace, to a process whose
     every path into it is rewritten into the mirror -- put up in the forked child
     (:class:`~hmz.coganchor.supervisor.Launch`), with the proxy that is its one way out
     served by this process, outside the wall. There, every command the agent has run: the
-    fence's levels, :attr:`told` with each one, for the target to draw the fence again around
+    fence's rules, :attr:`told` with each one, for the target to draw the fence again around
     its own paths. The supervisor, its link to the target and its mirror are all outside it,
     which is what lets a session reach a target over ssh while its agent reaches no host but
-    its model's.
+    its model's. What the fence carves out is held by Landlock as the mirror stands when the
+    wall is drawn (:func:`~hmz.coganchor.fence.wrap.expanded`): what is fetched into a
+    directory taken apart after that stays out of the agent's reach, failing closed.
 
     Args:
       fence: What the agent may reach.
@@ -810,23 +812,21 @@ class _Walls:
       PermissionError: If this machine cannot put the wall up.
       ValueError: If a path it writes, or its scratch, leads through a link a fenced program
         could have made (:meth:`~hmz.coganchor.fence.Fence.reach`).
+      OSError: If a carve-out cannot be held: a directory above it cannot be listed.
     """
 
     def __init__(self, fence: Fence, mirror: str) -> None:
         import tempfile
 
-        from hmz.coganchor.fence import ALL, READ, Proxy, abroad, landlocked
+        from hmz.coganchor.fence import Proxy, abroad, landlocked
+        from hmz.coganchor.fence.wrap import expanded
 
         if not landlocked(net=not fence.online):
             raise PermissionError(
                 "this machine cannot fence the agent: it needs Landlock"
                 + ("" if fence.online else " ABI 4 and seccomp")
             )
-        level = fence.scopes[0] if fence.scopes else ""
-        self.fence = fence.granting(
-            read=[mirror] if level == READ else [],
-            write=[mirror] if level == ALL else [],
-        )
+        self.fence = fence.beside(mirror, home=os.path.expanduser("~"))
         #: Whether the wall lets the agent change the mirror, and so the workspace: what the
         #: supervisor replays on the target is held to it (`Supervisor.writes`).
         self.writes = self.fence.allows(mirror, write=True)
@@ -838,9 +838,11 @@ class _Walls:
             replace(fence, tmp=self.tmp), home=os.path.expanduser("~"), native=False
         )
         self._proxy = None if fence.online else Proxy(fence.hosts)
-        # Made and opened here, before the agent is forked, and granted as the very files
-        # opened: never a link an earlier turn put at one of their names.
-        self._held = replace(self.fence, tmp=self.tmp).ready()
+        # Taken apart around what is carved out of it, which Landlock cannot say; and what
+        # is written, made and opened here, before the agent is forked, and granted as the
+        # very files opened: never a link an earlier turn put at one of their names.
+        self._read, written = expanded(self.fence)
+        self._held = replace(self.fence, tmp=self.tmp).ready(written)
 
     def around(self, launch: Launch) -> Launch:
         """The launch, walled in, with the environment a fenced program runs with."""
@@ -852,7 +854,7 @@ class _Walls:
             launch,
             env=environ(self.fence, launch.env, tmp=self.tmp, port=port),
             walled=landlock.Ruleset(
-                read=self.fence.read,
+                read=self._read,
                 held=[fd for fd in self._held.values() if fd is not None],
                 connect_ports=() if port is None else (port,),
                 # As `hmz internal fence` has them: a port the kernel picks, and the ones the

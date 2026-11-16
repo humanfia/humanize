@@ -1,4 +1,4 @@
-"""A fence said in levels for another machine, and drawn again there around its own paths."""
+"""A fence said in rules for another machine, and drawn again there around its own paths."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor.fence import ALL, NONE, READ, Fence
+from hmz.coganchor.fence import NONE, READ, WRITE, Fence
 from hmz.coganchor.fence.abroad import HOME, drawn, installed, ready, told
 
 if TYPE_CHECKING:
@@ -18,18 +18,16 @@ WORK = "/home/someone/work"
 HERE = "/home/someone"
 
 
+RULES = [["/", NONE], ["~", READ], [".", WRITE]]
+
+
 def fence_of(
-    local: str = ALL,
-    user: str = READ,
-    system: str = NONE,
-    *,
+    *rules: tuple[str, str],
     online: bool = False,
     write: tuple[str, ...] = (),
 ) -> Fence:
     return Fence.of(
-        local=local,
-        user=user,
-        system=system,
+        rules=rules or [(path, access) for path, access in RULES],
         online=online,
         workdir=WORK,
         home=HERE,
@@ -38,10 +36,10 @@ def fence_of(
     )
 
 
-def test_told_a_supervised_cli_says_only_the_levels() -> None:
+def test_told_a_supervised_cli_says_only_the_rules() -> None:
     said = told(fence_of(write=(f"{HERE}/.cli",)), home=HERE, native=False)
 
-    assert said == {"local": ALL, "user": READ, "system": NONE, "online": False}
+    assert said == {"rules": RULES, "online": False}
 
 
 def test_told_a_supervised_cli_says_its_scratch() -> None:
@@ -73,7 +71,7 @@ def test_told_refuses_a_fence_drawn_path_by_path() -> None:
         told(Fence(read=("/a",)), home=HERE, native=False)
 
 
-def test_drawn_grants_the_levels_around_the_targets_own_paths(tmp_path: Path) -> None:
+def test_drawn_grants_the_rules_around_the_targets_own_paths(tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()
     said = told(
@@ -85,15 +83,34 @@ def test_drawn_grants_the_levels_around_the_targets_own_paths(tmp_path: Path) ->
     fence = drawn(said, workdirs=["/srv/work"], home=str(home))
 
     assert fence.allows("/srv/work/a.py", write=True)
-    # Drawn as the home rather than asked of a path in it, `tmp_path` being under /tmp,
-    # which a workdir of ALL writes.
-    assert str(home) in fence.read
+    # Drawn as the home rather than asked of a path in it: read, and never written as the
+    # home -- though `tmp_path` may be under /tmp, which a workdir that may be written writes.
+    assert fence.allows(home)
     assert str(home) not in fence.write
     assert fence.allows(home / ".cli" / "state", write=True)
     assert not fence.online
     assert fence.hosts == ("api.example.com",)
     assert fence.listen == (8123,)
-    assert fence.scopes == (ALL, READ, NONE)
+    assert fence.drawn == tuple((path, access) for path, access in RULES)
+
+
+def test_drawn_carves_out_around_the_targets_own_paths(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    said = told(
+        fence_of(("/", READ), (".", WRITE), ("./secret", NONE), ("~/.ssh", NONE)),
+        home=HERE,
+        native=False,
+    )
+
+    fence = drawn(said, workdirs=["/srv/work", "/srv/more"], home=str(home))
+
+    assert fence.allows("/srv/work/a.py", write=True)
+    assert not fence.allows("/srv/work/secret/key")
+    assert fence.allows("/srv/more/a.py", write=True)
+    assert not fence.allows("/srv/more/secret/key")
+    assert not fence.allows(home / ".ssh" / "id")
+    assert fence.allows(home / ".bashrc")
 
 
 @pytest.mark.parametrize("home", ["/", "missing", ""])
@@ -101,7 +118,7 @@ def test_drawn_without_a_home_keeps_nothing_under_one(
     tmp_path: Path, home: str
 ) -> None:
     where = str(tmp_path / home) if home == "missing" else home
-    said = {"local": ALL, "user": READ, "system": NONE, "write": [f"{HOME}.cli"]}
+    said = {"rules": RULES, "write": [f"{HOME}.cli"]}
 
     fence = drawn(said, workdirs=["/srv/work"], home=where)
 
@@ -111,12 +128,12 @@ def test_drawn_without_a_home_keeps_nothing_under_one(
 
 @pytest.mark.parametrize(
     ("local", "write", "read"),
-    [(ALL, True, True), (READ, False, True), (NONE, False, False)],
+    [(WRITE, True, True), (READ, False, True), (NONE, False, False)],
 )
 def test_drawn_grants_every_workdir_as_the_first(
     local: str, write: bool, read: bool
 ) -> None:
-    said = {"local": local, "user": NONE, "system": NONE}
+    said = {"rules": [[".", local]]}
 
     fence = drawn(said, workdirs=["/srv/one", "/srv/two"], home="/")
 
@@ -126,9 +143,7 @@ def test_drawn_grants_every_workdir_as_the_first(
 
 def test_drawn_keeps_the_scratch_and_more_paths() -> None:
     said = {
-        "local": NONE,
-        "user": NONE,
-        "system": NONE,
+        "rules": [],
         "tmp": "/tmp//scratch/",
         "write": ["/var/state"],
     }
@@ -144,14 +159,18 @@ def test_drawn_keeps_the_scratch_and_more_paths() -> None:
     assert fence.allows("/var/state/x", write=True)
 
 
-LEVELS = {"local": NONE, "user": NONE, "system": NONE}
+LEVELS: dict[str, Any] = {"rules": [["/", NONE]]}
 
 
 @pytest.mark.parametrize(
     "said",
     [
-        {"user": NONE, "system": NONE},
-        {**LEVELS, "local": "write"},
+        {},
+        {"rules": "/"},
+        {"rules": [["/"]]},
+        {"rules": [["/", 1]]},
+        {"rules": [["/", "all"]]},
+        {"rules": [["relative", READ]]},
         {**LEVELS, "online": "yes"},
         {**LEVELS, "hosts": "api.example.com"},
         {**LEVELS, "hosts": [1]},
@@ -170,7 +189,7 @@ LEVELS = {"local": NONE, "user": NONE, "system": NONE}
     ],
 )
 def test_drawn_refuses_what_is_not_a_fence(said: dict[str, Any]) -> None:
-    with pytest.raises(ValueError, match="fence"):
+    with pytest.raises(ValueError, match=r"fence|rule"):
         drawn(said, workdirs=["/srv/w"], home="/")
 
 

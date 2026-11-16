@@ -12,7 +12,9 @@ where the network is cut, the socket filter is loaded and so is the filter that 
 ``bind`` and ``listen`` for the parent to answer (:mod:`hmz.coganchor.fence.loopback`), whose
 descriptor is handed up to it; the Landlock ruleset is applied; and the program is run. A step
 that fails is a program that does not run -- never one that runs with less of the wall than
-was asked for.
+was asked for. Landlock only allows, so what a fence carves out of a grant is held by granting
+what is around it instead (:func:`expanded`), worked out before the fork; a carve-out that
+cannot be held so is a program that does not run either.
 
 Where the network is cut the parent is also the subreaper of everything inside: a process
 that left its parent behind -- a daemon that forked twice -- is still one of the wrapper's
@@ -43,14 +45,14 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
-from hmz.coganchor.fence import Fence, Proxy
+from hmz.coganchor.fence import LEVELS, WRITE, Fence, Proxy
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from hmz.coganchor.fence.loopback import Supervisor
 
-__all__ = ["CACHES", "PROXIES", "environ", "run"]
+__all__ = ["CACHES", "PROXIES", "environ", "expanded", "run"]
 
 #: The variables every common HTTP client reads its proxy from, in both the spellings they are
 #: read in -- curl reads only the lower-case `http_proxy`, most others either.
@@ -122,6 +124,76 @@ def environ(
     return held
 
 
+def expanded(fence: Fence) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """What Landlock grants to read, and to write, to hold a fence's carve-outs.
+
+    Landlock only allows: a rule grants a directory and everything beneath it, and nothing a
+    rule beneath it says takes any of that back. So a grant that holds a path carved out
+    narrower than it is not granted itself. Its entries are, one by one -- each as it is,
+    but one on the way to such a path, which is taken apart the same way, down to the path
+    itself, which is granted at its own level or not at all. A path granted beneath a
+    carve-out is granted on its own, being in the fence's grants.
+
+    What is granted is what is there as this is asked: an entry made later in a directory
+    that was taken apart is in nothing granted, and so out of reach -- which is the fence
+    failing closed rather than open. So is the directory itself: a rule that let it be listed
+    would let everything beneath it be listed too, the carve-out with it, so a directory taken
+    apart can be neither listed nor added to, only gone through. Nor is a symbolic link among
+    the entries granted, a rule on a link being a rule on wherever it leads; what it leads to
+    is held by whatever holds that.
+
+    Args:
+      fence: The fence.
+
+    Returns:
+      The paths to read, and the paths to write -- the fence's own grants where nothing is
+      carved out of them.
+
+    Raises:
+      OSError: If a directory that has to be taken apart cannot be listed, and so the carve-out
+        beneath it cannot be held.
+    """
+    if not (fence.keep or fence.deny):
+        return fence.read, fence.write
+    paths = (*fence.read, *fence.write, *fence.keep, *fence.deny)
+    rank = {one: LEVELS.index(fence.level(one)) for one in paths}
+    read: list[str] = []
+    write: list[str] = []
+
+    def granted(path: str, level: int) -> None:
+        (write if LEVELS[level] == WRITE else read).append(path)
+
+    def under(path: str, root: str) -> bool:
+        return path.startswith(root.rstrip(os.sep) + os.sep)
+
+    def apart(directory: str, level: int, narrower: list[str]) -> None:
+        with os.scandir(directory) as entries:
+            for entry in sorted(entries, key=lambda one: one.name):
+                path = os.path.join(directory, entry.name)  # noqa: PTH118
+                if path in rank or entry.is_symlink():
+                    continue
+                if beneath := [one for one in narrower if under(one, path)]:
+                    apart(path, level, beneath)
+                else:
+                    granted(path, level)
+
+    for path, level in rank.items():
+        if not level:
+            continue
+        narrower = [one for one in rank if under(one, path) and rank[one] < level]
+        if not narrower:
+            granted(path, level)
+        elif Path(path).is_dir():
+            apart(path, level, narrower)
+        elif os.path.lexists(path):
+            raise OSError(
+                errno.ENOTDIR,
+                "a path carved out beneath it cannot be held, it not being a directory",
+                path,
+            )
+    return tuple(dict.fromkeys(read)), tuple(dict.fromkeys(write))
+
+
 def run(fence: Fence, argv: Sequence[str]) -> int:
     """Runs a program inside a fence, and waits for it.
 
@@ -164,9 +236,11 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
     supervisor: Supervisor | None = None
     held: dict[str, int | None] = {}
     try:
+        # Taken apart around what is carved out of it, which Landlock cannot say.
+        read, write = expanded(fence)
         # Made and opened here, where it is put up, and handed down open: what the child
         # grants is what was checked, never a link put at one of its names since.
-        held = dataclasses.replace(fence, tmp=tmp).ready()
+        held = dataclasses.replace(fence, tmp=tmp).ready(write)
         if proxy is not None:
             proxy.start()
             if libc.prctl(_PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0:
@@ -178,7 +252,14 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
         ours, theirs = socket.socketpair() if proxy is not None else (None, None)
         pid = os.fork()
         if not pid:
-            _become(fence, held, argv, env, (port, theirs), (parent, libc))
+            _become(
+                dataclasses.replace(fence, read=read),
+                held,
+                argv,
+                env,
+                (port, theirs),
+                (parent, libc),
+            )
         if ours is not None and theirs is not None:
             theirs.close()
             with ours:
@@ -233,7 +314,11 @@ def _seatbelted(fence: Fence, argv: Sequence[str]) -> int:
                 # Security makes a directory there, and a link is one a program put.
                 security = (fence.reach(str(mds))[1],)
         profile = seatbelt.Profile(
-            read=fence.read, write=(*reached, *security), port=port
+            read=fence.read,
+            write=(*reached, *security),
+            keep=fence.keep,
+            deny=fence.deny,
+            port=port,
         )
         pid = os.posix_spawn(
             seatbelt.SANDBOX_EXEC,

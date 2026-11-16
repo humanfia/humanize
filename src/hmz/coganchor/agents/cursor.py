@@ -129,18 +129,16 @@ def _abroad(config: AgentConfig) -> bool:
       config: What the agent runs at.
 
     Returns:
-      True at `workspace-write` on another machine, under a fence that writes neither the
-      home nor the system; False wherever Cursor's own sandbox is still the rung.
+      True at `workspace-write` on another machine, under a fence drawn from rules that write
+      nothing but the workdir; False wherever Cursor's own sandbox is still the rung.
     """
-    from hmz.coganchor.fence import ALL
-
     fence = config.fence
     return (
         config.permission == "workspace-write"
         and config.machine is not None
         and fence is not None
-        and len(fence.scopes) == 3  # noqa: PLR2004
-        and ALL not in fence.scopes[1:]
+        and bool(fence.drawn)
+        and not fence.outward
     )
 
 

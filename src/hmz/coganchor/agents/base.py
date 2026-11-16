@@ -4085,25 +4085,29 @@ def _within(fence: Fence | None, *, write: bool) -> Callable[[str], bool]:
     """
     if fence is None:
         return lambda _path: True
-    roots = fence.write if write else (*fence.write, *fence.read)
-    held = list(roots)
-    for root in roots:
-        # And as the fence reaches it: a root kept elsewhere through a link holds where it
-        # leads, unless that is a link the agent could have made, which leads nowhere.
-        with contextlib.suppress(ValueError, OSError):
-            fd, at = fence.reach(root)
-            if fd is not None:
-                os.close(fd)
-            held.append(at)
+    from dataclasses import replace
 
-    def inside(path: str) -> bool:
-        real = os.path.realpath(path)
-        return any(
-            real == root or real.startswith(root.rstrip(os.sep) + os.sep)
-            for root in held
-        )
+    def reached(roots: tuple[str, ...]) -> list[str]:
+        held = list(roots)
+        for root in roots:
+            # And as the fence reaches it: a root kept elsewhere through a link holds where
+            # it leads, unless that is a link the agent could have made, which leads nowhere.
+            with contextlib.suppress(ValueError, OSError):
+                fd, at = fence.reach(root)
+                if fd is not None:
+                    os.close(fd)
+                held.append(at)
+        return held
 
-    return inside
+    # And what it carves out, as given and as it resolves, which can only keep out more.
+    seen = replace(
+        fence,
+        read=tuple(reached(fence.read)),
+        write=tuple(reached(fence.write)),
+        keep=(*fence.keep, *(os.path.realpath(one) for one in fence.keep)),
+        deny=(*fence.deny, *(os.path.realpath(one) for one in fence.deny)),
+    )
+    return lambda path: seen.allows(os.path.realpath(path), write=write)
 
 
 def _swept(scratch: str) -> None:
@@ -4529,8 +4533,9 @@ class AgentBase(ABC):
 
         Raises:
           Unfenced: If the fence is not held natively in full and this machine has neither
-            Landlock nor Seatbelt to hold the rest with, or the agent's work lands on another
-            machine and the fence cannot be held there.
+            Landlock nor Seatbelt to hold the rest with, or Landlock cannot hold what it carves
+            out of a grant, or the agent's work lands on another machine and the fence cannot
+            be held there.
         """
         if config.fence is None:
             return
@@ -4556,6 +4561,18 @@ class AgentBase(ABC):
                 f"{type(self).__name__} cannot be held to its permission on this machine: "
                 f"it does not enforce it natively, and fencing it from outside needs {needs}"
             )
+        if (rest.keep or rest.deny) and sys.platform != "darwin":
+            # Landlock holds a carve-out only by granting what is around it, which needs
+            # every directory above it listed; asked now rather than where a turn is spawned.
+            from hmz.coganchor.fence.wrap import expanded
+
+            try:
+                expanded(rest)
+            except OSError as why:
+                raise Unfenced(
+                    f"{type(self).__name__} cannot be held to its permission on this "
+                    f"machine: what it carves out cannot be held ({why})"
+                ) from why
 
     def _abroad(self, config: AgentConfig) -> None:
         """Refuses a fence an anchored agent cannot be held to, as its config arrives.
@@ -4589,7 +4606,7 @@ class AgentBase(ABC):
             return
         name = type(self).__name__
         anchor: AnchorConfig | None = getattr(config.machine, "anchor", None)
-        if not fence.scopes:
+        if not fence.drawn:
             raise Unfenced(
                 f"{name}: a fence drawn path by path cannot be held on another machine"
             )
@@ -4678,7 +4695,9 @@ class AgentBase(ABC):
           the agent write its home when the fence says read, read what the fence does not
           grant, or reach a host that `hosts` does not name, has not enforced this fence; it
           has enforced another. What the fence lets be written -- the CLI's own state, the
-          scratch in `tmp`, the devices -- is what may be written, and all that may.
+          scratch in `tmp`, the devices -- is what may be written, and all that may. What it
+          carves out of its grants (`keep`, `deny`) is part of its paths: a sandbox that
+          cannot keep a path inside a grant read-only, or out of reach, holds no part of them.
         - *It starts here, and this was checked.* A sandbox is a claim about this machine as
           much as about the CLI: one built on bubblewrap cannot start in a container that
           gives it no user namespace, and Seatbelt exists only on a Mac. Probe the host --
@@ -4715,7 +4734,7 @@ class AgentBase(ABC):
         """The whole of what this agent's processes may reach, or None for no fence at all.
 
         :attr:`AgentConfig.fence <hmz.coganchor.agents.config.AgentConfig.fence>`, widened by
-        what the agent itself needs whatever the scopes are: the CLI's own state and home to
+        what the agent itself needs whatever the rules are: the CLI's own state and home to
         write, the directory its sessions are kept in, the account's directory and the hosts
         its model and sign-in are at -- read off the account it is on now, which a step down
         its chain changes -- and the skills it is given, to read. On a Mac, the login keychain
@@ -5901,9 +5920,9 @@ class AgentBase(ABC):
             listen=granted.listen,
         )
         if anchor.native:
-            # Its levels, its hosts, and the state it keeps: what `fenced` added, which the
+            # Its rules, its hosts, and the state it keeps: what `fenced` added, which the
             # target keeps under its own home. The roots of this machine's are not the
-            # target's, which draws its own again from the levels.
+            # target's, which draws its own again from the rules.
             raw = self._config.fence
             added = [one for one in fence.write if raw is None or one not in raw.write]
             held = replace(fence, read=(), write=tuple(added))

@@ -79,7 +79,10 @@ def test_a_scratch_swapped_for_a_link_out_is_refused_where_the_fence_is_put_up_a
     # its state, and its scratch in it.
     fence = dataclasses.replace(
         Fence.of(
-            local=READ, user=NONE, system=NONE, online=True, workdir=work, home=home
+            rules=[("/", NONE), ("~", NONE), (".", READ)],
+            online=True,
+            workdir=work,
+            home=home,
         ).granting(write=[state]),
         tmp=str(scratch),
     )

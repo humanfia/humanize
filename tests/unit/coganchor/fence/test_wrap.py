@@ -182,3 +182,84 @@ def test_main_refuses_a_policy_it_cannot_read(
 ) -> None:
     assert wrap.main(policy, [sys.executable]) == 126
     assert capsys.readouterr().err.startswith("hmz internal fence: ")
+
+
+def test_expanded_leaves_a_fence_with_nothing_carved_out_as_it_is() -> None:
+    fence = Fence(read=("/r",), write=("/w",))
+
+    assert wrap.expanded(fence) == (("/r",), ("/w",))
+
+
+def _tree(root: Path, *names: str) -> None:
+    for name in names:
+        at = root / name
+        if name.endswith("/"):
+            at.mkdir(parents=True, exist_ok=True)
+        else:
+            at.parent.mkdir(parents=True, exist_ok=True)
+            at.write_text("")
+
+
+def test_expanded_takes_a_grant_apart_down_to_what_is_carved_out_of_it(
+    tmp_path: Path,
+) -> None:
+    w = tmp_path.resolve()
+    _tree(w, "ok", "src/", "a/secret/key", "a/b", "a/c/", "ro/notes", "ro/d/x")
+    (w / "link").symlink_to(w / "a" / "secret")
+    fence = Fence(
+        write=(str(w),),
+        keep=(str(w / "ro"),),
+        deny=(str(w / "a" / "secret"), str(w / "ro" / "d")),
+    )
+
+    read, write = wrap.expanded(fence)
+
+    assert set(write) == {
+        str(w / "ok"),
+        str(w / "src"),
+        str(w / "a" / "b"),
+        str(w / "a" / "c"),
+    }
+    assert set(read) == {str(w / "ro" / "notes")}
+
+
+def test_expanded_grants_again_what_is_granted_beneath_a_carve_out(
+    tmp_path: Path,
+) -> None:
+    w = tmp_path.resolve()
+    _tree(w, "home/.cli/state", "home/.bashrc", "etc/hosts")
+    fence = Fence(
+        read=(str(w),), write=(str(w / "home" / ".cli"),), deny=(str(w / "home"),)
+    )
+
+    read, write = wrap.expanded(fence)
+
+    assert set(read) == {str(w / "etc")}
+    assert set(write) == {str(w / "home" / ".cli")}
+
+
+def test_expanded_takes_apart_every_grant_above_a_carve_out(tmp_path: Path) -> None:
+    w = tmp_path.resolve()
+    _tree(w, "x/secret/key", "x/y")
+    fence = Fence(
+        read=(str(w),), write=(str(w / "x"),), deny=(str(w / "x" / "secret"),)
+    )
+
+    read, write = wrap.expanded(fence)
+
+    assert read == ()
+    assert set(write) == {str(w / "x" / "y")}
+
+
+def test_expanded_refuses_a_carve_out_it_cannot_hold(tmp_path: Path) -> None:
+    w = tmp_path.resolve()
+    _tree(w, "shut/secret/key", "shut/other")
+    (w / "shut").chmod(0)
+    try:
+        if os.access(w / "shut", os.R_OK):  # pragma: no cover -- root lists anything
+            pytest.skip("this user lists what it may not read")
+        fence = Fence(write=(str(w),), deny=(str(w / "shut" / "secret"),))
+        with pytest.raises(PermissionError):
+            wrap.expanded(fence)
+    finally:
+        (w / "shut").chmod(0o700)
