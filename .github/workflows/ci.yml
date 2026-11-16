@@ -226,11 +226,14 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: pytest tests/unit/<package>, a package at a time
+        timeout-minutes: 10
         env:
           CHANGES: ${{ needs.changes.outputs.changes || '' }}
           EVENT: ${{ github.event_name }}
         run: |
           status=0
+          DIAG=()
+          if [[ $RUNNER_OS == Linux ]]; then DIAG=(--timeout=120 --timeout-method=thread -p no:randomly -v); fi
           for dir in tests/unit/*/; do
             package=$(basename "$dir")
             if ! grep -q "^ *unit-$package:" .github/workflows/ci.yml; then
@@ -241,7 +244,7 @@ jobs:
               continue
             fi
             echo "::group::unit $package"
-            uv run --frozen --all-extras pytest "$dir" --durations=10 \
+            uv run --frozen --all-extras pytest "$dir" --durations=10 "${DIAG[@]}" \
               || { status=1; echo "::error::tests/unit/$package failed"; }
             echo "::endgroup::"
           done
