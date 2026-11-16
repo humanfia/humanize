@@ -177,11 +177,16 @@ def _another(tmp_path: Path) -> Generator[pairing.Code]:
             "tcp://127.0.0.1:0",
         ],
         env=there,
-        stdout=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
     try:
+        # Listening once it says so: a pair asked before then starts a daemon of its own,
+        # which this one then finds already running.
+        assert serving.stdout is not None
+        said = serving.stdout.readline()
+        assert "listening on tcp://" in said, said + serving.communicate()[1]
         ending = time.monotonic() + PATIENCE
         while True:
             paired = subprocess.run(

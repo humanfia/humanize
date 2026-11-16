@@ -156,6 +156,9 @@ def test_a_start_refused_leaves_the_set_up_there_was(workspace: Path) -> None:
     with daemon.attach("sdk", workspace=workspace, slot="exec:5e7") as link:
         link.asked(start(2))
         assert until((workspace / "environ.json").exists)
-        with pytest.raises(Refused, match="an exec host runs one epic"):
+        # Whichever refusal the first epic, going or ended by now, earns it (4.8.2.4 of daemon.md).
+        with pytest.raises(
+            Refused, match=r"an exec host runs one epic|a flow is already running"
+        ):
             link.asked(start(3))
     assert Hmz(workspace).settings.budget("@local/environ")["cost"] == 2
