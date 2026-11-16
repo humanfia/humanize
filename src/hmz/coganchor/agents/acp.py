@@ -923,11 +923,14 @@ class AcpSession(SessionBase):
             return None
         from hmz.coganchor.fence import Fence
 
-        # With its scratch, which the wall lets be written beside the paths it names.
+        # With its scratch, which the wall lets be written beside the paths it names; and what
+        # it carves out, as named and as it lies, which can only keep the agent from more.
         writes = (*fence.write, fence.tmp) if fence.tmp else fence.write
         return Fence(
             read=tuple(os.path.realpath(one) for one in fence.read),
             write=tuple(os.path.realpath(one) for one in writes),
+            keep=(*fence.keep, *(os.path.realpath(one) for one in fence.keep)),
+            deny=(*fence.deny, *(os.path.realpath(one) for one in fence.deny)),
         )
 
     def _outside(self, path: str | os.PathLike[str], *, write: bool) -> bool:

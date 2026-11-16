@@ -124,7 +124,7 @@ variable, the model list is read from `GET <endpoint>/models`.
 | `mimo` | `MIMO_GATEWAY_URL` |
 | `pi`, `omp`, `opencode`, `cursor-agent`, `mcode`, `acp` | none |
 
-**Reachable hosts under `online` `NONE`.** The hosts the CLI's model and sign-in are at, plus
+**Reachable hosts under `network=False`.** The hosts the CLI's model and sign-in are at, plus
 the host (and port) of every variable in the turn's environment whose name ends in `_URL`,
 `_BASE`, `_HOST`, `_ENDPOINT`, `_ORIGIN` or `_ISSUER`, plus, for Claude Code (and for `omp`,
 the `CLAUDE_CODE_USE_FOUNDRY` row):
@@ -192,7 +192,7 @@ watch, and never set.
 | `PKG_NATIVE_CACHE_PATH` | fenced `dsh` turns | the fence's scratch directory |
 | `TMPDIR`, `TMP`, `TEMP` | everything inside `hmz internal fence` | the fence's scratch directory |
 | `XDG_CACHE_HOME`, `UV_CACHE_DIR`, `npm_config_cache`, `PIP_CACHE_DIR`, `GOCACHE` | inside the fence, where the current location is not writable under it | `<scratch>/cache/<name in lower case>` |
-| `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and lower-case forms; `NO_PROXY=`, `no_proxy=`; `NODE_USE_ENV_PROXY=1` | inside the fence, where `online` is `NONE` | `http://127.0.0.1:<proxy port>` |
+| `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and lower-case forms; `NO_PROXY=`, `no_proxy=`; `NODE_USE_ENV_PROXY=1` | inside the fence, where `network` is `False` | `http://127.0.0.1:<proxy port>` |
 | `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH` (removed) | every `docker` command addressing a provider's own daemon | — |
 | `PATH` | `docker` commands to an `ssh://` daemon with ssh options | `$TMPDIR/humanize-<uid>/docker-ssh/<sha16>:$PATH` (a shim that removes itself) |
 | `SSH_ASKPASS_REQUIRE` | the `ssh` that checks a runtime | `never` (fail rather than prompt) |

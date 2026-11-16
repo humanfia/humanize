@@ -294,8 +294,9 @@ flow](/weaver/calling-flows).
 
 ::: warning Agents run with approvals bypassed
 Nobody is asked before an agent edits a file or runs a command. What it may touch is what its
-role's `Permission` says, and unless you say otherwise that is writing the directory it works
-in. See [Permissions](/user/permissions).
+role's `Permission` says, and unless you say otherwise that is the `workspace-write` preset:
+writing the directory it works in, reading the rest, and reaching the network. See
+[Permissions](/user/permissions).
 :::
 
 - **A turn you do not `await` never runs.** `builder.run(…)` without `await` makes a coroutine

@@ -119,10 +119,12 @@ jobs:
               - src/hmz/**
               - tests/integration/*_web*.py
               - tests/integration/doubles_core.py
-            # A daemon reached over each carrier: ssh and EasyTier through their doubles.
+            # A daemon reached over each carrier: ssh and EasyTier through their doubles, and a
+            # WebRTC data channel over loopback. reach dials EasyTier and ssh through coganchor.
             integration-reach:
               - *shared
-              - src/hmz/{cli,daemon,reach,rpc,trust}/**
+              - *kernel
+              - src/hmz/{cli,daemon,reach,rpc,rtc,trust}/**
               - tests/integration/*_reach*.py
               - tests/integration/doubles_ssh.py
               - tests/integration/doubles_easytier.py
@@ -130,6 +132,7 @@ jobs:
               - *shared
               - src/hmz/{cli,reach,relay,rpc,rtc,trust}/**
               - tests/integration/*_relay*.py
+              - tests/unit/relay/doubles_relay.py
             # The page's own modules, tested by node alone.
             js:
               - .github/workflows/ci.yml

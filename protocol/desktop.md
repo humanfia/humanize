@@ -221,8 +221,8 @@ MUST use the one WSL gives a process where that shell does not answer in that ti
 web` or any other server.
 
 **3.5.5** On macOS, Local MUST be the daemon of this Mac reached over `stdio:local` (Section 3.4.2
-of [WIRE]) with the hmz a login shell finds, `~/.local/bin` included, and the page MUST be shown
-without Local where no hmz is found.
+of [WIRE]) with the hmz a login shell finds (Section 3.2.5 of [WIRE]), `~/.local/bin` included, and
+the page MUST be shown without Local where no hmz is found.
 
 **3.5.6** On Windows, Local MUST be the daemon of WSL reached over `stdio:wsl`, with the app's hmz
 (Section 3.4), and the page MUST be shown once that hmz is installed.
@@ -408,14 +408,19 @@ asking the user nothing.
 **3.12.1** The app MUST give the page the commands `pipe_open` `{route, id}`, answered `{pipe}`;
 `pipe_send` `{pipe, data}`; and `pipe_close` `{pipe}`; and MUST send it the events `pipe_state`
 `{pipe, state, detail}`, `pipe_data` `{pipe, data}` and `pipe_closed` `{pipe, why}`; `data` MUST be
-the base64 of the bytes carried, and `pipe` a text the app makes.
+the base64 of the bytes carried, and `pipe` a text the app makes. `pipe_send` MUST be refused with
+`data is not base64.` where `data` is not base64, `There is no pipe <pipe>.` where the app holds no
+such pipe, and `<pipe> is not up.` where it is not yet `up`; `pipe_close` of a pipe the app does not
+hold MUST do nothing.
 
 **3.12.2** `pipe_open` MUST open the carrier `route` names as Section 3.4 of [WIRE] states, for
 `stdio:local` on macOS, `stdio:wsl` on Windows, and `stdio:ssh`, `tcp`, `ws`, `wss`, `easytier` and
-`relay` on both; it MUST refuse every other route, and an untrusted route without `id`.
+`relay` on both; it MUST refuse every other route with `<route> cannot be reached from here.`, and
+an untrusted route without `id` as Section 3.5.6 of [WIRE] states.
 
 **3.12.3** On an untrusted carrier, the app MUST open mutual TLS as its own device (Section 4.3.5 of
-[WIRE]), pinning `id`, before it carries any byte of the page's.
+[WIRE]), pinning `id`, before it carries any byte of the page's; since `pipe_open` names no daemon,
+the `<name>` of Section 4.4.4 of [WIRE] MUST be the route.
 
 **3.12.4** Until the carrier is open, the app MUST send `pipe_state` with `state` `connecting` or
 `installing` and what was said last, then `up` once it is open, or `failed` before `pipe_closed`;
@@ -427,16 +432,25 @@ Section 3.8.3 of [DAEMON] states.
 
 **3.12.6** An `easytier` route MUST be opened with the EasyTier entry of that name the app keeps
 (Section 4.3.6) and an EasyTier binary the app downloads and checks as Section 3.8.5.6 of [DAEMON]
-states, into its data directory; the app MUST give the page `easytier_list`, answered with every
-entry's name, nodes and whether a secret is written, `easytier_set` `{name, secret, nodes}`, which
-keeps the secret written where `secret` is absent, and `easytier_remove` `{name}`, and MUST NOT give
-the page a secret.
+states, into its data directory; the app MUST give the page `easytier_list`, answered with a list of
+`{name, nodes, secret}`, one per entry in the order of their names, `secret` a boolean saying
+whether a secret is written, `easytier_set` `{name, secret, nodes}`, which keeps the secret written
+where `secret` is absent, and `easytier_remove` `{name}`, and MUST NOT give the page a secret.
 
 **3.12.7** The app MUST give the page `file_read` `{path, offset, length}`, answered `{data, eof}`,
 for a `.hmzepic` file opened with the app (Section 3.8.2) alone, at most 1 048 576 bytes a call.
 
 **3.12.8** The app MUST close a pipe the page closes, and every pipe when the page goes or reloads,
 and MUST stop the processes it started for it.
+
+**3.12.9** The web view MUST hold the page to the Content-Security-Policy `default-src 'self';
+connect-src ipc: http://ipc.localhost ws: wss:`, `ipc:` and `http://ipc.localhost` being the app's
+own commands and `ws:` and `wss:` the relay of any `webrtc:` route (Section 3.5.7).
+
+**3.12.10** The `why` of `pipe_closed` MUST be `closed` where the page closed the pipe or went;
+the sentence of the failure where the carrier failed to open or failed once up; and, where the
+daemon's end closed it, the last line the carrier's process said on its standard error, or `The
+daemon closed it.` where it said nothing.
 
 ## 4. Files of the Application
 
@@ -479,9 +493,10 @@ file in it.
 state of the window of the **app**, which the **app** restores when it starts.
 
 **4.3.3** `identity/` in the data directory MUST hold the device identity of the **app** (Section
-4.3 of [WIRE]), with mode `0700`: `key.pem`, its private key, PKCS #8 in PEM and unencrypted, and
-`cert.pem`, its device certificate in PEM, each with mode `0600` on macOS and readable by the
-Windows user alone on Windows, written once, when first needed, and never rewritten.
+4.3 of [WIRE]), its certificate made as Section 4.3.2 of [WIRE] states, with mode `0700`: `key.pem`,
+its private key, PKCS #8 in PEM and unencrypted, and `cert.pem`, its device certificate in PEM, each
+with mode `0600` on macOS and readable by the Windows user alone on Windows, written once, when
+first needed, and never rewritten.
 
 **4.3.4** `easytier/<version>/` in the data directory MUST hold the EasyTier binaries the **app**
 downloaded (Section 3.12.6), only once they pass their check.

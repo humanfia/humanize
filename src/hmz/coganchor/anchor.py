@@ -161,7 +161,7 @@ class AnchorConfig:
         by Landlock -- the workspace it is given being this machine's mirror of it -- with a
         proxy beside it as its one way out where the network is cut, and every command it
         has run on the target is run there under ``coganchor internal fence``, drawn again
-        from the fence's levels around the target's workspace, its home and its minimum, with
+        from the fence's rules around the target's workspace, its home and its minimum, with
         no way out at all where the network is cut.
         Native, the CLI itself is run so on the target, with the hosts its model is at and the
         state it keeps under its home. A target that cannot hold it refuses the session.
@@ -267,15 +267,15 @@ class AnchorConfig:
         """Refuses a fence this session could not hold, as the settings are read.
 
         Raises:
-          ValueError: If the fence was drawn path by path, and so has no levels to draw it
+          ValueError: If the fence was drawn path by path, and so has no rules to draw it
             again on the target with; if the harness is on another machine, whose paths the
             fence does not name; or if the agent's own connections are sent to the target
             while its network is to be cut here, which would send them past the proxy.
         """
-        if not self.fence or not self.fence.scopes:
+        if not self.fence or not self.fence.drawn:
             raise ValueError(
                 "a fence drawn path by path cannot be held on another machine; draw it "
-                "from its levels with Fence.of"
+                "from its rules with Fence.of"
             )
         if harness != "local":
             raise ValueError(

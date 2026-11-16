@@ -484,11 +484,11 @@ strings, the command that starts it, or a mapping with the keys `command`, `host
 **3.7.1.2** `command` MUST be a non-empty list of strings, the command that starts the harness,
 speaking the Agent Client Protocol.
 
-**3.7.1.3** `hosts` MUST be a list of hosts the harness MAY reach while a flow's permission cuts the
-network.
+**3.7.1.3** `hosts` MUST be a list of hosts the harness MAY reach while a flow's permission has
+`network` false.
 
-**3.7.1.4** `state` MUST be a list of paths the harness MAY write while a flow's permission forbids
-writing them.
+**3.7.1.4** `state` MUST be a list of paths the harness MAY write beyond what a flow's permission
+gives (Section 4.14.1.8 of [CORE]).
 
 **3.7.1.5** An entry whose command is not a non-empty list MUST be ignored when read.
 
@@ -1045,8 +1045,9 @@ check of Section 3.8.5.6 of [DAEMON], and MUST NOT download again a binary prese
 
 **4.14.1** `<home>/identity/<machine>/` MUST hold the device identity of this machine (Section 4.3
 of [WIRE]), with mode `0700`, `<machine>` being the content of `/etc/machine-id` on Linux, the
-`IOPlatformUUID` on macOS, and the host name up to its first `.` elsewhere, so that machines that
-mount one home hold one identity each.
+`IOPlatformUUID` on macOS, and the host name up to its first `.` elsewhere and wherever that content
+is missing, unreadable or empty, as in a container given no machine id, so that machines that mount
+one home hold one identity each.
 
 **4.14.2** `key.pem` in it MUST be the device's private key, PKCS #8 in PEM and unencrypted, with
 mode `0600`, written by atomic replacement once, when it is first needed, and never rewritten.

@@ -73,7 +73,8 @@ class Unfenced(Unserved):
     Its own kind of refusal rather than any other setting's, because what it means to a flow
     is different: not a CLI that has no word for something, but a sandbox that cannot be put up
     here -- no Landlock, a kernel too old to cut the network, an agent whose work lands on
-    another machine -- which a flow reads as `HarnessSandboxed`.
+    another machine, a path carved out of a grant that no sandbox here can keep it from --
+    which a flow reads as `HarnessSandboxed`.
     """
 
 
@@ -263,12 +264,14 @@ class AgentConfig:
         to send refuses `fast` -- an agent that quietly went on searching would be a setting
         that lies -- and refuses nothing where nothing was said, there being nothing then to
         lie about.
-      fence: What this agent's processes may reach -- the paths they may read and write, and
-        whether they may go online -- or None, which is what it comes at, for an agent
+      fence: What this agent's processes may reach -- the paths they may read and write,
+        those beneath them they may only read or not reach at all, and whether they may go
+        online -- or None, which is what it comes at, for an agent
         nobody has said anything about: it reaches whatever the CLI and the user running it
         let it, as it always has. A flow says one for every session, read off the
-        :class:`~hmz.flows.Permission` it runs under beside `permission` and `web_search`.
-        Where one is said it is held to, never run wider: the part of it the CLI can enforce
+        :class:`~hmz.flows.Permission` it runs under beside `permission` and `web_search`,
+        as the rules it was drawn from (:meth:`~hmz.coganchor.fence.Fence.of`). Where one is
+        said it is held to, never run wider: the part of it the CLI can enforce
         itself it is told natively (:meth:`~hmz.coganchor.agents.AgentBase.natively`), and
         the rest is put around it from outside by ``hmz internal fence``. A fence neither can
         hold here refuses the agent with :class:`Unfenced`. The rung and web search are
