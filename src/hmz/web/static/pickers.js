@@ -51,7 +51,8 @@ function ask(cli, account) {
         .catch((error) => failed.set(key, error.message))
         .finally(() => {
           asking.delete(key)
-          return readBackends(reading, base)
+          // Read again for every picker, which says a failure to read where it draws.
+          return readBackends(reading, base).catch(() => {})
         }),
     )
   }
