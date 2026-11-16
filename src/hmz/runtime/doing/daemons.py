@@ -1041,6 +1041,10 @@ class _Remote:
         notes: dict[Route, str] = {}
 
         def opening(route: Route) -> Pipe:
+            if not (pinned or route.trusted):
+                # Refused before anything is fetched for it, as before its carrier opens: an
+                # EasyTier daemon an earlier release wrote is reached once paired.
+                raise ValueError(f"{route} needs the id of the daemon it reaches.")
             if route.kind == "ssh":
                 notes[route] = self._installed(route)
             elif route.kind == "easytier":

@@ -217,8 +217,9 @@ past the check.
 flowverse. Until it is fetched, any name that nothing else offers gets this message, even one
 that is misspelled. The flows Humanize ships, such as `chat` and `ralph_loop`, never do.
 
-**Cause.** The flowverse's index has not been downloaded yet. `hmz` fetches every flowverse in
-the background each time it starts, and `hmz exec` never does.
+**Cause.** The flowverse's index has not been downloaded yet. `hmz` and this machine's daemon
+each fetch every flowverse in the background as they start; `hmz exec` never does itself, so a
+daemon that was already running when it was asked has not fetched it since it started.
 
 **Fix.** Open `hmz` once and let it fetch, or fetch now: type `/flow`, press <kbd>←</kbd>, open
 **Flowverses**, and press **Fetch** with the cursor on `official`. Then install the flow, as

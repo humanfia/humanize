@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, cast
 from hmz.daemon import where
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from hmz.daemon.hosts import Hosted, Subscription
     from hmz.daemon.routing import Router
@@ -328,11 +328,14 @@ class _Methods:
         def asks(call: Call) -> dict[str, Any]:
             sub = self.subscription(call)
             said = {k: v for k, v in call.params.items() if k not in ("sub", "idem")}
+            remembers = None
             if do == "start":
-                self._checks(call, sub.hosted.workspace, said)
+                remembers = self._checks(call, sub.hosted.workspace, said)
             answer = sub.hosted.ask(sub.client, {"do": do, **said})
             if not answer.get("ok"):
                 raise _refused(409, str(answer.get("why") or "refused"))
+            if remembers is not None:
+                remembers()
             result = {k: v for k, v in answer.items() if k != "ok"}
             if do == "start":
                 result |= {"slot": sub.hosted.slot, "workspace": sub.hosted.workspace}
@@ -340,38 +343,46 @@ class _Methods:
 
         return asks
 
-    def _checks(self, call: Call, workspace: str, said: dict[str, Any]) -> None:
-        """Checks an epic to start as `flows.check` does, and writes it down where asked.
+    def _checks(
+        self, call: Call, workspace: str, said: dict[str, Any]
+    ) -> Callable[[], None] | None:
+        """Checks an epic to start as `flows.check` and, where asked, `flows.setup` do.
 
         Before the host is asked to start it (Section 4.8.2.2 and Section 4.8.2.3). A start
         naming no flow is left to the host to refuse, and one of a flow fetched from another
         machine to the host to check once fetched, which a check reaches no machine to do.
 
+        Returns:
+          What writes the set-up down where it is to be remembered, for once the host has
+          taken the start, so that a start it refuses leaves the set-up there was; else None.
+
         Raises:
           RpcError: 409, with what `flows.check` or `flows.setup` refused it with.
         """
         from hmz.rpc import Call, RpcError
+        from hmz.runtime import Hmz
 
         flow = said.get("flow")
         if not isinstance(flow, str) or not flow:
-            return
-        names = [
-            *([] if flow.startswith("git+") else ["flows.check"]),
-            *(["flows.setup"] if said.get("remember") is True else []),
-        ]
+            return None
         try:
-            for name in names:
-                self._families[name](
+            if not flow.startswith("git+"):
+                self._families["flows.check"](
                     Call(
                         call.peer,
-                        name,
+                        "flows.check",
                         {**said, "workspace": workspace},
                         None,
                         _unanswered,
                     )
                 )
+            if said.get("remember") is True:
+                # Found as the families are, above this layer.
+                flows = importlib.import_module("hmz.daemon.api.flows")
+                return flows.remembers(Hmz(Path(workspace)), said)
         except RpcError as why:
             raise _refused(409, why.message) from why
+        return None
 
     def subscription(self, call: Call) -> Subscription:
         """The epic subscription a call names on its session.

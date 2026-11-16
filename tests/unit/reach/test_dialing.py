@@ -32,16 +32,33 @@ from hmz.reach import (
 if TYPE_CHECKING:
     from hmz.rpc import Pipe
 
-#: What `/bin/sh` runs where the login shell has run: `hmz`, `~/.local/bin` in front.
-THERE = 'export PATH="$HOME/.local/bin:$PATH"; exec hmz daemon connect --stdio'
+#: `hmz` connecting on the carrier handed on as descriptors 3 and 4.
+CONNECTS = "exec hmz daemon connect --stdio <&3 >&4 3<&- 4>&-"
 
-#: The login shell of the user, `/bin/sh` standing for it, asked only to run `/bin/sh`.
-CONNECT = [
-    "/bin/sh",
-    "-c",
-    'exec "${SHELL:-/bin/sh}" -lc '
-    + shlex.quote("exec /bin/sh -c " + shlex.quote(THERE)),
-]
+
+def connect(path: str) -> list[str]:
+    """The login shell of the user, `/bin/sh` standing for it, asked only to run `/bin/sh`.
+
+    What it prints goes to standard error and what it reads is nothing, the carrier kept
+    for `hmz` as descriptors 3 and 4.
+    """
+    return [
+        "/bin/sh",
+        "-c",
+        'exec "${SHELL:-/bin/sh}" -lc '
+        + shlex.quote("exec /bin/sh -c " + shlex.quote(path + CONNECTS))
+        + " 3<&0 4>&1 </dev/null >&2",
+    ]
+
+
+#: Over ssh and WSL: `~/.local/bin` in front of the `PATH` the login shell gives.
+CONNECT = connect('PATH="$HOME/.local/bin:$PATH"; export PATH; ')
+
+#: Here: `~/.local/bin` behind that `PATH`, where it lacks it.
+LOCALLY = connect(
+    'case ":$PATH:" in *":$HOME/.local/bin:"*) ;; '
+    '*) PATH="$PATH:$HOME/.local/bin"; export PATH ;; esac; '
+)
 
 #: A daemon id, which an untrusted route is opened only with.
 DAEMON = "d" * 52
@@ -63,7 +80,7 @@ class Road:
 
 
 def test_stdio_local_runs_connect_through_a_login_shell() -> None:
-    assert command(Route.parse("stdio:local")) == CONNECT
+    assert command(Route.parse("stdio:local")) == LOCALLY
 
 
 def test_stdio_wsl_runs_it_in_the_distribution_named_or_the_default() -> None:
@@ -204,7 +221,7 @@ def test_stdio_local_is_a_trusted_child(monkeypatch: pytest.MonkeyPatch) -> None
     popen = mock.Mock(return_value=child)
     monkeypatch.setattr(subprocess, "Popen", popen)
     assert trusted(dial("stdio:local"))
-    assert popen.call_args.args[0] == CONNECT
+    assert popen.call_args.args[0] == LOCALLY
     assert popen.call_args.kwargs["stdin"] == subprocess.PIPE
     assert popen.call_args.kwargs["stdout"] == subprocess.PIPE
     assert popen.call_args.kwargs["stderr"] == subprocess.PIPE

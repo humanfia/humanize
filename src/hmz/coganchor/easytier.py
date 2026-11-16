@@ -9,14 +9,15 @@ end is told the nodes the user chose, and two ends meet only where they name one
 Kuma status page EasyTier's own apps read (Astral, EasytierGame); `HUMANIZE_EASYTIER_NODES`
 names another Uptime Kuma server to read its page `easytier` from instead.
 
-Humanize runs one `easytier-core` on each end -- :func:`serving` beside `hmz server`,
-:func:`joining` beside whoever opens it -- and neither needs anything installed: :func:`binary`
-downloads the release pinned here from EasyTier's own GitHub releases, checks it against the
-SHA-256 pinned beside it, and keeps it under `~/.hmz/easytier/<VERSION>/`.
+Humanize runs one `easytier-core` on each end -- :func:`serving` beside a daemon that listens
+on `easytier:<name>`, :func:`joining` beside whoever opens it -- and neither needs anything
+installed: :func:`binary` downloads the release pinned here from EasyTier's own GitHub
+releases, checks it against the SHA-256 pinned beside it, and keeps it under
+`~/.hmz/easytier/<VERSION>/`.
 
 Neither end makes a TUN device, which is what would need root. With `--no-tun` the serving end
 still answers the fixed virtual address it is given, and what reaches it there on a TCP port is
-connected to the same port on its own loopback -- so the web `hmz server` keeps on
+connected to the same port on its own loopback -- so the listener the daemon keeps on
 `127.0.0.1:<PORT>` is reachable at `<address>:<PORT>` by every member of the network, and by no
 port else, since `--tcp-whitelist` lets only that one through and `--udp-whitelist` none. The
 joining end takes an address of the network's own by DHCP and forwards a port on its loopback
@@ -30,8 +31,8 @@ that does not know the secret is refused there.
 
 What the user types is one secret, and it never leaves the machine. The network's name and its
 secret are each a SHA-256 of it under a label of their own, so a public node learns a name and
-a proof of membership but nothing that opens the web; the web's key is an HMAC of it under a
-third. The derived secret is handed to `easytier-core` in its environment
+a proof of membership but nothing that opens the daemon, which mutual TLS guards besides. The
+derived secret is handed to `easytier-core` in its environment
 (`ET_NETWORK_SECRET`), never on its command line, where any user of the machine could read it.
 
 `HUMANIZE_EASYTIER` names a binary to run instead of the downloaded one -- one installed by a
@@ -42,7 +43,6 @@ variable too, so none of those this process has is passed on: what it is told is
 from __future__ import annotations
 
 import hashlib
-import hmac
 import http.client
 import json
 import os
@@ -77,7 +77,6 @@ __all__ = [
     "checked",
     "community",
     "joining",
-    "key",
     "network",
     "node",
     "serving",
@@ -89,7 +88,8 @@ VERSION = "2.6.4"
 #: What names a binary to run instead of downloading one.
 WHICH = "HUMANIZE_EASYTIER"
 
-#: The port `hmz server` keeps its web on, on its loopback and so at the network's address.
+#: The port a daemon keeps its EasyTier listener on, on its loopback and so at the network's
+#: address (Section 3.8.5.3 of daemon.md).
 PORT = 41817
 
 #: The shared nodes hmz names of its own: none, so every caller names those the user chose.
@@ -252,11 +252,6 @@ def network(secret: str) -> tuple[str, str]:
     return _derived("hmz-easytier-name", secret), _derived(
         "hmz-easytier-secret", secret
     )
-
-
-def key(secret: str) -> str:
-    """The key the web served over the network a secret stands for is opened with."""
-    return hmac.new(secret.encode("utf-8"), b"hmz-web-key", hashlib.sha256).hexdigest()
 
 
 def binary(say: Callable[[str], object] | None = None) -> Path:

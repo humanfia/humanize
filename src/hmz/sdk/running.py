@@ -16,6 +16,7 @@ import json
 import os
 import secrets
 import threading
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
     from hmz.sdk.client import Client
     from hmz.sdk.private import Fakes
 
-__all__ = ["Hmz", "Opened", "Run", "Runner"]
+__all__ = ["BACKING", "Hmz", "Opened", "Run", "Runner", "backed"]
 
 #: Why a run whose daemon cannot be reached again ended.
 _WENT = "the daemon went away"
@@ -42,6 +43,32 @@ _ANSWERING = 30.0
 
 #: How often a run looks at whether its session is still open.
 _LOOKING = 0.5
+
+#: How long an epic that has ended is waited on for its backups (Section 7.11.4 of cli.md).
+BACKING = 60.0
+
+
+def backed(client: Client, name: str) -> bool:
+    """Whether every backup of an epic has finished, as `backed` of `runs.get` says it.
+
+    Each target it goes to has been backed up to since it ended -- a backup of an earlier
+    time it was open, or one made by hand while it ran, is not the one its end queued. An epic
+    the daemon cannot say, or no longer has, is waited on no longer.
+
+    Args:
+      client: A session with the daemon that holds the epic.
+      name: The epic.
+    """
+    try:
+        row = client.call("runs.get", {"name": name}, seconds=_ANSWERING)
+    except (Refused, TimeoutError):
+        return True
+    ended = str(row.get("ended") or "")
+    done: dict[str, dict[str, Any]] = row.get("backed") or {}
+    return all(
+        one in done and str(done[one].get("at") or "") >= ended
+        for one in row.get("backup") or ()
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -394,6 +421,7 @@ class Run:
         self._claimed: set[str] = set()
         self._raised: BaseException | None = None
         self._result: Any = None
+        self._letting_go = threading.Event()
 
     # ----------------------------------------------------------------------- what it is
 
@@ -771,19 +799,46 @@ class Run:
         self._ends(raised, message.get("result") if how == "done" else None)
 
     def _ends(self, raised: BaseException | None, result: Any) -> None:
-        """Says how the epic ended, and lets go of the daemon."""
+        """Says how the epic ended, and lets go of the daemon once its backups are done."""
         with self._lock:
             if self._over:
                 return
             self._over = True
             self._raised, self._result = raised, result
+            client, name = self._client, self._epic
+        # A private daemon goes before the end is said, its home and its epic with it.
+        if self._runner.fakes is not None:
+            self._lets_go()
+            self._runner.fakes.close()
+        elif client is not None:
+            # Attached while it is backed up, so that its host waits for the backups too.
+            threading.Thread(
+                target=self._lingers,
+                args=(client, name),
+                daemon=True,
+                name="hmz-backing",
+            ).start()
+        self._ended.set()
+
+    def _lingers(self, client: Client, name: str) -> None:
+        """Stays attached until the epic's backups are done, or for so long, and lets go."""
+        ending = time.monotonic() + BACKING
+        while (
+            name
+            and time.monotonic() < ending
+            and not backed(client, name)
+            and not self._letting_go.wait(_LOOKING)
+        ):
+            pass
+        self._lets_go()
+
+    def _lets_go(self) -> None:
+        """Lets go of the daemon."""
+        self._letting_go.set()
+        with self._lock:
             client, self._client = self._client, None
         if client is not None:
             client.close()
-        # A private daemon goes before the end is said, its home and its epic with it.
-        if self._runner.fakes is not None:
-            self._runner.fakes.close()
-        self._ended.set()
 
     def wait(self, timeout: float | None = None) -> bool:
         """Waits for the `ended` record, and says whether it has come.
@@ -811,6 +866,7 @@ class Run:
                 self._asks(client, "epic.force")
         # Let go of before its end came: it ended, for this run, as a stopped one does.
         self._ends(asyncio.CancelledError(), None)
+        self._lets_go()
 
 
 def _spelled(said: Any) -> str:

@@ -105,7 +105,6 @@ class Site(_Bound):
 
     Args:
       port: The port to listen on, or 0 for any free one on both.
-      key: The key a browser is let in with, or None for one made up here, as `hmz web`'s is.
 
     Raises:
       OSError: If the port cannot be listened on.
@@ -114,7 +113,7 @@ class Site(_Bound):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, port: int, *, key: str | None = None) -> None:
+    def __init__(self, port: int) -> None:
         self._beside: _Beside | None = None
         #: Every `/dial` open, closed as the server closes.
         self.dials = Dials()
@@ -131,7 +130,7 @@ class Site(_Bound):
                     raise
         #: The directory the server started in, which `/here` answers (Section 4.6 of web.md).
         self.here = Path.cwd()
-        self._key = key or secrets.token_urlsafe(32)
+        self._key = secrets.token_urlsafe(32)
 
     @property
     def site(self) -> Site:

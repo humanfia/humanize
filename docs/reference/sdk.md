@@ -213,7 +213,9 @@ One epic, held by a daemon on a new exec slot (`exec:<hex>`) of the workspace an
 by a subscription of a [`Client`](#client) of its own. Made by [`Hmz.run`](#hmz-run).
 Constructing one starts nothing. If its session ends before the `ended` record, the run
 attaches again where it left off; where it cannot, it ends with
-`RuntimeError("the daemon went away")`.
+`RuntimeError("the daemon went away")`. Once the epic has ended it stays attached, on a thread
+of its own, while `backed` of `runs.get` says a backup is not done, so that its host waits for
+the backups too, for at most 60 seconds or until `close()`.
 
 ### Properties {#run-properties}
 
@@ -568,7 +570,9 @@ Driver objects cannot be handed to another process, so an epic given any (`run_f
 `Hmz.run` with a driver for a role) is held by a **private daemon** the calling program starts
 in its own process, reached over a socket pair. Its hosts run in that process too, so a fake's
 `prompts` and the rest are filled in; each driver is named to it as `fake:<key>`. It has a
-temporary home and machine directory of its own (with a copy of the settings file), never
+temporary home and machine directory of its own (with a copy of the settings file; private
+daemons going at once in one process share them, as the environment that names them is the
+process's), never
 touches this machine's daemon, and is torn down when `run_fake` returns or raises, or the
 [`Run`](#run) has ended -- the epic written in its home with it, so `Hmz().epics` never lists a
 run on fakes.

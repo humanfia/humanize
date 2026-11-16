@@ -258,10 +258,6 @@ _SEARCH: Final = (
 #: How many links one path may lead through, as Linux counts them (`MAXSYMLINKS`).
 _LINKS: Final = 40
 
-#: Why a path a fence writes is granted nothing rather than refused, as Landlock leaves out a
-#: path it cannot reach.
-_UNREACHED: Final = frozenset({errno.ENOENT, errno.ENOTDIR, errno.EACCES, errno.ELOOP})
-
 
 def _identity(held: os.stat_result) -> tuple[int, int]:
     return held.st_dev, held.st_ino
