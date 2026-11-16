@@ -70,6 +70,8 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.daemon': ['hmz.runtime'],
   'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where'],
   'hmz.relay': [],
+  'hmz.rpc': [],
+  'hmz.rtc': [],
   'hmz.trust': ['hmz.coganchor.atomic', 'hmz.coganchor.settings'],
   'hmz.tui': [
     'hmz.coganchor',
@@ -169,10 +171,24 @@ const LAYERS: Layer[] = [
     ref: '/user/relay',
   },
   {
+    id: 'rpc',
+    dotted: 'hmz.rpc',
+    here: 'Frames and JSON-RPC 2.0 over any pipe: one end of a session, the methods it serves, and `session.hello`.',
+    note: 'Imports nothing of Humanize: both ends of every session speak it.',
+    spec: 'wire.md#6-frames-and-rpc',
+  },
+  {
     id: 'trust',
     dotted: 'hmz.trust',
     here: "Who is at the other end of a carrier that proves nothing by itself: this machine's device key, pairing codes, the paired devices, and mutual TLS between two devices over any pipe.",
     spec: 'wire.md#4-session-security',
+  },
+  {
+    id: 'rtc',
+    dotted: 'hmz.rtc',
+    here: 'A WebRTC data channel as a carrier: the daemon answering a browser through a relay, with pinned DTLS fingerprints.',
+    note: 'Imports nothing of Humanize: the device key signs and verifies through what its caller hands it.',
+    spec: 'wire.md#47-webrtc',
   },
   {
     id: 'runtime',
@@ -278,7 +294,7 @@ const LAYERS: Layer[] = [
 const BANDS: { label: string; ids: string[] }[] = [
   { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
-  { label: 'reaching a daemon', ids: ['reach', 'relay', 'trust'] },
+  { label: 'reaching a daemon', ids: ['reach', 'relay', 'rpc', 'rtc', 'trust'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
   { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },
