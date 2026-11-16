@@ -46,7 +46,7 @@ It is normative. It is cited by the tag [PYTHON].
   - [4.12. `Epics`](#412-epics)
   - [4.13. `Backups`](#413-backups)
   - [4.14. The daemon registry](#414-the-daemon-registry)
-  - [4.15. `Host`](#415-host)
+  - [4.15. Hosts](#415-hosts)
   - [4.16. `Daemons`](#416-daemons)
   - [4.17. `Daemon`](#417-daemon)
   - [4.18. `Link`](#418-link)
@@ -2033,11 +2033,12 @@ removed.
 
 Section 4 governs the Python module `hmz.sdk`: every name it offers, the signature of every public
 member of each, what each member does as observed by its caller, and what each raises. The module is
-the supported way for a program that is not **hmz** to drive **hmz**: the library one **epic** is
-run with in a host process and in the tests of a flow (`Hmz`, `Run`, `Host`, `fakes`), the settings
-of **this machine** (`Flows`, `Accounts`, `Runtimes` and the rest), and the client of a **daemon**,
-through which a program holds its epics as every **frontend** does (`Hmz.exec`, `Daemons`, `Daemon`,
-`Link`, `Client`).
+the supported way for a program that is not **hmz** to drive **hmz**: the settings of **this
+machine** (`Flows`, `Accounts`, `Runtimes` and the rest), and the client of a **daemon**, through
+which a program makes, runs and steers its **epics** as every **frontend** does (`Hmz.run`, `Run`,
+`Hmz.exec`, `Daemons`, `Daemon`, `Link`, `Client`), a flow's tests included (`fakes`). No member of
+it runs an epic in the calling process but through a daemon; what runs an epic in a host is internal
+to hmz.
 
 Out of scope:
 
@@ -2083,11 +2084,11 @@ defines it. An epic is named by its epic directory's base name.
 
 ```python
 __all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses",
-           "Hmz", "Host", "Link", "Refused", "Run", "Runtimes", "fakes"]
+           "Hmz", "Link", "Refused", "Run", "Runtimes", "fakes"]
 def __getattr__(name: str) -> object: ...
 ```
 
-**4.3.1** `hmz.sdk.__all__` MUST be exactly the fifteen names listed above.
+**4.3.1** `hmz.sdk.__all__` MUST be exactly the fourteen names listed above.
 
 **4.3.2** Importing `hmz.sdk` MUST NOT import any other module of the `hmz` package.
 
@@ -2151,7 +2152,6 @@ class Hmz:
             outworlder: OutworlderDriver | None = None,
             backup: Iterable[str] | None = None) -> Run: ...
     def exec(self, argv: list[str]) -> Any: ...
-    def host(self, slot: str = "") -> Host: ...
 ```
 
 #### 4.4.1. Construction and properties
@@ -2228,12 +2228,13 @@ raise `SystemExit(0)`.
 
 #### 4.4.5. Making an epic
 
-**4.4.5.1** `Hmz.runner(flow, ...)` MUST load the flow `flow` names, make a driver for every role it
-declares, check everything `hmz exec` checks before an epic starts, and return a `Runner` whose
-members are not part of this API.
+**4.4.5.1** `Hmz.runner(flow, ...)` MUST ask this machine's daemon to check the epic those arguments
+make, as `flows.check` does (Section 4.17.8 of [DAEMON]), starting the daemon where none runs, and
+return a `Runner` holding the arguments and that check's answer, whose members are not part of this
+API.
 
-**4.4.5.2** Making a driver in `Hmz.runner` MUST NOT start any agent CLI and MUST NOT reach any
-other machine.
+**4.4.5.2** `Hmz.runner` MUST NOT start any agent CLI, MUST NOT reach any other machine, and MUST
+NOT import, load or call the flow in the calling process.
 
 **4.4.5.3** `Hmz.run(flow, task, ...)` MUST return a `Run` equal in effect to `Run(self.runner(flow,
 ...), task, outworlder=outworlder)` with every other argument passed through unchanged.
@@ -2249,7 +2250,8 @@ other machine.
 `EnvDriver`, or an iterable of `EnvSpec`.
 
 **4.4.5.8** The parameter `params` MUST accept a mapping, whose text values are read as `-p` reads
-them, or an instance of the flow's `FlowParams`; `None` MUST mean the flow's defaults.
+them, or an instance of the flow's `FlowParams`, sent as its JSON; `None` MUST mean the flow's
+defaults.
 
 **4.4.5.9** The parameter `budget` MUST accept a `Budget` or a mapping validated as `Budget`
 validates one; `None` MUST mean an unlimited cost for the built-in `chat` flow and MUST be refused
@@ -2262,14 +2264,15 @@ for every other flow.
 newest epic of that flow in this workspace that can be picked up; a path MUST pick up the epic in
 that epic directory.
 
-**4.4.5.12** `outworlder` MUST fill every `Outworlder` role of the flow; `None` MUST fill each as
-always away.
+**4.4.5.12** `outworlder` MUST answer every `Outworlder` role of the flow as Section 4.5.4 states;
+`None` MUST set each role away for the whole epic.
 
 **4.4.5.13** `backup` MUST name the backup targets the epic is backed up to; `None` MUST mean the
 default targets of Section 3 of [FILES].
 
 **4.4.5.14** `Hmz.run` and `Hmz.runner` MUST raise `Refused` for everything `hmz exec` refuses
-before an epic starts, with the same message `hmz exec` prints after `hmz exec: error: `.
+before an epic starts, with the same message `hmz exec` prints after `hmz exec: error: `, which is
+the message the daemon refuses with.
 
 **4.4.5.15** `Hmz.run` and `Hmz.runner` MUST raise `Refused` with the message `<flow>: duplicate
 agent role '<role>'` for an agent role given twice, and `<flow>: duplicate environment role
@@ -2287,33 +2290,30 @@ identical in effect to the one `Hmz.exec` makes of the same `argv`.
 **4.4.5.19** Where each agent's harness runs MUST NOT be a parameter of `Hmz.run`: it MUST follow
 from the runtime the work is placed on, as Section 6 of [CORE] states.
 
-**4.4.5.20** `Hmz.run`, `Hmz.runner` and `Run` MUST drive the epic in the calling process: they are
-what a host runs its epics with (Section 4.15) and what `fakes` drive (Section 4.19). A program that
-is a frontend MUST NOT hold an epic with them, and MUST hold it through the daemon with `Hmz.exec`,
-`Link.start` or `Client` (Section 3.3.8 of [DAEMON]).
+**4.4.5.20** An epic `Hmz.run` makes MUST be run by a daemon, never in the calling process: by this
+machine's daemon where every role is given as a spec, and by a private daemon of the calling
+program, as Section 4.19 states, where any role is given as a driver object, which only that
+program holds.
+
+**4.4.5.21** A driver object MUST be named to the private daemon that holds it as the agent spec or
+environment spec `fake:<key>`, `<key>` a text the SDK makes; this machine's daemon MUST refuse such
+a spec as naming no harness or no backend.
 
 #### 4.4.6. Executing a command line
 
-**4.4.6.1** `Hmz.exec(argv)` MUST do `Hmz.read(argv)`, and then start the epic of every field of
-the `Line` through this machine's daemon, on a new exec slot of the workspace, with every role away,
-as `hmz exec` does (Section 7.1.1 of [CLI]), MUST follow it to its end, and MUST return the `result`
-of its `ended` record (Section 4.9.2.9 of [DAEMON]).
+**4.4.6.1** `Hmz.exec(argv)` MUST do `Hmz.read(argv)`, then `Hmz.run(...)` with every field of the
+`Line`, the outworlder `None`, then `Run.run()`, and return what `Run.run()` returns.
 
 **4.4.6.2** `Hmz.exec(argv)` MUST draw nothing, MUST install no signal handler, and MUST raise
-rather than exit: `Refused` where `epic.start` is refused, `BudgetExceeded` where the epic ended
-`budget`, and `RuntimeError` with the `why` of its `ended` record where it ended `failed` or
-`crashed`.
+rather than exit what `Run.run()` raises (Section 4.5.2).
 
 **4.4.6.3** `Hmz.exec(argv)` MUST raise `OSError` where the daemon cannot be reached, as
 `Client.local` does (Section 4.21.1).
 
 #### 4.4.7. Hosts
 
-**4.4.7.1** `Hmz.host(slot)` MUST return one `Host` per `Hmz` instance and slot, made on the first
-call with that slot and returned unchanged on every later call.
-
-**4.4.7.2** `Hmz.host(slot)` MUST raise `ValueError` for a slot that is neither `""`, `chat:<hex>`
-nor `exec:<hex>`.
+**4.4.7.1** `Hmz` MUST NOT offer a host, nor any other way to hold an epic in the calling process:
+the host that runs an epic is internal to hmz (Section 4.15).
 
 ### 4.5. `Run`
 
@@ -2323,13 +2323,12 @@ class Run:
                  outworlder: OutworlderDriver | None = None) -> None: ...
     flow: str; ref: str; chats: bool; task: str; declaration: Declaration
     budget: Budget; profile_flow: bool; profile_environment: bool
-    backup: tuple[str, ...]; usage: Usage; agents: tuple[AgentBase, ...]
+    backup: tuple[str, ...]; usage: Usage; agents: tuple[Opened, ...]
     names: dict[str, str]; epic: Path | None; running: bool
     raised: BaseException | None; result: Any                     # properties
     def unreadable(self) -> str: ...
-    def watch(self, listener: Callable[[AgentBase, SessionBase | None, Event], None]) -> None: ...
-    def opened(self, callback: Callable[[str, AgentBase, SessionBase, Placement | None], None]
-               ) -> None: ...
+    def watch(self, listener: Callable[[str, str | None, dict[str, Any]], None]) -> None: ...
+    def opened(self, callback: Callable[[str, Opened], None]) -> None: ...
     def noticed(self, callback: Callable[[str], None]) -> None: ...
     def run(self) -> Any: ...
     def start(self) -> None: ...
@@ -2338,80 +2337,95 @@ class Run:
     def close(self) -> None: ...
 ```
 
-One `Run` is one epic.
+One `Run` is one epic, held by a daemon on a new exec slot of the workspace (Section 4.2.6 of
+[DAEMON]), and followed by one epic subscription of a `Client` of the `Run`'s own.
 
 #### 4.5.1. Properties
 
 **4.5.1.1** Constructing a `Run` MUST NOT start the epic.
 
-**4.5.1.2** `Run.flow` MUST be the flow as it was named; `Run.ref` MUST be its canonical ref.
+**4.5.1.2** `Run.flow` MUST be the flow as it was named; `Run.ref` MUST be its canonical ref, as the
+daemon's check answered it.
 
 **4.5.1.3** `Run.chats` MUST be `True` where, and only where, the flow is the built-in `chat` flow,
-decided by where the flow is defined and not by its name.
+as the daemon's check answered it.
 
-**4.5.1.4** `Run.declaration` MUST be what the flow declares (Section 4.20.3).
+**4.5.1.4** `Run.declaration` MUST be what the flow declares (Section 4.20.3), as the daemon's check
+answered it.
 
 **4.5.1.5** `Run.budget` MUST be the `Budget` the epic is held to; `Run.usage` MUST be what it has
-spent so far, as Section 3 defines `Usage`.
+spent so far, as the latest `usage` snapshot of its subscription says.
 
 **4.5.1.6** `Run.backup` MUST be the names of the backup targets the epic goes to.
 
-**4.5.1.7** `Run.agents` MUST be the agent behind each **session** still open, oldest first.
+**4.5.1.7** `Run.agents` MUST be an `Opened` (Section 4.20.7) for each **session** still open,
+oldest first, as the `opened` records and the `sessions` snapshot say.
 
-**4.5.1.8** `Run.names` MUST map each agent role to the name of the agent filling it.
+**4.5.1.8** `Run.names` MUST map each agent role to the name of the agent filling it, as the
+`started` record says, or as the daemon's check answered before it.
 
-**4.5.1.9** `Run.epic` MUST be the epic directory once the epic has started writing it, and `None`
+**4.5.1.9** `Run.epic` MUST be the epic directory once the `run` snapshot names it, and `None`
 before.
 
-**4.5.1.10** `Run.running` MUST be `True` from `start()` until the flow has returned or raised.
+**4.5.1.10** `Run.running` MUST be `True` from `start()` until the `ended` record has come.
 
-**4.5.1.11** After an epic started with `start()` has ended, `Run.raised` MUST be what the flow
-raised (`asyncio.CancelledError` after `stop()`), or `None`, and `Run.result` MUST be what the flow
-returned.
+**4.5.1.11** Once the `ended` record has come, `Run.raised` and `Run.result` MUST be as Section
+4.5.2.2 states, and `None` until then.
 
 #### 4.5.2. Driving
 
-**4.5.2.1** `Run.run()` MUST drive the flow to its end and return what it returned or raise what it
-raised: on an event loop of its own in the calling thread, or, where the calling thread already runs
-an event loop, on a new thread the call waits for.
+**4.5.2.1** `Run.run()` MUST do `start()`, then wait for the `ended` record, and return what
+`Run.result` holds or raise what `Run.raised` holds; it MUST NOT need an event loop of the caller's
+and MUST NOT block one the calling thread runs, waiting on a thread of its own there.
 
-**4.5.2.2** `Run.run()` MUST raise `Refused` before the flow is called where an environment cannot
-be reached or cannot provide what its role declares.
+**4.5.2.2** Once the `ended` record has come, `Run.result` MUST be its `result` (Section 4.9.2.9 of
+[DAEMON]) and `Run.raised` `None` for `done`; `Run.raised` MUST be `asyncio.CancelledError` for
+`stopped`, `BudgetExceeded` with the limit reached for `budget`, `Refused` with its `why` for
+`refused`, and `RuntimeError` with its `why` for `failed` and `crashed`.
 
-**4.5.2.3** `Run.start()` MUST drive the flow on a new thread and return at once; a second `start()`
-MUST raise `RuntimeError`.
+**4.5.2.3** `Run.start()` MUST attach to a new exec slot of the workspace (`epic.attach` with `slot`
+`exec:`), set roles away as Section 4.4.5.12 states, call `epic.start` with every field of the
+`Runner`, and return once it is answered; it MUST raise `Refused` where `epic.start` is refused,
+and `RuntimeError` on a second call.
 
-**4.5.2.4** `Run.wait(timeout)` MUST block until the epic ends or `timeout` seconds pass, and return
-whether it ended.
+**4.5.2.4** `Run.wait(timeout)` MUST block until the `ended` record has come or `timeout` seconds
+pass, and return whether it came.
 
-**4.5.2.5** `Run.stop()` MUST be callable from any thread, MUST interrupt the turn under way, MUST
-make every flow call raise `asyncio.CancelledError` where it stands, and MUST return without waiting
-for the flow to unwind.
+**4.5.2.5** `Run.stop()` MUST be callable from any thread, MUST call `epic.stop`, and MUST return
+without waiting for the flow to unwind.
 
-**4.5.2.6** `Run.close()` MUST do what `stop()` does and then close every session and agent still
-open without waiting.
+**4.5.2.6** `Run.close()` MUST do what `stop()` does, then call `epic.force` where the epic is
+stopping, and MUST then close its `Client` without waiting.
+
+**4.5.2.7** A `Run` whose session to the daemon ends before the `ended` record MUST attach again as
+Section 3.6 of [WIRE] states; where it cannot, `Run.raised` MUST be `RuntimeError` with `the daemon
+went away`.
 
 #### 4.5.3. Observing
 
-**4.5.3.1** `Run.watch(listener)` MUST call `listener` once for every event of every session of the
-epic; the call MAY come from any thread.
+**4.5.3.1** `Run.watch(listener)` MUST call `listener(agent, key, event)` once for every `event`
+record of the epic, in order, `agent` the agent's name, `key` its session's key or `None`, and
+`event` the record; the call MAY come from any thread.
 
-**4.5.3.2** While at least one listener is registered with `watch`, agent CLIs MUST NOT write their
-own progress to the calling process's standard output or standard error.
+**4.5.3.2** `Run.opened(callback)` MUST call `callback(role, opened)` for every `opened` record, in
+order, before the `Run` delivers any event of that session.
 
-**4.5.3.3** `Run.opened(callback)` MUST call `callback(role, agent, session, placement)` on the
-epic's event loop as each session opens and before its first turn; `placement` MUST be `None` where
-the driver reports none.
+**4.5.3.3** `Run.noticed(callback)` MUST call `callback(text)` with every `notice` record of the
+epic, as Section 3 of [CORE] defines notices.
 
-**4.5.3.4** `Run.noticed(callback)` MUST call `callback(text)` with every notice **hmz** gives about
-the epic before the flow is called, as Section 3 of [CORE] defines notices.
+**4.5.3.4** `Run.unreadable()` MUST return what the daemon's check answered as `unreadable`: in
+words, every limit of the budget that nothing the epic drives can enforce, or `""` where there is
+none.
 
-**4.5.3.5** `Run.unreadable()` MUST return, in words, every limit of the budget that nothing the
-epic drives can enforce, or `""` where there is none.
+#### 4.5.4. The outworlder
 
-**4.5.3.6** Where the budget has a finite `cost`, `Run.unreadable()` MUST first bring a missing or
-stale price list up to date, waiting no longer than that fetch's own timeout and not at all once the
-epic has been stopped.
+**4.5.4.1** A `Run` given an outworlder MUST claim every `Outworlder` role of the flow for its
+frontend (`epic.claim`), MUST set away (`epic.afk`) each role the outworlder's `away_for` says is
+away, and MUST answer every question of those roles (`asked`) by calling the outworlder's `run` with
+the question's text, `None` as the schema and the role, and calling `epic.answer` with what it
+returns, as its text, a value that is not text as its JSON.
+
+**4.5.4.2** A question the outworlder raises on MUST be answered with nothing, as an away role's is.
 
 ### 4.6. `Refused`
 
@@ -2980,57 +2994,11 @@ refused or no route opens, with `Unreached.status` the error code of the refusal
 **4.14.11** `Remotes.close()` MUST close every session and stop every process started to reach a
 daemon.
 
-### 4.15. `Host`
+### 4.15. Hosts
 
-```python
-class Host:
-    def __init__(self, hmz: Hmz, slot: str = "") -> None: ...
-    def attach(self, name: str, kind: str, heard: Callable[[dict[str, Any]], None], *,
-               replay: bool = True) -> str: ...
-    def detach(self, client: str) -> None: ...
-    attached: int; idle: bool; closed: bool; epic: Path | None  # properties
-    def away_for(self, role: str) -> bool: ...
-    def printed(self, text: str) -> None: ...
-    def asked(self, client: str, said: dict[str, Any]) -> dict[str, Any]: ...
-    def status(self) -> dict[str, Any]: ...
-    def close(self) -> None: ...
-```
-
-**4.15.1** A `Host` MUST behave, toward every frontend attached to it, exactly as Section 4 of
-[DAEMON] states a host behaves: the same messages, in the same order, and the same answers and
-refusals to the same requests.
-
-**4.15.2** `Host.attach(name, kind, heard, replay=...)` MUST attach a frontend as `epic.attach`
-of Section 4.7 of [DAEMON] does, MUST call `heard` with every message for it, in order, on a
-thread that is not the caller's, and MUST return its client id; it MUST raise `RuntimeError` once
-the host is closed.
-
-**4.15.3** `Host.detach(client)` MUST let the frontend go as Section 4.7.4 of [DAEMON] states.
-
-**4.15.4** `Host.attached` MUST be the number of frontends attached.
-
-**4.15.5** `Host.idle` MUST be `True` where, and only where, the host is open, no frontend is
-attached, no epic is going, starting or stopping, and no epic that ended with nobody attached awaits
-a frontend.
-
-**4.15.6** `Host.closed` MUST be whether the host has been closed.
-
-**4.15.7** `Host.epic` MUST be the epic directory of the epic going, else of the one stopping, else
-of the last, or `None`.
-
-**4.15.8** `Host.away_for(role)` MUST return what `afk` last set for that role, else for every role.
-
-**4.15.9** `Host.printed(text)` MUST send one `printed` record carrying `text` to every frontend.
-
-**4.15.10** `Host.asked(client, said)` MUST carry out one call to an epic of Section 4.8 of
-[DAEMON] for that frontend, `said["do"]` naming it by what follows `epic.` and its other fields its
-parameters, and return its result.
-
-**4.15.11** `Host.status()` MUST return the keys of Section 4.6.4.1 of [DAEMON].
-
-**4.15.12** `Host.close()` MUST close every epic of the host and let every frontend go with `gone`,
-and MUST wait at most 15 seconds, counted from the first call, for those epics to release what they
-made.
+**4.15.1** `hmz.sdk` MUST NOT offer the host of Section 3.2.1 of [DAEMON], nor anything else that
+runs an epic in the calling process: what runs an epic in a host is internal to hmz. A program
+reaches a host only as a frontend of it, through a daemon (`Daemon.link`, `Run` or `Client`).
 
 ### 4.16. `Daemons`
 
@@ -3153,9 +3121,8 @@ class Link:
 
 #### 4.18.1. Delivery
 
-**4.18.1.1** A `Link` MUST be one frontend of one host -- one epic subscription where the host is
-reached through a daemon -- whether the host is in the calling process or reached through a daemon,
-and MUST behave identically in both cases except as Section 4.18.4 states.
+**4.18.1.1** A `Link` MUST be one frontend of one host, reached through a daemon: one epic
+subscription of one session.
 
 **4.18.1.2** `Link.client` MUST be the client id the host gave the frontend.
 
@@ -3200,8 +3167,8 @@ do nothing.
 
 #### 4.18.4. Transport differences
 
-**4.18.4.1** A `Link` to a host in the calling process MUST ignore `seconds` and answer each request
-on the calling thread.
+**4.18.4.1** A `Link` MUST honour `seconds` whichever daemon it is through, a private one
+(Section 4.19.2) included.
 
 **4.18.4.2** A `Link` through the daemon MUST answer a send failure with `Refused` carrying `the
 host could not be reached: <error>`.
@@ -3215,8 +3182,34 @@ away` where its session ends, fails or carries a frame of no valid length withou
 `FakeEnvDriver`, `FakeOutworlder`, `Answer`, `Command`, `Handler` and `Reply`, with the signatures
 and behaviour Section 3 states.
 
-**4.19.2** `Hmz.run` MUST accept a `FakeAgentDriver` as an agent and a `FakeOutworlder` as the
-outworlder, and an epic made with them MUST be written as any other epic is.
+**4.19.2** A **private daemon** is a daemon that the SDK starts for one program, in the calling
+process, holding the driver objects that program gave, and that no other client reaches.
+
+**4.19.3** `run_fake(...)` and `Hmz.run` given any driver object (Section 4.4.5.20) MUST start a
+private daemon, MUST run the epic through it over a session of [WIRE] on a connected socket pair, as
+every other epic is run through a daemon, and MUST give the private daemon every driver object as
+the role it fills, named `fake:<key>` (Section 4.4.5.21); `run_fake` MUST fill every role nobody
+gave with a fake as it states.
+
+**4.19.4** A private daemon MUST run its hosts in the calling process, since its drivers are objects
+of that process, and MUST NOT start a process of hmz of its own.
+
+**4.19.5** A private daemon MUST use a temporary home and a temporary machine directory of its own,
+made when it starts, holding a copy of the settings file of the home where there is one; it MUST NOT
+read, write, start, stop or reach the daemon of this machine, its socket, its daemon directory or
+its home's epics, and MUST NOT listen beyond its socket pair.
+
+**4.19.6** A private daemon MUST be torn down -- every host closed as Section 4.13.6 of [DAEMON]
+states, its session closed, its temporary home and machine directory removed -- when `run_fake`
+returns or raises, and when the `Run` of `Hmz.run` is closed or its epic has ended and its result
+been read.
+
+**4.19.7** `run_fake` MUST return the object the flow returned, and raise what the flow raised,
+which the private daemon, being in the calling process, hands back as the object beside the `ended`
+record it sends; `Hmz.run` with fakes MUST answer `Run.result` and `Run.raised` likewise.
+
+**4.19.8** An epic run on a private daemon MUST be written in its temporary home as any other epic
+is in a home, and MUST go with it.
 
 ### 4.20. Returned types
 
@@ -3315,6 +3308,12 @@ the property `at`, and the method `held()` returning its fields as a mapping.
 None`, `gpu_memory: int`, `runtimes: tuple[str, ...]`, `version: str`, `short: tuple[str, ...]` and
 `nodes: tuple[str, ...]`.
 
+#### 4.20.7. Sessions of a `Run`
+
+**4.20.7.1** `Opened` MUST be a frozen dataclass with the fields `key` (`<agent>/<n>`), `role`,
+`agent`, `cli`, `model`, `person`, `env` and `harness`, each as the `opened` record of Section
+4.9.2.4 of [DAEMON] says it.
+
 ### 4.21. `Client`
 
 ```python
@@ -3388,8 +3387,10 @@ document on which the security of a user's machine, credentials and work depends
   3.13.1.3, Section 3.13.3 and Section 3.14.4.5).
 - `Hmz.carried` returns the settings of this machine for another daemon without any value that only
   a secret sets (Section 4.4.3.4).
-- `Hmz.exec` holds its epic through the daemon, and `Hmz.run` is for the host and the tests of a
-  flow alone (Section 4.4.5.20 and Section 4.4.6.1).
+- `Hmz.run`, `Run` and `Hmz.exec` run every epic through a daemon; one given driver objects runs it
+  through a private daemon in the calling process, which touches no daemon, socket or home of the
+  user's and is torn down with the epic (Section 4.4.5.20, Section 4.19.5 and Section 4.19.6). The
+  SDK offers no way to hold a host (Section 4.4.7 and Section 4.15).
 - `Flowverses.plain` and `Flowverses.whence` return a flowverse's URL with its credentials removed
   (Section 4.8.21 and Section 4.8.22).
 - `Accounts.environ` returns the environment a turn run as an account receives, and

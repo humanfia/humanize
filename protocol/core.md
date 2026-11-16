@@ -306,8 +306,8 @@ terminal interface (TUI), the web interface, or the desktop application for macO
 
 **2.6.3** The **settings file** is the file `settings.yaml` in the home (Section 3 of [FILES]).
 
-**2.6.4** Every frontend, `hmz exec` and every program using the software development kit to hold
-an epic is a client of a daemon, and holds no epic in its own process (Section 3.3.8 of [DAEMON]).
+**2.6.4** Every frontend, `hmz exec` and every program using the software development kit is a
+client of a daemon, and runs and holds every epic through one (Section 3.3.8 of [DAEMON]).
 
 ## 3. Epics
 

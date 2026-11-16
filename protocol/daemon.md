@@ -147,7 +147,9 @@ that mount one home.
 with one daemon, or one host, which both use.
 
 **3.3.8** A frontend MUST NOT hold an epic in its own process: the terminal interface, `hmz exec`,
-the page and the desktop application MUST each hold every epic through a daemon.
+the page, the desktop application and every program using the SDK MUST each run and hold every epic
+through a daemon -- this machine's, or, for a program's tests on fakes, a private daemon of that
+program (Section 4.19 of [PYTHON]).
 
 ### 3.4. Starting
 
@@ -691,8 +693,9 @@ the stated types and defaults; a field not sent MUST take its default.
 `true`, or the text of an epic directory, `false`), `backup` (list of target names, `null` for the
 defaults) and `remember` (boolean, `false`).
 
-**4.8.2.2** `epic.start` MUST start the epic as `Hmz.run` of Section 4.4.5 of [PYTHON] does, in the
-host's workspace, and MUST be answered with `run`, its epic number, `slot` and `workspace`.
+**4.8.2.2** `epic.start` MUST check the epic as `flows.check` does (Section 4.17.8), then start it
+in the host's workspace, and MUST be answered with `run`, its epic number, `slot` and `workspace`;
+`params` text values MUST be read as `-p` reads them ([CLI]).
 
 **4.8.2.3** `epic.start` with `remember` `true` MUST first write what the flow is started with as
 the workspace's set-up of that flow, as `flows.setup` does (Section 4.17.4).
@@ -702,7 +705,7 @@ the workspace's set-up of that flow, as `flows.setup` does (Section 4.17.4).
 flow is already running` while an epic is going; `a flow is already starting` while another start is
 under way; `this chat has folded away; carry it on from its epic` on a chat host that has folded
 (Section 4.13.8); `an exec host runs one epic` on an exec host that has started one; and with the
-`Refused` message of Section 4.6 of [PYTHON] for everything `Hmz.run` refuses.
+`Refused` message of Section 4.6 of [PYTHON] for everything `flows.check` refuses.
 
 **4.8.2.5** An epic that is stopping MUST NOT prevent `epic.start`.
 
@@ -1390,6 +1393,22 @@ many were left out); a directory that cannot be read MUST be refused 404.
 **4.17.7.2** `paths.complete` MUST take `typed` and answer `paths`: at most 50 directories the text
 typed could become, sorted, spelled as typed, each ending in `/`, names starting with `.` only where
 a `.` was typed.
+
+#### 4.17.8. `flows.check`
+
+**4.17.8.1** `flows.check` MUST take `workspace`, `flow`, and, as `epic.start` takes them, `agents`,
+`envs`, `params`, `budget`, `profile_flow`, `profile_environment`, `resume` and `backup`, and MUST
+check everything `hmz exec` checks before an epic starts (Section 7.7 of [CLI]) but whether an env
+can be reached, without starting the epic, any agent CLI or any env, and without reaching another
+machine.
+
+**4.17.8.2** `flows.check` MUST answer `flow` (as named), `ref`, `chats` (whether it is the built-in
+`chat` flow), `declared` (as `flows.get` answers), `names` (`{role: agent name}`), `budget`,
+`backup` (the targets it would go to) and `unreadable` (every limit of the budget nothing the epic
+drives can enforce, in words, or `""`).
+
+**4.17.8.3** `flows.check` MUST refuse 400 with the `Refused` message of Section 4.6 of [PYTHON],
+the one `hmz exec` prints after `hmz exec: error: `, for everything it finds.
 
 ### 4.18. Settings
 

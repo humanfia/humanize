@@ -3282,6 +3282,173 @@
       ]
     },
     {
+      "name": "flows.check",
+      "summary": "Check the epic a flow and its set-up make, without starting it.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "flow",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "agents",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "envs",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "params",
+          "schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "budget",
+          "schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "profile_flow",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "profile_environment",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "resume",
+          "schema": {
+            "type": [
+              "boolean",
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "backup",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "required": [
+            "flow",
+            "ref",
+            "chats",
+            "declared",
+            "names",
+            "budget",
+            "backup",
+            "unreadable"
+          ],
+          "properties": {
+            "flow": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "chats": {
+              "type": "boolean"
+            },
+            "declared": {
+              "$ref": "#/components/schemas/Declared"
+            },
+            "names": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "budget": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "backup": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "unreadable": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ]
+    },
+    {
       "name": "flows.fork",
       "summary": "Copy a flow into the workspace.",
       "paramStructure": "by-name",
