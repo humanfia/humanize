@@ -68,6 +68,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.tracing',
   ],
   'hmz.daemon': ['hmz.runtime'],
+  'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where'],
   'hmz.relay': [],
   'hmz.tui': [
     'hmz.coganchor',
@@ -150,6 +151,13 @@ const LAYERS: Layer[] = [
     note: 'Names the runtime by its front door, `hmz.runtime`.',
     spec: 'daemon.md#4-wire-protocol',
     ref: '/reference/daemon',
+  },
+  {
+    id: 'reach',
+    dotted: 'hmz.reach',
+    here: 'The carriers between a client and a daemon: the routes that name them, dialing, listening and racing.',
+    note: 'Reaches `ssh` and EasyTier through `coganchor`, and this machine\'s daemon socket through `daemon.where` alone.',
+    spec: 'wire.md#3-carriers-and-routes',
   },
   {
     id: 'relay',
@@ -263,7 +271,7 @@ const LAYERS: Layer[] = [
 const BANDS: { label: string; ids: string[] }[] = [
   { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
-  { label: 'reaching a daemon', ids: ['relay'] },
+  { label: 'reaching a daemon', ids: ['reach', 'relay'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
   { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },

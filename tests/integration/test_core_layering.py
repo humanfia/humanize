@@ -97,6 +97,9 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.tracing",
     },
     "hmz.daemon": {"hmz.runtime"},
+    # The carriers to a daemon: ssh and EasyTier as the anchor reaches them, and the socket of
+    # this machine's daemon where `where` says it is.
+    "hmz.reach": {"hmz.coganchor", "hmz.daemon.where"},
     "hmz.relay": set(),
     "hmz.tui": {
         "hmz.coganchor",
