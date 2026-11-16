@@ -2,7 +2,7 @@
 // opened here, the one `hmz web` was started in first. Picking one is picking where an epic
 // runs, whose flows are on offer, and whose settings are read.
 
-import { get, onDaemon, post } from './api.js'
+import { call, daemon, onDaemon, started } from './api.js'
 import { fill, h, icon } from './dom.js'
 import { pathPicker } from './paths.js'
 import { choice, dragged, follow, menu, section } from './shell.js'
@@ -11,15 +11,30 @@ let known = null
 // Another daemon's workspaces are others.
 onDaemon(() => (known = null))
 
+/** Where `hmz web` started, as `here` offers it first: a workspace of Local's, none elsewhere. */
+export async function mine() {
+  const here = daemon() === 'local' ? await started() : ''
+  return here ? { here } : {}
+}
+
 /** Every workspace there is to offer, read again where asked to. */
 export async function workspaces(again = false) {
-  if (!known || again) known = get('/api/workspaces')
+  if (!known || again) known = mine().then((here) => call('workspaces.list', here))
   try {
     return await known
   } catch (error) {
     known = null
     throw error
   }
+}
+
+/**
+ * The workspace offered first: where `hmz web` started, on Local; else the first there is; else,
+ * on a daemon that knows none yet, its user's home, `~` as it expands it there.
+ */
+export async function firstWorkspace() {
+  const offered = await workspaces()
+  return offered.here || (offered.workspaces[0] && offered.workspaces[0].path) || '~'
 }
 
 /** A workspace as a list names it: the last part of its path. */
@@ -98,7 +113,7 @@ export function workspacePicker(chosen, changed, { none = false } = {}) {
     openButton.textContent = 'Opening…'
     problem_.textContent = ''
     try {
-      const answer = await post('/api/workspaces', { workspace: typed.value.trim() })
+      const answer = await call('workspaces.add', { workspace: typed.value.trim(), ...(await mine()) })
       known = Promise.resolve(answer)
       list = answer.workspaces
       shut()

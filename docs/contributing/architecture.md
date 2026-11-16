@@ -38,7 +38,7 @@ holds the same table, so an import that breaks it fails the run.
 | anything two of `cli`, `tui`, `web` and `daemon` would each need | `runtime/doing/`, once |
 | who is outside a run: claims, away, questions, lines said to agents, asides | `runtime/doing/hosting.py` |
 | a slash command, a key, a menu; what the interface draws of a message | `tui/` |
-| a view of the web interface, or a route it answers | `web/`: the page under `web/static/`, plain ES modules, and its routes beside the server |
+| a view of the web interface, or what its server answers | `web/`: the page under `web/static/`, plain ES modules speaking JSON-RPC to daemons (`rpc/`, `api.js`); the server in `site.py` -- the page's files, `/here`, admission -- and its bridges `/rpc` and `/dial` in `bridge.py` |
 | runs kept going after the terminal closes, and the one JSON-RPC endpoint every client reaches them through, on its socket and its listeners | `daemon/` |
 | a method the daemon serves beyond epics and sessions: settings, accounts, fallbacks, runtimes, EasyTier, flows, workspaces, paths, notices, runs, backups, files | `daemon/api/`, a module per family naming its own in `METHODS` |
 | a carrier between a client and a daemon: a route, dialing it, listening, racing routes | `reach/` |
@@ -219,7 +219,7 @@ Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and wi
 
 `protocol/` states everything Humanize shows to the outside, in MUST, MUST NOT and MAY terms, and
 nothing about how it is built: every interface (the command line, the terminal interface, the web
-page and its HTTP API, the desktop app, the daemon's wire protocol, the flow API and the SDK),
+page and the server that bridges it to daemons, the desktop app, the daemon's wire protocol, the flow API and the SDK),
 what Humanize does to the system under it (`settings.yaml`, environment variables, every file it
 may leave on disk), and what each feature does as a user sees it. Another team could build a
 product that behaves the same from these documents alone. They are written as RFCs are;
@@ -236,7 +236,7 @@ not the protocol's.
 | `protocol/cli.md` | Every command line |
 | `protocol/tui.md` | Every behaviour the terminal interface must have |
 | `protocol/daemon.md` | One daemon per machine, remote daemons, and the daemon's protocol as a frontend sees it |
-| `protocol/web.md` | Every behaviour the web interface must have, and every HTTP endpoint `hmz web` serves |
+| `protocol/web.md` | Every behaviour the web page must have, and every path `hmz web` serves: its files, `/here`, `/rpc` and `/dial` |
 | `protocol/desktop.md` | Humanize Desktop, the app in `desktop/`: a window on `hmz web`, and its files |
 | `protocol/python.md` | The flow API, and `hmz.sdk`: how a program that is not Humanize drives it |
 | `protocol/files.md` | Every key of `settings.yaml`, every environment variable read, and every file Humanize may leave on disk, here or on another machine |

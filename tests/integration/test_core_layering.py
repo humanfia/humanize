@@ -131,17 +131,20 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.telemetry",
         "hmz.runtime.watching",
         "hmz.daemon",
+        # A client of every daemon alike: the routes a daemon is written down by, and the
+        # session this machine's is called over.
+        "hmz.reach.routes",
+        "hmz.rpc",
     },
     # A client of a daemon: its socket and JSON-RPC, the flow API's budget, the settings.
     "hmz.sdk": {"hmz.daemon", "hmz.flows", "hmz.reach", "hmz.rpc", "hmz.runtime"},
-    # A way in like the terminal interface: the runs through `daemon`, drawn with `watching`.
+    # The page's server: its files, and bridges to daemons over `daemon`'s socket and routes.
     "hmz.web": {
         "hmz.coganchor",
         "hmz.daemon",
+        "hmz.reach",
         "hmz.rpc",
-        "hmz.runtime.epic",
-        "hmz.runtime.kept",
-        "hmz.runtime.watching",
+        "hmz.runtime.doing",
     },
 }
 

@@ -536,7 +536,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | every menu | <kbd>↑</kbd> <kbd>↓</kbd> | list focused | Previous / next row, wrapping, stepping over headings, rules and spacers. |
 | every menu | <kbd>enter</kbd> · click | list focused | On a `▾` row: drops its values (see dropdown). On a written row: begins writing it; again: keeps it. On a row that opens something: opens it. On a pick list: takes the row. |
 | every menu | <kbd>→</kbd> | list focused | Into what the row under the cursor opens, as `enter`: a card, a page or a listed thing of `/settings` and `/flow` (not a release, which `enter` installs), a `▸` row of a flow's roles, the agent sheet's `cli`, `account` and `model`, a form's `▸` row, a run of `/epics`. Nothing on other rows: no value is stepped with them. |
-| every menu | <span id="key-m"></span><kbd>m</kbd> | list focused, on a row with a menu | Opens the row's menu, as a click with the other button does on the web page: a pick list of what can be done to it, the row as its step across the top. A run of `/epics` opens its own sheet, as `enter`; an installed flow of `/flow` offers **open**, **update**, **uninstall**, **copy here** and **copy name**; a flowverse **open**, **fetch**, **remove** and **copy URL**; a daemon **connect**, **edit…**, **remove** and **copy name**; an epic of another daemon **export**, **upload**, **copy name**, **copy task** and **copy workspace**. Only what can be done now is offered. The row of keys says `m menu` where `enter` does not open the same menu. |
+| every menu | <span id="key-m"></span><kbd>m</kbd> | list focused, on a row with a menu | Opens the row's menu, as a click with the other button does on the web page: a pick list of what can be done to it, the row as its step across the top. A run of `/epics` opens its own sheet, as `enter`; an installed flow of `/flow` offers **open**, **update**, **uninstall**, **copy here** and **copy name**; a flowverse **open**, **fetch**, **remove** and **copy URL**; a daemon **connect**, **edit…**, **remove**, **copy name**, and while it is up **pair a device…** and **devices…**; an epic of another daemon **follow** where a host there holds it, **export**, **upload**, **copy name**, **copy task** and **copy workspace**. Only what can be done now is offered. The row of keys says `m menu` where `enter` does not open the same menu. |
 | every menu | <kbd>←</kbd> <kbd>backspace</kbd> | list focused | Up out of the menu to the one it was opened from, leaving it as `esc` would. Nothing on a menu opened from the prompt, nor on a written row, where they are the row's. |
 | every menu | <kbd>esc</kbd> | | Puts back the row being written; else clears and hides the search box; else leaves (asking [Save?](#save-box) if the menu holds changes). |
 | every menu | <kbd>tab</kbd> <kbd>shift+tab</kbd> | | Next / previous of: the search box (while shown), the list, each enabled button. |
@@ -1193,8 +1193,8 @@ anything else is the file. `esc` goes back to the run.
 
 ### Another daemon's epics {#remote-epics}
 
-On a daemon of another machine, `/epics` reads that machine's own web interface, reached over
-ssh or EasyTier as the [Daemons page](#daemons-page) reaches it, off the screen.
+On a daemon of another machine, `/epics` asks that daemon itself (`runs.list`), over the
+session the [Daemons page](#daemons-page) reaches it by, off the screen.
 
 | Element | Value |
 | --- | --- |
@@ -1206,32 +1206,34 @@ ssh or EasyTier as the [Daemons page](#daemons-page) reaches it, off the screen.
 | Empty | `reaching <daemon>…` while it is read; `no epic on <daemon> yet`; or why it was not reached, in red |
 
 `enter`, `m` or a click opens the epic's menu: **export** (not while it runs: the
-[Export epic](#the-runs-that-have-already-happened) form, the archive that daemon makes brought
-here, `<path> · <size>`), **upload** (backs it up there: `backing <name> up to <a>, <b>`),
-**copy name**, **copy task** and **copy workspace**; and first, on an epic a host there holds,
-**follow** (`read it as it goes, and say something to it`).
+[Export epic](#the-runs-that-have-already-happened) form, the archive that daemon makes
+(`runs.bundle`) brought here a chunk at a time (`files.read`), `<path> · <size>`), **upload**
+(backs it up there, `runs.backup`: `backing <name> up to <a>, <b>`), **copy name**, **copy
+task** (`runs.get`) and **copy workspace**; and first, on an epic a host there holds,
+**follow** (`read it as it goes, and steer it`).
 
-**New epic…** opens **New epic**: `workspace` (`a directory on <daemon>`, the directory that
-daemon's interface started in until a letter is typed), `flow` (`the flow, as -f names it`,
+**New epic…** opens **New epic**: `workspace` (`a directory on <daemon>`, the first workspace
+`workspaces.list` answers until a letter is typed), `flow` (`the flow, as -f names it`,
 `chat` until a letter is typed), `task` (`what it is to do`) and `agents` (`role=cli/model:effort,
 …; blank for what that directory last ran`); **Done** `starts the epic on <daemon>`. Errors:
 `<row> is required`, `agents: '<one>' is not role=agent`; under the list in red, why it did not
 start -- `<role> runs nothing there yet: say it as <role>=<cli>/<model>:<effort>`, or what that
-daemon refused. Set up otherwise as that directory last ran the flow there, the epic starts
-and is followed.
+daemon refused. Set up otherwise as that directory last ran the flow there (`flows.get`), the
+epic starts and is followed; a chat on a host of its own, as here.
 
 #### Following an epic there {#afar}
 
-`<workspace> · <daemon>` across the top, then `The epics of this directory on <daemon>, as its
-own web page reads them. A line typed is said to the epic, or answers what it asks.` The
-transcript: `— <flow> started —`, `❯ <task>` and each line said or answer given, `⏺ <words>`
-of each agent's turn, `⏺ <agent> is working` as one begins, `? <question>` (not what a flow
-waiting on its next line says back), `hmz: <failure>` in red, `— the flow is <how> —`; the whole
-run so far first. Under it how it stands: `waiting for you`, a chat's `running` or `done`, the
-run's state, `nothing running`, or why that daemon let it go, in red. Then the line: `enter`
-answers what the run asks of whoever this end answers as, else says it to the run; what is
-refused is said in red. `esc` comes back to the list, leaving the run going there. Keys `enter
-send   esc back`.
+The interface itself follows it, as it follows an epic of this machine: it attaches
+(`epic.attach`) to the host there over that daemon's session, reads the epic from the top, and
+offers everything it offers here -- the views, the monitor, the line said to the epic or
+answering what it asks, `/stop`, `/afk` and `/claim`, each carried there. A line that
+would start an epic here is refused, `start an epic on <daemon> with n on /epics @<daemon>; esc
+comes back here`: what is set up here is this machine's.
+`following <workspace> on <daemon>; esc comes back` is said first, and the status line starts
+with `@<daemon> · <workspace's directory name>` for as long as it is followed. Where the host there cannot be
+reached, why is said in red and the interface stays where it was. `esc`, with no offers open
+and out of btw mode, lets go of it, leaving it going there, comes back to this directory's
+host, and opens the list of that daemon's epics again.
 
 ### Exomyth {#exomyth}
 
@@ -1501,46 +1503,54 @@ until opened there, for as long as `hmz` runs.
 
 ### Daemons page {#daemons-page}
 
-Intro: `This machine's daemon, and other machines' reached over ssh or EasyTier. /epics
-@<name> lists the epics of one; m on one is its menu.` Kept in this machine's
-[settings](/reference/settings) as `daemons`, the [web page](/user/web#settings) reading and
-writing the same list; every change is written at once.
+Intro: `This machine's daemon, and other machines' reached by their routes. /epics @<name>
+lists the epics of one; m on one is its menu.` Kept in this machine's
+[settings](/reference/settings) as `daemons`, each a name, the daemon id pinned and its routes
+in order; every change is written at once.
 
 | Row | About |
 | --- | --- |
-| `Local` | `this machine`; `enter` says `Local is this machine's daemon, always there` |
-| `<name>` | `<mode> · <reached at> · <not connected\|connecting\|installing\|up, hmz <version>\|failed>[: <detail>]`, drawn again as it changes: `SSH Config · <alias>`, `Custom · <user@host:port>` or `P2P · EasyTier` |
+| `Local` | `this machine` |
+| `<name>` | `<route>, <route>, … · <idle\|connecting\|installing\|up, hmz <version>\|failed>[: <what was said last>]`, drawn again as it changes |
 
 `enter`, `m` or a click on a daemon opens its menu: **connect** (reaches it now, installing
-this `hmz` there where it is missing or another version, as the web page does), **edit…**,
-**remove** and **copy name**. **Add daemon** and **edit…** open one form, the web page's New
-daemon: `name` (new only; `what /epics @<name> calls it`), then `kind` (▾ `SSH` `P2P`) and
-`mode` (▾ `Custom` `SSH Config` under SSH, `EasyTier` under P2P; a new one starts on
-`Custom`, an edited one on the mode it is in, which follows from its fields and is never
-written), then what the mode asks:
+this `hmz` there over `stdio:ssh` where it is missing or another version), **edit…**,
+**remove**, **copy name**, and, while it is `up`, **pair a device…** and **devices…**. Local's
+menu is those last two alone. **pair a device…** asks the daemon for a pairing code
+(`pair.create`) and copies it: `copied: <code>`. **devices…** opens **Devices**, each device
+paired with it (`devices.list`): `added <when> · seen <when>|never seen · <n> session(s)`;
+`enter` on one asks `Revoke <device>?` (**revoke** / **keep**), and **revoke** revokes it
+(`devices.revoke`): `<device> revoked`.
+
+**Add daemon** and **edit…** open one form: `name` (new only; `what /epics @<name> calls it`),
+then `mode` (▾ `Pairing code` `SSH Config` `Custom` `Routes`; a new one starts on `Pairing
+code`, an edited one on the mode its routes are in), then what the mode asks:
 
 | Mode | Rows | Written |
 | --- | --- | --- |
-| `SSH Config` | `host` (▾ every host of your ssh config) | its `alias` alone |
-| `Custom` | `import` (▾ every host of your ssh config: fills the rows under it as `ssh -G` resolves it, options cleared, `reading <host>…` meanwhile), `host`, `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options` (`KEYWORD=VALUE, …`) | those fields, not the `Host` |
-| `EasyTier` | `secret` (bullets, never shown; `leave blank to keep current value` on one written), `nodes` (`shared EasyTier nodes: tcp://host:port, …`) | `via: easytier`, the secret, and the nodes as `peers` |
+| `Pairing code` | `code` (`hmz-pair:…, as hmz daemon pair printed it there`) | claimed at once over the routes it carries (`pairing with <name>…` meanwhile), then the id and routes it gives |
+| `SSH Config` | `host` (▾ every host of your ssh config) | `stdio:ssh://<host>` |
+| `Custom` | `import` (▾ every host of your ssh config: fills the rows under it as `ssh -G` resolves it, options cleared, `reading <host>…` meanwhile), `host`, `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options` (`KEYWORD=VALUE, …`) | one `stdio:ssh` route of those |
+| `Routes` | `routes` (`in the order tried: stdio:ssh://host, tcp://host:port, …`) | those routes, in order |
 
-**Done** `saves this daemon`, always with its `via`; **remove** on one already written.
-Errors: `name is required`, `another daemon is named <name>`, `host is required`, `port is a
-number`, `options: '<one>' is not KEYWORD=VALUE`, `secret is required`, `A secret must be at
-least 16 bytes.` (in bytes of UTF-8), `nodes are required`; what the store refuses is said
-under the list in red. **Import…** opens **Import daemons**, a switch per host of your ssh
-config not added yet (`as <name>`), each added as `SSH Config`, or says `every host of your ssh
-config is added already`; **Done** `adds each host switched on as a daemon`. Each change is said
-under the list and, on close, in the transcript: `daemon <name> saved`, `daemon <name>
-removed`, `<n> daemon(s) imported`.
+An edit keeps the id pinned. **Done** `saves this daemon`; **remove** on one already written.
+Errors: `name is required`, `another daemon is named <name>`, `code is required`, `host is
+required`, `port is a number`, `options: '<one>' is not KEYWORD=VALUE`, `routes are required`,
+`<text> is not a route.`; what the claim or the store refuses -- a code that is none, a first
+route that is not trusted and no id -- is said under the list in red. **Import…** opens
+**Import daemons**, a switch per host of your ssh config not added yet (`as <name>`), each
+added as `stdio:ssh://<host>`, or says `every host of your ssh config is added already`;
+**Done** `adds each host switched on as a daemon`. Each change is said under the list and, on
+close, in the transcript: `daemon <name> saved`, `daemon <name> removed`, `<n> daemon(s)
+imported`, `device <device> revoked`.
 
 **Batch apply…** (with a daemon added) opens **Batch apply**: `This machine's settings, written
 to other daemons as each of their pages saves them. Accounts stay put: only a secret sets them.`
 A switch per page carried -- `general`, `fallback`, `runtimes`, `backup`, each `carried`, on --
 then one per daemon, `written to`, off. **Done** `writes the pages switched on to each daemon
 switched on`; error `switch on a page and a daemon`. Each daemon is reached as **connect**
-reaches it and written as its web page's Settings saves each page, a backup target's URL with
+reaches it and written with the calls its own settings pages make (`settings.set`,
+`fallbacks.set`, `runtimes.set`), a backup target's URL with
 nothing signed into it (so one that signs in is refused there). Said under the list and in the
 transcript: `<daemon>: applied` or `<daemon>: <why>`, for each, `·` between.
 

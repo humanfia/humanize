@@ -7,8 +7,7 @@
 // picked above them, the one on screen unless another is, and each page that saves can copy
 // what it holds to other daemons at once.
 
-import * as api from '../api.js'
-import { hash } from '../api.js'
+import { call, daemon, hash, known } from '../api.js'
 import { shut, stays } from '../app.js'
 import { fill, h, iconButton, problem } from '../dom.js'
 import { dragged } from '../shell.js'
@@ -32,31 +31,14 @@ const GROUPS = [
   ['daemon', 'Daemon'],
 ]
 
-/** The daemon the page is on, where the page knows of more than one. */
-function current() {
-  return (typeof api.daemon === 'function' && api.daemon()) || 'local'
-}
-
-/** Where a daemon's API is reached from here: as the page reaches it, or through this server. */
-function prefix(name) {
-  return name === current() ? '' : `/d/${encodeURIComponent(name)}`
-}
-
 /** What a daemon is called on screen. */
 function called(one) {
   return one.label || (one.name === 'local' ? 'Local' : one.name)
 }
 
-/** Every daemon this page reaches: Local alone where this server keeps no list. */
+/** Every daemon this browser keeps: Local alone where none can be read. */
 async function daemons() {
-  try {
-    const answer = await api.get('/api/daemons')
-    const listed = Array.isArray(answer) ? answer : answer.daemons
-    if (Array.isArray(listed) && listed.length) return listed
-  } catch {
-    // An older server, or none of its own: Local is all there is.
-  }
-  return [{ name: 'local' }]
+  return known().catch(() => [{ name: 'local' }])
 }
 
 export function mount(root, { parts, query }) {
@@ -64,7 +46,7 @@ export function mount(root, { parts, query }) {
   const page = PAGES[name]
   let body = h('div', { class: 'settings-body', 'data-hmz': `settings-${name}` }, h('p', { class: 'loading', role: 'status' }, 'Reading the settings…'))
   const links = {}
-  let chosen = query.get('daemon') || current()
+  let chosen = query.get('daemon') || daemon()
   const href = (key) => hash(`/settings/${key}${PAGES[key].group === 'daemon' && query.get('daemon') ? `?daemon=${encodeURIComponent(chosen)}` : ''}`)
   const nav = h(
     'nav',
@@ -94,21 +76,20 @@ export function mount(root, { parts, query }) {
     ),
   )
 
-  let known = [{ name: 'local' }]
+  let listed = [{ name: 'local' }]
   let leaving = null
   let gone = false
   let drawn = 0
 
   /** What every page on the daemon picked reads, writes and copies with. */
   const scope = () => {
-    const base = prefix(chosen)
+    const on = chosen
     return {
-      name: chosen,
-      base,
-      at: (path) => `${base}${path}`,
+      name: on,
+      call: (method, params = {}) => call(method, params, { on }),
       // What a page puts in the address beside its own, so the daemon picked stays in it.
       query: query.get('daemon') ? { daemon: chosen } : {},
-      batch: (posts, { off = '' } = {}) => batchButton(root, chosen, () => known, posts, off),
+      batch: (calls, { off = '' } = {}) => batchButton(root, on, () => listed, calls, off),
     }
   }
 
@@ -130,11 +111,11 @@ export function mount(root, { parts, query }) {
   }
 
   if (page.group === 'daemon') {
-    daemons().then((listed) => {
+    daemons().then((read) => {
       if (gone) return
-      known = listed
-      if (!known.some((one) => one.name === chosen)) known = [...known, { name: chosen }]
-      fill(picker, known.map((one) => h('option', { value: one.name, selected: one.name === chosen }, called(one))))
+      listed = read
+      if (!listed.some((one) => one.name === chosen)) listed = [...listed, { name: chosen }]
+      fill(picker, listed.map((one) => h('option', { value: one.name, selected: one.name === chosen }, called(one))))
     })
     picker.addEventListener('change', () => {
       chosen = picker.value
@@ -161,10 +142,10 @@ export function mount(root, { parts, query }) {
  * @param {HTMLElement} root Where the dialog is drawn.
  * @param {string} from The daemon the page holds what it holds of.
  * @param {() => {name: string}[]} known Every daemon there is, as last read.
- * @param {(() => Array<[string, object]>) | null} posts What is sent: each address and body.
+ * @param {(() => Array<[string, object]>) | null} calls What is called: each method and its params.
  * @param {string} off Why nothing can be, where nothing can.
  */
-function batchButton(root, from, known, posts, off) {
+function batchButton(root, from, known, calls, off) {
   const button = h('button', { class: 'btn quiet', type: 'button', 'data-hmz': 'batch-apply', disabled: Boolean(off) }, 'Batch apply')
   if (off) return h('span', { class: 'row' }, button, h('span', { class: 'hint', 'data-hmz': 'batch-off' }, off))
   button.addEventListener('click', () => {
@@ -205,7 +186,7 @@ function batchButton(root, from, known, posts, off) {
       fill(results)
       let sent
       try {
-        sent = await posts()
+        sent = await calls()
         if (!sent.length) throw new Error('Nothing to apply.')
       } catch (error) {
         fill(results, h('li', {}, problem(error)))
@@ -216,9 +197,8 @@ function batchButton(root, from, known, posts, off) {
         picked.map(async (one) => {
           const line = h('li', { 'data-hmz': 'batch-result', 'data-daemon': one.name }, h('b', {}, called(one)), ' ', h('span', { class: 'dim' }, 'Applying…'))
           results.append(line)
-          const base = prefix(one.name)
           try {
-            for (const [path, said] of sent) await api.post(`${base}${path}`, said)
+            for (const [method, params] of sent) await call(method, params, { on: one.name })
             fill(line, h('b', {}, called(one)), ' ', h('span', { class: 'ok' }, 'Applied'))
             line.dataset.ok = 'true'
           } catch (error) {

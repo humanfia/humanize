@@ -1,27 +1,26 @@
 """`hmz web`'s notification centre: the bell, its menu, the cards, and the system's own.
 
-The global notifications are the local server's, of every daemon; here they are answered by
-the browser itself, routed before the page asks, so the page is tested alone: a bell with how
-many are unread, a menu of them newest first that marks them read and clears them, a card for
-each one heard on the stream, and -- while the page is not looked at -- one the system shows,
-by the browser's `Notification` or by the macOS app. Each in Chromium and WebKit.
+The notifications are the browser's own, gathered from the notices of every daemon it follows:
+here those of other daemons are kept in its storage as it would have kept them, and Local's are
+told on its wire, as Local tells them over the notices subscription the page opened. So the page
+is tested alone: a bell with how many are unread, a menu of them newest first that marks them
+read and clears them, a card for each one heard, and -- while the page is not looked at -- one
+the system shows, by the browser's `Notification` or by the macOS app. Each in Chromium and
+WebKit.
 """
 
 from __future__ import annotations
 
-import json
-import re
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_web import served
-from tests.system.web.doubles_browser import ENGINES, opened
+from tests.system.web.doubles_browser import ENGINES, Wire, noticed, opened
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Page, Route
+    from playwright.sync_api import Page
 
 pytestmark = pytest.mark.parametrize("engine", ENGINES)
 
@@ -41,93 +40,56 @@ window.Notification = class {
   constructor(title, options) { window.shown.push({ title, ...options }) }
   close() {}
 }
-window.__TAURI_INTERNALS__ = {
-  invoke: (command, args) => { window.shown.push({ command, ...args }); return Promise.resolve() },
-}
 """
 
+#: The app's own notifications, stubbed in once the page has reached its daemon over `/rpc`: set
+#: before, the page would take itself for the app and reach every daemon through its pipes.
+_APP_NOTIFIES = """() => {
+  window.__TAURI_INTERNALS__ = {
+    invoke: (command, args) => {
+      window.shown.push({ command, ...args })
+      return Promise.resolve()
+    },
+  }
+}"""
 
-def _item(id_: int, kind: str, **more: Any) -> dict[str, Any]:
+
+def _notice(id_: int, kind: str, **more: Any) -> dict[str, Any]:
+    """A notice, as a daemon makes one."""
     return {
         "id": id_,
         "kind": kind,
-        "daemon": "local",
         "workspace": "/w",
+        "slot": "",
         "epic": f"e{id_}",
         "flow": "chat",
         "task": "Fix it",
         "role": "",
         "text": "",
-        "at": "2026-10-12T10:00:00Z",
-        "read": False,
+        "at": 1760263200,
         **more,
     }
 
 
-@dataclass
-class Feed:
-    """The server's notifications, as the page is answered them, and what it was sent."""
+def _items(page: Page) -> list[dict[str, Any]]:
+    """The notifications this browser keeps, newest first."""
+    return page.evaluate("async () => (await import('/notifications.js')).kept.items()")
 
-    items: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
-    heard: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
-    system: bool = True
-    sent: list[tuple[str, Any]] = field(default_factory=list[tuple[str, Any]])
-    asked: int = 0
 
-    def routes(self, page: Page) -> None:
-        page.route("**/api/notifications", self._list)
-        page.route("**/api/notifications/stream", self._stream)
-        page.route("**/api/notifications/settings", self._settings)
-        page.route("**/api/notifications/read", self._written)
-        page.route("**/api/notifications/clear", self._written)
-
-    def _list(self, route: Route) -> None:
-        unread = sum(not one["read"] for one in self.items)
-        route.fulfill(json={"items": self.items, "unread": unread})
-
-    def _stream(self, route: Route) -> None:
-        # What is heard is told once, and kept with the rest from then on, as the server does.
-        said = "retry: 60000\n\n" + "".join(
-            f"event: notification\nid: {one['id']}\ndata: {json.dumps(one)}\n\n"
-            for one in self.heard
-        )
-        self.items[:0] = reversed(self.heard)
-        self.heard = []
-        route.fulfill(
-            status=200,
-            headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"},
-            body=said,
-        )
-
-    def _settings(self, route: Route) -> None:
-        self.asked += 1
-        kinds = dict.fromkeys(("done", "failed", "stopped", "asked", "listening"), True)
-        route.fulfill(json={"kinds": kinds, "system": self.system})
-
-    def _written(self, route: Route) -> None:
-        request = route.request
-        what = request.url.rsplit("/", 1)[1]
-        said: dict[str, Any] = request.post_data_json or {}
-        self.sent.append((what, said))
-        if what == "clear":
-            self.items = []
-        for one in self.items:
-            one["read"] = (
-                one["read"] or said.get("all") or one["id"] in said.get("ids", [])
-            )
-        route.fulfill(json={})
+def _prefer(page: Page, *, system: bool) -> None:
+    """Says whether the system shows them, as `Notifications` does."""
+    page.evaluate(
+        "async (system) => (await import('/notifications.js')).kept.prefer({ system })",
+        system,
+    )
 
 
 def test_the_bell_counts_the_unread_and_its_menu_reads_and_clears_them(
     engine: str,
 ) -> None:
-    feed = Feed(
-        items=[
-            _item(2, "asked", text="Which branch?"),
-            _item(1, "done", daemon="devbox", read=True),
-        ]
-    )
-    with served() as site, opened(site, engine=engine, routed=feed.routes) as page:
+    with served() as site, opened(site, engine=engine) as page:
+        noticed(page, "devbox", _notice(1, "done") | {"read": True})
+        noticed(page, "local", _notice(2, "asked", text="Which branch?"))
         bell = page.locator("[data-hmz=notifications]")
         expect(bell).to_be_visible()
         expect(bell.locator("[data-hmz=notification-count]")).to_have_text("1")
@@ -145,53 +107,69 @@ def test_the_bell_counts_the_unread_and_its_menu_reads_and_clears_them(
         menu.locator("[data-hmz=notifications-read]").click()
         expect(menu.locator(".notify-unread")).to_have_count(0)
         expect(bell.locator("[data-hmz=notification-count]")).to_be_hidden()
-        assert feed.sent == [("read", {"all": True})]
+        # Written to the browser's storage after it is drawn.
+        page.wait_for_function(
+            "async () => (await (await import('/notifications.js')).kept.items())"
+            ".every((one) => one.read)"
+        )
+        assert all(one["read"] for one in _items(page))
 
         menu.locator("[data-hmz=notifications-clear]").click()
         expect(menu.locator("[data-hmz=notification]")).to_have_count(0)
         expect(menu).to_contain_text("Nothing yet")
-        assert feed.sent[-1] == ("clear", {})
+        page.wait_for_function(
+            "async () => !(await (await import('/notifications.js')).kept.items()).length"
+        )
 
 
 def test_an_item_picked_is_read_and_opens_what_it_is_about(engine: str) -> None:
-    feed = Feed(items=[_item(3, "listening", daemon="devbox", workspace="/w/app")])
-    with served() as site, opened(site, engine=engine, routed=feed.routes) as page:
+    with served() as site, opened(site, engine=engine) as page:
+        noticed(page, "devbox", _notice(3, "listening", workspace="/w/app"))
         page.locator("[data-hmz=notifications]").click()
         page.locator("[data-hmz=notification]").click()
         expect(page.locator("[data-hmz=notification-menu]")).to_have_count(0)
         assert page.evaluate("location.hash") == "#/@devbox/live?workspace=%2Fw%2Fapp"
-        assert feed.sent == [("read", {"ids": [3]})]
+        assert [one["read"] for one in _items(page)] == [True]
 
 
-def test_a_notification_heard_is_a_card_that_opens_it(engine: str) -> None:
-    feed = Feed(heard=[_item(4, "failed", daemon="devbox", epic="big-fix")])
-    with served() as site, opened(site, engine=engine, routed=feed.routes) as page:
+def test_a_notice_heard_is_a_card_that_opens_it(engine: str) -> None:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        wire.tell(page, _notice(4, "failed", epic="big-fix"))
         card = page.locator(
             "[data-hmz=notification-toasts] [data-hmz=notification-toast]"
         )
         expect(card).to_have_count(1)
-        expect(card).to_contain_text("Failed · devbox")
+        expect(card).to_contain_text("Failed · Local")
         expect(page.locator("[data-hmz=notification-count]")).to_have_text("1")
         card.locator(".notify-open").click()
-        assert page.evaluate("location.hash") == "#/@devbox/epics/big-fix"
+        assert page.evaluate("location.hash") == "#/epics/big-fix"
         expect(card).to_have_count(0)
         expect(page.locator("[data-hmz=notification-count]")).to_be_hidden()
-
-
-def test_there_is_no_bell_where_the_server_has_no_notifications(engine: str) -> None:
-    def older(page: Page) -> None:
-        # A server of an older Humanize, which has none to give.
-        page.route(
-            re.compile(r".*/api/notifications(/.*|\?.*)?$"),
-            lambda route: route.fulfill(status=404, json={"error": "Not found."}),
+        # Followed from the last heard, when the page is opened again.
+        assert (
+            page.evaluate(
+                "async () => (await import('/notifications.js')).kept.after('local')"
+            )
+            == 4
         )
 
-    with served() as site, opened(site, engine=engine, routed=older) as page:
-        expect(page.locator("[data-hmz=sidebar] .brand")).to_be_visible()
-        expect(page.locator("[data-hmz=notifications]")).to_be_hidden()
+
+def test_a_kind_switched_off_is_not_told(engine: str) -> None:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        page.evaluate(
+            """async () => (await import('/notifications.js'))
+              .kept.prefer({ kinds: { listening: false } })"""
+        )
+        # A chat's turn done is a chat turn.
+        wire.tell(page, _notice(5, "done", slot="chat:ab"))
+        wire.tell(page, _notice(6, "stopped"))
+        expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
+        assert [one["id"] for one in _items(page)] == [6]
 
 
-def test_the_bell_is_there_where_the_server_has_notifications(engine: str) -> None:
+def test_the_bell_is_there(engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         expect(page.locator("[data-hmz=notifications]")).to_be_visible()
 
@@ -200,34 +178,34 @@ def test_the_bell_is_there_where_the_server_has_notifications(engine: str) -> No
 def test_the_browser_shows_one_while_the_page_is_not_looked_at(
     engine: str, system: bool
 ) -> None:
-    feed = Feed(heard=[_item(5, "done", text="All green")], system=system)
+    wire = Wire()
     with (
         served() as site,
-        opened(site, engine=engine, init=_AWAY, routed=feed.routes) as page,
+        opened(site, engine=engine, init=_AWAY, routed=wire.routes) as page,
     ):
+        _prefer(page, system=system)
+        wire.tell(page, _notice(5, "done", text="All green"))
         expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
         if system:
             page.wait_for_function("window.shown.length > 0")
             assert page.evaluate("window.shown") == [
-                {"title": "Done · Local", "body": "chat · All green", "tag": "5"}
+                {"title": "Done · Local", "body": "chat · All green", "tag": "local:5"}
             ]
         else:
-            # The settings are read before the stream is opened: once they are answered, the
-            # page has had all it needs to show one, and must have shown none.
-            while not feed.asked:
-                page.wait_for_timeout(50)
             page.wait_for_timeout(500)
             assert page.evaluate("window.shown") == []
 
 
 def test_the_app_shows_one_through_its_own_notifications(engine: str) -> None:
-    feed = Feed(heard=[_item(6, "asked", text="Ship it?")])
+    wire = Wire()
     with (
         served() as site,
         opened(
-            site, engine=engine, user_agent=_APP, init=_AWAY, routed=feed.routes
+            site, engine=engine, user_agent=_APP, init=_AWAY, routed=wire.routes
         ) as page,
     ):
+        page.evaluate(_APP_NOTIFIES)
+        wire.tell(page, _notice(6, "asked", text="Ship it?"))
         expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
         page.wait_for_function("window.shown.length > 0")
         assert page.evaluate("window.shown") == [
@@ -246,10 +224,9 @@ history.replaceState(null, '', '#/epics/e7')
 document.hasFocus = () => true
 """
 
-
-def _listed(page: Page) -> None:
-    """Answers the sidebar's list of epics with `e7` and `e8`, both of the workspace `/w`."""
-    runs: list[dict[str, Any]] = [
+#: The sidebar's list of epics: `e7` and `e8`, both of the workspace `/w`.
+_RUNS: dict[str, Any] = {
+    "runs": [
         {
             "name": name,
             "workspace": "/w",
@@ -261,40 +238,36 @@ def _listed(page: Page) -> None:
             "agents": [],
         }
         for name in ("e8", "e7")
-    ]
-    page.route(
-        re.compile(r".*/api/runs\?.*"),
-        lambda route: route.fulfill(json={"runs": runs, "total": len(runs)}),
-    )
+    ],
+    "total": 2,
+    "offset": 0,
+    "limit": 60,
+    "counts": {},
+    "flows": [],
+}
 
 
 def test_none_is_told_of_the_epic_the_page_is_on(engine: str) -> None:
-    feed = Feed(heard=[_item(7, "done"), _item(9, "asked", epic="e7")])
-
-    def routed(page: Page) -> None:
-        feed.routes(page)
-        _listed(page)
-
+    wire = Wire(faked={"runs.list": lambda _: {"result": _RUNS}})
     with (
         served() as site,
-        opened(site, engine=engine, init=_ON_E7, routed=routed) as page,
+        opened(site, engine=engine, init=_ON_E7, routed=wire.routes) as page,
     ):
         expect(page.locator("[data-hmz=epic]")).to_have_count(2)
-        while {id_ for _, said in feed.sent for id_ in said["ids"]} != {7, 9}:
-            page.wait_for_timeout(50)
-        expect(page.locator("[data-hmz=notification-toast]")).to_have_count(0)
-        expect(page.locator("[data-hmz=notification-count]")).to_be_hidden()
-        expect(page.locator("[data-hmz=unread]")).to_have_count(0)
+        wire.tell(page, _notice(9, "asked", epic="e7"))
+        wire.tell(page, _notice(10, "done", epic="e8"))
+        expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
+        assert [(one["epic"], one["read"]) for one in _items(page)] == [
+            ("e8", False),
+            ("e7", True),
+        ]
+        expect(page.locator("[data-hmz=notification-count]")).to_have_text("1")
 
 
 def test_an_unread_one_marks_its_epic_until_it_is_opened(engine: str) -> None:
-    feed = Feed(heard=[_item(8, "done")])
-
-    def routed(page: Page) -> None:
-        feed.routes(page)
-        _listed(page)
-
-    with served() as site, opened(site, engine=engine, routed=routed) as page:
+    wire = Wire(faked={"runs.list": lambda _: {"result": _RUNS}})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        wire.tell(page, _notice(8, "done", epic="e8"))
         expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
         row = page.locator("[data-hmz=epics] .side-item[data-epic=e8]")
         expect(row.locator("[data-hmz=unread]")).to_have_count(1)
@@ -309,6 +282,4 @@ def test_an_unread_one_marks_its_epic_until_it_is_opened(engine: str) -> None:
         row.locator("[data-hmz=epic]").click()
         expect(page.locator("[data-hmz=unread]")).to_have_count(0)
         expect(page.locator("[data-hmz=notification-count]")).to_be_hidden()
-        while not feed.sent:
-            page.wait_for_timeout(50)
-        assert feed.sent == [("read", {"ids": [8]})]
+        assert [one["read"] for one in _items(page)] == [True]

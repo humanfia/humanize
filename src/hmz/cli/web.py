@@ -133,8 +133,9 @@ def web(argv: list[str]) -> int:
     parser.add_argument(
         "--port",
         type=_port,
-        default=0,
-        help="the port to listen on, on this machine's loopback; 0 picks any free one",
+        default=None,
+        help="the port to listen on, on this machine's loopback; 0 picks any free one; "
+        "by default the one the last hmz web listened on",
     )
     parser.add_argument(
         "--no-open",

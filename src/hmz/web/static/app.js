@@ -5,7 +5,7 @@
 // shared or opened again, and the server serves one page for all of them. An address names the
 // daemon it is of first, `#/@<name>/<view>…`, or names none and is of Local.
 
-import { daemon, get, hash } from './api.js'
+import { daemon, hash, hello, started } from './api.js'
 import { fill, h, problem } from './dom.js'
 import { mountSidebar } from './sidebar.js'
 import { dragged, kept, toggleSidebar } from './shell.js'
@@ -240,22 +240,19 @@ window.addEventListener('hmz:daemon', () => {
 /** Names the page by the machine the daemon it is on is. */
 function named() {
   const asked = daemon()
-  return get('/api/held').then((context) => {
-    if (asked === daemon()) document.title = `Humanize · ${context.machine}`
-    return context
+  return hello(asked).then((said) => {
+    if (asked === daemon()) document.title = `Humanize · ${said.machine}`
+    return said
   })
 }
 
 window.addEventListener('hashchange', route)
 
-named()
-  .then((context) => {
-    mountSidebar(document.getElementById('sidebar'), context, where)
-    route()
-  })
-  .catch((error) => {
-    if (out) return
-    // A daemon out of reach: said where the view would be, the sidebar there to go elsewhere.
-    mountSidebar(document.getElementById('sidebar'), {}, where)
-    fill(page, h('div', { class: 'view' }, problem(error)))
-  })
+// Let in first: a browser that is not is told so (`hmz:out`), and is shown nothing else.
+started().then((here) => {
+  if (out) return
+  mountSidebar(document.getElementById('sidebar'), { here }, where)
+  route()
+  // A daemon out of reach is said where each view asks it something; the page is named once it answers.
+  named().catch(() => {})
+})

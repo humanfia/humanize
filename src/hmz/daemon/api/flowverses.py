@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from hmz.rpc import Call, Handler
 
-__all__ = ["METHODS", "changed", "index", "indexed", "listed"]
+__all__ = ["METHODS", "changed", "fetches", "index", "indexed", "listed"]
 
 #: The flowverse Humanize's own flows are installed out of: what it lists goes bare.
 _OFFICIAL = "official"
@@ -29,6 +29,25 @@ _OFFICIAL = "official"
 def indexed(one: Any) -> bool:
     """Whether flows are installed out of this place's index: not this project's, nor yours."""
     return not one.fixed or one.name == _OFFICIAL
+
+
+def fetches() -> None:
+    """Fetches every flowverse's index, on a thread of its own, saying nothing of how it went.
+
+    A place nothing is fetched from, or one somebody wrote into, is left as it is.
+    """
+    import contextlib
+    import threading
+
+    def fetching() -> None:
+        verses = _machine().flows.verses
+        for one in verses.all():
+            if not indexed(one) or (one.fetched and verses.edited(one)):
+                continue
+            with contextlib.suppress(Exception):
+                verses.fetch(one.name)
+
+    threading.Thread(target=fetching, daemon=True, name="hmz-fetch-verses").start()
 
 
 def listed(hmz: Any) -> dict[str, Any]:

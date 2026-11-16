@@ -374,35 +374,39 @@ directory's, while its log or the monitor is up -- is never told of.
 | Kinds | Chat turns | a chat waits for its next turn |
 | Shown | System | also ring the terminal's bell and show a system notification, which iTerm2, Ghostty, WezTerm, kitty and Windows Terminal show as your system's own |
 
-Every row is on until you turn it off. They are the
-[web interface's notification settings](/user/web#notifications) too, kept in
-`~/.hmz/settings.yaml` under `notifications`, so turning a kind off here turns it off there.
+Every row is on until you turn it off. They are kept in `~/.hmz/settings.yaml` under
+`notifications`; the [web page](/user/web#notifications) keeps its own, in your browser.
 
 ## Daemons
 
-Every other machine whose epics you want to read from here, each reached over ssh or over
-EasyTier: `Local`, this machine, is always first. A daemon is set up on one form, of a kind and
-a mode: **SSH › SSH Config**, a `Host` of your ssh config picked from a list; **SSH ›
-Custom**, its host, user, port, identity file, proxy jump and ssh options typed in, or
-filled from a host of your ssh config with its `import` row; or **P2P › EasyTier**, the secret
-its [`hmz server`](/reference/cli#hmz-server) was started with -- at least 16 bytes, never shown, and kept
-when left blank on an edit -- and the shared EasyTier nodes it meets that server at, a comma
-apart. Editing one opens it in the mode it is in. Hosts of your ssh config can also be brought
-in with **Import…**, those added already left out. It is written at once, to the same list the
-[web page](/user/web#settings) keeps.
+Every other machine whose epics you want to read and run from here, each reached by its
+routes: `Local`, this machine, is always first. A daemon is added on one form, in a mode:
+**Pairing code**, the code `hmz daemon pair` printed on that machine, claimed at once, which
+gives its id and routes; **SSH Config**, a `Host` of your ssh config picked from a list;
+**Custom**, its host, user, port, identity file, proxy jump and ssh options typed in, or filled
+from a host of your ssh config with its `import` row; or **Routes**, typed in the order they
+are tried (`stdio:ssh://…`, `tcp://host:port`, …), a route other than ssh needing the id a
+pairing code gives. Editing one opens it in the mode its routes are in, and keeps its id. Hosts
+of your ssh config can also be brought in with **Import…**, those added already left out. It is
+written at once, to this machine's settings; the [web page](/user/web#adding-a-daemon) keeps
+a list of its own, in your browser.
 
-Each row says its mode, what reaches it and how it stands: `not connected` until it is asked for, then
-`connecting`, `installing` while this `hmz` is put there, `up, hmz <version>`, or `failed`
-with why. <kbd>m</kbd>, <kbd>enter</kbd> or a click on one is its menu: **connect**, **edit…**,
-**remove** and **copy name**.
+Each row says its routes and how it stands: `idle` until it is asked for, then `connecting`,
+`installing` while this `hmz` is put there, `up, hmz <version>`, or `failed`, with what was
+said last. <kbd>m</kbd>, <kbd>enter</kbd> or a click on one is its menu: **connect**,
+**edit…**, **remove**, **copy name**, and while it is up **pair a device…**, which copies a
+code another device adds it from, and **devices…**, the devices paired with it, one revoked
+after you confirm. Local's menu has those last two.
 
 `/epics @<name>` lists that daemon's epics, and goes on listing them until you turn the list
 back with its **Daemon…** button, or with `/epics @local`. From another daemon's list an epic
 is exported here, backed up there, or has its name, task or workspace copied. <kbd>n</kbd>
 there starts a new epic on that machine -- a directory there, a flow, a task, and its agents
 where that directory has not run the flow before -- and follows it; **follow** on one going
-there does the same for it. You read what it says, answer what it asks or say a line to it,
-and <kbd>esc</kbd> leaves it going there.
+there does the same for it. It is followed on the interface's own screen, as an epic of this
+machine is, with `@<name>` on the status line: you read it, answer what it asks, say a line to
+it or stop it, and <kbd>esc</kbd> leaves it going there and comes back to
+the list.
 
 **Batch apply…** writes this machine's settings to other daemons: switch on the pages --
 general, fallback, runtimes, backup -- and the daemons, and each says whether they were

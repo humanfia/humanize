@@ -4,7 +4,7 @@
 // In a browser it is asked first: any page elsewhere can link here, and the page would carry
 // its key.
 
-import { hash, post, refresh } from '../api.js'
+import { call, hash, refresh } from '../api.js'
 import { fill, h } from '../dom.js'
 import { refusal } from '../importing.js'
 import { bar, inApp } from '../shell.js'
@@ -16,10 +16,10 @@ export function mount(root, { query }) {
   let left = false
   const go = () => {
     fill(body, h('p', { class: 'loading', role: 'status' }, 'Importing…'))
-    post('/api/runs/import', { path }).then(
+    call('runs.import', { path }).then(
       (answer) => {
         if (left) return
-        refresh('/api/runs')
+        refresh('runs.list')
         // In place of this address, so that going back never imports it again.
         location.replace(hash(`/epics/${encodeURIComponent(answer.name)}/exomyth`))
       },

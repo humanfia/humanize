@@ -3,7 +3,7 @@
 // reaching it asks; a new one is written from its backend's own fields, or brought in from
 // the hosts an ssh config names.
 
-import { get, onDaemon, post } from '../../api.js'
+import { call, onDaemon } from '../../api.js'
 import { acting, confirming, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { pathPicker } from '../../paths.js'
 
@@ -43,13 +43,13 @@ export function draw(holder, query, parts, scope) {
             acting(
               'Check',
               async () => {
-                checked[key] = await post(scope.at('/api/runtimes/check'), { backend: one.backend, name: one.name })
+                checked[key] = await scope.call('runtimes.check', { backend: one.backend, name: one.name })
                 drawListing()
               },
               { kind: 'btn small quiet', busy: 'Asking…' },
             ),
             h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
-            confirming({ label: 'Remove', ask: `Remove ${one.name}?`, yes: 'Remove', small: true, act: async () => shown(await post(scope.at('/api/runtimes/remove'), { backend: one.backend, name: one.name })) }),
+            confirming({ label: 'Remove', ask: `Remove ${one.name}?`, yes: 'Remove', small: true, act: async () => shown(await scope.call('runtimes.remove', { backend: one.backend, name: one.name })) }),
           ),
         ),
       )
@@ -57,7 +57,7 @@ export function draw(holder, query, parts, scope) {
     fill(
       listing,
       // Each runtime written over the one of its name there, or added; none there taken away.
-      h('header', {}, h('h2', {}, 'Runtimes'), scope.batch(() => data.runtimes.map(({ backend, name, made, ...fields }) => ['/api/runtimes', { backend, name, fields, replace: true }]))),
+      h('header', {}, h('h2', {}, 'Runtimes'), scope.batch(() => data.runtimes.map(({ backend, name, made, ...fields }) => ['runtimes.set', { backend, name, fields, replace: true }]))),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Backend'), h('th', {}, 'Name'), h('th', {}, 'Address'), h('th', {}, 'Resources'), h('th', {}, ''))), h('tbody', {}, rows)))
         : h('p', { class: 'dim' }, 'None yet: every environment is this machine, or spelled out where it is named.'),
@@ -80,7 +80,7 @@ export function draw(holder, query, parts, scope) {
       fill(fields)
       for (const [key, empty] of Object.entries(blank)) {
         const value = editing ? editing[key] : empty
-        const [input, read] = field(key, empty, value, { backend: backend.value, name: name.value.trim(), runtimes: data.runtimes, from: scope.base })
+        const [input, read] = field(key, empty, value, { backend: backend.value, name: name.value.trim(), runtimes: data.runtimes, from: scope.name })
         readers[key] = read
         fields.append(h('div', { class: ['field', (Array.isArray(empty) || (empty && typeof empty === 'object')) && 'wide'] }, h('label', { for: `runtime-${key}` }, labelOf(key)), input))
       }
@@ -104,7 +104,7 @@ export function draw(holder, query, parts, scope) {
             async () => {
               const given = {}
               for (const [key, read] of Object.entries(readers)) given[key] = read()
-              const answer = await post(scope.at('/api/runtimes'), { backend: backend.value, name: name.value.trim(), fields: given, replace: Boolean(editing) })
+              const answer = await scope.call('runtimes.set', { backend: backend.value, name: name.value.trim(), fields: given, replace: Boolean(editing) })
               editing = null
               shown(answer)
             },
@@ -122,7 +122,7 @@ export function draw(holder, query, parts, scope) {
     const read = acting(
       'Read SSH config',
       async () => {
-        const { hosts } = await get(scope.at('/api/runtimes/hosts'))
+        const { hosts } = await scope.call('runtimes.hosts')
         const boxes = hosts.map((one) => ({ one, box: h('input', { type: 'checkbox', disabled: one.saved }) }))
         fill(
           importing,
@@ -144,7 +144,7 @@ export function draw(holder, query, parts, scope) {
                     async () => {
                       const names = boxes.filter(({ box }) => box.checked).map(({ one }) => one.alias)
                       if (!names.length) return
-                      shown(await post(scope.at('/api/runtimes/import'), { names }))
+                      shown(await scope.call('runtimes.import', { names }))
                       drawImporting()
                     },
                     { kind: 'btn primary', busy: 'Importing…' },
@@ -159,7 +159,7 @@ export function draw(holder, query, parts, scope) {
     fill(importing, h('h2', {}, 'SSH config'), h('p', { class: 'dim' }, 'Import hosts from your SSH config as runtimes.'), read)
   }
 
-  get(scope.at('/api/runtimes'))
+  scope.call('runtimes.list')
     .then((answer) => {
       shown(answer)
       drawImporting()
@@ -199,7 +199,7 @@ function labelOf(key) {
 const hosts = new Map()
 onDaemon(() => hosts.clear())
 function sshHosts(from) {
-  if (!hosts.has(from)) hosts.set(from, get(`${from}/api/runtimes/hosts`).then((answer) => answer.hosts.map((one) => one.alias), () => []))
+  if (!hosts.has(from)) hosts.set(from, call('runtimes.hosts', {}, { on: from }).then((answer) => answer.hosts.map((one) => one.alias), () => []))
   return hosts.get(from)
 }
 

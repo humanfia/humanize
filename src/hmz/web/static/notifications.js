@@ -4,9 +4,11 @@
 // about: the epic going, for a question or a chat's next turn, or the epic that ended. None is
 // told of the epic the page is on while it is looked at: that one is read as it comes.
 
-import { daemon, get, post } from './api.js'
+import { call, client, daemon, onState } from './api.js'
 import { ago, fill, h, headline, icon, iconButton } from './dom.js'
+import { gathered, kindOf as wantedAs } from './notified.js'
 import { inApp, menu, section } from './shell.js'
+import { stored } from './stored.js'
 
 /** What each kind is called, and the mark it is drawn with. */
 const KINDS = {
@@ -21,6 +23,9 @@ const KINDS = {
 const SHOWN = 6000
 const CARDS = 3
 
+/** The notifications this browser keeps, and what it wants told of them. */
+export const kept = gathered(stored('hmz-notifications'))
+
 /** The notifications held, newest first. */
 let items = []
 let button = null
@@ -31,7 +36,7 @@ let cards = null
 let where = null
 
 /**
- * The bell, made once and the feed started with it: hidden while the server has no notifications.
+ * The bell, made once and the notices of every daemon followed with it.
  *
  * @param {() => {parts: string[], query: URLSearchParams}} at Where the page is.
  */
@@ -39,7 +44,7 @@ export function bell(at) {
   if (button) return button
   where = at
   count = h('span', { class: 'notify-count', 'data-hmz': 'notification-count', hidden: true })
-  button = h('button', { class: 'icon-btn notify-bell', type: 'button', 'aria-label': 'Notifications', title: 'Notifications', 'data-hmz': 'notifications', hidden: true }, icon('bell'), count)
+  button = h('button', { class: 'icon-btn notify-bell', type: 'button', 'aria-label': 'Notifications', title: 'Notifications', 'data-hmz': 'notifications' }, icon('bell'), count)
   menu(button, (close) => {
     const list = h('div', { class: 'notify-list' })
     drawMenu = () => drawList(list, close)
@@ -52,32 +57,46 @@ export function bell(at) {
   return button
 }
 
-/** How long a failed read waits before the next, which doubles up to five minutes. */
-let wait = 10000
-/** What was heard since the list was last asked for, which an older answer must not drop. */
-let fresh = new Map()
+/** Each daemon followed, by name: the client its subscription is on. */
+const following = new Map()
 
 async function start() {
-  try {
-    await reread()
-  } catch (error) {
-    // A server without notifications has no bell, nor a browser not let in; else it is asked again.
-    if (error.status !== 404 && error.status !== 401) {
-      setTimeout(start, wait)
-      wait = Math.min(wait * 2, 300000)
-    }
-    return
-  }
-  button.hidden = false
-  const stream = new EventSource('/api/notifications/stream')
-  stream.addEventListener('notification', (event) => heard(JSON.parse(event.data)))
-  // Read again whenever the stream opens, for what came before it did, and as the page is
-  // looked at again, for what another tab read or cleared.
-  stream.addEventListener('open', () => reread().catch(() => {}))
+  await reread().catch(() => {})
+  // Local, and every remote daemon once the page has reached it, while it is up.
+  onState((name, now) => now.state === 'up' && follow(name))
+  follow('local')
+  // Read again as the page is looked at again, for what another tab read or cleared.
   document.addEventListener('visibilitychange', () => document.hidden || reread().catch(() => {}))
   // What is of the epic the page comes to, or is looked at again on, is read there.
   addEventListener('hashchange', seen)
   addEventListener('focus', seen)
+}
+
+/**
+ * Follows one daemon's notices (`notices.subscribe`, Section 3.15.1.1 of protocol/web.md), after
+ * the last heard of it, or from where its first subscription stood; again on a client of its own.
+ */
+async function follow(name) {
+  let reaching
+  try {
+    reaching = await client(name)
+  } catch {
+    return
+  }
+  if (following.get(name) === reaching) return
+  following.set(name, reaching)
+  const after = await kept.after(name).catch(() => undefined)
+  try {
+    await reaching.notices((notice) => heard(name, notice), after === undefined ? {} : { after })
+  } catch {
+    // Not up after all: followed again once it is.
+    if (following.get(name) === reaching) following.delete(name)
+    return
+  }
+  if (after === undefined) {
+    const { last } = await call('notices.list', {}, { on: name }).catch(() => ({ last: undefined }))
+    if (typeof last === 'number') await kept.from(name, last).catch(() => {})
+  }
 }
 
 /** Whether a notification is of the epic the page is on, while it is looked at. */
@@ -90,8 +109,8 @@ function here(item) {
 
 /** Reads every notification of the epic the page is on. */
 function seen() {
-  const ids = items.filter((one) => !one.read && here(one)).map((one) => one.id)
-  if (ids.length) markRead(ids)
+  const keys = items.filter((one) => !one.read && here(one)).map((one) => one.key)
+  if (keys.length) markRead(keys)
 }
 
 /** The epics, and the workspaces they are of, that a notification unread is of on a daemon. */
@@ -101,19 +120,16 @@ export function unreadOn(name) {
 }
 
 async function reread() {
-  fresh = new Map()
-  const answer = await get('/api/notifications')
-  const known = new Set((answer.items || []).map((one) => one.id))
-  items = [...[...fresh.values()].reverse().filter((one) => !known.has(one.id)), ...(answer.items || [])]
+  items = await kept.items()
   draw()
   seen()
 }
 
-function heard(item) {
-  fresh.set(item.id, item)
-  if (items.some((one) => one.id === item.id)) return
-  items.unshift(item)
-  if (here(item)) return markRead([item.id])
+async function heard(name, notice) {
+  const item = await kept.heard(name, notice).catch(() => null)
+  if (!item) return
+  items = [item, ...items.filter((one) => one.key !== item.key)].slice(0, 200)
+  if (here(item)) return markRead([item.key])
   draw()
   card(item)
   system(item)
@@ -144,11 +160,11 @@ function drawList(list, close) {
 }
 
 function mark(item) {
-  const [, glyph, tone] = KINDS[item.kind] || ['', '·', 'idle']
+  const [, glyph, tone] = KINDS[wantedAs(item)] || ['', '·', 'idle']
   return h('span', { class: `choice-mark tone-${tone}`, 'aria-hidden': 'true' }, h('span', { class: 'glyph' }, glyph))
 }
 
-const kindOf = (item) => (KINDS[item.kind] || [item.kind])[0]
+const kindOf = (item) => (KINDS[wantedAs(item)] || [item.kind])[0]
 const daemonOf = (item) => (!item.daemon || item.daemon === 'local' ? 'Local' : item.daemon)
 const about = (item) => [item.flow, item.text || (item.task ? headline(item.task) : item.epic)].filter(Boolean).join(' · ')
 
@@ -160,28 +176,20 @@ export function addressOf(item) {
 }
 
 function opens(item) {
-  if (items.some((one) => one.id === item.id && !one.read)) markRead([item.id])
+  if (items.some((one) => one.key === item.key && !one.read)) markRead([item.key])
   location.hash = addressOf(item)
 }
 
-async function markRead(ids) {
-  for (const one of items) if (!ids || ids.includes(one.id)) one.read = true
+async function markRead(keys) {
+  for (const one of items) if (!keys || keys.includes(one.key)) one.read = true
   draw()
-  try {
-    await post('/api/notifications/read', ids ? { ids } : { all: true })
-  } catch {
-    // Read here alone, until the list is read again.
-  }
+  await kept.read(keys).catch(() => {})
 }
 
 async function clearAll() {
   items = []
   draw()
-  try {
-    await post('/api/notifications/clear')
-  } catch {
-    // Cleared here; read back as they are when the page is looked at again.
-  }
+  await kept.clear().catch(() => {})
 }
 
 /** A card for a notification as it comes, at the foot of the window, gone after a moment. */
@@ -207,7 +215,7 @@ function card(item) {
 async function system(item) {
   if (!document.hidden && document.hasFocus()) return
   // Read as one comes, rare as they are, so a change in Settings holds at once.
-  const said = await get('/api/notifications/settings').catch(() => null)
+  const said = await kept.preferences().catch(() => null)
   if (!said || !said.system) return
   const title = `${kindOf(item)} · ${daemonOf(item)}`
   const body = about(item)
@@ -217,7 +225,7 @@ async function system(item) {
     return
   }
   if (!('Notification' in window) || Notification.permission !== 'granted') return
-  const shown = new Notification(title, { body, tag: String(item.id) })
+  const shown = new Notification(title, { body, tag: item.key })
   shown.onclick = () => {
     window.focus()
     opens(item)
