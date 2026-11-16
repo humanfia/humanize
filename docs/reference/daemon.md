@@ -270,8 +270,8 @@ and when its link to the daemon closes. `hosts.*` calls do not count as attachin
 <span id="protocol"></span>
 
 `hosts.*` ask about a host without attaching to it; all but `hosts.open` start none, and a
-workspace and slot no host holds is refused 404, `no runs are held in <workspace>` (and ` for
-<slot>`). `Daemon.asked(said)` calls `hosts.<do>` with the daemon's `workspace` and `slot`
+workspace and slot no host holds is refused 404, `no runs are held in <workspace>`, and ` for <slot>`
+after it for a slot. `Daemon.asked(said)` calls `hosts.<do>` with the daemon's `workspace` and `slot`
 over a session of its own (5 s) and returns `{}` on any failure.
 
 | Method | Answer |

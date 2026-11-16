@@ -51,12 +51,14 @@ def _bare() -> socket.socket:
     return one
 
 
-def _said(one: socket.socket, *calls: dict[str, Any]) -> list[dict[str, Any]]:
-    """Says each call, in frames of its own, and reads an answer to each."""
+def _said(
+    one: socket.socket, *calls: dict[str, Any], more: int = 0
+) -> list[dict[str, Any]]:
+    """Says each call, in frames of its own, and reads an answer to each and `more`."""
     frames, answers = Frames(), list[dict[str, Any]]()
     for call in calls:
         one.sendall(encode({"jsonrpc": "2.0", **call}))
-    while len(answers) < len(calls):
+    while len(answers) < len(calls) + more:
         chunk = one.recv(1 << 16)
         assert chunk, "the daemon closed without answering"
         answers.extend(json.loads(payload) for payload in frames.feed(chunk))
@@ -135,10 +137,9 @@ def test_a_hello_arriving_in_pieces_is_still_answered(held: daemon.Daemon) -> No
         one.sendall(frame[:7])
         time.sleep(0.1)
         one.sendall(frame[7:])
-        (said,) = (
-            _said(one) if False else _said(one, {"id": 1, "method": "rpc.discover"})
-        )
+        hello, said = _said(one, {"id": 1, "method": "rpc.discover"}, more=1)
 
+    assert hello["result"]["protocol"] == PROTOCOL
     assert said["result"]["info"]["version"] == PROTOCOL
 
 
