@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { claim, parsePairing, registry, RpcError, WRITES } from '../../../../src/hmz/web/static/rpc/index.js'
+import { claim, local, parsePairing, registry, RpcError, WRITES } from '../../../../src/hmz/web/static/rpc/index.js'
 import { toBase64url } from '../../../../src/hmz/web/static/rpc/pipe.js'
 import { daemon, fakeIndexedDB, provider } from './helpers.mjs'
 
@@ -11,6 +11,14 @@ const ID = 'a'.repeat(52)
 /** A pairing code as a daemon makes one. */
 const code = (fields = {}) =>
   `hmz-pair:${toBase64url(new TextEncoder().encode(JSON.stringify({ v: 1, id: ID, routes: ['tcp://box:7700'], token: 't'.repeat(43), expires: 2e9, ...fields })))}`
+
+test('Local is unix: in hmz web, stdio:local on macOS and stdio:wsl on Windows in the desktop', () => {
+  assert.deepEqual(local('web'), { name: 'local', id: '', routes: ['unix:'] })
+  assert.deepEqual(local('macos'), { name: 'local', id: '', routes: ['stdio:local'] })
+  assert.deepEqual(local('windows'), { name: 'local', id: '', routes: ['stdio:wsl'] })
+  // Node is no web view of the desktop application.
+  assert.deepEqual(local(), local('web'))
+})
 
 test('the registry adds, lists, updates, renames and removes remote daemons', async () => {
   const store = registry(fakeIndexedDB())

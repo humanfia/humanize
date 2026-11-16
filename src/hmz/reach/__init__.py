@@ -3,9 +3,10 @@
 The lowest layer of the wire protocol, L0: any ordered, reliable stream of bytes each way
 (Section 3 of `protocol/wire.md`). A route is the text that names one; :func:`dial` opens it
 from a client's side and :class:`TcpListener` and :class:`RelayListener` accept one on a
-daemon's; and what each gives is a :class:`Pipe`, trusted where the operating system, `ssh` or
-WSL already admitted the client as the daemon's user, and untrusted otherwise. What goes over
-a pipe -- mutual TLS on an untrusted one, then the frames -- is `hmz.trust`'s and `hmz.rpc`'s.
+daemon's; and what each gives is a :class:`hmz.rpc.Pipe`, trusted where the operating system,
+`ssh` or WSL already admitted the client as the daemon's user, and untrusted otherwise. What
+goes over a pipe -- mutual TLS on an untrusted one, then the frames -- is `hmz.trust`'s and
+`hmz.rpc`'s.
 
 :func:`race` tries the routes of one daemon in turn and keeps the first to get through a
 handshake; :class:`Backoff` spaces the tries of one lost. :func:`splice` is `hmz daemon
@@ -19,7 +20,6 @@ from hmz.reach.listening import TcpListener
 from hmz.reach.pipes import (
     MESSAGE,
     Messages,
-    Pipe,
     ProcessPipe,
     SocketPipe,
     StreamPipe,
@@ -42,7 +42,6 @@ __all__ = [
     "Backoff",
     "EasyTier",
     "Messages",
-    "Pipe",
     "ProcessPipe",
     "RelayListener",
     "Route",

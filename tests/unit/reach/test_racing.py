@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import threading
 import time
+from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.reach import FIRST, LONGEST, STAGGER, Backoff, Pipe, race
+from hmz.reach import FIRST, LONGEST, STAGGER, Backoff, race
 from tests.unit.reach.memory import Memory
+
+if TYPE_CHECKING:
+    from hmz.rpc import Pipe
 
 
 def test_the_first_route_hanging_costs_the_second_only_the_stagger() -> None:
@@ -96,7 +100,7 @@ def test_a_loser_still_opening_when_the_race_is_won_is_closed_once_it_opens() ->
 
 
 def test_no_route_is_refused() -> None:
-    with pytest.raises(ValueError, match="no route"):
+    with pytest.raises(ValueError, match=r"^There is no route to try\.$"):
         race([], lambda _route: Memory(), lambda _pipe: None)
 
 

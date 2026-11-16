@@ -43,7 +43,7 @@ an internal one for Cursor's cloud workers: it also forces every shell command i
 `cursorsandbox`, which does not start where no user namespace can be opened, and it only
 rejects what the server asks the client about first. A turn at a permission granting no
 network would reach the web through Cursor all the same, so rather than run wider than it
-was told, the agent is refused and the permission is to grant online ALL.
+was told, the agent is refused and the permission is to grant network=True.
 """
 
 from __future__ import annotations
@@ -653,7 +653,7 @@ class CursorAgent(AgentBase):
                 f"{_COMMAND}: this permission cuts the network, and {_COMMAND}'s web search "
                 "and web fetch run on Cursor's own servers, through the same hosts as its "
                 "model, where nothing here can tell them apart or switch them off; grant "
-                f"it online ALL to use {_COMMAND}"
+                f"it network=True to use {_COMMAND}"
             )
 
     def natively(self, fence: Fence) -> Fence:

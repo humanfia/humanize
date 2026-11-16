@@ -125,12 +125,25 @@ fn piped(command: &mut Command) -> &mut Command {
         .stderr(Stdio::piped())
 }
 
-/// `hmz daemon connect --stdio` with the `hmz` given, in the environment given, from `home`.
+/// What `"$SHELL" -lc` runs, through `sh` whatever that shell is, for `stdio:local`: the `hmz`
+/// on the `PATH` it gives, `$HOME/.local/bin` added where it lacks it, or the one
+/// `HUMANIZE_HMZ` names (Section 3.4.12 of [DESKTOP]), connecting.
 #[cfg(unix)]
-pub fn local(hmz: &std::path::Path, env: &crate::shell_env::Env) -> Command {
-    let mut command = Command::new(hmz);
+const LOCALLY: &str = r#"case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$PATH:$HOME/.local/bin"; export PATH ;; esac; exec "${HUMANIZE_HMZ:-hmz}" daemon connect --stdio"#;
+
+/// `"$SHELL" -lc` running [`LOCALLY`], `/bin/sh` standing for `$SHELL` where it is not set, in
+/// the environment given, from `home`.
+#[cfg(unix)]
+pub fn local(env: &crate::shell_env::Env) -> Command {
+    let shell = env
+        .get(std::ffi::OsStr::new("SHELL"))
+        .filter(|shell| !shell.is_empty())
+        .cloned()
+        .unwrap_or_else(|| "/bin/sh".into());
+    let mut command = Command::new(shell);
     command
-        .args(["daemon", "connect", "--stdio"])
+        .arg("-lc")
+        .arg(format!("exec /bin/sh -c {}", quoted(LOCALLY)))
         .env_clear()
         .envs(env)
         .current_dir(crate::shell_env::home(env));
@@ -139,9 +152,9 @@ pub fn local(hmz: &std::path::Path, env: &crate::shell_env::Env) -> Command {
 }
 
 /// What WSL runs for `stdio:wsl`: says its pid on its standard error, then becomes the `hmz` a
-/// login shell finds, `~/.local/bin` included, connecting.
+/// login shell finds, `$HOME/.local/bin` put in front of its `PATH`, connecting.
 #[cfg(any(windows, test))]
-const IN_WSL: &str = r#"echo $$ >&2; exec "${SHELL:-/bin/sh}" -lc "exec /bin/sh -c 'PATH=\"\$PATH:\$HOME/.local/bin\"; export PATH; exec hmz daemon connect --stdio'""#;
+const IN_WSL: &str = r#"echo $$ >&2; exec "${SHELL:-/bin/sh}" -lc "exec /bin/sh -c 'PATH=\"\$HOME/.local/bin:\$PATH\"; export PATH; exec hmz daemon connect --stdio'""#;
 
 /// `wsl.exe [-d <distro>] --exec … hmz daemon connect --stdio`.
 #[cfg(windows)]
@@ -239,11 +252,12 @@ fn quoted(text: &str) -> String {
 }
 
 /// Runs a command to its end, telling each line it says on its standard output or error --
-/// `ssh`'s own, and what the host's says -- within `limit`.
+/// `ssh`'s own, and what the host's says -- within `limit`, failing with `late` beyond it.
 fn ran(
     kids: &Kids,
     command: &mut Command,
     limit: Duration,
+    late: &str,
     each: &dyn Fn(&str),
 ) -> Result<(bool, Vec<String>), String> {
     command
@@ -270,7 +284,7 @@ fn ran(
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 child::ended(&kid);
-                return Err(format!("no answer in {} s", limit.as_secs()));
+                return Err(late.to_owned());
             }
         }
     }
@@ -288,9 +302,11 @@ fn lines(out: impl Read, heard: &mpsc::Sender<String>) {
 }
 
 /// What the probe found: the version of `hmz` there, empty where none, and whether its daemon
-/// is `none`, `running` or `unknown`.
-fn probed(kids: &Kids, route: &Ssh) -> Result<(String, String), String> {
-    let (ok, lines) = ran(kids, &mut ssh(route, PROBE), PROBING, &|_| {})?;
+/// is `none`, `running` or `unknown`; `name` is the route, said where the host is silent
+/// beyond [`PROBING`] (Section 3.4.9 of [WIRE]).
+fn probed(kids: &Kids, route: &Ssh, name: &str) -> Result<(String, String), String> {
+    let late = format!("{name} did not open within {} seconds.", PROBING.as_secs());
+    let (ok, lines) = ran(kids, &mut ssh(route, PROBE), PROBING, &late, &|_| {})?;
     let field = |key: &str| {
         lines.iter().find_map(|line| {
             let (k, v) = line.split_once(':')?;
@@ -316,17 +332,18 @@ fn last(lines: &[String], otherwise: &str) -> String {
 
 /// Finds the `hmz` on the route's host and installs the app's own there where it must
 /// (Section 3.8.3 of [DAEMON]), then starts `hmz daemon connect --stdio` there. `wanted` is
-/// the app's version as PyPI has it, None for a development build; `say` is told the state
-/// and what was said last.
+/// the app's version as PyPI has it, None for a development build; `name` is the route as
+/// written; `say` is told the state and what was said last.
 pub fn reach_ssh(
     kids: &Kids,
     route: &Ssh,
+    name: &str,
     wanted: Option<&str>,
     say: &dyn Fn(&'static str, &str),
 ) -> Result<Arc<Child>, String> {
     let host = &route.host;
     say("connecting", &format!("ssh {host}"));
-    let (there, daemon) = probed(kids, route)?;
+    let (there, daemon) = probed(kids, route, name)?;
     match wanted.filter(|&wanted| wanted != there) {
         // A development build installs nothing, and uses what is there.
         None if there.is_empty() => return Err(format!("hmz is not installed on {host}.")),
@@ -347,14 +364,18 @@ pub fn reach_ssh(
                 }
             };
             let script = installing(wanted);
-            let (ok, lines) = ran(kids, &mut ssh(route, &script), INSTALLING, &tell)?;
+            let late = format!(
+                "hmz {wanted} was not installed within {} seconds.",
+                INSTALLING.as_secs()
+            );
+            let (ok, lines) = ran(kids, &mut ssh(route, &script), INSTALLING, &late, &tell)?;
             if !ok {
                 return Err(last(
                     &lines,
                     &format!("hmz {wanted} could not be installed."),
                 ));
             }
-            let (there, _) = probed(kids, route)?;
+            let (there, _) = probed(kids, route, name)?;
             if there != wanted {
                 return Err(format!(
                     "hmz {wanted} was installed, and hmz {there} answers."
@@ -432,7 +453,7 @@ mod tests {
     #[test]
     fn the_scripts_say_what_they_mean_to_sh() {
         // Each read back by sh as it was written.
-        for script in [PROBE, THERE, &installing("1.2.3"), IN_WSL] {
+        for script in [PROBE, THERE, &installing("1.2.3"), IN_WSL, LOCALLY] {
             let out = Command::new("/bin/sh")
                 .args(["-c", &format!("printf %s {}", quoted(script))])
                 .output()
@@ -444,37 +465,107 @@ mod tests {
                 .unwrap();
             assert!(parsed.success(), "{script}");
         }
-        // What WSL's login shell is handed, run by sh here: hmz looked for on PATH, then in
-        // ~/.local/bin.
+    }
+
+    /// A home whose `~/.local/bin` holds an `hmz`, another `hmz` elsewhere, and a login shell
+    /// that reads no profile, which would say what this machine's says: each `hmz` says which
+    /// it is and what it was asked.
+    #[cfg(unix)]
+    fn two_hmzs() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
         let home = tempfile::tempdir().unwrap();
-        let bin = home.path().join(".local/bin");
-        std::fs::create_dir_all(&bin).unwrap();
         let script = |path: &std::path::Path, text: &str| {
             use std::os::unix::fs::PermissionsExt;
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(path, text).unwrap();
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
         };
-        script(&bin.join("hmz"), "#!/bin/sh\necho \"hmz $*\"\n");
-        // A login shell that reads no profile, which would say what this machine's says.
+        let bin = home.path().join(".local/bin");
+        script(&bin.join("hmz"), "#!/bin/sh\necho \"local hmz $*\"\n");
+        let elsewhere = home.path().join("elsewhere");
+        script(&elsewhere.join("hmz"), "#!/bin/sh\necho \"path hmz $*\"\n");
         let shell = home.path().join("shell");
         script(
             &shell,
             "#!/bin/sh\n[ \"$1\" = -lc ] && exec /bin/sh -c \"$2\"\n",
         );
+        (home, elsewhere, shell)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wsl_and_ssh_put_the_local_bin_before_path() {
+        let (home, elsewhere, shell) = two_hmzs();
+        let path = format!("{}:/usr/bin:/bin", elsewhere.display());
+        // What WSL's login shell is handed, run by sh here.
         let out = Command::new("/bin/sh")
             .args(["-c", IN_WSL])
             .env_clear()
             .env("HOME", home.path())
-            .env("PATH", "/usr/bin:/bin")
+            .env("PATH", &path)
             .env("SHELL", &shell)
             .output()
             .unwrap();
         assert_eq!(
             String::from_utf8(out.stdout).unwrap(),
-            "hmz daemon connect --stdio\n"
+            "local hmz daemon connect --stdio\n"
         );
         let pid = String::from_utf8(out.stderr).unwrap();
         assert!(pid.trim().parse::<u32>().is_ok(), "{pid}");
+        // What ssh has the host's shell run, run by sh here.
+        let out = Command::new("/bin/sh")
+            .args(["-c", &format!("{THERE}{CONNECT}")])
+            .env_clear()
+            .env("HOME", home.path())
+            .env("PATH", &path)
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8(out.stdout).unwrap(),
+            "local hmz daemon connect --stdio\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn runs_local_through_the_login_shell_adding_the_local_bin_where_it_lacks_it() {
+        let (home, elsewhere, shell) = two_hmzs();
+        let env = |path: &str, shell: Option<&std::path::Path>| {
+            let mut env = crate::shell_env::Env::new();
+            env.insert("HOME".into(), home.path().into());
+            env.insert("PATH".into(), path.into());
+            if let Some(shell) = shell {
+                env.insert("SHELL".into(), shell.into());
+            }
+            env
+        };
+        let said = |path: &str| {
+            let out = local(&env(path, Some(&shell))).output().unwrap();
+            String::from_utf8(out.stdout).unwrap()
+        };
+        // The login shell's PATH first; ~/.local/bin after it, where it lacks it.
+        let path = format!("{}:/usr/bin:/bin", elsewhere.display());
+        assert_eq!(said(&path), "path hmz daemon connect --stdio\n");
+        assert_eq!(said("/usr/bin:/bin"), "local hmz daemon connect --stdio\n");
+        let command = local(&env("/usr/bin:/bin", Some(&shell)));
+        assert_eq!(command.get_program(), shell.as_os_str());
+        assert_eq!(
+            args(&command),
+            [
+                "-lc".to_owned(),
+                format!("exec /bin/sh -c {}", quoted(LOCALLY))
+            ]
+        );
+        assert_eq!(command.get_current_dir(), Some(home.path()));
+        // The hmz HUMANIZE_HMZ names, where it is set.
+        let mut named = env("/usr/bin:/bin", Some(&shell));
+        named.insert("HUMANIZE_HMZ".into(), elsewhere.join("hmz").into());
+        let out = local(&named).output().unwrap();
+        assert_eq!(
+            String::from_utf8(out.stdout).unwrap(),
+            "path hmz daemon connect --stdio\n"
+        );
+        // /bin/sh where $SHELL is not set.
+        assert_eq!(local(&env("/usr/bin:/bin", None)).get_program(), "/bin/sh");
     }
 
     #[cfg(unix)]

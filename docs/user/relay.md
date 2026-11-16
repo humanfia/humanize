@@ -45,7 +45,8 @@ A device then asks the relay for that daemon id:
   ends, which the relay has no key to.
 - **A browser** is joined by signals. The relay passes the WebRTC offer, answer and candidates
   between the browser and the daemon; the data channel they open goes directly between them
-  where the network allows, and the daemon signs its side of it with its device key.
+  where the network allows, and the daemon signs its side of it with its device key. A daemon
+  that will not answer says why, and the relay tells the browser and closes its connection.
 
 The relay keeps nothing on disk and reads nothing of the machine it runs on: no settings, no
 home, no identity. A room goes when its daemon disconnects.
@@ -78,6 +79,7 @@ cross. It never sees what a session says, and it keeps none of what it learns.
 | Longest binary message | 1 048 576 bytes; a longer one closes the connection |
 | Keepalive | a ping every 30 seconds; a connection that has not answered one within 60 seconds is closed |
 | A native join the daemon does not answer | refused after 10 seconds: `The daemon did not answer.` |
+| A connection that sends nothing, or a daemon that does not answer its challenge | closed after 10 seconds: `Nothing was said in time.` |
 
 ## Troubleshooting
 

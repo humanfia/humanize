@@ -9,20 +9,16 @@ followed live (`held`); this is what is written down of it.
 
 from __future__ import annotations
 
-import contextlib
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.daemon.api import backups
 from hmz.daemon.api import runs as api
-from hmz.daemon.api.runs import BUNDLE, held_by, local, resolved, row
-from hmz.rpc import RpcError
+from hmz.daemon.api.runs import BUNDLE, held_by, local, row
 
 from .routing import Download, Made, Refusal, Route, routes
+from .routing import refused as _said
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
-
     from hmz.runtime.epic import Ran
 
     from .places import Places
@@ -44,26 +40,6 @@ class Runs(api.Runs):
         )
         self._places = places
 
-    def workspaces(self) -> list[dict[str, Any]]:
-        """Every workspace there is to offer, with how many runs it has and when it last ran."""
-        runs = self.all()
-        running = {one["workspace"] for one in self._places.running()}
-        mine: dict[str, list[Ran]] = {}
-        for ran in runs:
-            mine.setdefault(resolved(ran.workspace), []).append(ran)
-        return [
-            {
-                "path": where,
-                "name": Path(where).name or where,
-                "epics": len(mine.get(where, [])),
-                "last": mine[where][0].began if mine.get(where) else "",
-                "running": where in running,
-                "here": where == str(self._places.here),
-                "there": Path(where).is_dir(),
-            }
-            for where in self._places.known(list(mine))
-        ]
-
     def named(self, name: str) -> Ran:
         """One run, by the name of its epic, of whichever workspace it was run in.
 
@@ -83,21 +59,11 @@ def refused(why: ValueError) -> Refusal:
     Returns:
       A conflict naming the epic, for one here already; otherwise a bad request.
     """
-    return _refusal(api.refused(why))
-
-
-def _refusal(why: RpcError) -> Refusal:
-    """A refusal of the daemon's, said as the HTTP one of the same number."""
-    return Refusal(why.message, why.code, **(why.data or {}))
-
-
-@contextlib.contextmanager
-def _said() -> Generator[None]:
-    """Says a refusal of the daemon's as an HTTP one."""
     try:
-        yield
-    except RpcError as why:
-        raise _refusal(why) from why
+        with _said():
+            raise api.refused(why)
+    except Refusal as said:
+        return said
 
 
 def _whole(asked: Asked, name: str, default: int) -> int:

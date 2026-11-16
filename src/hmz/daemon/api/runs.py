@@ -25,7 +25,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz.daemon.api import files
+from hmz.daemon.api import files, workspaces
 from hmz.rpc import Code, RpcError
 
 if TYPE_CHECKING:
@@ -53,7 +53,6 @@ __all__ = [
     "row",
     "running",
     "usage",
-    "workspace",
 ]
 
 #: What an epic's archive is sent as.
@@ -349,31 +348,29 @@ def running() -> list[dict[str, Any]]:
     `workspace`, its `slot` and the questions it waits on, each `<run>:<question>`, as
     `asking`: as each host says it of itself.
     """
-    from hmz import daemon
-
     said: list[dict[str, Any]] = []
-    with contextlib.suppress(Exception):
-        for one in daemon.daemons():
-            with contextlib.suppress(Exception):
-                status = one.status()
-                pending: list[dict[str, Any]] = status.get("pending") or []
-                said.append(
-                    {
-                        "state": status.get("state") or "idle",
-                        "run": status.get("run") or 0,
-                        "flow": status.get("flow") or "",
-                        "epic": status.get("epic") or "",
-                        "task": status.get("task") or "",
-                        "workspace": resolved(one.workspace),
-                        "slot": one.slot,
-                        **({"turn": status["turn"]} if "turn" in status else {}),
-                        "asking": [
-                            f"{ask.get('run') or status.get('run') or 0}:{ask['question']}"
-                            for ask in pending
-                        ],
-                    }
-                )
-    return [one for one in said if one["state"] in ("running", "stopping")]
+    for status in workspaces.statuses().values():
+        if status.get("state") not in ("running", "stopping"):
+            continue
+        run = status.get("run") or 0
+        pending: list[dict[str, Any]] = status.get("pending") or []
+        said.append(
+            {
+                "state": status["state"],
+                "run": run,
+                "flow": status.get("flow") or "",
+                "epic": status.get("epic") or "",
+                "task": status.get("task") or "",
+                "workspace": status["workspace"],
+                "slot": status["slot"],
+                **({"turn": status["turn"]} if "turn" in status else {}),
+                "asking": [
+                    f"{ask.get('run') or run}:{ask.get('question', '')}"
+                    for ask in pending
+                ],
+            }
+        )
+    return said
 
 
 def row(
@@ -665,20 +662,6 @@ def local(said: str) -> Path:
     return Path(said)
 
 
-def workspace(said: str) -> str:
-    """A workspace a call names, as a whole path, `~` expanded (Section 4.5.2 of daemon.md).
-
-    Raises:
-      RpcError: 400 for one that is not a whole path, 404 for one naming no directory.
-    """
-    at = Path(said).expanduser()
-    if not at.is_absolute():
-        raise RpcError(Code.REFUSED, f"Say the workspace as a whole path, not {said}.")
-    if not at.is_dir():
-        raise RpcError(Code.NOT_FOUND, f"There is no directory {at}.")
-    return str(at)
-
-
 @functools.cache
 def resolved(workspace: str) -> str:
     """A workspace's path as one is compared with another: whole, with every link followed."""
@@ -740,7 +723,7 @@ def _within(
 
 def _workspace_of(call: Call) -> str:
     said: str | None = call.params.get("workspace")
-    return workspace(said) if said is not None else ""
+    return str(workspaces.place(said)) if said is not None else ""
 
 
 def _list(call: Call) -> dict[str, Any]:

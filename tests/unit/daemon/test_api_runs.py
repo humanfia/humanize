@@ -141,22 +141,6 @@ def test_parameters_out_of_their_range_are_refused(
     assert (refused.code, refused.message) == (-32602, message)
 
 
-def test_a_workspace_is_a_whole_path_to_a_directory(tmp_path: Path) -> None:
-    assert runs.workspace(str(tmp_path)) == str(tmp_path)
-    with pytest.raises(RpcError) as relative:
-        runs.workspace("w")
-    assert (relative.value.code, relative.value.message) == (
-        400,
-        "Say the workspace as a whole path, not w.",
-    )
-    with pytest.raises(RpcError) as missing:
-        runs.workspace(str(tmp_path / "gone"))
-    assert (missing.value.code, missing.value.message) == (
-        404,
-        f"There is no directory {tmp_path / 'gone'}.",
-    )
-
-
 @pytest.mark.parametrize(
     ("said", "code", "data"),
     [

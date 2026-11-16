@@ -6,35 +6,38 @@ read -- and tested -- without starting a CLI: which rung of coganchor's ladder a
 :class:`~hmz.flows.errors.HarnessError` a failed turn is. The drivers themselves are
 :mod:`hmz.runtime.flowing.harnesses`.
 
-**Permission.** A :class:`~hmz.flows.Permission` is four scopes, and it reaches a CLI two
-ways at once: as a *fence* its process tree cannot get past, and as a *rung* its own tools
-are run at.
+**Permission.** A :class:`~hmz.flows.Permission` is a preset, the network and rules path by
+path, and it reaches a CLI two ways at once: as a *fence* its process tree cannot get past,
+and as a *rung* its own tools are run at.
 
 The fence is :func:`fenced`: coganchor's :class:`~hmz.coganchor.fence.Fence`, set on every
-session's agent as `AgentConfig.fence`. `system` is `/`, `user` the home directory and
-`local` the workdir; READ lets a scope be read, ALL written, NONE neither. Whatever the scopes
-say, a CLI may read what any program needs to run -- the system's programs and libraries,
-the few files under `/etc` a resolver and a TLS stack read, `/proc`, `/sys` -- and its own
-programs and the Python running Humanize, and write the devices, `/dev/shm`, its own state
-and a scratch directory of its own that is its `TMPDIR`, with the caches a build writes
-pointed into it wherever the home cannot be written. `online` NONE cuts the network to the
-hosts the CLI's model and sign-in are at (:func:`hmz.coganchor.backends.reachable`, read
-under the account the session runs as); ALL leaves it alone. The default -- local ALL, user
-and system READ, online ALL -- is a real fence: the workdir and that minimum may be written,
-and nothing else.
+session's agent as `AgentConfig.fence`. Each of the permission's rules -- its preset's, then
+its own -- is handed over as it is said, `/...` where it says, `~` the home directory and `.`
+the workdir, and the last that matches a path decides it, so that a `deny` or a `read_only`
+beneath a wider grant carves that subtree out of it. A workdir that may be written writes
+the temporary directories too. Whatever the rules say, a CLI may read what any program needs
+to run -- the system's programs and libraries, the few files under `/etc` a resolver and a
+TLS stack read, `/proc`, `/sys` -- and its own programs and the Python running Humanize, and
+write the devices, `/dev/shm`, its own state and a scratch directory of its own that is its
+`TMPDIR`, with the caches a build writes pointed into it wherever the home cannot be
+written. `network` False cuts the network to the hosts the CLI's model and sign-in are at
+(:func:`hmz.coganchor.backends.reachable`, read under the account the session runs as); True
+leaves it alone. The default -- `workspace-write` on the network -- is a real fence: the
+workdir, the temporary directories and that minimum may be written, and nothing else.
 
 A CLI that can enforce part of the fence itself is told to by its driver
 (:meth:`~hmz.coganchor.agents.AgentBase.natively`), and the rest is put around it from outside
 by ``hmz internal fence``: Landlock for the paths and TCP, a seccomp filter for every other
 kind of socket, and a proxy on loopback that is the one way out. Nothing is ever run wider
 than the permission: a session whose fence neither its CLI nor this machine can hold -- no
-Landlock, a kernel too old to cut the network, work that lands on another machine -- is
-refused with :class:`~hmz.flows.errors.HarnessSandboxed` as it opens. Which CLI enforces what
+Landlock, a kernel too old to cut the network, a carve-out its sandbox cannot draw, work that
+lands on another machine -- is refused with :class:`~hmz.flows.errors.HarnessSandboxed` as it
+opens. Which CLI enforces what
 natively is in `docs/reference/flows.md`.
 
 The rung is coganchor's ladder -- `read-only`, `workspace-write`, `auto`, `bypass` -- which
 each of its drivers maps onto its CLI's own approval settings, and which the fence makes no
-longer the thing that keeps a session inside its scopes. Approvals are never put to anybody:
+longer the thing that keeps a session inside its rules. Approvals are never put to anybody:
 every session runs at its CLI's nothing-asked mode, which is what the flow API calls BYPASS --
 `danger-full-access` and `never` on Codex, `bypassPermissions` on Claude Code. Where a managed
 policy forbids that, the CLI runs at the most permissive mode left that no model reviews --
@@ -44,17 +47,17 @@ Claude Code's and cursor-agent's model-reviewed modes and is never used for them
 place it is used is the last column below, on the two CLIs where it means the CLI asks and
 Humanize answers.
 
-| `local`      | every harness but dsh, mcode and acp | dsh, mcode, acp |
-|--------------|--------------------------------------|-----------------|
-| READ or NONE | `read-only`                          | `bypass`        |
-| ALL          | `bypass`                             | `bypass`        |
+| Permission                                  | every harness but these | dsh, mcode, acp |
+|---------------------------------------------|-------------------------|-----------------|
+| `read-only`, and `access(".")` is not WRITE | `read-only`             | `bypass`        |
+| anything else                               | `bypass`                | `bypass`        |
 
-- `local` READ is the CLI's own read-only rung as well as a fence that lets nothing but the
-  minimum be written: Claude Code's `plan`, Codex's read-only sandbox, a tool list with
-  nothing that writes on the rest. `local` NONE is the same rung, and a fence that does not
-  let the workdir be read either.
+- A `read-only` preset whose rules do not let the workdir be written is the CLI's own
+  read-only rung as well as a fence: Claude Code's `plan`, Codex's read-only sandbox, a tool
+  list with nothing that writes on the rest. A rule that does write the workdir takes the
+  CLI off that rung, which could not let it; the fence holds it to the rest.
 - dsh and ACP CLIs can be held to no rung but `bypass`, and MiniMax Code to none that changes
-  nothing; the fence holds them to the scopes.
+  nothing; the fence holds them to the rules.
 
 While a hook is hung on a moment only asking reaches, three CLIs are started so that they
 ask, and Humanize answers every request yes unless the hook says no -- never a model:
@@ -68,9 +71,9 @@ ask, and Humanize answers every request yes unless the hook says no -- never a m
 - Kimi Code, either hook: coganchor's `auto` -- Kimi's `yolo` -- which asks about what the
   CLI deems risky, and is the mode where the agent may ask its user at all.
 
-`online` is also the CLI's own web tools: on for ALL, off for NONE where the CLI can be told,
-and left as the CLI has it where it cannot (cursor-agent, mcode, omp, pi, acp). At NONE,
-cursor-agent and mcode -- whose search runs on their vendors' servers, through the hosts of
+`network` is also the CLI's own web tools: on for True, off for False where the CLI can be
+told, and left as the CLI has it where it cannot (cursor-agent, mcode, omp, pi, acp). At
+False, cursor-agent and mcode -- whose search runs on their vendors' servers, through the hosts of
 their models -- and an ACP CLI that declares no hosts are refused; on omp, pi and an ACP CLI
 that does, the fence's cut network is what stops a search, which reaches no host but the
 model's.
@@ -86,6 +89,7 @@ from typing import TYPE_CHECKING, Any, Final
 import pydantic
 
 from hmz.flows import (
+    Access,
     AskUserHookResult,
     HarnessContended,
     HarnessDropped,
@@ -101,7 +105,6 @@ from hmz.flows import (
     HookKind,
     ModelUnavailable,
     OutputSchemaError,
-    PermissionKind,
     PermissionRequestHookResult,
     PreToolUseHookResult,
     SessionError,
@@ -181,7 +184,8 @@ def rung(
       One of `read-only`, `workspace-write`, `auto` and `bypass`, and never a rung outside
       `rungs`.
     """
-    said = READ_ONLY if permission.local <= PermissionKind.READ else BYPASS
+    reads = permission.preset == READ_ONLY and permission.access(".") != Access.WRITE
+    said = READ_ONLY if reads else BYPASS
     if said != READ_ONLY and asking(harness, hung):
         said = ASKING
     return said if said in rungs else BYPASS
@@ -246,7 +250,7 @@ def searching(permission: Permission, *, tellable: bool) -> bool | None:
     """
     if not tellable:
         return None
-    return permission.online == PermissionKind.ALL
+    return permission.network
 
 
 def fenced(
@@ -264,7 +268,7 @@ def fenced(
       workdir: The workdir it works in, on this machine.
       home: The home directory of the user its CLI runs as.
       profile: What coganchor knows of the CLI, or None for one it knows nothing of -- which
-        the fence then lets reach no host at all while `online` is NONE.
+        the fence then lets reach no host at all while `network` is False.
       environ: The environment its turns run under, the account's included, which says
         where the account points the CLI's model.
 
@@ -275,20 +279,9 @@ def fenced(
     from hmz.coganchor import backends
     from hmz.coganchor.fence import Fence
 
-    # The scopes said as the rules they are, widest first so the narrower roots win. A
-    # stopgap until the flow API says its permission in rules itself.
-    access = {
-        PermissionKind.NONE: "none",
-        PermissionKind.READ: "read",
-        PermissionKind.ALL: "write",
-    }
     return Fence.of(
-        rules=[
-            ("/", access[permission.system]),
-            ("~", access[permission.user]),
-            (".", access[permission.local]),
-        ],
-        online=permission.online == PermissionKind.ALL,
+        rules=[(rule.path, str(rule.access)) for rule in permission.rules],
+        online=permission.network,
         workdir=workdir,
         home=home,
         hosts=backends.reachable(profile, environ) if profile is not None else (),

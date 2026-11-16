@@ -209,14 +209,16 @@ export function secondsOf(duration) {
   return (years * 365 + days) * 86400 + hours * 3600 + minutes * 60 + seconds
 }
 
-/** What a role lets the agent filling it touch, scope by scope. */
+/**
+ * What a role lets the agent filling it touch: its preset, then each rule of its own in the
+ * order said, the last that matches a path deciding it, and whether it goes online.
+ */
 export function permitted(permission) {
-  const touches = { all: 'writes', read: 'reads', none: 'keeps out of' }
+  const touches = { write: 'writes', read: 'reads', none: 'keeps out of' }
   return [
-    `${touches[permission.local]} its workdir`,
-    `${touches[permission.user]} the rest of your home`,
-    `${touches[permission.system]} the rest of the machine`,
-    permission.online === 'all' ? 'goes online' : 'stays offline',
+    permission.preset,
+    ...permission.granular.map((rule) => `${touches[rule.access]} ${rule.path}`),
+    permission.network ? 'goes online' : 'stays offline',
   ].join(' · ')
 }
 

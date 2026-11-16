@@ -220,24 +220,6 @@ class Places:
             run for run in said.values() if run.get("state") in ("running", "stopping")
         ]
 
-    def known(self, epics: list[str]) -> list[str]:
-        """Every workspace there is to offer: where an epic ran, set up or written down here.
-
-        Args:
-          epics: The workspaces epics were run in, newest first.
-
-        Returns:
-          Each once: where the interface started, then those running, then the rest in the
-          order given -- epics' first, then those only written down.
-        """
-        seen: dict[str, None] = {str(self.here): None}
-        # Read afresh: another workspace's Humanize, or another interface, may have written one.
-        written = self._daemon.Hmz(self.here).settings.workspaces()
-        running = [one["workspace"] for one in self.running()]
-        for one in (*running, *epics, *written):
-            seen.setdefault(str(one), None)
-        return list(seen)
-
     def close(self) -> None:
         """Lets go of every link, and of the runs held in this process where they are."""
         self._closed.set()
@@ -303,30 +285,23 @@ class Places:
         Returns:
           Each host's status with its `workspace`, its whole path, by workspace and slot.
         """
+        if self._apart:
+            from hmz.daemon.api import workspaces
+
+            return workspaces.statuses()
         said: dict[str, dict[str, Any]] = {}
-        if not self._apart:
-            with self._lock:
-                hosts = [
-                    (str(one.workspace), slot, hosting)
-                    for one in self._places.values()
-                    for slot, hosting in one.hosting.items()
-                ]
-            for workspace, slot, hosting in hosts:
-                with contextlib.suppress(Exception):
-                    said[f"{workspace}\0{slot}"] = {
-                        **hosting.status(),
-                        "workspace": workspace,
-                    }
-            return said
-        with contextlib.suppress(Exception):
-            for one in self._daemon.daemons():
-                with contextlib.suppress(Exception):
-                    workspace = str(Path(one.workspace).resolve())
-                    said[f"{workspace}\0{one.slot}"] = {
-                        **one.status(),
-                        "workspace": workspace,
-                        "slot": one.slot,
-                    }
+        with self._lock:
+            hosts = [
+                (str(one.workspace), slot, hosting)
+                for one in self._places.values()
+                for slot, hosting in one.hosting.items()
+            ]
+        for workspace, slot, hosting in hosts:
+            with contextlib.suppress(Exception):
+                said[f"{workspace}\0{slot}"] = {
+                    **hosting.status(),
+                    "workspace": workspace,
+                }
         return said
 
     def _asks_the_daemon(self) -> None:
@@ -356,8 +331,17 @@ def _asking(pending: Any, run: Any) -> list[str]:
 
 
 def _workspaces(asked: Asked) -> dict[str, Any]:
+    """As `workspaces.list` answers, `here` where the interface started."""
+    from hmz import daemon
+    from hmz.daemon.api import workspaces
+
     places = asked.site.places
-    return {"here": str(places.here), "workspaces": asked.site.runs.workspaces()}
+    here = str(places.here)
+    # Read afresh: another workspace's Humanize, or another interface, may have written one.
+    written = daemon.Hmz(places.here).settings.workspaces()
+    running = [one["workspace"] for one in places.running()]
+    listed = workspaces.listed(here, asked.site.runs.all(), running, written)
+    return {"here": here, "workspaces": listed}
 
 
 def _keep(asked: Asked) -> dict[str, Any]:

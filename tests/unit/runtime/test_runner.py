@@ -154,10 +154,9 @@ def test_help_loads_no_flow(capsys: pytest.CaptureFixture[str]) -> None:
 
 @dataclass(frozen=True)
 class Permission:
-    local: str = "read"
-    user: str = "none"
-    system: str = "none"
-    online: str = "none"
+    preset: str = "read-only"
+    network: bool = False
+    granular: tuple[object, ...] = ("~/.ssh", "/srv")
 
 
 @dataclass(frozen=True)
@@ -940,11 +939,12 @@ def test_a_report_made_during_a_run_says_what_was_running_and_on_what(
             "model": "opus",
             "effort": "high",
             "account": "work",
-            "may": "local=read user=none system=none online=none",
+            "may": "preset=read-only network=false rules=2",
             "skills": [],
         }
     ]
     assert "secret task" not in json.dumps(said)
+    assert "/srv" not in json.dumps(said)
     # Once the run is over it is no longer one that was running.
     assert cast("dict[str, Any]", telemetry.held()["flow"])["agents"] == []
 

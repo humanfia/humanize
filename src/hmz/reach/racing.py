@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from hmz.reach.pipes import Pipe
+    from hmz.rpc.pipe import Pipe
 
 __all__ = ["FIRST", "LONGEST", "STAGGER", "Backoff", "Won", "race"]
 
@@ -64,12 +64,12 @@ def race[R, T](
       The winner. Every other attempt has been, or is being, closed.
 
     Raises:
-      ValueError: If there are no routes.
+      ValueError: `There is no route to try.`, if there are none (Section 3.6.3).
       Exception: Once every route has failed, the failure of the last to fail (Section
         3.6.3).
     """
     if not routes:
-        raise ValueError("A daemon with no route cannot be reached.")
+        raise ValueError("There is no route to try.")
     told: queue.Queue[tuple[int, Won[R, T] | Exception]] = queue.Queue()
     holding = threading.Lock()
     opened: dict[int, Pipe] = {}

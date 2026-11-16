@@ -611,7 +611,9 @@ class Runner:
         cost = self._budget.cost
         return cost is not None and not math.isinf(cost)
 
-    def unreadable(self, stopped: Callable[[], bool] | None = None) -> str:
+    def unreadable(
+        self, stopped: Callable[[], bool] | None = None, *, fetch: bool = True
+    ) -> str:
         """Which cap of the run nothing it drives can read, in words, or "" for none.
 
         A cost cap over an agent whose model nobody prices is a cap that cannot bite: its
@@ -622,11 +624,13 @@ class Runner:
         Args:
           stopped: Asked while the list is waited for, so that a run stopped meanwhile is not
             held up by it.
+          fetch: Whether a stale or missing list is asked for first; False answers of the list
+            kept, reaching no other machine, as a check that starts nothing does.
 
         Raises:
           Refused: If the price list gives a price that is not a finite number.
         """
-        unpriced = self._prices(stopped)
+        unpriced = self._prices(stopped, fetch=fetch)
         if not self._capped:
             return ""
         cost = self._budget.cost or 0.0
@@ -637,7 +641,9 @@ class Runner:
             "stop what it spends"
         )
 
-    def _prices(self, stopped: Callable[[], bool] | None = None) -> list[str]:
+    def _prices(
+        self, stopped: Callable[[], bool] | None = None, *, fetch: bool = True
+    ) -> list[str]:
         """Brings the price list up to date for this run, once, whichever way it was started.
 
         A run is priced wherever it is started -- a command line, a tool, the interface -- so
@@ -653,6 +659,7 @@ class Runner:
 
         Args:
           stopped: Asked while the list is waited for.
+          fetch: Whether the list is brought up to date first, or only read as it is kept.
 
         Returns:
           The models of the run's agents that nobody lists a price for, in order.
@@ -664,7 +671,7 @@ class Runner:
 
         try:
             with self._pricing:
-                if not self._priced:
+                if fetch and not self._priced:
                     self._priced = True
                     if self._capped:
                         prices.ready(stopped=stopped)
@@ -1143,12 +1150,15 @@ def _about() -> dict[str, object]:
     for runner in tuple(_GOING):
         for role, driver in runner.agents.items():
             declared = runner.declaration.agent(role)
+            # The preset, the network and how many rules narrow or widen it -- never the
+            # rules' paths, which may name somebody's files.
             may = (
                 ""
                 if declared is None
-                else " ".join(
-                    f"{scope}={getattr(declared.permission, scope)}"
-                    for scope in ("local", "user", "system", "online")
+                else (
+                    f"preset={declared.permission.preset} "
+                    f"network={str(declared.permission.network).lower()} "
+                    f"rules={len(declared.permission.granular)}"
                 )
             )
             agents.append(
