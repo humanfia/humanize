@@ -38,7 +38,7 @@ holds the same table, so an import that breaks it fails the run.
 | who is outside a run: claims, away, questions, lines said to agents, asides | `runtime/doing/hosting.py` |
 | a slash command, a key, a menu; what the interface draws of a message | `tui/` |
 | a view of the web interface, or a route it answers | `web/`: the page under `web/static/`, plain ES modules, and its routes beside the server |
-| runs kept going after the terminal closes, and the socket frontends reach them over | `daemon/` |
+| runs kept going after the terminal closes, and the one JSON-RPC endpoint every client reaches them through, on its socket and its listeners | `daemon/` |
 | a carrier between a client and a daemon: a route, dialing it, listening, racing routes | `reach/` |
 | the frames a session carries, and JSON-RPC over them: calls, notifications, errors, `session.hello` | `rpc/` |
 | a new command | `cli/` |

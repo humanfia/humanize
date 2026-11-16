@@ -22,6 +22,7 @@ hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
 hmz server start --mode p2p --secret <s> --peer <url>...  keep this machine reachable
 hmz server stop                        stop that server
+hmz daemon serve|connect --stdio|pair|devices|install|uninstall  this machine's daemon
 hmz relay serve [--listen <host>:<port>]  relay daemons and the devices that reach them
 hmz update                             update hmz to its newest release
 hmz backup <epic> [--to <target>]...   back epics up to git repositories, or download them
@@ -613,6 +614,36 @@ records itself in `~/.hmz/server.json`. It runs until `hmz server stop`, which s
 | `stop` waited 30 seconds and the server is still there | `hmz: the server did not stop in 30 seconds (pid <n>)` | `1` |
 | `--mode`, `--secret` or `--peer` missing, another mode, a node that is not a URL as above, or a secret under 16 bytes | argparse usage error; `A secret must be at least 16 bytes.` for the last | `2` |
 
+## `hmz daemon` {#hmz-daemon}
+
+```text
+hmz daemon serve [--listen <spec>]...
+hmz daemon connect --stdio
+hmz daemon pair [--route <route>]... [--seconds <seconds>]
+hmz daemon devices [revoke <name>]
+hmz daemon install
+hmz daemon uninstall
+```
+
+| Subcommand | Does |
+| --- | --- |
+| `serve` | Runs this machine's [daemon](/reference/daemon#sessions) in the foreground until `SIGINT` or `SIGTERM`, listening on its socket, on every listener of the setting `listen` and on every `--listen` (`tcp://<address>:<port>`, `ws://<address>:<port>`, `relay:<ws-url>`, `webrtc:<ws-url>`, `easytier:<name>`). Prints `hmz daemon: listening on <route>` as each listener opens. It never goes for want of hosts or sessions. |
+| `connect --stdio` | Carries standard input to the daemon's socket and the socket to standard output, starting the daemon where none runs, until either ends; what a `stdio:ssh` or `stdio:wsl` route runs on the far machine. |
+| `pair` | Calls `pair.create` (`--route` any number of times; `--seconds` 60 to 86400, default 600), prints the `hmz-pair:…` code, and on stderr `hmz daemon pair: claim this code on the device to pair before <time>`. |
+| `devices` | One line per paired device, oldest first: name, fingerprint, added, last seen, tab-separated. `devices revoke <name>` calls `devices.revoke` and prints `hmz daemon devices: revoked <name>; <n> sessions closed`. |
+| `install`, `uninstall` | Writes, enables and starts -- or stops, disables and removes -- the service running `<hmz> daemon serve` at login: the launchd agent `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist` (`launchctl bootstrap gui/<uid>`) or the systemd user unit `~/.config/systemd/user/hmz-daemon.service` (`systemctl --user enable --now`). Prints `hmz daemon: installed <path>` or `uninstalled <path>`. |
+
+| Condition | stderr | Exit |
+| --- | --- | --- |
+| `serve` interrupted or terminated | — | `0` |
+| `serve` with a daemon already running | `hmz: a daemon is already running (pid <pid>)` | `1` |
+| The daemon cannot be reached or started | `hmz: the daemon cannot be reached: <why>` | `1` |
+| The daemon speaks another protocol | `hmz: the runs on this machine are held by an older Humanize (pid <pid>); stop it with that version` | `1` |
+| `pair.create` or `devices.revoke` refused | `hmz: <message>` | `1` |
+| `install` on another system than macOS or Linux | `hmz: hmz daemon install runs on macOS and Linux alone` | `1` |
+| `launchctl` or `systemctl` fails, or `uninstall` with nothing installed | `hmz: <why>` | `1` |
+| Another subcommand, `connect` without `--stdio`, a `--listen` that is not a listener spec | argparse usage error (`<spec> is not a listener.`) | `2` |
+
 ## `hmz relay` {#hmz-relay}
 
 ```text
@@ -917,6 +948,7 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 | `1` | `hmz` | Runs held by an older Humanize; or the host let go of the interface. |
 | `1` | `hmz web` | Runs held by an older Humanize; or the runs or the port could not be had. |
 | `1` | `hmz server` | A server already running on `start`, none on `stop`, or it could not be started. |
+| `1` | `hmz daemon` | A daemon already running on `serve`; the daemon unreachable, of another protocol, or refusing; the service could not be installed. |
 | `1` | `hmz relay` | The address could not be listened on. |
 | `1` | `hmz update` | Installed from a source, or no installer, PyPI or install that worked. |
 | `1` | `hmz exec` | The flow raised (traceback on stderr; the crash is reported where reporting is on). |
