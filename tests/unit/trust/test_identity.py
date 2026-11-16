@@ -73,6 +73,17 @@ def test_the_certificate_is_as_the_protocol_states(
     assert identity.self_signed(made)
 
 
+def test_a_long_host_is_cut_so_the_common_name_is_64_characters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(socket, "gethostname", lambda: "h" * 70 + ".example.org")
+    made = identity.device().certificate
+    (common,) = made.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+    assert common.value == "hmz " + "h" * 60
+    assert len(common.value) == 64
+    assert made.issuer == made.subject
+
+
 def test_the_host_is_its_name_up_to_the_first_dot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

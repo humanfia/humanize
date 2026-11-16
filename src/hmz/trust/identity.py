@@ -69,6 +69,10 @@ CERT = "cert.pem"
 #: When a device certificate stops being valid, which is never: `99991231235959Z`.
 _NEVER = datetime.datetime(9999, 12, 31, 23, 59, 59, tzinfo=datetime.UTC)
 
+#: How much of the host name a certificate's common name holds: `hmz ` and 60 characters
+#: are the 64 X.509 allows, which a long host name would otherwise run past.
+_HOST_IN_NAME = 60
+
 #: How long a signature of `r` and `s` is: 32 bytes each.
 _SIGNATURE = 64
 
@@ -329,13 +333,16 @@ def _made(at: Path) -> Identity:
 def _certified(key: ec.EllipticCurvePrivateKey) -> x509.Certificate:
     """A device certificate for a key: X.509 v3, self-signed, `hmz <host>`, valid forever.
 
+    `<host>` is the host name up to its first `.`, cut to its first 60 characters.
+
     Args:
       key: The device key.
 
     Returns:
       The certificate, with a serial of 16 random bytes and valid from now.
     """
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, f"hmz {host()}")])
+    called = f"hmz {host()[:_HOST_IN_NAME]}"
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, called)])
     return (
         x509.CertificateBuilder()
         .subject_name(name)
