@@ -29,6 +29,9 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 SECRET = "correct horse battery staple"
 
 #: The node a P2P daemon is written down with; the stand-in reaches no node.
@@ -44,7 +47,7 @@ from hmz.web import listening
 
 if sys.argv[2]:
     hmz.coganchor.__version__ = sys.argv[2]
-with listening(port=int(sys.argv[1]), apart=False) as site:
+with listening(port=int(sys.argv[1])) as site:
     site._key = easytier.key(os.environ.pop("FAR_SECRET"))
     threading.Thread(target=site.serve_forever, daemon=True).start()
     print("listening", flush=True)

@@ -40,6 +40,9 @@ if TYPE_CHECKING:
 
     from textual.pilot import Pilot
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:

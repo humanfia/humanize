@@ -31,6 +31,9 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.models import Model
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 
 @pytest.fixture
 def asked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> list[bool]:

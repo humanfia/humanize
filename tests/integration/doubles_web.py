@@ -38,7 +38,7 @@ PATIENCE = 30.0
 @contextlib.contextmanager
 def served() -> Generator[Site]:
     """The web interface, answering on a thread of its own until the block ends."""
-    with listening(apart=False) as site:
+    with listening() as site:
         threading.Thread(
             target=site.serve_forever,
             kwargs={"poll_interval": 0.05},

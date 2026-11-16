@@ -29,6 +29,9 @@ if TYPE_CHECKING:
 
     from hmz.web.site import Site
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 
 @pytest.fixture
 def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Host:

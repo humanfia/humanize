@@ -42,9 +42,7 @@ class _Inline:
         self._target()
 
 
-def _places(
-    monkeypatch: pytest.MonkeyPatch, here: Path, *, apart: bool, rounds: int = 0
-) -> Places:
+def _places(monkeypatch: pytest.MonkeyPatch, here: Path, *, rounds: int = 0) -> Places:
     """Places, its daemon a stand-in, looking at the daemon `rounds` times as it is made."""
 
     def hmz(at: Path) -> SimpleNamespace:
@@ -58,7 +56,7 @@ def _places(
             Lock=threading.Lock, Event=lambda: _Looks(rounds), Thread=_Inline
         ),
     )
-    return Places(here, apart=apart)
+    return Places(here)
 
 
 class _Link:
@@ -71,10 +69,10 @@ class _Link:
         return self._standing.get(kind)
 
 
-def test_a_host_held_here_says_the_questions_it_waits_on(
+def test_a_host_this_follows_says_the_questions_it_waits_on(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    found = _places(monkeypatch, tmp_path, apart=False)
+    found = _places(monkeypatch, tmp_path)
     run = {"state": "running", "run": 3, "flow": "chat", "turn": "done"}
     asked = [{"question": "q7", "run": 3}, {"question": "q8", "run": 3}]
     held = found.of(str(tmp_path)).held
@@ -102,7 +100,7 @@ def test_a_host_the_daemon_holds_says_the_questions_it_waits_on(
     host = SimpleNamespace(workspace=str(tmp_path), slot="", status=lambda: status)
     monkeypatch.setattr(daemon, "daemons", lambda: [host])
 
-    found = _places(monkeypatch, tmp_path, apart=True, rounds=1)
+    found = _places(monkeypatch, tmp_path, rounds=1)
 
     (said,) = found.running()
     assert (said["run"], said["asking"]) == (4, ["4:q2"])

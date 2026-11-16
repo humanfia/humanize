@@ -360,7 +360,7 @@ def _served(
     from hmz.web import listening
 
     cores: list[subprocess.Popen[bytes]] = []
-    with listening(port=easytier.PORT, apart=True, key=easytier.key(secret)) as site:
+    with listening(port=easytier.PORT, key=easytier.key(secret)) as site:
         threading.Thread(
             target=site.serve_forever,
             kwargs={"poll_interval": 0.5},

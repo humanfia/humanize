@@ -20,6 +20,9 @@ from tests.integration.doubles_web import Browser, elsewhere, served, until
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 #: Chat, on the stand-in, as a page starts it -- on the workspace's own host, which these
 #: follow from before it starts; one started without saying where is a new chat's own.
 _CHAT = {

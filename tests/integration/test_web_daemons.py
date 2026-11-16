@@ -12,7 +12,10 @@ import yaml
 from hmz import home
 from tests.integration.doubles_web import Browser, served
 
-pytestmark = pytest.mark.skipif(shutil.which("ssh") is None, reason="needs ssh -G")
+pytestmark = [
+    pytest.mark.skipif(shutil.which("ssh") is None, reason="needs ssh -G"),
+    pytest.mark.usefixtures("daemon"),
+]
 
 
 @pytest.fixture

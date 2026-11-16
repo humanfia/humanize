@@ -114,12 +114,11 @@ def _ending(*, attached: bool) -> Generator[None]:
             signal.signal(one, signal.SIG_DFL if before is None else before)
 
 
-def web(argv: list[str], *, apart: bool) -> int:
+def web(argv: list[str]) -> int:
     """Serves the web interface until it is interrupted, terminated or hung up on.
 
     Args:
       argv: What followed the command name.
-      apart: Whether this machine wants runs held apart from the process that started them.
 
     Returns:
       Zero once it has been stopped; one where the runs or the port could not be had.
@@ -160,7 +159,7 @@ def web(argv: list[str], *, apart: bool) -> int:
     opened = webbrowser.open if not line.no_open and _shows_a_browser() else None
     try:
         with _ending(attached=line.attached):
-            serve(port=line.port, apart=apart, shown=shown, opened=opened)
+            serve(port=line.port, shown=shown, opened=opened)
     except KeyboardInterrupt:
         # Stopped before it was serving, or while it let go: nothing is left to unwind.
         return 0

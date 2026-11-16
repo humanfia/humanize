@@ -16,6 +16,9 @@ from hmz.runtime import backing
 from tests.integration.doubles_core import AGENT, hmz_exec, install
 from tests.integration.doubles_web import Browser, backed_up_elsewhere, served
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:

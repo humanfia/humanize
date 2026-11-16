@@ -21,6 +21,9 @@ if TYPE_CHECKING:
 
     from tests.integration.doubles_ssh import Host
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 
 @pytest.fixture
 def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Host:
