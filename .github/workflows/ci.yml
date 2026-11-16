@@ -141,8 +141,10 @@ jobs:
             coganchor:
               - crates/coganchor/**
               - .github/workflows/ci.yml
+            # The app, and the page it carries.
             desktop:
               - desktop/**
+              - src/hmz/web/static/**
               - .github/workflows/ci.yml
 
   # Every pre-commit hook: ruff, pyright, actionlint, zizmor and the file hygiene. Then what a

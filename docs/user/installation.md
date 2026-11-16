@@ -4,10 +4,11 @@ import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
 
 # Installation
 
-Humanize comes two ways. **Humanize Desktop** is an app for macOS and Windows: download it,
-open it, and it sets up everything else itself. **Humanize CLI** is the `hmz` command, for
-macOS, Linux, and Windows through WSL: the terminal interface, `hmz web` and `hmz exec`. The app
-runs the CLI underneath, so with the app you get both.
+Humanize comes two ways. **Humanize Desktop** is an app for macOS and Windows: download it and
+open it -- on Windows it sets up the CLI in WSL itself. **Humanize CLI** is the `hmz` command,
+for macOS, Linux, and Windows through WSL: the terminal interface, `hmz web` and `hmz exec`. The
+app reaches the daemon the CLI runs, so with the app you use both; on macOS, install the CLI
+too.
 
 Either way, Humanize drives a coding agent CLI you already use, such as Claude Code or Codex,
 under your own login, so you also [sign in to one](#signing-each-backend-in).
@@ -40,6 +41,7 @@ Download the installer for your platform from the
 2. Open it, and drag **Humanize Desktop** onto **Applications**.
 3. Open Humanize Desktop from Applications. The first time, macOS stops it: see
    [The first time it opens](#the-first-time-it-opens).
+4. [Install Humanize CLI](#cli), if you have not: the app reaches this Mac's epics through it.
 
 #### The first time it opens {#the-first-time-it-opens}
 
@@ -79,9 +81,10 @@ repositories and coding agent CLIs. The app is the window onto it.
 
 ### What the first launch does
 
-The first time, the app says **Installing Humanize CLI**, with each step, while it installs uv
-and `hmz` -- in WSL, on Windows. From then on it shows its mark while `hmz web` starts, then
-the page, with the sidebar of your epics. It keeps `hmz` at its own version, so with the app,
+On macOS, the app opens on the page, with the sidebar of your epics, and reaches this Mac's
+daemon through the `hmz` you [installed](#cli); it installs nothing itself. On Windows, the first
+time, it says **Installing Humanize CLI**, with each step, while it installs uv and `hmz` in WSL,
+then opens on the page. There it keeps `hmz` at its own version, so with the app on Windows,
 update the app rather than `hmz`. What else it does is on [Humanize Desktop](/user/desktop).
 
 Now [sign in to a coding agent](#signing-each-backend-in), if you have not.
@@ -158,7 +161,8 @@ pip install 'hmz[all]'
 
 You can add one later without reinstalling Humanize. The agent menu lists a backend that is
 missing its extra, with the install command on its row. With Humanize Desktop, add an extra
-with `uv tool install` as above; the app keeps it when it updates `hmz`.
+with `uv tool install` as above -- in WSL, on Windows, where the app keeps it when it updates
+`hmz`.
 
 ## Sign in to a coding agent {#signing-each-backend-in}
 
@@ -425,8 +429,9 @@ pip install --upgrade hmz
 Each moves Humanize to the newest release. `uv tool upgrade` keeps the extras it was installed
 with; `pipx` and `pip` install again, so name an extra again: `pip install --upgrade 'hmz[all]'`.
 
-With [Humanize Desktop](/user/desktop), update the app instead: it puts the `uv tool` `hmz` back at its own version the next time it opens with no
-epics running, older or newer, keeping its extras.
+With [Humanize Desktop](/user/desktop) on Windows, update the app instead: it puts the
+`uv tool` `hmz` in WSL back at its own version the next time it opens with no epics running,
+older or newer, keeping its extras. On macOS, the app installs no `hmz`: update yours as above.
 
 What changed is in each release's notes, on
 [GitHub Releases](https://github.com/humanfia/humanize/releases).

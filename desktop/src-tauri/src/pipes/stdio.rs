@@ -151,16 +151,21 @@ pub fn local(env: &crate::shell_env::Env) -> Command {
     command
 }
 
-/// What WSL runs for `stdio:wsl`: says its pid on its standard error, then becomes the `hmz` a
-/// login shell finds, `$HOME/.local/bin` put in front of its `PATH`, connecting.
+/// What WSL runs for `stdio:wsl`: says its pid on its standard error, then becomes, through a
+/// login shell, the `hmz` `HUMANIZE_HMZ` names, or else the one it finds with `$HOME/.local/bin`
+/// put in front of its `PATH`, connecting.
 #[cfg(any(windows, test))]
-const IN_WSL: &str = r#"echo $$ >&2; exec "${SHELL:-/bin/sh}" -lc "exec /bin/sh -c 'PATH=\"\$HOME/.local/bin:\$PATH\"; export PATH; exec hmz daemon connect --stdio'""#;
+const IN_WSL: &str = r#"echo $$ >&2; exec "${SHELL:-/bin/sh}" -lc "exec /bin/sh -c 'PATH=\"\$HOME/.local/bin:\$PATH\"; export PATH; exec \"\${HUMANIZE_HMZ:-hmz}\" daemon connect --stdio'""#;
 
-/// `wsl.exe [-d <distro>] --exec … hmz daemon connect --stdio`.
+/// `wsl.exe [-d <distro>] --exec … hmz daemon connect --stdio`, with `hmz`, a path in WSL,
+/// where one is given.
 #[cfg(windows)]
-pub fn wsl(distro: Option<&str>) -> Command {
-    let mut command = crate::wsl::command_in(distro, "/bin/sh", None);
-    command.args(["-c", IN_WSL]);
+pub fn wsl(distro: Option<&str>, hmz: Option<&str>) -> Command {
+    let mut command = crate::wsl::command_in(distro, "/usr/bin/env", None);
+    if let Some(hmz) = hmz {
+        command.arg(format!("{}={hmz}", crate::hmz::OVERRIDE));
+    }
+    command.args(["/bin/sh", "-c", IN_WSL]);
     piped(&mut command);
     command
 }
@@ -511,6 +516,20 @@ mod tests {
         );
         let pid = String::from_utf8(out.stderr).unwrap();
         assert!(pid.trim().parse::<u32>().is_ok(), "{pid}");
+        // The hmz the app chose, where it names one.
+        let out = Command::new("/bin/sh")
+            .args(["-c", IN_WSL])
+            .env_clear()
+            .env("HOME", home.path())
+            .env("PATH", "/usr/bin:/bin")
+            .env("SHELL", &shell)
+            .env("HUMANIZE_HMZ", elsewhere.join("hmz"))
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8(out.stdout).unwrap(),
+            "path hmz daemon connect --stdio\n"
+        );
         // What ssh has the host's shell run, run by sh here.
         let out = Command::new("/bin/sh")
             .args(["-c", &format!("{THERE}{CONNECT}")])

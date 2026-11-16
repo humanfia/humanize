@@ -89,14 +89,14 @@ pub fn dress<'a, R: Runtime, M: Manager<R>>(
         .user_agent(&user_agent(&webview, version))
 }
 
-/// WKWebView's own user agent, and the app's, which `hmz web`'s page draws its top row by.
+/// WKWebView's own user agent, and the app's, which the page draws its top row by.
 #[cfg(target_os = "macos")]
 fn user_agent(version: &str) -> String {
     format!("{WEBKIT} humanize-desktop/{version}")
 }
 
-/// What WebView2 says it is, of the version installed, and the app's, which `hmz web`'s page
-/// draws its top row by.
+/// What WebView2 says it is, of the version installed, and the app's, which the page draws
+/// its top row by.
 #[cfg(windows)]
 fn user_agent(webview: &str, version: &str) -> String {
     let major = webview.split('.').next().unwrap_or_default();

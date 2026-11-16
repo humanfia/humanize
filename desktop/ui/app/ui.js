@@ -1,8 +1,8 @@
-// Draws where the app stands, as it tells it: a splash while it starts, how an install of hmz
-// goes, and -- where hmz web does not start -- why. Once it runs, the app takes the window to its
-// page instead.
+// Draws where the app stands, as it tells it: a splash while it starts, how an install of hmz in
+// WSL goes, and -- where hmz cannot be installed -- why. Once it is ready, the app takes the window
+// to the page it carries instead.
 
-// What @tauri-apps/api's `invoke` calls, with no bundle of it put into every page, `hmz web`'s too.
+// What @tauri-apps/api's `invoke` calls, with no bundle of it put into the splash.
 const invoke = (command, args) => window.__TAURI_INTERNALS__.invoke(command, args)
 
 const NO_WSL = 'WSL missing'
@@ -37,26 +37,8 @@ const STATES = {
   }),
   missing: () => ({
     title: 'Not found',
-    lead: 'This build installs no Humanize CLI. Install hmz, or name one in HUMANIZE_HMZ, then retry.',
+    lead: 'This build installs no Humanize CLI. Install hmz in WSL, or name one in HUMANIZE_HMZ, then retry.',
     buttons: ['retry', 'docs'],
-  }),
-  outdated: () => ({
-    title: 'Outdated',
-    lead: 'This hmz does not take hmz web --attached. Update it, then retry.',
-    buttons: ['retry', 'docs'],
-  }),
-  failed: (said) => ({
-    title: 'Failed',
-    lead: 'hmz web exited before it started.',
-    detail: said,
-    buttons: ['retry', 'docs'],
-  }),
-  stopped: (said) => ({
-    title: 'Stopped',
-    lead: 'hmz web exited.',
-    detail: said,
-    buttons: ['retry', 'docs'],
-    retry: 'Restart',
   }),
 }
 
@@ -79,7 +61,7 @@ function draw({ state, detail }) {
   if (first && !main.contains(document.activeElement)) $(first).focus()
 }
 
-// Each status as it changes, until hmz web runs. A newer follow takes over from an older one.
+// Each status as it changes, until the page is shown. A newer follow takes over from an older one.
 let following = 0
 
 async function follow() {
