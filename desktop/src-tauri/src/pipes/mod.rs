@@ -26,6 +26,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use crate::lock;
 use route::Route;
@@ -36,7 +37,8 @@ pub trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
 pub type Stream = Box<dyn Io>;
 
-/// How long a carrier may take to open (Section 3.4.9 of [WIRE]); installing is not counted.
+/// How long a carrier and its TLS may take to open (Section 3.4.9 of [WIRE]); installing is
+/// not counted.
 const OPENING: Duration = Duration::from_secs(30);
 
 /// What the page is told.
@@ -79,9 +81,9 @@ pub struct Context {
     pub data: PathBuf,
     /// The app's version as PyPI has hmz's, None for a development build.
     pub hmz: Option<String>,
-    /// The `hmz` of `stdio:local`, and the login shell's environment it is run in.
+    /// The login shell's environment `stdio:local` is run in, where an `hmz` is found in it.
     #[cfg(unix)]
-    pub local: Option<(PathBuf, crate::shell_env::Env)>,
+    pub local: Option<crate::shell_env::Env>,
 }
 
 /// An open pipe, as the page reaches it.
@@ -268,14 +270,15 @@ impl Carried {
         kids: &Arc<Kids>,
         said: &Said,
     ) -> Result<Stream, String> {
+        let deadline = Instant::now() + OPENING;
         let carrier: Stream = match &route {
             #[cfg(unix)]
             Route::Local => {
-                let (hmz, env) = context
+                let env = context
                     .local
-                    .clone()
+                    .as_ref()
                     .ok_or("hmz is not installed on this machine.")?;
-                let kid = kids.spawn(&mut stdio::local(&hmz, &env))?;
+                let kid = kids.spawn(&mut stdio::local(env))?;
                 stdio::carried(&kid, said, false)?
             }
             #[cfg(windows)]
@@ -284,11 +287,12 @@ impl Carried {
                 stdio::carried(&kid, said, true)?
             }
             Route::Ssh(ssh) => {
-                let (ssh, kids_, tell, pipe) = (
+                let (ssh, kids_, tell, pipe, name) = (
                     ssh.clone(),
                     kids.clone(),
                     self.tell.clone(),
                     self.pipe.clone(),
+                    self.route.clone(),
                 );
                 let hmz = context.hmz.clone();
                 let kid = tokio::task::spawn_blocking(move || {
@@ -299,14 +303,14 @@ impl Carried {
                             detail: detail.to_owned(),
                         });
                     };
-                    stdio::reach_ssh(&kids_, &ssh, hmz.as_deref(), &say)
+                    stdio::reach_ssh(&kids_, &ssh, &name, hmz.as_deref(), &say)
                 })
                 .await
                 .map_err(|why| why.to_string())??;
                 stdio::carried(&kid, said, false)?
             }
             Route::Tcp(host, port) => {
-                within(async {
+                self.within(deadline, async {
                     let tcp = TcpStream::connect((host.as_str(), *port))
                         .await
                         .map_err(|why| format!("{} could not be reached: {why}", self.route))?;
@@ -315,10 +319,13 @@ impl Carried {
                 })
                 .await?
             }
-            Route::Ws(url) => within(async { Ok(ws::carried(ws::open(url).await?)) }).await?,
+            Route::Ws(url) => {
+                self.within(deadline, async { Ok(ws::carried(ws::open(url).await?)) })
+                    .await?
+            }
             Route::Relay(url) => {
                 let id = id.as_deref().unwrap_or_default();
-                within(ws::join(url, id)).await?
+                self.within(deadline, ws::join(url, id)).await?
             }
             Route::Easytier(name) => return self.easytier(name, &id, &context, kids).await,
             _ => return Err(format!("{} cannot be reached from here.", self.route)),
@@ -326,7 +333,8 @@ impl Carried {
         match id.filter(|_| !route.trusted()) {
             Some(id) => {
                 let me = self.identity(&context).await?;
-                let tls = within(tls::connect(carrier, &me, &id, &self.route)).await?;
+                let tls = tls::connect(carrier, &me, &id, &self.route);
+                let tls = self.within(deadline, tls).await?;
                 Ok(Box::new(tls))
             }
             None => Ok(carrier),
@@ -377,7 +385,8 @@ impl Carried {
             .port();
         let joining = kids.spawn(&mut easytier::joining(&core, &entry, local))?;
         let me = self.identity(context).await?;
-        within(async {
+        // Afresh once EasyTier is downloaded.
+        self.within(Instant::now() + OPENING, async {
             // Until the daemon answers through it: EasyTier takes the port before it has
             // found the daemon.
             loop {
@@ -396,17 +405,27 @@ impl Carried {
         })
         .await
     }
-}
 
-/// `opening`, given up after [`OPENING`].
-async fn within<T>(opening: impl Future<Output = Result<T, String>>) -> Result<T, String> {
-    tokio::time::timeout(OPENING, opening)
-        .await
-        .unwrap_or_else(|_| Err(format!("Not open after {} s.", OPENING.as_secs())))
+    /// `opening`, given up at `deadline` (Section 3.4.9 of [WIRE]).
+    async fn within<T>(
+        &self,
+        deadline: Instant,
+        opening: impl Future<Output = Result<T, String>>,
+    ) -> Result<T, String> {
+        tokio::time::timeout_at(deadline, opening)
+            .await
+            .unwrap_or_else(|_| {
+                Err(format!(
+                    "{} did not open within {} seconds.",
+                    self.route,
+                    OPENING.as_secs()
+                ))
+            })
+    }
 }
 
 /// What a pipe command needs of the app: its data directory, its version, and, for
-/// `stdio:local`, the login shell's `hmz`.
+/// `stdio:local`, the login shell's environment where an `hmz` is found in it.
 async fn context(app: &AppHandle, route: &str) -> Context {
     let data = app.path().app_data_dir().unwrap_or_default();
     let version = app.package_info().version.to_string();
@@ -419,7 +438,7 @@ async fn context(app: &AppHandle, route: &str) -> Context {
                 .env
                 .get_or_init(crate::shell_env::login)
                 .clone();
-            crate::server::find(&env).map(|hmz| (hmz, env))
+            crate::server::find(&env).map(|_| env)
         })
         .await
         .ok()
@@ -547,6 +566,21 @@ mod tests {
         assert_eq!(send("pipe-0", "!").unwrap_err(), "data is not base64.");
     }
 
+    #[tokio::test]
+    async fn gives_up_on_a_carrier_not_open_in_time() {
+        let (tell, _) = page();
+        let carried = Carried {
+            pipe: "p".into(),
+            route: "tcp://h:1".into(),
+            tell,
+        };
+        let opening = std::future::pending::<Result<(), String>>();
+        assert_eq!(
+            carried.within(Instant::now(), opening).await.unwrap_err(),
+            "tcp://h:1 did not open within 30 seconds."
+        );
+    }
+
     #[test]
     fn says_its_events_as_the_page_reads_them() {
         let json = |event: &Event| serde_json::to_string(event).unwrap();
@@ -653,20 +687,34 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn carries_a_local_stdio_pipe_until_its_process_ends() {
         let dir = tempfile::tempdir().unwrap();
-        // Stands in for hmz: echoes what it is sent, says why it stops, and stops.
-        let hmz = dir.path().join("hmz");
-        std::fs::write(
-            &hmz,
-            "#!/bin/sh\n[ \"$*\" = 'daemon connect --stdio' ] || exit 2\nhead -c 5\necho bye >&2\n",
-        )
-        .unwrap();
-        {
+        let script = |path: &std::path::Path, text: &str| {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&hmz, std::fs::Permissions::from_mode(0o755)).unwrap();
-        }
-        let env = std::env::vars_os().collect();
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        };
+        // Stands in for hmz, in ~/.local/bin: echoes what it is sent, says why it stops, and
+        // stops.
+        script(
+            &dir.path().join(".local/bin/hmz"),
+            "#!/bin/sh\n[ \"$*\" = 'daemon connect --stdio' ] || exit 2\nhead -c 5\necho bye >&2\n",
+        );
+        // A login shell that reads no profile.
+        let shell = dir.path().join("shell");
+        script(
+            &shell,
+            "#!/bin/sh\n[ \"$1\" = -lc ] && exec /bin/sh -c \"$2\"\n",
+        );
+        let env = [
+            ("HOME", dir.path().as_os_str()),
+            ("PATH", "/usr/bin:/bin".as_ref()),
+            ("SHELL", shell.as_os_str()),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.into(), value.to_owned()))
+        .collect();
         let context = Context {
-            local: Some((hmz, env)),
+            local: Some(env),
             ..Context::default()
         };
         let (tell, heard) = page();
