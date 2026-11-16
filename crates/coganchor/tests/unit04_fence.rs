@@ -258,7 +258,8 @@ fn landlock_holds_what_a_fence_carves_out_of_a_grant() {
         eprintln!("skipped: no Landlock");
         return;
     }
-    let dir = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+    // Not on the checkout, which Docker Desktop mounts where Landlock's rules on a file fail.
+    let dir = tempfile::tempdir().unwrap();
     let w = std::fs::canonicalize(dir.path()).unwrap();
     std::fs::create_dir_all(w.join("secret")).unwrap();
     std::fs::create_dir_all(w.join("ro")).unwrap();

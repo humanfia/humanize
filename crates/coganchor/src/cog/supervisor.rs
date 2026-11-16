@@ -60,7 +60,7 @@ pub struct Options {
     pub writes: bool,
     /// The fence's walls, put up in the child.
     pub walls: Option<Walls>,
-    /// The fence's `EXEC` levels, sent with every remote command.
+    /// The fence's `EXEC` rules, sent with every remote command.
     pub fence: Option<serde_json::Value>,
 }
 

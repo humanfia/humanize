@@ -35,6 +35,7 @@ from hmz.coganchor.fence import (
     able,
     enforceable,
     landlocked,
+    unheld,
     wrapper,
 )
 
@@ -55,12 +56,14 @@ NESTED = [
 #: What this machine can fence as `coganchor` is asked it: `tests/unit/conftest.py` answers it
 #: for every other unit test, and the tests here are about the asking.
 _ABLE = fencing.able
+_UNHELD = fencing.unheld
 
 
 @pytest.fixture(autouse=True)
 def _asked(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`fence.able` as it is, asking `coganchor`, for the tests of that asking."""
+    """`fence.able` and `fence.unheld` as they are, asking `coganchor`, for the tests of that."""
     monkeypatch.setattr(fencing, "able", _ABLE)
+    monkeypatch.setattr(fencing, "unheld", _UNHELD)
 
 
 def scoped(local: str, user: str, system: str) -> list[tuple[str, str]]:
@@ -683,6 +686,38 @@ def test_a_coganchor_that_cannot_say_is_a_machine_that_cannot_fence_until_it_can
     answering(monkeypatch, asked, b'{"fs":true,"net":false}')
     assert enforceable(net=False)
     assert len(asked) == 3
+
+
+def test_what_a_fence_carves_out_is_held_where_coganchor_says_it_is(
+    monkeypatch: pytest.MonkeyPatch, asked: list[list[str]]
+) -> None:
+    monkeypatch.setattr("sys.platform", "linux")
+    carved = Fence(write=("/w",), deny=("/w/secret",))
+    why = "[Errno 13] Permission denied: '/w'"
+    answering(
+        monkeypatch, asked, b'{"fs":true,"net":true,"unheld":"%s"}' % why.encode()
+    )
+
+    assert unheld(carved) == why
+    assert asked == [
+        ["/opt/coganchor", "internal", "able", f"--policy={carved.dumps()}"]
+    ]
+    answering(monkeypatch, asked, b'{"fs":true,"net":true,"unheld":null}')
+    assert unheld(carved) is None
+    # Nothing carved out, or a Mac, which carves out with Seatbelt: nothing is asked.
+    assert unheld(Fence(write=("/w",))) is None
+    monkeypatch.setattr("sys.platform", "darwin")
+    assert unheld(carved) is None
+    assert len(asked) == 2
+
+
+def test_a_coganchor_that_cannot_say_holds_no_carve_out(
+    monkeypatch: pytest.MonkeyPatch, asked: list[list[str]]
+) -> None:
+    monkeypatch.setattr("sys.platform", "linux")
+    answering(monkeypatch, asked, b"not json")
+
+    assert "internal able" in str(unheld(Fence(write=("/w",), keep=("/w/ro",))))
 
 
 def test_a_machine_with_no_coganchor_cannot_fence(

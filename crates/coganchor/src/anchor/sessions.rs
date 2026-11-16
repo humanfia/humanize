@@ -244,8 +244,8 @@ fn start(
         .iter()
         .map(|(name, value)| (name.as_str(), to_os(&place.rewrite(value))));
     let env = compose_env(client_env, cwd.as_os_str(), request.tty);
-    if let Some(levels) = &request.fence {
-        argv = place.fenced(&argv, program.as_ref(), levels)?;
+    if let Some(rules) = &request.fence {
+        argv = place.fenced(&argv, program.as_ref(), rules)?;
         program = None;
         if argv.is_empty() {
             return Err(RemoteError::new(libc::EIO, "the fence gave no command"));

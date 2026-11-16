@@ -848,7 +848,10 @@ hmz internal fence --policy JSON [--] COMMAND [ARGS...]
 
 Runs `COMMAND` inside a [fence](/reference/agents#the-fence): on Linux, Landlock for paths and,
 where the network is cut, a seccomp filter admitting only TCP and Unix sockets; on macOS, the
-whole fence as one Seatbelt profile applied by `/usr/bin/sandbox-exec`. Where the network is
+whole fence as one Seatbelt profile applied by `/usr/bin/sandbox-exec`, whose carve-outs
+(`keep`, `deny`) follow its grants, deepest last. Landlock only grants, so on Linux a granted
+directory holding a carve-out is granted as its entries as they stand, down to the carve-out;
+an entry made there later is out of reach. Where the network is
 cut, a loopback proxy (`HTTPS_PROXY` and related, `NO_PROXY` emptied) passing only the fence's
 hosts; `TMPDIR` set to the fence's scratch directory.
 
@@ -860,7 +863,7 @@ hosts; `TMPDIR` set to the fence's scratch directory.
 | --- | --- |
 | the program's | it ran |
 | `2` | no `--policy`; no program (`no program given; try `hmz internal fence --policy=... -- claude``) |
-| `126` | the fence cannot be put up here (no Landlock, or no way to cut TCP; on macOS, a process already inside a sandbox; a path it writes leads through a link a fenced program could have made); the program never ran (`hmz internal fence: <why>`) |
+| `126` | the fence cannot be put up here (no Landlock, or no way to cut TCP; on macOS, a process already inside a sandbox; a path it writes leads through a link a fenced program could have made; on Linux, a carve-out beneath a directory that cannot be listed, or beneath a grant that is not a directory); the program never ran (`hmz internal fence: <why>`) |
 
 ### `coganchor` {#coganchor}
 
@@ -870,8 +873,14 @@ coganchor anchor --export VIRTUAL[:REAL] …        # hmz internal anchor serve
 coganchor broker [--listen [HOST:]PORT] …         # hmz internal anchor rendezvous
 coganchor internal fence --policy JSON [--] …     # hmz internal fence
 coganchor internal cred --map FROM=TO … [--] …    # hmz internal cred
+coganchor internal able [--policy JSON]
 coganchor --version
 ```
+
+`coganchor internal able` writes what this machine can fence, `{"fs": bool, "net": bool}`, and
+with `--policy` also `"unheld"`: why Landlock cannot hold what that fence carves out of its
+grants, or `null` where it can (always `null` on macOS). Humanize asks it before a session is
+opened.
 
 The anchor, as one static program in Rust, built from `crates/coganchor/`. The package
 carries a build for Linux (static, against musl) and macOS on x86-64 and aarch64, at
