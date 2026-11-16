@@ -33,7 +33,7 @@ JSON-RPC 2.0 whose methods `protocol/openrpc.json` lists. A frontend is an
 
 | Term | Definition |
 | --- | --- |
-| host | `hmz.runtime.Host`: a workspace's runs as every attached frontend shares them. Held either in a host process or in the interface's own process. |
+| host | `hmz.runtime.Host`: a workspace's runs as every attached frontend shares them. Held in a host process (or, for an epic run on fakes, in the calling program's [private daemon](/reference/sdk#fakes)). |
 | daemon | The detached process, one per machine and user, serving JSON-RPC on `daemon.sock` and its listeners, and speaking to the host process of each workspace for its clients. |
 | host process | The detached process, one per workspace and slot, started by the daemon, standing in that workspace and holding its `Host`. Reached only by the daemon, down a socket pair. |
 | session | One client's connection to the daemon: `session.hello`, then calls, answers and notifications. |
@@ -46,17 +46,11 @@ JSON-RPC 2.0 whose methods `protocol/openrpc.json` lists. A frontend is an
 
 | Caller | Host |
 | --- | --- |
-| `hmz` at a terminal | A host process, found or started (see [CLI › Where the runs are held](/reference/cli#where-runs-are-held)). |
-| `hmz` with stdin or stdout not a TTY, or `HUMANIZE_DAEMON` = `off`/`0`/`no` | In the interface's process. |
-| `hmz` after 3 failed attempts, 0.5 s apart | In the interface's process; stderr says `hmz: runs cannot be detached from the terminal (<why>), so they will run in this process instead`. |
+| `hmz`, whatever the terminal | A host process, found or started (see [CLI › Where the runs are held](/reference/cli#where-runs-are-held)). After 3 failed attempts, 0.5 s apart, stderr says `hmz: the daemon cannot be reached: <why>` and it exits `1`. |
 | `hmz web` | A host process, found or started with [`attach`](#module), tried 3 times 0.5 s apart; where none can be had it says so and exits `1`. |
-| `hmz web` with `HUMANIZE_DAEMON` = `off`/`0`/`no` | In `hmz web`'s process. |
-| `Daemons().host()`, `hmz.daemon.host()` | A host process, found or started. `HUMANIZE_DAEMON` is not consulted. |
-| `Hmz().host()` | In the calling process. |
-| `hmz exec` | No host. |
-
-A host in the interface's process is reached through the same `Link` class; closing that
-interface closes its runs, so `/exit` offers **Cancel** instead of **Detach and exit**.
+| `hmz exec`, `Hmz().run()` | A host process on a new exec slot (`exec:<hex>`) of the workspace, started by this machine's daemon. |
+| `Hmz().run()` with a driver object, `fakes.run_fake()` | A host in the calling program's own [private daemon](/reference/sdk#fakes). |
+| `Daemons().host()`, `hmz.daemon.host()` | A host process, found or started. |
 
 ## Files {#files}
 

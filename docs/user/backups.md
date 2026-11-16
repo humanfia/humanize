@@ -22,7 +22,6 @@ backup:
 ```console
 $ hmz exec -f chat -a assistant=claude/claude-haiku-4-5 "say hello"
 did: say hello
-hmz exec: backing the epic up
 ```
 
 The repository now holds one commit, `Back up epic 20261012T091500.123Z-1a2b3c (end)`.
@@ -64,8 +63,8 @@ Each target says when, in `policies`. Tick any of them, or none:
 
 A backup never holds anything up. It runs behind the epic, one at a time per target, and a
 target that cannot be reached is written down as a failed backup rather than an epic that
-failed. `hmz exec` waits up to a minute for its last backups once it has printed its answer,
-then leaves; `hmz` waits up to 15 seconds for the ones it started once you close it.
+failed. An `hmz exec` epic is backed up by the daemon's host that ran it, so `hmz exec`
+leaves once it has printed its answer; `hmz` waits up to 15 seconds for the ones it started once you close it.
 
 ## Choosing the targets
 
@@ -149,7 +148,6 @@ interface can show it.
 | --- | --- | --- |
 | `hmz exec: error: no backup target is named x` | `--backup x` names no target in settings | Add it, or name another. |
 | `lab: failed: Permission denied (publickey)` | git could not sign in | Check `git ls-remote <url>` works without a prompt. |
-| `hmz exec: a backup took longer than 60s and was left` | the remote is slow or unreachable | Run `hmz backup <epic>` once it answers. |
 | `hmz backup: … is already here, at …` | the epic downloaded is one you have | Open it where it is. |
 
 ## Next steps

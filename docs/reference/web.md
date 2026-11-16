@@ -50,10 +50,9 @@ hmz web: http://127.0.0.1:<port>/?key=<key>
 
 ### Where the runs are held {#where-runs-are-held}
 
-| Condition | Runs |
-| --- | --- |
-| `HUMANIZE_DAEMON` stripped and lower-cased is `off`, `0` or `no` | Held in this process, a host per workspace and one per chat; `hmz web` stopping closes them. |
-| anything else | Held by each host's process, found or started through [`hmz.daemon.attach`](/reference/daemon#module), tried **3** times **0.5 s** apart. They outlive `hmz web`. |
+Held by each host's process, found or started through this machine's daemon with
+[`hmz.daemon.attach`](/reference/daemon#module), tried **3** times **0.5 s** apart. They
+outlive `hmz web`.
 
 A workspace has its own host, which runs its flows one at a time, and every chat a host of its
 own beside it, named by its [slot](/reference/daemon#slots) (`chat:<hex>`): a chat never waits

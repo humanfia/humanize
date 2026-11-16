@@ -158,7 +158,8 @@ class FlowFn[TAgents: AgentCollection, TEnvs: EnvCollection, TParams: FlowParams
 ```
 
 The decorated function. Its return value is the flow call's return value: what a calling flow
-receives, [`Run.result`](/reference/sdk#run), and what [`run_fake`](#run-fake) returns.
+receives, [`Run.result`](/reference/sdk#run) (as the JSON of the `ended` record), and what
+[`run_fake`](#run-fake) returns.
 
 | Argument | Value at run time |
 | --- | --- |
@@ -2227,7 +2228,6 @@ async def run_fake(
     local: EnvDriver | None = None,
     journal: Path | None = None,
     resume: bool = False,
-    recorder: Recorder | None = None,
 ) -> Any
 ```
 
@@ -2243,9 +2243,12 @@ async def run_fake(
 | `local` | `FakeEnvDriver(workdir="/here")` | Fills `LocalEnv` roles. |
 | `journal` | `None` | Path of a resumable flow's journal. |
 | `resume` | `False` | Pick up `journal`. |
-| `recorder` | `None` | <Badge type="info" text="internal" /> Receives `entered(call)`, `left(call, error)`, `spawned(call, role, session, driver)`, optionally `began`, `named`, `closed`. |
 
-Returns the flow's return value. A `NotRequired` role nobody gave is omitted. Fake turns report
+Returns the very object the flow returned, or raises the very exception it raised. The flow
+runs through a [private daemon](/reference/sdk#fakes) the test starts in its own process, with
+a temporary home of its own: this machine's daemon is never touched, and the epic it writes is
+removed when `run_fake` returns or raises, so `Hmz().epics` does not list it. A `NotRequired`
+role nobody gave is omitted. Fake turns report
 the spending they are told to, so budgets, usage and sticky exhaustion behave as in a real run.
 
 ### `FakeAgentDriver` {#fakeagentdriver}
