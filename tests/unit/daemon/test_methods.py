@@ -83,7 +83,7 @@ def test_each_family_names_its_methods(
 ) -> None:
     import hmz.daemon.api
 
-    (tmp_path / "stubbed.py").write_text('METHODS = {"settings.get": dict}\n')
+    (tmp_path / "families_u.py").write_text('METHODS = {"settings.get": dict}\n')
     (tmp_path / "broken.py").write_text("raise ImportError('nothing here')\n")
     monkeypatch.setattr(hmz.daemon.api, "__path__", [str(tmp_path)])
 

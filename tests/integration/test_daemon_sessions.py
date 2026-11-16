@@ -36,25 +36,10 @@ pytestmark = [
     pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
-#: A family of methods as `hmz.daemon.api` holds them, served by whichever daemon finds it.
-FAMILY = """
-METHODS = {"settings.get": lambda call: {"settings": {"stub": True}}}
-"""
-
-
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     at = project(tmp_path, monkeypatch)
     written(at, "waits", WAITS)
-    # A family module of the test's own, found beside those of `hmz.daemon.api`.
-    import hmz.daemon.api
-
-    family = tmp_path / "family"
-    family.mkdir()
-    (family / "stubbed.py").write_text(FAMILY)
-    monkeypatch.setattr(
-        hmz.daemon.api, "__path__", [*hmz.daemon.api.__path__, str(family)]
-    )
     with hosting():
         yield at
 
@@ -156,7 +141,9 @@ def test_a_newer_client_is_refused_with_the_daemons_protocol(workspace: Path) ->
 def test_a_family_of_methods_is_served_beside_the_daemons_own(workspace: Path) -> None:
     daemon.start()
     client = local()
-    assert client.call("settings.get") == {"settings": {"stub": True}}
+    listens("tcp://127.0.0.1:0")
+    # `settings.get` of the settings family, as the real daemon serves it.
+    assert "tcp://127.0.0.1:0" in str(client.call("settings.get"))
 
 
 def test_a_device_pairs_over_tcp_and_attaches_and_is_dropped_once_revoked(

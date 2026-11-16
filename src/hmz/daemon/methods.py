@@ -373,9 +373,11 @@ def methods(router: Router) -> dict[str, Handler]:
 def families() -> dict[str, Handler]:
     """The methods every module of :mod:`hmz.daemon.api` names in `METHODS`.
 
-    A module that cannot be imported is written to the daemon's log and served without.
+    A module that cannot be imported is written to the daemon's log and served without. The
+    package is found by its name: the families are a layer above this one, which names them
+    only through what they register.
     """
-    from hmz.daemon import api
+    api = importlib.import_module("hmz.daemon.api")
 
     found: dict[str, Handler] = {}
     for one in pkgutil.iter_modules(api.__path__, f"{api.__name__}."):
