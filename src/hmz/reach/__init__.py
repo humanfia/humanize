@@ -10,7 +10,8 @@ goes over a pipe -- mutual TLS on an untrusted one, then the frames -- is `hmz.t
 
 :func:`race` tries the routes of one daemon in turn and keeps the first to get through a
 handshake; :class:`Backoff` spaces the tries of one lost. :func:`splice` is `hmz daemon
-connect --stdio`, its standard streams joined to the daemon's socket.
+connect --stdio`, its standard streams joined to the daemon's socket once it has written
+:data:`SYNC`, which a `stdio:` carrier begins after.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from hmz.reach.dialing import OPENING, EasyTier, command, dial, websocket
 from hmz.reach.listening import TcpListener
 from hmz.reach.pipes import (
     MESSAGE,
+    SYNC,
     Messages,
     ProcessPipe,
     SocketPipe,
@@ -38,6 +40,7 @@ __all__ = [
     "MESSAGE",
     "OPENING",
     "STAGGER",
+    "SYNC",
     "TRUSTED",
     "Backoff",
     "EasyTier",

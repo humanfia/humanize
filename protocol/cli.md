@@ -1162,8 +1162,9 @@ standard output, flushed, as each listener opens, `<route>` the listener's route
 [DAEMON]).
 
 **13.2.3** `hmz daemon connect --stdio` MUST reach this machine's daemon over its socket, starting
-it where none runs (Section 3.4 of [DAEMON]), and MUST then carry every byte of its standard input
-to the socket and every byte of the socket to its standard output, unchanged and in order, until
+it where none runs (Section 3.4 of [DAEMON]), MUST then write `hmz-stdio/1` and a line feed to
+standard output (Section 3.4.11 of [WIRE]), and MUST then carry every byte of its standard input to
+the socket and every byte of the socket to its standard output, unchanged and in order, until
 either ends, and MUST then close both, half-closing neither (Section 3.4.10 of [WIRE]); it MUST
 write nothing else to standard output.
 

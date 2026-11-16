@@ -53,15 +53,46 @@ impl Kids {
 /// What a pipe's processes said last on their standard error.
 pub type Said = Arc<Mutex<String>>;
 
-/// The carrier a started process's standard input and output are, its standard error logged
-/// line by line and its last line kept. On Windows, the first line a `wsl.exe` says there is
-/// the pid in WSL of what it runs.
+/// What `hmz daemon connect --stdio` writes before the daemon's first byte, and what the
+/// carrier begins after (Section 3.4.11 of [WIRE]).
+const SYNC: &[u8] = b"hmz-stdio/1\n";
+
+/// How many bytes may come before [`SYNC`] hold it.
+const SYNCING: usize = 1 << 16;
+
+/// Reads `out` up to and including the first [`SYNC`] -- what a shell printed before `hmz`
+/// ran -- and answers what came after it in the same reads; None where `out` ended first.
+fn synced(out: &mut impl Read) -> Result<Option<Vec<u8>>, String> {
+    let mut seen = Vec::new();
+    let mut chunk = vec![0; 1 << 14];
+    loop {
+        let n = match out.read(&mut chunk) {
+            Ok(0) | Err(_) => return Ok(None),
+            Ok(n) => n,
+        };
+        seen.extend_from_slice(&chunk[..n]);
+        let within = &seen[..seen.len().min(SYNCING)];
+        if let Some(at) = within.windows(SYNC.len()).position(|line| line == SYNC) {
+            return Ok(Some(seen.split_off(at + SYNC.len())));
+        }
+        if seen.len() >= SYNCING {
+            return Err(format!(
+                "No hmz-stdio/1 line came within the first {SYNCING} bytes."
+            ));
+        }
+    }
+}
+
+/// The carrier a started process's standard input and output are, from after the line
+/// [`SYNC`], its standard error logged line by line and its last line kept. On Windows, the
+/// first line a `wsl.exe` says there is the pid in WSL of what it runs.
 pub fn carried(kid: &Arc<Child>, said: &Said, wsl: bool) -> Result<Stream, String> {
     let (Some(mut stdin), Some(mut stdout), Some(stderr)) =
         (kid.take_stdin(), kid.take_stdout(), kid.take_stderr())
     else {
         return Err("the process could not be read".into());
     };
+    let failed = said.clone();
     let said = said.clone();
     #[cfg(windows)]
     let pid = kid.id();
@@ -91,14 +122,22 @@ pub fn carried(kid: &Arc<Child>, said: &Said, wsl: bool) -> Result<Stream, Strin
     let reading = handle.clone();
     thread::spawn(move || {
         let mut chunk = vec![0; 1 << 14];
-        while let Ok(n @ 1..) = stdout.read(&mut chunk) {
-            if reading.block_on(to.write_all(&chunk[..n])).is_err() {
-                break;
+        let first = synced(&mut stdout);
+        if let Ok(Some(first)) = &first
+            && reading.block_on(to.write_all(first)).is_ok()
+        {
+            while let Ok(n @ 1..) = stdout.read(&mut chunk) {
+                if reading.block_on(to.write_all(&chunk[..n])).is_err() {
+                    break;
+                }
             }
         }
         // Ended once what it said last on its standard error is kept -- unless something it
         // left behind holds its standard error open.
         let _ = errors.recv_timeout(Duration::from_secs(1));
+        if let Err(why) = first {
+            *lock(&failed) = why;
+        }
         let _ = reading.block_on(to.shutdown());
     });
     thread::spawn(move || {
@@ -572,7 +611,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn carries_bytes_through_a_process_both_ways() {
         let kids = Kids::new();
-        let mut command = Command::new("/bin/cat");
+        // What a shell printed first, then the sync line, then the daemon's bytes.
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "echo Welcome; echo hmz-stdio/1; exec cat"]);
         let kid = kids.spawn(piped(&mut command)).unwrap();
         let said = Said::default();
         let mut stream = carried(&kid, &said, false).unwrap();
@@ -589,6 +630,52 @@ mod tests {
         let mut rest = Vec::new();
         stream.read_to_end(&mut rest).await.unwrap();
         assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn a_carrier_begins_after_the_first_sync_line_within_64_kib() {
+        let read = |said: &[u8]| synced(&mut std::io::Cursor::new(said.to_vec()));
+        assert_eq!(
+            read(b"Welcome\nhmz-stdio/1\nframes hmz-stdio/1\n"),
+            Ok(Some(b"frames hmz-stdio/1\n".to_vec()))
+        );
+        // The line split between two reads.
+        let mut split = vec![b'x'; (1 << 14) - 4];
+        split.extend_from_slice(SYNC);
+        split.extend_from_slice(b"frames");
+        assert_eq!(read(&split), Ok(Some(b"frames".to_vec())));
+        let mut late = vec![b'x'; SYNCING - SYNC.len()];
+        late.extend_from_slice(SYNC);
+        late.extend_from_slice(b"frames");
+        // Its last byte the 65536th: what follows is read after.
+        assert_eq!(read(&late), Ok(Some(Vec::new())));
+        late.insert(0, b'x');
+        assert_eq!(
+            read(&late),
+            Err("No hmz-stdio/1 line came within the first 65536 bytes.".into())
+        );
+        assert_eq!(read(b"hmz: not found\n"), Ok(None));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn ends_a_carrier_without_the_sync_line_saying_so() {
+        let kids = Kids::new();
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "head -c 70000 /dev/zero; echo hmz-stdio/1; exec cat"]);
+        let kid = kids.spawn(piped(&mut command)).unwrap();
+        let said = Said::default();
+        let mut stream = carried(&kid, &said, false).unwrap();
+        let mut rest = Vec::new();
+        stream.read_to_end(&mut rest).await.unwrap();
+        assert!(rest.is_empty());
+        assert_eq!(
+            *lock(&said),
+            "No hmz-stdio/1 line came within the first 65536 bytes."
+        );
+        tokio::task::spawn_blocking(move || kids.end())
+            .await
+            .unwrap();
     }
 
     #[cfg(unix)]

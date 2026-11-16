@@ -480,7 +480,8 @@ seen; **Revoke** one, asked first, and it can reach that daemon no more.
 Connecting races the daemon's routes, in the order they are kept, each a quarter of a second
 after the one before. In a browser, Local is reached through `hmz web`, and every other route
 but a WebRTC one through `hmz web` too, which opens it from this machine: over `ssh`, it runs
-`hmz daemon connect --stdio` on the host, whose standard streams carry the session; over a TCP
+`hmz daemon connect --stdio` on the host, whose standard streams carry the session from the line
+`hmz-stdio/1` it prints first, so whatever the host's shell profile prints is skipped; over a TCP
 port, a relay or EasyTier, it opens mutual TLS held to the daemon's id, which pairing gave it.
 The first to say hello as that daemon wins, and the others are closed. A daemon first reached
 over `ssh` has the id it answered pinned, and one that later answers as another fails with

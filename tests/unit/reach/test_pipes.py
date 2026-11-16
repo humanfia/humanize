@@ -14,6 +14,7 @@ from websockets.exceptions import ConnectionClosedOK
 
 from hmz.reach import (
     MESSAGE,
+    SYNC,
     ProcessPipe,
     SocketPipe,
     StreamPipe,
@@ -25,6 +26,7 @@ from tests.unit.reach.memory import Memory
 
 if TYPE_CHECKING:
     import subprocess
+    from pathlib import Path
 
     from hmz.rpc import Pipe
 
@@ -171,7 +173,7 @@ class Child:
 
 def test_a_child_that_ends_failing_raises_the_last_line_it_said() -> None:
     reading, writing = os.pipe()
-    os.write(writing, b"partial")
+    os.write(writing, SYNC + b"partial")
     os.close(writing)
     child = Child(
         reading, code=255, said=b"debug\nssh: Could not resolve hostname box\n"
@@ -191,6 +193,40 @@ def test_a_child_that_ends_well_is_the_end_of_its_pipe() -> None:
     pipe.sendall(b"to it")
     assert child.stdin.getvalue() == b"to it"
     assert pipe.recv(64) == b""
+
+
+def _saying(tmp_path: Path, said: bytes) -> ProcessPipe:
+    """The pipe of a child that says this on its standard output, and ends well."""
+    out = tmp_path / "out"
+    out.write_bytes(said)
+    child = Child(os.open(out, os.O_RDONLY), code=0)
+    return ProcessPipe(cast("subprocess.Popen[bytes]", child), trusted=True)
+
+
+def _all(pipe: ProcessPipe) -> bytes:
+    read = b""
+    while more := pipe.recv(5):
+        read += more
+    return read
+
+
+def test_a_child_s_carrier_begins_after_the_first_sync_line(tmp_path: Path) -> None:
+    """What a shell printed before `hmz` ran is no byte of it (Section 3.4.11 of wire.md)."""
+    said = b"Welcome!\nlast login\n" + SYNC + b"\x00\x00\x00\x02{}" + SYNC
+    assert _all(_saying(tmp_path, said)) == b"\x00\x00\x00\x02{}" + SYNC
+    assert _all(_saying(tmp_path, b"x" * 65_524 + SYNC + b"frames")) == b"frames"
+
+
+def test_a_child_that_says_64_kib_without_the_sync_line_fails(tmp_path: Path) -> None:
+    pipe = _saying(tmp_path, b"x" * 65_525 + SYNC)
+    with pytest.raises(ConnectionError, match=r"^No hmz-stdio/1 line came within"):
+        pipe.recv(64)
+
+
+def test_a_child_that_ends_before_the_sync_line_is_the_end_of_its_pipe(
+    tmp_path: Path,
+) -> None:
+    assert _saying(tmp_path, b"hmz: not found\n").recv(64) == b""
 
 
 def test_closing_a_child_s_pipe_stops_the_child() -> None:

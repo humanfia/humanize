@@ -424,8 +424,9 @@ the `<name>` of Section 4.4.4 of [WIRE] MUST be the route.
 
 **3.12.4** Until the carrier is open, the app MUST send `pipe_state` with `state` `connecting` or
 `installing` and what was said last, then `up` once it is open, or `failed` before `pipe_closed`;
-from `up` on, it MUST carry every `pipe_send` to the carrier and every byte of the carrier to the
-page as `pipe_data`, unchanged and in order.
+from `up` on, it MUST carry every `pipe_send` to the carrier and every byte of the carrier, after
+the line of Section 3.4.11 of [WIRE] on a `stdio:` carrier, to the page as `pipe_data`, unchanged
+and in order.
 
 **3.12.5** Over a `stdio:ssh` route, the app MUST find and install hmz on the remote machine as
 Section 3.8.3 of [DAEMON] states.

@@ -15,6 +15,7 @@ import hmz.daemon
 import hmz.daemon.detaching
 import hmz.daemon.link
 import hmz.daemon.routing
+import hmz.reach
 from hmz.cli.daemon import daemon
 from hmz.rpc import RpcError
 
@@ -73,6 +74,36 @@ def test_a_spec_that_is_not_a_listener_says_so(
     with pytest.raises(SystemExit):
         daemon(["serve", "--listen", "unix:"])
     assert "unix: is not a listener." in capsys.readouterr().err
+
+
+def test_connect_says_the_sync_line_then_splices_its_streams_to_the_socket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`hmz-stdio/1` before any byte of the daemon's (Section 13.2.3)."""
+    done = mock.Mock()
+    socket, here = mock.Mock(), done.here
+    monkeypatch.setattr(hmz.daemon, "start", mock.Mock())
+    monkeypatch.setattr(hmz.reach, "dial", mock.Mock(return_value=socket))
+    monkeypatch.setattr(hmz.reach, "stdio", mock.Mock(return_value=here))
+    monkeypatch.setattr(hmz.reach, "splice", done.splice)
+    assert daemon(["connect", "--stdio"]) == 0
+    assert done.mock_calls == [
+        mock.call.here.sendall(b"hmz-stdio/1\n"),
+        mock.call.splice(here, socket),
+    ]
+
+
+def test_connect_that_reaches_no_daemon_says_nothing_on_standard_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(hmz.daemon, "start", mock.Mock())
+    monkeypatch.setattr(
+        hmz.reach, "dial", mock.Mock(side_effect=ConnectionRefusedError("refused"))
+    )
+    assert daemon(["connect", "--stdio"]) == 1
+    said = capsys.readouterr()
+    assert said.out == ""
+    assert said.err == "hmz: the daemon cannot be reached: refused\n"
 
 
 def test_pair_writes_the_code_and_when_it_stops_admitting(

@@ -709,8 +709,10 @@ defaults) and `remember` (boolean, `false`).
 in the host's workspace, and MUST be answered with `run`, its epic number, `slot` and `workspace`;
 `params` text values MUST be read as `-p` reads them ([CLI]).
 
-**4.8.2.3** `epic.start` with `remember` `true` MUST first write what the flow is started with as
-the workspace's set-up of that flow, as `flows.setup` does (Section 4.17.4).
+**4.8.2.3** `epic.start` with `remember` `true` MUST first check what the flow is started with as
+`flows.setup` checks it (Section 4.17.4), before the host is asked, and MUST write it as the
+workspace's set-up of that flow, as `flows.setup` does, only once the host has taken the start; a
+refused start MUST leave the set-up as it was.
 
 **4.8.2.4** `epic.start` MUST be refused with `a flow to start is named` for a missing `flow`;
 `backup is a list of backup target names` for a `backup` that is not one; `this host has closed`; `a
@@ -1242,6 +1244,9 @@ where none waits or no host is going with it), `backup` (the targets it was star
 on, how many of its sessions it opened before it last was), `profile_flow`, `profile_environment`,
 `picks_up`, `foreign` and `calls` (its tree of flow calls, each `flow`, `task`, `began`, `ended`,
 `how`, `calls`).
+`backed` MUST be among what it answers, as the epic row defines it (Section 4.16.2.1), and a
+backup of the epic to a target MUST count as finished once `backed` holds that target with an `at`
+no earlier than the epic's `ended`.
 
 **4.16.3.2** A `name` that names no epic MUST be refused 404, `There is no epic <name>.`, by every
 method of Section 4.16 that takes `name`.

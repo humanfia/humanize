@@ -288,7 +288,11 @@ and `-`, and MUST NOT be `local` in any case.
 characters, or `""` until the daemon is first reached over a trusted carrier.
 
 **3.4.6.5** `routes` MUST be a non-empty list of routes (Section 3.3 of [WIRE]), in the order they
-are tried; an entry whose `id` is `""` MUST have a trusted route first.
+are tried; an entry whose `id` is `""` MUST have a trusted route first, except an entry of `id` `""`
+and an `easytier:` route first, as Section 3.4.6.8 reads an earlier release's and writes it again,
+which MUST be kept, which a client MUST refuse to dial as Section 3.5.6 of [WIRE] states until it
+is paired or reached over a trusted carrier (Section 3.4.6.4), and which MUST NOT be written
+otherwise.
 
 **3.4.6.6** An entry with a key outside Section 3.4.6.2, with an invalid value, or with a `name` an
 earlier entry has MUST be ignored when read and MUST be removed at the next write of `daemons`.

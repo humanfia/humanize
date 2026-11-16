@@ -571,7 +571,9 @@ in its own process, reached over a socket pair. Its hosts run in that process to
 temporary home and machine directory of its own (with a copy of the settings file), never
 touches this machine's daemon, and is torn down when `run_fake` returns or raises, or the
 [`Run`](#run) has ended -- the epic written in its home with it, so `Hmz().epics` never lists a
-run on fakes.
+run on fakes. The home and machine directory are named by the process's environment, so private
+daemons running at once in one process (say, `asyncio.gather` over two `run_fake`) share them,
+and they are removed when the last of those is torn down.
 
 Semantics: [Flows › Testing a flow](/reference/flows#testing-a-flow).
 
