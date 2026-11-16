@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+import psutil
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
@@ -161,6 +163,20 @@ def standins(
 def kinds(events: list[Any]) -> list[str]:
     """The kind of each event, in order."""
     return [event.kind for event in events]
+
+
+def children() -> Iterator[tuple[psutil.Process, str]]:
+    """Each process under this one, with its command line.
+
+    One that ends between being listed and being read -- a zombie, or one already reaped -- is
+    left out: it runs nothing a test could be looking for.
+    """
+    for one in psutil.Process().children(recursive=True):
+        try:
+            argv = one.cmdline()
+        except psutil.NoSuchProcess:  # a ZombieProcess, too
+            continue
+        yield one, " ".join(argv)
 
 
 #: What a stand-in asks an OpenAI-compatible endpoint with, put beside its body: `chatted`
