@@ -180,7 +180,9 @@ async def test_exit_while_a_run_is_going_asks_and_stopping_it_ends_both(
 
         await typed(pilot, "/exit")
         await on(pilot, Leaves)
-        await shows(pilot, "A flow is running.", "Stop the flow and exit", "Cancel")
+        await shows(
+            pilot, "A flow is running.", "Stop the flow and exit", "Detach and exit"
+        )
         await pilot.click(f"#act-{STOPS}")
 
         await until(pilot, lambda: not app.is_running, "the interface to close")
