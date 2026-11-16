@@ -15,10 +15,16 @@ import pytest
 
 from hmz import daemon
 from hmz.daemon import where
-from hmz.runtime.doing import hosting as hosted
 from hmz.runtime.epic import every, read
 from tests.integration.doubles_core import AGENT, install, started
-from tests.integration.doubles_daemon import WAITS, Heard, hosting, until, written
+from tests.integration.doubles_daemon import (
+    WAITS,
+    Heard,
+    folds,
+    hosting,
+    until,
+    written,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -26,15 +32,14 @@ if TYPE_CHECKING:
 
 pytestmark = [
     pytest.mark.timeout(120),
-    pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
 
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     at = install(tmp_path, monkeypatch)
-    # Inherited by every host forked from here: a chat nobody reads folds in a moment.
-    monkeypatch.setattr(hosted, "FOLD", 1.0)
+    # A chat nobody reads folds in a moment.
+    folds(1.0, monkeypatch)
     with hosting():
         yield at
 

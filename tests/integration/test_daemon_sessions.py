@@ -33,7 +33,6 @@ if TYPE_CHECKING:
 
 pytestmark = [
     pytest.mark.timeout(120),
-    pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
 
@@ -124,7 +123,7 @@ def test_a_session_says_hello_first_and_is_paired_on_the_socket(
     assert said["daemon_id"] == identity.device().fingerprint
     assert peer.call("rpc.discover", timeout=10)["info"]["version"] == PROTOCOL
     with pytest.raises(RpcError) as missing:
-        peer.call("runs.list", timeout=10)
+        peer.call("runs.nothing", timeout=10)
     assert missing.value.code == Code.METHOD_NOT_FOUND
     peer.close()
 

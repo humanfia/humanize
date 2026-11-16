@@ -393,11 +393,10 @@ def _machine(seconds: float) -> dict[str, Any]:
     said = _daemon()
     failed: OSError | None = None
     if said is None:
-        from hmz.daemon import routing
-        from hmz.daemon.detaching import forks
+        from hmz.daemon.detaching import spawns
 
         try:
-            forks(routing.serves, seconds)
+            spawns(["daemon"], seconds)
         except OSError as why:
             # Another started one in the same breath, which is the one this answers with.
             failed = why

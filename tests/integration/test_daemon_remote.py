@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 
 pytestmark = [
     pytest.mark.timeout(180),
-    pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
 #: How long a test waits for something another process is doing.

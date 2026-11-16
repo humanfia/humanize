@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 
 pytestmark = [
     pytest.mark.timeout(90),
-    pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
 

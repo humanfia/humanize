@@ -139,6 +139,7 @@ def _serve(listen: list[str]) -> int:
     import signal
 
     from hmz.daemon import routing, where
+    from hmz.daemon.detaching import settles
 
     def stops(_signal: int, _frame: object) -> None:
         raise KeyboardInterrupt
@@ -147,6 +148,8 @@ def _serve(listen: list[str]) -> int:
     with contextlib.suppress(OSError, ValueError):
         signal.signal(signal.SIGHUP, signal.SIG_IGN)
     try:
+        # Once, before anything is started: every host takes the daemon's environment.
+        settles()
         routing.serves(
             listen=listen,
             kept=True,
