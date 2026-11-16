@@ -308,11 +308,15 @@ def _coganchor(command: str, argv: list[str]) -> None:
       command: `anchor`, `fence` or `cred`.
       argv: What followed the command's name.
     """
+    import os
+
+    # Read before importing the module that answers it, so that a target half run without
+    # the variable loads nothing beyond what it always has.
+    if not os.environ.get("HUMANIZE_COGANCHOR", "").strip():
+        return
     from hmz.coganchor import binary
 
     if (program := binary.chosen()) is not None:
-        import os
-
         os.execv(program, [str(program), *binary.translated(command, argv)])  # noqa: S606
 
 

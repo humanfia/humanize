@@ -280,12 +280,12 @@ impl RemoteError {
         meta
     }
 
-    /// This error as a local `io::Error` with the same errno.
+    /// This error as a local `io::Error` carrying the same raw errno, so that a caller
+    /// handing it on to a traced process (or matching on it) gets the target's own number.
+    /// The message is the local description of that number; [`RemoteError`]'s `Display`
+    /// keeps the remote one.
     pub fn to_io(&self) -> io::Error {
-        io::Error::new(
-            io::Error::from_raw_os_error(self.errno).kind(),
-            self.to_string(),
-        )
+        io::Error::from_raw_os_error(self.errno)
     }
 }
 
@@ -520,7 +520,7 @@ mod tests {
         let error = RemoteError::errno(libc::ENOENT).with_filename("/x");
         let back = RemoteError::from_meta(&error.to_meta());
         assert_eq!(back, error);
-        assert_eq!(back.to_io().raw_os_error(), None);
+        assert_eq!(back.to_io().raw_os_error(), Some(libc::ENOENT));
         assert_eq!(back.to_io().kind(), io::ErrorKind::NotFound);
     }
 
