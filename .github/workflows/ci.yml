@@ -203,6 +203,16 @@ jobs:
       - name: uv sync
         run: uv sync --frozen --all-extras
 
+      # The anchor runs only as `coganchor`, which the tests find in crates/coganchor/target.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: crates/coganchor
+          # Restores what cache.yml saved on `main`, and writes nothing.
+          save-if: false
+
+      - name: cargo build crates/coganchor
+        run: cargo build --locked --manifest-path crates/coganchor/Cargo.toml
+
       - name: pytest tests/unit/<package>, a package at a time
         env:
           CHANGES: ${{ needs.changes.outputs.changes || '' }}
