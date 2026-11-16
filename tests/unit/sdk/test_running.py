@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 from hmz.flows import BudgetExceeded
 from hmz.sdk import Refused, Run
-from hmz.sdk.running import Opened, Runner
+from hmz.sdk.running import Opened, Runner, backed
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -52,6 +52,9 @@ class _Daemon:
         self.closed = False
         self.refusing: dict[str, Refused] = {}
         self.answered = threading.Event()
+        #: What `runs.get` says each time it is asked, the last for good.
+        self.rows: list[dict[str, Any]] = [{}]
+        self.gone = threading.Event()
 
     def heard(self, listener: Callable[[str, dict[str, Any]], None]) -> None:
         self.listener = listener
@@ -66,10 +69,17 @@ class _Daemon:
             self.answered.set()
         if method == "epic.attach":
             return {"sub": "s1", "slot": "exec:ab12", "client": "c1"}
+        if method == "runs.get":
+            return self.rows.pop(0) if len(self.rows) > 1 else self.rows[0]
         return {}
+
+    def wait(self, timeout: float | None = None) -> bool:
+        del timeout
+        return self.closed
 
     def close(self) -> None:
         self.closed = True
+        self.gone.set()
 
     def tells(self, **message: Any) -> None:
         assert self.listener is not None
@@ -180,7 +190,7 @@ def test_the_epic_is_told_as_it_happens_and_returns_what_it_ended_with(
     assert noticed == ["moved to docker"]
     assert run.epic is not None
     assert run.epic.name == "2026-x"
-    assert daemon.closed
+    assert daemon.gone.wait(5)
 
 
 @pytest.mark.parametrize(
@@ -258,3 +268,54 @@ def test_stopping_asks_the_epic_to_stop_and_closing_forces_it(daemon: _Daemon) -
     assert daemon.methods()[-2:] == ["epic.stop", "epic.force"]
     assert daemon.closed
     assert run.wait(0)
+
+
+def test_an_epic_that_ended_is_followed_until_its_backups_are_done(
+    daemon: _Daemon,
+) -> None:
+    undone: dict[str, Any] = {"backup": ["origin"], "backed": {}}
+    done: dict[str, Any] = {"backup": ["origin"], "backed": {"origin": {"ok": True}}}
+    daemon.rows = [undone, undone, done]
+    run = Run(_Runner(daemon), "do it")
+    run.start()
+    daemon.tells(type="run", seq=1, epic="2026-x")
+    daemon.tells(type="ended", seq=2, how="done", why="", result=None)
+
+    assert run.wait(5)
+    assert daemon.gone.wait(5)
+    assert daemon.methods().count("runs.get") == 3
+    assert ("runs.get", {"name": "2026-x"}) in daemon.asked
+
+
+def test_closing_an_epic_that_ended_lets_go_without_waiting_for_its_backups(
+    daemon: _Daemon,
+) -> None:
+    daemon.rows = [{"backup": ["origin"], "backed": {}}]
+    run = Run(_Runner(daemon), "do it")
+    run.start()
+    daemon.tells(type="run", seq=1, epic="2026-x")
+    daemon.tells(type="ended", seq=2, how="done", why="", result=None)
+    assert run.wait(5)
+    assert not daemon.gone.wait(0.2)
+
+    run.close()
+    assert daemon.closed
+
+
+def test_a_backup_from_before_the_epic_ended_is_not_the_one_its_end_queued(
+    daemon: _Daemon,
+) -> None:
+    def row(at: str) -> dict[str, Any]:
+        return {
+            "ended": "2026-11-17T00:00:01.000Z",
+            "backup": ["origin"],
+            "backed": {"origin": {"at": at, "ok": True}},
+        }
+
+    client = cast("Any", daemon)
+    daemon.rows = [row("2026-11-17T00:00:00.000Z")]
+    assert not backed(client, "e")
+    daemon.rows = [row("2026-11-17T00:00:02.000Z")]
+    assert backed(client, "e")
+    daemon.refusing["runs.get"] = Refused("There is no epic e.", code=404)
+    assert backed(client, "e")

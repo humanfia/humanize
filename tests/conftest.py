@@ -47,12 +47,20 @@ _ASKS = hmz.coganchor.models.ask
 
 @pytest.fixture(autouse=True)
 def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A home of the test's own; no crash reports, no price or release fetch."""
+    """A home of the test's own; no crash reports, no price, release or flowverse fetch.
+
+    A daemon a test starts fetches every flowverse's index as it starts, in a process this
+    one cannot patch: `git` there is told that GitHub is a directory that is not there, so
+    that its clone fails at once, as `_clones_nothing_elsewhere` fails one here.
+    """
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize-home"))
     monkeypatch.setenv("HUMANIZE_SENTRY", "off")
     monkeypatch.setenv("HUMANIZE_SHADOWS", str(tmp_path / "shadows"))
     monkeypatch.setenv("HUMANIZE_PRICES", "off")
     monkeypatch.setenv("HUMANIZE_RELEASES", "off")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{tmp_path / 'no-github'}/.insteadOf")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "https://github.com/")
     telemetry.again()
 
 

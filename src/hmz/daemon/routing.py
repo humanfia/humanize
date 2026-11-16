@@ -56,6 +56,10 @@ serving: Router | None = None
 #: How often the daemon's own files are marked as used (Section 7.6.6 of files.md).
 _RETOUCH = 3600.0
 
+#: How often the daemon asks again which release of hmz is the newest (Section 13.3.2.3 of
+#: core.md).
+_REFETCH = 24 * 3600.0
+
 
 class Router:
     """This machine's daemon: its sessions, its hosts, and every method it serves.
@@ -465,18 +469,41 @@ def serves(
         global serving  # noqa: PLW0603 -- one daemon per process, while it serves
         serving = router
         router.start()
+        _fetches()
+        fetched = time.monotonic()
         try:
             # A tick at a time: a signal is handled on this thread, and one the kernel hands to
             # another thread never wakes one blocked here for good -- so a terminate would
             # wait for whatever ended the daemon next.
             while not router.wait(_TICK):
-                pass
+                if time.monotonic() - fetched > _REFETCH:
+                    fetched = time.monotonic()
+                    _fetches(verses=False)
         finally:
             router.close()
             serving = None
     finally:
         with contextlib.suppress(OSError):
             os.close(holding)
+
+
+def _fetches(*, verses: bool = True) -> None:
+    """Fetches what the daemon tells its clients of, in the background, telling none of them.
+
+    The newest release of hmz, where what is kept has got old, which `session.hello` reads,
+    and every flowverse's index, which `flowverses.list` reads (Section 3.9.8 of daemon.md).
+
+    Args:
+      verses: Whether the flowverses' indexes are fetched as well, which is as it starts alone.
+    """
+    import importlib
+
+    from hmz.coganchor import releases
+
+    releases.refresh()
+    if verses:
+        # Found as the families are, above this layer.
+        importlib.import_module("hmz.daemon.api.flowverses").fetches()
 
 
 def _listened() -> list[str]:

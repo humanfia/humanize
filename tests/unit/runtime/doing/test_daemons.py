@@ -408,6 +408,29 @@ def test_a_daemon_that_answers_as_another_fails(
         remotes.close()
 
 
+def test_an_easytier_daemon_never_paired_fails_before_anything_is_fetched(
+    held: dict[str, Any], reached: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.coganchor import easytier
+
+    def binary(*_: object) -> None:
+        raise AssertionError("EasyTier is fetched for a daemon that cannot be reached")
+
+    monkeypatch.setattr(easytier, "binary", binary)
+    held["daemons"] = [
+        {"name": "p2p", "via": "easytier", "secret": "s" * 16, "peers": ["tcp://n:1"]}
+    ]
+    remotes = Remotes(version="1.2.3")
+    try:
+        with pytest.raises(
+            Unreached, match=r"^easytier:p2p needs the id of the daemon it reaches\.$"
+        ):
+            remotes.client("p2p")
+        assert reached == []
+    finally:
+        remotes.close()
+
+
 def test_a_daemon_not_reached_fails_saying_why_and_waits_longer_each_time(
     held: dict[str, Any], reached: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

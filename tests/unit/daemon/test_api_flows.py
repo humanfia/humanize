@@ -205,7 +205,7 @@ def test_a_set_up_that_cannot_run_is_refused(
     said: dict[str, Any], sentence: str
 ) -> None:
     with pytest.raises(RpcError) as refused:
-        flows.remembered(_flows("loop"), said)
+        flows.remembers(_flows("loop"), said)
     assert (refused.value.code, refused.value.message) == (Code.REFUSED, sentence)
 
 

@@ -18,7 +18,7 @@ from hmz.rpc import Code, RpcError
 from .workspaces import place
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from hmz.rpc import Call, Handler
 
@@ -30,7 +30,7 @@ __all__ = [
     "forked",
     "listed",
     "offered",
-    "remembered",
+    "remembers",
 ]
 
 
@@ -137,17 +137,22 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
     }
 
 
-def remembered(hmz: Any, said: Mapping[str, Any]) -> None:
-    """Writes down what a workspace is set up to run a flow with, as `/flow` saves it.
+def remembers(hmz: Any, said: Mapping[str, Any]) -> Callable[[], None]:
+    """Checks what a workspace is to be set up to run a flow with, as `/flow` saves it.
 
     What a new epic there opens on from then on: its agents, environments, params, budget,
     what of it is profiled and the backup targets it goes to. Refused, as the terminal
     interface refuses to save it, where a role names no agent or -- for every flow but chat
-    -- nothing says what it may spend.
+    -- nothing says what it may spend. Written down only once what is answered is called:
+    `epic.start` writes it once the host has taken the start, so that a start refused
+    leaves the set-up there was.
 
     Args:
       hmz: Humanize, for the workspace.
       said: The flow and what it is set up with, as `epic.start` takes them.
+
+    Returns:
+      What writes it down.
 
     Raises:
       RpcError: 404 for a flow not on offer there or that will not load; 400 for an agent
@@ -186,16 +191,21 @@ def remembered(hmz: Any, said: Mapping[str, Any]) -> None:
     known = {one.name for one in hmz.backups.targets()}
     if missing := [one for one in backup or [] if one not in known]:
         raise _refused(f"There is no backup target named {', '.join(missing)}.")
-    _settings(hmz).remember(
-        flow,
-        agents,
-        cast("dict[str, str]", envs) if isinstance(envs, dict) else None,
-        cast("dict[str, Any]", params) if isinstance(params, dict) else None,
-        _saved(budget),
-        profile_flow=said.get("profile_flow") is True,
-        profile_environment=said.get("profile_environment") is True,
-        backup=backup,
-    )
+    saved = _saved(budget)
+
+    def writes() -> None:
+        _settings(hmz).remember(
+            flow,
+            agents,
+            cast("dict[str, str]", envs) if isinstance(envs, dict) else None,
+            cast("dict[str, Any]", params) if isinstance(params, dict) else None,
+            saved,
+            profile_flow=said.get("profile_flow") is True,
+            profile_environment=said.get("profile_environment") is True,
+            backup=backup,
+        )
+
+    return writes
 
 
 def backends(hmz: Any) -> dict[str, Any]:
@@ -392,7 +402,7 @@ def _holding(call: Call) -> Any:
 
 def _setup(call: Call) -> dict[str, Any]:
     hmz = _hmz(call)
-    remembered(hmz, call.params)
+    remembers(hmz, call.params)()
     return declared(hmz, call.params["flow"])
 
 

@@ -226,15 +226,14 @@ Another browser, or another port, starts with none of it: add the daemons there 
 
 ```python
 @contextlib.contextmanager
-def listening(*, port: int = 0, key: str | None = None) -> Generator[Site]: ...
+def listening(*, port: int = 0) -> Generator[Site]: ...
 def serve(*, port: int | None = None, shown: Callable[[str], object] = print,
           opened: Callable[[str], object] | None = None) -> None: ...
 def kept_port() -> int: ...
 ```
 
 `listening` reaches this machine's daemon, starting it where none runs, and listens, answering
-nothing until `Site.serve_forever` is called; `key` is the key a browser is let in with, made up
-as it starts where it is `None`. `serve` is both, until `KeyboardInterrupt`, on the port given
+nothing until `Site.serve_forever` is called, with a key made up as it starts. `serve` is both, until `KeyboardInterrupt`, on the port given
 -- `None` for the one `kept_port` says, any free one where that is taken -- writing the port
 it took to `web-port`, telling `shown` the address once it listens and handing it to `opened`.
 `kept_port` is the port `web-port` holds, or `0`. `Site.address` is the address with its key;

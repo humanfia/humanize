@@ -40,7 +40,6 @@ def test_the_commands_are_these_and_the_internal_door() -> None:
     commands = [
         "exec",
         "web",
-        "server",
         "daemon",
         "relay",
         "update",
