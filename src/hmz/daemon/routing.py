@@ -154,7 +154,23 @@ class Router:
     # -- the loop
 
     def start(self) -> None:
-        """Starts taking sessions on the socket, and opens every listener."""
+        """Starts taking sessions on the socket, and opens every listener.
+
+        Notices are watched for from the start (Section 4.19.1.3 of daemon.md), where the
+        family that serves them is there.
+        """
+        import importlib
+
+        try:
+            notices = importlib.import_module("hmz.daemon.api.notices")
+        except ImportError:
+            notices = None
+        watched = getattr(notices, "watched", None)
+        if callable(watched):
+            try:
+                watched()
+            except Exception:  # noqa: BLE001 -- the daemon serves without them
+                _log.exception("notices could not be watched")
         self._relistens()
         threading.Thread(target=self._takes, name="hmz-daemon", daemon=True).start()
 
