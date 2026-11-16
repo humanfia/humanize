@@ -5,10 +5,10 @@ have already happened there, and the flow that is running there now. The things 
 workspace's -- the accounts agents run as, where flows come from -- are still reached from
 here, because there is one of each and one place to ask for it.
 
-The front door of :mod:`hmz.runtime` and reached by its name: a command line names the runtime
-and holds this, a daemon holding a run apart from a terminal holds it too and the interface it
-holds reaches it through that daemon, and :mod:`hmz.sdk` is the same object handed to whoever
-is calling Humanize from outside. One list of what Humanize can do rather than one per way in.
+The front door of :mod:`hmz.runtime` and reached by its name: a daemon's host holds a workspace
+as :class:`Holding`, which runs its epics in that process, and :mod:`hmz.sdk` hands whoever is
+calling Humanize from outside the same workspace with its epics run through a daemon instead.
+One list of what Humanize can do rather than one per way in.
 
 Each of them is fetched when it is asked for and not before. A command line that only lists the
 places flows come from must not load the tracer, the sandbox and every coding agent driver
@@ -17,7 +17,6 @@ there is to do it, and `hmz internal anchor` must not load any of this at all.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -33,7 +32,6 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.epics import Epics
     from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
-    from hmz.runtime.doing.hosting import Host
     from hmz.runtime.doing.running import Run
     from hmz.runtime.doing.runtimes import Runtimes
     from hmz.runtime.flowing import AgentDriver, AgentRole, EnvDriver, OutworlderDriver
@@ -41,10 +39,7 @@ if TYPE_CHECKING:
     from hmz.runtime.runner import Line, Runner
     from hmz.runtime.settings import Settings
 
-__all__ = ["Hmz"]
-
-#: What names a host: "" for a workspace's own, `chat:` and a few hex digits for a chat's.
-_SLOT = re.compile(r"(?:chat:[0-9a-f]{1,32})?")
+__all__ = ["Hmz", "Holding"]
 
 
 class Hmz:
@@ -60,7 +55,6 @@ class Hmz:
             it named, spelled the way it was named.
         """
         self._workspace: str | os.PathLike[str] | None = workspace
-        self._hosts: dict[str, Host] = {}
         self._settings: Settings | None = None
         self._flows: Flows | None = None
         self._accounts: Accounts | None = None
@@ -264,7 +258,7 @@ class Hmz:
 
         Returns:
           The line, read. Nothing is loaded: whether the flow takes what it names is asked
-          of it by :meth:`runner`.
+          of it once it is run.
 
         Raises:
           SystemExit: If the line is not one argparse accepts, or an `-a`, `-e` or `-p`
@@ -273,6 +267,15 @@ class Hmz:
         from hmz.runtime.runner import read_line
 
         return read_line(argv)
+
+
+class Holding(Hmz):
+    """A workspace whose epics are run in this process: what a host holds them with.
+
+    Internal to Humanize. A program outside it runs an epic through a daemon, as
+    :class:`hmz.sdk.Hmz` does; the daemon's hosts, and its check of an epic before it starts,
+    are what run one here.
+    """
 
     def runner(
         self,
@@ -339,7 +342,7 @@ class Hmz:
         outworlder: OutworlderDriver | None = None,
         backup: Iterable[str] | None = None,
     ) -> Run:
-        """A run of one flow, loaded and ready to be started.
+        """A run of one flow in this process, loaded and ready to be started.
 
         Args:
           flow: The flow, by the name it is offered under, a path, or a ref.
@@ -379,56 +382,3 @@ class Hmz:
             task,
             outworlder=outworlder,
         )
-
-    def exec(self, argv: list[str]) -> Any:
-        """Runs the flow one `hmz exec` line names, on what it names, to its return.
-
-        Args:
-          argv: The line, as `hmz exec` takes it.
-
-        Returns:
-          What the flow returned.
-
-        Raises:
-          Refused: If the line names a flow that is not there, or gives it what it does not
-            take -- which is a line that was wrong before anything ran.
-          SystemExit: If the line is not one argparse accepts.
-        """
-        line = self.read(argv)
-        # Through a run, which is the one thing a flow being driven is: whoever ran a line
-        # through this and whoever built a run are then holding the same thing.
-        return self.run(
-            line.flow,
-            line.task,
-            agents=line.agents,
-            envs=line.envs,
-            params=line.params,
-            budget=line.budget,
-            profile_flow=line.profile_flow,
-            profile_environment=line.profile_environment,
-            resume=line.resume,
-            backup=line.backup,
-        ).run()
-
-    def host(self, slot: str = "") -> Host:
-        """The runs of this workspace as every frontend attached to them shares them.
-
-        One per object and slot, made the first time it is asked for: whatever frontends attach
-        to it share one run going, one queue of lines, one set of claims -- which is what makes
-        two of them one run rather than two copies of it.
-
-        Args:
-          slot: Which: "" for the workspace's own, which runs its flows one at a time, or
-            `chat:<hex>` for one chat's, beside it.
-
-        Raises:
-          ValueError: If the slot is neither.
-        """
-        if not _SLOT.fullmatch(slot):
-            raise ValueError(f"no such host as {slot!r}: a slot is '' or chat:<hex>")
-        held = self._hosts.get(slot)
-        if held is None:
-            from hmz.runtime.doing.hosting import Host
-
-            held = self._hosts[slot] = Host(self, slot)
-        return held

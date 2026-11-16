@@ -18,9 +18,13 @@ import yaml
 
 from hmz import home
 from hmz.cli import main
-from hmz.runtime import Hmz, backing
+from hmz.runtime import backing
 from hmz.runtime.epic import logs, read
+from hmz.sdk import Hmz
 from tests.integration.doubles_core import AGENT, hmz_exec, install, write_flow
+
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
 
 #: A flow whose one turn is followed by long enough a wait for `interval` to come due.
 SLOW = """
@@ -86,6 +90,13 @@ def _show(bare: Path, path: str) -> str:
     ).stdout
 
 
+def _exec(*argv: str) -> subprocess.CompletedProcess[str]:
+    """`hmz exec`, once the epic's host -- this process, the test's daemon's -- backed it up."""
+    ran = hmz_exec(*argv)
+    assert backing.wait(60)
+    return ran
+
+
 def _epic(project: Path) -> Path:
     return Hmz(project).epics.all()[-1]
 
@@ -95,7 +106,7 @@ def test_an_epic_is_backed_up_once_it_ends_with_no_credential_in_it(
 ) -> None:
     _targets({"name": "t", "url": str(bare), "policies": ["end"]})
 
-    ran = hmz_exec(
+    ran = _exec(
         "-f",
         "chat",
         "-a",
@@ -128,7 +139,7 @@ def test_an_epic_goes_to_the_default_targets_as_its_sessions_close(
         defaults=("t",),
     )
 
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "hello")
+    ran = _exec("-f", "chat", "-a", f"assistant={AGENT}", "hello")
 
     assert ran.returncode == 0, ran.stderr
     done = subprocess.run(
@@ -143,7 +154,7 @@ def test_an_epic_goes_to_the_default_targets_as_its_sessions_close(
 def test_no_backup_is_made_where_none_is_asked_for(bare: Path, project: Path) -> None:
     _targets({"name": "t", "url": str(bare), "policies": ["end"]}, defaults=("t",))
 
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "--backup", "none", "hi")
+    ran = _exec("-f", "chat", "-a", f"assistant={AGENT}", "--backup", "none", "hi")
 
     assert ran.returncode == 0, ran.stderr
     assert _log(bare) == []
@@ -171,7 +182,7 @@ def test_an_epic_is_backed_up_by_hand_and_once_for_what_it_holds(
     bare: Path, project: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _targets({"name": "t", "url": str(bare)}, defaults=("t",))
-    assert hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "hi").returncode == 0
+    assert _exec("-f", "chat", "-a", f"assistant={AGENT}", "hi").returncode == 0
     epic = _epic(project)
     assert _log(bare) == []
 
@@ -193,7 +204,7 @@ def test_an_unreachable_remote_holds_up_nothing_and_says_why(
     _targets({"name": "t", "url": str(tmp_path / "nowhere.git"), "policies": ["end"]})
 
     began = time.monotonic()
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "--backup", "t", "hi")
+    ran = _exec("-f", "chat", "-a", f"assistant={AGENT}", "--backup", "t", "hi")
 
     assert ran.returncode == 0, ran.stderr
     assert time.monotonic() - began < 60
@@ -235,7 +246,7 @@ def test_an_epic_backed_up_on_one_machine_is_downloaded_on_another(
     target: dict[str, object] = {"name": "t", "url": str(bare), "policies": ["end"]}
     _targets(target)
     assert (
-        hmz_exec(
+        _exec(
             "-f", "chat", "-a", f"assistant={AGENT}", "--backup", "t", "hi"
         ).returncode
         == 0
@@ -291,7 +302,7 @@ def test_an_epic_this_machine_backed_up_and_still_has_is_not_downloaded(
     bare: Path, project: Path
 ) -> None:
     _targets({"name": "t", "url": str(bare), "policies": ["end"]}, defaults=("t",))
-    assert hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "hi").returncode == 0
+    assert _exec("-f", "chat", "-a", f"assistant={AGENT}", "hi").returncode == 0
 
     with pytest.raises(ValueError, match="already here"):
         Hmz().backups.pulled("t", backing.where(_epic(project)))
@@ -301,7 +312,7 @@ def test_epics_of_two_runs_share_one_repository(bare: Path, project: Path) -> No
     _targets({"name": "t", "url": str(bare), "policies": ["end"]}, defaults=("t",))
 
     for said in ("one", "two"):
-        assert hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", said).returncode == 0
+        assert _exec("-f", "chat", "-a", f"assistant={AGENT}", said).returncode == 0
 
     first, second = Hmz(project).epics.all()
     listed = subprocess.run(

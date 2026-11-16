@@ -127,7 +127,6 @@ def test_it_is_drawn_in_the_terminals_colours_unless_asked_otherwise(
     ("ask", "answer"),
     [
         (Humanize.flow_running, False),
-        (Humanize.held_apart, True),
         (Humanize.nothing_to_resume, False),
         (Humanize.in_btw, False),
         (Humanize.leaves_btw, False),

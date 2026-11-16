@@ -135,11 +135,10 @@ def written(workspace: Path, name: str, source: str) -> None:
 def project(
     under: Path, monkeypatch: pytest.MonkeyPatch, name: str = "project"
 ) -> Path:
-    """A workspace of the test's own, stood in, with runs allowed apart from the terminal."""
+    """A workspace of the test's own, stood in."""
     at = under / name
     at.mkdir()
     monkeypatch.chdir(at)
-    monkeypatch.delenv("HUMANIZE_DAEMON", raising=False)
     return at
 
 

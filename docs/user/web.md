@@ -60,7 +60,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first, each marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, such as `hmz exec`, read as it writes itself down; a `chat` only `●` while its agent answers, the blinking gold `●` while it asks, `✕` failed, else `■` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
+| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first, each marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a `chat` only `●` while its agent answers, the blinking gold `●` while it asks, `✕` failed, else `■` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
 | **New epic** | A box for the task, the directory and the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a `chat` is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
@@ -616,8 +616,6 @@ The key changes every time `hmz web` starts, so an address from an earlier one l
 - **Stopped by what started it.** `hmz web --attached` stops once its standard input closes,
   so a program that starts it -- a desktop app, a script -- takes it down by exiting, even by
   crashing.
-- **Runs that end with it.** With `HUMANIZE_DAEMON=off`, `hmz web` holds the runs in its own
-  process, and stopping it stops them, as [`hmz` does](/user/leaving#when-it-cant-be-left-running).
 
 ## Troubleshooting
 

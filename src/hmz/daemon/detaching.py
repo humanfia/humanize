@@ -194,15 +194,15 @@ def hosts_in(
     import threading
 
     from hmz.daemon.carrying import Printed, keeps, serves
-    from hmz.runtime import Hmz
+    from hmz.runtime import Holding, Host
 
     os.chdir(workspace)
     with contextlib.suppress(OSError, ValueError):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-    hmz = Hmz()
+    hmz = Holding()
     # If it has been answered yes, and never otherwise: nobody is here to ask.
     hmz.reports()
-    held = hmz.host(slot)
+    held = Host(hmz, slot)
     # What a CLI a run starts writes straight to a descriptor goes into that run's epic, and
     # what is printed in Python is said to every frontend. Only now, with something reading
     # the pipe: a failure before this goes into the daemon's log as it is.

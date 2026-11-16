@@ -124,9 +124,8 @@ def _host(workspace: Path) -> daemon.Daemon:
 
 
 @pytest.fixture
-def hosted(here: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+def hosted(here: Path) -> Iterator[Path]:
     """The project's runs held by a host apart from the interface, which goes after."""
-    monkeypatch.setenv("HUMANIZE_DAEMON", "on")
     try:
         yield here
     finally:

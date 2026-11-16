@@ -37,9 +37,7 @@ _FORWARD = (
 
 
 @contextlib.contextmanager
-def listening(
-    *, port: int = 0, apart: bool = True, key: str | None = None
-) -> Generator[Site]:
+def listening(*, port: int = 0, key: str | None = None) -> Generator[Site]:
     """The web interface, listening on this machine's loopback for as long as the block runs.
 
     Listening is not answering: what answers is :meth:`Site.serve_forever`, on whichever
@@ -47,14 +45,12 @@ def listening(
 
     Args:
       port: The port to listen on, or 0 for any free one.
-      apart: Whether the runs are held apart from this process, by each workspace's host --
-        which is what lets them outlive it -- or in it.
       key: The key a browser is let in with: one `hmz server` derives from its secret, or
         None for one made up as it starts, which is `hmz web`'s.
 
     Yields:
-      The server. Leaving the block lets go of every workspace's runs it reached, and of the
-      runs themselves where they were held in this process.
+      The server. Leaving the block lets go of every workspace's runs it reached, which
+      this machine's daemon goes on holding.
 
     Raises:
       OSError: If the port cannot be listened on.
@@ -71,7 +67,7 @@ def listening(
     from .verses import fetches
 
     with contextlib.ExitStack() as held_open:
-        places = Places(Path.cwd(), apart=apart)
+        places = Places(Path.cwd())
         held_open.callback(places.close)
         notices = Notices(places.statuses)
         site = Site(port, places=places, runs=Runs(places), notices=notices, key=key)
@@ -98,7 +94,6 @@ def listening(
 def serve(
     *,
     port: int = 0,
-    apart: bool = True,
     shown: Callable[[str], object] = print,
     opened: Callable[[str], object] | None = None,
 ) -> None:
@@ -106,7 +101,6 @@ def serve(
 
     Args:
       port: The port to listen on, or 0 for any free one.
-      apart: Whether the runs are held apart from this process, or in it.
       shown: What the address is said through, once the server is listening. The address
         carries the key a browser is let in with.
       opened: What opens that address in a browser, or None to leave that to whoever reads it.
@@ -114,7 +108,7 @@ def serve(
     Raises:
       OSError: If the port cannot be listened on.
     """
-    with listening(port=port, apart=apart) as site, contextlib.ExitStack() as made:
+    with listening(port=port) as site, contextlib.ExitStack() as made:
         shown(site.address)
         if opened is not None:
             from hmz import machine

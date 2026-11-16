@@ -383,6 +383,13 @@ def _hmz(call: Call) -> Any:
     return Hmz(place(call.params["workspace"]))
 
 
+def _holding(call: Call) -> Any:
+    """Humanize, for the workspace a call names, checking an epic in this process."""
+    from hmz.runtime import Holding
+
+    return Holding(place(call.params["workspace"]))
+
+
 def _setup(call: Call) -> dict[str, Any]:
     hmz = _hmz(call)
     remembered(hmz, call.params)
@@ -404,5 +411,5 @@ METHODS: Mapping[str, Handler] = {
     "flows.backends": _backends,
     "flows.setup": _setup,
     "flows.fork": lambda call: forked(_hmz(call), call.params["flow"]),
-    "flows.check": lambda call: checked(_hmz(call), call.params),
+    "flows.check": lambda call: checked(_holding(call), call.params),
 }

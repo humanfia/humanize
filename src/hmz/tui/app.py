@@ -124,7 +124,7 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
-    from hmz.daemon import Host, Link
+    from hmz.daemon import Link
     from hmz.flows import Budget
     from hmz.runtime.epic import Ran
     from hmz.runtime.flowing import Update
@@ -789,10 +789,7 @@ class Humanize(App[None]):
         which is what `stop it, then leave` asks for, and are otherwise left alone.
         """
         self._quitting = True
-        if self._hosts:
-            # This process is where they are, so closing them is the only way they end.
-            self._closes_held()
-        elif self._run is not None or self._stopping is not None:
+        if self._run is not None or self._stopping is not None:
             # Asked here rather than in the background: this process is about to go, and a
             # request on a thread of its own would go with it before it was sent.
             with contextlib.suppress(Exception):
@@ -816,7 +813,7 @@ class Humanize(App[None]):
         if self._run is None or self.chatting():
             self._leaves()
             return
-        said = await self.push_screen_wait(Leaves(held=not self._hosts))
+        said = await self.push_screen_wait(Leaves(held=True))
         if said == STOPS:
             self.action_quit()
         elif said == DETACHES:
@@ -829,7 +826,7 @@ class Humanize(App[None]):
         to ask -- and what `/exit` does once it has been told to leave a flow running. A run
         a host holds goes on for whoever else reads it; one held here goes with the process.
         """
-        if self._run is None or self._hosts:
+        if self._run is None:
             self.action_quit()
             return
         self._quitting = True
@@ -970,17 +967,13 @@ class Humanize(App[None]):
         asked = os.environ.get("TEXTUAL_THEME", "")
         self.theme = asked if asked in self.available_themes else _TERMINAL.name
         #: This interface's end of the runs: everything it draws is a message told through
-        #: it, and everything it does to a run is a request asked through it. Made as it
-        #: mounts where none was handed over, on runs held in this process.
+        #: it, and everything it does to a run is a request asked through it. Attached as it
+        #: mounts where none was handed over, through this machine's daemon.
         self._linked: Link | None = link
         #: Which of the workspace's hosts that is: "" for its own, which runs its flows one at
         #: a time, or `chat:<hex>` for one chat's -- every conversation is a host of its own,
         #: and so an epic of its own, beside the flows and beside every other conversation.
         self._slot = ""
-        #: The runs, where they are held in this process rather than by a host apart from it,
-        #: by slot: what closing the interface closes, every chat had here among them. Empty
-        #: where a host holds them.
-        self._hosts: dict[str, Host] = {}
         #: The link whose messages are taken, which is the one attached to -- or None while
         #: this interface is moving from one host to another: what the one let go of still
         #: says on its way out is about runs nobody here is reading any more.
@@ -1334,11 +1327,10 @@ class Humanize(App[None]):
         self.begin_capture_print(self)
         self._welcome()
         # Reached now rather than as this was made, so that nothing the runs say arrives
-        # before there is a screen to say it on: runs held in this process where no host was
-        # handed over, and the run so far first however they are held.
+        # before there is a screen to say it on: through this machine's daemon where no link
+        # was handed over, and the run so far first however they are reached.
         if self._linked is None:
-            self._hosts[""] = self.hmz.host()
-            self._linked = self._links(self._hosts[""])
+            self._linked = self._reaches("")
         self._hearing = self._linked
         self._me = self._linked.client
         self._linked.heard(self._hears(self._linked))
@@ -1378,19 +1370,6 @@ class Humanize(App[None]):
         if self._linked is None:
             raise RuntimeError("cannot access runs before the interface is mounted")
         return self._linked
-
-    def _links(self, host: Host) -> Link:
-        """This interface's end of runs held in this process, rather than by a host apart.
-
-        Args:
-          host: The runs.
-
-        Returns:
-          The link, attached as an interface.
-        """
-        from hmz.daemon import linked
-
-        return linked(host, kind="tui")
 
     def _hears(self, link: Link) -> Callable[[dict[str, Any]], None]:
         """What takes the messages of one link: each one, as long as it is the one heard."""
@@ -1452,10 +1431,6 @@ class Humanize(App[None]):
         Returns:
           The link, attached as an interface.
         """
-        if self._hosts:
-            held = self._hosts.get(slot) or self.hmz.host(slot)
-            self._hosts[slot] = held
-            return self._links(held)
         from hmz import daemon
 
         return daemon.attach("tui", workspace=self.hmz.workspace, slot=slot)
@@ -1493,21 +1468,6 @@ class Humanize(App[None]):
         self._attached = _HOME
         self.query_one("#transcript", Transcript).clear()
         self._welcome()
-
-    def _closes_held(self) -> None:
-        """Closes every host held in this process, at once rather than one after another.
-
-        Each waits a while for what its runs made to be let go of, and a dozen chats had here
-        would otherwise be a dozen waits on the way out.
-        """
-        closing = [
-            threading.Thread(target=one.close, daemon=True)
-            for one in list(self._hosts.values())
-        ]
-        for one in closing:
-            one.start()
-        for one in closing:
-            one.join()
 
     @work
     async def _asks_what_runs(self) -> None:
@@ -2745,10 +2705,6 @@ class Humanize(App[None]):
         run = self._run or (self._seen_last if self._stopping is not None else None)
         return chatting(run.flow if run is not None else self._flow_named)
 
-    def held_apart(self) -> bool:
-        """Whether the runs are held by a host this interface closing leaves running."""
-        return not self._hosts
-
     def refused_stop(self) -> str:
         """Why `/stop` has nothing to do now, or "" while a flow runs for it to stop.
 
@@ -3513,7 +3469,6 @@ class Humanize(App[None]):
         let_go()
         if self._linked is not None:
             self._linked.close()
-        self._closes_held()
         self._requests.put(None)
 
     def _asks(
@@ -4061,10 +4016,6 @@ class Humanize(App[None]):
                         **one.status(),
                         "workspace": there,
                     }
-        here = str(self.hmz.workspace.resolve())
-        for slot, held in list(self._hosts.items()):
-            with contextlib.suppress(Exception):
-                said[f"{here}\0{slot}"] = {**held.status(), "workspace": here}
         return said
 
     def _hears_notice(self, notice: dict[str, Any]) -> None:
@@ -4402,19 +4353,15 @@ class Humanize(App[None]):
         Returns:
           The host's slot, or None where none of them is running it.
         """
-        found: list[tuple[str, dict[str, Any]]] = []
-        for slot, held in list(self._hosts.items()):
-            with contextlib.suppress(Exception):
-                found.append((slot, held.status()))
-        if not self._hosts:
-            from hmz import daemon
+        from hmz import daemon
 
-            here = str(self.hmz.workspace.resolve())
-            with contextlib.suppress(Exception):
-                for one in daemon.daemons():
-                    if str(Path(one.workspace).resolve()) == here:
-                        with contextlib.suppress(Exception):
-                            found.append((one.slot, one.status()))
+        found: list[tuple[str, dict[str, Any]]] = []
+        here = str(self.hmz.workspace.resolve())
+        with contextlib.suppress(Exception):
+            for one in daemon.daemons():
+                if str(Path(one.workspace).resolve()) == here:
+                    with contextlib.suppress(Exception):
+                        found.append((one.slot, one.status()))
         return next(
             (
                 slot
@@ -5427,13 +5374,11 @@ _COMMANDS: tuple[Command, ...] = (
         "exit",
         "Exit",
         lambda app, _: app.action_exit(),
-        # What becomes of the run is asked, and which answers there are is where it is held.
+        # What becomes of the run is asked: left to the daemon holding it, or stopped.
         now=lambda app: (
             ""
             if not app.flow_running() or app.chatting()
             else "Exit; a running flow can be left running"
-            if app.held_apart()
-            else "Exit; asks before stopping the running flow"
         ),
     ),
 )

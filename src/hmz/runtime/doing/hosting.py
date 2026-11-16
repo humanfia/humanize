@@ -73,7 +73,7 @@ if TYPE_CHECKING:
         Verdict,
     )
     from hmz.coganchor.faking import FakeCli
-    from hmz.runtime.doing.core import Hmz
+    from hmz.runtime.doing.core import Holding
     from hmz.runtime.doing.running import Run
     from hmz.runtime.flowing.spi import Placement
 
@@ -203,6 +203,14 @@ def _user() -> str:
 def _json(model: Any) -> Any:
     """A pydantic model as JSON-native values, `Infinity` spelled as it reads back."""
     return json.loads(model.model_dump_json())
+
+
+def _returned(value: Any) -> Any:
+    """What a flow returned, as JSON: every value that is not JSON-native as its text."""
+    try:
+        return json.loads(json.dumps(value, default=str, ensure_ascii=False))
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def _epic_of(shown: _Run | None) -> str:
@@ -605,7 +613,7 @@ class _Run:
 class Host:
     """One workspace's runs, or one chat's, shared by every frontend attached to them."""
 
-    def __init__(self, hmz: Hmz, slot: str = "") -> None:
+    def __init__(self, hmz: Holding, slot: str = "") -> None:
         """Holds the workspace and no run, with nobody attached.
 
         Args:
@@ -1382,7 +1390,7 @@ class Host:
         from hmz.runtime import telemetry
         from hmz.runtime.runner import Refused
 
-        how, why = "done", ""
+        how, why, result = "done", "", None
         try:
             # Said where every frontend reads it, as a command line says it on its stderr.
             if blind := current.run.unreadable():
@@ -1391,7 +1399,7 @@ class Host:
                         self._record(
                             {"type": "notice", "run": current.number, "text": blind}
                         )
-            current.run.run()
+            result = _returned(current.run.run())
         except (asyncio.CancelledError, Stopped):
             how = "stopped"
         except Refused as refused:
@@ -1438,6 +1446,7 @@ class Host:
                     "how": how,
                     "why": why,
                     "mono": time.monotonic(),
+                    "result": result,
                 }
             )
             self._snap_run()

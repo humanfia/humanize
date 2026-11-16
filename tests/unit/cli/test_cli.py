@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import os
 import sys
 import types
@@ -15,7 +14,7 @@ import pytest
 
 import hmz.coganchor.binary
 import hmz.daemon
-from hmz.cli import APART, COMMANDS, INTERNAL, main, many, opens, output
+from hmz.cli import COMMANDS, INTERNAL, main, many, opens, output
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -53,7 +52,6 @@ def test_the_commands_are_these_and_the_internal_door() -> None:
     for run, summary in (*COMMANDS.values(), *INTERNAL.values()):
         assert callable(run)
         assert summary
-    assert APART == "HUMANIZE_DAEMON"
 
 
 def test_version_is_the_installed_one(capsys: pytest.CaptureFixture[str]) -> None:
@@ -209,13 +207,22 @@ def app(monkeypatch: pytest.MonkeyPatch) -> type[_App]:
     return App
 
 
+@pytest.fixture
+def attach(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
+    """Attaching to the runs this machine's daemon holds, mocked."""
+    held = mock.Mock()
+    monkeypatch.setattr(hmz.daemon, "attach", held)
+    return held
+
+
 @pytest.mark.parametrize(("code", "status"), [(None, 0), (0, 0), (3, 3)])
-def test_no_command_opens_the_interface_here(
-    app: type[_App], code: int | None, status: int
+def test_no_command_opens_the_interface_on_the_runs_held_here(
+    app: type[_App], attach: mock.Mock, code: int | None, status: int
 ) -> None:
     app.return_code = code
     assert main([]) == status
-    assert app.made == [{}]
+    attach.assert_called_once_with("tui")
+    assert app.made == [{"link": attach.return_value}]
 
 
 @pytest.mark.parametrize(
@@ -229,6 +236,7 @@ def test_no_command_opens_the_interface_here(
 )
 def test_opening_keeps_extended_keys_off_a_direct_iterm(
     app: type[_App],
+    attach: mock.Mock,
     monkeypatch: pytest.MonkeyPatch,
     environ: dict[str, str],
     set_: bool,
@@ -237,99 +245,39 @@ def test_opening_keeps_extended_keys_off_a_direct_iterm(
         monkeypatch.setenv(name, value)
     main([])
     assert (os.environ.get("TEXTUAL_DISABLE_KITTY_KEY") == "1") is set_
-    assert app.made == [{}]
+    assert app.made == [{"link": attach.return_value}]
 
 
 def test_opening_leaves_an_explicit_extended_keys_setting_alone(
-    app: type[_App], monkeypatch: pytest.MonkeyPatch
+    app: type[_App], attach: mock.Mock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
     monkeypatch.setenv("TEXTUAL_DISABLE_KITTY_KEY", "0")
     main([])
     assert os.environ["TEXTUAL_DISABLE_KITTY_KEY"] == "0"
-    del app
-
-
-class _Tty(io.StringIO):
-    def isatty(self) -> bool:
-        return True
-
-
-def _opened(
-    monkeypatch: pytest.MonkeyPatch, *, stdout: io.StringIO | None = None
-) -> int:
-    """Opens the interface with a terminal on both ends, or on stdin and `stdout`.
-
-    Set here rather than in a fixture: pytest puts its own capture back before each test runs.
-    """
-    monkeypatch.setattr(sys, "stdin", _Tty())
-    monkeypatch.setattr(sys, "stdout", _Tty() if stdout is None else stdout)
-    return opens()
-
-
-@pytest.fixture
-def terminal(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
-    """A terminal on both ends, runs wanted apart, and attaching to them mocked."""
-    monkeypatch.setenv(APART, "on")
-    attach = mock.Mock()
-    monkeypatch.setattr(hmz.daemon, "attach", attach)
-    return attach
-
-
-@pytest.mark.parametrize("value", ["off", "0", "no", " OFF "])
-def test_runs_are_held_here_where_the_machine_says_so(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch, value: str
-) -> None:
-    monkeypatch.setenv(APART, value)
-    assert _opened(monkeypatch) == 0
-    assert app.made == [{}]
-    terminal.assert_not_called()
-
-
-def test_runs_are_held_here_where_there_is_no_terminal(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    assert _opened(monkeypatch, stdout=io.StringIO()) == 0
-    assert app.made == [{}]
-    terminal.assert_not_called()
-
-
-def test_the_interface_opens_on_the_runs_held_here(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    assert _opened(monkeypatch) == 0
-    terminal.assert_called_once_with("tui")
-    assert app.made == [{"link": terminal.return_value}]
+    del app, attach
 
 
 def test_a_daemon_of_an_older_humanize_is_said_and_not_opened(
-    app: type[_App],
-    terminal: mock.Mock,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    app: type[_App], attach: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    terminal.side_effect = hmz.daemon.Older("held by an older Humanize")
-    assert _opened(monkeypatch) == 1
+    attach.side_effect = hmz.daemon.Older("held by an older Humanize")
+    assert opens() == 1
     assert capsys.readouterr().err == "hmz: held by an older Humanize\n"
     assert app.made == []
 
 
-def test_runs_that_cannot_be_held_apart_are_held_here(
-    app: type[_App],
-    terminal: mock.Mock,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+def test_a_daemon_that_cannot_be_reached_is_said_and_not_opened(
+    app: type[_App], attach: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    terminal.side_effect = OSError("no fork")
-    assert _opened(monkeypatch) == 0
-    assert "runs cannot be detached from the terminal (no fork)" in (
-        capsys.readouterr().err
-    )
-    assert app.made == [{}]
+    attach.side_effect = OSError("no fork")
+    assert opens() == 1
+    assert capsys.readouterr().err == "hmz: the daemon cannot be reached: no fork\n"
+    assert app.made == []
 
 
 def test_a_clock_is_up_while_the_runs_are_reached_and_down_before_the_interface(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
+    app: type[_App], attach: mock.Mock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     said: list[str | None] = []
 
@@ -337,7 +285,7 @@ def test_a_clock_is_up_while_the_runs_are_reached_and_down_before_the_interface(
         said.append(says and says())
 
     monkeypatch.setattr(output.Out, "spins", spins)
-    terminal.side_effect = lambda _: said.append("attached")  # pyright: ignore[reportUnknownLambdaType]
-    assert _opened(monkeypatch) == 0
+    attach.side_effect = lambda _: said.append("attached")  # pyright: ignore[reportUnknownLambdaType]
+    assert opens() == 0
     assert said == ["connecting to the runs held here", "attached", None]
     assert len(app.made) == 1

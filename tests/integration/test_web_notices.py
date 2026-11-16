@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
     from pathlib import Path
 
+#: Every epic here is held by a daemon of the test's own, in this process.
+pytestmark = pytest.mark.usefixtures("daemon")
+
 #: A flow of one turn of the stand-in, which ends done.
 _ONCE = '''
 from hmz.flows import (

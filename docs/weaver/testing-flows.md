@@ -40,6 +40,10 @@ Only what is on the far side is replaced:
 takes, fills every role you name with your fake and every role you leave out with a default
 one, runs the flow to the end, and returns what the flow returned.
 
+Like `hmz exec`, it runs the flow through a daemon: a private one the test starts in its own
+process, with a temporary home of its own, so your fakes keep every prompt and this machine's
+daemon is never touched. The epic it writes goes away with it when `run_fake` returns.
+
 | Role | Left out, it gets |
 | --- | --- |
 | an agent role | a fake Claude Code replying `"ok"`, or a fake of the CLI the role is typed as, such as `CodexAgent` |
