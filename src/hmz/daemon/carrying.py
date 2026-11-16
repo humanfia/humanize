@@ -29,7 +29,7 @@ import os
 import threading
 import time
 import traceback
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from hmz.daemon import where
 
@@ -126,9 +126,7 @@ class Carrier:
                 str(said.get("kind") or "sdk"),
                 lambda message: self._told(tag, message),
                 replay=said.get("replay", True) is not False,
-                since=(str(since["epoch"]), int(since["seq"]))
-                if isinstance(since, dict)
-                else None,
+                since=_since(since),
             )
             self.ever = True
             return {"client": client}
@@ -153,6 +151,14 @@ class Carrier:
         if self.peer is not None:
             with contextlib.suppress(Closed):
                 self.peer.notify("told", {"tag": tag, "message": message})
+
+
+def _since(said: object) -> tuple[str, int] | None:
+    """An `epic.attach`'s `since`, as the host takes it."""
+    if not isinstance(said, dict):
+        return None
+    since = cast("dict[str, Any]", said)
+    return str(since["epoch"]), int(since["seq"])
 
 
 class Printed(io.TextIOBase):

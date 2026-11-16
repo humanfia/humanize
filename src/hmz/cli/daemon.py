@@ -1,6 +1,5 @@
 """``hmz daemon`` -- this machine's daemon: run, reached, paired, installed (cli.md, 13).
 
-
 - `serve [--listen <spec>]...`: runs the daemon in the foreground, until interrupted.
 - `connect --stdio`: carries this process's standard streams to the daemon's socket, which is
   what a `stdio:` route runs on the far machine.
@@ -125,13 +124,12 @@ def daemon(argv: list[str]) -> int:
         return _called("pair.create", params, _paired)
     if line.name is None:
         return _called("devices.list", {}, _listed)
-    return _called(
-        "devices.revoke",
-        {"name": line.name},
-        lambda said: print(
-            f"hmz daemon devices: revoked {line.name}; {said['dropped']} sessions closed"
-        ),
-    )
+    name: str = line.name
+
+    def revoked(said: dict[str, Any]) -> None:
+        print(f"hmz daemon devices: revoked {name}; {said['dropped']} sessions closed")
+
+    return _called("devices.revoke", {"name": name}, revoked)
 
 
 def _serve(listen: list[str]) -> int:

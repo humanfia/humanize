@@ -439,7 +439,7 @@ class Hosts:
         except Exception as why:
             hosted.peer.close()
             raise OSError(f"the host did not say what it holds: {why}") from why
-        hosted.said = dict(said)  # pyright: ignore[reportUnknownArgumentType]
+        hosted.said = dict(said)
         return hosted
 
     def stop_all(self) -> None:

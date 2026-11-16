@@ -19,7 +19,7 @@ import json
 import queue
 import secrets
 import threading
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, cast
 
 from hmz.daemon import where
 
@@ -407,7 +407,7 @@ def reached(
         message = call.params.get("message")
         if call.method != "epic.event" or not isinstance(message, dict):
             return
-        told = dict(message)  # pyright: ignore[reportUnknownArgumentType]
+        told = dict(cast("dict[str, Any]", message))
         with lock:
             if not sub:
                 early.append((call.params.get("sub"), told))
@@ -439,7 +439,7 @@ def reached(
             return {"ok": False, "why": why.message}
         except Closed:
             return {"ok": False, "why": gone[0] if gone else _WENT}
-        return {"ok": True, **(result if isinstance(result, dict) else {})}  # pyright: ignore[reportUnknownArgumentType]
+        return {"ok": True, **(result if isinstance(result, dict) else {})}
 
     link = Link(asks, peer.close)
     held.append(link)

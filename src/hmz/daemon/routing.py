@@ -22,7 +22,7 @@ import os
 import socket
 import threading
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from hmz.daemon import where
 
@@ -81,7 +81,7 @@ class Router:
         self._listening = listening
         self._specs = list(listen)
         self._kept = kept or bool(self._specs)
-        self._opened = opened or (lambda _: None)
+        self._opened: Callable[[str], None] = opened or _nothing
         self._lock = threading.Lock()
         self._sessions: dict[Peer, Session] = {}
         self._pending: set[Session] = set()
@@ -333,13 +333,19 @@ class Router:
         """Keeps the notices subscriptions a session opens, to end them where it falls behind."""
 
         def carried(call: Call) -> Any:
-            said = handler(call)
-            sub = said.get("sub") if isinstance(said, dict) else None
+            answer: Any = handler(call)
+            said: object = answer
+            sub = (
+                cast("dict[str, Any]", said).get("sub")
+                if isinstance(said, dict)
+                else None
+            )
             if isinstance(sub, str):
                 session = self.session(call)
                 with session.lock:
                     session.notices.add(sub)
-            return said
+            return answer
+
 
         return carried
 
@@ -351,6 +357,10 @@ class Router:
             return handler(call)
 
         return carried
+
+
+def _nothing(said: str) -> None:
+    del said
 
 
 #: The daemon's own files, which it marks as used.
@@ -422,13 +432,13 @@ def _listened() -> list[str]:
 
     said: object = settings.read().get("listen")
     found: list[str] = []
-    for one in said if isinstance(said, list) else []:  # pyright: ignore[reportUnknownVariableType]
+    for one in cast("list[object]", said) if isinstance(said, list) else []:
         try:
-            spec(str(one))  # pyright: ignore[reportUnknownArgumentType]
+            spec(str(one))
         except ValueError:
             _log.warning("%s is not a listener, so not listened on", one)
             continue
-        found.append(str(one))  # pyright: ignore[reportUnknownArgumentType]
+        found.append(str(one))
     return found
 
 

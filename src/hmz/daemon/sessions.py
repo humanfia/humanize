@@ -23,7 +23,7 @@ import logging
 import threading
 import time
 from concurrent.futures import Future
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -141,8 +141,12 @@ def _sub(frame: bytes) -> str:
         said: object = json.loads(frame[4:])
     except ValueError:
         return ""
-    params = said.get("params") if isinstance(said, dict) else None
-    sub = params.get("sub") if isinstance(params, dict) else None
+    params: object = (
+        cast("dict[str, Any]", said).get("params") if isinstance(said, dict) else None
+    )
+    sub: object = (
+        cast("dict[str, Any]", params).get("sub") if isinstance(params, dict) else None
+    )
     return sub if isinstance(sub, str) else ""
 
 

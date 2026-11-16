@@ -17,7 +17,6 @@ import pkgutil
 import socket
 import tempfile
 from pathlib import Path
-
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.daemon import where
@@ -128,13 +127,17 @@ class _Methods:
     def pair_create(self, call: Call) -> dict[str, Any]:
         router = self._router
         routes = call.params.get("routes")
-        given = list(routes) if isinstance(routes, list) else router.routes()  # pyright: ignore[reportUnknownArgumentType]
+        given = (
+            [str(one) for one in cast("list[object]", routes)]
+            if isinstance(routes, list)
+            else router.routes()
+        )
         if not given:
             raise _refused(409, "There is no route to pair over: give one, or listen.")
         try:
             code = router.codes.make(
                 router.daemon_id,
-                [str(one) for one in given],  # pyright: ignore[reportUnknownArgumentType]
+                given,
                 call.params.get("seconds", 600),
             )
         except ValueError as why:

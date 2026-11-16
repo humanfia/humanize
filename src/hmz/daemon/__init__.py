@@ -503,7 +503,9 @@ def _hosts() -> list[Daemon]:
     """Every host of every workspace this machine's daemon holds, as it says."""
     at = where.at()
     said = _asks(at, "hosts.list", {})
-    listed: object = said.get("held") if isinstance(said, dict) else None
+    listed: object = (
+        cast("dict[str, Any]", said).get("held") if isinstance(said, dict) else None
+    )
     found: list[Daemon] = []
     for one in cast("list[dict[str, Any]]", listed if isinstance(listed, list) else []):
         pid = one.get("pid")
