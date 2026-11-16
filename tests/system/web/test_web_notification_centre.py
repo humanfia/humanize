@@ -40,10 +40,15 @@ window.Notification = class {
   constructor(title, options) { window.shown.push({ title, ...options }) }
   close() {}
 }
-window.__TAURI_INTERNALS__ = {
-  invoke: (command, args) => { window.shown.push({ command, ...args }); return Promise.resolve() },
-}
 """
+
+#: The app's own notifications, stubbed in once the page has reached its daemon over `/rpc`: set
+#: before, the page would take itself for the app and reach every daemon through its pipes.
+_APP_NOTIFIES = """() => {
+  window.__TAURI_INTERNALS__ = {
+    invoke: (command, args) => { window.shown.push({ command, ...args }); return Promise.resolve() },
+  }
+}"""
 
 
 def _notice(id_: int, kind: str, **more: Any) -> dict[str, Any]:
@@ -99,12 +104,19 @@ def test_the_bell_counts_the_unread_and_its_menu_reads_and_clears_them(
         menu.locator("[data-hmz=notifications-read]").click()
         expect(menu.locator(".notify-unread")).to_have_count(0)
         expect(bell.locator("[data-hmz=notification-count]")).to_be_hidden()
+        # Written to the browser's storage after it is drawn.
+        page.wait_for_function(
+            "async () => (await (await import('/notifications.js')).kept.items())"
+            ".every((one) => one.read)"
+        )
         assert all(one["read"] for one in _items(page))
 
         menu.locator("[data-hmz=notifications-clear]").click()
         expect(menu.locator("[data-hmz=notification]")).to_have_count(0)
         expect(menu).to_contain_text("Nothing yet")
-        assert _items(page) == []
+        page.wait_for_function(
+            "async () => !(await (await import('/notifications.js')).kept.items()).length"
+        )
 
 
 def test_an_item_picked_is_read_and_opens_what_it_is_about(engine: str) -> None:
@@ -189,6 +201,7 @@ def test_the_app_shows_one_through_its_own_notifications(engine: str) -> None:
             site, engine=engine, user_agent=_APP, init=_AWAY, routed=wire.routes
         ) as page,
     ):
+        page.evaluate(_APP_NOTIFIES)
         wire.tell(page, _notice(6, "asked", text="Ship it?"))
         expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
         page.wait_for_function("window.shown.length > 0")
