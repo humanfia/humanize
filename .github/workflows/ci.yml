@@ -229,13 +229,29 @@ jobs:
         if: runner.os == 'Linux'
         continue-on-error: true
         run: |
-          (while sleep 10; do echo "=== $(date +%T) $(free -m | awk 'NR==2{print "used="$3"MB"}') procs=$(ps -e --no-headers | wc -l)"; ps -eo pid,ppid,rss,pcpu,etime,args --sort=-pcpu | head -12 | cut -c1-200; done) &
-          watcher=$!
+          mkdir -p /tmp/diag
+          cat > /tmp/diag/sitecustomize.py <<'PY'
+          import os, sys, traceback, signal
+          _kill, _killpg = os.kill, os.killpg
+          def kill(pid, sig):
+              if pid <= 0 and sig != 0:
+                  sys.stderr.write(f"\n!!!!! os.kill({pid}, {sig}) in {os.getpid()}\n" + "".join(traceback.format_stack()))
+                  sys.stderr.flush()
+                  raise PermissionError("diag refused")
+              return _kill(pid, sig)
+          def killpg(pg, sig):
+              sys.stderr.write(f"\n!!!!! os.killpg({pg}, {sig}) in {os.getpid()} (mine {os.getpgrp()})\n" + "".join(traceback.format_stack()))
+              sys.stderr.flush()
+              if pg <= 1 or pg == os.getpgrp():
+                  raise PermissionError("diag refused")
+              return _killpg(pg, sig)
+          os.kill, os.killpg = kill, killpg
+          PY
           for dir in tests/unit/daemon tests/unit/web; do
             echo "##### $dir"
-            ( ulimit -u 600; ulimit -v 6000000; timeout -k 10 300 uv run --frozen --all-extras pytest "$dir" -p no:randomly -v --timeout=60 -x 2>&1 | tail -n 400 ) || echo "##### $dir exit $?"
+            PYTHONPATH=/tmp/diag timeout -k 10 300 unshare -r --pid --fork --mount-proc \
+              uv run --frozen --all-extras pytest "$dir" -p no:randomly -v --timeout=60 2>&1 | grep -v PASSED | cut -c1-300 || echo "##### $dir exit $?"
           done
-          kill $watcher
           exit 1
 
       - name: pytest tests/unit/<package>, a package at a time
