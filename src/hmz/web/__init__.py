@@ -1,13 +1,13 @@
-"""The web interface: every workspace's runs on this machine, drawn in a browser.
+"""The web interface: every daemon the page reaches, drawn in a browser.
 
     hmz web
 
-One more frontend of the runs the daemon holds, beside every terminal interface opened on them
--- not of one directory, as the terminal interface is, but of the machine, as the daemon is:
-every epic of every workspace, each going as it happens, the flows there are to start and where,
-what they have spent, and what Humanize remembers -- read and acted on in a browser rather than a
-terminal. It reaches each workspace's runs as the terminal interface does, through
-`hmz.daemon`, and works out what it draws of a run with the same `hmz.runtime.watching`.
+One more client of the daemons, as the terminal interface is: the page `hmz web` serves is a
+client of this machine's daemon and of every other the user adds, over JSON-RPC (protocol/
+wire.md), and this process holds no epic itself. What it serves is the page's own files, the
+directory it started in (`/here`), the WebSocket `/rpc` carried to this machine's daemon's
+socket, and the WebSocket `/dial` carried to another machine's daemon over a carrier a browser
+cannot open (Section 4 of protocol/web.md).
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
     from .site import Site
 
-__all__ = ["listening", "serve"]
+__all__ = ["kept_port", "listening", "serve"]
 
 #: The page a browser is opened on, which goes on to the address: the key is in a file only
 #: this account can read rather than on the command line of the browser, which every account
@@ -35,13 +35,51 @@ _FORWARD = (
     '<a href="{0}">Open Humanize</a>'
 )
 
+#: The ports there are, but 0.
+_PORTS = range(1, 65536)
+
+
+def _port_file() -> Path:
+    """`<home>/web-port`, the port the last `hmz web` of this home listened on."""
+    from hmz import home
+
+    return home() / "web-port"
+
+
+def kept_port() -> int:
+    """The port the last `hmz web` of this home listened on, or 0 where none is kept.
+
+    A file that does not hold a port from 1 to 65535 is read as none (Section 4.15 of
+    files.md).
+    """
+    try:
+        said = _port_file().read_text(encoding="ascii")
+    except (OSError, UnicodeDecodeError):
+        return 0
+    if not said.isdigit() or int(said) not in _PORTS:
+        return 0
+    return int(said)
+
+
+def _keeps(port: int) -> None:
+    """Writes the port listened on, by atomic replacement, where it has changed."""
+    if kept_port() == port:
+        return
+    at = _port_file()
+    with contextlib.suppress(OSError):
+        at.parent.mkdir(parents=True, exist_ok=True)
+        beside = at.with_name(f".web-port.{os.getpid()}")
+        beside.write_text(str(port), encoding="ascii")
+        beside.replace(at)
+
 
 @contextlib.contextmanager
 def listening(*, port: int = 0, key: str | None = None) -> Generator[Site]:
     """The web interface, listening on this machine's loopback for as long as the block runs.
 
-    Listening is not answering: what answers is :meth:`Site.serve_forever`, on whichever
-    thread calls it, until :meth:`Site.shutdown`.
+    This machine's daemon is reached first, started where none runs. Listening is not
+    answering: what answers is :meth:`Site.serve_forever`, on whichever thread calls it, until
+    :meth:`Site.shutdown`.
 
     Args:
       port: The port to listen on, or 0 for any free one.
@@ -49,66 +87,74 @@ def listening(*, port: int = 0, key: str | None = None) -> Generator[Site]:
         None for one made up as it starts, which is `hmz web`'s.
 
     Yields:
-      The server. Leaving the block lets go of every workspace's runs it reached, which
-      this machine's daemon goes on holding.
+      The server.
 
     Raises:
-      OSError: If the port cannot be listened on.
+      hmz.daemon.Older: If this machine's daemon is one of an older Humanize.
+      OSError: If the daemon cannot be reached, or the port cannot be listened on.
     """
-    from pathlib import Path
-
-    from hmz.coganchor import releases
-    from hmz.runtime.watching.notices import Notices
-
-    from .notifications import Notifications
-    from .places import Places
-    from .runs import Runs
     from .site import Site
-    from .verses import fetches
 
-    with contextlib.ExitStack() as held_open:
-        places = Places(Path.cwd())
-        held_open.callback(places.close)
-        notices = Notices(places.statuses)
-        site = Site(port, places=places, runs=Runs(places), notices=notices, key=key)
-        # What each index lists now, fetched once in the background as the interface starts.
-        fetches(places.hmz)
-        # And which release of Humanize is the newest, where what is kept has got old.
-        releases.refresh()
-        held_open.callback(site.server_close)
-        # Every daemon on another machine let go of as the block ends, and what reached it.
-        site.remotes = places.hmz.daemons.remotes()
-        held_open.callback(site.remotes.close)
-        # Every daemon's notices, as this machine's interface tells them.
-        site.notifications = Notifications(site)
-        held_open.callback(site.notifications.close)
-        # Set first as the block ends, which is what ends every stream being sent.
-        held_open.callback(site.going.set)
-        # And before it, what ends the notices' streams at once rather than once they wake.
-        held_open.callback(notices.close)
-        # What stands as it starts to answer is where the notices start from.
-        notices.start()
+    _reaches()
+    site = Site(port, key=key)
+    try:
         yield site
+    finally:
+        site.server_close()
+
+
+def _reaches() -> None:
+    """Reaches this machine's daemon, starting it where none runs (Section 8.2.3 of cli.md).
+
+    Raises:
+      hmz.daemon.Older: If it is one of an older Humanize.
+      OSError: If it cannot be reached.
+    """
+    import errno
+
+    from hmz import daemon
+
+    try:
+        daemon.start()
+    except OSError as why:
+        if why.errno == errno.EADDRINUSE:
+            raise daemon.Older(why.strerror or str(why)) from why
+        raise
 
 
 def serve(
     *,
-    port: int = 0,
+    port: int | None = None,
     shown: Callable[[str], object] = print,
     opened: Callable[[str], object] | None = None,
 ) -> None:
     """Serves the web interface on this machine's loopback, until it is interrupted.
 
     Args:
-      port: The port to listen on, or 0 for any free one.
+      port: The port to listen on, 0 for any free one, or None for the one the last `hmz web`
+        of this home listened on -- any free one where that cannot be listened on.
       shown: What the address is said through, once the server is listening. The address
         carries the key a browser is let in with.
       opened: What opens that address in a browser, or None to leave that to whoever reads it.
 
     Raises:
-      OSError: If the port cannot be listened on.
+      hmz.daemon.Older: If this machine's daemon is one of an older Humanize.
+      OSError: If the daemon cannot be reached, or the port cannot be listened on.
     """
-    with listening(port=port) as site, contextlib.ExitStack() as made:
+    from .site import Site
+
+    _reaches()
+    if port is None:
+        try:
+            site = Site(kept_port())
+        except OSError:
+            # The port kept is taken now: any free one (Section 8.1.2 of cli.md).
+            site = Site(0)
+    else:
+        site = Site(port)
+    with contextlib.ExitStack() as made:
+        made.callback(site.server_close)
+        _keeps(site.port)
         shown(site.address)
         if opened is not None:
             from hmz import machine

@@ -134,15 +134,8 @@ ALLOWED: dict[str, set[str]] = {
     },
     # A client of a daemon: its socket and JSON-RPC, the flow API's budget, the settings.
     "hmz.sdk": {"hmz.daemon", "hmz.flows", "hmz.reach", "hmz.rpc", "hmz.runtime"},
-    # A way in like the terminal interface: the runs through `daemon`, drawn with `watching`.
-    "hmz.web": {
-        "hmz.coganchor",
-        "hmz.daemon",
-        "hmz.rpc",
-        "hmz.runtime.epic",
-        "hmz.runtime.kept",
-        "hmz.runtime.watching",
-    },
+    # The page's server: its files, and bridges to daemons over `daemon`'s socket and routes.
+    "hmz.web": {"hmz.daemon", "hmz.reach", "hmz.rpc", "hmz.runtime.doing"},
 }
 
 #: The one pair allowed to name each other, and only lazily.

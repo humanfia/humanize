@@ -1,100 +1,70 @@
-"""A daemon on another machine, reached over ssh and answered through this interface.
+"""Another machine's daemon, reached by the page through `/dial`.
 
-The other machine is this one under a home of its own, reached by the stand-in `ssh` of
-`doubles_ssh`, running this `hmz web` there as the real one would run the one installed.
+Over `stdio:ssh`, the other machine is this one under a home of its own, reached by the stand-in
+`ssh` of `doubles_ssh`. Over `tcp`, it is a daemon of another home serving a listener, paired by
+a code it made: the page claims it over `/dial`, which opens mutual TLS as this machine's device.
 """
 
 from __future__ import annotations
 
 import contextlib
-import http.client
 import os
-import re
 import signal
-import socket
 import subprocess
+import sys
 import time
-from importlib.metadata import version
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
+from websockets.exceptions import ConnectionClosed
 
-from hmz.runtime.doing.daemons import Remotes
+from hmz.daemon import where
+from hmz.trust import pairing
 
-from .doubles_ssh import Host, faked, written
-from .doubles_web import PATIENCE, Answer, Browser, served
+from .doubles_ssh import Host, faked
+from .doubles_web import PATIENCE, Browser, served, states
 
 if TYPE_CHECKING:
+    from collections.abc import Generator, Iterator
     from pathlib import Path
 
-    from hmz.web.site import Site
+    from websockets.sync.client import ClientConnection
 
-# Another machine's daemon is reached over JSON-RPC now (`test_daemon_remote.py`), and serves no
-# interface for `/d/` to proxy; the page reaches it over `/rpc` once Wave 4 ports it.
-pytestmark = pytest.mark.skip(
-    reason="Wave 4 reaches remote daemons from the page over RPC"
-)
+pytestmark = [
+    pytest.mark.timeout(180),
+    pytest.mark.usefixtures("daemon"),
+    pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
+]
+
+#: The other machine, as a `stdio:ssh` route names it.
+BOX = "stdio:ssh://me@box.example?option=Compression=yes"
 
 
 @pytest.fixture
-def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Host:
-    """The other machine, written down as `box`, with this version of `hmz`."""
+def host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Host]:
+    """The other machine, with this version of `hmz`."""
     found = faked(tmp_path, monkeypatch)
-    _THERE[:] = [found.home]
-    written(
-        {
-            "name": "box",
-            "host": "box.example",
-            "user": "me",
-            "options": [["Compression", "yes"]],
-        }
-    )
-    return found
+    yield found
+    # The daemon `hmz daemon connect --stdio` started there, which outlives its client.
+    pid = where.held(found.tmp / f"humanize-{os.getuid()}").get("pid")
+    if isinstance(pid, int):
+        with contextlib.suppress(OSError):
+            os.kill(pid, signal.SIGTERM)
 
 
-#: The other machine's home, for what its interface said when it never came up.
-_THERE: list[Path] = []
+def _dial(route: str, pinned: str = "") -> str:
+    from urllib.parse import urlencode
+
+    return f"/dial?{urlencode({'route': route, 'id': pinned})}"
 
 
-def _processes() -> str:
-    """What runs of the stand-in's, and the stack of each interface there that never listened."""
-    listed = subprocess.run(
-        ["ps", "-axo", "pid,ppid,etime,command"],
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout
-    mine = [line for line in listed.splitlines() if re.search(r"ssh|hmz|\bsh\b", line)]
-    for line in mine:
-        pid, ppid, *_ = line.split()
-        if int(ppid) == os.getpid() and "faulthandler -m hmz web" in line:
-            with contextlib.suppress(OSError):
-                os.kill(int(pid), signal.SIGABRT)
-    time.sleep(1)
-    said = [
-        (home / "web.err").read_text() for home in _THERE if (home / "web.err").exists()
-    ]
-    return "\n".join([*mine, *said])
-
-
-def _stands(remotes: Remotes, name: str, *states: str) -> dict[str, str]:
-    """How a daemon stands, once it stands as one of `states`."""
-    ending = time.monotonic() + PATIENCE
-    while (said := remotes.state(name))["state"] not in states:
-        assert time.monotonic() < ending, (
-            f"{name} never came to {states}: {said}\n{_processes()}"
-        )
-        time.sleep(0.05)
-    return said
-
-
-def _asked(browser: Browser, path: str) -> Answer:
-    """What the interface answers a read with, once the daemon is reached."""
-    ending = time.monotonic() + PATIENCE
-    while (answer := browser.get(path)).status == 503:
-        assert time.monotonic() < ending, f"{answer.body!r}\n{_processes()}"
-        time.sleep(0.1)
-    return answer
+def _closed(socket_: ClientConnection) -> tuple[int, str]:
+    """How the server closed a WebSocket: its code and its reason."""
+    with contextlib.suppress(ConnectionClosed):
+        while True:
+            socket_.recv(timeout=PATIENCE)
+    assert socket_.close_code is not None
+    return socket_.close_code, socket_.close_reason or ""
 
 
 def _gone(pid: int) -> bool:
@@ -105,205 +75,153 @@ def _gone(pid: int) -> bool:
     return False
 
 
-def test_a_page_reads_and_writes_a_daemon_on_another_machine(host: Host) -> None:
+def test_what_dial_does_not_open_is_refused_saying_why(tmp_path: Path) -> None:
+    del tmp_path
     with served() as site:
         browser = Browser(site)
         browser.signs_in()
-        listed = _asked(browser, "/d/box/api/workspaces")
-        assert listed.status == 200, listed.body
-        assert str(host.home) in str(listed.json())
-        state = browser.get("/api/daemons/box/state").json()
-        assert state == {"state": "up", "detail": "", "version": version("hmz")}
-        # Written there, and not here.
-        kept = host.home / "project"
-        kept.mkdir()
-        wrote = browser.post("/d/box/api/workspaces", {"workspace": str(kept)})
-        assert wrote.status == 200, wrote.body
-        assert wrote.json()["kept"] == str(kept)
-        assert str(kept) in (host.humanize / "settings.yaml").read_text()
-        # A file sent there a piece at a time, refused there for what it is.
-        sent = browser.sends(
-            "/d/box/api/runs/import", b"not an epic" * 1000, "x.hmzepic"
-        )
-        assert sent.status not in (502, 503), sent.body
-        assert "error" in sent.json()
-        # Its runs, as a page reads them.
-        assert _asked(browser, "/d/box/api/runs").status == 200
-        # And what it was told: nothing asked of anybody, the host's own options first.
-        told = host.told()[0]
-        assert told.index("Compression=yes") < told.index("BatchMode=yes")
-        assert told.index("BatchMode=yes") < told.index("BatchMode=no")
-        assert "me@box.example" in told
+        for route, why in (
+            ("unix:", "unix: is not dialed here."),
+            ("stdio:local", "stdio:local is not dialed here."),
+            (
+                "webrtc:wss://relay.example",
+                "webrtc:wss://relay.example is not dialed here.",
+            ),
+            ("nothing", "nothing is not a route."),
+            (
+                "tcp://127.0.0.1:9",
+                "tcp://127.0.0.1:9 needs the id of the daemon it reaches.",
+            ),
+        ):
+            assert _closed(browser.opens(_dial(route))) == (1008, why)
 
 
-def test_local_is_this_machine_by_either_path(host: Host) -> None:
+def test_a_daemon_over_ssh_is_dialed_and_spoken_to(host: Host) -> None:
+    project = host.home / "project"
+    project.mkdir()
     with served() as site:
         browser = Browser(site)
         browser.signs_in()
-        assert (
-            browser.get("/d/local/api/workspaces").json()
-            == browser.get("/api/workspaces").json()
-        )
-        assert browser.get("/api/daemons/local/state").json()["state"] == "up"
-        assert browser.get("/d/nobody/api/runs").status == 404
-        assert browser.get("/api/daemons/nobody/state").status == 404
-        assert not host.pids()
-
-
-def test_only_the_page_let_in_reaches_another_machine(host: Host) -> None:
-    with served() as site:
-        browser = Browser(site)
-        assert browser.get("/d/box/api/runs").status == 401
-        browser.signs_in()
-        assert (
-            browser.get("/d/box/api/runs", **{"Sec-Fetch-Site": "cross-site"}).status
-            == 403
-        )
-        assert (
-            browser.post(
-                "/d/box/api/workspaces", {}, Origin="http://elsewhere.example"
-            ).status
-            == 403
-        )
-        assert not host.pids()
-
-
-def test_a_stream_of_events_comes_through_as_it_comes(host: Host) -> None:
-    with served() as site:
-        browser = Browser(site)
-        browser.signs_in()
-        _asked(browser, "/d/box/api/runs")
-        connection = http.client.HTTPConnection(
-            "127.0.0.1", site.port, timeout=PATIENCE
-        )
-        try:
-            connection.request(
-                "GET",
-                "/d/box/api/held/stream",
-                headers={"Host": f"127.0.0.1:{site.port}", "Cookie": browser.cookie},
-            )
-            stream = connection.getresponse()
-            assert stream.status == 200
-            assert stream.getheader("Content-Type", "").startswith("text/event-stream")
-            assert stream.getheader("Set-Cookie") is None
-            events: list[str] = []
-            while not events:
-                line = stream.readline().decode()
-                assert line, "the stream ended before any event"
-                if line.startswith("event: "):
-                    events.append(line.removeprefix("event: ").strip())
-        finally:
-            connection.close()
-
-
-def test_a_daemon_that_cannot_be_reached_says_why(
-    host: Host, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    del host
-    written({"name": "gone", "host": "unreachable.example"})
-    with served() as site:
-        browser = Browser(site)
-        browser.signs_in()
-        connected = browser.post("/api/daemons/gone/connect")
-        assert connected.status == 200
-        remotes = _remotes(site)
-        said = _stands(remotes, "gone", "failed")
-        assert "Could not resolve hostname" in said["detail"]
-        refused = browser.get("/d/gone/api/runs")
-        assert refused.status == 503
-        assert refused.json()["state"] == "failed"
-
-
-def test_closing_stops_and_reaps_every_process_started(host: Host) -> None:
-    remotes = Remotes()
-    remotes.connect("box")
-    _stands(remotes, "box", "up")
-    port, key = remotes.reached("box")
-    assert key
-    pids = host.pids()
-    # The probe, the interface there, the forward.
-    assert len(pids) == 3
-    forward = host.told()[-1]
-    assert "ControlPath=none" in forward
-    assert any(word.startswith(f"127.0.0.1:{port}:127.0.0.1:") for word in forward)
-    remotes.close()
-    assert all(_gone(pid) for pid in pids)
-    assert remotes.state("box")["state"] == "idle"
-    with socket.socket() as again:
-        assert again.connect_ex(("127.0.0.1", port)) != 0
-
-
-def test_another_version_there_is_replaced_with_this_one(host: Host) -> None:
-    host.installs("1.0.0")
-    remotes = Remotes(version="1.2.3")
-    try:
-        remotes.connect("box")
-        said = _stands(remotes, "box", "up", "failed")
-        assert said == {"state": "up", "detail": "", "version": "1.2.3"}
-        assert host.installed().split() == [
-            "tool",
-            "install",
-            "--force",
-            "--python",
-            ">=3.12",
-            "hmz==1.2.3",
-        ]
-    finally:
-        remotes.close()
-
-
-def test_one_missing_there_is_installed(host: Host) -> None:
-    host.installs(None)
-    remotes = Remotes(version="1.2.3")
-    try:
-        remotes.connect("box")
-        assert _stands(remotes, "box", "up", "failed")["version"] == "1.2.3"
-    finally:
-        remotes.close()
-
-
-def test_one_running_epics_there_is_left_alone(host: Host) -> None:
-    host.installs("1.0.0")
-    host.runs_epics()
-    remotes = Remotes(version="1.2.3")
-    try:
-        remotes.connect("box")
-        said = _stands(remotes, "box", "up", "failed")
-        assert said["state"] == "up"
-        assert said["version"] == "1.0.0"
-        assert "running epics" in said["detail"]
-        assert not host.installed()
-    finally:
-        remotes.close()
-
-
-def test_a_development_build_installs_nothing(host: Host) -> None:
-    host.installs(None)
-    remotes = Remotes(version="0.0.0")
-    try:
-        remotes.connect("box")
-        said = _stands(remotes, "box", "failed")
-        assert said["detail"] == "hmz is not installed on box."
-        assert not host.installed()
-    finally:
-        remotes.close()
-
-
-def test_a_daemon_no_longer_written_down_is_let_go(host: Host) -> None:
-    with served() as site:
-        browser = Browser(site)
-        browser.signs_in()
-        assert _asked(browser, "/d/box/api/runs").status == 200
-        pids = host.pids()
-        written({"name": "other", "host": "other.example"})
-        assert browser.get("/d/box/api/runs").status == 404
-        assert browser.get("/api/daemons/box/state").status == 404
+        with browser.session(_dial(BOX)) as there:
+            assert there.said["device"] == "local"
+            assert len(there.said["daemon_id"]) == 52
+            assert there.call("hosts.list") == {"held": []}
+            listed = there.call("workspaces.list", here=str(project))
+            assert str(project) in str(listed)
+            pids = host.pids()
+            told = host.told()
+            assert any("Compression=yes" in one for one in told[-1])
+            assert "hmz daemon connect --stdio" in told[-1][-1]
+        # The ssh started for it stops once the page lets it go.
         ending = time.monotonic() + PATIENCE
         while not all(_gone(pid) for pid in pids):
-            assert time.monotonic() < ending, "what reached it was never stopped"
+            assert time.monotonic() < ending, "the ssh dialed was never stopped"
             time.sleep(0.05)
 
 
-def _remotes(site: Site) -> Any:
-    assert site.remotes is not None
-    return site.remotes
+def test_another_version_there_is_installed_and_said_as_it_is(
+    host: Host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import importlib.metadata
+
+    real = importlib.metadata.version
+
+    def released(name: str) -> str:
+        # A release of this hmz, which a development build is not.
+        return "1.2.3" if name == "hmz" else real(name)
+
+    host.installs("1.0.0")
+    monkeypatch.setattr(importlib.metadata, "version", released)
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        socket_ = browser.opens(_dial(BOX))
+        said = states(socket_)
+        socket_.close()
+    assert said[0] == {"state": "connecting", "detail": ""}
+    assert {"state": "installing", "detail": "hmz 1.2.3"} in said
+    assert said[-1] == {"state": "up", "detail": ""}
+    assert "hmz==1.2.3" in host.installed()
+
+
+def test_a_daemon_that_cannot_be_reached_says_why(host: Host) -> None:
+    del host
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        socket_ = browser.opens(_dial("stdio:ssh://unreachable.example"))
+        said = states(socket_)
+        assert said[-1]["state"] == "failed"
+        assert "Could not resolve hostname" in said[-1]["detail"]
+        code, why = _closed(socket_)
+        assert code == 1011
+        assert "Could not resolve hostname" in why
+
+
+@contextlib.contextmanager
+def _another(tmp_path: Path) -> Generator[pairing.Code]:
+    """A daemon of another home, serving a TCP listener, and a pairing code it made."""
+    there = dict(os.environ)
+    there["HUMANIZE_HOME"] = str(tmp_path / "there-home")
+    there["TMPDIR"] = str(tmp_path / "t")
+    (tmp_path / "t").mkdir()
+    serving = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "hmz",
+            "daemon",
+            "serve",
+            "--listen",
+            "tcp://127.0.0.1:0",
+        ],
+        env=there,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        ending = time.monotonic() + PATIENCE
+        while True:
+            paired = subprocess.run(
+                [sys.executable, "-m", "hmz", "daemon", "pair"],
+                env=there,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            code = (
+                pairing.read(paired.stdout.strip()) if paired.returncode == 0 else None
+            )
+            if code is not None and code.routes:
+                break
+            assert serving.poll() is None, serving.communicate()[1]
+            assert time.monotonic() < ending, paired.stderr
+            time.sleep(0.2)
+        yield code
+    finally:
+        serving.terminate()
+        serving.communicate(timeout=PATIENCE)
+
+
+def test_a_daemon_over_tcp_is_paired_through_dial_and_pinned(tmp_path: Path) -> None:
+    with _another(tmp_path) as code, served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        (route,) = code.routes
+        with browser.session(_dial(route, code.id)) as there:
+            assert there.said["daemon_id"] == code.id
+            assert there.said["paired"] is False
+            claimed = there.call("pair.claim", token=code.token, name="this-machine")
+            assert claimed == {"daemon_id": code.id, "device": "this-machine"}
+        with browser.session(_dial(route, code.id)) as there:
+            assert there.said["paired"] is True
+            assert there.said["device"] == "this-machine"
+            assert there.call("hosts.list") == {"held": []}
+
+        # Pinning another id, the carrier is refused for what answers.
+        other = "a" * 52
+        socket_ = browser.opens(_dial(route, other))
+        said = states(socket_)
+        assert said[-1]["state"] == "failed"
+        assert "not the daemon" in said[-1]["detail"]

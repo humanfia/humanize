@@ -90,14 +90,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.daemon',
   ],
   'hmz.sdk': ['hmz.daemon', 'hmz.flows', 'hmz.reach', 'hmz.rpc', 'hmz.runtime'],
-  'hmz.web': [
-    'hmz.coganchor',
-    'hmz.daemon',
-    'hmz.rpc',
-    'hmz.runtime.epic',
-    'hmz.runtime.kept',
-    'hmz.runtime.watching',
-  ],
+  'hmz.web': ['hmz.daemon', 'hmz.reach', 'hmz.rpc', 'hmz.runtime.doing'],
 }
 
 // The one pair allowed to point both ways, and only from inside `flow`, `load` and
@@ -139,8 +132,8 @@ const LAYERS: Layer[] = [
   {
     id: 'web',
     dotted: 'hmz.web',
-    here: 'The web interface: the runs of this directory in a browser on this machine, and what a page reads and asks of them.',
-    note: 'Reaches the runtime only through `daemon`, as one frontend of the runs a host holds, and draws a run with `watching` as the terminal interface does.',
+    here: 'The web interface: the page served to a browser on this machine, bridged to this machine\'s daemon over `/rpc` and to other machines\' over `/dial`.',
+    note: 'A client of every daemon it shows over JSON-RPC: it holds no epic, and reaches another machine with `reach`, `trust` and the routes `doing` opens.',
     spec: 'web.md#3-the-page',
     ref: '/reference/web',
   },
