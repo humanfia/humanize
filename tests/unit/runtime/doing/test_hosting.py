@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -1374,6 +1375,31 @@ def test_a_question_waiting_is_withdrawn_when_its_role_goes_away(
     alice.told("asked", run=1)
 
     alice.asks("afk", on=True)
+
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer is None
+    assert alice.told("withdrawn", run=1)["why"] == "away"
+    run.released.set()
+
+
+def test_a_question_waiting_is_withdrawn_when_its_role_goes_away_and_back(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, Question("still there?", ("y",)))
+    alice.told("asked", run=1)
+
+    # Back before the asking thread can look: it is woken, and only runs when this one lets
+    # it, which it does not until both have been said.
+    switching = sys.getswitchinterval()
+    sys.setswitchinterval(PATIENCE)
+    try:
+        alice.asks("afk", on=True)
+        alice.asks("afk", on=False)
+    finally:
+        sys.setswitchinterval(switching)
 
     assert asking.done.wait(PATIENCE)
     assert asking.answer is None
