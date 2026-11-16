@@ -363,16 +363,19 @@ secret of at least 16 bytes in UTF-8, and the shared EasyTier nodes it meets thr
 of [FILES]); a shorter secret MUST be refused with `A secret must be at least 16 bytes.`
 
 **3.8.5.2** The name and the secret of the EasyTier network MUST be derived from the secret by
-SHA-256, each under a label of its own; the secret itself MUST NOT leave the machine it is set on,
-nor be passed on any command line.
+SHA-256, each under a label of its own: the name the SHA-256 of the UTF-8 of `hmz-easytier-name`, a
+NUL and the secret, and the network's secret that of `hmz-easytier-secret`, a NUL and the secret,
+each in lowercase hexadecimal; the secret itself MUST NOT leave the machine it is set on, nor be
+passed on any command line.
 
 **3.8.5.3** A daemon whose `listen` names `easytier:<name>` MUST join the network of that entry and
-make a TCP listener of its own, on its machine's loopback alone and at a port fixed by hmz,
-reachable over that network, carrying mutual TLS as any `tcp` listener does.
+make a TCP listener of its own, on its machine's loopback alone and at the port 41817, reachable
+over that network at the virtual address `10.144.144.1`, which it MUST take, and at that port
+alone, carrying mutual TLS as any `tcp` listener does.
 
 **3.8.5.4** A client opening `easytier:<name>` MUST join the network of its own entry of that name,
-expose the daemon's port on a port of this machine's loopback, wait until it answers, and then open
-mutual TLS over it as Section 4.4 of [WIRE] states.
+expose the daemon's port, `10.144.144.1:41817`, on a port of this machine's loopback, wait until it
+answers, and then open mutual TLS over it as Section 4.4 of [WIRE] states.
 
 **3.8.5.5** EasyTier MUST run without root and without a virtual network device, on either side.
 
@@ -1115,7 +1118,9 @@ pair over: give one, or listen.`
 
 **4.14.2.2** `pair.claim` MUST take `token` and `name` (the device's name, of the grammar of Section
 3.8.1.4), MUST pair the session's device as Section 4.5.8 of [WIRE] states, and MUST be answered
-with `daemon_id` and `device`, the name the device was paired under.
+with `daemon_id` and `device`, the name the device was paired under; a `name` not of that grammar
+MUST be refused 400, `A device's name begins with a letter or a digit, holds letters, digits, '.',
+'_' and '-', and is not local.`
 
 **4.14.2.3** `pair.claim` on a paired session MUST be refused 409, `This device is already paired.`
 
@@ -1128,7 +1133,8 @@ with `daemon_id` and `device`, the name the device was paired under.
 
 **4.14.3.2** `devices.revoke` MUST take `name`, MUST revoke that device as Section 4.6.3 of [WIRE]
 states, and MUST be answered with `dropped`, the number of sessions closed; `local` MUST be refused
-400 and an unknown name 404, `There is no device <name>.`
+400, `local cannot be revoked.` (Section 4.6.4 of [WIRE]), and an unknown name 404, `There is no
+device <name>.`
 
 **4.14.3.3** `devices.revoke` MUST be a write.
 

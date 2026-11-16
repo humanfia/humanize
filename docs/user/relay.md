@@ -76,7 +76,7 @@ cross. It never sees what a session says, and it keeps none of what it learns.
 | --- | --- |
 | Longest text message | 65 536 bytes; a longer one closes the connection |
 | Longest binary message | 1 048 576 bytes; a longer one closes the connection |
-| Keepalive | a ping every 30 seconds; a connection silent for 90 seconds is closed |
+| Keepalive | a ping every 30 seconds; a connection that has not answered one within 60 seconds is closed |
 | A native join the daemon does not answer | refused after 10 seconds: `The daemon did not answer.` |
 
 ## Troubleshooting

@@ -1038,8 +1038,9 @@ check of Section 3.8.5.6 of [DAEMON], and MUST NOT download again a binary prese
 
 **4.14.1** `<home>/identity/<machine>/` MUST hold the device identity of this machine (Section 4.3
 of [WIRE]), with mode `0700`, `<machine>` being the content of `/etc/machine-id` on Linux, the
-`IOPlatformUUID` on macOS, and the host name up to its first `.` elsewhere, so that machines that
-mount one home hold one identity each.
+`IOPlatformUUID` on macOS, and the host name up to its first `.` elsewhere and wherever that content
+is missing, unreadable or empty, as in a container given no machine id, so that machines that mount
+one home hold one identity each.
 
 **4.14.2** `key.pem` in it MUST be the device's private key, PKCS #8 in PEM and unencrypted, with
 mode `0600`, written by atomic replacement once, when it is first needed, and never rewritten.
