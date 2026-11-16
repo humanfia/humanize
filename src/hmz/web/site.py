@@ -157,22 +157,25 @@ class Site(_Bound):
         return secrets.compare_digest(key.encode(), self._key.encode())
 
     def serve_forever(self, poll_interval: float = 0.5) -> None:
-        """Answers both loopbacks until `shutdown`: IPv6's on a thread of its own."""
-        if self._beside is not None:
-            import threading
+        """Answers both loopbacks until `shutdown`: IPv6's on a thread of its own.
 
-            threading.Thread(
-                target=self._beside.serve_forever,
-                args=(poll_interval,),
-                daemon=True,
-                name="hmz-web-ipv6",
-            ).start()
-        super().serve_forever(poll_interval)
+        However IPv4's ends -- `shutdown`, or an interrupt raised through it -- IPv6's is ended
+        with it, before anything closes the socket that thread waits on.
+        """
+        if self._beside is None:
+            super().serve_forever(poll_interval)
+            return
+        import threading
 
-    def shutdown(self) -> None:
-        """Stops answering both loopbacks."""
-        super().shutdown()
-        if self._beside is not None:
+        threading.Thread(
+            target=self._beside.serve_forever,
+            args=(poll_interval,),
+            daemon=True,
+            name="hmz-web-ipv6",
+        ).start()
+        try:
+            super().serve_forever(poll_interval)
+        finally:
             self._beside.shutdown()
 
     def server_close(self) -> None:
