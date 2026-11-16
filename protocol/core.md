@@ -735,8 +735,11 @@ ladder (Section 4.4.3).
 **4.2.6** **Rung**: one of the four permission levels `read-only`, `workspace-write`, `auto` and
 `bypass`, ordered from tightest to loosest.
 
-**4.2.7** **Grant**: the four scopes `local`, `user`, `system` and `online` that a flow declares for
-a role, each `NONE`, `READ` or `ALL`, as Section 3 of [PYTHON] defines them.
+**4.2.7** **Grant**: the permission a flow declares for a role, as Section 3 of [PYTHON] defines
+it: a `preset` (`read-only`, `workspace-write` or `danger-full-access`), a `network` flag, and
+`granular` rules, each a path and an access `none`, `read` or `write`; its **rules** are the
+preset's rules followed by the granular ones, and the last rule matching a path, which a rule does
+for its own path and everything beneath it, decides that path's access.
 
 **4.2.8** **Confinement**: the restriction hmz places around the harness process and every process
 it starts, so that the agent touches no more than its grant allows.
@@ -1130,8 +1133,8 @@ where a flow hangs a permission-request hook (Section 4.9.3) or an ask-user hook
 
 #### 4.6.2. Rungs
 
-**4.6.2.1** hmz MUST derive a rung from a role's grant as follows: `local` of `NONE` or `READ` gives
-`read-only`; `local` of `ALL` gives `bypass`.
+**4.6.2.1** hmz MUST derive a rung from a role's grant as follows: a `preset` of `read-only` whose
+rules do not give the workdir `write` gives `read-only`; every other grant gives `bypass`.
 
 **4.6.2.2** On `kimi`, a rung other than `read-only` MUST become `auto` while a permission-request
 hook or an ask-user hook is hung on the agent.
@@ -1174,8 +1177,8 @@ confinement (Section 4.6.4) permits it.
 
 #### 4.6.3. Web search
 
-**4.6.3.1** A grant whose `online` is `ALL` MUST switch the harness's own web search on, and one
-whose `online` is `NONE` MUST switch it off, on every harness that can be told.
+**4.6.3.1** A grant whose `network` is true MUST switch the harness's own web search on, and one
+whose `network` is false MUST switch it off, on every harness that can be told.
 
 **4.6.3.2** `cursor-agent`, `mcode`, `omp`, `pi` and every ACP harness cannot be told, and on them
 hmz MUST say nothing of web search.
@@ -1186,21 +1189,24 @@ hmz MUST say nothing of web search.
 #### 4.6.4. Confinement
 
 **4.6.4.1** hmz MUST confine every harness except `litellm`, and every process the harness starts,
-to the grant of its role.
+to the grant of its role: each path to the access its rules give it, and no access where no rule
+matches, with `~` read as the home of the user the harness runs as and `.` as the env's workdir,
+and also the session's directory where that lies outside it, on the machine the confinement is
+held on.
 
 **4.6.4.2** Confinement MUST permit reading what any program needs to start (system programs,
 libraries, certificates and name-resolution files), and writing the device files, the harness's own
 configuration and sign-in files, the agent's session records, and a temporary directory of the
 agent's own.
 
-**4.6.4.3** A `local` of `ALL` MUST also permit writing `/tmp`, `/var/tmp` and the directory
-`TMPDIR` names.
+**4.6.4.3** A grant whose rules give the workdir `write` MUST also permit writing `/tmp`, `/var/tmp`
+and the directory `TMPDIR` names.
 
-**4.6.4.4** A `user` of `ALL` MUST permit writing whatever the user's file permissions permit, and
-for the root user MUST permit writing the home directory, the temporary directories and
-`/run/user/0`.
+**4.6.4.4** A grant whose rules give `~` `write` MUST permit writing whatever the user's file
+permissions permit, and for the root user MUST permit writing the home directory, the temporary
+directories and `/run/user/0`.
 
-**4.6.4.5** A grant whose `online` is `NONE` MUST cut the network for the harness and its processes,
+**4.6.4.5** A grant whose `network` is false MUST cut the network for the harness and its processes,
 except connections to the hosts the harness and its account need to reach its model and its sign-in,
 which MUST pass through a proxy on loopback.
 
@@ -1212,19 +1218,36 @@ seccomp user notification; where either is absent, the session MUST be refused w
 **4.6.4.7** On macOS, confinement MUST use the Seatbelt sandbox, and where hmz itself runs inside a
 sandbox that prevents applying one, the session MUST be refused with `HarnessSandboxed`.
 
-**4.6.4.8** A grant whose `online` is `NONE` MUST be refused with `HarnessSandboxed` for
+**4.6.4.8** A grant whose `network` is false MUST be refused with `HarnessSandboxed` for
 `cursor-agent` and for `mcode`.
 
 > Informative: the web search of these two harnesses runs on their vendors' servers through the
 > same hosts as their models.
 
-**4.6.4.9** A grant whose `online` is `NONE` MUST be refused with `HarnessSandboxed` for an ACP
+**4.6.4.9** A grant whose `network` is false MUST be refused with `HarnessSandboxed` for an ACP
 harness that declares no hosts, and the message MUST name what to declare.
 
 **4.6.4.10** hmz MUST NOT rely on a rung's own sandbox inside a harness to hold the grant;
 confinement MUST hold the grant whatever the harness enforces.
 
 **4.6.4.11** A turn kept off a host by confinement MUST fail with the fault class `fenced`.
+
+**4.6.4.12** Where a path Section 4.6.4.2 to Section 4.6.4.4 or Section 4.14.1.8 permits and the
+path of a rule nest, the deeper of the two MUST decide, and the one permitting more where they are
+the same; a **carve-out** is a path to which the rules give less access than to the path above it.
+
+**4.6.4.13** On Linux, a carve-out beneath a path Landlock grants MUST be held by granting, in that
+path's stead, each of its children the access the rules give it, dividing in the same way each
+child beneath which the rules change, down to the carve-out and to every grant beneath it.
+
+> Informative: an entry made later directly in a directory so divided is reachable only where a
+> grant covers it.
+
+**4.6.4.14** On macOS, a carve-out MUST be held by Seatbelt rules denying what it withholds, placed
+after the rules granting the paths above it.
+
+**4.6.4.15** A carve-out that confinement cannot hold MUST refuse the session with
+`HarnessSandboxed`; hmz MUST NOT run the harness with access wider than this section permits.
 
 ### 4.7. Sessions and turns
 
@@ -1702,8 +1725,9 @@ command that is empty, and a name other than the program's own.
 **4.14.1.7** An ACP harness MUST continue a conversation by whichever of resuming and loading it
 advertises, and MUST fork only where it advertises forking.
 
-**4.14.1.8** The hosts an ACP harness declares MUST be reachable under a grant whose `online` is
-`NONE`, and the state paths it declares MUST be writable whatever the grant's `user` scope.
+**4.14.1.8** The hosts an ACP harness declares MUST be reachable under a grant whose `network` is
+false, and the state paths it declares MUST be permitted writing as the paths of Section 4.6.4.2
+are.
 
 ### 4.15. The human agent
 
@@ -3379,7 +3403,7 @@ steer, a stop or any other input.
 **9.3.3** Asking a side question MUST NOT change the state, the transcript, the board, the budget
 limits or the outcome of the epic.
 
-**9.3.4** Every side conversation MUST run at the read-only permission level.
+**9.3.4** Every side conversation MUST run at the `read-only` rung.
 
 **9.3.5** Every side conversation MUST run with no skills, no goals, no tools of the flow, no hooks
 of the flow and no approval of MCP servers, except what Section 9.6.10 to Section 9.6.14 give the
@@ -4404,7 +4428,7 @@ stack, each frame named as Section 12.4.4 defines.
 
 **12.4.1.4** A report MUST hold, where an **epic** is executing in the reporting process, the flows
 executing with their depth, caller and seconds executed, and, for each **agent** role, the flow,
-role, CLI, model, effort, account name, permission scopes and skill names.
+role, CLI, model, effort, account name, permission and skill names.
 
 **12.4.1.5** A report from the terminal interface MUST hold the Python version, the operating
 system, the installed CLIs by name, each account by CLI, name and sign-in method, the skill names
@@ -4611,7 +4635,10 @@ document on which the security of a user's machine, credentials and work depends
 - hmz confines every harness except `litellm`, and every process the harness starts, to the grant
   of its role, and holds that grant whatever sandbox the harness itself enforces (Section 4.6.4.1
   and Section 4.6.4.10).
-- A grant whose `online` is `NONE` cuts the network for the harness and its processes, except the
+- A path a rule denies or keeps read-only beneath a wider grant is held by Landlock or Seatbelt,
+  and a session whose carve-out cannot be held is refused with `HarnessSandboxed` rather than run
+  wider (Section 4.6.4.12 to Section 4.6.4.15).
+- A grant whose `network` is false cuts the network for the harness and its processes, except the
   hosts the harness and its account need for its model and its sign-in, which pass through a proxy
   on loopback; a session whose machine lacks the operating-system facility confinement needs is
   refused with `HarnessSandboxed` (Section 4.6.4.5 to Section 4.6.4.9).
@@ -4658,7 +4685,7 @@ document on which the security of a user's machine, credentials and work depends
   standalone remain in the harness machine's cache between turns (Section 6.6.1.3, Section 7.7.1.9
   and Section 7.12).
 - A side question never reaches a session of the epic's flow, and every side conversation runs at
-  the read-only permission level, modifies no file of the workspace, and is told to treat what it
+  the `read-only` rung, modifies no file of the workspace, and is told to treat what it
   observes about the epic as data and not as instructions (Section 9.3).
 - The btw agent reaches the sessions of an epic only through at most 4 asks per side question, and
   on `codex` only `hmz-ask` runs outside the sandbox, whose network stays cut (Section 9.6.4 and

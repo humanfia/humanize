@@ -811,10 +811,10 @@ still answering the last question`.
 **4.8.8.11** `epic.unaside` MUST take `side`, MUST close that side conversation, and MUST be refused
 with `no aside <side> is open`.
 
-**4.8.8.12** Every side conversation MUST be read-only, MUST carry no skills but The Epic's
-`ask-conversation` (Section 9.6.10 of [CORE]), MUST NOT be seen by the epic, MUST be answered only
-to the frontend that opened it, and MUST NOT write where any epic keeps its sessions nor into the
-harness's own home.
+**4.8.8.12** Every side conversation MUST run at the `read-only` rung, MUST carry no skills but The
+Epic's `ask-conversation` (Section 9.6.10 of [CORE]), MUST NOT be seen by the epic, MUST be answered
+only to the frontend that opened it, and MUST NOT write where any epic keeps its sessions nor into
+the harness's own home.
 
 **4.8.8.13** A side conversation MUST be closed by `epic.unaside`, when its frontend leaves, when an
 epic starts on the host, and when the host closes; no message announces side conversations.
@@ -1320,9 +1320,9 @@ and MUST answer `days_back`, `days` (per UTC day, oldest first), `flows` (costli
 
 **4.17.2.1** `flows.get` MUST take `name` and `workspace`, and MUST answer what the flow declares:
 `name`, `ref`, `description`, `resumable`, `resumes`, `agents` (each `name`, `required`, `auto`,
-`harness`, `permission`, `skills`, and `clis`: the CLIs installed on the daemon's machine that can
-fill it), `envs` (each `name`, `required`, `auto`, `cpu`, `memory`, `gpu`, `image`), `params` (its
-JSON schema) and `remembered` (`agents`, `envs`, `params`, `budget`, `profile_flow`,
+`harness`, `permission` (`{preset, network, granular: [{path, access}]}`), `skills`, and `clis`: the
+CLIs installed on the daemon's machine that can fill it), `envs` (each `name`, `required`, `auto`,
+`cpu`, `memory`, `gpu`, `image`), `params` (its JSON schema) and `remembered` (`agents`, `envs`, `params`, `budget`, `profile_flow`,
 `profile_environment`, `backup`, as the workspace last set the flow up).
 
 **4.17.2.2** A name that is not one of `flows.list` MUST be refused 404, `<name> is not a flow on
