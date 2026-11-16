@@ -600,8 +600,8 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | a fence drawn path by path on an agent whose `machine` is set | `<Agent>: a fence drawn path by path cannot be held on another machine` |
 | a harness on another machine | `<Agent>: a fence cannot hold a harness that runs on another machine` |
 | `online=False` with the anchor's `net="remote"` | `<Agent>: an agent whose own connections are sent to the target cannot have its network cut here` |
-| `cursor-agent` with `online=False` | `cursor-agent: this permission cuts the network, and cursor-agent's web search and web fetch run on Cursor's own servers, through the same hosts as its model, where nothing here can tell them apart or switch them off; grant it online ALL to use cursor-agent` |
-| `mcode` with `online=False` | `mcode: this permission cuts the network, and mcode's web search runs on MiniMax's own service, through the same hosts as its model, where nothing here can take it away; grant it online ALL to use mcode` |
+| `cursor-agent` with `online=False` | `cursor-agent: this permission cuts the network, and cursor-agent's web search and web fetch run on Cursor's own servers, through the same hosts as its model, where nothing here can tell them apart or switch them off; grant it network=True to use cursor-agent` |
+| `mcode` with `online=False` | `mcode: this permission cuts the network, and mcode's web search runs on MiniMax's own service, through the same hosts as its model, where nothing here can take it away; grant it network=True to use mcode` |
 | `grok` with `leader=True` and a non-open fence | `GrokBuildAgent: a fenced conversation cannot join the leader, which runs its tools outside the fence; set leader to False or None` |
 
 Under a flow, `Unfenced` becomes `HarnessSandboxed`. An ACP CLI with `online` `NONE` and no

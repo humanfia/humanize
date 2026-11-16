@@ -318,7 +318,7 @@ class DshAgent(AgentBase):
         (:func:`_native_dsh_environment`): `llm-deepseek.baseURL` in its `settings.yaml`,
         written there and in no variable, ahead of `DEEPSEEK_BASE_URL` in this process's
         environment or its home's `.env`. The fence reads only the environment, so an endpoint
-        set in either file was cut off at `online=NONE` with every other host, and the turn
+        set in either file was cut off at `network=False` with every other host, and the turn
         could not reach its own model. Read in dsh's own order, so the host let through is the
         one the runtime will use. Not a project's `.env`: the fence is the agent's, and which
         project a turn of it works in is the session's; and a host a repository's file named

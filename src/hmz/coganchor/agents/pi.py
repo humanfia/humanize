@@ -940,12 +940,12 @@ class PiAgent(AgentBase):
         """The fence, with the model APIs this machine's `models.json` points pi at let through.
 
         pi has no sandbox -- no mode, no flag, nothing its security notes will call one -- so
-        every scope of the fence is held from outside, and :meth:`natively` is left as it is.
+        every rule of the fence is held from outside, and :meth:`natively` is left as it is.
         What this adds is the one thing the fence cannot read off the backend's table: pi takes
         providers of its own from `models.json` in its home, each at a `baseUrl` written there
         and in no variable, and a turn on one of them talks to that host and no other. So a
         machine whose pi runs on a gateway declared there would have its every turn cut at
-        `online=NONE`, which is the model API the scope promises to leave.
+        `network=False`, which is the model API the permission promises to leave.
 
         Only the provider the model is named under: that provider's `baseUrl` and any of its
         models', and nothing where the file does not declare it -- a built-in provider's hosts

@@ -158,7 +158,7 @@ agents:
   model: claude-haiku-4-5-20251001
   effort: low
   account: as this machine is signed in                                        # ⑨
-  may: local=all user=read system=read online=all                               # ⑩
+  may: preset=workspace-write network=true rules=0                             # ⑩
   skills: []
 ```
 
@@ -181,7 +181,8 @@ The error and `flow.yaml` are illustrative: nobody crashed Humanize to write thi
 8. **The flow**: its name, how deep it was called, which flow called it, and how many seconds
    it had run.
 9. **The account**, by name. `as this machine is signed in` is an agent given no `@account`.
-10. **What the role may do**, as its [permission](/user/permissions) scopes.
+10. **What the role may do**: its [permission](/user/permissions)'s preset, whether it may reach
+    the network, and how many rules it adds, never their paths.
 
 ## Changing your answer
 
