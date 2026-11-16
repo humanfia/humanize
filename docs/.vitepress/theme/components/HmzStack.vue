@@ -67,7 +67,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.telemetry',
     'hmz.runtime.tracing',
   ],
-  'hmz.daemon': ['hmz.runtime'],
+  'hmz.daemon': ['hmz.runtime', 'hmz.rpc', 'hmz.coganchor.prices'],
   'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where'],
   'hmz.relay': [],
   'hmz.rpc': [],
@@ -88,6 +88,7 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.web': [
     'hmz.coganchor',
     'hmz.daemon',
+    'hmz.rpc',
     'hmz.runtime.epic',
     'hmz.runtime.kept',
     'hmz.runtime.watching',

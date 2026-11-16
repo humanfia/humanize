@@ -270,6 +270,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# The daemon's method families, named in one line every family's author writes alike.
+"src/hmz/daemon/api/__init__.py" = ["E501"]
 # The script that builds the throwaway world the documentation's terminal demos are
 # recorded in. It is copied into a container and run by path rather than imported, so it
 # is a file rather than a package, and there is nothing for an `__init__.py` to do.
