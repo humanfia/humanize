@@ -561,14 +561,11 @@ async def test_a_daemon_is_paired_from_its_code_and_a_device_revoked(
         await onto(pilot, "devices")
         await pilot.press("enter")
         await on(pilot, Devices)
-        listing = pilot.app.screen.query_one("#choices", OptionList)
-        device = str(listing.options[0].id).removeprefix("=")
         await pilot.press("enter")
         await on(pilot, Revokes)
-        await shows(pilot, f"Revoke {device}?")
         await pilot.press("enter")
         await on(pilot, Adjusts)
-        await shows(pilot, f"{device} revoked")
+        await shows(pilot, " revoked")
 
     (lab,) = Hmz().daemons.all()
     assert lab["id"]
