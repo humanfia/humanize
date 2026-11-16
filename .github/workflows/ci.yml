@@ -226,54 +226,142 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: DIAG tests/unit/daemon/test_api_accounts.py
-tests/unit/daemon/test_api_easytier.py
-tests/unit/daemon/test_api_fallbacks.py
-tests/unit/daemon/test_api_files.py
-tests/unit/daemon/test_api_flows.py
-tests/unit/daemon/test_api_runs.py
-tests/unit/daemon/test_api_runtimes.py
-tests/unit/daemon/test_api_settings.py
-tests/unit/daemon/test_carrying.py
-tests/unit/daemon/test_daemon.py
-tests/unit/daemon/test_hosts.py
-tests/unit/daemon/test_link.py
-tests/unit/daemon/test_methods.py
-tests/unit/daemon/test_sessions.py
-tests/unit/daemon/test_where.py
-tests/unit/web/test_accounts.py
-tests/unit/web/test_daemons.py
-tests/unit/web/test_notifications.py
-tests/unit/web/test_paths.py
-tests/unit/web/test_places.py
-tests/unit/web/test_runs.py
-tests/unit/web/test_runtimes.py
-tests/unit/web/test_verses.py
         if: runner.os == 'Linux'
         continue-on-error: true
         timeout-minutes: 3
-        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_accounts.py
-tests/unit/daemon/test_api_easytier.py
-tests/unit/daemon/test_api_fallbacks.py
-tests/unit/daemon/test_api_files.py
-tests/unit/daemon/test_api_flows.py
-tests/unit/daemon/test_api_runs.py
-tests/unit/daemon/test_api_runtimes.py
-tests/unit/daemon/test_api_settings.py
-tests/unit/daemon/test_carrying.py
-tests/unit/daemon/test_daemon.py
-tests/unit/daemon/test_hosts.py
-tests/unit/daemon/test_link.py
-tests/unit/daemon/test_methods.py
-tests/unit/daemon/test_sessions.py
-tests/unit/daemon/test_where.py
-tests/unit/web/test_accounts.py
-tests/unit/web/test_daemons.py
-tests/unit/web/test_notifications.py
-tests/unit/web/test_paths.py
-tests/unit/web/test_places.py
-tests/unit/web/test_runs.py
-tests/unit/web/test_runtimes.py
-tests/unit/web/test_verses.py --durations=5
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_accounts.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_api_easytier.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_easytier.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_api_fallbacks.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_fallbacks.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_api_files.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_files.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_api_flows.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_flows.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_api_runs.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_runs.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_api_runtimes.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_runtimes.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_api_settings.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_api_settings.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_carrying.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_carrying.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_daemon.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_daemon.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_hosts.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_hosts.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_link.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_link.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_methods.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_methods.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_sessions.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_sessions.py --durations=5
+
+      - name: DIAG tests/unit/daemon/test_where.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/daemon/test_where.py --durations=5
+
+      - name: DIAG tests/unit/web/test_accounts.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/web/test_accounts.py --durations=5
+
+      - name: DIAG tests/unit/web/test_daemons.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/web/test_daemons.py --durations=5
+
+      - name: DIAG tests/unit/web/test_notifications.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/web/test_notifications.py --durations=5
+
+      - name: DIAG tests/unit/web/test_paths.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/web/test_paths.py --durations=5
+
+      - name: DIAG tests/unit/web/test_places.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/web/test_places.py --durations=5
+
+      - name: DIAG tests/unit/web/test_runs.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/web/test_runs.py --durations=5
+
+      - name: DIAG tests/unit/web/test_runtimes.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/web/test_runtimes.py --durations=5
+
+      - name: DIAG tests/unit/web/test_verses.py
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: uv run --frozen --all-extras pytest tests/unit/web/test_verses.py --durations=5
 
       - name: DIAG all daemon then web
         if: runner.os == 'Linux'
