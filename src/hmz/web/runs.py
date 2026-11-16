@@ -96,26 +96,6 @@ class Runs:
                     del self._read[gone]
         return held
 
-    def workspaces(self) -> list[dict[str, Any]]:
-        """Every workspace there is to offer, with how many runs it has and when it last ran."""
-        runs = self.all()
-        running = {one["workspace"] for one in self._places.running()}
-        mine: dict[str, list[Ran]] = {}
-        for ran in runs:
-            mine.setdefault(_resolved(ran.workspace), []).append(ran)
-        return [
-            {
-                "path": where,
-                "name": Path(where).name or where,
-                "epics": len(mine.get(where, [])),
-                "last": mine[where][0].began if mine.get(where) else "",
-                "running": where in running,
-                "here": where == str(self._places.here),
-                "there": Path(where).is_dir(),
-            }
-            for where in self._places.known(list(mine))
-        ]
-
     def read(self, epic: Path) -> Ran | None:
         """One run, read again only where its record has changed since it was last read."""
         from hmz.runtime.epic import read
