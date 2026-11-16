@@ -12,6 +12,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from typing import TYPE_CHECKING
 
@@ -163,8 +164,8 @@ def _another(tmp_path: Path) -> Generator[pairing.Code]:
     """A daemon of another home, serving a TCP listener, and a pairing code it made."""
     there = dict(os.environ)
     there["HUMANIZE_HOME"] = str(tmp_path / "there-home")
-    there["TMPDIR"] = str(tmp_path / "t")
-    (tmp_path / "t").mkdir()
+    # Short, as a socket's path under it must be.
+    there["TMPDIR"] = tempfile.mkdtemp(prefix="a", dir=os.environ.get("TMPDIR"))
     serving = subprocess.Popen(
         [
             sys.executable,
