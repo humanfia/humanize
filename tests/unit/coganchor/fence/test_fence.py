@@ -20,9 +20,12 @@ import pytest
 from hmz.coganchor import binary
 from hmz.coganchor import fence as fencing
 from hmz.coganchor.fence import (
+    AUTO,
+    BWRAP,
     DARWIN_DEVICES,
     DARWIN_SYSTEM,
     DEVICES,
+    LANDLOCK,
     LEVELS,
     LINUX_DEVICES,
     LINUX_SYSTEM,
@@ -33,8 +36,11 @@ from hmz.coganchor.fence import (
     WRITE,
     Fence,
     able,
+    chosen,
     enforceable,
     landlocked,
+    natives,
+    needs,
     unheld,
     wrapper,
 )
@@ -621,7 +627,79 @@ def test_wrapper_runs_coganchor_with_the_policy(
 
     assert command[:3] == ["/opt/coganchor", "internal", "fence"]
     assert Fence.loads(command[3].removeprefix("--policy=")) == fence
-    assert command[4:] == ["--"]
+    assert command[4:] == ["--sandbox=auto", "--"]
+
+
+def test_wrapper_passes_the_backend_the_settings_choose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
+    _settings("sandbox: {backend: bwrap}")
+
+    assert wrapper(Fence())[4] == "--sandbox=bwrap"
+
+
+def _settings(said: str) -> None:
+    """This machine's settings file, holding what is said."""
+    where = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    where.parent.mkdir(parents=True, exist_ok=True)
+    where.write_text(said, encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("said", "chose"),
+    [
+        ("", AUTO),
+        ("sandbox: bwrap", AUTO),
+        ("sandbox: {backend: 3}", AUTO),
+        ("sandbox: {backend: firejail}", AUTO),
+        ("sandbox: {backend: landlock}", LANDLOCK),
+        ("sandbox: {backend: bwrap}", BWRAP),
+    ],
+)
+def test_chosen_reads_anything_else_as_auto(said: str, chose: str) -> None:
+    _settings(said)
+
+    assert chosen() == chose
+
+
+@pytest.mark.parametrize(
+    ("said", "named"),
+    [
+        ("", set[str]()),
+        ("sandbox: {native: codex}", set[str]()),
+        ("sandbox: {native: [codex, 3, grok]}", {"codex", "grok"}),
+    ],
+)
+def test_natives_are_the_kinds_the_settings_name(said: str, named: set[str]) -> None:
+    _settings(said)
+
+    assert natives() == named
+
+
+@pytest.mark.parametrize(
+    ("said", "net", "wanted", "unwanted"),
+    [
+        ("", False, ("Landlock (Linux 5.13", "bubblewrap"), ()),
+        ("", True, ("Landlock ABI 4", "network namespace"), ()),
+        ("sandbox: {backend: landlock}", True, ("Landlock ABI 4",), ("bubblewrap",)),
+        ("sandbox: {backend: bwrap}", False, ("bubblewrap",), ("Landlock",)),
+    ],
+)
+def test_needs_names_what_the_chosen_backend_needs(
+    monkeypatch: pytest.MonkeyPatch,
+    said: str,
+    net: bool,
+    wanted: tuple[str, ...],
+    unwanted: tuple[str, ...],
+) -> None:
+    monkeypatch.setattr("sys.platform", "linux")
+    _settings(said)
+
+    told = needs(net=net)
+
+    assert all(one in told for one in wanted)
+    assert not any(one in told for one in unwanted)
 
 
 @pytest.fixture
@@ -665,10 +743,22 @@ def test_what_this_machine_can_fence_is_what_coganchor_says(
 ) -> None:
     answering(monkeypatch, asked, said)
 
-    assert able() == held
+    assert able(AUTO) == held
     assert enforceable(net=False) is held[0]
     assert enforceable(net=True) is held[1]
-    assert asked == [["/opt/coganchor", "internal", "able"]]
+    assert asked == [["/opt/coganchor", "internal", "able", "--sandbox=auto"]]
+
+
+def test_enforceable_asks_of_the_backend_the_settings_choose_and_landlocked_of_landlock(
+    monkeypatch: pytest.MonkeyPatch, asked: list[list[str]]
+) -> None:
+    monkeypatch.setattr("sys.platform", "linux")
+    _settings("sandbox: {backend: bwrap}")
+    answering(monkeypatch, asked, b'{"fs":true,"net":true}')
+
+    assert enforceable(net=True)
+    assert landlocked(net=True)
+    assert [one[-1] for one in asked] == ["--sandbox=bwrap", "--sandbox=landlock"]
 
 
 @pytest.mark.parametrize(
@@ -700,7 +790,13 @@ def test_what_a_fence_carves_out_is_held_where_coganchor_says_it_is(
 
     assert unheld(carved) == why
     assert asked == [
-        ["/opt/coganchor", "internal", "able", f"--policy={carved.dumps()}"]
+        [
+            "/opt/coganchor",
+            "internal",
+            "able",
+            f"--policy={carved.dumps()}",
+            "--sandbox=auto",
+        ]
     ]
     answering(monkeypatch, asked, b'{"fs":true,"net":true,"unheld":null}')
     assert unheld(carved) is None

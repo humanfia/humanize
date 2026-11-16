@@ -681,18 +681,23 @@ outside by `hmz internal fence`: on Linux, Landlock for paths and TCP (Landlock 
 so a granted directory holding a carve-out is granted as its other entries instead, down to
 the carve-out, as the fence is put up), a seccomp filter
 refusing every other socket family and a second filter that lets a socket listen on loopback
-only; on macOS, a Seatbelt profile for paths and sockets, whose carve-outs follow its grants
-and so win; and on both, a loopback proxy passing
-only the listed hosts. A session is never run wider than its
+only -- or, where Landlock cannot hold the fence or `sandbox.backend` in `settings.yaml` says
+`bwrap`, bubblewrap, which mounts what is granted into a root of its own, mounts an empty
+directory or file over a carve-out, and cuts the network with a namespace of its own; on
+macOS, a Seatbelt profile for paths and sockets, whose carve-outs follow its grants and so
+win; and on all, a loopback proxy passing only the listed hosts. A machine whose
+`sandbox.native` names `codex` hands Codex's grant to Codex's own sandbox instead, which holds
+the commands it runs and not Codex itself, where that sandbox can say the grant. A session is never run wider than its
 permission. Where neither the CLI nor the machine can hold the fence, the session is refused
 with [`HarnessSandboxed`](#harnesssandboxed) when it opens:
 
 | Cause | Refused where |
 | --- | --- |
-| no Landlock (Linux < 5.13), or macOS where Humanize already runs inside a sandbox | any permission but one that writes every path with `network=True` |
-| Linux < 6.7 | `network=False` |
+| no Landlock (Linux < 5.13) and no `bwrap` that starts, or macOS where Humanize already runs inside a sandbox | any permission but one that writes every path with `network=True` |
+| Linux < 6.7, and no `bwrap` that starts with a network namespace | `network=False` |
+| the backend `sandbox.backend` pins cannot start | any permission but one that fences nothing |
 | wrapper cannot trace its children (a container's default seccomp profile; Yama `ptrace_scope` 2 or 3) | `network=False` |
-| a carve-out (a `deny` or `read_only` beneath a wider grant) the machine's sandbox cannot hold | a permission with that rule |
+| a carve-out (a `deny` or `read_only` beneath a wider grant) the machine's sandbox cannot hold -- under bubblewrap, one that is not there | a permission with that rule |
 
 A permission that gives every path `WRITE`, with `network=True` (`danger-full-access` with
 no narrower rule after it), fences nothing. A rule that writes `~` writes whatever the user may

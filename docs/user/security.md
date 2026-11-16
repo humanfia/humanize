@@ -131,7 +131,7 @@ read it in the flow before you run the flow. It has three settings:
 What that comes to in practice:
 
 - **Every setting is enforced** on the agent and on every command it runs, by Landlock on
-  Linux and by Seatbelt on macOS. An agent at the default writes its working directory and nothing else of yours:
+  Linux -- or bubblewrap, where Landlock cannot hold it -- and by Seatbelt on macOS. An agent at the default writes its working directory and nothing else of yours:
   its CLI's own settings, login and sessions, a temporary directory of its own, the
   shared `/tmp` and `/var/tmp`, the devices, and on Linux `/proc`. On macOS its login
   includes the login keychain, which is where Claude Code keeps it.
@@ -158,13 +158,18 @@ What that comes to in practice:
   `HTTP_PROXY` or `ALL_PROXY` names an `http://` proxy, that loopback proxy goes on through
   yours, except for the hosts your `NO_PROXY` names.
 - **Work in a container or on an ssh host is fenced there too.** Every command the agent
-  runs on that machine is held by that machine's own Landlock or Seatbelt, around its own
-  working directory and home.
+  runs on that machine is held by that machine's own Landlock, bubblewrap or Seatbelt, around
+  its own working directory and home.
 - **A grant that cannot be held is refused, not widened.** On a Linux kernel without
-  Landlock, on a Mac where Humanize already runs inside another sandbox, and for work on a
+  Landlock and with no bubblewrap that starts, on a Mac where Humanize already runs inside
+  another sandbox, and for work on a
   machine like either, a role runs only at `danger-full-access` with `network=True` and no
   rule that takes anything back. A role with a rule this machine's sandbox cannot carve out
   is refused too.
+- **Unless you hand it to Codex.** A machine whose `sandbox.native` names `codex` lets Codex's
+  own sandbox hold its grant instead: what the commands it runs may write and reach, and not
+  Codex itself, its MCP servers or its hooks, nor what anything reads. The agent says so once.
+  See [Permissions](/user/permissions#choose-how-this-machine-holds-a-grant).
 - **Some ways out remain.** Neither Landlock nor Seatbelt governs a Unix socket reached by its
   path, so an agent can still talk to a socket another program listens on, a docker daemon's
   among them; on macOS a system service reached over Mach is the same. On a Linux kernel
@@ -236,11 +241,11 @@ reference](/reference/providers).
 
 ### A role is refused before the run starts
 
-Its grant cannot be held here: on a kernel without Landlock, on a Mac where Humanize runs
+Its grant cannot be held here: on a kernel without Landlock and with no bubblewrap that starts, on a Mac where Humanize runs
 inside another sandbox, or on a machine like either, only a role at `danger-full-access`
 with `network=True` and no rule that takes anything back runs. And a `cursor-agent` role with
 `network=False` is refused on every machine, because
-Cursor's web tools cannot be switched off. Run the flow on Linux with Landlock or on macOS
+Cursor's web tools cannot be switched off. Run the flow on Linux with Landlock or bubblewrap, or on macOS
 outside any other sandbox, or choose another CLI for the role. See
 [Permissions](/user/permissions).
 

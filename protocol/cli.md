@@ -948,7 +948,8 @@ coganchor anchor --export <virtual>[:<real>]... (--stdio | --listen [<host>:]<po
                  | --peer <ticket>@<host>:<port>) [--token <secret> | --token-file <file>]
                  [--log-level <level>]
 coganchor broker [--listen [<host>:]<port>] [--punching <seconds>] [--log-level <level>]
-coganchor internal fence --policy (<json> | @<path>) [--] <program> [<args>...]
+coganchor internal fence (--policy (<json> | @<path>) [--sandbox <backend>] | --relay <dir>) [--]
+                         <program> [<args>...]
 coganchor internal cred (--map <from>=<to> | --keep <from>=<to>)... [--] <program> [<args>...]
 coganchor --version
 ```
@@ -1038,17 +1039,29 @@ cred: <reason>` to standard error, MUST exit with status 1, and MUST NOT run the
 ### 11.4. `hmz internal fence`
 
 ```text
-hmz internal fence --policy (<json> | @<path>) [--] <program> [<args>...]
+hmz internal fence (--policy (<json> | @<path>) [--sandbox <backend>] | --relay <dir>) [--] <program>
+                   [<args>...]
 ```
 
 **11.4.1** `hmz internal fence` MUST run `<program>` held to the paths and hosts the policy permits
 (Section 4 of [CORE]).
 
-**11.4.2** `hmz internal fence` with no `--policy` or no program MUST exit with status 2.
+**11.4.2** `hmz internal fence` with neither or both of `--policy` and `--relay`, or no program,
+MUST exit with status 2.
 
 **11.4.3** Where the fence cannot be put up on this machine, `hmz internal fence` MUST write `hmz
 internal fence: <reason>` to standard error, MUST exit with status 126, and MUST NOT run the
 program.
+
+**11.4.4** `--sandbox` MUST select the backend on Linux as `sandbox.backend` does (Section 4.6.4.16
+of [CORE]), an absent or other value as `auto`; hmz MUST pass the `sandbox.backend` of the machine
+it runs on to the confinement it holds there, and nothing to confinement held on another machine.
+
+**11.4.5** `hmz internal fence --relay <dir>` is the program bubblewrap starts in a network namespace
+of its own (Section 4.6.4.18 of [CORE]): it MUST listen on this namespace's loopback at each port
+`<port>` for which `<dir>` holds a socket `out-<port>.sock` and pass each connection to that socket,
+MUST listen at `<dir>/in-<port>.sock` for each file `<dir>/in-<port>` and pass each connection to
+`<port>` on this namespace's loopback, and MUST then run `<program>`.
 
 ### 11.5. `hmz internal hook`
 

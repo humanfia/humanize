@@ -11,7 +11,9 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import json
+import os
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import psutil
@@ -43,7 +45,6 @@ from tests.integration.doubles_agents import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
 CONFIG = CodexAgentConfig(model="gpt-stand-in", effort="high")
 
@@ -519,3 +520,103 @@ def test_a_fence_around_codex_holds_the_rung_in_place_of_codex(
         "type": "externalSandbox",
         "networkAccess": "enabled" if online else "restricted",
     }
+
+
+@pytest.mark.parametrize(
+    ("local", "online", "policy"),
+    [
+        (WRITE, False, "workspaceWrite"),
+        (WRITE, True, "workspaceWrite"),
+        (READ, False, "readOnly"),
+    ],
+)
+def test_a_codex_named_in_sandbox_native_is_held_by_its_own_sandbox(
+    codex: Standins,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    local: str,
+    online: bool,
+    policy: str,
+) -> None:
+    """Nothing is put around Codex: each turn tells its sandbox what it can say of the fence."""
+    wrapped: list[Fence] = []
+
+    def wrapper(fence: Fence) -> list[str]:
+        wrapped.append(fence)
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
+    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
+    fence = Fence.of(
+        rules=[("/", READ), ("~", READ), (".", local)],
+        online=online,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    agent = CodexAgent(dataclasses.replace(CONFIG, permission="bypass", fence=fence))
+    try:
+        said = list(agent.new(tmp_path).stream("rules"))
+    finally:
+        agent.stop()
+
+    told = json.loads(said[-1].text)["policy"]
+    assert told["type"] == policy
+    assert told["networkAccess"] is online
+    if policy == "workspaceWrite":
+        # The workdir, or a root above it -- `/tmp`, where the tests' own directories are.
+        assert any(
+            tmp_path == Path(root) or tmp_path.is_relative_to(root)
+            for root in told["writableRoots"]
+        )
+        assert not any(one.startswith("/dev") for one in told["writableRoots"])
+    assert not wrapped
+
+
+def test_a_codex_named_in_sandbox_native_is_fenced_where_its_sandbox_cannot_carve(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`writableRoots` has no word for a carve-out: the fence is held from outside instead."""
+    wrapped: list[Fence] = []
+
+    def wrapper(fence: Fence) -> list[str]:
+        wrapped.append(fence)
+        return []
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
+    monkeypatch.setattr("sys.platform", "linux")
+
+    def unheld(fence: Fence) -> str | None:
+        del fence
+        return None
+
+    monkeypatch.setattr("hmz.coganchor.fence.unheld", unheld)
+    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
+    (tmp_path / "secret").mkdir()
+    fence = Fence.of(
+        rules=[("/", READ), (".", WRITE), ("./secret", "none")],
+        online=True,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    agent = CodexAgent(dataclasses.replace(CONFIG, permission="bypass", fence=fence))
+    try:
+        said = list(agent.new(tmp_path).stream("rules"))
+    finally:
+        agent.stop()
+
+    # At `bypass` a fence from outside leaves Codex told nothing of its sandbox.
+    assert json.loads(said[-1].text)["policy"] is None
+    assert wrapped

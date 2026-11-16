@@ -1210,10 +1210,12 @@ directories and `/run/user/0`.
 except connections to the hosts the harness and its account need to reach its model and its sign-in,
 which MUST pass through a proxy on loopback.
 
-**4.6.4.6** On Linux, confinement MUST require Landlock (kernel 5.13 or later, enabled), and
-confinement that cuts the network MUST additionally require Landlock ABI 4 (kernel 6.7 or later) and
-seccomp user notification; where either is absent, the session MUST be refused with
-`HarnessSandboxed` naming the requirement.
+**4.6.4.6** On Linux, confinement MUST be held by the backend Section 4.6.4.16 selects: Landlock,
+which MUST require kernel 5.13 or later with Landlock enabled and, where confinement cuts the
+network, Landlock ABI 4 (kernel 6.7 or later) and seccomp user notification; or bubblewrap, which
+MUST require a `bwrap` program on the machine that starts there and, where confinement cuts the
+network, starts in a network namespace of its own. Where the backend selected cannot hold the
+confinement, the session MUST be refused with `HarnessSandboxed` naming the requirement.
 
 **4.6.4.7** On macOS, confinement MUST use the Seatbelt sandbox, and where hmz itself runs inside a
 sandbox that prevents applying one, the session MUST be refused with `HarnessSandboxed`.
@@ -1227,8 +1229,9 @@ sandbox that prevents applying one, the session MUST be refused with `HarnessSan
 **4.6.4.9** A grant whose `network` is false MUST be refused with `HarnessSandboxed` for an ACP
 harness that declares no hosts, and the message MUST name what to declare.
 
-**4.6.4.10** hmz MUST NOT rely on a rung's own sandbox inside a harness to hold the grant;
-confinement MUST hold the grant whatever the harness enforces.
+**4.6.4.10** hmz MUST NOT rely on a rung's own sandbox inside a harness to hold the grant, except
+as Section 4.6.4.19 permits; confinement MUST otherwise hold the grant whatever the harness
+enforces.
 
 **4.6.4.11** A turn kept off a host by confinement MUST fail with the fault class `fenced`.
 
@@ -1248,6 +1251,36 @@ after the rules granting the paths above it.
 
 **4.6.4.15** A carve-out that confinement cannot hold MUST refuse the session with
 `HarnessSandboxed`; hmz MUST NOT run the harness with access wider than this section permits.
+
+**4.6.4.16** On Linux, the machine key `sandbox.backend` (Section 3.4.11 of [FILES]) of the machine
+hmz runs on MUST select the backend of the confinement held there: `landlock` or `bwrap` that
+backend alone, and any other value, or none, Landlock where Landlock can hold the confinement and
+bubblewrap otherwise. Confinement held on another machine MUST select as for none.
+
+**4.6.4.17** A harness traced on the harness machine while its env machine is another MUST be
+confined there by Landlock, whatever `sandbox.backend` says.
+
+**4.6.4.18** Under bubblewrap, confinement MUST mount over an empty read-only root each path it
+permits, at the access it permits, the shallower first and, at one depth, a carve-out before a
+grant; a carve-out MUST be mounted read-only where the rules give it `read`, and as an empty
+read-only directory or an empty file where they give it nothing. Where confinement cuts the
+network, the proxy of Section 4.6.4.5 MUST be reachable on the namespace's loopback at the port the
+harness is told, and each port the harness listens on for hmz MUST be reachable at the same port on
+the harness machine's loopback.
+
+**4.6.4.19** Where an agent's harness location and env location are both `local`, and its harness
+kind is named in `sandbox.native` (Section 3.4.11 of [FILES]) of that machine and in the following
+table, hmz MUST hold the grant by telling that harness's own sandbox what the table states instead
+of confining the harness, where the grant has no carve-out and that sandbox was found to start on
+that machine; otherwise hmz MUST confine the harness as this section states.
+
+| Kind | Told |
+| --- | --- |
+| `codex` | each turn's `sandboxPolicy`: `readOnly` where confinement would not permit writing the workdir, else `workspaceWrite` whose `writableRoots` are the paths confinement would permit writing outside `/dev` and `/proc`, with `excludeSlashTmp` and `excludeTmpdirEnvVar` true where `/tmp` or the directory `TMPDIR` names is not among them; `networkAccess` the grant's `network` in both |
+
+**4.6.4.20** A grant held as Section 4.6.4.19 states is held around the commands the harness runs
+alone: the harness's own process, the MCP servers and hooks it starts, and reading are outside it.
+hmz MUST say so once per agent.
 
 ### 4.7. Sessions and turns
 
@@ -4641,10 +4674,12 @@ document on which the security of a user's machine, credentials and work depends
 
 - hmz confines every harness except `litellm`, and every process the harness starts, to the grant
   of its role, and holds that grant whatever sandbox the harness itself enforces (Section 4.6.4.1
-  and Section 4.6.4.10).
-- A path a rule denies or keeps read-only beneath a wider grant is held by Landlock or Seatbelt,
-  and a session whose carve-out cannot be held is refused with `HarnessSandboxed` rather than run
-  wider (Section 4.6.4.12 to Section 4.6.4.15).
+  and Section 4.6.4.10) -- unless the person at the machine names the harness in
+  `sandbox.native`, which holds the grant around the commands the harness runs alone, and says so
+  (Section 4.6.4.19 and Section 4.6.4.20).
+- A path a rule denies or keeps read-only beneath a wider grant is held by Landlock, bubblewrap or
+  Seatbelt, and a session whose carve-out cannot be held is refused with `HarnessSandboxed` rather
+  than run wider (Section 4.6.4.12 to Section 4.6.4.18).
 - A grant whose `network` is false cuts the network for the harness and its processes, except the
   hosts the harness and its account need for its model and its sign-in, which pass through a proxy
   on loopback; a session whose machine lacks the operating-system facility confinement needs is

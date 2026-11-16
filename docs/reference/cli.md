@@ -843,27 +843,32 @@ killed, and stays supervised until it exits
 ### `hmz internal fence` {#hmz-internal-fence}
 
 ```text
-hmz internal fence --policy JSON [--] COMMAND [ARGS...]
+hmz internal fence (--policy JSON [--sandbox BACKEND] | --relay DIR) [--] COMMAND [ARGS...]
 ```
 
 Runs `COMMAND` inside a [fence](/reference/agents#the-fence): on Linux, Landlock for paths and,
-where the network is cut, a seccomp filter admitting only TCP and Unix sockets; on macOS, the
-whole fence as one Seatbelt profile applied by `/usr/bin/sandbox-exec`, whose carve-outs
-(`keep`, `deny`) follow its grants, deepest last. Landlock only grants, so on Linux a granted
-directory holding a carve-out is granted as its entries as they stand, down to the carve-out;
-an entry made there later is out of reach. Where the network is
+where the network is cut, a seccomp filter admitting only TCP and Unix sockets -- or, where
+Landlock cannot hold it or `--sandbox bwrap` says so, `bwrap` mounting what the fence grants
+into a root of its own and, where the network is cut, giving it a network namespace of its own;
+on macOS, the whole fence as one Seatbelt profile applied by `/usr/bin/sandbox-exec`, whose
+carve-outs (`keep`, `deny`) follow its grants, deepest last. Landlock only grants, so on Linux a
+granted directory holding a carve-out is granted as its entries as they stand, down to the
+carve-out; an entry made there later is out of reach. Under bubblewrap a carve-out is an empty
+directory or file mounted over it. Where the network is
 cut, a loopback proxy (`HTTPS_PROXY` and related, `NO_PROXY` emptied) passing only the fence's
 hosts; `TMPDIR` set to the fence's scratch directory.
 
 | Option | Meaning |
 | --- | --- |
-| `--policy JSON` | **Required.** The fence as JSON, or `@PATH` for a file holding it. |
+| `--policy JSON` | The fence as JSON, or `@PATH` for a file holding it. |
+| `--sandbox BACKEND` | On Linux, what puts the fence up: `landlock`, `bwrap`, or `auto` (the default, and any other value): Landlock where it can hold the fence and `bwrap` otherwise. Humanize passes `sandbox.backend` from [`settings.yaml`](/reference/settings#sandbox); a machine reached as a target is passed nothing, and chooses for itself. |
+| `--relay DIR` | Instead of `--policy`: run as the program `bwrap` starts in a network namespace of its own, carrying loopback across its edge through the Unix sockets in `DIR` -- each `out-PORT.sock` to the proxy at `PORT`, and `PORT` here for each `in-PORT` -- then run `COMMAND`. |
 
 | Exit | When |
 | --- | --- |
 | the program's | it ran |
-| `2` | no `--policy`; no program (`no program given; try `hmz internal fence --policy=... -- claude``) |
-| `126` | the fence cannot be put up here (no Landlock, or no way to cut TCP; on macOS, a process already inside a sandbox; a path it writes leads through a link a fenced program could have made; on Linux, a carve-out beneath a directory that cannot be listed, or beneath a grant that is not a directory); the program never ran (`hmz internal fence: <why>`) |
+| `2` | neither or both of `--policy` and `--relay`; no program (`no program given; try `hmz internal fence --policy=... -- claude``) |
+| `126` | the fence cannot be put up here (no Landlock and no `bwrap` that starts, or no way to cut TCP; on macOS, a process already inside a sandbox; a path it writes leads through a link a fenced program could have made; on Linux, a carve-out beneath a directory that cannot be listed, or beneath a grant that is not a directory, or under `bwrap` one that is not there); the program never ran (`hmz internal fence: <why>`) |
 
 ### `coganchor` {#coganchor}
 
@@ -871,15 +876,16 @@ hosts; `TMPDIR` set to the fence's scratch directory.
 coganchor cog [options] AGENT [ARGS...]           # hmz internal anchor
 coganchor anchor --export VIRTUAL[:REAL] …        # hmz internal anchor serve
 coganchor broker [--listen [HOST:]PORT] …         # hmz internal anchor rendezvous
-coganchor internal fence --policy JSON [--] …     # hmz internal fence
+coganchor internal fence --policy JSON [--sandbox BACKEND] [--] …  # hmz internal fence
 coganchor internal cred --map FROM=TO … [--] …    # hmz internal cred
-coganchor internal able [--policy JSON]
+coganchor internal able [--policy JSON] [--sandbox BACKEND]
 coganchor --version
 ```
 
-`coganchor internal able` writes what this machine can fence, `{"fs": bool, "net": bool}`, and
-with `--policy` also `"unheld"`: why Landlock cannot hold what that fence carves out of its
-grants, or `null` where it can (always `null` on macOS). Humanize asks it before a session is
+`coganchor internal able` writes what this machine can fence with the backend `--sandbox`
+chooses, `{"fs": bool, "net": bool}`, and with `--policy` also `"unheld"`: why that backend
+cannot hold what that fence carves out of its grants, or `null` where it can (always `null` on
+macOS). Humanize asks it before a session is
 opened.
 
 The anchor, as one static program in Rust, built from `crates/coganchor/`. The package

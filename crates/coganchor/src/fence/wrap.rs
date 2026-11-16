@@ -12,8 +12,10 @@
 //! Landlock only allows, so what a fence carves out of a grant is held by granting what is
 //! around it instead ([`expanded`]), worked out before the fork; a carve-out that cannot be
 //! held so is a program that does not run either. The parent stays outside: serving the proxy, answering binds, passing signals on, and --
-//! where the network is cut -- reaping every orphan as the subreaper of the tree. On a Mac the
-//! child is `sandbox-exec` with the fence's Seatbelt profile.
+//! where the network is cut -- reaping every orphan as the subreaper of the tree. Where
+//! Landlock cannot hold the fence, or `--sandbox` names it, the wall on Linux is bubblewrap
+//! instead ([`crate::fence::bubblewrap`]). On a Mac the child is `sandbox-exec` with the
+//! fence's Seatbelt profile.
 
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
@@ -22,9 +24,9 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use crate::cli::FenceArgs;
 use crate::exit;
-use crate::fence::Fence;
 use crate::fence::policy::spelled;
 use crate::fence::proxy::Proxy;
+use crate::fence::{Fence, Sandbox};
 
 /// The variables every common HTTP client reads its proxy from, in both spellings.
 pub const PROXIES: [&str; 6] = [
@@ -59,9 +61,14 @@ pub fn main(args: FenceArgs) -> i32 {
         );
         return exit::USAGE;
     }
+    if let Some(through) = &args.relay {
+        return crate::fence::relay::main(through, &argv);
+    }
+    let asked = Sandbox::of(args.sandbox.as_deref());
+    let policy = args.policy.unwrap_or_default();
     // Refused rather than run without it: a program the fence was meant to hold, run
     // unfenced, would be one reaching whatever it liked while the flow believed it held.
-    match Fence::loads(&args.policy).and_then(|fence| run(&fence, &argv)) {
+    match Fence::loads(&policy).and_then(|fence| run(&fence, &argv, asked)) {
         Ok(status) => status,
         Err(why) => {
             eprintln!("hmz internal fence: {why}");
@@ -270,21 +277,15 @@ fn strictly(path: &str, root: &str) -> bool {
 }
 
 /// A scratch made for one run, removed when it is dropped.
-struct Scratch {
-    path: String,
+pub(crate) struct Scratch {
+    pub(crate) path: String,
     made: bool,
 }
 
 impl Scratch {
-    /// The fence's own, or a fresh `hmz-fence-XXXXXX` under the temporary directory.
-    fn of(fence: &Fence) -> Result<Scratch, String> {
-        if !fence.tmp.is_empty() {
-            return Ok(Scratch {
-                path: fence.tmp.clone(),
-                made: false,
-            });
-        }
-        let template = std::env::temp_dir().join("hmz-fence-XXXXXX");
+    /// A fresh directory `<prefix>XXXXXX` under the temporary directory, `0700`.
+    pub(crate) fn fresh(prefix: &str) -> Result<Scratch, String> {
+        let template = std::env::temp_dir().join(format!("{prefix}XXXXXX"));
         let mut bytes = template.as_os_str().as_bytes().to_vec();
         bytes.push(0);
         // SAFETY: `bytes` is a NUL-terminated template mkdtemp rewrites in place.
@@ -296,6 +297,17 @@ impl Scratch {
             path: OsStr::from_bytes(&bytes).to_string_lossy().into_owned(),
             made: true,
         })
+    }
+
+    /// The fence's own, or a fresh `hmz-fence-XXXXXX` under the temporary directory.
+    fn of(fence: &Fence) -> Result<Scratch, String> {
+        if !fence.tmp.is_empty() {
+            return Ok(Scratch {
+                path: fence.tmp.clone(),
+                made: false,
+            });
+        }
+        Scratch::fresh("hmz-fence-")
     }
 }
 
@@ -310,16 +322,32 @@ impl Drop for Scratch {
 /// Why this machine cannot hold a fence around a `what` (one cutting the network too where
 /// `net`), as `wrap.run` and `fencing.fenced` say it; `None` where it can.
 pub(crate) fn unable(net: bool, what: &str) -> Option<String> {
-    let able = crate::fence::able();
-    if if net { able.net } else { able.fs } {
+    unable_with(net, what, Sandbox::Auto)
+}
+
+/// [`unable`], as `asked` chooses the backend.
+pub(crate) fn unable_with(net: bool, what: &str, asked: Sandbox) -> Option<String> {
+    if crate::fence::backend(net, asked).is_some() {
         return None;
     }
-    let needs = if cfg!(target_os = "macos") {
-        "Seatbelt, which a process already inside a sandbox cannot apply"
-    } else if net {
+    let landlock = if net {
         "Landlock ABI 4 and seccomp"
     } else {
         "Landlock"
+    };
+    let bwrap = if net {
+        "a bwrap that starts here with a network namespace of its own"
+    } else {
+        "a bwrap that starts here"
+    };
+    let needs = if cfg!(target_os = "macos") {
+        "Seatbelt, which a process already inside a sandbox cannot apply".to_owned()
+    } else {
+        match asked {
+            Sandbox::Landlock => landlock.to_owned(),
+            Sandbox::Bwrap => bwrap.to_owned(),
+            Sandbox::Auto => format!("{landlock}, or {bwrap}"),
+        }
     };
     Some(format!(
         "this machine cannot fence a {what}: it needs {needs}"
@@ -328,10 +356,10 @@ pub(crate) fn unable(net: bool, what: &str) -> Option<String> {
 
 /// The proxy, where the network is cut, stopped however `put_up` ends (the Python's
 /// `finally`).
-struct Serving(Option<Proxy>);
+pub(crate) struct Serving(Option<Proxy>);
 
 impl Serving {
-    fn start(fence: &Fence) -> Result<Serving, String> {
+    pub(crate) fn start(fence: &Fence) -> Result<Serving, String> {
         if fence.online {
             return Ok(Serving(None));
         }
@@ -340,7 +368,7 @@ impl Serving {
             .map_err(|why| spelled(&why))
     }
 
-    fn port(&self) -> Option<u16> {
+    pub(crate) fn port(&self) -> Option<u16> {
         self.0.as_ref().map(|proxy| proxy.port)
     }
 }
@@ -355,8 +383,8 @@ impl Drop for Serving {
 
 /// Runs a program inside a fence and waits for it: its status, or why the fence could not be
 /// put up.
-fn run(fence: &Fence, argv: &[OsString]) -> Result<i32, String> {
-    if let Some(why) = unable(!fence.online, "program") {
+fn run(fence: &Fence, argv: &[OsString], asked: Sandbox) -> Result<i32, String> {
+    if let Some(why) = unable_with(!fence.online, "program", asked) {
         return Err(why);
     }
     let tmp = Scratch::of(fence)?;
@@ -364,6 +392,14 @@ fn run(fence: &Fence, argv: &[OsString]) -> Result<i32, String> {
         tmp: tmp.path.clone(),
         ..fence.clone()
     };
+    #[cfg(target_os = "linux")]
+    let status =
+        if crate::fence::backend(!fence.online, asked) == Some(crate::fence::Backend::Bwrap) {
+            crate::fence::bubblewrap::put_up(fence, &walled, argv)
+        } else {
+            put_up(fence, &walled, argv)
+        };
+    #[cfg(not(target_os = "linux"))]
     let status = put_up(fence, &walled, argv);
     drop(tmp);
     status
@@ -383,9 +419,15 @@ extern "C" fn passed(signal: libc::c_int) {
 /// Waits for the program, passing on the signals meant for it, collecting every orphan as it
 /// goes (`_waited`, `_reaped`); returns the status a shell reports for it. `SIGINT` is ignored
 /// rather than passed: a ctrl-c at a terminal already reaches the whole group.
-fn waited(pid: libc::pid_t) -> i32 {
+pub(crate) fn waited(pid: libc::pid_t) -> i32 {
+    waited_aimed(pid, pid)
+}
+
+/// [`waited`], passing the signals to `aimed` rather than to the child waited for: the program
+/// a `bwrap` child started, which `bwrap` going would take with it.
+pub(crate) fn waited_aimed(pid: libc::pid_t, aimed: libc::pid_t) -> i32 {
     use nix::sys::signal::{SaFlags, SigAction, SigHandler, SigSet, Signal, sigaction};
-    PROGRAM.store(pid, Ordering::SeqCst);
+    PROGRAM.store(aimed, Ordering::SeqCst);
     let mut was = Vec::new();
     for (signal, handler) in [
         (Signal::SIGINT, SigHandler::SigIgn),

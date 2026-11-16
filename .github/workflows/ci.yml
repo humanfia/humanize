@@ -216,6 +216,15 @@ jobs:
       - name: cargo build crates/coganchor
         run: cargo build --locked --manifest-path crates/coganchor/Cargo.toml
 
+      # The fence's second backend on Linux, for the tests that put a program inside it: bwrap,
+      # and the namespaces an ordinary user may make, which Ubuntu's AppArmor holds back.
+      - name: bubblewrap
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
       - name: pytest tests/unit/<package>, a package at a time
         env:
           CHANGES: ${{ needs.changes.outputs.changes || '' }}

@@ -38,7 +38,12 @@ def _fences_hold(monkeypatch: pytest.MonkeyPatch) -> None:
     Asking is running `coganchor internal able`, which a unit test does not do; a test about a
     machine that cannot fence says so itself.
     """
-    monkeypatch.setattr(fence, "able", lambda: (True, True))
+
+    def able(sandbox: str = "auto") -> tuple[bool, bool]:
+        del sandbox
+        return True, True
+
+    monkeypatch.setattr(fence, "able", able)
 
     def held(_: fence.Fence) -> str | None:
         return None

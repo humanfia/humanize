@@ -837,13 +837,17 @@ says yes.
 **Symptom.** A role is refused before its first turn (`HarnessSandboxed`).
 
 **Cause.** The role's [permission](/user/permissions) is narrower than everything, and this
-machine cannot hold it: a Linux kernel older than 5.13 or booted without Landlock, or a Mac
-where Humanize itself runs inside another sandbox (an agent's own, say), which cannot start
-Seatbelt again. Cutting the network needs Linux 6.7 or later. A `cursor-agent` or `mcode` role whose `online`
+machine cannot hold it: a Linux kernel older than 5.13 or booted without Landlock with no
+bubblewrap that starts either, or a Mac where Humanize itself runs inside another sandbox (an
+agent's own, say), which cannot start Seatbelt again. Cutting the network needs Linux 6.7 or
+later, or bubblewrap with a network namespace of its own. Where `sandbox.backend` in
+`settings.yaml` pins `landlock` or `bwrap`, only that one is tried. Under bubblewrap a rule
+that takes back a path that is not there yet cannot be held either. A `cursor-agent` or `mcode` role whose `online`
 is `NONE` is refused on any machine, since its web search runs on its vendor's servers.
 
-**Fix.** Run Humanize on a Linux machine with Landlock, or on a Mac outside any other
-sandbox, or give that role a CLI and a permission this machine can hold. The message says
+**Fix.** Run Humanize on a Linux machine with Landlock, install bubblewrap (the `bubblewrap`
+package) where the kernel is older, set `sandbox.backend` back to `auto`, or run on a Mac
+outside any other sandbox, or give that role a CLI and a permission this machine can hold. The message says
 what is needed.
 
 **Verify.** The role's first turn starts.
@@ -980,12 +984,13 @@ harness setting (env) says: …`, before the flow starts. `… cannot fence the 
 Landlock …` is the same, for an agent whose CLI runs here.
 
 **Cause.** The role's permission is narrower than everything, and the machine the work lands on
-cannot hold it: a kernel older than 5.13 or without Landlock, or a container whose seccomp
-profile refuses Landlock. Cutting the network (`ABI 4 and seccomp` in the message) needs Linux 6.7 or later there, with seccomp user notification. A Mac target
+cannot hold it: a kernel older than 5.13 or without Landlock and with no bubblewrap that
+starts, or a container whose seccomp profile refuses Landlock. Cutting the network (`ABI 4 and seccomp` in the message) needs Linux 6.7 or later there, with seccomp user notification. A Mac target
 fences with Seatbelt, but an agent supervised here (its CLI runs here, its work there) needs
 Landlock on this machine too.
 
-**Fix.** Set the runtime's harness to `local`, move the work to a machine with Landlock, or copy the flow and grant the role everything. Docker's default seccomp profile
+**Fix.** Set the runtime's harness to `local`, move the work to a machine with Landlock or
+bubblewrap, or copy the flow and grant the role everything. Docker's default seccomp profile
 allows Landlock.
 
 **Verify.** The role's first turn starts.
