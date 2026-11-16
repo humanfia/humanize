@@ -133,7 +133,7 @@ jobs:
             js:
               - .github/workflows/ci.yml
               - src/hmz/web/static/**
-              - tests/js/**
+              - tests/unit/web/js/**
             desktop:
               - desktop/**
               - .github/workflows/ci.yml
@@ -248,16 +248,16 @@ jobs:
           done
           exit "$status"
 
-      # The page's modules are plain ES modules with no build step, tested by node's own runner;
-      # skipped until tests/js exists.
+      # The page's modules are plain ES modules with no build step, tested by node's own runner.
+      # Named by a glob: node 24 loads a directory given alone as one module, not its tests.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: ${{ !cancelled() && hashFiles('tests/js/**') != '' && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
         with:
           node-version: 24
 
-      - name: node --test tests/js
-        if: ${{ !cancelled() && hashFiles('tests/js/**') != '' && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
-        run: node --test tests/js
+      - name: node --test tests/unit/web/js
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
+        run: node --test 'tests/unit/web/js/*.test.mjs'
 
   # The macOS app in desktop/: its Rust held to rustfmt and clippy, its tests, and the app built
   # and its disk image as a release builds them, but unoptimised.
