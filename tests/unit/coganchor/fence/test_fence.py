@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 import hmz.coganchor
+from hmz.coganchor import binary
 from hmz.coganchor import fence as fencing
 from hmz.coganchor.darwin import seatbelt
 from hmz.coganchor.fence import (
@@ -371,6 +372,20 @@ def test_wrapper_runs_from_the_archive_humanize_was_loaded_from(
     command = wrapper(Fence())
 
     assert command[:4] == [sys.executable, "/opt/hmz.pyz", "internal", "fence"]
+
+
+def test_wrapper_runs_coganchor_where_it_is_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(binary, "active", lambda: True)
+    monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
+    fence = drawn(READ, NONE, NONE)
+
+    command = wrapper(fence)
+
+    assert command[:3] == ["/opt/coganchor", "internal", "fence"]
+    assert Fence.loads(command[3].removeprefix("--policy=")) == fence
+    assert command[4:] == ["--"]
 
 
 def stand_in(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import shlex
 import time
 from typing import TYPE_CHECKING, Any
@@ -8,13 +9,16 @@ from urllib.parse import parse_qsl
 
 import pytest
 
+from hmz.coganchor import binary
 from hmz.coganchor.machines import Slurm, SlurmConfig
 from hmz.coganchor.machines.docker import CPUS, GPUS, MEMORY
 from hmz.coganchor.machines.slurm import SRUN, TCP, Unplaced, jobs
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE, SUPERVISED
-from hmz.coganchor.transport import Road, Target
+from hmz.coganchor.transport import REMOTE_CACHE, Road, Target
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from tests.unit.coganchor.machines.conftest import Handshake, Runs
 
 
@@ -225,6 +229,36 @@ def test_a_job_reached_over_tcp_runs_the_serving_half_and_is_dialled_with_its_se
     assert anchor.target == "tcp://n7:40123"
     assert anchor.token == machine.token
     assert handshake.asked == [anchor]
+
+
+def test_a_job_reached_over_tcp_runs_coganchor_where_it_is_active(
+    runs: Runs,
+    handshake: Handshake,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    program = tmp_path / "coganchor"
+    program.write_bytes(b"\x7fELF")
+    monkeypatch.setenv(binary.VARIABLE, str(program))
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    a_cluster(runs, "RUNNING", node="n7")
+    runs.on("uname", "-sm", out="Linux x86_64\n")
+    runs.on("/bin/cat", out="hmz internal anchor serve listening 0.0.0.0 40124\n")
+    machine = SlurmConfig(workspace="/w", via=TCP, python="/opt/py").create()
+
+    anchor = machine.start()
+
+    (made,) = runs.called("sbatch")
+    script = after(made, "--wrap")[0]
+    named = f"coganchor-{binary.digest(program)}"
+    assert f'"Linux x86_64"|"Linux amd64") p="{REMOTE_CACHE}/{named}";;' in script
+    assert script.endswith('exec "$p" anchor --listen 0.0.0.0:0 --export /w')
+    assert f"HUMANIZE_TOKEN={machine.token}" in script
+    assert "/opt/py" not in script
+    (shipping,) = [one for one in runs.called("srun") if named in one[-1]]
+    assert shipping[:2] == ["srun", "--jobid=42"]
+    assert anchor.target == "tcp://n7:40124"
 
 
 def test_a_serving_half_that_never_listens_is_an_error_and_its_job_goes(

@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from hmz.coganchor import AnchorConfig
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE
-from hmz.coganchor.transport import Endpoint, Road, Target, python_command
+from hmz.coganchor.transport import Endpoint, Road, Target, idling
 
 from .base import MachineBase, MachineConfig
 from .docker import CPUS, GPUS, MEMORY, Allocation, bound, info, whose
@@ -57,9 +57,6 @@ __all__ = [
     "services",
     "swarm_of",
 ]
-
-#: What the task does while the turns come and go, as a container of :mod:`.docker` does.
-_IDLE = tuple(python_command(["-c", "import time; time.sleep(2**31)"]))
 
 #: Marks a service as one of ours, and whose: the label :mod:`.docker` marks a container with.
 _LABEL = "humanize"
@@ -473,7 +470,9 @@ class Swarm(MachineBase):
                     *config.run_args,
                     *self._resources(),
                     config.image,
-                    *_IDLE,
+                    # What the task does while the turns come and go, as a container of
+                    # :mod:`.docker` does.
+                    *idling(),
                 ),
                 _MAKING,
             )

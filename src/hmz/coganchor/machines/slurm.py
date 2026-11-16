@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import contextlib
 import errno
+import logging
 import math
 import os
 import re
@@ -45,13 +46,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl, quote, urlencode
 
-from hmz.coganchor import AnchorConfig
+from hmz.coganchor import AnchorConfig, binary
 from hmz.coganchor.places import MANAGED, REMOTE
 from hmz.coganchor.transport import (
     REMOTE_CACHE,
     SLURM,
     Road,
     Target,
+    awaiting,
     bundled,
     python_command,
 )
@@ -63,6 +65,8 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 __all__ = ["SRUN", "TCP", "VIA", "Slurm", "SlurmConfig", "Unplaced", "jobs"]
+
+log = logging.getLogger(__name__)
 
 #: The two ways a job's node is reached: a step of the job's own per command, by `srun`; or a
 #: connection to the serving half the job itself runs, over TCP.
@@ -499,10 +503,27 @@ class Slurm(MachineBase):
         The archive is put there by `srun` once the job runs, under a name only the archive
         built from this source has, so the job waits for that name to be there. The secret is
         set in the script rather than on a command line, which anybody on the node could read.
+
+        Where :func:`hmz.coganchor.binary.active` says so the archive is `coganchor`, named by
+        the build for the node's platform -- which nobody has asked it yet, so the script asks
+        and waits for that one -- and run with no Python, whatever `python` says.
         """
         config = self._config
         if config.via != TCP:
             return _IDLE
+        secret = (
+            f"HUMANIZE_TOKEN={shlex.quote(self.token or '')}; export HUMANIZE_TOKEN; "
+        )
+        if binary.active():
+            if config.python:
+                log.debug(
+                    "job %s names a Python, which coganchor has no use for", self.job
+                )
+            serving = ["anchor", "--listen", "0.0.0.0:0", "--export", config.workspace]
+            return (
+                f"{secret}{awaiting(REMOTE_CACHE)}; "
+                f'touch -c "$p"; exec "$p" {shlex.join(serving)}'
+            )
         _, digest = bundled()
         archive = f"{REMOTE_CACHE}/humanize-{digest}.pyz"
         serving = python_command(
@@ -519,7 +540,7 @@ class Slurm(MachineBase):
             python=config.python,
         )
         return (
-            f"HUMANIZE_TOKEN={shlex.quote(self.token or '')}; export HUMANIZE_TOKEN; "
+            f"{secret}"
             f'while [ ! -f "{archive}" ]; do sleep 1; done; exec {shlex.join(serving)}'
         )
 

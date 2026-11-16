@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any, cast
 from hmz.coganchor import AnchorConfig
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE
 from hmz.coganchor.proto import path_spellings
-from hmz.coganchor.transport import APPLE, Road, Target, python_command
+from hmz.coganchor.transport import APPLE, Road, Target, idling
 
 from .base import MachineBase, MachineConfig
 from .docker import CPUS, MEMORY, Allocation
@@ -44,12 +44,6 @@ if TYPE_CHECKING:
 
 #: The command that drives Apple's containers.
 CONTAINER = "container"
-
-#: What the container does while the turns come and go: nothing, in the interpreter
-#: coganchor's target half needs, looked for the way that half looks for it -- as a docker
-#: container idles, and for the same reason: an image holding no Python is a container that
-#: stops as it starts, and so a flow that fails where it is set up rather than a turn later.
-_IDLE = tuple(python_command(["-c", "import time; time.sleep(2**31)"]))
 
 #: Marks a container as one of ours, and whose: the label a docker container carries, read by
 #: whoever lists the containers, to whom the backends are not two things.
@@ -412,7 +406,9 @@ class AppleContainer(MachineBase):
                     *config.run_args,
                     *self._resources(),
                     config.image,
-                    *_IDLE,
+                    # What the container does while the turns come and go, as a docker
+                    # container does.
+                    *idling(),
                 ],
                 capture_output=True,
                 text=True,

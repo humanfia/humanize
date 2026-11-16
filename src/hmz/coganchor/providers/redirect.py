@@ -254,13 +254,21 @@ def command(
     Returns:
       The command to spawn, which exits with the backend's own status -- or `argv` itself
       when there is nothing to point anywhere, so that a provider which is only variables
-      costs no supervisor and no ptrace at all.
+      costs no supervisor and no ptrace at all. `coganchor internal cred` where
+      :func:`hmz.coganchor.binary.active` says so, which reads the same options.
+
+    Raises:
+      FileNotFoundError: Where `coganchor` is what runs and there is no build for this machine.
     """
+    from hmz.coganchor import binary
+
     held = Swaps.of(swaps, kept)
     if not held:
         return list(argv)
     mapped = [f"--map={named}={instead}" for named, instead in held.pairs]
     mapped += [f"--keep={named}={instead}" for named, instead in held.kept]
+    if binary.active():
+        return [str(binary.here()), *binary.translated("cred", [*mapped, "--", *argv])]
     return [sys.executable, "-Pm", "hmz", "internal", "cred", *mapped, "--", *argv]
 
 
