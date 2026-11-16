@@ -202,7 +202,7 @@ document constrains the wording of such a message unless the paragraph quotes th
 | Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `OhMyPiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent`, `LiteLLMAgent` | Section 3.6.4 |
 | Agent mixins | `FakeToolAgentMixin`, `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` | Section 3.6.5 |
 | Fake tools and command lines | `FakeTool`, `FakeCli`, `FakeCommand` | Section 3.6.6 |
-| Permissions | `Permission`, `PermissionKind` | Section 3.7 |
+| Permissions | `Permission`, `PRESETS`, `Access`, `Rule`, `allow`, `read_only`, `deny` | Section 3.7 |
 | Budgets | `Budget`, `Graceful`, `Usage` | Section 3.12 |
 | Environments | `EnvCollection`, `Env`, `LocalEnv`, `EnvBackendKind`, `SequenceNotStr` | Section 3.11 |
 | Environment mixins | `ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin`, `GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin`, `RewindableEnvMixin`, `GitEnvMixin`, `CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin` | Section 3.11.5 to Section 3.11.8 |
@@ -672,7 +672,7 @@ it declares.
 
 **3.6.4.6** On a `grok` agent whose role offers any fake tool, each of the following turns MUST
 raise `HarnessUnrecoverable`: a turn with an `output_schema`, the first turn of a fork, a turn whose
-permission has `online` `NONE`, and a turn whose permission has `local` `READ` or `NONE`.
+permission has `network` `False`, and a turn whose permission does not let it write the workdir.
 
 #### 3.6.5. Agent mixins
 
@@ -815,52 +815,113 @@ configuration. A harness that reads no project skills MUST be given none.
 
 ### 3.7. Permissions and approval
 
-#### 3.7.1. `PermissionKind`
+#### 3.7.1. `Access` and `Rule`
 
 ```python
-class PermissionKind(StrEnum):
+class Access(StrEnum):
     NONE = "none"
     READ = "read"
-    ALL = "all"
+    WRITE = "write"
+
+@dataclass(frozen=True, slots=True)
+class Rule:
+    path: str
+    access: Access
+
+def allow(path: str) -> Rule: ...
+def read_only(path: str) -> Rule: ...
+def deny(path: str) -> Rule: ...
 ```
 
-**3.7.1.1** `PermissionKind` MUST be totally ordered `NONE < READ < ALL` under `<`, `<=`, `>` and
-`>=`. `NONE` MUST permit nothing, `READ` reading and not writing, and `ALL` reading and writing.
+**3.7.1.1** `Access` MUST be totally ordered `NONE < READ < WRITE` under `<`, `<=`, `>` and `>=`.
+`NONE` MUST permit nothing, `READ` reading and not writing, and `WRITE` reading and writing.
 
-**3.7.1.2** Comparing a `PermissionKind` with a value that is not one of the three values MUST raise
+**3.7.1.2** Comparing an `Access` with a value that is not one of the three values MUST raise
 `TypeError`.
+
+**3.7.1.3** A rule's `path` MUST be one of:
+
+1. An absolute path.
+2. `~`, or `~/` followed by a relative path: the home directory of the operating-system user the
+   harness runs as, or a path beneath it.
+3. `.`, or `./` followed by a relative path: the workdir, or a path beneath it.
+
+**3.7.1.4** Construction of a `Rule` MUST store `path` normalised, with empty and `.` components
+after the anchor and any trailing `/` but that of `/` itself dropped, so that `~/a//b/` becomes
+`~/a/b` and `./` becomes `.`. Construction MUST coerce `access` with `Access(value)`. Construction
+MUST raise `ValueError` where `path` is of none of the forms of Section 3.7.1.3, has a `..`
+component, or holds `*`, `?`, `[` or a NUL, and where `access` is not one of the three values.
+
+**3.7.1.5** `allow(path)`, `read_only(path)` and `deny(path)` MUST return `Rule(path, WRITE)`,
+`Rule(path, READ)` and `Rule(path, NONE)` respectively.
+
+**3.7.1.6** A rule MUST match the path it names and every path beneath it, component by component:
+`/a` matches `/a` and `/a/b` and not `/ab`.
 
 #### 3.7.2. `Permission`
 
 ```python
+PRESETS = ("read-only", "workspace-write", "danger-full-access")
+
 @dataclass(frozen=True, slots=True)
 class Permission:
-    local: PermissionKind = PermissionKind.ALL
-    user: PermissionKind = PermissionKind.READ
-    system: PermissionKind = PermissionKind.READ
-    online: PermissionKind = PermissionKind.ALL
+    preset: str = "workspace-write"
+    network: bool = True
+    granular: tuple[Rule, ...] = ()
 
+    @property
+    def rules(self) -> tuple[Rule, ...]: ...
+    def access(self, path: str) -> Access: ...
     def covers(self, other: Permission) -> bool: ...
 ```
 
-**3.7.2.1** `Permission` MUST have exactly the four fields `local`, `user`, `system` and `online`,
-with exactly the defaults above.
+**3.7.2.1** `Permission` MUST have exactly the three fields `preset`, `network` and `granular`, with
+exactly the defaults above.
 
-**3.7.2.2** `local` MUST govern the workdir of the environment a turn works in. `user` MUST govern
-the rest of the home directory of the operating-system user the harness runs as. `system` MUST
-govern everything else on the machine. `online` MUST govern the network, including the harness's own
-web search and fetch tools.
+**3.7.2.2** Construction MUST store `granular` as a tuple. Construction MUST raise `ValueError`
+where `preset` is not in `PRESETS`, and `TypeError` where `network` is not a `bool` or an item of
+`granular` is not a `Rule`.
 
-**3.7.2.3** Construction MUST coerce each field with `PermissionKind(value)`. Construction MUST
-raise `ValueError` where a field is not one of the three values, where `local >= user >= system`
-does not hold, or where `online` is `READ`.
+**3.7.2.3** `rules` MUST be the expansion of `preset` followed by `granular` in order:
 
-**3.7.2.4** `covers(other)` MUST return `True` exactly where each of the four fields is `>=` the
-same field of `other`.
+| `preset` | Expansion |
+| --- | --- |
+| `read-only` | `read_only("/")` |
+| `workspace-write` | `read_only("/")`, `allow(".")` |
+| `danger-full-access` | `allow("/")` |
 
-**3.7.2.5** hmz MUST NOT run a session with wider access than its permission. Where neither the
-harness nor the machine can hold a session to its permission, opening the session MUST raise
-`HarnessSandboxed`. How a permission is held is specified in Section 4 of [CORE].
+**3.7.2.4** Of the rules that match a path, the last in `rules` MUST decide its access; a path no
+rule matches MUST have access `NONE`. `access(path)` MUST return that access for `path` read as a
+rule's path is (Section 3.7.1.4), MUST raise `ValueError` where it would raise for a rule, and MUST
+match without resolving `~` and `.`, except that `/` MUST match every path.
+
+**3.7.2.5** When a session opens, `~` MUST resolve to the home directory of the operating-system
+user the harness runs as, and `.` to the workdir of the environment the turn works in and, where
+the session's working directory is elsewhere, to that directory too. The session MUST be held to
+the access its rules so resolved give each path.
+
+**3.7.2.6** Where the preset's expansion lets a session write the workdir, as that of
+`workspace-write` and `danger-full-access` does, hmz MUST hold the session as though `allow` rules
+for the temporary directories `/tmp`, `/var/tmp` and `$TMPDIR` followed the expansion, so that a
+rule of `granular` still narrows them. The harness's own state, sign-in and temporary files MUST lie
+outside the rules: hmz MUST let the harness reach them whatever the rules say.
+
+**3.7.2.7** `network` MUST govern the network, including the harness's own web search and fetch
+tools, and MUST be independent of the rules: `danger-full-access` with `network=False` MUST hold a
+session off the network.
+
+**3.7.2.8** `covers(other)` MUST return `True` exactly where `network >= other.network` and,
+wherever the home directory and the workdir lie, this permission gives each path at least the
+access `other` gives it once both are resolved (Section 3.7.2.5 and Section 3.7.2.6). `covers` MUST
+decide this by comparing the two at every path of a rule of either permission, at `/tmp` and
+`/var/tmp`, and at a fresh child of each, under every consistent layout that places each of `~` and
+`.` at a fresh directory beneath none, or beneath any one, of the paths of the rules of either
+permission not anchored at itself.
+
+**3.7.2.9** hmz MUST NOT run a session with wider access than its permission, at any path or on the
+network. Where neither the harness nor the machine can hold a session to its permission, a rule
+narrower than one it lies beneath included, opening the session MUST raise `HarnessSandboxed`. How
+a permission is held is specified in Section 4 of [CORE].
 
 #### 3.7.3. `Agent.derive`
 
@@ -871,7 +932,7 @@ agent MUST be unchanged.
 
 **3.7.3.2** `derive` MUST raise `TypeError` where `permission` is neither `None` nor a `Permission`.
 `derive` MUST raise `CapabilityNotGranted` where this agent's permission does not cover
-`permission`, and where `skills` names a skill this agent was not granted.
+`permission` (Section 3.7.2.8), and where `skills` names a skill this agent was not granted.
 
 **3.7.3.3** A derived agent MUST share the original's hooks and sessions: a session of either MUST
 be usable by the other, and a hook hung on either MUST cover both.
@@ -1695,7 +1756,7 @@ nothing of the callee ran and nothing was spent. hmz MUST raise:
 1. `MissingRole` where a required agent or environment role that is not runtime-filled is not given.
 2. `CapabilityMissing` where an agent or environment given lacks a mixin its role declares.
 3. `PermissionTooNarrow` where an agent given holds a permission that does not cover its role's
-   `_permission`.
+   `_permission` (Section 3.7.2.8).
 4. `HarnessMismatch` where a role typed as a harness protocol is given an agent of another harness.
 5. `CapabilityMissing` where a role typed `Outworlder` is given an agent that is not an outworlder.
 6. `ResourceUnmet` where an environment given does not meet its role's declared resources.
@@ -1907,7 +1968,7 @@ given lacks a declared mixin, including a mixin whose program the env machine la
 outworlder is given for a role it cannot fill, or an agent for an `Outworlder` role.
 
 **3.15.2.9** `PermissionTooNarrow(RequirementError)` MUST be raised where an agent given holds a
-permission that does not cover its role's.
+permission that does not cover its role's (Section 3.7.2.8).
 
 **3.15.2.10** `ResourceUnmet(RequirementError)` MUST be raised where an environment given cannot
 provide the resources its role declares.
@@ -1966,7 +2027,7 @@ account, has been retired, or does not exist.
 reason other than not being installed.
 
 **3.15.3.8** `HarnessSandboxed(HarnessError)` MUST be raised where a session cannot be held to its
-permission by the harness or the machine (Section 3.7.2.5), including where the harness cannot set
+permission by the harness or the machine (Section 3.7.2.9), including where the harness cannot set
 up its own sandbox on the machine.
 
 **3.15.3.9** `HarnessKilled(HarnessError)` MUST be raised where the harness died during a turn, by a
@@ -3309,11 +3370,13 @@ document on which the security of a user's machine, credentials and work depends
 - A handed agent or environment allows a flow exactly its grant, an operation outside the grant
   raises `CapabilityNotGranted` whatever the harness or machine supports, and a callee is re-granted
   exactly what its own roles declare (Section 3.3.1.4 and Section 3.13.4.8).
-- A session never runs with wider access than its role's `Permission`, and opening a session that
-  neither the harness nor the machine can hold to its permission raises `HarnessSandboxed` (Section
-  3.6.2.2 and Section 3.7.2.5).
-- `Agent.derive` narrows and never widens: a permission the agent's own does not cover, or a skill
-  the agent was not granted, raises `CapabilityNotGranted` (Section 3.7.3.2).
+- A session never runs with wider access than its role's `Permission`, at any path or on the
+  network, and opening a session that neither the harness nor the machine can hold to its
+  permission, a deny or read-only rule beneath a wider one included, raises `HarnessSandboxed`
+  (Section 3.6.2.2 and Section 3.7.2.9).
+- `Agent.derive` narrows and never widens: a permission the agent's own does not cover at some
+  path or on the network, or a skill the agent was not granted, raises `CapabilityNotGranted`
+  (Section 3.7.3.2).
 - A nested call given an agent whose permission does not cover the callee role's `_permission` is
   refused with `PermissionTooNarrow` before anything of the callee runs (Section 3.13.4.7).
 - Every harness runs with approvals bypassed and with no model reviewing its actions, so an agent
