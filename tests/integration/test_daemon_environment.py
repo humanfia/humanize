@@ -141,3 +141,21 @@ def test_a_start_remembering_writes_the_set_up_down_first(workspace: Path) -> No
         )
         assert until((workspace / "environ.json").exists)
     assert Hmz(workspace).settings.budget("@local/environ")["cost"] == 2
+
+
+def test_a_start_refused_leaves_the_set_up_there_was(workspace: Path) -> None:
+    def start(cost: int) -> dict[str, object]:
+        return {
+            "do": "start",
+            "flow": "@local/environ",
+            "task": "",
+            "budget": {"cost": cost},
+            "remember": True,
+        }
+
+    with daemon.attach("sdk", workspace=workspace, slot="exec:5e7") as link:
+        link.asked(start(2))
+        assert until((workspace / "environ.json").exists)
+        with pytest.raises(Refused, match="an exec host runs one epic"):
+            link.asked(start(3))
+    assert Hmz(workspace).settings.budget("@local/environ")["cost"] == 2

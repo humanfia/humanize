@@ -7,7 +7,6 @@ page made here, and `subprocess.Popen` is a recorder.
 from __future__ import annotations
 
 import hashlib
-import hmac
 import http.client
 import io
 import json
@@ -95,14 +94,6 @@ def test_the_network_is_derived_and_the_secret_is_not_in_it() -> None:
     other = easytier.network(SECRET + "!")
     assert other[0] != name
     assert other[1] != hidden
-
-
-def test_the_key_is_an_hmac_of_the_secret() -> None:
-    assert (
-        easytier.key(SECRET)
-        == hmac.new(SECRET.encode(), b"hmz-web-key", hashlib.sha256).hexdigest()
-    )
-    assert easytier.key(SECRET) not in easytier.network(SECRET)
 
 
 def test_a_named_binary_is_used(

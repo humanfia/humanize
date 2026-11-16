@@ -2003,21 +2003,6 @@ class Humanize(App[None]):
         """Every session one agent has opened, by its name, oldest first."""
         return [key for key, seen in list(self._seen.items()) if seen.id == agent]
 
-    def _working_agents(self) -> list[str]:
-        """Which of the flow's agents have a turn open, in the order they opened sessions.
-
-        Returns:
-          Their names. These are the ones tab steps between: with ten agents going, what
-          somebody is stepping between is the ones thinking.
-        """
-        return list(
-            dict.fromkeys(
-                seen.id
-                for key, seen in list(self._seen.items())
-                if key in self._working
-            )
-        )
-
     def _reading(self) -> str | None:
         """The conversation being read, where an agent or one of its conversations is.
 
@@ -2030,28 +2015,6 @@ class Humanize(App[None]):
             return self._attached if self._attached in self._seen else None
         held = self._of(self._agent_of(self._attached)) if self._attached else []
         return held[-1] if held else None
-
-    def _says_to(self) -> str | None:
-        """Which conversation a typed line goes into, which is the one on the screen.
-
-        The agent being read is what is being said to; of its conversations, the one with a
-        turn open, since a line written to one between turns is answered on its own outside
-        the flow. Where no agent is being read there is no one agent to have meant, so it is
-        whichever has a turn open.
-
-        Returns:
-          The conversation's key, or None where there is none open to say it to yet -- and on
-          an outworlder's transcript, which is no agent's to say anything to.
-        """
-        if "/" in self._attached:
-            return self._reading()
-        if self._attached.startswith(_OUTWORLDER):
-            return None
-        working = [key for key in self._conversations() if key in self._working]
-        key = self._reading()
-        if key is not None:
-            return key if key in working else None
-        return working[0] if working else None
 
     def _now_reading(self, whose: str) -> None:
         """Reads one of the transcripts there are, drawing it from the top.

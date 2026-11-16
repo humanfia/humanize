@@ -4,6 +4,7 @@
 
 import { daemon, hash, imported, refresh } from './api.js'
 import { h, iconButton, problem } from './dom.js'
+import { fromBase64 } from './rpc/pipe.js'
 
 /** What an epic's archive is named with. */
 const SUFFIX = '.hmzepic'
@@ -29,6 +30,25 @@ function failed(...why) {
 export function refusal(error) {
   const name = error.said && error.said.name
   return [problem(error), name ? h('a', { href: hash(`/epics/${encodeURIComponent(name)}`), 'data-hmz': 'imported-already', onclick: () => say() }, 'Open') : null]
+}
+
+/** The most the desktop application reads of an opened archive at once (Section 3.12.7 of protocol/desktop.md). */
+const READ = 1024 ** 2
+
+/**
+ * An archive opened with the desktop application, read whole from it by its path with `file_read`
+ * (Section 3.8.2 of protocol/desktop.md), to be sent as one picked is.
+ */
+export async function opened(path) {
+  const parts = []
+  for (let offset = 0, eof = false; !eof; ) {
+    const read = await globalThis.__TAURI_INTERNALS__.invoke('file_read', { path, offset, length: READ })
+    const bytes = fromBase64(read.data)
+    parts.push(bytes)
+    offset += bytes.length
+    eof = read.eof || !bytes.length
+  }
+  return new File(parts, path.split(/[\\/]/).pop() || 'epic.hmzepic')
 }
 
 /** Sends one archive in chunks, saying so as it goes, and opens the epic it was once it is in. */

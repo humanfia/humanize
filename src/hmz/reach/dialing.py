@@ -36,21 +36,44 @@ __all__ = ["OPENING", "EasyTier", "command", "dial", "websocket"]
 #: How long a carrier may take to open before it is given up on (Section 3.4.9).
 OPENING = 30.0
 
-#: What a child reaching the daemon runs there: `hmz daemon connect --stdio` through the login
-#: shell of the user there, `/bin/sh` where `$SHELL` is not set, with where `uv tool` puts `hmz`
-#: in front of the `PATH` it gives, which that shell may not have (Section 3.2.5 of wire.md).
-#: The login shell is asked only to run `/bin/sh`, which any shell can, and `/bin/sh` the rest.
-_CONNECT = (
-    "/bin/sh",
-    "-c",
-    'exec "${SHELL:-/bin/sh}" -lc '
-    + shlex.quote(
-        "exec /bin/sh -c "
-        + shlex.quote(
-            'export PATH="$HOME/.local/bin:$PATH"; exec hmz daemon connect --stdio'
-        )
-    ),
+
+def _connect(path: str) -> tuple[str, ...]:
+    """What a child reaching the daemon runs there: `hmz daemon connect --stdio`.
+
+    Run through the login shell of the user there, `/bin/sh` where `$SHELL` is not set, with
+    the `PATH` it gives as `path` changes it (Section 3.2.5 of wire.md). The login shell is
+    asked only to run `/bin/sh`, which any shell can, and `/bin/sh` the rest. What its profile
+    prints goes to standard error, and what it reads is nothing, so that no byte of it is
+    taken for a frame or eats one: the carrier is handed on to `hmz` as descriptors 3 and 4.
+
+    Args:
+      path: What `/bin/sh` runs first, to put where `uv tool` puts `hmz` on the `PATH`.
+
+    Returns:
+      The argv.
+    """
+    there = f"{path}exec hmz daemon connect --stdio <&3 >&4 3<&- 4>&-"
+    return (
+        "/bin/sh",
+        "-c",
+        'exec "${SHELL:-/bin/sh}" -lc '
+        + shlex.quote("exec /bin/sh -c " + shlex.quote(there))
+        # On the command itself, which a shell of the ksh family passes on as it would not
+        # descriptors a bare `exec` opened.
+        + " 3<&0 4>&1 </dev/null >&2",
+    )
+
+
+#: `stdio:local`'s: where `uv tool` puts `hmz` added behind the `PATH` the login shell gives,
+#: where that lacks it (Section 3.4.2 of wire.md).
+_LOCALLY = _connect(
+    'case ":$PATH:" in *":$HOME/.local/bin:"*) ;; '
+    '*) PATH="$PATH:$HOME/.local/bin"; export PATH ;; esac; '
 )
+
+#: `stdio:ssh`'s and `stdio:wsl`'s: where `uv tool` puts `hmz` in front of the `PATH` the login
+#: shell gives, which that shell may not have (Section 3.4.3 and Section 3.4.4 of wire.md).
+_THERE = _connect('PATH="$HOME/.local/bin:$PATH"; export PATH; ')
 
 #: What every `ssh` a route opens is told before anything the route says, since ssh keeps the
 #: first value it is given: batch mode, so that it asks for no password and accepts no host key
@@ -96,10 +119,10 @@ def command(route: Route) -> list[str]:
       ValueError: For a route of another kind.
     """
     if route.kind == "local":
-        return list(_CONNECT)
+        return list(_LOCALLY)
     if route.kind == "wsl":
         distro = ["-d", route.name] if route.name else []
-        return ["wsl.exe", *distro, "--exec", *_CONNECT]
+        return ["wsl.exe", *distro, "--exec", *_THERE]
     if route.kind == "ssh":
         from hmz.coganchor.transport import Road, Target
 
@@ -110,7 +133,7 @@ def command(route: Route) -> list[str]:
         target = Target(
             "ssh", host=login, port=route.port or 0, options=(*_BATCH, *route.options)
         )
-        return Road.to(target).line(_CONNECT)
+        return Road.to(target).line(_THERE)
     raise ValueError(f"{route} is not run as a command.")
 
 

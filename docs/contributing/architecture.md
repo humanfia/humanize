@@ -237,7 +237,7 @@ not the protocol's.
 | `protocol/tui.md` | Every behaviour the terminal interface must have |
 | `protocol/daemon.md` | One daemon per machine, remote daemons, and the daemon's protocol as a frontend sees it |
 | `protocol/web.md` | Every behaviour the web page must have, and every path `hmz web` serves: its files, `/here`, `/rpc` and `/dial` |
-| `protocol/desktop.md` | Humanize Desktop, the app in `desktop/`: a window on `hmz web`, and its files |
+| `protocol/desktop.md` | Humanize Desktop, the app in `desktop/`: a window on the page it carries, the pipes that page reaches daemons through, and its files |
 | `protocol/python.md` | The flow API, and `hmz.sdk`: how a program that is not Humanize drives it |
 | `protocol/files.md` | Every key of `settings.yaml`, every environment variable read, and every file Humanize may leave on disk, here or on another machine |
 :::

@@ -41,8 +41,8 @@ import { withBase } from 'vitepress'
 
 ## Install
 
-**Humanize Desktop**, for macOS and Windows, sets everything up itself: download it from the
-[latest release](https://github.com/humanfia/humanize/releases/latest), or see
+**Humanize Desktop**, for macOS and Windows -- on Windows it sets `hmz` up itself in WSL: download
+it from the [latest release](https://github.com/humanfia/humanize/releases/latest), or see
 [Installation](/user/installation#desktop). **Humanize CLI** is one command:
 
 ::: code-group

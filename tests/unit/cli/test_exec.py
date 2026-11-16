@@ -23,6 +23,7 @@ from hmz.runtime import Refused
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
 
 class _Running:
@@ -35,6 +36,9 @@ class _Running:
         self.noticing: list[Callable[[str], None]] = []
         self.printing: list[Callable[[str], None]] = []
         self.stopped = threading.Event()
+        self.closed = threading.Event()
+        #: The epic, once named; none, as before its `run` snapshot, unless a test names one.
+        self.epic: Path | None = None
 
     def watch(self, heard: object) -> None:
         self.watched.append(heard)
@@ -56,6 +60,13 @@ class _Running:
 
     def stop(self) -> None:
         self.stopped.set()
+
+    def wait(self, timeout: float | None = None) -> bool:
+        del timeout
+        return True
+
+    def close(self) -> None:
+        self.closed.set()
 
 
 _LINE = SimpleNamespace(
@@ -283,3 +294,68 @@ def test_json_keeps_stdout_for_objects(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == "a stray line\n"
+
+
+@pytest.fixture
+def backing(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
+    """`runs.get` saying, at each ask, whether the epic's backups are done: the last for good."""
+    import hmz.reach
+    import hmz.sdk.client
+    import hmz.sdk.running
+
+    said: list[bool] = []
+
+    def backed(client: object, name: str) -> bool:
+        del client, name
+        return said.pop(0) if len(said) > 1 else said[0]
+
+    monkeypatch.setattr(hmz.reach, "dial", mock.Mock())
+    monkeypatch.setattr(hmz.sdk.client, "Client", mock.MagicMock())
+    monkeypatch.setattr(hmz.sdk.running, "backed", backed)
+    monkeypatch.setattr(hmz.sdk.running, "BACKING", 1.0)
+    return said
+
+
+def test_an_epic_whose_backups_are_done_is_left_at_once(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str], backing: list[bool]
+) -> None:
+    from pathlib import Path
+
+    backing.append(True)
+    running = runtime.run.return_value = _Running()
+    running.epic = Path("/e/20261117T000000.000Z-abcdef")
+
+    assert main(["exec", "x"]) == 0
+    assert capsys.readouterr().err == ""
+    assert running.closed.is_set()
+
+
+def test_exec_waits_for_the_backups_of_its_epic(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str], backing: list[bool]
+) -> None:
+    from pathlib import Path
+
+    backing.extend([False, True])
+    running = runtime.run.return_value = _Running()
+    running.epic = Path("/e/20261117T000000.000Z-abcdef")
+
+    assert main(["exec", "x"]) == 0
+    assert capsys.readouterr().err == "hmz exec: backing the epic up\n"
+    assert running.closed.is_set()
+
+
+def test_a_backup_not_done_in_time_is_left_saying_so(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str], backing: list[bool]
+) -> None:
+    from pathlib import Path
+
+    backing.append(False)
+    running = runtime.run.return_value = _Running()
+    running.epic = Path("/e/20261117T000000.000Z-abcdef")
+
+    assert main(["exec", "x"]) == 0
+    assert capsys.readouterr().err == (
+        "hmz exec: backing the epic up\n"
+        "hmz exec: a backup took longer than 1s and was left; "
+        "`hmz backup EPIC` sends it again\n"
+    )

@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from argparse import ArgumentParser
-    from collections.abc import Generator, MutableMapping
+    from collections.abc import Callable, Generator, MutableMapping
 
     from hmz.sdk import Run
     from hmz.tui import Humanize
@@ -47,6 +47,9 @@ __all__ = ["COMMANDS", "INTERNAL", "main", "many", "opens"]
 
 #: How long a second interrupt waits for the daemon to say it forced the epic.
 _FORCING = 5.0
+
+#: How often `hmz exec` asks whether the backups of its epic are done.
+_LOOKING = 0.5
 
 #: How long the interface waits, once it is closed, for the backups it queued itself.
 _CLOSING = 15.0
@@ -211,9 +214,57 @@ def _executes(argv: list[str]) -> int:
             # which the host has reported where reporting was answered yes -- said as it was.
             out.aside(str(why) or type(why).__name__)
             return 1
+        finally:
+            # Not after a signal, on which it exits as soon as the epic has ended (Section
+            # 7.15.1 of cli.md).
+            if not ended:
+                _backs_up(running, out.aside)
     if ended:
         raise SystemExit(128 + ended[0])
     return 0
+
+
+def _backs_up(running: Run, say: Callable[[str], object]) -> None:
+    """Waits for the backups of an epic that has ended, for so long, and lets go of it.
+
+    Attached all the while, as the run stays until its backups are done, so that its host
+    waits for them too (Section 7.11.4 and Section 7.11.5 of cli.md). Asked of the daemon that
+    held it, over a session of its own, and never of one started to answer.
+
+    Args:
+      running: The run.
+      say: What a line on standard error is said through.
+    """
+    import time
+
+    from hmz.reach import dial
+    from hmz.runtime import Refused
+    from hmz.sdk.client import Client
+    from hmz.sdk.running import BACKING, backed
+
+    epic = running.epic
+    if epic is None or not running.wait(0):
+        # Never started, or let go of before it ended: there is nothing to wait for here.
+        return
+    try:
+        with Client.over(dial("unix:"), kind="cli") as client:
+            if backed(client, epic.name):
+                return
+            say("hmz exec: backing the epic up")
+            ending = time.monotonic() + BACKING
+            while time.monotonic() < ending:
+                time.sleep(_LOOKING)
+                if backed(client, epic.name):
+                    return
+        say(
+            f"hmz exec: a backup took longer than {BACKING:.0f}s and was left; "
+            "`hmz backup EPIC` sends it again"
+        )
+    except (OSError, ValueError, Refused):
+        # The daemon gone: nothing is left to wait on.
+        return
+    finally:
+        running.close()
 
 
 def _unreached(error: OSError) -> str:
@@ -415,20 +466,6 @@ def _web(argv: list[str]) -> int:
     from .web import web
 
     return web(argv)
-
-
-def _server(argv: list[str]) -> int:
-    """Starts this machine's server apart from the terminal, or stops the one running.
-
-    Args:
-      argv: What followed the command name.
-
-    Returns:
-      Zero once it has started or stopped; one where it could not be.
-    """
-    from .server import server
-
-    return server(argv)
 
 
 def _daemon(argv: list[str]) -> int:
@@ -665,22 +702,17 @@ INTERNAL = {
 }
 
 #: Each command, as what carries it out and the line a listing shows it as. Six are for
-#: anybody: running a flow in a directory, serving the web interface, keeping this machine's
-#: daemon reachable from others, serving a relay daemons and devices meet through, moving
+#: anybody: running a flow in a directory, serving the web interface, running, reaching and
+#: pairing this machine's daemon, serving a relay daemons and devices meet through, moving
 #: Humanize itself to its newest release, and backing an epic up from a script -- everything
-#: else Humanize
-#: keeps is walked at the prompt
-#: rather than typed, a run already held here included, which `hmz` with no command opens.
+#: else Humanize keeps is walked at the prompt rather than typed, a run already held here
+#: included, which `hmz` with no command opens.
 #: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
 #: person may type stays short while what Humanize runs stays something they can read. There
 #: is no command for the terminal interface either: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
-    "server": (
-        _server,
-        "keep this machine's daemon reachable from others until stopped",
-    ),
     "daemon": (_daemon, "run, reach, pair and install this machine's daemon"),
     "relay": (_relay, "relay daemons and the devices that reach them"),
     "update": (_update, "update hmz to its newest release"),

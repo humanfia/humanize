@@ -102,25 +102,42 @@ def test_a_unix_route_names_a_socket_by_its_path(unix_echo: Path) -> None:
     pipe.close()
 
 
-def test_stdio_local_runs_connect_in_the_login_shell_with_local_bin_first(
+def test_stdio_local_runs_connect_in_the_login_shell_with_local_bin_where_it_lacks_it(
     tmp_path: Path,
 ) -> None:
-    """`"$SHELL" -lc`, `/bin/sh` standing for it where unset (Section 3.2.5 of wire.md)."""
+    """`"$SHELL" -lc`, `/bin/sh` standing for it where unset (Section 3.2.5 of wire.md).
+
+    What the login shell's profile prints goes to standard error, and what it reads is
+    nothing, so that the carrier holds what `hmz` says and hears alone.
+    """
     shell = tmp_path / "shell"
-    shell.write_text('#!/bin/sh\nprintf "login %s\\n" "$1"\nexec /bin/sh "$@"\n')
+    shell.write_text(
+        '#!/bin/sh\nprintf "login %s\\n" "$1"\nread -r eaten\nexec /bin/sh "$@"\n'
+    )
     hmz = tmp_path / ".local" / "bin" / "hmz"
-    hmz.parent.mkdir(parents=True)
-    hmz.write_text('#!/bin/sh\nprintf "hmz %s" "$*"\n')
-    for one in (shell, hmz):
+    first = tmp_path / "bin" / "hmz"
+    for one in (hmz, first):
+        one.parent.mkdir(parents=True)
+        one.write_text(f'#!/bin/sh\nprintf "{one.parent.parent.name} %s|" "$*"\ncat\n')
+    for one in (shell, hmz, first):
         one.chmod(0o755)
     argv = command(Route.parse("stdio:local"))
     home = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}
-    for env, said in (
-        ({**home, "SHELL": str(shell)}, b"login -lc\nhmz daemon connect --stdio"),
-        (home, b"hmz daemon connect --stdio"),
+    connects = "daemon connect --stdio|frames"
+    for env, said, aside in (
+        ({**home, "SHELL": str(shell)}, f".local {connects}", "login -lc\n"),
+        (home, f".local {connects}", ""),
+        (
+            {**home, "PATH": f"{first.parent}:/usr/bin:/bin"},
+            f"{tmp_path.name} {connects}",
+            "",
+        ),
     ):
-        ran = subprocess.run(argv, env=env, capture_output=True, check=True)
-        assert ran.stdout == said
+        ran = subprocess.run(
+            argv, env=env, input=b"frames", capture_output=True, check=True
+        )
+        assert ran.stdout == said.encode()
+        assert ran.stderr == aside.encode()
 
 
 def test_stdio_over_ssh_reaches_connect_stdio_spliced_to_the_daemon_there(

@@ -189,7 +189,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | --- | --- |
 | `#/new[?workspace=&flow=&resume=<name>]` | A new epic: in the workspace picked (where `hmz web` started by default), the flow picked, or the epic named picked up. The page opens here. |
 | `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own, or a chat's; its address becomes `#/epics/<name>` once it is written down -- a `chat`'s, its conversation's, `#/epics/<name>/sessions/<agent>%2F1`, once that opens. |
-| `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path on the daemon's machine, as `runs.import` `{path}` does -- in Humanize Desktop as it is opened; in a browser, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>/exomyth`, its [Exomyth](/user/web#exomyth) -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
+| `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path -- in Humanize Desktop as it is opened, read from the app and sent in chunks to the daemon shown, as one picked is; in a browser, from the daemon's machine as `runs.import` `{path}` does, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>/exomyth`, its [Exomyth](/user/web#exomyth) -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
 | `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. A `chat`, and any other address of one but its Exomyth's, stands in for its conversation's, `#/epics/<name>/sessions/<agent>%2F1`. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<agent>/<n>` | The thread of the `n`-th session that agent opened, as the epic going names it (`/` written `%2F`). |
@@ -226,15 +226,14 @@ Another browser, or another port, starts with none of it: add the daemons there 
 
 ```python
 @contextlib.contextmanager
-def listening(*, port: int = 0, key: str | None = None) -> Generator[Site]: ...
+def listening(*, port: int = 0) -> Generator[Site]: ...
 def serve(*, port: int | None = None, shown: Callable[[str], object] = print,
           opened: Callable[[str], object] | None = None) -> None: ...
 def kept_port() -> int: ...
 ```
 
 `listening` reaches this machine's daemon, starting it where none runs, and listens, answering
-nothing until `Site.serve_forever` is called; `key` is the key a browser is let in with, made up
-as it starts where it is `None`. `serve` is both, until `KeyboardInterrupt`, on the port given
+nothing until `Site.serve_forever` is called, with a key made up as it starts. `serve` is both, until `KeyboardInterrupt`, on the port given
 -- `None` for the one `kept_port` says, any free one where that is taken -- writing the port
 it took to `web-port`, telling `shown` the address once it listens and handing it to `opened`.
 `kept_port` is the port `web-port` holds, or `0`. `Site.address` is the address with its key;

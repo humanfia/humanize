@@ -1291,6 +1291,8 @@ class Host:
                 return _no("a flow is already starting")
             if self._folded:
                 return _no("this chat has folded away; carry it on from its epic")
+            if self._slot.startswith("exec:") and self._runs:
+                return _no("an exec host runs one epic")
             self._starting = True
             number = self._runs + 1
         try:
