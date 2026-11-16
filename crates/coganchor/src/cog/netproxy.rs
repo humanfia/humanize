@@ -32,6 +32,8 @@ use crate::client::{Event, Exchange, RemoteClient};
 use crate::proto::{CHUNK_SIZE, Meta, RemoteError, Stream};
 
 /// The sending half of an exchange: what a proxy says to a command or tunnel on the target.
+// Commands are only carried by the Linux supervisor, which is where the exec half is read.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) trait Outlet: Send + Sync {
     fn send(&self, stream: Stream, body: &[u8]) -> Result<(), RemoteError>;
     fn end(&self, stream: Stream) -> Result<(), RemoteError>;
@@ -45,6 +47,7 @@ pub(crate) struct Conduit {
 }
 
 /// What the cog's proxies ask of the anchor: [`RemoteClient`], or a fake of it in tests.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) trait Remote: Send + Sync + 'static {
     /// Starts a command; `request` is the `EXEC` metadata without `op`.
     fn start_exec(&self, request: Meta) -> Result<Conduit, RemoteError>;
@@ -400,6 +403,7 @@ pub(crate) mod fake {
 
     /// Something a proxy sent on an exchange.
     #[derive(Debug, PartialEq, Eq)]
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     pub enum Sent {
         Chunk(Stream, Vec<u8>),
         End(Stream),

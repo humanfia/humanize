@@ -56,7 +56,7 @@ pub struct Walls {
     /// supervisor replays on the target is held to it (`Supervisor.writes`).
     pub writes: bool,
     /// The scratch this made, removed when the walls are dropped.
-    scratch: Option<Scratch>,
+    _scratch: Option<Scratch>,
 }
 
 /// A scratch directory made for one session, removed with it.
@@ -132,7 +132,7 @@ impl Walls {
             fence: held,
             tmp,
             told,
-            scratch,
+            _scratch: scratch,
         })
     }
 
@@ -377,7 +377,7 @@ mod tests {
             tmp: PathBuf::from("/s"),
             told: Value::Null,
             writes: true,
-            scratch: None,
+            _scratch: None,
         };
         let env = walls.environ_over(vec![
             ("PATH".into(), "/bin".into()),

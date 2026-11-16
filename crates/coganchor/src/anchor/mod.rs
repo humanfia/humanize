@@ -36,7 +36,7 @@ pub trait Sink: Send {
     /// An `END` the client sent on this exchange.
     fn end(&mut self, stream: Stream) -> Result<(), RemoteError>;
     /// A `SIGNAL` naming this exchange. Only commands take one.
-    fn signal(&mut self, signal: i32) {}
+    fn signal(&mut self, _signal: i32) {}
     /// Whether the exchange has closed (its `RSP` or `ERR` sent), so it can be forgotten.
     fn is_done(&self) -> bool {
         false

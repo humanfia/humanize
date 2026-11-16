@@ -393,7 +393,12 @@ mod tests {
     use std::sync::mpsc;
 
     use nix::fcntl::{FcntlArg, OFlag, fcntl};
-    use nix::unistd::pipe;
+
+    /// A pipe whose ends no child of another test inherits: other tests here fork, and a read
+    /// end held open in one of their children is a pipe that never says `EPIPE`.
+    fn pipe() -> nix::Result<(OwnedFd, OwnedFd)> {
+        nix::unistd::pipe2(nix::fcntl::OFlag::O_CLOEXEC)
+    }
 
     use super::*;
     use crate::cog::netproxy::fake::{FakeRemote, Opened, Sent};
@@ -705,11 +710,19 @@ mod tests {
         let mut running = start(&mut stdio, true);
         running.answer(exited(0));
         running.finished();
-        // The stand-in's read end was closed, and stdin never ended: the command was over.
-        assert_eq!(
-            stdio.stdin.write_all(b"x").unwrap_err().raw_os_error(),
-            Some(libc::EPIPE)
-        );
+        // The stand-in's read end is closed, and stdin never ended: the command was over. The
+        // pump lets go on its next poll tick, which on a loaded machine is not at once.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let refused = loop {
+            match stdio.stdin.write_all(b"x") {
+                Err(why) => break why,
+                Ok(()) if std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                Ok(()) => panic!("the stand-in's stdin was never let go"),
+            }
+        };
+        assert_eq!(refused.raw_os_error(), Some(libc::EPIPE));
         assert!(running.anchor.sent.try_recv().is_err());
     }
 
