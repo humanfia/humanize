@@ -20,6 +20,8 @@ it uses whatever `hmz` is there.
 from __future__ import annotations
 
 import contextlib
+import http.client
+import json
 import queue
 import re
 import subprocess
@@ -30,6 +32,7 @@ from hmz.runtime.runner import Refused
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping, Sequence
+    from pathlib import Path
     from types import TracebackType
 
     from hmz.coganchor.transport import Road
@@ -50,6 +53,7 @@ __all__ = [
     "Remotes",
     "Unreached",
     "carried",
+    "headers",
     "said",
 ]
 
@@ -624,6 +628,17 @@ def said(lines: Sequence[str]) -> dict[str, str]:
     return found
 
 
+def headers(port: int, key: str) -> dict[str, str]:
+    """What a request to an interface listening on `port` carries to be let in, as its page's."""
+    # Wave 4 removes this, with the terminal's remote epics that are all that still ask it.
+    return {
+        "Host": f"127.0.0.1:{port}",
+        "Origin": f"http://127.0.0.1:{port}",
+        "Sec-Fetch-Site": "same-origin",
+        "Cookie": f"hmz-{port}={key}",
+    }
+
+
 def _last(lines: Sequence[str], otherwise: str) -> str:
     """The last line said, or what is said otherwise."""
     return next((line for line in reversed(lines) if line.strip()), otherwise).strip()
@@ -942,6 +957,9 @@ class _Remote:
         self.state = IDLE
         self.detail = ""
         self.there = ""
+        #: Wave 4 removes these, with the HTTP members of `Remotes` that read them: nothing
+        #: serves HTTP to a daemon reached over JSON-RPC.
+        self.port, self.remote, self.key = 0, 0, ""
         self.entry: dict[str, Any] | None = None
         self.session: _Session | None = None
         #: What is said of it while it is up: why its hmz is not this one's, where it is not.
@@ -1400,6 +1418,102 @@ class Remotes:
         return Daemons().write(
             name, {"id": entry["id"], "routes": entry["routes"]}, replace=True
         )
+
+    def asks(self, name: str) -> tuple[int, dict[str, str]]:
+        """Where a daemon is reached here, and what a request to it carries to be let in.
+
+        Raises:
+          Unreached: As `reached` does.
+          LookupError: As `reached` does.
+        """
+        # Wave 4 removes this, with the terminal's remote epics that are all that still ask it.
+        held = self._up(name)
+        return held.port, headers(held.remote, held.key)
+
+    def asked(
+        self,
+        name: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        *,
+        into: Path | None = None,
+    ) -> Any:
+        """What a daemon's interface answers, reached first where it was not.
+
+        Args:
+          name: The daemon.
+          path: What is asked of it, `/api/...` and its query; a write where there is a body.
+          body: What is written, as JSON; None for a read.
+          into: Where what it answers is written, as it comes, rather than read as JSON.
+
+        Returns:
+          Its answer, read as JSON; or, `into` a file, how many bytes were written there.
+
+        Raises:
+          Unreached: If it is not up, or refused, saying why.
+          LookupError: If none is called that.
+          OSError: If it went where it was asked, or the file could not be written.
+        """
+        # Wave 4 removes this, with the terminal's remote epics that are all that still ask it.
+        port, said = self.asks(name)
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=_ASKING)
+        try:
+            return self._answer(connection, name, path, said, body, into)
+        except (http.client.HTTPException, ValueError) as why:
+            raise Unreached(f"{name} answered what cannot be read: {why}") from why
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _answer(
+        connection: http.client.HTTPConnection,
+        name: str,
+        path: str,
+        said: dict[str, str],
+        body: dict[str, Any] | None,
+        into: Path | None,
+    ) -> Any:
+        """What one question to a daemon's interface is answered with, as `asked` says.
+
+        What is written `into` a file is written beside it first and moved into place, so
+        that a file there already is replaced whole or not at all.
+        """
+        if body is None:
+            connection.request("GET", path, headers=said)
+        else:
+            connection.request(
+                "POST",
+                path,
+                json.dumps(body).encode(),
+                said | {"Content-Type": "application/json"},
+            )
+        answer = connection.getresponse()
+        if answer.status >= 300:  # noqa: PLR2004 -- any status but a success
+            try:
+                refused: object = json.loads(answer.read() or b"{}")
+            except ValueError:
+                refused = None
+            why = (
+                cast("dict[str, Any]", refused).get("error")
+                if isinstance(refused, dict)
+                else None
+            )
+            raise Unreached(
+                str(why or f"{name} answered {answer.status}"),
+                status=answer.status,
+            )
+        if into is None:
+            return json.loads(answer.read() or b"null")
+        beside = into.with_name(f".{into.name}.new")
+        written = 0
+        try:
+            with beside.open("wb") as file:
+                while chunk := answer.read(65536):
+                    written += file.write(chunk)
+            beside.replace(into)
+        finally:
+            beside.unlink(missing_ok=True)
+        return written
 
     def close(self) -> None:
         """Stops reaching every daemon: every session closed, every process stopped and reaped."""

@@ -1,15 +1,14 @@
 """`hmz web`'s page on one daemon at a time: the daemon is the first part of every address.
 
 `#/@<name>/<view>` is a view of that daemon, and an address naming none is of Local. Whatever
-the page asks of the daemon it is on goes under `/d/<name>/api/`, every link it draws keeps the
-daemon its address named, and going to another daemon's address tells the page it switched.
-Each in Chromium and in WebKit.
+the page asks of the daemon it is on goes over that daemon's own session, every link it draws
+keeps the daemon its address named, and going to another daemon's address tells the page it
+switched. Each in Chromium and in WebKit.
 """
 
 from __future__ import annotations
 
 import re
-import urllib.parse
 from typing import TYPE_CHECKING
 
 import pytest
@@ -17,51 +16,34 @@ from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
 from tests.integration.doubles_web import served
-from tests.system.web.doubles_browser import ENGINES, go, opened, stop
+from tests.system.web.doubles_browser import ENGINES, Wire, go, kept, opened, stop
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from playwright.sync_api import Page, Request, Route
+pytestmark = [
+    pytest.mark.parametrize("engine", ENGINES),
+    pytest.mark.usefixtures("daemon"),
+]
 
-pytestmark = pytest.mark.parametrize("engine", ENGINES)
+#: A daemon named `other`, which is Local reached under another name, over `/rpc` too.
+_OTHER = {"name": "other", "id": "", "routes": ["unix:"]}
 
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
     """The stand-in `claude` alone on PATH, asked what it runs, and a project to serve."""
-    return install(tmp_path, monkeypatch)
-
-
-def _asked(page: Page) -> list[str]:
-    """Every path of the API the page asks from here on, as it asks it."""
-    paths: list[str] = []
-
-    def heard(request: Request) -> None:
-        path = urllib.parse.urlsplit(request.url).path
-        # What is the same whichever daemon is shown is asked of the page's own server.
-        if "/api/" in path and not re.match(r"/api/(daemons|notifications)\b", path):
-            paths.append(path)
-
-    page.on("request", heard)
-    return paths
-
-
-def _other(page: Page) -> None:
-    """A daemon named `other`, which is Local answering under another name."""
-
-    def answered(route: Route) -> None:
-        route.continue_(url=route.request.url.replace("/d/other/api/", "/d/local/api/"))
-
-    page.route(re.compile(r".*/d/other/api/.*"), answered)
+    project = install(tmp_path, monkeypatch)
+    # The home it gives the CLI is this machine's home, which the daemon's own settings are of.
+    (tmp_path / "home").mkdir(exist_ok=True)
+    return project
 
 
 def test_an_address_naming_local_draws_every_view_and_keeps_naming_it(
     project: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        asked = _asked(page)
-
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/@local/new")
         expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
         nav = page.locator(".side-nav a")
@@ -86,13 +68,14 @@ def test_an_address_naming_local_draws_every_view_and_keeps_naming_it(
         expect(dialog).to_have_count(0)
         assert page.evaluate("location.hash").startswith("#/@local/flows")
 
-        assert asked
-        assert all(path.startswith("/d/local/api/") for path in asked), asked
+        # Asked of Local, over its one session.
+        assert "flows.list" in [method for method, _ in wire.calls]
+        assert set(wire.over) == {1}, wire.over
 
 
 def test_an_epic_started_on_a_daemon_stays_on_it(project: Path, engine: str) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        asked = _asked(page)
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/@local/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         expect(
@@ -103,8 +86,8 @@ def test_an_epic_started_on_a_daemon_stays_on_it(project: Path, engine: str) -> 
         page.wait_for_url(re.compile(r".*#/@local/epics/[^/]+/sessions/[^/]+%2F1$"))
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: hello there")
 
-        # The epic's stream, and its links, are the daemon's.
-        assert any(path == "/d/local/api/held/stream" for path in asked), asked
+        # The epic followed, and its links, are the daemon's.
+        assert [one for one in wire.params("epic.attach") if one.get("figures")]
         expect(page.locator("[data-hmz=epic]").first).to_have_attribute(
             "href", re.compile(r"^#/@local/epics/")
         )
@@ -112,15 +95,21 @@ def test_an_epic_started_on_a_daemon_stays_on_it(project: Path, engine: str) -> 
 
 
 def test_another_daemon_is_switched_to_and_back(project: Path, engine: str) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        _other(page)
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        kept(page, _OTHER)
+        # A workspace `other` knows of its own, as `hmz web` started there would offer it.
+        page.evaluate(
+            """async (at) => (await import('/api.js')).call(
+                'workspaces.add', { workspace: at }, { on: 'other' })""",
+            str(project),
+        )
         page.evaluate(
             """() => {
                 window.switched = []
                 addEventListener('hmz:daemon', (event) => switched.push(event.detail.daemon))
             }"""
         )
-        asked = _asked(page)
 
         # The same daemon, named, is no switch.
         go(page, "/@local/new")
@@ -133,13 +122,21 @@ def test_another_daemon_is_switched_to_and_back(project: Path, engine: str) -> N
             "href", "#/@other/new"
         )
         expect(page.locator("[data-hmz=workspace]").first).to_be_visible()
-        since = len(asked)
+        since = len(wire.calls)
         page.locator(".side-nav a[data-nav=new]").click()
         expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
         assert page.evaluate("location.hash").startswith("#/@other/new?")
-        later = asked[since:]
+        # Asked of `other` over a session of its own, not over Local's.
+        local = wire.over[0]
+        later = [
+            on
+            for (method, _), on in zip(
+                wire.calls[since:], wire.over[since:], strict=True
+            )
+            if method == "flows.list"
+        ]
         assert later
-        assert all(path.startswith("/d/other/api/") for path in later), later
+        assert local not in later, wire.over
 
         go(page, "/new")
         assert page.evaluate("switched") == ["other", "local"]

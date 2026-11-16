@@ -22,7 +22,10 @@ if TYPE_CHECKING:
 
     from playwright.sync_api import Locator, Page
 
-pytestmark = pytest.mark.parametrize("engine", ENGINES)
+pytestmark = [
+    pytest.mark.parametrize("engine", ENGINES),
+    pytest.mark.usefixtures("daemon"),
+]
 
 
 @pytest.fixture
@@ -145,7 +148,8 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
 
         browser = Browser(site)
         browser.signs_in()
-        (saved,) = browser.get("/api/runtimes").json()["runtimes"]
+        with browser.session() as asked:
+            (saved,) = asked.call("runtimes.list")["runtimes"]
         assert saved["identity_file"] == "~/.ssh/id_ed25519"
         assert saved["options"] == {"ServerAliveInterval": "30"}
         assert saved["harness"] == "local"
@@ -178,14 +182,14 @@ def test_a_fallback_and_the_btw_agent_are_picked_not_spelled(
 
         browser = Browser(site)
         browser.signs_in()
-        (step,) = browser.get("/api/fallbacks").json()["steps"]
+        with browser.session() as asked:
+            (step,) = asked.call("fallbacks.list")["steps"]
+            btw = asked.call("settings.get")["btw"]
         assert (step["spec"], step["to"]) == (
             "claude/claude-opus-4-1",
             ["claude/claude-haiku-4-5"],
         )
-        assert (
-            browser.get("/api/settings").json()["btw"] == "claude/claude-haiku-4-5:high"
-        )
+        assert btw == "claude/claude-haiku-4-5:high"
 
 
 def test_settings_fit_a_phone(project: Path, engine: str) -> None:

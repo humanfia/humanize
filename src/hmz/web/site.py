@@ -33,6 +33,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, ClassVar, cast
 
+from .bridge import Dials
+
 __all__ = ["Site"]
 
 #: How many ports any would do for are tried before one free on both loopbacks is given up on.
@@ -114,6 +116,8 @@ class Site(_Bound):
 
     def __init__(self, port: int, *, key: str | None = None) -> None:
         self._beside: _Beside | None = None
+        #: Every `/dial` open, closed as the server closes.
+        self.dials = Dials()
         for left in reversed(range(_PORTS)):
             super().__init__(("127.0.0.1", port), _Handler)
             try:
@@ -173,8 +177,9 @@ class Site(_Bound):
             self._beside.shutdown()
 
     def server_close(self) -> None:
-        """Stops listening on both loopbacks."""
+        """Stops listening on both loopbacks, and closes every `/dial` open."""
         super().server_close()
+        self.dials.close()
         if self._beside is not None:
             self._beside.server_close()
 
@@ -354,12 +359,12 @@ class _Handler(BaseHTTPRequestHandler):
 
         opened = WebSocket.accepted(self, self.HEADERS)
         if opened is None:
-            return
+            raise _Refusal("Open this as a WebSocket.", 400)
         self.close_connection = True
         if path == "/rpc":
             rpc(opened)
         else:
-            dials(opened, query.get("route", ""), query.get("id", ""))
+            dials(opened, query.get("route", ""), query.get("id", ""), self.site.dials)
 
     def _file(self, path: str) -> None:
         """One of the files the page is made of (Section 4.5.3 and 4.5.4 of web.md)."""

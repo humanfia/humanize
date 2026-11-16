@@ -97,10 +97,25 @@ def listening(*, port: int = 0, key: str | None = None) -> Generator[Site]:
 
     _reaches()
     site = Site(port, key=key)
+    _fetches()
     try:
         yield site
     finally:
         site.server_close()
+
+
+def _fetches() -> None:
+    """Fetches, in the background, what the page is told of as this home keeps it.
+
+    Which release of hmz is the newest, where what is kept has got old, and every flowverse's
+    index: the daemons read both from this home as they answer `session.hello` and
+    `flowverses.list`.
+    """
+    from hmz.coganchor import releases
+    from hmz.daemon.api import flowverses
+
+    releases.refresh()
+    flowverses.fetches()
 
 
 def _reaches() -> None:
@@ -152,6 +167,7 @@ def serve(
             site = Site(0)
     else:
         site = Site(port)
+    _fetches()
     with contextlib.ExitStack() as made:
         made.callback(site.server_close)
         _keeps(site.port)

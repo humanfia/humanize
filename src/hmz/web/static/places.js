@@ -28,10 +28,13 @@ export async function workspaces(again = false) {
   }
 }
 
-/** The workspace offered first: where `hmz web` started, on Local; else the first there is. */
+/**
+ * The workspace offered first: where `hmz web` started, on Local; else the first there is; else,
+ * on a daemon that knows none yet, its user's home, `~` as it expands it there.
+ */
 export async function firstWorkspace() {
   const offered = await workspaces()
-  return offered.here || (offered.workspaces[0] && offered.workspaces[0].path) || ''
+  return offered.here || (offered.workspaces[0] && offered.workspaces[0].path) || '~'
 }
 
 /** A workspace as a list names it: the last part of its path. */

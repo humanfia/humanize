@@ -156,9 +156,10 @@ def test_the_page_is_its_own_files_and_nothing_beside_them(project: Path) -> Non
         assert browser.asks("POST", "/here").status == 401
         browser.signs_in()
         assert browser.asks("POST", "/here").status == 405
-        plain = browser.get("/rpc")
-        assert plain.status == 400
-        assert plain.json() == {"error": "Open this as a WebSocket."}
+        for headers in ({}, {"Upgrade": "websocket", "Connection": "Upgrade"}):
+            plain = browser.get("/rpc", **headers)
+            assert plain.status == 400
+            assert plain.json() == {"error": "Open this as a WebSocket."}
 
 
 def test_what_another_site_left_in_the_cookie_jar_is_not_this_ones_business(

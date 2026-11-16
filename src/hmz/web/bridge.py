@@ -32,8 +32,9 @@ if TYPE_CHECKING:
     from http.server import BaseHTTPRequestHandler
 
     from hmz.rpc import Pipe
+    from hmz.runtime.doing.daemons import Dialing
 
-__all__ = ["WebSocket", "dials", "rpc"]
+__all__ = ["Dials", "WebSocket", "dials", "rpc"]
 
 #: The most a reason a WebSocket is closed with may be, in bytes (Section 4.7.4 of web.md).
 _REASON = 120
@@ -71,7 +72,7 @@ class WebSocket:
     def accepted(
         cls, handler: BaseHTTPRequestHandler, headers: Mapping[str, str]
     ) -> Self | None:
-        """Upgrades a request to a WebSocket, or answers why not and gives None.
+        """Upgrades a request to a WebSocket, or gives None where it is no opening of one.
 
         Args:
           handler: The request, its headers read.
@@ -81,15 +82,13 @@ class WebSocket:
         handshake = ServerProtocol()
         request = Request(handler.path, Headers(handler.headers.items()))
         response = handshake.accept(request)
+        if response.status_code != 101:  # noqa: PLR2004 -- Switching Protocols
+            return None
         for name, value in headers.items():
             response.headers[name] = value
         handshake.send_response(response)
-        with contextlib.suppress(OSError):
-            for data in handshake.data_to_send():
-                handler.connection.sendall(data)
-        if response.status_code != 101:  # noqa: PLR2004 -- Switching Protocols
-            handler.close_connection = True
-            return None
+        for data in handshake.data_to_send():
+            handler.connection.sendall(data)
         opened = cls(handler, ServerProtocol(state=State.OPEN, max_size=LONGEST + 4))
         # A WebSocket may be quiet for as long as it likes (Section 4.3.5 of web.md).
         handler.connection.settimeout(None)
@@ -157,6 +156,37 @@ class WebSocket:
                     self._handler.connection.sendall(data)
 
 
+class Dials:
+    """Every `/dial` of one server still open, all closed as the server closes."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._open: set[Dialing] = set()
+        self._closed = False
+
+    def holds(self, dialing: Dialing) -> bool:
+        """Holds one more, unless the server is closing: then it is closed and False said."""
+        with self._lock:
+            if not self._closed:
+                self._open.add(dialing)
+                return True
+        dialing.close()
+        return False
+
+    def lets_go(self, dialing: Dialing) -> None:
+        """Holds one no more, once it is closed."""
+        with self._lock:
+            self._open.discard(dialing)
+
+    def close(self) -> None:
+        """Closes every one, stopping what was started for each (Section 4.8.6 of web.md)."""
+        with self._lock:
+            self._closed = True
+            held, self._open = list(self._open), set()
+        for one in held:
+            one.close()
+
+
 def _back(socket_: WebSocket, pipe: Pipe) -> None:
     """Carries every byte from a daemon's end back to the page, on a thread of its own.
 
@@ -215,7 +245,7 @@ def rpc(socket_: WebSocket) -> None:
         socket_.close(_DONE)
 
 
-def dials(socket_: WebSocket, route: str, pinned: str) -> None:
+def dials(socket_: WebSocket, route: str, pinned: str, held: Dials) -> None:
     """`/dial`: the WebSocket carried to the daemon a route reaches (Section 4.8 of web.md).
 
     Opened as this machine's device, the page told how opening it goes until it is open.
@@ -239,6 +269,9 @@ def dials(socket_: WebSocket, route: str, pinned: str) -> None:
         socket_.text(json.dumps({"state": state, "detail": detail}))
 
     dialing = Dialing(parsed, pinned, told)
+    if not held.holds(dialing):
+        socket_.close(_DONE)
+        return
     opened: list[Pipe] = []
 
     def opens() -> None:
@@ -262,4 +295,5 @@ def dials(socket_: WebSocket, route: str, pinned: str) -> None:
             with contextlib.suppress(OSError):
                 pipe.close()
         dialing.close()
+        held.lets_go(dialing)
         socket_.close(_DONE)

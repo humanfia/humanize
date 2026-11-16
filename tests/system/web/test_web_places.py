@@ -9,25 +9,31 @@ from __future__ import annotations
 
 import re
 import tempfile
+import uuid
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import expect
 
+from hmz.rpc import RpcError
 from tests.integration.doubles_core import AGENT, install, write_flow
-from tests.integration.doubles_web import Browser, served, until
-from tests.system.web.doubles_browser import ENGINES, go, opened, stop
+from tests.integration.doubles_web import Browser, Session, served
+from tests.system.web.doubles_browser import ENGINES, Wire, go, opened, stop
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from playwright.sync_api import Route
+#: Local is a daemon of this process, which the page reaches over `/rpc` as any other.
+pytestmark = pytest.mark.usefixtures("daemon")
 
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
     """The stand-in `claude` alone on PATH, and the project the interface is started in."""
-    return install(tmp_path, monkeypatch)
+    project = install(tmp_path, monkeypatch)
+    # The home it gives the CLI is this machine's home, which the daemon's own settings are of.
+    (tmp_path / "home").mkdir(exist_ok=True)
+    return project
 
 
 @pytest.fixture
@@ -40,25 +46,34 @@ def other(tmp_path: Path) -> Path:
 
 def _ran(browser: Browser, workspace: Path, task: str) -> None:
     """Starts chat in a workspace and stops it once it has answered, as a page would."""
-    # On the workspace's own host, which is the stream followed.
-    chat = {"flow": "chat", "task": task, "agents": {"assistant": AGENT}, "slot": ""}
-    with browser.follows(workspace=str(workspace)) as heard:
-        until(heard, lambda event, data: event == "hello", "hello")
-        said = browser.post("/api/held/start", chat | {"workspace": str(workspace)})
-        assert said.status == 200, said.body
-        until(heard, _asked, "chat asking")
-        assert (
-            browser.post("/api/held/stop", {"workspace": str(workspace)}).status == 200
+    with browser.session() as page:
+        # On the workspace's own host, attached to as the page attaches.
+        sub = page.call("epic.attach", workspace=str(workspace))["sub"]
+        page.call(
+            "epic.start",
+            sub=sub,
+            flow="chat",
+            task=task,
+            agents={"assistant": AGENT},
+            idem=uuid.uuid4().hex,
         )
-        until(heard, _ended, "the epic ending")
+        page.until(_of(sub, "asked"), "chat asking")
+        page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
+        page.until(_of(sub, "ended"), "the epic ending")
+        page.call("epic.detach", sub=sub)
 
 
-def _asked(event: str, data: Any) -> bool:
-    return event == "record" and data.get("type") == "asked"
+def _of(sub: str, kind: str) -> Any:
+    """Whether a notification is a history record of `kind` on the subscription `sub`."""
 
+    def wanted(method: str, said: dict[str, Any]) -> bool:
+        return (
+            method == "epic.event"
+            and said["sub"] == sub
+            and said["message"].get("type") == kind
+        )
 
-def _ended(event: str, data: Any) -> bool:
-    return event == "record" and data.get("type") == "ended"
+    return wanted
 
 
 def test_every_workspaces_epics_are_listed_and_found_by_workspace(
@@ -71,16 +86,17 @@ def test_every_workspaces_epics_are_listed_and_found_by_workspace(
         _ran(browser, here, "in the first")
         _ran(browser, other, "in the second")
 
-        listed = browser.get("/api/runs").json()["runs"]
-        assert {(one["task"], one["workspace"]) for one in listed} == {
-            ("in the first", str(here)),
-            ("in the second", str(other)),
-        }
-        only = browser.get(f"/api/runs?workspace={other}").json()["runs"]
-        assert [one["task"] for one in only] == ["in the second"]
-        (one,) = only
-        assert browser.get(f"/api/runs/{one['name']}").json()["workspace"] == str(other)
-        places = browser.get("/api/workspaces").json()
+        with browser.session() as page:
+            listed = page.call("runs.list")["runs"]
+            assert {(one["task"], one["workspace"]) for one in listed} == {
+                ("in the first", str(here)),
+                ("in the second", str(other)),
+            }
+            only = page.call("runs.list", workspace=str(other))["runs"]
+            assert [one["task"] for one in only] == ["in the second"]
+            (one,) = only
+            assert page.call("runs.get", name=one["name"])["workspace"] == str(other)
+            places = page.call("workspaces.list", here=str(here))
         assert places["here"] == str(here)
         assert [one["path"] for one in places["workspaces"]][:1] == [str(here)]
         assert {one["path"]: one["epics"] for one in places["workspaces"]} == {
@@ -96,16 +112,23 @@ def test_a_workspace_is_opened_by_its_path_and_forgotten(
         browser = Browser(site)
         browser.signs_in()
 
-        kept = browser.post("/api/workspaces", {"workspace": str(other)}).json()
-        assert kept["kept"] == str(other)
-        assert str(other) in [one["path"] for one in kept["workspaces"]]
-        assert browser.post("/api/workspaces", {"workspace": "relative"}).status == 400
-        missing = browser.post("/api/workspaces", {"workspace": str(tmp_path / "gone")})
-        assert missing.status == 404
+        with browser.session() as page:
+            kept = _writes(page, "workspaces.add", workspace=str(other))
+            assert kept["kept"] == str(other)
+            assert str(other) in [one["path"] for one in kept["workspaces"]]
+            for workspace, code in (("relative", 400), (str(tmp_path / "gone"), 404)):
+                with pytest.raises(RpcError) as refused:
+                    _writes(page, "workspaces.add", workspace=workspace)
+                assert refused.value.code == code
 
-        browser.post("/api/workspaces/forget", {"workspace": str(other)})
-        listed = browser.get("/api/workspaces").json()["workspaces"]
+            _writes(page, "workspaces.forget", workspace=str(other))
+            listed = page.call("workspaces.list")["workspaces"]
         assert str(other) not in [one["path"] for one in listed]
+
+
+def _writes(page: Session, method: str, **params: Any) -> Any:
+    """Calls a write, as the page does: with an `idem` of its own."""
+    return page.call(method, **params, idem=uuid.uuid4().hex)
 
 
 @pytest.mark.parametrize("engine", ENGINES)
@@ -140,28 +163,18 @@ def test_the_sidebar_is_a_folder_of_epics_per_workspace(
 def test_an_epic_is_started_in_a_folder_opened_by_its_path(
     project: Path, other: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/new?flow=chat")
         page.locator("[data-hmz=workspace-picker]").click()
         page.get_by_role("menuitem", name="Open folder…").click()
         page.locator("[data-hmz=workspace-path]").fill(str(other))
         # Opening it says so until the daemon answers.
-        held: list[Route] = []
-
-        def hold(route: Route) -> None:
-            if route.request.method == "POST":
-                held.append(route)
-            else:
-                route.fallback()
-
-        page.route("**/api/workspaces", hold)
+        wire.holds("workspaces.add")
         page.get_by_role("button", name="Open", exact=True).click()
         expect(page.get_by_role("button", name="Opening…")).to_be_disabled()
-        for _ in range(200):
-            if held:
-                break
-            page.wait_for_timeout(50)
-        held.pop().fallback()
+        wire.waits(page)
+        wire.lets_through()
         expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text("other")
 
         page.get_by_role("button", name="Options").click()
@@ -244,15 +257,18 @@ def test_a_projects_own_flows_are_offered_in_that_project_alone(
         browser = Browser(site)
         browser.signs_in()
 
-        there = browser.get(f"/api/flows?workspace={other}").json()["flows"]
-        assert ("local", "@local/mine") in [
-            (one["whose"], one["name"]) for one in there
-        ]
-        here = browser.get("/api/flows").json()["flows"]
-        assert "@local/mine" not in [one["name"] for one in here]
-        declared = browser.get(f"/api/flow?name=@local/mine&workspace={other}").json()
-        assert [one["name"] for one in declared["agents"]] == ["solo"]
-        assert browser.get("/api/flow?name=@local/mine").status == 404
+        with browser.session() as page:
+            there = page.call("flows.list", workspace=str(other))["flows"]
+            assert ("local", "@local/mine") in [
+                (one["whose"], one["name"]) for one in there
+            ]
+            here = page.call("flows.list", workspace=str(project))["flows"]
+            assert "@local/mine" not in [one["name"] for one in here]
+            declared = page.call("flows.get", name="@local/mine", workspace=str(other))
+            assert [one["name"] for one in declared["agents"]] == ["solo"]
+            with pytest.raises(RpcError) as missing:
+                page.call("flows.get", name="@local/mine", workspace=str(project))
+            assert missing.value.code == 404
 
 
 @pytest.mark.parametrize("engine", ENGINES)

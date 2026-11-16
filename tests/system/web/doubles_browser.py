@@ -13,21 +13,25 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import io
 import json
 import os
 import re
 import struct
 import subprocess
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from hmz.runtime.epic import JOURNAL
 from tests.integration.doubles_web import PATIENCE
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator
 
+    import pytest
     from playwright.sync_api import Page, WebSocketRoute
 
     from hmz.web.site import Site
@@ -167,7 +171,8 @@ def stop(page: Page) -> None:
           const epic = await api.call('runs.get', { name })
           const where = { workspace: epic.workspace, slot: epic.slot, replay: false }
           const held = await api.attach(where, () => {})
-          await api.call('epic.stop', { sub: held.sub })
+          // One already ended, or stopping, has nothing to stop: as it is, it is stopped.
+          await api.call('epic.stop', { sub: held.sub }).catch(() => {})
           await held.close()
         }"""
     )
@@ -238,7 +243,7 @@ def frame(value: Any) -> bytes:
 
 
 #: What answers a method faked on the wire, given its params.
-type _Answers = Callable[[Any], dict[str, Any]]
+type _Answers = Callable[[Any], dict[str, Any] | None]
 
 
 @dataclasses.dataclass
@@ -247,8 +252,8 @@ class Wire:
 
     What the page calls is kept; a method `faked` names is answered here, never reaching Local,
     with what it gives -- `{"result": ...}` or `{"error": {"code": ..., "message": ...}}` --
-    for the params it was called with; and a notice is told the page as Local's, on the
-    notices subscription the page opened.
+    for the params it was called with, or None to be answered later by `answer`; and a
+    notice is told the page as Local's, on the notices subscription the page opened.
 
     Attributes:
       faked: What answers each method faked, by name.
@@ -257,15 +262,58 @@ class Wire:
     """
 
     faked: dict[str, _Answers] = dataclasses.field(default_factory=dict[str, _Answers])
+    #: Which `/rpc` each call came over, counting from 1 in the order they opened: one per
+    #: daemon the page reaches over `/rpc`.
+    over: list[int] = dataclasses.field(default_factory=list[int])
+    #: How many `/rpc` the page has opened.
+    opened: int = 0
+    #: The methods whose calls are held back from Local until `lets_through`.
+    held: set[str] = dataclasses.field(default_factory=set[str])
+    #: The calls held back, as they were sent.
+    waiting: list[bytes] = dataclasses.field(default_factory=list[bytes])
     calls: list[tuple[str, Any]] = dataclasses.field(
         default_factory=list[tuple[str, Any]]
     )
     sub: str = ""
     _page: WebSocketRoute | None = None
+    _server: WebSocketRoute | None = None
+    _later: list[tuple[str, Any]] = dataclasses.field(
+        default_factory=list[tuple[str, Any]]
+    )
 
     def routes(self, page: Page) -> None:
         """Carries the page's `/rpc` from here on."""
         page.route_web_socket(re.compile(r".*/rpc$"), self._carries)
+
+    def holds(self, method: str) -> None:
+        """Holds back each call of `method` from Local, until `lets_through`."""
+        self.held.add(method)
+
+    def waits(self, page: Page) -> None:
+        """Waits until a call held back is waiting."""
+        while not self.waiting:
+            page.wait_for_timeout(50)
+
+    def lets_through(self) -> None:
+        """Sends Local every call held back, and holds back no more."""
+        assert self._server is not None
+        self.held.clear()
+        waiting, self.waiting = self.waiting, []
+        for whole in waiting:
+            self._server.send(whole)
+
+    def answer(self, page: Page, method: str, result: Any) -> None:
+        """Answers the first call of `method` faked to be answered later, once one is made."""
+        while not any(one == method for one, _ in self._later):
+            page.wait_for_timeout(50)
+        at = next(i for i, (one, _) in enumerate(self._later) if one == method)
+        _, ident = self._later.pop(at)
+        assert self._page is not None
+        self._page.send(frame({"jsonrpc": "2.0", "id": ident, "result": result}))
+
+    def params(self, method: str) -> list[Any]:
+        """What each call of `method` so far was called with."""
+        return [params for called, params in self.calls if called == method]
 
     def tell(self, page: Page, notice: dict[str, Any]) -> None:
         """Tells the page a notice of Local's, once it follows Local's notices."""
@@ -284,7 +332,10 @@ class Wire:
 
     def _carries(self, ws: WebSocketRoute) -> None:
         server = ws.connect_to_server()
+        self.opened += 1
+        which = self.opened
         self._page = ws
+        self._server = server
         up, down = bytearray(), bytearray()
 
         def from_page(message: str | bytes) -> None:
@@ -292,9 +343,15 @@ class Wire:
                 method = said.get("method")
                 if method:
                     self.calls.append((method, said.get("params")))
+                    self.over.append(which)
                 if method in self.faked and "id" in said:
                     answer = self.faked[method](said.get("params") or {})
-                    ws.send(frame({"jsonrpc": "2.0", "id": said["id"], **answer}))
+                    if answer is None:
+                        self._later.append((method, said["id"]))
+                    else:
+                        ws.send(frame({"jsonrpc": "2.0", "id": said["id"], **answer}))
+                elif method in self.held:
+                    self.waiting.append(whole)
                 else:
                     server.send(whole)
 
@@ -330,8 +387,11 @@ class Another:
 @contextlib.contextmanager
 def another(under: Path) -> Generator[Another]:
     """Another machine's daemon, listening on a TCP port of loopback, until the block ends."""
+    # A home of its own, which is where it reads Humanize's own settings.
+    (under / "another-home").mkdir(exist_ok=True)
     there = dict(
         os.environ,
+        HOME=str(under / "another-home"),
         HUMANIZE_HOME=str(under / "another"),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="a", dir=os.environ.get("TMPDIR")),
@@ -367,3 +427,68 @@ def paired(page: Page, name: str, code: str) -> None:
         [name, code],
     )
     again(page)
+
+
+def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """An epic run here and backed up to `t`, then this machine made one that has not got it.
+
+    Another machine is a home of its own, sharing the workspace and the repository: what it
+    has is a target `t` in its settings and nothing else.
+
+    Returns:
+      The epic's name.
+    """
+    import subprocess
+
+    import yaml
+
+    from hmz import home
+    from hmz.runtime.epic import every
+    from tests.integration.doubles_core import AGENT, hmz_exec
+
+    bare = tmp_path / "epics.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    target = {"name": "t", "url": str(bare), "policies": ["end"]}
+
+    def targets() -> None:
+        home().mkdir(parents=True, exist_ok=True)
+        said = {"backup": {"targets": [target], "defaults": []}}
+        (home() / "settings.yaml").write_text(yaml.safe_dump(said))
+
+    targets()
+    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "--backup", "t", "hi")
+    assert ran.returncode == 0, ran.stderr
+    (name,) = [one.name for one in every()]
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "elsewhere"))
+    targets()
+    return name
+
+
+def elsewhere(archive: Path, workspace: str, to: Path) -> Path:
+    """A copy of an epic's archive whose run says it ran in another workspace.
+
+    Args:
+      archive: The `.hmzepic`.
+      workspace: Where the copy says its run ran.
+      to: The directory the copy is written into, under the archive's own name.
+
+    Returns:
+      The copy.
+    """
+    copy = to / archive.name
+    with (
+        tarfile.open(archive, "r:gz") as reading,
+        tarfile.open(copy, "w:gz") as writing,
+    ):
+        for member in reading.getmembers():
+            held = reading.extractfile(member)
+            body = held.read() if held is not None else b""
+            if member.name.endswith(f"/{JOURNAL}"):
+                lines = [json.loads(line) for line in body.splitlines()]
+                for line in lines:
+                    if line.get("event") == "began":
+                        line["workspace"] = workspace
+                body = b"".join(json.dumps(line).encode() + b"\n" for line in lines)
+                member.size = len(body)
+            writing.addfile(member, io.BytesIO(body) if member.isfile() else None)
+    return copy

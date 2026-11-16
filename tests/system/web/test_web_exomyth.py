@@ -19,7 +19,7 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import AGENT, install
-from tests.integration.doubles_web import Browser, served, until
+from tests.integration.doubles_web import Browser, Session, served
 from tests.system.web.doubles_browser import ENGINES, go, opened
 
 if TYPE_CHECKING:
@@ -30,7 +30,10 @@ if TYPE_CHECKING:
 
     from hmz.web.site import Site
 
-pytestmark = pytest.mark.parametrize("engine", ENGINES)
+pytestmark = [
+    pytest.mark.parametrize("engine", ENGINES),
+    pytest.mark.usefixtures("daemon"),
+]
 
 #: How many tool calls the long epic's session is given: two spans each, a think and a call.
 _CALLS = 25_000
@@ -47,33 +50,48 @@ _SUM = 500.0
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
     """The stand-in `claude` alone on PATH, asked what it runs, and a project to serve."""
-    return install(tmp_path, monkeypatch)
+    project = install(tmp_path, monkeypatch)
+    # The home it gives the CLI is this machine's home, which the daemon's own settings are of.
+    (tmp_path / "home").mkdir(exist_ok=True)
+    return project
 
 
-def _record(of: str) -> Callable[[str, Any], bool]:
-    """Whether an event of the stream is a record of that type."""
-    return lambda event, data: event == "record" and data.get("type") == of
+def _record(sub: str, of: str) -> Callable[[str, dict[str, Any]], bool]:
+    """Whether a notification is a history record of that type, of the subscription `sub`."""
+    return lambda method, said: (
+        method == "epic.event"
+        and said["sub"] == sub
+        and said["message"].get("type") == of
+    )
+
+
+def _stops(page: Session, site: Site) -> None:
+    """Stops the epic going on the workspace's own host, as a page does, until it has ended."""
+    sub = page.call("epic.attach", workspace=str(site.here), replay=False)["sub"]
+    page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
+    page.until(_record(sub, "ended"), "the run ending")
 
 
 def _chatted(site: Site, task: str, *, stopped: bool = True) -> str:
     """Runs chat on a task until it asks back, then stops it; answers with the epic's name."""
     browser = Browser(site)
     browser.signs_in()
-    with browser.follows() as heard:
-        until(heard, lambda event, data: event == "hello", "hello")
-        # On the workspace's own host, which is the stream followed.
-        chat = {
-            "flow": "chat",
-            "task": task,
-            "agents": {"assistant": AGENT},
-            "slot": "",
-        }
-        assert browser.post("/api/held/start", chat).status == 200
-        until(heard, _record("asked"), "chat asking")
+    with browser.session() as page:
+        # On the workspace's own host, attached to as the page attaches.
+        sub = page.call("epic.attach", workspace=str(site.here))["sub"]
+        page.call(
+            "epic.start",
+            sub=sub,
+            flow="chat",
+            task=task,
+            agents={"assistant": AGENT},
+            idem=uuid.uuid4().hex,
+        )
+        page.until(_record(sub, "asked"), "chat asking")
         if stopped:
-            browser.post("/api/held/stop")
-            until(heard, _record("ended"), "the run ending")
-    (ran,) = browser.get("/api/runs").json()["runs"]
+            page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
+            page.until(_record(sub, "ended"), "the run ending")
+        (ran,) = page.call("runs.list")["runs"]
     return str(ran["name"])
 
 
@@ -81,7 +99,8 @@ def _lengthened(site: Site, tmp_path: Path, name: str, calls: int) -> None:
     """Writes `calls` more tool calls into the log of the epic's session, a few ms apart."""
     browser = Browser(site)
     browser.signs_in()
-    (session,) = browser.get(f"/api/runs/{name}").json()["sessions"]
+    with browser.session() as page:
+        (session,) = page.call("runs.get", name=name)["sessions"]
     logs = list(tmp_path.rglob(f"{session['ident']}.jsonl"))
     assert logs
     at = datetime.datetime.now(datetime.UTC)
@@ -243,7 +262,8 @@ def test_an_epic_going_is_read_again_until_it_ends(project: Path, engine: str) -
 
         browser = Browser(site)
         browser.signs_in()
-        assert browser.post("/api/held/stop").status == 200
+        with browser.session() as asked:
+            _stops(asked, site)
         page.wait_for_function("() => window.__exomyth.model().live === false")
         expect(page.locator("[data-hmz=bar] .badge")).not_to_have_text(
             re.compile("running")

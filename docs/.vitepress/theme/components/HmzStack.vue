@@ -90,7 +90,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.daemon',
   ],
   'hmz.sdk': ['hmz.daemon', 'hmz.flows', 'hmz.reach', 'hmz.rpc', 'hmz.runtime'],
-  'hmz.web': ['hmz.daemon', 'hmz.reach', 'hmz.rpc', 'hmz.runtime.doing'],
+  'hmz.web': ['hmz.coganchor', 'hmz.daemon', 'hmz.reach', 'hmz.rpc', 'hmz.runtime.doing'],
 }
 
 // The one pair allowed to point both ways, and only from inside `flow`, `load` and

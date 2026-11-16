@@ -104,6 +104,8 @@ export async function client(name = daemon()) {
   })
   clients.set(name, made)
   made.watch((state) => {
+    // `/rpc` refused is seen only as closed: whether this browser is still let in, `/here` says.
+    if (name === 'local' && !DESKTOP && state.state === 'failed') admitted()
     for (const fn of [...stateWatchers]) fn(name, state)
   })
   for (const fn of [...stateWatchers]) fn(name, made.state)
@@ -128,17 +130,17 @@ export function onState(fn) {
  */
 export async function hello(name = daemon()) {
   const one = await client(name)
-  if (one.hello) return one.hello
   return new Promise((resolve, reject) => {
-    const stop = one.watch((now) => {
-      if (now.state === 'up' && one.hello) {
-        stop()
-        resolve(one.hello)
-      } else if (now.state === 'failed') {
-        stop()
-        reject(refused(new RpcError(ERRORS.UNAVAILABLE, now.detail), name))
-      }
-    })
+    const settles = (now) => {
+      if (now.state === 'up' && one.hello) resolve(one.hello)
+      // Failed, or let go of: whichever, not up.
+      else if (now.state === 'failed' || now.state === 'idle') reject(refused(new RpcError(ERRORS.UNAVAILABLE, now.detail), name))
+      else return false
+      stop()
+      return true
+    }
+    const stop = one.watch(settles)
+    settles(one.state)
   })
 }
 
@@ -321,14 +323,19 @@ export function given(params = {}) {
 /** `/here`, the directory `hmz web` started in, or '' where the page is not served by it. */
 let here = null
 export function started() {
-  here ||= fetch('/here', { headers: { Accept: 'application/json' } }).then(
+  here ||= admitted()
+  return here
+}
+
+/** Asks `/here`, saying the browser is not let in where it is refused 401 (Section 3.3.3 of protocol/web.md). */
+function admitted() {
+  return fetch('/here', { headers: { Accept: 'application/json' } }).then(
     async (answer) => {
       if (answer.status === 401) window.dispatchEvent(new CustomEvent('hmz:out'))
       return answer.ok ? (await answer.json()).here || '' : ''
     },
     () => '',
   )
-  return here
 }
 
 /** The most a chunk of a file carries (Section 6.9 of protocol/wire.md). */
@@ -344,14 +351,17 @@ const CHUNK = 1 << 20
 export async function exported(name, { on = daemon() } = {}) {
   const { handle, filename, type } = await call('runs.bundle', { name }, { on })
   const parts = []
-  for (let offset = 0; ; ) {
-    const { data, eof } = await call('files.read', { handle, offset, length: CHUNK }, { on })
-    const bytes = fromBase64(data)
-    parts.push(bytes)
-    offset += bytes.length
-    if (eof) break
+  try {
+    for (let offset = 0; ; ) {
+      const { data, eof } = await call('files.read', { handle, offset, length: CHUNK }, { on })
+      const bytes = fromBase64(data)
+      parts.push(bytes)
+      offset += bytes.length
+      if (eof) break
+    }
+  } finally {
+    await call('files.close', { handle }, { on }).catch(() => {})
   }
-  await call('files.close', { handle }, { on }).catch(() => {})
   const url = URL.createObjectURL(new Blob(parts, { type }))
   const link = Object.assign(document.createElement('a'), { href: url, download: filename })
   document.body.append(link)
@@ -369,9 +379,15 @@ export async function exported(name, { on = daemon() } = {}) {
  */
 export async function imported(file, { on = daemon() } = {}) {
   const { handle } = await call('files.create', { name: file.name, size: file.size }, { on })
-  for (let offset = 0; offset < file.size; offset += CHUNK) {
-    const bytes = new Uint8Array(await file.slice(offset, offset + CHUNK).arrayBuffer())
-    await call('files.write', { handle, offset, data: toBase64(bytes) }, { on })
+  try {
+    for (let offset = 0; offset < file.size; offset += CHUNK) {
+      const bytes = new Uint8Array(await file.slice(offset, offset + CHUNK).arrayBuffer())
+      await call('files.write', { handle, offset, data: toBase64(bytes) }, { on })
+    }
+  } catch (error) {
+    // Not taken by `runs.import`: let go of here, with what it held.
+    await call('files.close', { handle }, { on }).catch(() => {})
+    throw error
   }
   return call('runs.import', { handle }, { on })
 }

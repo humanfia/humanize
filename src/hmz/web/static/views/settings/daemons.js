@@ -321,6 +321,8 @@ export function draw(holder) {
         await pair(called, said.code)
       } else {
         if (said.easytier) {
+          // A secret written is never read back: one renamed is written anew under its name.
+          if (editing && editing.name !== called && !said.easytier.secret) throw new Error('Say the secret again to rename a P2P daemon.')
           // The entry of that name on Local is what its route opens with (Section 4.8.7 of
           // protocol/web.md); the page is never handed the secret again.
           await call('easytier.set', { name: called, ...said.easytier }, { on: 'local' })
@@ -366,7 +368,11 @@ export function draw(holder) {
   /** For each daemon up: a pairing code for another device, and the devices paired with it. */
   function drawPairing() {
     const up = entries.filter((one) => stateOf(one.name).state === 'up')
-    if (!up.length) return fill(pairing)
+    if (!up.length) {
+      // Drawn afresh once one is up again.
+      pairing.dataset.drawn = ''
+      return fill(pairing)
+    }
     if (pairing.dataset.drawn === up.map((one) => one.name).join('\n')) return
     pairing.dataset.drawn = up.map((one) => one.name).join('\n')
     fill(
