@@ -106,7 +106,7 @@ class Fakes:
             if self._daemon is None:
                 self._daemon = self._starts()
             daemon = self._daemon
-        return Client(daemon.paired())
+        return Client.over(daemon.paired())
 
     def _starts(self) -> Private:
         """Makes the private daemon, in the home and machine directory private daemons share."""

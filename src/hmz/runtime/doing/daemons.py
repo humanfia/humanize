@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.transport import Road
     from hmz.reach import EasyTier, Route
-    from hmz.rpc import Call, Pipe
+    from hmz.rpc import Call, Kind, Pipe
 
 __all__ = [
     "CARRIED",
@@ -603,15 +603,6 @@ class _Failed(Exception):  # noqa: N818 -- the sentence a daemon's state says
     """Reaching a daemon went wrong, as its state says it."""
 
 
-class _Refused(Refused):
-    """A call a daemon answered with an error: its message, its code and its data."""
-
-    def __init__(self, message: str, code: int, data: Any = None) -> None:
-        super().__init__(message)
-        self.code = code
-        self.data = data
-
-
 def _here_version() -> str:
     """This Humanize's version, as PyPI has it."""
     from importlib.metadata import version
@@ -682,8 +673,26 @@ class _Session:
       said: What `session.hello` answered.
     """
 
-    def __init__(self, pipe: Pipe, route: Route, pinned: str, name: str) -> None:
+    def __init__(
+        self,
+        pipe: Pipe,
+        route: Route,
+        pinned: str,
+        name: str,
+        *,
+        client: str = "",
+        kind: Kind = "sdk",
+    ) -> None:
         """Opens the session over a carrier secured, and holds it to the id pinned.
+
+        Args:
+          pipe: The carrier, secured where it is untrusted.
+          route: The route it was reached by.
+          pinned: The daemon id pinned, `""` for none.
+          name: What the daemon is called.
+          client: What this client is called in `session.hello`; this machine's host name
+            where it is `""`.
+          kind: What this client is.
 
         Raises:
           _Failed: If the daemon refused hello, did not answer it within 30 seconds, or
@@ -698,7 +707,7 @@ class _Session:
         self.peer = Peer(pipe, self._serves, name=f"hmz-remote-{name}")
         self.peer.closing(self._ended)
         try:
-            self.said = hello(self.peer, host(), "sdk", timeout=OPENING)
+            self.said = hello(self.peer, client or host(), kind, timeout=OPENING)
         except RpcError as why:
             self.peer.close()
             raise _Failed(why.message) from why
@@ -751,16 +760,52 @@ class Client:
     """One session of the wire protocol with one daemon (Section 4.21 of python.md).
 
     What :meth:`Remotes.client` hands out: the one session the `Remotes` holds to that daemon,
-    which closing a client leaves open for the others, and closing the `Remotes` closes.
+    which closing a client leaves open for the others, and closing the `Remotes` closes. One
+    made :meth:`over` a pipe of its own holds its session alone, and closing it ends it.
     """
 
-    def __init__(self, session: _Session) -> None:
-        """Holds a session reached. Made by :meth:`Remotes.client`."""
+    def __init__(self, session: _Session, *, owned: bool = False) -> None:
+        """Holds a session reached. Made by :meth:`Remotes.client` and :meth:`over`.
+
+        Args:
+          session: The session.
+          owned: Whether closing this ends the session, which is this client's alone.
+        """
         self._session = session
+        self._owned = owned
         self._lock = threading.Lock()
         self._listening = False
         self._inbox: _Inbox = queue.SimpleQueue()
         self._closed = False
+
+    @classmethod
+    def over(cls, pipe: Pipe, *, name: str = "", kind: Kind = "sdk") -> Self:
+        """A client of a session of its own, over a trusted pipe to a daemon: hello said.
+
+        Args:
+          pipe: The pipe: this machine's daemon's socket, or a socket pair to a private one.
+          name: What this client is called, `""` for this machine's host name.
+          kind: What it is: `sdk`, `cli`, `tui`.
+
+        Raises:
+          OSError: If the daemon refused hello or did not answer it -- `EADDRINUSE`, saying
+            why, where it speaks another protocol.
+        """
+        import errno
+
+        from hmz.reach import Route
+        from hmz.rpc import Code, RpcError
+
+        try:
+            session = _Session(
+                pipe, Route.parse("unix:"), "", "this daemon", client=name, kind=kind
+            )
+        except _Failed as why:
+            cause = why.__cause__
+            if isinstance(cause, RpcError) and cause.code == Code.PROTOCOL_MISMATCH:
+                raise OSError(errno.EADDRINUSE, str(why)) from why
+            raise OSError(str(why)) from why
+        return cls(session, owned=True)
 
     @property
     def daemon_id(self) -> str:
@@ -805,16 +850,16 @@ class Client:
         from hmz.rpc import Closed, RpcError
 
         if self._closed or self._session.peer.closed:
-            raise _Refused(_WENT, 503)
+            raise Refused(_WENT, code=503)
         given = dict(params or {})
         if idem is not None:
             given["idem"] = idem
         try:
             return self._session.peer.call(method, given, timeout=seconds)
         except RpcError as why:
-            raise _Refused(why.message, why.code, why.data) from why
+            raise Refused(why.message, code=why.code, data=why.data) from why
         except Closed as why:
-            raise _Refused(_WENT, 503) from why
+            raise Refused(_WENT, code=503) from why
         except TimeoutError:
             raise TimeoutError(f"no answer to {method!r} in {seconds}s") from None
 
@@ -849,6 +894,8 @@ class Client:
             self._closed = True
         self._session.forgets(self._inbox)
         self._inbox.put(None)
+        if self._owned:
+            self._session.close()
 
     def __enter__(self) -> Self:
         """Holds the client for as long as the block runs."""

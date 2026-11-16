@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from hmz.rpc import Call, Peer
+    from hmz.rpc import Call, Pipe
     from hmz.runtime import Holding
 
 __all__ = ["Private"]
@@ -107,23 +107,10 @@ class Private(Router):
 
         self.dispatcher.register("flows.check", self._guarded("flows.check", checks))
 
-    def paired(self) -> Callable[[Callable[[Call], None]], tuple[Peer, dict[str, Any]]]:
-        """What opens a session with this daemon over a socket pair, trusted, hello said.
-
-        Returns:
-          What a :class:`hmz.sdk.Client` dials it with.
-        """
+    def paired(self) -> Pipe:
+        """A trusted session's pipe to this daemon, over a socket pair: the client's end."""
         from hmz.reach.pipes import SocketPipe
-        from hmz.rpc import Peer, hello
 
-        def dials(serve: Callable[[Call], None]) -> tuple[Peer, dict[str, Any]]:
-            ours, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.admit(SocketPipe(theirs, trusted=True), fingerprint="", trusted=True)
-            peer = Peer(SocketPipe(ours, trusted=True), serve, name="hmz-private")
-            try:
-                return peer, hello(peer, "", "sdk", timeout=_PATIENCE)
-            except Exception as why:
-                peer.close()
-                raise OSError(f"the private daemon did not say hello: {why}") from why
-
-        return dials
+        ours, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.admit(SocketPipe(theirs, trusted=True), fingerprint="", trusted=True)
+        return SocketPipe(ours, trusted=True)

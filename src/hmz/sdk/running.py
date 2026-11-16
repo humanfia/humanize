@@ -632,7 +632,7 @@ class Run:
         while not self._ended.wait(_LOOKING):
             with self._lock:
                 client = self._client
-            if client is None or not client.closed:
+            if client is None or not client.wait(0):
                 continue
             if self._runner.fakes is not None:
                 self._ends(RuntimeError(_WENT), None)

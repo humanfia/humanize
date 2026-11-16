@@ -50,7 +50,7 @@ from hmz.web import listening
 
 if sys.argv[2]:
     hmz.coganchor.__version__ = sys.argv[2]
-with listening(port=int(sys.argv[1]), apart=False) as site:
+with listening(port=int(sys.argv[1])) as site:
     site._key = easytier.key(os.environ.pop("FAR_SECRET"))
     threading.Thread(target=site.serve_forever, daemon=True).start()
     print("listening", flush=True)
