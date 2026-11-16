@@ -232,7 +232,7 @@ jobs:
         run: |
           status=0
           LIMIT=""; DIAG=""
-          if [[ $RUNNER_OS == Linux ]]; then LIMIT="timeout -s QUIT 900"; DIAG="-o faulthandler_timeout=200 -p no:randomly -v"; fi
+          if [[ $RUNNER_OS == Linux ]]; then LIMIT="timeout -s QUIT -k 20 240"; DIAG="-o faulthandler_timeout=60 -p no:randomly -v"; fi
           for dir in tests/unit/*/; do
             package=$(basename "$dir")
             if ! grep -q "^ *unit-$package:" .github/workflows/ci.yml; then
