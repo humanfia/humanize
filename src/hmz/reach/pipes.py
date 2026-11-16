@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "MESSAGE",
+    "SYNC",
     "Messages",
     "ProcessPipe",
     "SocketPipe",
@@ -35,6 +36,13 @@ __all__ = [
 
 #: The most one WebSocket message carries: what the relay lets through (Section 5.6.1).
 MESSAGE = 1 << 20
+
+#: What `hmz daemon connect --stdio` writes before the daemon's first byte, and what the carrier
+#: of a `stdio:` route begins after (Section 3.4.11 of wire.md).
+SYNC = b"hmz-stdio/1\n"
+
+#: How many bytes may come before :data:`SYNC` hold it.
+_SYNCING = 1 << 16
 
 #: How much one read of a splice asks for.
 _CHUNK = 1 << 16
@@ -142,7 +150,9 @@ class ProcessPipe:
     """The standard input and output of a child: `hmz daemon connect --stdio`, wherever it runs.
 
     What the child says on its standard error is kept, and its last line is what a carrier
-    that ended badly raises: `ssh` saying why it could not reach the host.
+    that ended badly raises: `ssh` saying why it could not reach the host. What it says on its
+    standard output up to and including :data:`SYNC` is no byte of the carrier: what a shell
+    that `ssh` or WSL starts there prints before `hmz` runs.
     """
 
     def __init__(self, process: subprocess.Popen[bytes], *, trusted: bool) -> None:
@@ -167,6 +177,8 @@ class ProcessPipe:
         self._closing = threading.Lock()
         self._closed = False
         self._said = ""
+        self._synced = False
+        self._held = b""
         self._heard = threading.Thread(
             target=self._hears, args=(process.stderr,), daemon=True, name="hmz-reach"
         )
@@ -177,6 +189,25 @@ class ProcessPipe:
         return self._trusted
 
     def recv(self, size: int) -> bytes:
+        while not self._synced:
+            read = self._read(_CHUNK)
+            if not read:
+                return read
+            self._held += read
+            at = self._held.find(SYNC, 0, _SYNCING)
+            if at >= 0:
+                self._held = self._held[at + len(SYNC) :]
+                self._synced = True
+            elif len(self._held) >= _SYNCING:
+                msg = f"No {SYNC.decode().strip()} line came within the first {_SYNCING} bytes."
+                raise ConnectionError(msg)
+        if self._held:
+            read, self._held = self._held[:size], self._held[size:]
+            return read
+        return self._read(size)
+
+    def _read(self, size: int) -> bytes:
+        """One read of the child's standard output, raising why it failed once it has ended."""
         try:
             read = os.read(self._stdout.fileno(), size)
         except (OSError, ValueError):

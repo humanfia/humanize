@@ -206,15 +206,22 @@ relay at `<url>` (Section 4.7).
 **3.4.9** A client that opens a carrier MUST give up on it unless, within 30 seconds of starting it,
 the carrier has opened, its security of Section 4, if any, is established and `session.hello`
 (Section 6.5) over it is answered, and MUST then report `<route> did not open within 30 seconds.`;
-a `stdio:` carrier opens as soon as its process starts and says nothing until it is spoken to, so
-that its 30 seconds are those of its handshake. The time hmz is installed over a `stdio:ssh` carrier
-MUST NOT count, and the 30 seconds MUST start afresh once it is installed.
+a `stdio:` carrier opens as soon as its process starts and says nothing but the line of Section
+3.4.11 until it is spoken to, so that its 30 seconds are those of its handshake. The time hmz is
+installed over a `stdio:ssh` carrier MUST NOT count, and the 30 seconds MUST start afresh once it
+is installed.
 
 **3.4.10** A carrier MUST NOT be half-closed: a side that stops reading or writing it MUST close it
 both ways, and whatever splices a carrier to another or to standard streams -- `hmz daemon connect
 --stdio` (Section 13.2.3 of [CLI]), the relay (Section 5.5.3), `/rpc` and `/dial` (Section 4.7 of
 [WEB] and Section 4.8 of [WEB]) and the pipes of the desktop application (Section 3.12 of
 [DESKTOP]) -- MUST close both once either direction ends.
+
+**3.4.11** `hmz daemon connect --stdio` MUST write `hmz-stdio/1` and a line feed to its standard
+output before any byte of the daemon's, and a `stdio:` carrier MUST be what its client reads after
+the first such line, every byte up to and including that line being discarded: what a shell that
+`ssh` or WSL starts prints before the command runs. A client MUST give up on a `stdio:` carrier
+whose first 65 536 bytes hold no such line.
 
 ### 3.5. Trust
 
@@ -585,8 +592,9 @@ named by the call that opened it.
 
 ### 6.3. Frames
 
-**6.3.1** Every byte a session carries after its L1, if any, MUST belong to a frame: the length of
-its payload as an unsigned 32-bit big-endian integer, then the payload, one JSON object in UTF-8.
+**6.3.1** Every byte a session carries after its L1, if any, and on a `stdio:` carrier after the
+line of Section 3.4.11, MUST belong to a frame: the length of its payload as an unsigned 32-bit
+big-endian integer, then the payload, one JSON object in UTF-8.
 
 **6.3.2** A reader MUST accept a payload of 1 to 33 554 432 bytes, and MUST close the session on a
 length of 0 or above it.

@@ -481,9 +481,9 @@ Connecting races the daemon's routes, in the order they are kept, each a quarter
 after the one before. In a browser, Local is reached through `hmz web`, and every other route
 but a WebRTC one through `hmz web` too, which opens it from this machine: over `ssh`, it runs
 `hmz daemon connect --stdio` on the host through a login shell, whose standard streams carry the
-session -- what the login shell's profile prints goes to standard error, so it never reaches the
-session, though what the shell `ssh` itself starts prints (a `~/.bashrc` that echoes) still
-does, and breaks it; over a TCP
+session -- what the login shell's profile prints goes to standard error, and the session begins
+after the line `hmz-stdio/1` that command prints first, so what the shell `ssh` itself starts
+prints (a `~/.bashrc` that echoes) is skipped too; over a TCP
 port, a relay or EasyTier, it opens mutual TLS held to the daemon's id, which pairing gave it.
 The first to say hello as that daemon wins, and the others are closed. A daemon first reached
 over `ssh` has the id it answered pinned, and one that later answers as another fails with

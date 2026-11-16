@@ -792,11 +792,11 @@ mod tests {
             std::fs::write(path, text).unwrap();
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
         };
-        // Stands in for hmz, in ~/.local/bin: echoes what it is sent, says why it stops, and
-        // stops.
+        // Stands in for hmz, in ~/.local/bin: says the sync line after what a shell printed,
+        // echoes what it is sent, says why it stops, and stops.
         script(
             &dir.path().join(".local/bin/hmz"),
-            "#!/bin/sh\n[ \"$*\" = 'daemon connect --stdio' ] || exit 2\nhead -c 5\necho bye >&2\n",
+            "#!/bin/sh\n[ \"$*\" = 'daemon connect --stdio' ] || exit 2\necho Welcome\necho hmz-stdio/1\nhead -c 5\necho bye >&2\n",
         );
         // A login shell that reads no profile.
         let shell = dir.path().join("shell");

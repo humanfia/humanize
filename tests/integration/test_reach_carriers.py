@@ -145,14 +145,17 @@ def test_stdio_over_ssh_reaches_connect_stdio_spliced_to_the_daemon_there(
 ) -> None:
     host = doubles_ssh.faked(tmp_path, monkeypatch)
     # The `hmz` there is `hmz daemon connect --stdio` as `hmz.reach` makes it: its standard
-    # streams spliced to the socket of the daemon of that machine.
+    # streams spliced to the socket of the daemon of that machine once it has said the sync
+    # line, after what a shell there printed first (Section 3.4.11 of wire.md).
     there = host.home / ".local" / "bin" / "hmz"
     there.write_text(
         f"#!/bin/sh\n"
         f'[ "$*" = "daemon connect --stdio" ] || exit 64\n'
+        f"echo 'Welcome to box'\n"
         f"exec {sys.executable} -c "
-        f'"from hmz.reach import dial, splice, stdio; '
-        f"splice(stdio(), dial('unix:{unix_echo}'))\"\n"
+        f'"from hmz.reach import SYNC, dial, splice, stdio; '
+        f"here = stdio(); here.sendall(SYNC); "
+        f"splice(here, dial('unix:{unix_echo}'))\"\n"
     )
     monkeypatch.setenv("HUMANIZE_SSH_REUSE", "off")
     pipe = dial("stdio:ssh://me@box:2222?identity=~%2Fkey&option=ServerAliveCountMax=2")

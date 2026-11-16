@@ -180,13 +180,16 @@ def _unreached(why: OSError) -> int:
 def _connect() -> int:
     """`hmz daemon connect --stdio`: standard streams spliced to the daemon's socket."""
     from hmz import daemon
-    from hmz.reach import dial, splice, stdio
+    from hmz.reach import SYNC, dial, splice, stdio
 
     try:
         pipe = dial("unix:", start=daemon.start)
     except OSError as why:
         return _unreached(why)
-    splice(stdio(), pipe)
+    here = stdio()
+    # What the client discards everything up to: what a shell printed before this ran.
+    here.sendall(SYNC)
+    splice(here, pipe)
     return 0
 
 

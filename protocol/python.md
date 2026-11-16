@@ -3256,12 +3256,15 @@ gave with a fake as it states.
 of that process, and MUST NOT start a process of hmz of its own.
 
 **4.19.5** A private daemon MUST use a temporary home and a temporary machine directory of its own,
-made when it starts, holding a copy of the settings file of the home where there is one; it MUST NOT
-read, write, start, stop or reach the daemon of this machine, its socket, its daemon directory or
-its home's epics, and MUST NOT listen beyond its socket pair.
+made when it starts, holding a copy of the settings file of the home where there is one, except
+that private daemons running at the same time in one process, whose environment and `tempfile`
+name one home and one machine directory, MAY share them, removed once the last of them is torn
+down; it MUST NOT read, write, start, stop or reach the daemon of this machine, its socket, its
+daemon directory or its home's epics, and MUST NOT listen beyond its socket pair.
 
 **4.19.6** A private daemon MUST be torn down -- every host closed as Section 4.13.6 of [DAEMON]
-states, its session closed, its temporary home and machine directory removed -- when `run_fake`
+states, its session closed, its temporary home and machine directory removed where no other private
+daemon shares them (Section 4.19.5) -- when `run_fake`
 returns or raises, and when the `Run` of `Hmz.run` is closed or its epic has ended and its result
 been read.
 
