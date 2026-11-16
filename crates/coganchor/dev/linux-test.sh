@@ -5,6 +5,8 @@
 #
 #   crates/coganchor/dev/linux-test.sh tests/integration/test_anchor_transport.py -x
 #
+# pytest runs from a copy of the checkout inside the container (see below).
+#
 # Caches (cargo registry, target directory, the virtualenv) persist in Docker volumes named
 # for this checkout, so a second run builds only what changed. The virtualenv is a directory
 # inside its volume rather than the volume itself, which uv could not remove to rebuild it.
@@ -31,8 +33,14 @@ exec docker run --rm ${COGANCHOR_TTY:+-it} \
     cargo clippy --all-targets -- -D warnings
     cargo test
     cargo build
-    cd /src
     if [ "$#" -gt 0 ]; then
+      # From a copy on the container'"'"'s own filesystem: Docker Desktop'"'"'s bind mount of a
+      # Mac folder ("fakeowner") ignores Landlock'"'"'s rules, so a fenced test reading the
+      # checkout would be refused there and nowhere else.
+      mkdir -p "$HOME/work"
+      (cd /src && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -) |
+        tar -xf - -C "$HOME/work"
+      cd "$HOME/work"
       uv sync --frozen --all-extras --quiet
       uv run --frozen pytest "$@"
     fi

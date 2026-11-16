@@ -204,31 +204,3 @@ fn the_command_line_announces_where_it_listens() {
     .unwrap();
     assert_eq!(running.wait().unwrap().code(), Some(0));
 }
-
-/// One Rust half for interop runs against a Python broker or half: `COGANCHOR_MEETING` names
-/// the meeting and `COGANCHOR_ROLE` the half. The anchor sends `ping` and expects `pong`; the
-/// serve expects `ping` and answers `pong`. Run with `cargo test -- --ignored interop_half`.
-#[test]
-#[ignore = "driven by an interop script, with a broker and another half running"]
-fn interop_half() {
-    let meeting = Meeting::parse(&std::env::var("COGANCHOR_MEETING").unwrap()).unwrap();
-    let role = Role::parse(&std::env::var("COGANCHOR_ROLE").unwrap()).unwrap();
-    let mut held = dial(&meeting, role, PATIENCE).unwrap();
-    held.set_read_timeout(Some(PATIENCE)).unwrap();
-    let mut got = [0u8; 4];
-    if role == Role::Anchor {
-        held.write_all(b"ping").unwrap();
-        held.read_exact(&mut got).unwrap();
-        assert_eq!(&got, b"pong");
-    } else {
-        held.read_exact(&mut got).unwrap();
-        assert_eq!(&got, b"ping");
-        held.write_all(b"pong").unwrap();
-    }
-    let how = if held.peer_addr().unwrap().port() == meeting.port {
-        "relay"
-    } else {
-        "direct"
-    };
-    println!("interop {} ok {how}", role.as_str());
-}

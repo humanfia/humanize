@@ -720,7 +720,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs unit 7 (Target::parse)"]
     fn the_command_line_is_read_into_settings() {
         let config = AnchorConfig::from_args(&args(&[
             "--target=local",

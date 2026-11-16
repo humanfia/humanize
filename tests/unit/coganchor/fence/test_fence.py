@@ -51,6 +51,16 @@ NESTED = [
     if LEVELS.index(levels[0]) >= LEVELS.index(levels[1]) >= LEVELS.index(levels[2])
 ]
 
+#: What this machine can fence as `coganchor` is asked it: `tests/unit/conftest.py` answers it
+#: for every other unit test, and the tests here are about the asking.
+_ABLE = fencing.able
+
+
+@pytest.fixture(autouse=True)
+def _asked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`fence.able` as it is, asking `coganchor`, for the tests of that asking."""
+    monkeypatch.setattr(fencing, "able", _ABLE)
+
 
 def drawn(local: str, user: str, system: str, *, online: bool = True) -> Fence:
     return Fence.of(

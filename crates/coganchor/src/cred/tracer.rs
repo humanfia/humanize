@@ -1158,7 +1158,6 @@ mod tests {
 
     // `Swaps::answer` reads each entry with `policy::answered`, which unit 8 fills in.
     #[test]
-    #[ignore = "needs unit 8 (policy::answered)"]
     fn a_file_a_directory_and_a_rotated_file_are_answered() {
         let held = swaps(
             &[
@@ -1185,7 +1184,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs unit 8 (policy::answered)"]
     fn a_pattern_answers_every_path_its_names_match() {
         let held = swaps(&[("/h/state_*.sqlite", "/p/state_*.sqlite")], &[]);
         let swap = |path: &str| held.answer(path).map(|(found, _)| found);
@@ -1202,7 +1200,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs unit 8 (policy::answered)"]
     fn the_entry_that_says_most_about_a_path_wins_across_both_tables() {
         let held = swaps(
             &[("/h/.claude", "/p/creds")],

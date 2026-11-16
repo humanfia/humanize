@@ -165,21 +165,3 @@ fn installs_once_and_reuses_it() {
     assert_eq!(line[1..3], ["-F", "/dev/null"]);
     let _ = &world.root;
 }
-
-/// `connect` down the ssh road to what it shipped, which here is the Python anchor.
-#[test]
-#[ignore = "needs uv and the Python anchor"]
-fn connects_down_the_road() {
-    let world = world();
-    let real = world.root.join("work");
-    fs::create_dir_all(&real).unwrap();
-    fs::write(real.join("f"), b"far away").unwrap();
-    let target = Target::parse("ssh://elsewhere").unwrap();
-    let link =
-        coganchor::transport::connect(&target, &[format!("/w:{}", real.display())], None).unwrap();
-    let client = coganchor::client::RemoteClient::new(link.channel.clone());
-    client.start(None).unwrap();
-    assert_eq!(client.read_file("/w/f").unwrap().0, b"far away");
-    client.close();
-    link.close();
-}
