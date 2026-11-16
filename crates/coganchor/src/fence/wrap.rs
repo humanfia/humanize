@@ -9,7 +9,9 @@
 //! filter are loaded and the latter's listener handed up to the parent
 //! ([`crate::fence::loopback`]); then the Landlock ruleset is applied. A step that fails is a
 //! program that does not run, never one that runs with less of the wall than was asked for.
-//! The parent stays outside: serving the proxy, answering binds, passing signals on, and --
+//! Landlock only allows, so what a fence carves out of a grant is held by granting what is
+//! around it instead ([`expanded`]), worked out before the fork; a carve-out that cannot be
+//! held so is a program that does not run either. The parent stays outside: serving the proxy, answering binds, passing signals on, and --
 //! where the network is cut -- reaping every orphan as the subreaper of the tree. On a Mac the
 //! child is `sandbox-exec` with the fence's Seatbelt profile.
 
@@ -149,6 +151,121 @@ pub fn environ(
         set(&mut held, "NODE_USE_ENV_PROXY", "1");
     }
     held
+}
+
+/// What Landlock grants to read, and to write, to hold a fence's carve-outs (`expanded`): the
+/// fence's own grants where nothing is carved out of them.
+///
+/// Landlock only allows: a rule grants a directory and everything beneath it, and nothing a
+/// rule beneath it says takes any of that back. So a grant that holds a path carved out
+/// narrower than it is not granted itself. Its entries are, one by one -- each as it is, but
+/// one on the way to such a path, which is taken apart the same way, down to the path itself,
+/// which is granted at its own level or not at all. A path granted beneath a carve-out is
+/// granted on its own, being in the fence's grants.
+///
+/// What is granted is what is there as this is asked: an entry made later in a directory that
+/// was taken apart is in nothing granted, and so out of reach -- the fence failing closed. So
+/// is the directory itself, which can be neither listed nor added to, only gone through. Nor
+/// is a symbolic link among the entries granted, a rule on a link being a rule on wherever it
+/// leads.
+///
+/// # Errors
+/// Where a directory that has to be taken apart cannot be listed, or a grant holding a
+/// carve-out is not a directory: the carve-out cannot be held.
+pub fn expanded(fence: &Fence) -> std::io::Result<(Vec<String>, Vec<String>)> {
+    use crate::fence::policy::{LEVELS, WRITE, os_error, os_said, rank};
+
+    if fence.keep.is_empty() && fence.deny.is_empty() {
+        return Ok((fence.read.clone(), fence.write.clone()));
+    }
+    let mut ranked: Vec<(String, usize)> = Vec::new();
+    for one in fence
+        .read
+        .iter()
+        .chain(&fence.write)
+        .chain(&fence.keep)
+        .chain(&fence.deny)
+    {
+        if !ranked.iter().any(|(path, _)| path == one) {
+            ranked.push((one.clone(), rank(fence.level(one)).unwrap_or(0)));
+        }
+    }
+    let strictly =
+        |path: &str, root: &str| path.starts_with(&format!("{}/", root.trim_end_matches('/')));
+    let mut read: Vec<String> = Vec::new();
+    let mut write: Vec<String> = Vec::new();
+    let mut granted = |path: String, level: usize| {
+        let into = if LEVELS[level] == WRITE {
+            &mut write
+        } else {
+            &mut read
+        };
+        if !into.contains(&path) {
+            into.push(path);
+        }
+    };
+    fn apart(
+        directory: &str,
+        level: usize,
+        narrower: &[&str],
+        ranked: &[(String, usize)],
+        granted: &mut dyn FnMut(String, usize),
+    ) -> std::io::Result<()> {
+        let strictly =
+            |path: &str, root: &str| path.starts_with(&format!("{}/", root.trim_end_matches('/')));
+        let unlisted =
+            |why: std::io::Error| os_error(why.raw_os_error().unwrap_or(libc::EIO), directory);
+        let mut entries: Vec<std::fs::DirEntry> = std::fs::read_dir(directory)
+            .map_err(unlisted)?
+            .collect::<Result<_, _>>()
+            .map_err(unlisted)?;
+        entries.sort_by_key(std::fs::DirEntry::file_name);
+        for entry in entries {
+            let path = format!(
+                "{}/{}",
+                directory.trim_end_matches('/'),
+                entry.file_name().to_string_lossy()
+            );
+            if ranked.iter().any(|(one, _)| *one == path)
+                || entry.file_type().is_ok_and(|kind| kind.is_symlink())
+            {
+                continue;
+            }
+            let beneath: Vec<&str> = narrower
+                .iter()
+                .copied()
+                .filter(|one| strictly(one, &path))
+                .collect();
+            if beneath.is_empty() {
+                granted(path, level);
+            } else {
+                apart(&path, level, &beneath, ranked, granted)?;
+            }
+        }
+        Ok(())
+    }
+    for (path, level) in &ranked {
+        if *level == 0 {
+            continue;
+        }
+        let narrower: Vec<&str> = ranked
+            .iter()
+            .filter(|(one, below)| strictly(one, path) && below < level)
+            .map(|(one, _)| one.as_str())
+            .collect();
+        if narrower.is_empty() {
+            granted(path.clone(), *level);
+        } else if Path::new(path).is_dir() {
+            apart(path, *level, &narrower, &ranked, &mut granted)?;
+        } else if std::fs::symlink_metadata(path).is_ok() {
+            return Err(os_said(
+                libc::ENOTDIR,
+                "a path carved out beneath it cannot be held, it not being a directory",
+                path.clone(),
+            ));
+        }
+    }
+    Ok((read, write))
 }
 
 /// A scratch made for one run, removed when it is dropped.
@@ -328,9 +445,11 @@ fn put_up(fence: &Fence, walled: &Fence, argv: &[OsString]) -> Result<i32, Strin
     use crate::fence::{loopback, netfilter};
 
     landlock::abi();
+    // Taken apart around what is carved out of it, which Landlock cannot say.
+    let (read, write) = expanded(fence).map_err(|why| spelled(&why))?;
     // Made and opened here, where it is put up, and handed down open: what the child grants
     // is what was checked, never a link put at one of its names since.
-    let held = walled.ready().map_err(|why| spelled(&why))?;
+    let held = walled.ready(Some(&write)).map_err(|why| spelled(&why))?;
     let proxy = Serving::start(fence)?;
     let port = proxy.port();
     // The subreaper of everything inside, where binds are answered: a process that left its
@@ -343,7 +462,7 @@ fn put_up(fence: &Fence, walled: &Fence, argv: &[OsString]) -> Result<i32, Strin
     }
     let env = environ(fence, std::env::vars_os(), &walled.tmp, port);
     let ruleset = Ruleset {
-        read: fence.read.iter().map(PathBuf::from).collect(),
+        read: read.iter().map(PathBuf::from).collect(),
         write: held,
         connect_ports: port.into_iter().collect(),
         // A port the kernel picks is a listener only, which reaches nothing: a CLI that
@@ -504,7 +623,7 @@ fn put_up(fence: &Fence, walled: &Fence, argv: &[OsString]) -> Result<i32, Strin
     // Granted as the paths they were reached at, every link on the way followed where it may
     // be: a link put at one of them since leads nowhere granted.
     let reached: Vec<String> = walled
-        .reached()
+        .reached(None)
         .map_err(|why| spelled(&why))?
         .into_iter()
         .map(|(path, _)| path)
@@ -603,6 +722,153 @@ mod tests {
         assert_eq!(env[0].0, "XDG_CACHE_HOME");
         let online = environ(&fence, Vec::new(), "/s", None);
         assert_eq!(value(&online, "HTTPS_PROXY"), None);
+    }
+
+    fn strings(list: &[&str]) -> Vec<String> {
+        list.iter().map(|one| (*one).to_owned()).collect()
+    }
+
+    /// Lays out `names` under `root`: a directory where the name ends in `/`, else a file.
+    fn tree(root: &Path, names: &[&str]) -> String {
+        for name in names {
+            let at = root.join(name.trim_end_matches('/'));
+            if name.ends_with('/') {
+                std::fs::create_dir_all(&at).unwrap();
+            } else {
+                std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+                std::fs::write(&at, "").unwrap();
+            }
+        }
+        root.to_string_lossy().into_owned()
+    }
+
+    fn sorted(mut paths: Vec<String>) -> Vec<String> {
+        paths.sort();
+        paths
+    }
+
+    #[test]
+    fn expanded_leaves_a_fence_with_nothing_carved_out_as_it_is() {
+        let fence = Fence {
+            read: strings(&["/r"]),
+            write: strings(&["/w"]),
+            ..Fence::default()
+        };
+        assert_eq!(
+            expanded(&fence).unwrap(),
+            (strings(&["/r"]), strings(&["/w"]))
+        );
+    }
+
+    #[test]
+    fn expanded_takes_a_grant_apart_down_to_what_is_carved_out_of_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let w = tree(
+            &std::fs::canonicalize(dir.path()).unwrap(),
+            &[
+                "ok",
+                "src/",
+                "a/secret/key",
+                "a/b",
+                "a/c/",
+                "ro/notes",
+                "ro/d/x",
+            ],
+        );
+        std::os::unix::fs::symlink(format!("{w}/a/secret"), format!("{w}/link")).unwrap();
+        let fence = Fence {
+            write: vec![w.clone()],
+            keep: vec![format!("{w}/ro")],
+            deny: vec![format!("{w}/a/secret"), format!("{w}/ro/d")],
+            ..Fence::default()
+        };
+        let (read, write) = expanded(&fence).unwrap();
+        assert_eq!(
+            sorted(write),
+            vec![
+                format!("{w}/a/b"),
+                format!("{w}/a/c"),
+                format!("{w}/ok"),
+                format!("{w}/src"),
+            ]
+        );
+        assert_eq!(read, vec![format!("{w}/ro/notes")]);
+    }
+
+    #[test]
+    fn expanded_grants_again_what_is_granted_beneath_a_carve_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let w = tree(
+            &std::fs::canonicalize(dir.path()).unwrap(),
+            &["home/.cli/state", "home/.bashrc", "etc/hosts"],
+        );
+        let fence = Fence {
+            read: vec![w.clone()],
+            write: vec![format!("{w}/home/.cli")],
+            deny: vec![format!("{w}/home")],
+            ..Fence::default()
+        };
+        let (read, write) = expanded(&fence).unwrap();
+        assert_eq!(read, vec![format!("{w}/etc")]);
+        assert_eq!(write, vec![format!("{w}/home/.cli")]);
+    }
+
+    #[test]
+    fn expanded_takes_apart_every_grant_above_a_carve_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let w = tree(
+            &std::fs::canonicalize(dir.path()).unwrap(),
+            &["x/secret/key", "x/y"],
+        );
+        let fence = Fence {
+            read: vec![w.clone()],
+            write: vec![format!("{w}/x")],
+            deny: vec![format!("{w}/x/secret")],
+            ..Fence::default()
+        };
+        let (read, write) = expanded(&fence).unwrap();
+        assert!(read.is_empty(), "{read:?}");
+        assert_eq!(write, vec![format!("{w}/x/y")]);
+    }
+
+    #[test]
+    fn expanded_refuses_a_carve_out_it_cannot_hold() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let w = tree(
+            &std::fs::canonicalize(dir.path()).unwrap(),
+            &["shut/secret/key", "shut/other", "file"],
+        );
+        let not_a_directory = Fence {
+            write: vec![format!("{w}/file")],
+            deny: vec![format!("{w}/file/x")],
+            ..Fence::default()
+        };
+        let why = expanded(&not_a_directory).unwrap_err();
+        assert_eq!(
+            why.to_string(),
+            format!(
+                "[Errno {}] a path carved out beneath it cannot be held, it not being a \
+                 directory: '{w}/file'",
+                libc::ENOTDIR
+            )
+        );
+        let shut = format!("{w}/shut");
+        std::fs::set_permissions(&shut, std::fs::Permissions::from_mode(0o0)).unwrap();
+        // Root lists anything.
+        if std::fs::read_dir(&shut).is_err() {
+            let fence = Fence {
+                write: vec![w.clone()],
+                deny: vec![format!("{shut}/secret")],
+                ..Fence::default()
+            };
+            let why = expanded(&fence).unwrap_err();
+            assert_eq!(
+                why.to_string(),
+                format!("[Errno 13] Permission denied: '{shut}'")
+            );
+        }
+        std::fs::set_permissions(&shut, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
 
     #[test]

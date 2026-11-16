@@ -11,9 +11,8 @@ fn main() {
         Mode::Broker(args) => coganchor::broker::main(args),
         Mode::Internal(Internal::Fence(args)) => coganchor::fence::main(args),
         Mode::Internal(Internal::Cred(args)) => cred(args),
-        Mode::Internal(Internal::Able) => {
-            let able = coganchor::fence::able();
-            println!("{}", serde_json::json!({"fs": able.fs, "net": able.net}));
+        Mode::Internal(Internal::Able(args)) => {
+            println!("{}", coganchor::fence::said(args.policy.as_deref()));
             0
         }
     };

@@ -39,8 +39,9 @@ pub enum Internal {
     Fence(FenceArgs),
     /// Run a program with credentials from an account.
     Cred(CredArgs),
-    /// Say what this machine can fence, as `{"fs": bool, "net": bool}`.
-    Able,
+    /// Say what this machine can fence, as `{"fs": bool, "net": bool}`; with --policy, also
+    /// why it cannot hold what that fence carves out of its grants, as `"unheld"`.
+    Able(AbleArgs),
 }
 
 /// `coganchor cog`: the options of `hmz internal anchor`.
@@ -189,6 +190,14 @@ pub struct BrokerArgs {
     /// One of debug, info, warning, error (default: $HUMANIZE_LOG, else info).
     #[arg(long, value_parser = crate::log::LEVELS)]
     pub log_level: Option<String>,
+}
+
+/// `coganchor internal able`: what this machine can fence.
+#[derive(Clone, Debug, Default, Args)]
+pub struct AbleArgs {
+    /// A fence, as JSON or @PATH, whose carve-outs to ask about.
+    #[arg(long, value_name = "JSON")]
+    pub policy: Option<String>,
 }
 
 /// `coganchor internal fence`: the options of `hmz internal fence`.

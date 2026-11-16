@@ -646,13 +646,17 @@ fn a_sign_in_refreshed_here_too_is_left_as_it_is() {
 
 fn fence(online: bool, write: &[&str]) -> Fence {
     Fence {
-        read: Vec::new(),
         write: write.iter().map(|one| (*one).to_owned()).collect(),
         online,
         hosts: vec!["api.anthropic.com".into()],
         tmp: "/tmp/fence".into(),
-        scopes: vec!["project".into(), "none".into(), "read".into()],
+        drawn: vec![
+            ("/".into(), "read".into()),
+            ("~".into(), "none".into()),
+            (".".into(), "write".into()),
+        ],
         listen: vec![8080],
+        ..Fence::default()
     }
 }
 
@@ -667,17 +671,22 @@ fn a_fence_the_target_cannot_hold_refuses_the_turn() {
     );
     let said = fenced(&fake, Some(&fence(true, &[])), "/home/me").unwrap_err();
     assert!(said.to_string().ends_with("it needs Landlock"));
-    // Fencing nothing at all is no fence.
+    // Fencing nothing at all is no fence; carving something out of everything is one.
     assert!(
         fenced(&fake, Some(&fence(true, &["/"])), "/home/me")
             .unwrap()
             .is_none()
     );
+    let carved = Fence {
+        deny: vec!["/home/me/.ssh".into()],
+        ..fence(true, &["/"])
+    };
+    assert!(fenced(&fake, Some(&carved), "/home/me").is_err());
     assert!(fenced(&fake, None, "/home/me").unwrap().is_none());
 }
 
 #[test]
-fn a_fenced_turn_is_told_its_levels_and_may_write_its_own_directory() {
+fn a_fenced_turn_is_told_its_rules_and_may_write_its_own_directory() {
     let dir = tempfile::tempdir().unwrap();
     let (mut config, _) = projecting(dir.path(), "key\n");
     config.fence = Some(fence(
@@ -694,7 +703,7 @@ fn a_fenced_turn_is_told_its_levels_and_may_write_its_own_directory() {
     assert_eq!(
         serde_json::to_string(&cli.request["fence"]).unwrap(),
         serde_json::to_string(&json!({
-            "local": "project", "user": "none", "system": "read", "online": false,
+            "rules": [["/", "read"], ["~", "none"], [".", "write"]], "online": false,
             "hosts": ["api.anthropic.com"], "write": ["~/.codex", "~/.cache", "/tmp/tmp.S"],
             "programs": true, "listen": [8080],
         }))
@@ -712,7 +721,7 @@ fn a_fenced_turn_is_told_its_levels_and_may_write_its_own_directory() {
 #[test]
 fn a_fence_drawn_path_by_path_cannot_be_drawn_again() {
     let mut held = fence(false, &[]);
-    held.scopes.clear();
+    held.drawn.clear();
     assert!(
         told(&held, "/home/me")
             .unwrap_err()

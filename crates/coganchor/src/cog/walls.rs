@@ -1,12 +1,14 @@
 //! The fence around a supervised agent: Landlock plus, where the network is cut, the loopback
 //! proxy. Port of `_Walls` in `hmz.coganchor.anchor` (anchor.py:792-882). [Unit 12]
 //!
-//! Here, the agent process itself: the fence as drawn on this machine, with the mirror granted
+//! Here, the agent process itself: the fence as drawn on this machine, with the mirror drawn
 //! as the workspace is -- the mirror being the workspace, to a process whose every path into it
 //! is rewritten into the mirror -- put up in the forked child by the supervisor, with the proxy
 //! that is its one way out served by this process, outside the wall. There, every command the
-//! agent runs: [`Walls::told`], the fence's levels, for the target to draw it again around its
-//! own paths.
+//! agent runs: [`Walls::told`], the fence's rules, for the target to draw it again around its
+//! own paths. What the fence carves out is held by Landlock as the mirror stands when the wall
+//! is drawn ([`crate::fence::wrap::expanded`]): what is fetched into a directory taken apart
+//! after that stays out of the agent's reach, failing closed.
 
 use std::ffi::OsString;
 use std::io;
@@ -15,10 +17,10 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-use crate::cog::config::{abspath, normpath};
 use crate::fence::Fence;
 use crate::fence::landlock::Ruleset;
 use crate::fence::proxy::Proxy;
+use crate::fence::wrap::expanded;
 
 /// The variables every common HTTP client reads its proxy from (`wrap.PROXIES`).
 pub const PROXIES: [&str; 6] = [
@@ -73,7 +75,8 @@ impl Walls {
     ///
     /// # Errors
     /// `PermissionDenied` where this machine cannot put the wall up; `InvalidInput` where the
-    /// fence was drawn path by path; what [`Fence::ready`] and [`Proxy::start`] fail with.
+    /// fence was drawn path by path; what [`expanded`] (a carve-out that cannot be held),
+    /// [`Fence::ready`] and [`Proxy::start`] fail with.
     pub fn ready(fence: &Fence) -> io::Result<Walls> {
         let able = crate::fence::able();
         let landlocked = if fence.online { able.fs } else { able.net };
@@ -107,11 +110,13 @@ impl Walls {
             Some(Proxy::start(&fence.hosts)?)
         };
         let port = proxy.as_ref().map(|proxy| proxy.port);
-        // Made and opened here, before the agent is forked, and granted as the very
+        // Taken apart around what is carved out of it, which Landlock cannot say; and what is
+        // written, made and opened here, before the agent is forked, and granted as the very
         // directories opened: never a link an earlier turn put at one of their names.
-        let write = held.ready()?;
+        let (read, written) = expanded(fence)?;
+        let write = held.ready(Some(&written))?;
         let ruleset = Ruleset {
-            read: held.read.iter().map(PathBuf::from).collect(),
+            read: read.iter().map(PathBuf::from).collect(),
             write,
             connect_ports: port.into_iter().collect(),
             // As `hmz internal fence` has them: a port the kernel picks, and the fence's own;
@@ -128,7 +133,7 @@ impl Walls {
             ruleset,
             sockets: proxy.is_some(),
             proxy,
-            writes: allows(&held, "/", true),
+            writes: held.allows("/", true),
             fence: held,
             tmp,
             told,
@@ -137,11 +142,12 @@ impl Walls {
     }
 
     /// [`Walls::ready`] around a supervised agent whose workspace is the mirror at `mirror`:
-    /// granted as the fence's local level grants the workspace (`read` or `all`).
+    /// drawn as the fence's rules draw the workspace, `.` and every rule beneath it
+    /// ([`Fence::beside`]).
     pub fn around(fence: &Fence, mirror: &Path) -> io::Result<Walls> {
-        let granted = granting(fence, &mirror.to_string_lossy());
-        let mut walls = Walls::ready(&granted)?;
-        walls.writes = allows(&walls.fence, &mirror.to_string_lossy(), true);
+        let mirror = mirror.to_string_lossy();
+        let mut walls = Walls::ready(&fence.beside(&mirror, &crate::fence::wrap::home()))?;
+        walls.writes = walls.fence.allows(&mirror, true);
         Ok(walls)
     }
 
@@ -176,7 +182,7 @@ impl Walls {
             let at = lookup(name)
                 .filter(|at| !at.is_empty())
                 .unwrap_or_else(|| expanduser(usual));
-            if !(at.starts_with('/') && allows(&self.fence, &at, true)) {
+            if !(at.starts_with('/') && self.fence.allows(&at, true)) {
                 let instead = self.tmp.join("cache").join(name.to_lowercase());
                 said.push((name.to_owned(), instead.to_string_lossy().into_owned()));
             }
@@ -196,11 +202,6 @@ impl Walls {
     }
 }
 
-/// A path as a fence holds it (`fence._normal`): absolute, with no `..`.
-fn absolute(path: &str) -> String {
-    abspath(path).unwrap_or_else(|_| normpath(path))
-}
-
 /// Sets `name` in `env`, in its place where it is there already.
 pub fn overlay(env: &mut Vec<(OsString, OsString)>, name: OsString, value: OsString) {
     match env.iter_mut().find(|(key, _)| *key == name) {
@@ -209,66 +210,18 @@ pub fn overlay(env: &mut Vec<(OsString, OsString)>, name: OsString, value: OsStr
     }
 }
 
-/// `Fence.granting(read=[mirror] if level == READ, write=[mirror] if level == ALL)`, where
-/// `level` is the first of the fence's scopes; a path granted to write is not also in `read`.
-pub fn granting(fence: &Fence, mirror: &str) -> Fence {
-    let level = fence.scopes.first().map(String::as_str).unwrap_or("");
-    let mirror = absolute(mirror);
-    let mut write: Vec<String> = Vec::new();
-    for one in fence.write.iter().map(|one| absolute(one)) {
-        if !write.contains(&one) {
-            write.push(one);
-        }
-    }
-    if level == "all" && !write.contains(&mirror) {
-        write.push(mirror.clone());
-    }
-    let mut read: Vec<String> = Vec::new();
-    let wanted = fence
-        .read
-        .iter()
-        .map(|one| absolute(one))
-        .chain((level == "read").then_some(mirror));
-    for one in wanted {
-        if !write.contains(&one) && !read.contains(&one) {
-            read.push(one);
-        }
-    }
-    Fence {
-        read,
-        write,
-        ..fence.clone()
-    }
-}
-
-/// `Fence.allows`: whether some root the fence grants holds `path`, taken as written.
-pub fn allows(fence: &Fence, path: &str, write: bool) -> bool {
-    let Ok(held) = abspath(path) else {
-        return false;
-    };
-    let roots = fence
-        .write
-        .iter()
-        .chain(fence.read.iter().filter(|_| !write));
-    roots
-        .map(|root| absolute(root))
-        .any(|root| held == root || held.starts_with(&format!("{}/", root.trim_end_matches('/'))))
-}
-
-/// `abroad.told(fence, native=False)`: the levels and `online`, and the scratch, for the
-/// target to keep its own at the same path -- the agent writes that path into the commands it
-/// runs there.
+/// `abroad.told(fence, native=False)`: the rules, each `[path, access]` in the order they are
+/// said, and `online`, and the scratch, for the target to keep its own at the same path -- the
+/// agent writes that path into the commands it runs there.
 pub fn told(fence: &Fence) -> io::Result<Value> {
-    let [local, user, system] = fence.scopes.as_slice() else {
+    if fence.drawn.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "a fence drawn path by path cannot be drawn again on another machine",
         ));
-    };
+    }
     let mut said = json!({
-        "local": local,
-        "user": user,
-        "system": system,
+        "rules": fence.drawn,
         "online": fence.online,
     });
     if !fence.tmp.is_empty() {
@@ -302,59 +255,47 @@ fn scratch() -> io::Result<PathBuf> {
 mod tests {
     use super::*;
 
-    fn levelled(level: &str, online: bool) -> Fence {
-        Fence {
-            read: vec!["/usr".into(), "/m".into()],
-            write: vec!["/w/".into()],
-            online,
-            scopes: vec![level.into(), "read".into(), "read".into()],
-            ..Fence::default()
-        }
+    fn drawn(workdir: &str, online: bool) -> Fence {
+        let rules: Vec<(String, String)> = [
+            ("/", "read"),
+            ("~", "none"),
+            (".", workdir),
+            ("./secret", "none"),
+        ]
+        .iter()
+        .map(|(path, access)| ((*path).to_owned(), (*access).to_owned()))
+        .collect();
+        Fence::of(&rules, online, "/w", "/h", "", &[], &[], &[]).unwrap()
     }
 
     #[test]
-    fn the_mirror_is_granted_as_the_workspace_is() {
-        let all = granting(&levelled("all", true), "/m");
-        assert_eq!(all.write, ["/w", "/m"]);
-        assert_eq!(all.read, ["/usr"]);
-        assert!(allows(&all, "/m/x", true));
+    fn the_mirror_is_drawn_as_the_workspace_is() {
+        let written = drawn("write", true).beside("/m", "/h");
+        assert!(written.allows("/m/x", true));
+        assert_eq!(written.level("/m/secret/key"), "none");
+        assert!(written.deny.contains(&"/m/secret".to_owned()));
 
-        let read = granting(&levelled("read", true), "/mirror");
-        assert_eq!(read.read, ["/usr", "/m", "/mirror"]);
-        assert!(!allows(&read, "/mirror", true));
-        assert!(allows(&read, "/mirror/x", false));
+        let read = drawn("read", true).beside("/mirror", "/h");
+        assert!(!read.allows("/mirror", true));
+        assert!(read.allows("/mirror/x", false));
 
-        let none = granting(&levelled("none", true), "/mirror");
-        assert!(!allows(&none, "/mirror", false));
+        let none = drawn("none", true).beside("/mirror", "/h");
+        assert!(!none.allows("/mirror", false));
+        assert!(none.allows("/elsewhere", false));
     }
 
     #[test]
-    fn a_root_holds_what_is_beneath_it_and_nothing_beside_it() {
-        let fence = levelled("all", true);
-        assert!(allows(&fence, "/w", true));
-        assert!(allows(&fence, "/w/a/../b", true));
-        assert!(!allows(&fence, "/wx", true));
-        assert!(!allows(&fence, "/usr/bin", true));
-        assert!(allows(&fence, "/usr/bin", false));
-        let everything = Fence {
-            write: vec!["/".into()],
-            ..Fence::default()
-        };
-        assert!(allows(&everything, "/anything", true));
-    }
-
-    #[test]
-    fn the_target_is_told_the_levels_and_the_scratch() {
+    fn the_target_is_told_the_rules_and_the_scratch() {
         let fence = Fence {
             tmp: "/tmp/hmz-fence-x".into(),
-            ..levelled("all", false)
+            ..drawn("write", false)
         };
         assert_eq!(
             told(&fence).unwrap().to_string(),
-            r#"{"local":"all","user":"read","system":"read","online":false,"tmp":"/tmp/hmz-fence-x"}"#
+            r#"{"rules":[["/","read"],["~","none"],[".","write"],["./secret","none"]],"online":false,"tmp":"/tmp/hmz-fence-x"}"#
         );
         let path_by_path = Fence {
-            scopes: Vec::new(),
+            drawn: Vec::new(),
             ..fence
         };
         assert_eq!(

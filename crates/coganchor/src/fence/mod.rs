@@ -45,6 +45,26 @@ pub fn able() -> Able {
     }
 }
 
+/// What `coganchor internal able` says: what this machine can fence, as `{"fs": bool, "net":
+/// bool}`; and where a `policy` is given, as `"unheld"`, why Landlock cannot hold what it
+/// carves out of its grants ([`wrap::expanded`]), or null where it can. A Mac carves out of a
+/// grant with Seatbelt itself, and holds every carve-out.
+pub fn said(policy: Option<&str>) -> serde_json::Value {
+    let able = able();
+    let mut said = serde_json::json!({"fs": able.fs, "net": able.net});
+    if let Some(policy) = policy {
+        let unheld = match Fence::loads(policy) {
+            Err(why) => Some(why),
+            Ok(_) if cfg!(target_os = "macos") => None,
+            Ok(fence) => wrap::expanded(&fence)
+                .err()
+                .map(|why| policy::spelled(&why)),
+        };
+        said["unheld"] = serde_json::Value::from(unheld);
+    }
+    said
+}
+
 /// `coganchor internal fence`: run a program inside a fence and exit with its status.
 pub fn main(args: FenceArgs) -> i32 {
     wrap::main(args)

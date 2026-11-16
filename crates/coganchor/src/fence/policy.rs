@@ -1,10 +1,11 @@
 //! A fence, as the JSON `hmz` hands it over. Port of `Fence` in `hmz.coganchor.fence`.
 //! [Unit 4]
 //!
-//! Besides reading and writing the JSON, this is where a fence is drawn from scope levels
-//! ([`Fence::of`], for [`crate::fence::abroad`]) and where what it writes is reached, one name
-//! at a time and through no link a fenced program could have made ([`Fence::reach`]), just
-//! before a program is walled in.
+//! Besides reading and writing the JSON, this is where a fence is drawn from last-wins rules
+//! ([`Fence::of`], for [`crate::fence::abroad`]), where a path's level is read off its grants and
+//! carve-outs ([`Fence::level`]), and where what it writes is reached, one name at a time and
+//! through no link a fenced program could have made ([`Fence::reach`]), just before a program is
+//! walled in.
 
 use std::collections::{HashSet, VecDeque};
 use std::ffi::{OsStr, OsString};
@@ -20,11 +21,18 @@ use nix::sys::stat::{FileStat, Mode, fstat, fstatat, mkdirat};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-/// How much of one scope a fence grants, narrowest first (`NONE`, `READ`, `ALL`).
+/// How much of a path a fence grants, narrowest first (`NONE`, `READ`, `WRITE`): the words a
+/// rule's access is spelled with.
 pub const NONE: &str = "none";
 pub const READ: &str = "read";
-pub const ALL: &str = "all";
-pub const LEVELS: [&str; 3] = [NONE, READ, ALL];
+pub const WRITE: &str = "write";
+pub const LEVELS: [&str; 3] = [NONE, READ, WRITE];
+
+/// How a rule's path is anchored: at the root, at the home of the user the agent runs as, or
+/// at the workdir (`_ROOT`, `_HOME`, `_WORKDIR`).
+const ROOT: &str = "/";
+const HOMED: &str = "~";
+const WORKDIR: &str = ".";
 
 /// What any program needs to read to run at all (`LINUX_SYSTEM`).
 pub const LINUX_SYSTEM: &[&str] = &[
@@ -208,15 +216,23 @@ fn naming(errno: Errno, filename: &str) -> io::Error {
 
 /// The whole of what a program's process tree may still reach. Serialised with these keys in
 /// this order, unknown keys refused, exactly as `dataclasses.asdict(Fence)`.
+///
+/// A path grants everything beneath it: `read` to read, list and run, `write` to change as
+/// well. Beneath them, `keep` holds a path to reading and `deny` keeps it out of reach. A
+/// path's level is read from the paths in all four it is at or beneath ([`Fence::level`]).
+/// `drawn` is the rules it was drawn from, each `(path, access)` anchored at `/`, `~` or `.`,
+/// which another machine draws it again from.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Fence {
     pub read: Vec<String>,
     pub write: Vec<String>,
+    pub keep: Vec<String>,
+    pub deny: Vec<String>,
     pub online: bool,
     pub hosts: Vec<String>,
     pub tmp: String,
-    pub scopes: Vec<String>,
+    pub drawn: Vec<(String, String)>,
     pub listen: Vec<u16>,
 }
 
@@ -226,10 +242,12 @@ impl Default for Fence {
         Fence {
             read: Vec::new(),
             write: Vec::new(),
+            keep: Vec::new(),
+            deny: Vec::new(),
             online: true,
             hosts: Vec::new(),
             tmp: String::new(),
-            scopes: Vec::new(),
+            drawn: Vec::new(),
             listen: Vec::new(),
         }
     }
@@ -251,7 +269,7 @@ impl Fence {
             return Err("a fence is a JSON object".into());
         };
         let names = [
-            "read", "write", "online", "hosts", "tmp", "scopes", "listen",
+            "read", "write", "keep", "deny", "online", "hosts", "tmp", "drawn", "listen",
         ];
         let mut unknown: Vec<&str> = held
             .keys()
@@ -273,12 +291,17 @@ impl Fence {
                 Some(_) => Err(format!("a fence's {name} is a list of strings")),
             }
         };
-        let (read, write, hosts, scopes) = (
+        let (read, write, keep, deny, hosts) = (
             strings("read")?,
             strings("write")?,
+            strings("keep")?,
+            strings("deny")?,
             strings("hosts")?,
-            strings("scopes")?,
         );
+        let drawn = match held.get("drawn") {
+            None => Vec::new(),
+            Some(said) => rules(said).ok_or("a fence's drawn is a list of [path, access]")?,
+        };
         let listen = match held.get("listen") {
             None => Vec::new(),
             Some(Value::Array(ports)) => ports
@@ -301,10 +324,12 @@ impl Fence {
         Fence {
             read,
             write,
+            keep,
+            deny,
             online,
             hosts,
             tmp,
-            scopes,
+            drawn,
             listen,
         }
         .settled()
@@ -316,96 +341,174 @@ impl Fence {
     }
 
     /// What `Fence.__post_init__` makes of one: the paths absolute, normal and each once, a
-    /// path to write taken out of those to read, hosts and ports each once, and the scopes
-    /// either none or three levels.
+    /// path to write taken out of those to read and a path denied out of those kept, hosts and
+    /// ports each once, and each rule's path anchored and its access one of [`LEVELS`].
     pub fn settled(mut self) -> Result<Fence, String> {
         self.write = normal(&self.write);
-        let read = normal(&self.read);
-        self.read = read
+        self.read = normal(&self.read)
             .into_iter()
             .filter(|one| !self.write.contains(one))
             .collect();
+        self.deny = normal(&self.deny);
+        self.keep = normal(&self.keep)
+            .into_iter()
+            .filter(|one| !self.deny.contains(one))
+            .collect();
         self.hosts = once(self.hosts);
-        if !self.scopes.is_empty()
-            && (self.scopes.len() != LEVELS.len()
-                || !self.scopes.iter().all(|one| LEVELS.contains(&one.as_str())))
-        {
-            return Err(format!(
-                "a fence's scopes are three of {}, not {}",
-                LEVELS.join(", "),
-                python_tuple(&self.scopes)
-            ));
-        }
+        self.drawn = self
+            .drawn
+            .into_iter()
+            .map(|(path, access)| {
+                rank(&access)?;
+                Ok((anchored(&path)?, access))
+            })
+            .collect::<Result<_, String>>()?;
         self.listen = once(self.listen);
         Ok(self)
     }
 
-    /// The fence four scopes come to, with the minimum every program needs to run
-    /// (`Fence.of`). The levels must each be one of [`LEVELS`] and nest, local at least user
-    /// and user at least system.
+    /// The fence last-wins rules come to, with the minimum every program needs to run
+    /// (`Fence.of`).
+    ///
+    /// Each rule is a path anchored at `/`, `~` (`home`) or `.` (`workdir`, and `cwd` as well
+    /// where it is given), and an access, one of [`LEVELS`]; the last rule that holds a path
+    /// decides it. What is left is put in the fence by longest prefix, then the minimum is
+    /// granted over it: [`SYSTEM`] and this program to read, [`DEVICES`] and the GPUs' nodes to
+    /// write; [`TEMPORARY`] to write where the workdir is written, and everything the user may
+    /// change where the home is written by a rule at it or above it.
     #[allow(clippy::too_many_arguments)]
     pub fn of(
-        local: &str,
-        user: &str,
-        system: &str,
+        rules: &[(String, String)],
         online: bool,
         workdir: &str,
         home: &str,
+        cwd: &str,
         hosts: &[String],
         read: &[String],
         write: &[String],
     ) -> Result<Fence, String> {
-        let rank = |level: &str| {
-            LEVELS
-                .iter()
-                .position(|one| *one == level)
-                .ok_or_else(|| format!("a scope is one of {}, not '{level}'", LEVELS.join(", ")))
-        };
-        let ranks = [rank(local)?, rank(user)?, rank(system)?];
-        if !(ranks[0] >= ranks[1] && ranks[1] >= ranks[2]) {
-            return Err(format!(
-                "scopes must nest, local >= user >= system; got local={local}, user={user}, \
-                 system={system}"
-            ));
+        let drawn: Vec<(String, String)> = rules
+            .iter()
+            .map(|(path, access)| Ok((anchored(path)?, access.clone())))
+            .collect::<Result<_, String>>()?;
+        let mut dots = vec![workdir.to_owned()];
+        if !cwd.is_empty() {
+            dots.push(cwd.to_owned());
         }
-        let scopes = [("/", system), (home, user), (workdir, local)];
+        let dots = normal(&dots);
+        let homed = if home.is_empty() {
+            String::new()
+        } else {
+            absolute(home)
+        };
+        let held = compiled(&drawn, &dots, &homed)?;
+        let mut writing: Vec<String> = Vec::new();
+        if deepest(&held, &dots[0]) == WRITE {
+            writing.extend(temporary());
+        }
+        // The home written as the home, and not as a workdir it happens to be inside.
+        let users_rules: Vec<(String, String)> = drawn
+            .iter()
+            .filter(|(path, _)| anchor_of(path) != WORKDIR)
+            .cloned()
+            .collect();
+        if !homed.is_empty()
+            && deepest(&held, &homed) == WRITE
+            && deepest(&compiled(&users_rules, &dots, &homed)?, &homed) == WRITE
+        {
+            writing.extend(users());
+        }
+        // Granted before the rules are set against them, so that a rule carves out what it
+        // holds beneath them and loses to them at their own path: the deeper decides, and at
+        // one depth the wider.
+        let fence = Fence {
+            online,
+            hosts: hosts.to_vec(),
+            drawn,
+            ..Fence::default()
+        }
+        .settled()?
+        .granting(&[], &writing, &[], &[]);
         let mut reading: Vec<String> = SYSTEM.iter().map(|one| (*one).to_owned()).collect();
         reading.extend(ours());
-        reading.extend(
-            scopes
-                .iter()
-                .filter(|(_, level)| *level == READ)
-                .map(|(root, _)| (*root).to_owned()),
-        );
         reading.extend(read.iter().cloned());
         let mut writing: Vec<String> = DEVICES.iter().map(|one| (*one).to_owned()).collect();
         writing.extend(accelerators());
-        writing.extend(
-            scopes
-                .iter()
-                .filter(|(_, level)| *level == ALL)
-                .map(|(root, _)| (*root).to_owned()),
-        );
-        if local == ALL {
-            writing.extend(temporary());
-        }
-        if user == ALL {
-            writing.extend(users());
-        }
         writing.extend(write.iter().cloned());
-        Fence {
-            read: normal(&reading),
-            write: normal(&writing),
-            online,
-            hosts: hosts.to_vec(),
-            tmp: String::new(),
-            scopes: vec![local.to_owned(), user.to_owned(), system.to_owned()],
-            listen: Vec::new(),
-        }
-        .settled()
+        Ok(fence.at(&held).granting(&reading, &writing, &[], &[]))
     }
 
-    /// This fence with more let through (`Fence.granting`).
+    /// This fence with each path compiled rules land on held at their access (`Fence._at`).
+    ///
+    /// Shallowest first, so that each is set against what those above it already gave: a level
+    /// wider than that is granted, one narrower is carved out, and one the same needs nothing.
+    fn at(&self, held: &[(String, String)]) -> Fence {
+        let mut order: Vec<&(String, String)> = held.iter().collect();
+        order.sort_by_key(|(path, _)| depth(path));
+        let mut fence = self.clone();
+        for (path, access) in order {
+            let want = rank(access).unwrap_or(0);
+            let now = rank(fence.level(path)).unwrap_or(0);
+            let one = std::slice::from_ref(path);
+            if want > now {
+                fence = if LEVELS[want] == WRITE {
+                    fence.granting(&[], one, &[], &[])
+                } else {
+                    fence.granting(one, &[], &[], &[])
+                };
+            } else if fence.write.contains(path) {
+                // Written at that very path, which a carve-out there could not take back.
+            } else if want < now && LEVELS[want] == READ {
+                fence.keep.push(path.clone());
+                fence = fence.settled().expect("a fence carved keeps its rules");
+            } else if want < now {
+                fence.deny.push(path.clone());
+                fence = fence.settled().expect("a fence carved keeps its rules");
+            }
+        }
+        fence
+    }
+
+    /// This fence with another directory drawn as its workdir is, too (`Fence.beside`): the
+    /// access `.` has, at `path`, and every rule beneath `.`, beneath it. What a mirror of the
+    /// workspace, or a second directory a target exports, is drawn with. A fence drawn path by
+    /// path is this one.
+    pub fn beside(&self, path: &str, home: &str) -> Fence {
+        if self.drawn.is_empty() {
+            return self.clone();
+        }
+        let at = absolute(path);
+        let homed = if home.is_empty() {
+            String::new()
+        } else {
+            absolute(home)
+        };
+        let held = compiled(&self.drawn, std::slice::from_ref(&at), &homed)
+            .expect("a fence's rules are settled");
+        let mut beneath: Vec<(String, String)> = held
+            .iter()
+            .filter(|(one, _)| under(one, &at))
+            .cloned()
+            .collect();
+        let level = deepest(&held, &at).to_owned();
+        match beneath.iter_mut().find(|(one, _)| *one == at) {
+            Some(slot) => slot.1 = level,
+            None => beneath.push((at, level)),
+        }
+        self.at(&beneath)
+    }
+
+    /// Whether this fences nothing at all: the whole filesystem to write, nothing carved out
+    /// of it, and the network (`Fence.open`).
+    pub fn open(&self) -> bool {
+        self.online
+            && self.write.iter().any(|one| one == "/")
+            && self.keep.is_empty()
+            && self.deny.is_empty()
+    }
+
+    /// This fence with more let through (`Fence.granting`). A path granted here is granted
+    /// whatever is carved out above it, being the deeper.
     pub fn granting(
         &self,
         read: &[String],
@@ -420,24 +523,54 @@ impl Fence {
         wider.listen.extend(listen.iter().copied());
         wider
             .settled()
-            .expect("a fence widened keeps the scopes it had")
+            .expect("a fence widened keeps the rules it had")
     }
 
-    /// Whether a path, taken as it is written, is inside what this fence grants.
-    pub fn allows(&self, path: &str, write: bool) -> bool {
+    /// How much of a path this fence grants, carve-outs and all (`Fence.level`): the paths in
+    /// all four it is at or beneath, shallowest first and at one depth a carve-out before a
+    /// grant, each grant raising it and each carve-out holding it down. The path is taken as it
+    /// is written: a link in it is not followed.
+    pub fn level(&self, path: &str) -> &'static str {
         let held = absolute(path);
-        let mut roots = self
-            .write
-            .iter()
-            .chain(if write { [].iter() } else { self.read.iter() });
-        roots.any(|root| under(&held, root))
+        let mut over: Vec<(usize, bool, usize)> = [
+            (&self.deny, false, 0),
+            (&self.keep, false, 1),
+            (&self.read, true, 1),
+            (&self.write, true, 2),
+        ]
+        .into_iter()
+        .flat_map(|(roots, granted, given)| {
+            roots
+                .iter()
+                .filter(|root| under(&held, root))
+                .map(move |root| (depth(root), granted, given))
+        })
+        .collect();
+        over.sort_by_key(|(depth, granted, _)| (*depth, *granted));
+        let mut level = 0;
+        for (_, granted, given) in over {
+            level = if granted {
+                level.max(given)
+            } else {
+                level.min(given)
+            };
+        }
+        LEVELS[level]
     }
 
-    /// Opens every directory the fence lets be written, and its tmp, as `O_PATH` descriptors,
-    /// refusing a symbolic link where a fenced program could have made one (`reach`).
-    pub fn ready(&self) -> io::Result<Vec<OwnedFd>> {
+    /// Whether a path, taken as it is written, is inside what this fence grants and not carved
+    /// out of it (`Fence.allows`).
+    pub fn allows(&self, path: &str, write: bool) -> bool {
+        rank(self.level(path)).unwrap_or(0) >= if write { 2 } else { 1 }
+    }
+
+    /// Opens every directory the fence lets be written -- or `paths` in its place, the entries
+    /// a wall that cannot carve out of a grant grants instead ([`crate::fence::wrap::expanded`])
+    /// -- and its tmp, as `O_PATH` descriptors, refusing a symbolic link where a fenced program
+    /// could have made one (`reach`).
+    pub fn ready(&self, paths: Option<&[String]>) -> io::Result<Vec<OwnedFd>> {
         Ok(self
-            .reached()?
+            .reached(paths)?
             .into_iter()
             .filter_map(|(_, fd)| fd)
             .collect())
@@ -446,13 +579,22 @@ impl Fence {
     /// What [`Fence::ready`] reaches, as `Fence.ready` returns it: each path as it was
     /// reached, links followed, in order and each once, with the descriptor holding it where
     /// this machine opens one. A path that cannot be reached is left out; the scratch is made
-    /// where it is missing, and must be reached.
-    pub fn reached(&self) -> io::Result<Vec<(String, Option<OwnedFd>)>> {
-        let everything = self.write.iter().any(|one| one == "/");
-        let mut paths: Vec<&str> = if everything {
-            vec!["/"]
+    /// where it is missing, and must be reached. A fence that writes `/` reaches `/`, and what
+    /// is granted again beneath a carve-out.
+    pub fn reached(&self, paths: Option<&[String]>) -> io::Result<Vec<(String, Option<OwnedFd>)>> {
+        let granted = paths.map_or_else(|| self.write.clone(), normal);
+        let carved: Vec<&String> = self.keep.iter().chain(&self.deny).collect();
+        let mut paths: Vec<&str> = if granted.iter().any(|one| one == "/") {
+            std::iter::once("/")
+                .chain(
+                    granted
+                        .iter()
+                        .filter(|one| carved.iter().any(|cut| under(one, cut)))
+                        .map(String::as_str),
+                )
+                .collect()
         } else {
-            self.write.iter().map(String::as_str).collect()
+            granted.iter().map(String::as_str).collect()
         };
         if !self.tmp.is_empty() {
             paths.push(&self.tmp);
@@ -482,11 +624,27 @@ impl Fence {
     /// A symbolic link is followed only where no fenced program could have made it: in a
     /// directory that neither this fence writes, nor holds one it writes, nor is
     /// [`TEMPORARY`], `$TMPDIR` or the scratch, told by device and inode. A fence that writes
-    /// `/` follows every link. `make` makes what is missing on the way, `0700`.
+    /// `/` follows every link -- but where it carves something out, a link made anywhere could
+    /// lead into that, so what it leads to has to be what this fence writes, as it is spelled
+    /// once reached. `make` makes what is missing on the way, `0700`.
     ///
     /// Returns a descriptor holding what was reached (`O_PATH`, Linux only; `None` elsewhere
     /// or where the last name is not there) and the path it was reached at.
     pub fn reach(&self, path: &str, make: bool) -> io::Result<(Option<OwnedFd>, String)> {
+        let (fd, at) = self.reached_at(path, make)?;
+        if self.write.iter().any(|one| one == "/")
+            && !(self.keep.is_empty() && self.deny.is_empty())
+            && self.level(&at) != WRITE
+        {
+            return Err(io::Error::other(format!(
+                "{path}: it leads to {at}, which is carved out of this fence"
+            )));
+        }
+        Ok((fd, at))
+    }
+
+    /// [`Fence::reach`], less what it asks of where it led (`Fence._reach`).
+    fn reached_at(&self, path: &str, make: bool) -> io::Result<(Option<OwnedFd>, String)> {
         let mut todo: VecDeque<OsString> = names(OsStr::new(path)).into();
         let mut at: Vec<OsString> = Vec::new();
         // What this fence writes, looked up once, the first time a link is met.
@@ -595,6 +753,112 @@ impl Fence {
             .map(|seen| identity(&seen))
             .collect()
     }
+}
+
+/// Where a level stands among [`LEVELS`], or a refusal of what is not one (`_rank`).
+pub fn rank(level: &str) -> Result<usize, String> {
+    LEVELS.iter().position(|one| *one == level).ok_or_else(|| {
+        format!(
+            "a rule's access is one of {}, not '{level}'",
+            LEVELS.join(", ")
+        )
+    })
+}
+
+/// What a rule's path is anchored at: `""` for `/`, `~` or `.`.
+fn anchor_of(path: &str) -> &str {
+    path.split_once('/').map_or(path, |(head, _)| head)
+}
+
+/// A rule's path as a fence holds it, tidied; or a refusal of one that is not anchored
+/// (`_anchored`): `/abs`, `~` or `~/...`, `.` or `./...`, naming no `..`.
+pub fn anchored(said: &str) -> Result<String, String> {
+    let (head, rest) = said.split_once('/').unwrap_or((said, ""));
+    if said.is_empty()
+        || !["", HOMED, WORKDIR].contains(&head)
+        || said.split('/').any(|one| one == "..")
+    {
+        return Err(format!(
+            "a rule's path is /..., ~, ~/..., . or ./..., with no '..'; not '{said}'"
+        ));
+    }
+    let tidy = if rest.trim_matches('/').is_empty() {
+        String::new()
+    } else {
+        normpath(rest).trim_matches('/').to_owned()
+    };
+    let tidy = if tidy == "." { String::new() } else { tidy };
+    Ok(if head.is_empty() {
+        format!("{ROOT}{tidy}")
+    } else if tidy.is_empty() {
+        head.to_owned()
+    } else {
+        format!("{head}/{tidy}")
+    })
+}
+
+/// Where an anchored path lies on this machine: one path, or one per workdir for `.`
+/// (`_resolved`).
+fn resolved(path: &str, dots: &[String], home: &str) -> Vec<String> {
+    let (head, rest) = path.split_once('/').unwrap_or((path, ""));
+    if head.is_empty() {
+        return vec![normpath(path)];
+    }
+    let roots: Vec<&str> = if head == WORKDIR {
+        dots.iter().map(String::as_str).collect()
+    } else if home.is_empty() {
+        Vec::new()
+    } else {
+        vec![home]
+    };
+    roots
+        .into_iter()
+        .map(|root| normpath(&format!("{root}/{rest}")))
+        .collect()
+}
+
+/// How many names deep a path is (`_depth`).
+fn depth(path: &str) -> usize {
+    names(OsStr::new(path)).len()
+}
+
+/// What last-wins rules come to: each path a rule lands on, with its access, in the order
+/// they were last set (`_compiled`). A rule decides its path and everything beneath it, so a
+/// later one takes away every earlier one at or beneath where it lands.
+fn compiled(
+    rules: &[(String, String)],
+    dots: &[String],
+    home: &str,
+) -> Result<Vec<(String, String)>, String> {
+    let mut held: Vec<(String, String)> = Vec::new();
+    for (path, access) in rules {
+        rank(access)?;
+        for root in resolved(path, dots, home) {
+            held.retain(|(one, _)| !under(one, &root));
+            held.push((root, access.clone()));
+        }
+    }
+    Ok(held)
+}
+
+/// The access compiled rules give a path: that of the deepest one it is at or beneath, and
+/// none beneath none (`_deepest`).
+fn deepest<'a>(held: &'a [(String, String)], path: &str) -> &'a str {
+    held.iter()
+        .filter(|(one, _)| under(path, one))
+        .max_by_key(|(one, _)| depth(one))
+        .map_or(NONE, |(_, access)| access.as_str())
+}
+
+/// Rules as JSON says them, `[[path, access], ...]`; None for anything else.
+pub(crate) fn rules(said: &Value) -> Option<Vec<(String, String)>> {
+    said.as_array()?
+        .iter()
+        .map(|one| match one.as_array()?.as_slice() {
+            [Value::String(path), Value::String(access)] => Some((path.clone(), access.clone())),
+            _ => None,
+        })
+        .collect()
 }
 
 /// The working directory, as a descriptor `openat` takes for an absolute path.
@@ -719,16 +983,6 @@ pub fn under(path: &str, root: &str) -> bool {
     path == root || path.starts_with(&format!("{}/", root.trim_end_matches('/')))
 }
 
-/// A list of strings as Python's `repr` of a tuple spells it.
-fn python_tuple(items: &[String]) -> String {
-    let inner: Vec<String> = items.iter().map(|one| format!("'{one}'")).collect();
-    if inner.len() == 1 {
-        format!("({},)", inner[0])
-    } else {
-        format!("({})", inner.join(", "))
-    }
-}
-
 /// [`TEMPORARY`], and the directory `TMPDIR` names where it is absolute (`_temporary`).
 pub fn temporary() -> Vec<String> {
     let mut held: Vec<String> = TEMPORARY.iter().map(|one| (*one).to_owned()).collect();
@@ -810,13 +1064,39 @@ pub(crate) fn truthy(said: &Map<String, Value>, name: &str) -> bool {
 mod tests {
     use super::*;
 
+    const HOME: &str = "/home/someone";
+    const WORK: &str = "/home/someone/work";
+    const ELSEWHERE: &str = "/srv/elsewhere/file";
+
+    fn ruled(rules: &[(&str, &str)]) -> Vec<(String, String)> {
+        rules
+            .iter()
+            .map(|(path, access)| ((*path).to_owned(), (*access).to_owned()))
+            .collect()
+    }
+
+    fn drawn(rules: &[(&str, &str)]) -> Fence {
+        Fence::of(&ruled(rules), true, WORK, HOME, "", &[], &[], &[]).unwrap()
+    }
+
+    fn paths(list: &[&str]) -> Vec<String> {
+        list.iter().map(|one| (*one).to_owned()).collect()
+    }
+
     #[test]
     fn keys_keep_python_order_and_defaults() {
         let fence = Fence::loads("{}").unwrap();
         assert_eq!(
             fence.dumps(),
-            r#"{"read":[],"write":[],"online":true,"hosts":[],"tmp":"","scopes":[],"listen":[]}"#
+            r#"{"read":[],"write":[],"keep":[],"deny":[],"online":true,"hosts":[],"tmp":"","drawn":[],"listen":[]}"#
         );
+        let fence = drawn(&[("/", READ), ("./secret", NONE)]);
+        assert!(
+            fence
+                .dumps()
+                .contains(r#""drawn":[["/","read"],["./secret","none"]]"#)
+        );
+        assert_eq!(Fence::loads(&fence.dumps()).unwrap(), fence);
     }
 
     #[test]
@@ -826,8 +1106,16 @@ mod tests {
             "not a fence's: a, x"
         );
         assert_eq!(
+            Fence::loads(r#"{"scopes":[]}"#).unwrap_err(),
+            "not a fence's: scopes"
+        );
+        assert_eq!(
             Fence::loads(r#"{"read":"/"}"#).unwrap_err(),
             "a fence's read is a list of strings"
+        );
+        assert_eq!(
+            Fence::loads(r#"{"deny":[1]}"#).unwrap_err(),
+            "a fence's deny is a list of strings"
         );
         assert_eq!(
             Fence::loads(r#"{"listen":[true]}"#).unwrap_err(),
@@ -842,23 +1130,247 @@ mod tests {
             "a fence's tmp is a path"
         );
         assert_eq!(Fence::loads("[]").unwrap_err(), "a fence is a JSON object");
+        for drawn in [r#""/""#, r#"[["/"]]"#, r#"[["/", 1]]"#, r#"["/"]"#] {
+            assert_eq!(
+                Fence::loads(&format!(r#"{{"drawn":{drawn}}}"#)).unwrap_err(),
+                "a fence's drawn is a list of [path, access]"
+            );
+        }
+        assert_eq!(
+            Fence::loads(r#"{"drawn":[["/","all"]]}"#).unwrap_err(),
+            "a rule's access is one of none, read, write, not 'all'"
+        );
         assert!(
-            Fence::loads(r#"{"scopes":["all"]}"#)
+            Fence::loads(r#"{"drawn":[["relative","read"]]}"#)
                 .unwrap_err()
-                .starts_with("a fence's scopes are three of none, read, all")
+                .starts_with("a rule's path is")
         );
     }
 
     #[test]
     fn paths_are_settled_as_post_init_settles_them() {
         let fence = Fence::loads(
-            r#"{"read":["/a/../b","/c","/c/"],"write":["/c"],"hosts":["h","h"],"listen":[8,8]}"#,
+            r#"{"read":["/a/../b","/c","/c/"],"write":["/c"],"keep":["/k","/d"],"deny":["/d/"],
+                "hosts":["h","h"],"listen":[8,8]}"#,
         )
         .unwrap();
         assert_eq!(fence.read, vec!["/b"]);
         assert_eq!(fence.write, vec!["/c"]);
+        assert_eq!(fence.keep, vec!["/k"]);
+        assert_eq!(fence.deny, vec!["/d"]);
         assert_eq!(fence.hosts, vec!["h"]);
         assert_eq!(fence.listen, vec![8]);
+    }
+
+    #[test]
+    fn a_rules_path_is_held_tidy_or_refused() {
+        for (said, held) in [
+            ("/", "/"),
+            ("//a//b/", "/a/b"),
+            ("~", "~"),
+            ("~/", "~"),
+            ("~/a/./b", "~/a/b"),
+            (".", "."),
+            ("./", "."),
+            ("./a//b/", "./a/b"),
+        ] {
+            assert_eq!(
+                drawn(&[(said, READ)]).drawn,
+                ruled(&[(held, READ)]),
+                "{said}"
+            );
+        }
+        for said in ["a", "a/b", "~user", "~user/x", "../x", "./a/../b", ""] {
+            let why = Fence::of(&ruled(&[(said, READ)]), true, WORK, HOME, "", &[], &[], &[])
+                .unwrap_err();
+            assert!(why.starts_with("a rule's path"), "{said}: {why}");
+        }
+        let why =
+            Fence::of(&ruled(&[("/", "all")]), true, WORK, HOME, "", &[], &[], &[]).unwrap_err();
+        assert!(why.contains("none, read, write"), "{why}");
+    }
+
+    #[test]
+    fn each_anchor_grants_its_root_at_its_access() {
+        let fence = drawn(&[("/", READ), ("~", READ), (".", WRITE)]);
+        assert_eq!(fence.level(&format!("{WORK}/a")), WRITE);
+        assert_eq!(fence.level(&format!("{HOME}/a")), READ);
+        assert_eq!(fence.level(ELSEWHERE), READ);
+        assert!(
+            fence.write.contains(&"/tmp".to_owned()),
+            "a written workdir writes /tmp"
+        );
+        let none = drawn(&[("/", NONE), ("~", NONE), (".", READ)]);
+        assert_eq!(none.level(ELSEWHERE), NONE);
+        assert_eq!(none.level(&format!("{WORK}/a")), READ);
+        assert!(none.allows("/usr/bin/env", false), "the minimum is granted");
+        assert!(none.allows("/dev/null", true));
+    }
+
+    #[test]
+    fn the_last_rule_that_holds_a_path_decides_it() {
+        let fence = drawn(&[
+            ("/", READ),
+            (".", WRITE),
+            ("./secret", NONE),
+            ("./ro", READ),
+            ("./ro/scratch", WRITE),
+            ("~/.ssh", NONE),
+        ]);
+        assert_eq!(fence.level(&format!("{WORK}/src/main.py")), WRITE);
+        assert_eq!(fence.level(&format!("{WORK}/secret/key")), NONE);
+        assert_eq!(fence.level(&format!("{WORK}/ro/notes")), READ);
+        assert_eq!(fence.level(&format!("{WORK}/ro/scratch/out")), WRITE);
+        assert_eq!(fence.level(&format!("{HOME}/.ssh/id_ed25519")), NONE);
+        assert_eq!(fence.level(&format!("{HOME}/.bashrc")), READ);
+        assert_eq!(fence.keep, paths(&[&format!("{WORK}/ro")]));
+        assert_eq!(
+            fence.deny,
+            paths(&[&format!("{HOME}/.ssh"), &format!("{WORK}/secret")])
+        );
+    }
+
+    #[test]
+    fn a_later_rule_takes_away_every_earlier_one_beneath_it() {
+        let fence = drawn(&[("./secret", NONE), (".", WRITE), ("/", READ)]);
+        assert_eq!(fence.level(&format!("{WORK}/secret/key")), READ);
+        assert_eq!(fence.level(&format!("{WORK}/src")), READ);
+        assert!(fence.keep.is_empty() && fence.deny.is_empty());
+        assert!(!fence.allows("/tmp/x", true));
+        // The home's rule takes the workdir beneath it with it.
+        assert_eq!(
+            drawn(&[("/", READ), (".", WRITE), ("~", READ)]).level(WORK),
+            READ
+        );
+        assert_eq!(
+            drawn(&[("/", READ), ("~", READ), (".", WRITE)]).level(WORK),
+            WRITE
+        );
+    }
+
+    #[test]
+    fn a_rule_at_a_temporary_loses_to_it_and_one_beneath_it_wins() {
+        let at = drawn(&[("/", READ), (".", WRITE), ("/tmp", NONE)]);
+        let beneath = drawn(&[
+            ("/", READ),
+            (".", WRITE),
+            ("/tmp", NONE),
+            ("/tmp/x", NONE),
+            ("/var/tmp/y", READ),
+        ]);
+        assert!(at.allows("/tmp/a", true));
+        assert!(beneath.allows("/tmp/a", true));
+        assert_eq!(beneath.level("/tmp/x/key"), NONE);
+        assert_eq!(beneath.level("/var/tmp/y/z"), READ);
+        assert!(beneath.allows("/var/tmp/z", true));
+    }
+
+    #[test]
+    fn a_deny_beneath_nothing_granted_carves_nothing() {
+        let fence = drawn(&[("~/.ssh", NONE)]);
+        assert!(fence.deny.is_empty());
+        assert_eq!(fence.level(&format!("{HOME}/.ssh")), NONE);
+        let again = drawn(&[("/", WRITE), ("~", NONE), ("~/docs", READ)]);
+        assert_eq!(again.level(&format!("{HOME}/docs/a")), READ);
+        assert_eq!(again.level(&format!("{HOME}/.bashrc")), NONE);
+        assert!(again.read.contains(&format!("{HOME}/docs")));
+    }
+
+    #[test]
+    fn the_session_directory_is_the_workdir_as_well_and_no_home_is_nothing() {
+        let rules = ruled(&[(".", WRITE), ("./out", READ)]);
+        let fence = Fence::of(&rules, true, WORK, HOME, "/srv/session", &[], &[], &[]).unwrap();
+        assert!(fence.allows("/srv/session/x.txt", true));
+        assert_eq!(fence.level("/srv/session/out/y"), READ);
+        let rules = ruled(&[("~", WRITE), (".", READ)]);
+        let homeless = Fence::of(&rules, true, WORK, "", "", &[], &[], &[]).unwrap();
+        assert_eq!(homeless.level(WORK), READ);
+        assert_eq!(homeless.level("/home/someone/x"), NONE);
+    }
+
+    #[test]
+    fn a_carve_out_takes_back_what_the_grants_above_it_gave() {
+        let fence = Fence {
+            read: paths(&["/w/d/g"]),
+            write: paths(&["/w", "/w/k/g", "/w/both"]),
+            keep: paths(&["/w/k"]),
+            deny: paths(&["/w/d", "/w/both"]),
+            ..Fence::default()
+        }
+        .settled()
+        .unwrap();
+        for (path, level) in [
+            ("/w/x", WRITE),
+            ("/w/k/x", READ),
+            ("/w/k/g/x", WRITE),
+            ("/w/d/x", NONE),
+            ("/w/d/g/x", READ),
+            ("/w/both", WRITE),
+            ("/elsewhere", NONE),
+        ] {
+            assert_eq!(fence.level(path), level, "{path}");
+            assert_eq!(fence.allows(path, false), level != NONE, "{path}");
+            assert_eq!(fence.allows(path, true), level == WRITE, "{path}");
+        }
+    }
+
+    #[test]
+    fn only_the_whole_filesystem_online_with_nothing_carved_is_open() {
+        let everything = Fence {
+            write: paths(&["/"]),
+            ..Fence::default()
+        };
+        assert!(everything.open());
+        assert!(
+            !Fence {
+                online: false,
+                ..everything.clone()
+            }
+            .open()
+        );
+        assert!(
+            !Fence {
+                deny: paths(&["/x"]),
+                ..everything.clone()
+            }
+            .open()
+        );
+        assert!(drawn(&[("/", WRITE)]).open());
+        assert!(!drawn(&[("/", WRITE), ("~/.ssh", NONE)]).open());
+    }
+
+    #[test]
+    fn granting_beneath_a_carve_out_grants_it_and_nothing_else() {
+        let fence =
+            drawn(&[("/", READ), ("~", NONE)]).granting(&[], &[format!("{HOME}/.cli")], &[], &[]);
+        assert!(fence.allows(&format!("{HOME}/.cli/state"), true));
+        assert!(!fence.allows(&format!("{HOME}/.bashrc"), false));
+    }
+
+    #[test]
+    fn beside_draws_another_directory_as_the_workdir() {
+        let fence = drawn(&[
+            ("/", READ),
+            (".", WRITE),
+            ("./secret", NONE),
+            ("./ro", READ),
+        ]);
+        let mirrored = fence.beside("/mirror", HOME);
+        assert_eq!(mirrored.level("/mirror/src"), WRITE);
+        assert_eq!(mirrored.level("/mirror/secret/key"), NONE);
+        assert_eq!(mirrored.level("/mirror/ro/x"), READ);
+        assert_eq!(mirrored.level(&format!("{WORK}/secret")), NONE);
+
+        let wider = drawn(&[("/", READ), ("~", WRITE), (".", READ)]);
+        let narrowed = wider.beside(&format!("{HOME}/.cache/mirror"), HOME);
+        assert_eq!(narrowed.level(&format!("{HOME}/.cache/mirror/x")), READ);
+        assert_eq!(narrowed.level(&format!("{HOME}/.cache/other")), WRITE);
+
+        let path_by_path = Fence {
+            write: paths(&["/w"]),
+            ..Fence::default()
+        };
+        assert_eq!(path_by_path.beside("/mirror", HOME), path_by_path);
     }
 
     #[test]
@@ -877,21 +1389,6 @@ mod tests {
         assert_eq!(normpath("/.."), "/");
         assert_eq!(normpath("a/../.."), "..");
         assert_eq!(normpath(""), ".");
-    }
-
-    #[test]
-    fn scopes_must_nest() {
-        let none: [String; 0] = [];
-        assert!(Fence::of("read", "all", "none", true, "/w", "/h", &none, &none, &none).is_err());
-        let fence =
-            Fence::of("all", "read", "none", true, "/w", "/h", &none, &none, &none).unwrap();
-        assert!(fence.write.contains(&"/w".to_owned()));
-        assert!(fence.write.contains(&"/tmp".to_owned()));
-        assert!(fence.read.contains(&"/h".to_owned()));
-        assert_eq!(fence.scopes, vec!["all", "read", "none"]);
-        assert!(fence.allows("/w/x", true));
-        assert!(!fence.allows("/h/x", true));
-        assert!(fence.allows("/h/x", false));
     }
 
     #[test]
@@ -932,5 +1429,81 @@ mod tests {
             .unwrap();
         assert_eq!(at, path.to_string_lossy());
         assert!(path.is_dir());
+    }
+
+    /// A directory of the test's own, not under a temporary directory, which every fence
+    /// counts as written.
+    fn reachable() -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        (dir, root)
+    }
+
+    fn shown(path: &Path) -> String {
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn reach_follows_no_link_into_what_a_fence_of_everything_carves_out() {
+        let (_dir, root) = reachable();
+        std::fs::create_dir(root.join("kept")).unwrap();
+        std::os::unix::fs::symlink(root.join("kept"), root.join("link")).unwrap();
+        let carved = Fence {
+            write: paths(&["/", &shown(&root)]),
+            deny: paths(&[&shown(&root.join("kept"))]),
+            ..Fence::default()
+        };
+        let why = carved.reach(&shown(&root.join("link")), false).unwrap_err();
+        assert!(
+            why.to_string().contains("carved out of this fence"),
+            "{why}"
+        );
+        // A link to somewhere nothing is carved out of is followed.
+        let elsewhere = Fence {
+            write: paths(&["/"]),
+            deny: paths(&[&shown(&root.join("other"))]),
+            ..Fence::default()
+        };
+        let (_, at) = elsewhere.reach(&shown(&root.join("link")), false).unwrap();
+        assert_eq!(at, shown(&root.join("kept")));
+    }
+
+    #[test]
+    fn reached_reaches_what_is_granted_again_beneath_a_carve_out_of_everything() {
+        let (_dir, root) = reachable();
+        let state = root.join("home/.cli");
+        std::fs::create_dir_all(&state).unwrap();
+        let fence = Fence {
+            write: paths(&["/", &shown(&state)]),
+            deny: paths(&[&shown(&root.join("home"))]),
+            ..Fence::default()
+        };
+        let reached: Vec<String> = fence
+            .reached(None)
+            .unwrap()
+            .into_iter()
+            .map(|(at, _)| at)
+            .collect();
+        assert_eq!(reached, paths(&["/", &shown(&state)]));
+    }
+
+    #[test]
+    fn reached_reaches_the_paths_it_is_given_in_place_of_what_it_writes() {
+        let (_dir, root) = reachable();
+        std::fs::create_dir(root.join("a")).unwrap();
+        std::fs::create_dir(root.join("b")).unwrap();
+        let fence = Fence {
+            write: paths(&[&shown(&root)]),
+            deny: paths(&[&shown(&root.join("b"))]),
+            ..Fence::default()
+        };
+        let given = paths(&[&shown(&root.join("a"))]);
+        let reached: Vec<String> = fence
+            .reached(Some(&given))
+            .unwrap()
+            .into_iter()
+            .map(|(at, _)| at)
+            .collect();
+        assert_eq!(reached, given);
     }
 }

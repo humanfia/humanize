@@ -21,6 +21,8 @@ fn profile_text_matches_the_python() {
     let (text, params) = rules(
         &strings(&[&link, "/nonexistent//a/./x/..", &format!("{link}/")]),
         &strings(&["/w/one", "/w/one/", "/w/two"]),
+        &[],
+        &[],
         Some(4321),
     );
     assert_eq!(
@@ -58,7 +60,7 @@ fn profile_text_matches_the_python() {
 
 #[test]
 fn online_and_empty_profile() {
-    let (text, params) = rules(&[], &[], None);
+    let (text, params) = rules(&[], &[], &[], &[], None);
     assert!(params.is_empty());
     assert_eq!(
         text,
@@ -216,4 +218,157 @@ fn offline_sandbox_reaches_only_the_proxy() {
     );
     assert!(ok, "{why}");
     proxy.stop();
+}
+
+/// The profile's lines with every parameter put back as the path it names (`_said`).
+fn said(profile: &str, params: &[(String, String)]) -> Vec<String> {
+    let mut named: Vec<&(String, String)> = params.iter().collect();
+    named.sort_by_key(|(name, _)| std::cmp::Reverse(name.len()));
+    let mut text = profile.to_owned();
+    for (name, path) in named {
+        text = text.replace(&format!("(param \"{name}\")"), path);
+    }
+    text.lines().map(str::to_owned).collect()
+}
+
+fn at(lines: &[String], line: &str) -> usize {
+    lines
+        .iter()
+        .position(|one| one == line)
+        .unwrap_or_else(|| panic!("{line} is not in {lines:#?}"))
+}
+
+#[test]
+fn carve_outs_are_said_after_the_grants_deepest_last() {
+    let (profile, params) = rules(
+        &strings(&["/"]),
+        &strings(&["/w", "/w/k/g"]),
+        &strings(&["/w/k"]),
+        &strings(&["/w/d", "/w/k/g/d"]),
+        None,
+    );
+    let lines = said(&profile, &params);
+    let granted = at(
+        &lines,
+        "(allow file-read* file-write* process-exec (subpath /w) (subpath /w/k/g))",
+    );
+    let order: Vec<usize> = [
+        "(deny file-read* file-write* process-exec (subpath /w/d))",
+        "(deny file-write* (subpath /w/k))",
+        "(allow file-read* file-write* process-exec (subpath /w/k/g))",
+        "(deny file-read* file-write* process-exec (subpath /w/k/g/d))",
+    ]
+    .iter()
+    .map(|one| at(&lines, one))
+    .collect();
+    assert!(granted < order[0] && order[0] < order[1] && order[1] < order[2]);
+    assert!(order[2] < order[3]);
+    assert_eq!(lines[order[3] + 1], "(allow file-read-metadata)");
+}
+
+#[test]
+fn a_carve_out_and_every_directory_above_it_are_held_at_their_names() {
+    let (profile, params) = rules(
+        &[],
+        &strings(&["/w"]),
+        &[],
+        &strings(&["/w/a/secret"]),
+        None,
+    );
+    let lines = said(&profile, &params);
+    let held = "(literal /w) (literal /w/a) (literal /w/a/secret)";
+    at(
+        &lines,
+        &format!("(deny file-write-unlink (require-any {held}))"),
+    );
+    at(
+        &lines,
+        &format!(
+            "(deny file-write-create (require-all (vnode-type SYMLINK) (require-any {held})))"
+        ),
+    );
+}
+
+#[test]
+fn a_root_written_again_beneath_a_carve_out_is_held_at_its_name() {
+    let (profile, params) = rules(
+        &[],
+        &strings(&["/", "/h/.cli"]),
+        &[],
+        &strings(&["/h"]),
+        None,
+    );
+    let lines = said(&profile, &params);
+    assert!(
+        at(
+            &lines,
+            "(deny file-read* file-write* process-exec (subpath /h))"
+        ) < at(
+            &lines,
+            "(allow file-read* file-write* process-exec (subpath /h/.cli))"
+        )
+    );
+    at(
+        &lines,
+        "(deny file-write-unlink (require-all (vnode-type DIRECTORY) (require-any (literal /h/.cli))))",
+    );
+}
+
+#[test]
+fn a_carve_out_is_named_as_given_and_as_resolved() {
+    let dir = tempfile::tempdir().unwrap();
+    let base = realpath(dir.path().to_str().unwrap());
+    let real = format!("{base}/real");
+    std::fs::create_dir(&real).unwrap();
+    let link = format!("{base}/link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let (_, params) = rules(
+        &[],
+        &strings(&["/"]),
+        &[],
+        std::slice::from_ref(&link),
+        None,
+    );
+    let values: Vec<&str> = params.iter().map(|(_, path)| path.as_str()).collect();
+    assert!(
+        values.contains(&link.as_str()) && values.contains(&real.as_str()),
+        "{values:?}"
+    );
+}
+
+#[test]
+fn nothing_carved_out_says_nothing_more() {
+    let (profile, _) = rules(&strings(&["/r"]), &strings(&["/w"]), &[], &[], None);
+    assert!(!profile.contains("(deny file-write* "));
+    assert!(!profile.contains("file-write-unlink (require-any"));
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn sandbox_holds_what_is_carved_out_of_a_grant() {
+    if !coganchor::fence::seatbelt::available() {
+        eprintln!("sandbox-exec cannot run here; skipped");
+        return;
+    }
+    let granted = tempfile::tempdir().unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let w = realpath(granted.path().to_str().unwrap());
+    std::fs::create_dir_all(format!("{w}/secret")).unwrap();
+    std::fs::write(format!("{w}/secret/key"), "key").unwrap();
+    std::fs::create_dir_all(format!("{w}/ro")).unwrap();
+    let fence = Fence {
+        read: strings(&["/"]),
+        write: vec![w.clone()],
+        keep: vec![format!("{w}/ro")],
+        deny: vec![format!("{w}/secret")],
+        tmp: realpath(tmp.path().to_str().unwrap()),
+        ..Fence::default()
+    };
+    let (ok, why) = sandboxed(&fence, None, &format!("touch '{w}/ok'"));
+    assert!(ok, "{why}");
+    assert!(!sandboxed(&fence, None, &format!("cat '{w}/secret/key'")).0);
+    assert!(!sandboxed(&fence, None, &format!("touch '{w}/ro/x'")).0);
+    assert!(sandboxed(&fence, None, &format!("ls '{w}/ro'")).0);
+    assert!(!sandboxed(&fence, None, &format!("mv '{w}/secret' '{w}/moved'")).0);
+    assert!(std::path::Path::new(&format!("{w}/secret/key")).exists());
 }
