@@ -35,22 +35,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from hmz.coganchor import AnchorConfig, binary
+from hmz.coganchor import AnchorConfig
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE
-from hmz.coganchor.transport import Endpoint, Road, Target, idling, python_command
+from hmz.coganchor.transport import Endpoint, Road, Target, idling
 
 from .base import MachineBase, MachineConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
-#: Asking a container whose the directory it was given is, in the interpreter the zipapp's
-#: serving half needs.
-_OWNER = "import os, sys; held = os.stat(sys.argv[1]); print(held.st_uid, held.st_gid)"
-
-#: And in its shell, where `coganchor` is shipped instead and the image need hold no Python:
-#: the owner and group of `ls -n`'s long line, the third and fourth of its fields.
-_OWNER_SH = 'set -f; said=$(ls -nd -- "$1") && set -- $said && echo "$3 $4"'
+#: Asking a container whose the directory it was given is, in its shell, the image holding no
+#: more than that: the owner and group of `ls -n`'s long line, the third and fourth of its
+#: fields.
+_OWNER = 'set -f; said=$(ls -nd -- "$1") && set -- $said && echo "$3 $4"'
 
 #: Marks a container as one of ours, and whose, for whoever has to clean up after a flow that
 #: was killed before it could. Named for the project rather than for this layer, since it is
@@ -78,8 +75,8 @@ class DockerConfig(MachineConfig):
     """What the container is run from, and on which daemon.
 
     Attributes:
-      image: The image to run, which needs `/bin/sh` and a Python of at least 3.12 for
-        coganchor's target half, and whatever else the agent is expected to reach for.
+      image: The image to run, which needs `/bin/sh` and `sleep` for coganchor's target
+        half, and whatever else the agent is expected to reach for.
       workspace: The project directory to give the container, as its daemon's host names it,
         defaulting to this directory. It is the directory itself that goes there, not a copy
         of it, so the work outlives the container.
@@ -567,10 +564,9 @@ class Docker(MachineBase):
             `docker` to give it to.
           ValueError: If the workspace on a daemon elsewhere is not an absolute path, which is
             the only kind a path on another machine can be.
-          RuntimeError: If the container cannot be started -- an image with no shell in it,
-            or none holding a Python new enough, is refused here. What docker said is
-            attached. Or if what came up is not the machine these settings promised, which
-            names the capability it could not serve.
+          RuntimeError: If the container cannot be started -- an image with no shell in it is
+            refused here. What docker said is attached. Or if what came up is not the
+            machine these settings promised, which names the capability it could not serve.
           TimeoutError: If the daemon did not answer in time: 60 seconds for what it is, and
             600 for making and starting the container, which may pull its image first. A
             container the daemon makes after all, once it was given up on, has no id here
@@ -652,7 +648,7 @@ class Docker(MachineBase):
                     f"could not start a container of {config.image} on {endpoint}: "
                     f"{started.stderr.strip()}"
                 )
-            # A container made just now holds no bundle, whatever one of the same name was
+            # A container made just now holds no `coganchor`, whatever one of the same name was
             # given before it on this daemon.
             Road.to(target).forget()
             anchor = AnchorConfig(
@@ -864,11 +860,11 @@ def whose(
                 "--mount",
                 bound(workspace),
                 image,
-                *(
-                    ["/bin/sh", "-c", _OWNER_SH, "humanize", workspace]
-                    if binary.active()
-                    else python_command(["-c", _OWNER, workspace])
-                ),
+                "/bin/sh",
+                "-c",
+                _OWNER,
+                "humanize",
+                workspace,
             ),
             _MAKING,
         )

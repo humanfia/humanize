@@ -3,19 +3,14 @@
 Every one of these CLIs keeps its account in one place under a home directory of its own,
 found by a path it decides for itself. Moving that home moves the sessions, the settings and
 the skills with it; asking the CLI nicely is not a thing any of them offers. So the paths are
-answered rather than moved: the agent is run under a seccomp-filtered ptrace supervisor -- the
-same technique :mod:`hmz.coganchor` runs a whole session under -- and the handful of
-syscalls that name one of its credential files are handed a path inside the provider's
-directory instead.
+answered rather than moved: the agent is run under `coganchor internal cred`, a
+seccomp-filtered ptrace supervisor -- the same technique the anchor runs a whole session under
+-- and the handful of syscalls that name one of its credential files are handed a path inside
+the provider's directory instead.
 
 Only those paths. Everything else the agent does is untouched and runs at native speed, and
 the agent is told none of it: what it reads back is a credentials file at the name it wrote,
 and what it writes when a token is refreshed lands where it read from.
-
-Where it reads it back from is memory. These CLIs ask about a credential hundreds of times a turn
-and change it once in a while, so a read is answered with a copy on tmpfs that is made once --
-:mod:`hmz.coganchor.providers._staging` -- and a write with the provider's own file, which is where
-a refreshed token has to be durable the moment it is written.
 
 Two supervisors cannot be nested -- a process has one tracer -- so a turn that is also
 anchored is not wrapped in this: the anchor is told the same swaps and its own supervisor
@@ -25,42 +20,22 @@ The same supervisor keeps a CLI's sessions where Humanize keeps them, which is t
 what a turn is pointed elsewhere for: the transcripts and the indexes of them, answered with a
 directory of the run's own, while the settings, the skills and the credentials stay the CLI's.
 Those are *kept* rather than swapped, and differ in one thing: a read of one is never answered
-with a copy. A transcript is appended to as it is read back, and a database is locked and
-written under the reader; neither is a token that changes once in a while.
+with a copy.
 """
 
 from __future__ import annotations
 
-import contextlib
-import errno
 import os
-import signal
-import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING
 
-# The one rule both halves of a supervised turn answer a path by: the anchor's supervisor ships
-# to machines this package's accounts never reach, so the rule lives with it and is named here.
-from hmz.coganchor.policy import answered, head
+# The one rule both halves of a supervised turn answer a path by, which is `coganchor`'s too.
+from hmz.coganchor.policy import answered
 
 if TYPE_CHECKING:
-    import ctypes
     from collections.abc import Iterable, Sequence
 
-    from ._trace import Tracing
-
-__all__ = [
-    "Swaps",
-    "answered",
-    "command",
-    "head",
-    "read",
-    "run",
-    "supervises",
-]
-
-#: `AT_FDCWD`, the directory descriptor that means "wherever the process is".
-_AT_FDCWD = -100
+__all__ = ["Swaps", "command", "supervises"]
 
 
 def _table(pairs: Iterable[tuple[str, str]]) -> tuple[tuple[str, str], ...]:
@@ -146,41 +121,13 @@ class Swaps:
         return (best[1], best[2]) if best is not None else None
 
 
-def read(said: Iterable[str], kept: Iterable[str] = ()) -> Swaps:
-    """Reads the swaps off a command line that named them.
-
-    Args:
-      said: One `FROM=TO` per swap, as `--map` took them.
-      kept: The same, as `--keep` took them.
-
-    Returns:
-      The table.
-
-    Raises:
-      ValueError: If one of them is not two absolute paths with an `=` between.
-    """
-
-    def pairs(of: Iterable[str]) -> list[tuple[str, str]]:
-        held: list[tuple[str, str]] = []
-        for one in of:
-            named, sep, instead = one.partition("=")
-            if not sep or not named.startswith("/") or not instead.startswith("/"):
-                raise ValueError(f"{one!r} is not FROM=TO, of two absolute paths")
-            held.append((named, instead))
-        return held
-
-    return Swaps.of(pairs(said), pairs(kept))
-
-
 def supervises() -> bool:
     """Whether a turn can be supervised on this machine at all.
 
-    Linux, on an architecture there is a register map for, with the C library the bindings
-    load -- asked of the bindings themselves, which refuse to be imported anywhere else -- and
-    a kernel that will hand this process a tracee, which only starting one answers: a
-    container without `CAP_SYS_PTRACE`, or a Yama that forbids tracing outright, has every
-    module and supervises nothing. Asked by supervising a program that does nothing, and a
-    yes kept for the life of the process; a no for a minute and then asked again, since a
+    Linux, with a `coganchor` for this machine, and a kernel that will hand it a tracee, which
+    only starting one answers: a container without `CAP_SYS_PTRACE`, or a Yama that forbids
+    tracing outright, supervises nothing. Asked by supervising a program that does nothing,
+    and a yes kept for the life of the process; a no for a minute and then asked again, since a
     supervisor that could not start once under a machine's load is not a machine that cannot
     trace -- and a turn, a tally and a trace each asking where sessions are would otherwise
     start one apiece.
@@ -194,22 +141,25 @@ def supervises() -> bool:
         said, when = _SUPERVISES[-1]
         if said or time.monotonic() - when < _AGAIN:
             return said
-    import importlib
     import shutil
     import subprocess
+    import sys
 
-    try:
-        for binding in ("procfs", "ptrace", "seccomp"):
-            importlib.import_module(f"hmz.coganchor.linux.{binding}")
-    except (ImportError, OSError, RuntimeError):
+    from hmz.coganchor import binary
+
+    nothing = shutil.which("true")
+    if (
+        not sys.platform.startswith("linux")
+        or nothing is None
+        or binary.found() is None
+    ):
         _SUPERVISES.append((False, float("inf")))
         return False
-    nothing = shutil.which("true")
     try:
         done = subprocess.run(
             command(
                 [],
-                [nothing] if nothing else [sys.executable, "-c", ""],
+                [nothing],
                 [("/nonexistent/hmz-probe", "/nonexistent/hmz-probed")],
             ),
             capture_output=True,
@@ -252,13 +202,12 @@ def command(
       kept: What to point where and never answer with a copy: the sessions.
 
     Returns:
-      The command to spawn, which exits with the backend's own status -- or `argv` itself
-      when there is nothing to point anywhere, so that a provider which is only variables
-      costs no supervisor and no ptrace at all. `coganchor internal cred` where
-      :func:`hmz.coganchor.binary.active` says so, which reads the same options.
+      The command to spawn, `coganchor internal cred`, which exits with the backend's own
+      status -- or `argv` itself when there is nothing to point anywhere, so that a provider
+      which is only variables costs no supervisor and no ptrace at all.
 
     Raises:
-      FileNotFoundError: Where `coganchor` is what runs and there is no build for this machine.
+      FileNotFoundError: Where there is no `coganchor` for this machine.
     """
     from hmz.coganchor import binary
 
@@ -267,212 +216,4 @@ def command(
         return list(argv)
     mapped = [f"--map={named}={instead}" for named, instead in held.pairs]
     mapped += [f"--keep={named}={instead}" for named, instead in held.kept]
-    if binary.active():
-        return [str(binary.here()), *binary.translated("cred", [*mapped, "--", *argv])]
-    return [sys.executable, "-Pm", "hmz", "internal", "cred", *mapped, "--", *argv]
-
-
-def run(swaps: Swaps, argv: Sequence[str]) -> int:
-    """Runs a program with those paths answered by others, and waits for it.
-
-    Args:
-      swaps: What to point where.
-      argv: The program and its arguments.
-
-    Returns:
-      Its exit status, or 128 plus the signal that killed it.
-
-    Raises:
-      OSError: If the supervisor cannot be started, which is a turn that must not run: an
-        agent whose credentials were not pointed anywhere would sign in as somebody else.
-    """
-    from hmz.coganchor._lending import lent, refreshing
-
-    from ._trace import Tracing
-
-    if not argv:
-        raise ValueError("no program to run")
-    # A sign-in that refreshes itself is used here in place, beside every other turn here
-    # doing the same, and so never while a copy of it is out on another machine.
-    with lent(refreshing(instead for _, instead in swaps.pairs), away=False):
-        return _supervised(Tracing(swaps), argv)
-
-
-def _supervised(tracing: Tracing, argv: Sequence[str]) -> int:
-    """Runs a program under a supervisor answering its paths, and waits for it.
-
-    The program is this process's child, as an unsupervised one would be: what ends a turn by
-    ending the tree below its process, and what watches a turn by the time that tree spends,
-    find it there. The supervisor is not. It ends later than the program does -- a job the
-    session detached from itself, `setsid nohup ... &`, is one it meant to outlive it, and a
-    tracee nobody supervises cannot so much as open a file -- so it is started outside the
-    tree and outside the turn's session, and the program asks to be traced by it.
-
-    Args:
-      tracing: What answers them.
-      argv: The program and its arguments.
-
-    Returns:
-      Its exit status, or 128 plus the signal that killed it; or 1 where it could not be
-      supervised, and was never run.
-    """
-    import ctypes
-
-    # Loaded before the forks rather than in a child: a child of a process with threads may
-    # take no lock one of them held, and loading a library takes one.
-    libc = ctypes.CDLL(None, use_errno=True)
-    # The supervisor says its pid on one, so that the program can let it trace it; the
-    # program says its own on the other; and the supervisor says on the first that it traces
-    # it. Nothing said is a program that must not run.
-    said, saying = os.pipe()
-    traced, tracing_it = os.pipe()
-    middle = os.fork()
-    if not middle:
-        with contextlib.suppress(BaseException):
-            os.setsid()
-            if not os.fork():
-                os.close(saying)
-                os.close(traced)
-                _supervising(tracing, said, tracing_it)
-        os._exit(0)
-    os.waitpid(middle, 0)
-    turn = os.getpid()
-    pid = os.fork()
-    if not pid:
-        os.close(said)
-        os.close(tracing_it)
-        _program(tracing, argv, (saying, traced), turn, libc)
-    for fd in (said, saying, traced, tracing_it):
-        os.close(fd)
-
-    # A signal aimed at this process is aimed at the program: whatever asked for it -- a flow
-    # taking a session down, a service manager -- asked for the agent to stop. So it is passed
-    # on rather than acted on. `SIGINT` is the exception, and is ignored: a ctrl-c at a
-    # terminal already reaches the whole group, so passing it on would deliver it twice.
-    def passed(signum: int, _frame: object) -> None:
-        with contextlib.suppress(OSError):
-            os.kill(pid, signum)
-
-    # Put back once the program is over, for a caller that goes on in this process -- which
-    # `hmz internal cred` called from the CLI's own `main` is.
-    was: dict[int, Any] = {}
-    for signum, then in (
-        (signal.SIGINT, signal.SIG_IGN),
-        (signal.SIGTERM, passed),
-        (signal.SIGQUIT, passed),
-        (signal.SIGHUP, passed),
-    ):
-        with contextlib.suppress(OSError, ValueError):
-            was[signum] = signal.signal(signum, then)
-    try:
-        return failed(os.waitpid(pid, 0)[1])
-    finally:
-        for signum, before in was.items():
-            with contextlib.suppress(OSError, ValueError):
-                signal.signal(signum, signal.SIG_DFL if before is None else before)
-
-
-#: `prctl`'s options for the signal a process is sent when its parent dies, and for the one
-#: process Yama is to let trace this one.
-_PR_SET_PDEATHSIG = 1
-_PR_SET_PTRACER = 0x59616D61
-
-#: What a program the supervisor could not take on exits with: it was never run.
-_UNSUPERVISED = 1
-
-
-def _program(
-    tracing: Tracing,
-    argv: Sequence[str],
-    pipes: tuple[int, int],
-    turn: int,
-    libc: ctypes.CDLL,
-) -> NoReturn:
-    """The program's half: be traced, then become the program. Never returns.
-
-    Args:
-      tracing: What answers its paths, for the syscalls to stop.
-      argv: The program and its arguments.
-      pipes: Where to say its pid, and where to hear the supervisor's and then that it is
-        traced.
-      turn: The turn's process, which it goes with however that goes.
-      libc: The C library, for `prctl`.
-    """
-    from hmz.coganchor.linux import seccomp
-
-    saying, traced = pipes
-    try:
-        libc.prctl(_PR_SET_PDEATHSIG, signal.SIGKILL, 0, 0, 0)
-        if os.getppid() != turn:  # the turn went before that was said
-            os._exit(128 + signal.SIGKILL)
-        with os.fdopen(traced, "rb") as heard:
-            supervisor = int(heard.readline() or 0)
-            # Refused where there is no Yama to ask, which then lets any process of this user.
-            libc.prctl(_PR_SET_PTRACER, supervisor, 0, 0, 0)
-            os.write(saying, f"{os.getpid()}\n".encode())
-            os.close(saying)
-            if not (supervisor and heard.read(1)):
-                os.write(2, b"hmz internal cred: nothing could supervise it\n")
-                os._exit(_UNSUPERVISED)
-        seccomp.install(tracing.trapped())
-        # Becoming the program is the whole errand of this fork, and it is an argv rather
-        # than a command line, so there is no shell for one to go through.
-        os.execvp(argv[0], list(argv))  # noqa: S606
-    # Everything, deliberately: this is the forked child, and anything that escapes here
-    # would run the parent's code a second time rather than report a failed launch.
-    except BaseException as why:  # noqa: BLE001
-        os.write(2, f"hmz: cannot run {argv[0]}: {why}\n".encode())
-    os._exit(127)
-
-
-def _supervising(tracing: Tracing, said: int, tracing_it: int) -> NoReturn:
-    """The supervisor's half: trace the program and what it leaves. Never returns.
-
-    It exits once the last of them is over, which is the program alone where the session
-    left nothing running.
-
-    Args:
-      tracing: What answers the paths.
-      said: Where the program says its pid.
-      tracing_it: Where to tell the program who traces it, and then that it does.
-    """
-    code = 0
-    try:
-        os.write(tracing_it, f"{os.getpid()}\n".encode())
-        with os.fdopen(said, "rb") as heard:
-            pid = int(heard.readline() or 0)
-        if pid:
-            tracing.attach(pid)
-            os.write(tracing_it, b"!")
-            os.close(tracing_it)
-            # What reads the turn's output waits for it to close, which must not wait on this.
-            nothing = os.open(os.devnull, os.O_RDWR)
-            for fd in (0, 1, 2):
-                os.dup2(nothing, fd)
-            os.close(nothing)
-            tracing.serve()
-    # Everything, deliberately, as above: this is a forked child too.
-    except BaseException as why:  # noqa: BLE001
-        with contextlib.suppress(OSError):
-            os.write(2, f"hmz internal cred: {why}\n".encode())
-        code = 1
-    finally:
-        # The copies this run answered reads with, which are a secret in memory that belongs
-        # to nothing once what read them is over. Nothing ends a turn by killing this
-        # process, so this runs for every way a run ends but this process being killed by
-        # name -- and what that leaves is swept up by the next run.
-        tracing.close()
-    os._exit(code)
-
-
-def failed(status: int) -> int:
-    """What a program's wait status comes to as an exit status."""
-    if os.WIFEXITED(status):
-        return os.WEXITSTATUS(status)
-    return 128 + os.WTERMSIG(status) if os.WIFSIGNALED(status) else 1
-
-
-#: What a syscall that could not be given its new path is answered with. A visible failure,
-#: because the alternative is the agent quietly reading the credentials of whoever is at this
-#: machine -- a turn that ran as the wrong account is worse than a turn that did not run.
-UNSWAPPABLE = errno.EIO
+    return [str(binary.here()), *binary.translated("cred", [*mapped, "--", *argv])]

@@ -9,7 +9,7 @@ same container.
 
 It is reached the way a docker container is, over coganchor's road: the serving half is put in
 the container and started with `container exec`, which is all an image needs besides `/bin/sh`
-and a Python -- no sshd.
+-- no sshd, and no Python.
 
 What a runtime may hand out is shared between every run on this machine by a lock on the
 runtime, as a docker runtime's is: what its running containers already hold is read off their

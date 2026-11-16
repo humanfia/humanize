@@ -7,13 +7,13 @@ import os
 import sys
 import types
 from importlib.metadata import version
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, NoReturn
 from unittest import mock
 
 import pytest
 
-import hmz.coganchor.fence.wrap
-import hmz.coganchor.providers.redirect
+import hmz.coganchor.binary
 import hmz.daemon
 from hmz.cli import APART, COMMANDS, INTERNAL, main, many, opens, output
 
@@ -101,7 +101,11 @@ def test_internal_help_lists_all_six(capsys: pytest.CaptureFixture[str]) -> None
         assert summary in out
 
 
-@pytest.mark.parametrize("name", sorted(INTERNAL))
+#: The three of them `coganchor` carries out, which this process becomes.
+COGANCHOR = ("anchor", "cred", "fence")
+
+
+@pytest.mark.parametrize("name", sorted(set(INTERNAL) - set(COGANCHOR)))
 def test_each_internal_command_answers_its_own_help(
     name: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -111,24 +115,55 @@ def test_each_internal_command_answers_its_own_help(
     assert f"hmz internal {name}" in capsys.readouterr().out
 
 
-def test_internal_hands_the_rest_of_the_line_on(
-    monkeypatch: pytest.MonkeyPatch,
+class _Became(Exception):  # noqa: N818 -- what happened, not what went wrong
+    """What a stand-in for `os.execv` raises in place of becoming the program."""
+
+
+@pytest.mark.parametrize(
+    ("argv", "line"),
+    [
+        (["anchor", "--target=local", "claude"], ["cog", "--target=local", "claude"]),
+        (["anchor", "serve", "--stdio"], ["anchor", "--stdio"]),
+        (["anchor", "rendezvous", "--listen", "0"], ["broker", "--listen", "0"]),
+        (["cred", "--map", "/a=/b", "--", "claude"],
+         ["internal", "cred", "--map", "/a=/b", "--", "claude"]),
+        (["fence", "--policy", "{}", "--", "claude"],
+         ["internal", "fence", "--policy", "{}", "--", "claude"]),
+    ],
+)  # fmt: skip
+def test_the_anchors_internal_commands_become_coganchor(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str], line: list[str]
 ) -> None:
-    redirect = mock.Mock()
-    redirect.read.return_value = ["swap"]
-    redirect.run.return_value = 7
-    monkeypatch.setattr(hmz.coganchor.providers.redirect, "read", redirect.read)
-    monkeypatch.setattr(hmz.coganchor.providers.redirect, "run", redirect.run)
-    assert main(["internal", "cred", "--map", "/a=/b", "--", "claude", "-p"]) == 7
-    redirect.read.assert_called_once_with(["/a=/b"], [])
-    redirect.run.assert_called_once_with(["swap"], ["claude", "-p"])
+    became: list[tuple[Path, list[str]]] = []
+
+    def execv(program: Path, args: list[str]) -> NoReturn:
+        became.append((program, args))
+        raise _Became
+
+    monkeypatch.setattr(hmz.coganchor.binary, "found", lambda: Path("/opt/coganchor"))
+    monkeypatch.setattr(os, "execv", execv)
+    # Set, so that what is set is taken off again after.
+    monkeypatch.setenv(hmz.coganchor.binary.BINARIES, "")
+    monkeypatch.delenv(hmz.coganchor.binary.BINARIES)
+
+    with pytest.raises(_Became):
+        main(["internal", *argv])
+
+    assert became == [(Path("/opt/coganchor"), ["/opt/coganchor", *line])]
+    # Told where the builds for other machines are, to ship the one a target needs.
+    assert os.environ[hmz.coganchor.binary.BINARIES] == str(
+        hmz.coganchor.binary.shelf()
+    )
 
 
-def test_internal_fence_reaches_the_fence(monkeypatch: pytest.MonkeyPatch) -> None:
-    wrapping = mock.Mock(return_value=3)
-    monkeypatch.setattr(hmz.coganchor.fence.wrap, "main", wrapping)
-    assert main(["internal", "fence", "--policy", "{}", "--", "claude"]) == 3
-    wrapping.assert_called_once_with("{}", ["claude"])
+@pytest.mark.parametrize("name", COGANCHOR)
+def test_with_no_coganchor_built_here_an_anchor_command_is_not_found(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], name: str
+) -> None:
+    monkeypatch.setattr(hmz.coganchor.binary, "found", lambda: None)
+
+    assert main(["internal", name, "--help"]) == 127
+    assert "hmz: no coganchor is built for this machine (" in capsys.readouterr().err
 
 
 class _App:

@@ -32,7 +32,6 @@ import pytest
 
 import hmz.coganchor.backends
 import hmz.coganchor.models
-import hmz.coganchor.transport
 import hmz.runtime.flowing.verses
 from hmz.runtime import telemetry
 
@@ -107,7 +106,6 @@ def _machine_temp(_temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     held.mkdir()
     monkeypatch.setenv("TMPDIR", str(held))
     monkeypatch.setattr(tempfile, "tempdir", str(held))
-    monkeypatch.setattr(hmz.coganchor.transport, "_bundle_held", None)
 
 
 def _handlers() -> dict[int, Any]:

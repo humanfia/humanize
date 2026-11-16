@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import platform
-import shlex
 import time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl
@@ -202,13 +201,25 @@ def test_a_job_asking_for_nothing_takes_the_partitions_defaults(
     assert anchor.target == "slurm://42"
 
 
-def test_a_job_reached_over_tcp_runs_the_serving_half_and_is_dialled_with_its_secret(
-    runs: Runs, handshake: Handshake
+@pytest.fixture
+def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A `coganchor` built for this machine, which is Linux on x86-64, as a node is."""
+    program = tmp_path / "coganchor"
+    program.write_bytes(b"\x7fELF")
+    monkeypatch.setenv(binary.VARIABLE, str(program))
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    return program
+
+
+def test_a_job_reached_over_tcp_runs_coganchor_and_is_dialled_with_its_secret(
+    runs: Runs, handshake: Handshake, built: Path
 ) -> None:
     a_cluster(runs, "RUNNING", node="n7")
+    runs.on("exec uname -sm", out="Linux x86_64\n")
     runs.on("/bin/cat").answers = [
         (1, "", "No such file"),
-        (0, "hmz internal anchor serve listening 0.0.0.0 40123\n", ""),
+        (0, "hmz internal anchor serve listening 0.0.0.0 40124\n", ""),
     ]
     machine = SlurmConfig(workspace="/w", via=TCP, python="/opt/py").create()
 
@@ -216,58 +227,32 @@ def test_a_job_reached_over_tcp_runs_the_serving_half_and_is_dialled_with_its_se
 
     (made,) = runs.called("sbatch")
     script = after(made, "--wrap")[0]
+    named = f"coganchor-{binary.digest(built)}"
+    assert f'"Linux x86_64"|"Linux amd64") p="{REMOTE_CACHE}/{named}";;' in script
+    assert script.endswith('exec "$p" anchor --listen 0.0.0.0:0 --export /w')
     assert machine.token
     assert f"HUMANIZE_TOKEN={machine.token}" in script
-    assert "--listen" in script
-    assert after(shlex.split(script.split("; exec ", 1)[1]), "--export") == ["/w"]
-    assert "/opt/py" in script
+    assert "/opt/py" not in script
     assert after(made, "--output") == ["/tmp/humanize-slurm-%j.out"]
     assert machine.token not in " ".join(made).replace(script, "")
+    (shipping,) = [one for one in runs.called("srun") if named in one[-1]]
+    assert shipping[:2] == ["srun", "--jobid=42"]
     (cat, _) = runs.called("/bin/cat")
     assert cat[-1] == "/tmp/humanize-slurm-42.out"
     assert cat[:2] == ["srun", "--jobid=42"]
-    assert anchor.target == "tcp://n7:40123"
+    assert anchor.target == "tcp://n7:40124"
     assert anchor.token == machine.token
     assert handshake.asked == [anchor]
 
 
-def test_a_job_reached_over_tcp_runs_coganchor_where_it_is_active(
-    runs: Runs,
-    handshake: Handshake,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    program = tmp_path / "coganchor"
-    program.write_bytes(b"\x7fELF")
-    monkeypatch.setenv(binary.VARIABLE, str(program))
-    monkeypatch.setattr(platform, "system", lambda: "Linux")
-    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
-    a_cluster(runs, "RUNNING", node="n7")
-    runs.on("uname", "-sm", out="Linux x86_64\n")
-    runs.on("/bin/cat", out="hmz internal anchor serve listening 0.0.0.0 40124\n")
-    machine = SlurmConfig(workspace="/w", via=TCP, python="/opt/py").create()
-
-    anchor = machine.start()
-
-    (made,) = runs.called("sbatch")
-    script = after(made, "--wrap")[0]
-    named = f"coganchor-{binary.digest(program)}"
-    assert f'"Linux x86_64"|"Linux amd64") p="{REMOTE_CACHE}/{named}";;' in script
-    assert script.endswith('exec "$p" anchor --listen 0.0.0.0:0 --export /w')
-    assert f"HUMANIZE_TOKEN={machine.token}" in script
-    assert "/opt/py" not in script
-    (shipping,) = [one for one in runs.called("srun") if named in one[-1]]
-    assert shipping[:2] == ["srun", "--jobid=42"]
-    assert anchor.target == "tcp://n7:40124"
-
-
 def test_a_serving_half_that_never_listens_is_an_error_and_its_job_goes(
-    runs: Runs, handshake: Handshake, monkeypatch: pytest.MonkeyPatch
+    runs: Runs, handshake: Handshake, monkeypatch: pytest.MonkeyPatch, built: Path
 ) -> None:
     clock = iter(range(0, 10_000, 30))
     monkeypatch.setattr(time, "monotonic", lambda: float(next(clock)))
     a_cluster(runs, "RUNNING")
-    runs.on("/bin/cat", out="Traceback: no python\n")
+    runs.on("exec uname -sm", out="Linux x86_64\n")
+    runs.on("/bin/cat", out="coganchor: cannot listen\n")
 
     with pytest.raises(RuntimeError, match="did not say it was listening"):
         SlurmConfig(workspace="/w", via=TCP).create().start()

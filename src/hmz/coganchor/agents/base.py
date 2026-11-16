@@ -5412,11 +5412,12 @@ class AgentBase(ABC):
           brought back as the turn ends (:meth:`_bringing`).
         """
         from hmz.coganchor.backends import named
-        from hmz.coganchor.serve.sessions import (
+        from hmz.coganchor.tailing import (
             HOST_SPECIFIC_ENV,
             HOST_SPECIFIC_PREFIXES,
+            Tail,
+            road,
         )
-        from hmz.coganchor.tailing import Tail, road
 
         with self._holding:
             if self._tailed or not self._tailing():

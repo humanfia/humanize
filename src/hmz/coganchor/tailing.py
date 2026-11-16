@@ -32,9 +32,66 @@ if TYPE_CHECKING:
     from hmz.coganchor.backends import Profile
     from hmz.coganchor.transport import Road
 
-__all__ = ["EVERY", "Tail", "road", "roots"]
+__all__ = [
+    "EVERY",
+    "HOST_SPECIFIC_ENV",
+    "HOST_SPECIFIC_PREFIXES",
+    "Tail",
+    "road",
+    "roots",
+]
 
 log = logging.getLogger(__name__)
+
+#: Environment variables that describe the machine a turn is started from and do not cross to
+#: the machine its commands run on, which `coganchor anchor` composes their environment
+#: without: everything else the agent set (API keys, GIT_*, project variables) passes through,
+#: layered on top of that machine's own. And so a CLI's home named by one of them is not one
+#: the target's own CLI is told.
+HOST_SPECIFIC_ENV = frozenset(
+    {
+        "DISPLAY",
+        "HOME",
+        "HOSTNAME",
+        "HOSTTYPE",
+        "LOGNAME",
+        "MACHTYPE",
+        "MAIL",
+        "OLDPWD",
+        "OSTYPE",
+        "PATH",
+        "PWD",
+        # The login session a macOS client opened, which names a session of that machine's
+        # security server and does not exist on another.
+        "SECURITYSESSIONID",
+        "SHELL",
+        "SHLVL",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "USER",
+        "WAYLAND_DISPLAY",
+        "_",
+    }
+)
+
+#: Prefixes of variables that are host-specific or belong to coganchor itself.  ``DYLD_`` is
+#: macOS's ``LD_``: ``DYLD_INSERT_LIBRARIES`` is its ``LD_PRELOAD`` and ``DYLD_LIBRARY_PATH``
+#: its ``LD_LIBRARY_PATH``, so a client's copy would name libraries of the client's on a
+#: target that has its own.  ``Apple``, ``XPC_`` and ``__CF`` are what a macOS client's
+#: launchd session puts in the environment -- sockets under its own per-session temporary
+#: directory, and the encoding and uid its login was opened with -- each of which names that
+#: machine and not the target.
+HOST_SPECIFIC_PREFIXES = (
+    "Apple",
+    "DYLD_",
+    "HUMANIZE_",
+    "LD_",
+    "SSH_",
+    "XDG_",
+    "XPC_",
+    "__CF",
+)
 
 #: How often a session's logs are copied while it is open, in seconds: often enough to read a
 #: run as it goes, seldom enough that the commands doing it are nothing beside the turn.

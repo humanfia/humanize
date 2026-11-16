@@ -3,8 +3,7 @@
 Every target here is this machine, through the fakes of `doubles_anchor`, so this machine's
 `uname -sm` is what the far side answers and this machine's build is what lands there. The
 program shipped is a stand-in that writes down how it was started, so the road is exercised for
-real whatever the Rust anchor can do yet; the last test ships the real build, where there is
-one, and runs it.
+real; the last test ships the real build and runs it.
 """
 
 from __future__ import annotations
@@ -72,7 +71,7 @@ def test_coganchor_is_shipped_over_ssh_once_and_started_as_the_anchor(
     # Asked what it is, given the program, and started twice: nothing a second time.
     asked = [argv[-1] for argv in far.calls("ssh")]
     assert len(asked) == 4
-    assert asked[0] == "exec uname -sm"
+    assert asked[0] == "exec /bin/sh -c 'exec uname -sm'"
     assert asked[2].endswith("coganchor anchor --stdio --export /w")
     assert f"/{landed.name}" in asked[2]
 
@@ -98,11 +97,11 @@ def test_coganchor_is_shipped_again_to_a_machine_that_has_lost_it(
 ) -> None:
     road = Road.to(Target.parse(f"ssh://lost-{tmp_path.name}"))
     landed = far.home / ".cache" / "humanize" / _shipped(program)
-    road.installed()
+    road.shipped()
     landed.unlink()
 
     road.forget()
-    road.installed()
+    road.shipped()
 
     assert landed.is_file()
 
@@ -124,10 +123,11 @@ def test_shipping_coganchor_sweeps_what_nobody_has_run_for_a_fortnight(
     for one in (old, half, other):
         os.utime(one, (weeks, weeks))
 
-    Road.to(Target.parse(f"ssh://swept-{tmp_path.name}")).installed()
+    Road.to(Target.parse(f"ssh://swept-{tmp_path.name}")).shipped()
 
+    # And an archive an earlier Humanize, which shipped itself as Python, left there.
     assert sorted(one.name for one in cache.iterdir()) == sorted(
-        [_shipped(program), recent.name, other.name]
+        [_shipped(program), recent.name]
     )
 
 

@@ -238,8 +238,8 @@ SIGNS: tuple[Sign, ...] = (
     Sign("unmirrored", r"cannot keep the local copy of the work at"),
     # The run's own fence rather than the provider, and in front of the credentials for the
     # same reason: the proxy that holds a fenced turn to the hosts its role may reach refuses
-    # any other with `403 Forbidden` and says so in these words
-    # (`hmz.coganchor.fence.proxy`), and nobody's sign-in was refused at all.
+    # any other with `403 Forbidden` and says so in these words (`coganchor internal fence`),
+    # and nobody's sign-in was refused at all.
     Sign("fenced", r"is not a host this run may reach"),
     # Two turns at one store rather than anything to do with an account: opencode keeps its
     # sessions in a SQLite database shared across workspaces, and the loser of that race is

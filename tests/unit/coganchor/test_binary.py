@@ -5,14 +5,11 @@ from __future__ import annotations
 import hashlib
 import os
 import platform
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
 from hmz.coganchor import binary
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 @pytest.mark.parametrize(
@@ -97,12 +94,15 @@ def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return program
 
 
-def test_it_is_active_while_the_variable_names_a_build(
+def test_without_the_variable_a_checkouts_own_build_is_found(
     built: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert binary.active()
     monkeypatch.delenv(binary.VARIABLE)
-    assert not binary.active()
+    target = Path(binary.__file__).resolve().parents[3] / "crates/coganchor/target"
+    builds = (target / "release/coganchor", target / "debug/coganchor")
+
+    assert binary.found() == next((one for one in builds if one.is_file()), None)
+    assert binary.found() != built
 
 
 def test_here_is_the_build_and_tells_its_children_where_the_others_are(
@@ -127,7 +127,7 @@ def test_here_without_a_build_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
         binary.here()
 
 
-def test_a_machine_like_this_one_is_shipped_this_ones_build(
+def test_a_machine_is_shipped_the_build_the_install_carries_for_it(
     built: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     other = tmp_path / "linux-aarch64"
@@ -136,9 +136,17 @@ def test_a_machine_like_this_one_is_shipped_this_ones_build(
         return other if binary.named(system, machine) else None
 
     monkeypatch.setattr(binary, "packaged", packaged)
-    assert binary.shipped("Linux", "amd64") == built
+    # Whatever the variable names to run here.
+    assert binary.shipped("Linux", "amd64") == other
     assert binary.shipped("Linux", "arm64") == other
     assert binary.shipped("Linux", "riscv64") is None
+
+
+def test_where_the_install_carries_none_a_machine_like_this_one_is_shipped_this_ones(
+    built: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(binary, "packaged", lambda system, machine: None)
+    assert binary.shipped("Linux", "amd64") == built
 
 
 def test_a_build_is_named_by_the_start_of_its_sha256(built: Path) -> None:

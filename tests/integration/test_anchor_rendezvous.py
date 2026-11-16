@@ -1,132 +1,158 @@
-"""Two halves of a session meeting through a real broker on loopback.
+"""Two halves of a session meeting through a real `coganchor broker` on loopback.
 
 Both halves are this machine, so whether they end up punched through to each other or carried
 by the broker depends on whether the kernel lends one port to two sockets; what is checked is
 that they are joined either way, and that a broker given no window to punch in carries them.
-Two machines that genuinely cannot reach each other are a system test's.
+The serving half is `coganchor anchor --peer`, and the other half `coganchor cog --check`,
+which meets it and asks it what it is. Two machines that genuinely cannot reach each other are
+a system test's.
 """
 
 from __future__ import annotations
 
 import socket
-import threading
+import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.rendezvous import ANCHOR, SERVE, Broker, Meeting, dial, ticket
+from hmz.coganchor import binary, rendezvous
+from hmz.coganchor.rendezvous import Meeting, ticket
+from tests.integration.doubles_anchor import announced, stopped
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from pathlib import Path
 
-PATIENCE = 20.0
+PATIENCE = 60.0
 
 
-def _broker(**settings: float) -> Iterator[Broker]:
-    made = Broker("127.0.0.1", 0, **settings)
-    made.start()
+def _broker(*, punching: float) -> Iterator[tuple[str, int]]:
+    process, host, port = announced(
+        [
+            str(binary.here()),
+            "broker",
+            "--listen",
+            "127.0.0.1:0",
+            "--punching",
+            str(punching),
+        ]
+    )
     try:
-        yield made
+        yield host, port
     finally:
-        made.close()
+        stopped(process)
 
 
 @pytest.fixture
-def broker() -> Iterator[Broker]:
+def broker() -> Iterator[tuple[str, int]]:
     """A broker on loopback with a short window to punch in."""
     yield from _broker(punching=0.5)
 
 
 @pytest.fixture
-def carrying() -> Iterator[Broker]:
+def carrying() -> Iterator[tuple[str, int]]:
     """A broker with no window at all, which carries every pair it is given."""
     yield from _broker(punching=0.0)
 
 
-def met(meeting: Meeting) -> dict[str, socket.socket]:
-    """Both halves of one meeting, dialled at once from two threads."""
-    held: dict[str, socket.socket] = {}
-    failed: dict[str, BaseException] = {}
-
-    def half(role: str) -> None:
-        try:
-            held[role] = dial(meeting, role, timeout=PATIENCE)
-            held[role].settimeout(PATIENCE)
-        except BaseException as exc:  # noqa: BLE001 -- reported below
-            failed[role] = exc
-
-    both = [threading.Thread(target=half, args=(role,)) for role in (ANCHOR, SERVE)]
-    for one in both:
-        one.start()
-    for one in both:
-        one.join(PATIENCE + 10)
-    assert not failed, failed
-    return held
-
-
-def _closed(held: dict[str, socket.socket]) -> None:
-    for one in held.values():
-        one.close()
-
-
-def test_two_halves_are_joined_and_talk_both_ways(broker: Broker) -> None:
-    held = met(Meeting(ticket(), *broker.address))
+def _met(meeting: Meeting, real: Path) -> subprocess.CompletedProcess[str]:
+    """Leaves a serving half of `real` at a meeting, and has a cog meet it and ask after it."""
+    real.mkdir(exist_ok=True)
+    (real / "note").write_text("on the target\n")
+    serving = subprocess.Popen(
+        [
+            str(binary.here()),
+            "anchor",
+            "--peer",
+            str(meeting),
+            "--export",
+            f"/w:{real}",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+    )
     try:
-        held[ANCHOR].sendall(b"from the anchor")
-        assert held[SERVE].recv(64) == b"from the anchor"
-        held[SERVE].sendall(b"from the target")
-        assert held[ANCHOR].recv(64) == b"from the target"
+        return subprocess.run(
+            [
+                str(binary.here()),
+                "cog",
+                f"--target=peer://{meeting}",
+                "--workspace=/w",
+                "--check",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=PATIENCE,
+            check=False,
+        )
     finally:
-        _closed(held)
+        stopped(serving)
 
 
-def test_a_pair_given_no_window_is_carried_whole(carrying: Broker) -> None:
-    payload = bytes(range(256)) * 4096  # a megabyte: many relay frames
-    held = met(Meeting(ticket(), *carrying.address))
-    try:
-        sender = threading.Thread(target=held[ANCHOR].sendall, args=(payload,))
-        sender.start()
-        got = b""
-        while len(got) < len(payload) and (chunk := held[SERVE].recv(65536)):
-            got += chunk
-        sender.join(PATIENCE)
-    finally:
-        _closed(held)
-
-    assert got == payload
-    assert carrying.carried == 1
-
-
-def test_two_meetings_at_one_broker_stay_two_sessions(broker: Broker) -> None:
-    one = met(Meeting(ticket(), *broker.address))
-    other = met(Meeting(ticket(), *broker.address))
-    try:
-        one[ANCHOR].sendall(b"first")
-        other[ANCHOR].sendall(b"second")
-        assert one[SERVE].recv(64) == b"first"
-        assert other[SERVE].recv(64) == b"second"
-    finally:
-        _closed(one)
-        _closed(other)
-
-
-def test_a_half_whose_other_half_never_comes_is_told_so() -> None:
-    for broker in _broker(patience=0.3):
-        with pytest.raises(OSError, match="never arrived"):
-            dial(Meeting(ticket(), *broker.address), ANCHOR, timeout=PATIENCE)
-
-
-def test_a_half_that_is_neither_half_is_refused_before_dialling(
-    broker: Broker,
+def test_two_halves_are_joined_and_talk_both_ways(
+    broker: tuple[str, int], tmp_path: Path
 ) -> None:
-    with pytest.raises(ValueError, match="role"):
-        dial(Meeting(ticket(), *broker.address), "onlooker")
+    said = _met(Meeting(ticket(), *broker), tmp_path / "target")
+
+    assert said.returncode == 0, said.stderr
+    assert "workspace   /w (1 entries)" in said.stdout
 
 
-def test_a_broker_nobody_runs_cannot_be_met() -> None:
+def test_a_pair_given_no_window_is_carried_whole(
+    carrying: tuple[str, int], tmp_path: Path
+) -> None:
+    said = _met(Meeting(ticket(), *carrying), tmp_path / "target")
+
+    assert said.returncode == 0, said.stderr
+    assert "workspace   /w (1 entries)" in said.stdout
+
+
+def test_two_meetings_at_one_broker_stay_two_sessions(
+    broker: tuple[str, int], tmp_path: Path
+) -> None:
+    (tmp_path / "other").mkdir()
+    (tmp_path / "other" / "more").write_text("")
+
+    one = _met(Meeting(ticket(), *broker), tmp_path / "one")
+    other = _met(Meeting(ticket(), *broker), tmp_path / "other")
+
+    assert "workspace   /w (1 entries)" in one.stdout, one.stderr
+    assert "workspace   /w (2 entries)" in other.stdout, other.stderr
+
+
+def test_a_broker_nobody_runs_cannot_be_met(tmp_path: Path) -> None:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
 
-    with pytest.raises(OSError, match=r"."):
-        dial(Meeting(ticket(), "127.0.0.1", port), ANCHOR, timeout=2)
+    said = subprocess.run(
+        [
+            str(binary.here()),
+            "cog",
+            f"--target=peer://{ticket()}@127.0.0.1:{port}",
+            f"--workspace={tmp_path}",
+            "--check",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=PATIENCE,
+        check=False,
+    )
+
+    assert said.returncode != 0
+
+
+def test_the_broker_this_process_holds_is_started_once_and_said_as_asked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("HUMANIZE_RENDEZVOUS", raising=False)
+    monkeypatch.delenv("HUMANIZE_RENDEZVOUS_PORT", raising=False)
+
+    host, port = rendezvous.shared("127.0.0.1")
+    again, same = rendezvous.shared("broker.example")
+
+    assert (host, again) == ("127.0.0.1", "broker.example")
+    assert same == port
+    with socket.create_connection(("127.0.0.1", port), timeout=PATIENCE):
+        pass

@@ -61,8 +61,8 @@ class AppleContainerConfig(MachineConfig):
     """What the container is run from.
 
     Attributes:
-      image: The image to run, which needs `/bin/sh` and a Python of at least 3.12 for
-        coganchor's target half, and whatever else the agent is expected to reach for.
+      image: The image to run, which needs `/bin/sh` and `sleep` for coganchor's target
+        half, and whatever else the agent is expected to reach for.
       workspace: The project directory to give the container, defaulting to this directory.
         It is the directory itself that goes there, not a copy of it, so the work outlives
         the container.
@@ -348,9 +348,9 @@ class AppleContainer(MachineBase):
             `container` to give it to.
           ValueError: If the workspace's path holds a comma, which `container` reads a mount
             as several fields at and has no way to quote.
-          RuntimeError: If the container cannot be started -- an image with no shell in it, or
-            none holding a Python new enough, is refused here. What `container` said is
-            attached. Or if what came up is not the machine these settings promised.
+          RuntimeError: If the container cannot be started -- an image with no shell in it is
+            refused here. What `container` said is attached. Or if what came up is not the
+            machine these settings promised.
           OSError: If the container cannot serve the workspace it was given, which is a turn
             that would fail on its first file, reported before the first turn instead.
         """
@@ -422,7 +422,7 @@ class AppleContainer(MachineBase):
                     f"could not start a container of {config.image}: "
                     f"{started.stderr.strip()}"
                 )
-            # A container made just now holds no bundle, whatever one of the same name was
+            # A container made just now holds no `coganchor`, whatever one of the same name was
             # given before it.
             Road.to(target).forget()
             anchor = AnchorConfig(

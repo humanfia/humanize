@@ -1,10 +1,10 @@
-"""Stand-ins the anchor tests write: `ssh`, `docker` and `container` on `PATH`, and a fence.
+"""Stand-ins the anchor tests write: `ssh`, `docker` and `container` on `PATH`.
 
 Each fake is a small Python program that appends its argv (and the few variables it was
 asked about) to a JSON-lines log, then does what the code under test reads from the real
 tool. A command sent "over there" -- `ssh HOST CMD`, `docker exec -i NAME ARGV...`,
 `container exec -i NAME ARGV...` -- runs on this machine, in a home or a root of the test's
-own, so the anchor's whole road (bundle install, serve, protocol) is exercised for real.
+own, so the anchor's whole road (shipping `coganchor`, serve, protocol) is exercised for real.
 """
 
 from __future__ import annotations
@@ -19,10 +19,9 @@ import threading
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
+from hmz.coganchor import binary
 from hmz.coganchor.proto import Channel
 from hmz.coganchor.remote import RemoteClient
-from hmz.coganchor.serve.exports import ExportTable
-from hmz.coganchor.serve.server import Server
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterator
@@ -485,52 +484,6 @@ def slurm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Fakes:
     return made
 
 
-#: The fence stand-in: writes the policy it was given down, then becomes the program.
-_FENCE = """\
-import os, sys
-policy = sys.argv[1].removeprefix("--policy=")
-rest = sys.argv[3:] if sys.argv[2:3] == ["--"] else sys.argv[2:]
-with open(os.environ["FAKE_FENCE_LOG"], "a", encoding="utf-8") as log:
-    log.write(policy + "\\n")
-os.execvp(rest[0], rest)
-"""
-
-
-def fence_stand_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Has every fenced command of this process spawned under a stand-in that logs its policy.
-
-    A real fence is Landlock or Seatbelt, which is the kernel's to enforce and a system
-    test's to check; what is left here is which policy a command would be held to.
-
-    Returns:
-      The JSON-lines log of policies, one per fenced command.
-    """
-    program = tmp_path / "fence-stand-in"
-    program.write_text(f"#!{sys.executable}\n{_FENCE}")
-    program.chmod(0o755)
-    log = tmp_path / "fences.jsonl"
-    monkeypatch.setenv("FAKE_FENCE_LOG", str(log))
-
-    def wrapper(fence: Any) -> list[str]:
-        return [str(program), f"--policy={fence.dumps()}", "--"]
-
-    def able(*, net: bool) -> bool:
-        del net
-        return True
-
-    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
-    monkeypatch.setattr("hmz.coganchor.fence.enforceable", able)
-    monkeypatch.setattr("hmz.coganchor.fence.landlocked", able)
-    return log
-
-
-def policies(log: Path) -> list[dict[str, Any]]:
-    """Every policy a fenced command was spawned with, oldest first."""
-    if not log.exists():
-        return []
-    return [json.loads(line) for line in log.read_text().splitlines()]
-
-
 def announced(
     command: list[str], *, env: dict[str, str] | None = None
 ) -> tuple[subprocess.Popen[bytes], str, int]:
@@ -607,32 +560,34 @@ def echoing(host: str) -> Iterator[tuple[str, int]]:
         thread.join(timeout=2)
 
 
-#: The directory a linked client names, which the server answers from a real one.
+#: The directory a linked client names, which the anchor answers from a real one.
 VIRTUAL = "/project"
 
 
 @dataclass(frozen=True)
 class Link:
-    """A client talking to an in-process server, and the target directory it serves."""
+    """A client talking to a `coganchor anchor`, the target directory it serves, and its pid."""
 
     client: RemoteClient
     real: Path
+    pid: int
 
 
 @contextlib.contextmanager
 def linked(real: Path, *, timeout: float = 30.0) -> Generator[Link]:
-    """Both halves over a socketpair in this process, handshake done, serving `real`."""
+    """A `coganchor anchor --stdio` serving `real`, and a client on its pipes, handshake done."""
     real.mkdir(exist_ok=True)
-    left, right = socket.socketpair()
-    server = Server(
-        Channel.from_socket(right), ExportTable.parse([f"{VIRTUAL}:{real}"])
+    serving = subprocess.Popen(
+        [str(binary.here()), "anchor", "--stdio", "--export", f"{VIRTUAL}:{real}"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
     )
-    serving = threading.Thread(target=server.serve, daemon=True)
-    serving.start()
-    client = RemoteClient(Channel.from_socket(left), timeout=timeout)
+    assert serving.stdin is not None
+    assert serving.stdout is not None
+    client = RemoteClient(Channel(serving.stdout, serving.stdin), timeout=timeout)
     try:
         client.start()
-        yield Link(client, real)
+        yield Link(client, real, serving.pid)
     finally:
         client.close()
-        serving.join(timeout=5)
+        stopped(serving)
