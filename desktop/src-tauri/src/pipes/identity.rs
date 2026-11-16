@@ -59,7 +59,7 @@ pub fn load(dir: &Path) -> io::Result<Identity> {
 fn certificate(key: &KeyPair) -> io::Result<String> {
     let mut params = CertificateParams::default();
     let mut name = DistinguishedName::new();
-    name.push(DnType::CommonName, format!("hmz {}", host()));
+    name.push(DnType::CommonName, common_name(&host()));
     params.distinguished_name = name;
     let mut serial = [0u8; 16];
     SystemRandom::new()
@@ -74,7 +74,7 @@ fn certificate(key: &KeyPair) -> io::Result<String> {
     Ok(params.self_signed(key).map_err(io::Error::other)?.pem())
 }
 
-/// This machine's host name up to its first `.`.
+/// This machine's host name.
 fn host() -> String {
     #[cfg(unix)]
     let name = {
@@ -86,8 +86,14 @@ fn host() -> String {
     };
     #[cfg(windows)]
     let name = std::env::var("COMPUTERNAME").ok();
-    let name = name.unwrap_or_default();
-    name.split('.').next().unwrap_or_default().to_owned()
+    name.unwrap_or_default()
+}
+
+/// The common name of a device certificate (Section 4.3.2 of [WIRE]): `hmz` and the host name
+/// up to its first `.`, cut to its first 60 characters, so that it is at most 64.
+fn common_name(host: &str) -> String {
+    let label = host.split('.').next().unwrap_or_default();
+    format!("hmz {}", label.chars().take(60).collect::<String>())
 }
 
 /// The SPKI fingerprint of a certificate (Section 4.2.3 of [WIRE]): the SHA-256 of its
@@ -212,10 +218,19 @@ mod tests {
             rcgen::PublicKeyData::subject_public_key_info(&key)
         );
         let bytes: &[u8] = der.as_ref();
-        let common = format!("hmz {}", host());
+        let common = common_name(&host());
         assert!(bytes.windows(common.len()).any(|w| w == common.as_bytes()));
         // notAfter as GeneralizedTime 99991231235959Z.
         assert!(bytes.windows(15).any(|w| w == b"99991231235959Z"));
-        assert!(!host().contains('.'));
+    }
+
+    #[test]
+    fn names_the_certificate_by_the_host_cut_to_60_characters() {
+        assert_eq!(common_name("box.lan.example"), "hmz box");
+        assert_eq!(common_name(""), "hmz ");
+        let label = "a".repeat(70);
+        let common = common_name(&format!("{label}.example"));
+        assert_eq!(common, format!("hmz {}", "a".repeat(60)));
+        assert_eq!(common.chars().count(), 64);
     }
 }
