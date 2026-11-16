@@ -20,8 +20,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.transport import build_bundle
-
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -32,14 +30,6 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 #: module is under is its layer, and naming a layer covers every module inside it.
 ALLOWED: dict[str, set[str]] = {
     "hmz.coganchor": {"hmz.runtime.telemetry"},
-    # The target half runs on any architecture with only what the bundle carried.
-    "hmz.coganchor.serve": {
-        "hmz.coganchor.proto",
-        "hmz.coganchor.fence",
-        "hmz.coganchor.linux.landlock",
-        "hmz.coganchor.linux.seccomp",
-        "hmz.coganchor.linux.syscalls",
-    },
     "hmz.runtime": set(),
     "hmz.runtime.kept": {"hmz.coganchor.spelling"},
     "hmz.runtime.settings": {
@@ -86,6 +76,7 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.flows": {"hmz.runtime.flowing", "hmz.coganchor.faking"},
     "hmz.runtime.doing": {
         "hmz.coganchor",
+        "hmz.rpc",
         "hmz.flows",
         "hmz.runtime.backing",
         "hmz.runtime.epic",
@@ -96,8 +87,18 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.telemetry",
         "hmz.runtime.tracing",
     },
-    # And serves its methods over `rpc`, as the other end of every session calls them.
-    "hmz.daemon": {"hmz.runtime", "hmz.rpc"},
+    # One endpoint per machine: frames and JSON-RPC, the devices it trusts, the carriers it
+    # listens on, and the settings that name them; the runs themselves are the runtime's.
+    "hmz.daemon": {
+        "hmz.coganchor",
+        "hmz.reach",
+        "hmz.rpc",
+        "hmz.rtc",
+        "hmz.runtime",
+        "hmz.trust",
+    },
+    # Where this machine's daemon is, which the carriers to it look up too.
+    "hmz.daemon.where": set(),
     # The methods a daemon serves beyond epics and sessions, each family through what keeps it.
     "hmz.daemon.api": {
         "hmz.coganchor",
@@ -263,8 +264,11 @@ def test_every_top_level_package_but_the_command_line_is_a_layer() -> None:
 
 
 def _may_name(layer: str, other: str) -> bool:
-    """Whether the table lets `layer` name `other`, or any module inside it."""
-    return any(_covers(one, other) or _covers(other, one) for one in ALLOWED[layer])
+    """Whether the table lets `layer` name `other`, or any module of `other`'s own layer."""
+    return any(
+        _covers(one, other) or (_covers(other, one) and _layer(one) == other)
+        for one in ALLOWED[layer]
+    )
 
 
 def test_no_two_layers_name_each_other_but_the_flow_api_and_its_engine() -> None:
@@ -365,41 +369,3 @@ def test_reading_an_exec_line_loads_neither_the_interface_nor_the_daemon() -> No
     assert "hmz.cli" in loaded
     assert not {one for one in loaded if _covers("hmz.tui", one)}, loaded
     assert not {one for one in loaded if _covers("hmz.daemon", one)}, loaded
-
-
-def test_the_target_half_loads_only_what_it_may(tmp_path: Path) -> None:
-    """What a real target half loads out of the bundle, against what its layer may name."""
-    bundle = build_bundle(tmp_path / "coganchor.pyz")
-    # A line read all the way to the serving half, and refused there for its port.
-    probe = (
-        "import contextlib, io, sys\n"
-        "sys.path.insert(0, sys.argv[1])\n"
-        "from hmz import cli\n"
-        "with contextlib.redirect_stdout(io.StringIO()):\n"
-        "    cli.main(['internal', 'anchor', 'serve', '--export', '/project:/tmp',\n"
-        "              '--listen', 'not-a-port'])\n"
-        "print(' '.join(m for m in sys.modules if m.split('.')[0] == 'hmz'))\n"
-    )
-    ran = subprocess.run(
-        [sys.executable, "-c", probe, str(bundle)],
-        capture_output=True,
-        text=True,
-        env={"PATH": "/usr/bin:/bin", "PYTHONPATH": ""},
-        cwd="/",
-        check=False,
-        timeout=60,
-    )
-    assert ran.returncode == 0, ran.stderr
-    loaded = set(ran.stdout.split())
-    serve = "hmz.coganchor.serve"
-    assert f"{serve}.server" in loaded, "the target half did not actually run"
-    startup = {
-        "hmz",
-        "hmz.cli",
-        "hmz.cli.anchor",
-        "hmz.coganchor",
-        "hmz.coganchor.anchor",
-    }
-    assert loaded <= ALLOWED[serve] | startup | {
-        one for one in loaded if _covers(serve, one)
-    }

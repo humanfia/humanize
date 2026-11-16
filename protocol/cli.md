@@ -3,7 +3,8 @@
 ## Abstract
 
 This document specifies the command-line interface of hmz: every command, its options and their
-grammars, what it writes to its standard streams, and its exit statuses.
+grammars, what it writes to its standard streams, and its exit statuses; and the command line of
+`coganchor`, the program that carries hmz's anchor.
 
 ## Status of This Document
 
@@ -251,6 +252,10 @@ status 130 where it was interrupted.
 or after it has ended, as Section 7.15.5 specifies.
 
 **5.2.8** `hmz internal hook` MUST exit with status 1 on a usage error.
+
+**5.2.9** `coganchor cog`, `coganchor anchor`, `coganchor broker`, `coganchor internal fence` and
+`coganchor internal cred` MUST exit with the statuses Section 5.2.2 to Section 5.2.6 assign to the
+`hmz internal` command each stands for (Section 11.2.12), in the same cases.
 
 ## 6. The terminal interface (`hmz` with no command)
 
@@ -924,6 +929,10 @@ hook    relay agent hooks to a flow
 tools   relay agent tool calls to a flow
 ```
 
+**11.1.6** `hmz internal anchor`, `hmz internal cred` and `hmz internal fence` MUST each run the
+`coganchor` of this machine (Section 7.5 of [FILES]) with the command line Section 11.2.13 gives,
+handing it its standard streams, and MUST exit with its status.
+
 ### 11.2. `hmz internal anchor`
 
 ```text
@@ -933,6 +942,16 @@ hmz internal anchor serve --export <virtual>[:<real>]... (--stdio | --listen [<h
                           [--log-level <level>]
 hmz internal anchor rendezvous [--listen [<host>:]<port>] [--punching <seconds>]
                                [--log-level <level>]
+
+coganchor cog [<options>] <program> [<args>...]
+coganchor anchor --export <virtual>[:<real>]... (--stdio | --listen [<host>:]<port>
+                 | --peer <ticket>@<host>:<port>) [--token <secret> | --token-file <file>]
+                 [--log-level <level>]
+coganchor broker [--listen [<host>:]<port>] [--punching <seconds>] [--log-level <level>]
+coganchor internal fence (--policy (<json> | @<path>) [--sandbox <backend>] | --relay <dir>) [--]
+                         <program> [<args>...]
+coganchor internal cred (--map <from>=<to> | --keep <from>=<to>)... [--] <program> [<args>...]
+coganchor --version
 ```
 
 **11.2.1** `hmz internal anchor` MUST run `<program>` with its work landing on the machine
@@ -977,6 +996,28 @@ serve` and `hmz internal anchor rendezvous` MUST each write `hmz: ignoring HUMAN
 which is not one of debug, info, warning, error` to standard error and log at the default level of
 Section 11.2.3.
 
+**11.2.12** `coganchor cog`, `coganchor anchor` and `coganchor broker` MUST be `hmz internal
+anchor`, `hmz internal anchor serve` and `hmz internal anchor rendezvous`, and `coganchor internal
+fence` and `coganchor internal cred` MUST be `hmz internal fence` and `hmz internal cred`: each MUST
+take the same options with the same defaults, read the same variables, and write the same messages,
+`hmz: <reason>`, `hmz internal anchor serve listening <host> <port>` and `hmz internal anchor
+rendezvous listening <bound> <landed>` among them, word for word.
+
+**11.2.13** `hmz internal anchor serve <args>` MUST run `coganchor anchor <args>`; `hmz internal
+anchor rendezvous <args>` MUST run `coganchor broker <args>`; `hmz internal anchor <args>` otherwise
+MUST run `coganchor cog <args>`; and `hmz internal fence <args>` and `hmz internal cred <args>` MUST
+run `coganchor internal fence <args>` and `coganchor internal cred <args>`.
+
+**11.2.14** `coganchor` with no mode, or with a mode it does not have, MUST be a usage error. A usage
+error of `coganchor`, and of each command Section 11.2.13 runs it for, MUST write its reason to
+standard error and exit with status 2, and MAY do so in another form than Section 2.3 gives.
+
+**11.2.15** `coganchor --version` MUST write `coganchor <version>` to standard output, where
+`<version>` is the version of hmz it was built with, and exit with status 0.
+
+**11.2.16** The help of `coganchor` MUST list `cog`, `anchor` and `broker`, and MUST NOT list
+`internal`.
+
 ### 11.3. `hmz internal cred`
 
 ```text
@@ -998,17 +1039,29 @@ cred: <reason>` to standard error, MUST exit with status 1, and MUST NOT run the
 ### 11.4. `hmz internal fence`
 
 ```text
-hmz internal fence --policy (<json> | @<path>) [--] <program> [<args>...]
+hmz internal fence (--policy (<json> | @<path>) [--sandbox <backend>] | --relay <dir>) [--] <program>
+                   [<args>...]
 ```
 
 **11.4.1** `hmz internal fence` MUST run `<program>` held to the paths and hosts the policy permits
 (Section 4 of [CORE]).
 
-**11.4.2** `hmz internal fence` with no `--policy` or no program MUST exit with status 2.
+**11.4.2** `hmz internal fence` with neither or both of `--policy` and `--relay`, or no program,
+MUST exit with status 2.
 
 **11.4.3** Where the fence cannot be put up on this machine, `hmz internal fence` MUST write `hmz
 internal fence: <reason>` to standard error, MUST exit with status 126, and MUST NOT run the
 program.
+
+**11.4.4** `--sandbox` MUST select the backend on Linux as `sandbox.backend` does (Section 4.6.4.16
+of [CORE]), an absent or other value as `auto`; hmz MUST pass the `sandbox.backend` of the machine
+it runs on to the confinement it holds there, and nothing to confinement held on another machine.
+
+**11.4.5** `hmz internal fence --relay <dir>` is the program bubblewrap starts in a network namespace
+of its own (Section 4.6.4.18 of [CORE]): it MUST listen on this namespace's loopback at each port
+`<port>` for which `<dir>` holds a socket `out-<port>.sock` and pass each connection to that socket,
+MUST listen at `<dir>/in-<port>.sock` for each file `<dir>/in-<port>` and pass each connection to
+`<port>` on this namespace's loopback, and MUST then run `<program>`.
 
 ### 11.5. `hmz internal hook`
 
@@ -1206,12 +1259,13 @@ document states.
   that user's own command line. No option of `hmz exec` has an equivalent environment variable
   (Section 7.1.8).
 - **Listening addresses.** `hmz web` listens on loopback addresses only (Section 8.2.2). `hmz
-  internal anchor serve` refuses to listen on a non-loopback address without a token and refuses a
-  client that presents another token (Section 11.2.8, Section 11.2.9). `hmz internal anchor
-  rendezvous` listens on `0.0.0.0` by default (Section 11.2.10). `hmz daemon serve` makes this
-  machine's daemon reachable on every listener it is given, each admitting only paired devices over
-  mutual TLS or WebRTC (Section 13.2.1). `hmz relay serve` listens where it is told, on plain
-  WebSockets, admits anybody, and carries only what is secured end to end (Section 14.2.1).
+  internal anchor serve`, which is `coganchor anchor` (Section 11.2.12), refuses to listen on a
+  non-loopback address without a token and refuses a client that presents another token (Section
+  11.2.8, Section 11.2.9). `hmz internal anchor rendezvous` listens on `0.0.0.0` by default
+  (Section 11.2.10). `hmz daemon serve` makes this machine's daemon reachable on every listener it
+  is given, each admitting only paired devices over mutual TLS or WebRTC (Section 13.2.1). `hmz
+  relay serve` listens where it is told, on plain WebSockets, admits anybody, and carries only what
+  is secured end to end (Section 14.2.1).
 - **Services.** `hmz daemon install` makes the daemon start at login and keeps it running with its
   listeners (Section 13.2.6). `hmz daemon connect --stdio` gives whoever runs it, as this user, the
   daemon's socket on its standard streams (Section 13.2.3).

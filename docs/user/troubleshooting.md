@@ -837,13 +837,17 @@ says yes.
 **Symptom.** A role is refused before its first turn (`HarnessSandboxed`).
 
 **Cause.** The role's [permission](/user/permissions) is narrower than everything, and this
-machine cannot hold it: a Linux kernel older than 5.13 or booted without Landlock, or a Mac
-where Humanize itself runs inside another sandbox (an agent's own, say), which cannot start
-Seatbelt again. Cutting the network needs Linux 6.7 or later. A `cursor-agent` or `mcode` role whose `online`
+machine cannot hold it: a Linux kernel older than 5.13 or booted without Landlock with no
+bubblewrap that starts either, or a Mac where Humanize itself runs inside another sandbox (an
+agent's own, say), which cannot start Seatbelt again. Cutting the network needs Linux 6.7 or
+later, or bubblewrap with a network namespace of its own. Where `sandbox.backend` in
+`settings.yaml` pins `landlock` or `bwrap`, only that one is tried. Under bubblewrap a rule
+that takes back a path that is not there yet cannot be held either. A `cursor-agent` or `mcode` role whose `online`
 is `NONE` is refused on any machine, since its web search runs on its vendor's servers.
 
-**Fix.** Run Humanize on a Linux machine with Landlock, or on a Mac outside any other
-sandbox, or give that role a CLI and a permission this machine can hold. The message says
+**Fix.** Run Humanize on a Linux machine with Landlock, install bubblewrap (the `bubblewrap`
+package) where the kernel is older, set `sandbox.backend` back to `auto`, or run on a Mac
+outside any other sandbox, or give that role a CLI and a permission this machine can hold. The message says
 what is needed.
 
 **Verify.** The role's first turn starts.
@@ -980,12 +984,13 @@ harness setting (env) says: …`, before the flow starts. `… cannot fence the 
 Landlock …` is the same, for an agent whose CLI runs here.
 
 **Cause.** The role's permission is narrower than everything, and the machine the work lands on
-cannot hold it: a kernel older than 5.13 or without Landlock, or a container whose seccomp
-profile refuses Landlock. Cutting the network (`ABI 4 and seccomp` in the message) needs Linux 6.7 or later there, with seccomp user notification. A Mac target
+cannot hold it: a kernel older than 5.13 or without Landlock and with no bubblewrap that
+starts, or a container whose seccomp profile refuses Landlock. Cutting the network (`ABI 4 and seccomp` in the message) needs Linux 6.7 or later there, with seccomp user notification. A Mac target
 fences with Seatbelt, but an agent supervised here (its CLI runs here, its work there) needs
 Landlock on this machine too.
 
-**Fix.** Set the runtime's harness to `local`, move the work to a machine with Landlock, or copy the flow and grant the role everything. Docker's default seccomp profile
+**Fix.** Set the runtime's harness to `local`, move the work to a machine with Landlock or
+bubblewrap, or copy the flow and grant the role everything. Docker's default seccomp profile
 allows Landlock.
 
 **Verify.** The role's first turn starts.
@@ -1020,17 +1025,20 @@ that hook as a program on this machine, so a CLI running on the host, as the run
 
 **Verify.** The run starts, and the transcript at the prompt says `<agent>'s harness runs here`.
 
-### `Humanize: no python 3.12 or newer on this machine; looked for: …`
+### `could not install Humanize on …: no coganchor is built for …`
 
-**Symptom.** The run fails when it first reaches the machine.
+**Symptom.** The run fails when it first reaches the machine. The message ends with what the
+machine's `uname -sm` said, such as `Linux riscv64` or `FreeBSD amd64`.
 
-**Cause.** The target needs Python 3.12 or newer, and it has none that Humanize can find. It
-does not have to be on the `PATH`: the message lists every place Humanize looked.
+**Cause.** Humanize copies one program of its own, `coganchor`, to a target before the agent
+starts, and carries it built for Linux and macOS on x86-64 and aarch64 only. This target is
+another operating system or another architecture.
 
-**Fix.** Install Python 3.12 or newer there.
+**Fix.** Work on a machine that is Linux or macOS on x86-64 or aarch64. For a container, use
+an image built for one of those architectures.
 
-**Verify.** One of the places the message lists now holds a `python3` that prints 3.12 or
-newer for `--version`.
+**Verify.** `uname -sm` on the target prints `Linux` or `Darwin`, then `x86_64`, `amd64`,
+`aarch64` or `arm64`.
 
 ### `could not install Humanize on docker://…: … is not running; the container said: …`
 
@@ -1038,12 +1046,13 @@ newer for `--version`.
 
 **Cause.** Humanize copies itself to a target before the agent starts, and this target refused.
 What it said follows the colon. A container that is `not running` stopped as soon as it
-started, which is what an image with no Python 3.12 or newer does: its last words say where it
-looked.
+started, which is what an image with no `/bin/sh`, or no `sleep`, does: its last words say
+what was missing.
 
-**Fix.** Use an image with Python 3.12 or newer.
+**Fix.** Use an image with `/bin/sh` and `sleep`, as any Debian, Ubuntu, Alpine or BusyBox
+image has.
 
-**Verify.** `docker run --rm <image> python3 --version` prints 3.12 or newer.
+**Verify.** `docker run --rm <image> /bin/sh -c 'command -v sleep'` prints a path.
 
 ### `Humanize: /tmp/humanize-… is not a directory this user owns`
 
@@ -1079,7 +1088,8 @@ somewhere else.
 **Cause.** An agent supervised here while its work lands elsewhere must run on an x86-64 or
 aarch64 Linux machine.
 
-**Fix.** Run it from one of those. The target can be any architecture, this machine included.
+**Fix.** Run it from one of those. The target can be Linux or macOS on either architecture, this
+machine included.
 
 **Verify.** The agent starts.
 

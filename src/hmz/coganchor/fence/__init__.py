@@ -10,17 +10,24 @@ else that drives a CLI through coganchor may build one by hand.
 
 A CLI that can be told what it may reach is told natively, and the part it was told is taken
 off the fence by its driver (:meth:`hmz.coganchor.agents.AgentBase.natively`). Whatever is
-left is put around it from outside by ``hmz internal fence`` (:mod:`hmz.coganchor.fence.wrap`).
-On Linux that is Landlock for the filesystem and for TCP, a seccomp filter for every other
-kind of socket, and a supervisor that lets a socket listen on loopback and nowhere else
-(:mod:`~hmz.coganchor.fence.loopback`); on a Mac it is a Seatbelt profile for all of it
-(:mod:`hmz.coganchor.darwin.seatbelt`). On both, the network has exactly one gate --
-:class:`Proxy`, which passes a connection only to the hosts the backend cannot run without.
+left is put around it from outside by ``coganchor internal fence`` (:func:`wrapper`). On
+Linux that is one of two backends, which `sandbox.backend` in this machine's settings chooses
+between (:func:`chosen`): Landlock for the filesystem and for TCP, a seccomp filter for every
+other kind of socket, and a supervisor that lets a socket listen on loopback and nowhere else;
+or bubblewrap where Landlock cannot hold it, the paths mounted into a root of their own and the
+network cut by a namespace of its own. On a Mac it is a Seatbelt profile for all of it. On all
+three, the network has exactly one gate -- a proxy that passes a connection only to the hosts
+the backend cannot run without.
 
-What cannot be fenced is refused rather than run wider. A host with neither -- a kernel older
-than 5.13 or booted without Landlock, one older than 6.7 where the network is to be cut, a Mac
-already inside a sandbox of its own -- enforces nothing, and :func:`enforceable` is what says
-so before a session is opened.
+What cannot be fenced is refused rather than run wider. A Linux host with no backend that
+starts -- a kernel older than 5.13 or booted without Landlock, or older than 6.7 where the
+network is to be cut, and no bubblewrap -- or a Mac already inside a sandbox of its own
+enforces nothing, and :func:`enforceable` is what says so before a session is opened, having
+asked `coganchor internal able`.
+
+The person at the machine may instead name a CLI in `sandbox.native`, whose own sandbox then
+holds what it can say of the fence around the commands the CLI runs, and nothing around the
+CLI itself (:func:`natives`).
 
 Holes are left by the kernel rather than by this module, and are said here so that nobody
 reads the fence as closing them. Neither Landlock nor this profile governs connecting to a Unix
@@ -38,7 +45,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import errno
-import importlib
+import functools
 import json
 import os
 import stat
@@ -47,15 +54,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Self, cast
 
-from hmz.coganchor.fence.proxy import Proxy, permits
-
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
 __all__ = [
+    "AUTO",
+    "BWRAP",
     "DARWIN_DEVICES",
     "DARWIN_SYSTEM",
     "DEVICES",
+    "LANDLOCK",
     "LEVELS",
     "LINUX_DEVICES",
     "LINUX_SYSTEM",
@@ -65,12 +73,21 @@ __all__ = [
     "TEMPORARY",
     "WRITE",
     "Fence",
-    "Proxy",
+    "able",
+    "chosen",
     "enforceable",
     "landlocked",
-    "permits",
+    "natives",
+    "needs",
+    "unheld",
     "wrapper",
 ]
+
+#: What `sandbox.backend` may say: Landlock where it can hold a fence and bubblewrap otherwise,
+#: or one of them alone. What `coganchor` is passed as `--sandbox`.
+AUTO: Final = "auto"
+LANDLOCK: Final = "landlock"
+BWRAP: Final = "bwrap"
 
 #: How much of a path a fence grants, ordered narrowest first: nothing, to read it, to change
 #: it. The same three words the flow API's `Access` is spelled with, so that a rule's access
@@ -169,7 +186,7 @@ LINUX_DEVICES: Final = (
 )
 
 #: The same on a Mac, which has no `/dev/shm` and numbers its terminals in `/dev` itself
-#: (:mod:`~hmz.coganchor.darwin.seatbelt` grants those), and where every Node program opens
+#: (the Seatbelt profile grants those), and where every Node program opens
 #: `/dev/dtracehelper` as it starts.
 DARWIN_DEVICES: Final = (
     "/dev/null",
@@ -413,9 +430,8 @@ class Fence:
         beneath them that is not granted again.
       online: Whether the network is unrestricted. False cuts it off below the CLI and leaves
         one way out, a proxy that passes only `hosts`.
-      hosts: What that proxy lets through while `online` is False, as
-        :func:`~hmz.coganchor.fence.proxy.permits` reads an allow-list: an exact host, a
-        `*.suffix`, or a `host:port`. Meaningless while `online` is True.
+      hosts: What that proxy lets through while `online` is False, as an allow-list: an
+        exact host, a `*.suffix`, or a `host:port`. Meaningless while `online` is True.
       tmp: A directory of this fence's own for everything the CLI writes as scratch --
         exported as `TMPDIR`, `TMP` and `TEMP`, and where caches the fence would not let it
         write at home are pointed -- or "" for the wrapper to make one for the one run and
@@ -423,8 +439,8 @@ class Fence:
       drawn: The rules it was drawn from, as `(path, access)` with the path anchored at `/`,
         `~` or `.` and the last that holds a path deciding it; or `()` for a fence drawn path
         by path. What another machine draws the same fence again from, around its own
-        workdir and home (:mod:`hmz.coganchor.fence.abroad`): the paths are this machine's,
-        and the rules are what they mean anywhere.
+        workdir and home: the paths are this machine's, and the rules are what they mean
+        anywhere.
       listen: TCP ports the program may bind while `online` is False: the one exact port a
         CLI that serves itself to its driver over loopback was told to listen on, never 0 and
         never a range. Binding is not a way out -- what is inside still connects to nothing
@@ -732,57 +748,6 @@ class Fence:
         """
         return _rank(self.level(path)) >= (2 if write else 1)
 
-    def ready(self, paths: Iterable[str] | None = None) -> dict[str, int | None]:
-        """Makes the scratch where it is missing, and reaches everything this fence writes.
-
-        What is put up where the fence is, just before the program is walled in: each path
-        in :attr:`write` and the scratch, reached as :meth:`reach` reaches it, so that what
-        is granted is what was checked and never a name an earlier turn put a link at. A
-        fence that writes `/` writes whatever any link leads to, and is reached as `/`.
-
-        Args:
-          paths: What to reach in place of :attr:`write`: the entries a wall that cannot
-            carve out of a grant grants instead of it
-            (:func:`~hmz.coganchor.fence.wrap.expanded`). Links on the way are still told
-            apart by what this fence writes.
-
-        Returns:
-          Each path as it was reached, every link on the way already followed, with a
-          descriptor holding it where this machine opens one to grant (`O_PATH`, Linux);
-          None where it does not, or where it is not there yet. A path that cannot be
-          reached is left out, and so granted nothing.
-
-        Raises:
-          ValueError: If a path leads through a link a fenced program could have made.
-          OSError: If the scratch cannot be made or reached.
-        """
-        granted = self.write if paths is None else _normal(paths)
-        carved = (*self.keep, *self.deny)
-        # `/` and nothing else, but for what is granted again beneath a carve-out.
-        roots = (
-            (os.sep, *(one for one in granted if any(_under(one, c) for c in carved)))
-            if os.sep in granted
-            else granted
-        )
-        reached: dict[str, int | None] = {}
-        try:
-            for path in (*roots, *((self.tmp,) if self.tmp else ())):
-                try:
-                    fd, at = self.reach(path, make=path == self.tmp)
-                except OSError as why:
-                    if path == self.tmp or why.errno not in _UNREACHED:
-                        raise
-                    continue
-                if (was := reached.get(at)) is not None:
-                    os.close(was)
-                reached[at] = fd
-        except BaseException:
-            for fd in reached.values():
-                if fd is not None:
-                    os.close(fd)
-            raise
-        return reached
-
     def reach(self, path: str, *, make: bool = False) -> tuple[int | None, str]:
         """Reaches a path this fence writes from `/`, one name at a time, as checked.
 
@@ -959,46 +924,177 @@ def enforceable(*, net: bool) -> bool:
       net: Whether the fence cuts the network as well as the filesystem.
 
     Returns:
-      On a Mac, whether Seatbelt can be applied here, which holds the network as well as the
-      filesystem; anywhere else, :func:`landlocked`.
+      What `coganchor internal able` says of this machine, with the backend this machine's
+      settings choose (:func:`chosen`): on a Mac, whether Seatbelt can be applied here, which
+      holds the network as well as the filesystem; on Linux, whether Landlock is here -- at an
+      ABI that governs TCP where `net` is asked for, with the socket filter that shuts every
+      other protocol loadable beside it, and a supervisor able to keep a listener on loopback
+      -- or bubblewrap starts here, with a network namespace of its own where `net` is asked
+      for. False where there is no `coganchor` for this machine, or it could not say.
     """
-    if sys.platform == "darwin":
-        from hmz.coganchor.darwin import seatbelt
-
-        return seatbelt.available()
-    return landlocked(net=net)
+    try:
+        fs, cuts = able(chosen())
+    except OSError:
+        return False
+    return cuts if net else fs
 
 
 def landlocked(*, net: bool) -> bool:
     """Whether this host can put a fence around a process with Landlock.
 
-    What a fence is put up with on Linux, and what a supervised agent is walled in with
-    wherever it runs, being traced on Linux and nowhere else.
+    What a supervised agent is walled in with wherever it runs, being traced on Linux and
+    nowhere else -- whatever `sandbox.backend` says.
 
     Args:
       net: Whether the fence cuts the network as well as the filesystem.
 
     Returns:
-      Whether Landlock is here -- at an ABI that governs TCP where `net` is asked for, with
-      the socket filter that shuts every other protocol loadable beside it, and seccomp able
-      to stop a call for a supervisor to answer, and this process let take a descriptor out
-      of the processes it starts: that is how a listener is kept on loopback.
+      Whether this is Linux and `coganchor internal able` says Landlock can.
     """
-    from hmz.coganchor.linux import landlock
-
-    if not landlock.available(net=net):
+    if not sys.platform.startswith("linux"):
         return False
-    if not net:
-        return True
     try:
-        seccomp = importlib.import_module("hmz.coganchor.linux.seccomp")
-    except (ImportError, OSError, RuntimeError):
+        fs, cuts = able(LANDLOCK)
+    except OSError:
         return False
-    if not seccomp.notifiable():
-        return False
-    from hmz.coganchor.fence.loopback import supervisable
+    return cuts if net else fs
 
-    return supervisable()
+
+@functools.cache
+def able(sandbox: str = AUTO) -> tuple[bool, bool]:
+    """What this machine can fence, as `coganchor internal able` says it.
+
+    Asked once per process and backend where it was answered: a kernel's Landlock does not
+    come or go while a process runs. Where it could not be asked, it is asked again the next
+    time, since a build made since or a machine less loaded may answer.
+
+    Args:
+      sandbox: The backend asked about, as :func:`chosen` says one.
+
+    Returns:
+      Whether it can fence the filesystem, and whether it can cut the network as well.
+
+    Raises:
+      OSError: If there is no `coganchor` for this machine, or it could not say.
+    """
+    said = _asked(f"--sandbox={sandbox}")
+    return said.get("fs") is True, said.get("net") is True
+
+
+def chosen() -> str:
+    """The backend this machine's settings ask for: `sandbox.backend`, read as :data:`AUTO`.
+
+    Read where Humanize runs and passed to the fence it puts up here: a machine a turn lands
+    on is passed nothing, and chooses for itself.
+
+    Returns:
+      :data:`LANDLOCK` or :data:`BWRAP` where it names one, and :data:`AUTO` otherwise.
+    """
+    said = _sandbox().get("backend")
+    return said if said in (LANDLOCK, BWRAP) else AUTO
+
+
+def natives() -> frozenset[str]:
+    """The CLIs this machine's settings hand their own fence to: `sandbox.native`.
+
+    Each is held by its own sandbox rather than from outside, where its driver can say the
+    fence to that sandbox (:meth:`hmz.coganchor.agents.AgentBase.natively`) -- which holds
+    the commands the CLI runs and nothing else, so that this is the person at the machine
+    trading what the fence holds for something they asked for, never a default.
+
+    Returns:
+      The harness kinds named, each a string; anything else in the list is left out.
+    """
+    said = _sandbox().get("native")
+    if not isinstance(said, list):
+        return frozenset()
+    return frozenset(one for one in cast("list[object]", said) if isinstance(one, str))
+
+
+def _sandbox() -> dict[str, Any]:
+    """`sandbox` out of this machine's settings, or nothing where it is not a mapping."""
+    from hmz.coganchor import settings
+
+    said = settings.read().get("sandbox")
+    return cast("dict[str, Any]", said) if isinstance(said, dict) else {}
+
+
+def needs(*, net: bool) -> str:
+    """What a host that cannot put a fence up needs, as a refusal says it.
+
+    Args:
+      net: Whether the fence cuts the network as well as the filesystem.
+
+    Returns:
+      The facility this machine lacks, given what `sandbox.backend` asks for.
+    """
+    if sys.platform == "darwin":
+        return "Seatbelt, which a process already inside a sandbox cannot apply"
+    landlock = (
+        "Landlock ABI 4 (Linux 6.7 or later) and seccomp to cut the network"
+        if net
+        else "Landlock (Linux 5.13 or later, with landlock in its lsm= list)"
+    )
+    bwrap = "a bubblewrap (bwrap) that starts here" + (
+        ", with a network namespace of its own" if net else ""
+    )
+    return {LANDLOCK: landlock, BWRAP: bwrap}.get(chosen(), f"{landlock}, or {bwrap}")
+
+
+def unheld(fence: Fence) -> str | None:
+    """Why this machine cannot hold what a fence carves out of its grants, if it cannot.
+
+    Landlock only allows, so a carve-out is held by granting what is around it instead, which
+    needs every directory above it listed; asked of `coganchor internal able` with the fence,
+    before a turn is spawned rather than as it is. Seatbelt carves out of a grant itself, and
+    a Mac is never asked.
+
+    Args:
+      fence: The fence.
+
+    Returns:
+      What stops it, as `coganchor` says it; or None where it holds every carve-out, or the
+      fence carves nothing out.
+    """
+    if not (fence.keep or fence.deny) or sys.platform == "darwin":
+        return None
+    try:
+        said = _asked(f"--policy={fence.dumps()}", f"--sandbox={chosen()}")
+    except OSError as why:
+        return str(why)
+    why = said.get("unheld")
+    return why if isinstance(why, str) else None
+
+
+def _asked(*args: str) -> dict[str, Any]:
+    """What `coganchor internal able` says, with `args`.
+
+    Raises:
+      OSError: If there is no `coganchor` for this machine, or it could not say.
+    """
+    import subprocess
+
+    from hmz.coganchor import binary
+
+    program = binary.found()
+    if program is None:
+        raise FileNotFoundError(errno.ENOENT, "no coganchor is built for this machine")
+    try:
+        done = subprocess.run(
+            [str(program), "internal", "able", *args],
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+    except subprocess.SubprocessError as why:
+        raise OSError(f"{program} internal able did not answer: {why}") from why
+    try:
+        told: object = json.loads(done.stdout) if done.returncode == 0 else None
+    except ValueError:
+        told = None
+    if not isinstance(told, dict):
+        raise OSError(f"{program} internal able did not say: {done.stderr!r}")
+    return cast("dict[str, Any]", told)
 
 
 def wrapper(fence: Fence) -> list[str]:
@@ -1008,22 +1104,17 @@ def wrapper(fence: Fence) -> list[str]:
       fence: The fence.
 
     Returns:
-      ``hmz internal fence --policy=... --``, run by the Python running this, to be followed
-      by the program and its arguments. Run from the archive this process was loaded from,
-      where it was: a target Humanize was bootstrapped onto has no installed `hmz` for `-m`
-      to find, and it is there that the serving half fences the commands it runs. With `-P` beside
-      `-m`: the wrapper is started in the workdir, before the wall is up, and a
-      Python that looked in its working directory first would run an `hmz` the agent wrote
-      there instead of this one.
-    """
-    from hmz import coganchor
+      ``coganchor internal fence --policy=... --``, to be followed by the program and its
+      arguments.
 
-    archive = getattr(getattr(coganchor, "__loader__", None), "archive", "")
+    Raises:
+      FileNotFoundError: Where there is no `coganchor` for this machine.
+    """
+    from hmz.coganchor import binary
+
     return [
-        sys.executable,
-        *((str(archive),) if archive else ("-Pm", "hmz")),
-        "internal",
-        "fence",
-        f"--policy={fence.dumps()}",
-        "--",
+        str(binary.here()),
+        *binary.translated(
+            "fence", [f"--policy={fence.dumps()}", f"--sandbox={chosen()}", "--"]
+        ),
     ]

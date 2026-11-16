@@ -96,9 +96,10 @@ def workspace(where: str | os.PathLike[str] | None = None) -> str:
     return str(Path(where or Path.cwd()).resolve())
 
 
-#: What names a host beside a workspace's own: a chat's, `chat:` and a few hex digits. A
-#: workspace's own host -- the one its flows run in, one at a time -- is the slot "".
-_SLOT = re.compile(r"(?:chat:[0-9a-f]{1,32})?")
+#: What names a host beside a workspace's own: a chat's, `chat:` and a few hex digits, or one
+#: `hmz exec`'s, `exec:` and a few. A workspace's own host -- the one its flows run in, one at
+#: a time -- is the slot "".
+_SLOT = re.compile(r"(?:(?:chat|exec):[0-9a-f]{1,32})?")
 
 
 def slot(said: object) -> str:
@@ -110,7 +111,7 @@ def slot(said: object) -> str:
 
     Args:
       said: What was asked for: "" or None for the workspace's own host, `chat:<hex>` for a
-        chat's.
+        chat's, `exec:<hex>` for an `hmz exec`'s.
 
     Returns:
       The slot.
@@ -121,13 +122,13 @@ def slot(said: object) -> str:
     if said is None:
         return ""
     if not isinstance(said, str) or not _SLOT.fullmatch(said):
-        raise ValueError(f"no such host as {said!r}: a slot is '' or chat:<hex>")
+        raise ValueError(f"{said} is not a slot")
     return said
 
 
-def chat() -> str:
-    """The slot of a new chat's own host, never one handed out before."""
-    return f"chat:{uuid.uuid4().hex[:12]}"
+def chat(kind: str = "chat") -> str:
+    """The slot of a new host of a kind, `chat` or `exec`, never one handed out before."""
+    return f"{kind}:{uuid.uuid4().hex[:12]}"
 
 
 @contextlib.contextmanager

@@ -1210,10 +1210,12 @@ directories and `/run/user/0`.
 except connections to the hosts the harness and its account need to reach its model and its sign-in,
 which MUST pass through a proxy on loopback.
 
-**4.6.4.6** On Linux, confinement MUST require Landlock (kernel 5.13 or later, enabled), and
-confinement that cuts the network MUST additionally require Landlock ABI 4 (kernel 6.7 or later) and
-seccomp user notification; where either is absent, the session MUST be refused with
-`HarnessSandboxed` naming the requirement.
+**4.6.4.6** On Linux, confinement MUST be held by the backend Section 4.6.4.16 selects: Landlock,
+which MUST require kernel 5.13 or later with Landlock enabled and, where confinement cuts the
+network, Landlock ABI 4 (kernel 6.7 or later) and seccomp user notification; or bubblewrap, which
+MUST require a `bwrap` program on the machine that starts there and, where confinement cuts the
+network, starts in a network namespace of its own. Where the backend selected cannot hold the
+confinement, the session MUST be refused with `HarnessSandboxed` naming the requirement.
 
 **4.6.4.7** On macOS, confinement MUST use the Seatbelt sandbox, and where hmz itself runs inside a
 sandbox that prevents applying one, the session MUST be refused with `HarnessSandboxed`.
@@ -1227,8 +1229,9 @@ sandbox that prevents applying one, the session MUST be refused with `HarnessSan
 **4.6.4.9** A grant whose `network` is false MUST be refused with `HarnessSandboxed` for an ACP
 harness that declares no hosts, and the message MUST name what to declare.
 
-**4.6.4.10** hmz MUST NOT rely on a rung's own sandbox inside a harness to hold the grant;
-confinement MUST hold the grant whatever the harness enforces.
+**4.6.4.10** hmz MUST NOT rely on a rung's own sandbox inside a harness to hold the grant, except
+as Section 4.6.4.19 permits; confinement MUST otherwise hold the grant whatever the harness
+enforces.
 
 **4.6.4.11** A turn kept off a host by confinement MUST fail with the fault class `fenced`.
 
@@ -1248,6 +1251,36 @@ after the rules granting the paths above it.
 
 **4.6.4.15** A carve-out that confinement cannot hold MUST refuse the session with
 `HarnessSandboxed`; hmz MUST NOT run the harness with access wider than this section permits.
+
+**4.6.4.16** On Linux, the machine key `sandbox.backend` (Section 3.4.11 of [FILES]) of the machine
+hmz runs on MUST select the backend of the confinement held there: `landlock` or `bwrap` that
+backend alone, and any other value, or none, Landlock where Landlock can hold the confinement and
+bubblewrap otherwise. Confinement held on another machine MUST select as for none.
+
+**4.6.4.17** A harness traced on the harness machine while its env machine is another MUST be
+confined there by Landlock, whatever `sandbox.backend` says.
+
+**4.6.4.18** Under bubblewrap, confinement MUST mount over an empty read-only root each path it
+permits, at the access it permits, the shallower first and, at one depth, a carve-out before a
+grant; a carve-out MUST be mounted read-only where the rules give it `read`, and as an empty
+read-only directory or an empty file where they give it nothing. Where confinement cuts the
+network, the proxy of Section 4.6.4.5 MUST be reachable on the namespace's loopback at the port the
+harness is told, and each port the harness listens on for hmz MUST be reachable at the same port on
+the harness machine's loopback.
+
+**4.6.4.19** Where an agent's harness location and env location are both `local`, and its harness
+kind is named in `sandbox.native` (Section 3.4.11 of [FILES]) of that machine and in the following
+table, hmz MUST hold the grant by telling that harness's own sandbox what the table states instead
+of confining the harness, where the grant has no carve-out and that sandbox was found to start on
+that machine; otherwise hmz MUST confine the harness as this section states.
+
+| Kind | Told |
+| --- | --- |
+| `codex` | each turn's `sandboxPolicy`: `readOnly` where confinement would not permit writing the workdir, else `workspaceWrite` whose `writableRoots` are the paths confinement would permit writing outside `/dev` and `/proc`, with `excludeSlashTmp` and `excludeTmpdirEnvVar` true where `/tmp` or the directory `TMPDIR` names is not among them; `networkAccess` the grant's `network` in both |
+
+**4.6.4.20** A grant held as Section 4.6.4.19 states is held around the commands the harness runs
+alone: the harness's own process, the MCP servers and hooks it starts, and reading are outside it.
+hmz MUST say so once per agent.
 
 ### 4.7. Sessions and turns
 
@@ -2222,8 +2255,9 @@ env's workdir, or a directory under it that the session names.
 **6.2.2** **Target**: a string that names an env machine and the way hmz reaches it, as Section 6.9
 defines.
 
-**6.2.3** **Serving half**: the program hmz starts on, or connects to on, a target to carry out the
-file operations, commands and outbound connections that a harness elsewhere asks for.
+**6.2.3** **Serving half**: `coganchor anchor` (Section 11.2 of [CLI]), the program hmz starts on,
+or connects to on, a target to carry out the file operations, commands and outbound connections
+that a harness elsewhere asks for.
 
 **6.2.4** **Env location**: where a session's env machine is, as Section 6.3.1 defines: `local` or
 `standalone`.
@@ -2297,12 +2331,18 @@ names the platforms on which it can run, where its harness machine is not Linux 
 aarch64.
 
 **6.3.2.2** An env machine of a session with env location standalone MUST provide a POSIX `/bin/sh`
-and a Python of version 3.12 or later. hmz MUST NOT require root, a compiler, a kernel module or an
-installed package on that machine.
+and MUST be Linux or macOS on x86-64 or aarch64. hmz MUST NOT require root, a compiler, a kernel
+module, a Python or an installed package on that machine.
 
 **6.3.2.3** A session with harness location env MUST require the harness program to be installed on
 the env machine and found on the `PATH` of the login hmz reaches it as, without looking in any other
 directory.
+
+**6.3.2.4** hmz MUST carry `coganchor` (Section 11.2 of [CLI]) within its own installation, built
+for each platform Section 6.3.2.2 names, and MUST copy to an env machine or a harness machine other
+than this machine the build for the platform that machine's `uname -sm` reports. A session whose
+env machine is a platform with no build MUST fail at the start of its first turn with an error that
+names that platform.
 
 ### 6.4. Settling the harness location
 
@@ -2657,9 +2697,9 @@ before anything is put in or run from it.
 this machine.
 
 **6.9.1.10** `slurm://JOBID[?python=PATH]` MUST name the node of a running Slurm job of this user's.
-Every command on it MUST be a step of that job sharing its allocation on its one node, MUST receive
-nothing of this process's environment but `HOME` and `USER`, and MUST try the Python at `PATH`,
-absolute or under `~/`, before any other.
+Every command on it MUST be a step of that job sharing its allocation on its one node and MUST
+receive nothing of this process's environment but `HOME` and `USER`. The option `python=PATH` MUST
+be accepted and MUST NOT be used.
 
 **6.9.1.11** `tcp://HOST:PORT` MUST name a serving half listening at that address.
 
@@ -2922,8 +2962,8 @@ own, or with a value holding a newline or `"` MUST be refused when saved.
 on the daemon its runtime names, started when the env is probed.
 
 **7.7.1.2** The container MUST be started from the role's declared image, else the runtime's image,
-else `python:3.12-slim`, and MUST need nothing in the image but `/bin/sh` and a Python of version
-3.12 or later.
+else `python:3.12-slim`, and MUST need nothing in the image but `/bin/sh` on a platform that Section
+6.3.2.2 names.
 
 **7.7.1.3** The workdir MUST be a directory of the daemon's host, mounted into the container at its
 own path; hmz MUST refuse with `EnvUnavailable` a workdir the daemon's host has not got, and MUST
@@ -3115,8 +3155,8 @@ of Section 7.7.1.9 and `humanize.name`.
 
 **7.10.6** hmz MUST reach the job's node by a step of the job per connection where the runtime's way
 in is `srun`, and by a connection per session to a serving half that the job itself runs, presenting
-a secret the job was given on no command line, where it is `tcp`; the runtime's Python MUST be tried
-before any other on the node.
+a secret the job was given on no command line, where it is `tcp`; the runtime's Python MUST NOT be
+used.
 
 **7.10.7** Before any agent starts, hmz MUST hold what the role asks against the runtime's job
 limit, and its CPUs and memory where saved, less what the runtime's jobs hold, waiting or running; a
@@ -4634,10 +4674,12 @@ document on which the security of a user's machine, credentials and work depends
 
 - hmz confines every harness except `litellm`, and every process the harness starts, to the grant
   of its role, and holds that grant whatever sandbox the harness itself enforces (Section 4.6.4.1
-  and Section 4.6.4.10).
-- A path a rule denies or keeps read-only beneath a wider grant is held by Landlock or Seatbelt,
-  and a session whose carve-out cannot be held is refused with `HarnessSandboxed` rather than run
-  wider (Section 4.6.4.12 to Section 4.6.4.15).
+  and Section 4.6.4.10) -- unless the person at the machine names the harness in
+  `sandbox.native`, which holds the grant around the commands the harness runs alone, and says so
+  (Section 4.6.4.19 and Section 4.6.4.20).
+- A path a rule denies or keeps read-only beneath a wider grant is held by Landlock, bubblewrap or
+  Seatbelt, and a session whose carve-out cannot be held is refused with `HarnessSandboxed` rather
+  than run wider (Section 4.6.4.12 to Section 4.6.4.18).
 - A grant whose `network` is false cuts the network for the harness and its processes, except the
   hosts the harness and its account need for its model and its sign-in, which pass through a proxy
   on loopback; a session whose machine lacks the operating-system facility confinement needs is

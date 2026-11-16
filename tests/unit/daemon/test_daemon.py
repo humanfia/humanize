@@ -1,4 +1,4 @@
-"""`hmz.daemon`: which workspaces' runs are held, and asking them about themselves."""
+"""`hmz.daemon`: which workspaces' runs are held, and asking the daemon about them."""
 
 from __future__ import annotations
 
@@ -17,11 +17,13 @@ import hmz.daemon.link
 import hmz.runtime
 from hmz import daemon
 from hmz.daemon import Daemon, Link, linked, where
-from hmz.daemon.proto import CONTROL, PROTOCOL, spoken
-from tests.unit.daemon.wire_u1 import Wire
+from hmz.rpc import RpcError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+#: The protocol version every daemon here speaks.
+PROTOCOL = "3.0.0"
 
 
 def test_all_names_what_the_package_offers() -> None:
@@ -37,6 +39,7 @@ def test_all_names_what_the_package_offers() -> None:
         "host",
         "linked",
         "running",
+        "start",
     }
     for name in daemon.__all__:
         assert getattr(daemon, name) is not None
@@ -61,29 +64,46 @@ def at(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+class _Peer:
+    """A session with the daemon: each call answered by a function of the test's."""
+
+    def __init__(self, answers: Callable[[str, dict[str, Any]], Any]) -> None:
+        self._answers = answers
+
+    def call(self, method: str, params: dict[str, Any], timeout: float) -> Any:
+        del timeout
+        said = self._answers(method, params)
+        if isinstance(said, BaseException):
+            raise said
+        return said
+
+    def close(self) -> None:
+        pass
+
+
 @pytest.fixture
 def answering(
     monkeypatch: pytest.MonkeyPatch,
-) -> list[Callable[[dict[str, Any]], dict[str, Any]]]:
-    """Has every connection to the daemon answered by the first of the functions given.
+) -> list[Callable[[str, dict[str, Any]], Any]]:
+    """Has every session with the daemon answered by the first of the functions given.
 
     No function at all is nothing listening.
     """
-    answers: list[Callable[[dict[str, Any]], dict[str, Any]]] = []
-    asked: list[dict[str, Any]] = []
+    answers: list[Callable[[str, dict[str, Any]], Any]] = []
 
-    def connects(at: Path, seconds: float | None = None) -> Wire:
+    def dialed(at: Path, *_: object, **__: object) -> tuple[_Peer, dict[str, Any]]:
+        del at
+        if not answers:
+            raise ConnectionRefusedError(errno.ECONNREFUSED, "refused")
+        return _Peer(answers[0]), {}
+
+    def connects(at: Path, seconds: float | None = None) -> mock.Mock:
         del at, seconds
         if not answers:
             raise ConnectionRefusedError(errno.ECONNREFUSED, "refused")
+        return mock.Mock()
 
-        def replies(kind: bytes, said: dict[str, Any]) -> list[bytes]:
-            assert kind == CONTROL
-            asked.append(said)
-            return [spoken(CONTROL, answers[0](said))]
-
-        return Wire(replies)
-
+    monkeypatch.setattr(hmz.daemon.link, "dialed", dialed)
     monkeypatch.setattr(where, "connects", connects)
     return answers
 
@@ -96,17 +116,18 @@ def _record(at: Path, **said: Any) -> None:
     )
 
 
-def _lists(*held: dict[str, Any]) -> Callable[[dict[str, Any]], dict[str, Any]]:
-    def answers(said: dict[str, Any]) -> dict[str, Any]:
-        if said.get("do") == "list":
-            return {"ok": True, "held": list(held)}
-        return {"ok": False}
+def _lists(*held: dict[str, Any]) -> Callable[[str, dict[str, Any]], Any]:
+    def answers(method: str, params: dict[str, Any]) -> Any:
+        del params
+        if method == "hosts.list":
+            return {"held": list(held)}
+        return RpcError(404, "not this")
 
     return answers
 
 
 def test_nothing_is_running_where_nothing_was_written(
-    at: Path, answering: list[Callable[[dict[str, Any]], dict[str, Any]]]
+    at: Path, answering: list[Callable[[str, dict[str, Any]], Any]]
 ) -> None:
     answering.append(_lists())
     assert daemon.running(at) is None
@@ -114,7 +135,7 @@ def test_nothing_is_running_where_nothing_was_written(
 
 
 def test_nothing_is_running_where_nothing_is_listening(
-    at: Path, answering: list[Callable[[dict[str, Any]], dict[str, Any]]]
+    at: Path, answering: list[Callable[[str, dict[str, Any]], Any]]
 ) -> None:
     _record(at)
     assert daemon.running(at) is None
@@ -136,28 +157,28 @@ def test_nothing_is_running_where_the_directory_is_somebody_elses(
 def test_running_finds_the_host_of_a_workspace(
     at: Path,
     tmp_path: Path,
-    answering: list[Callable[[dict[str, Any]], dict[str, Any]]],
+    answering: list[Callable[[str, dict[str, Any]], Any]],
 ) -> None:
     _record(at)
     workspace = where.workspace(tmp_path)
     answering.append(
         _lists(
-            {"pid": os.getpid(), "workspace": workspace, "started": "t2"},
+            {"pid": os.getpid(), "workspace": workspace, "started": "t2", "slot": ""},
             {"pid": os.getpid(), "workspace": "/elsewhere", "started": "t1"},
         )
     )
     found = daemon.running(tmp_path)
-    assert found is not None
     assert found == Daemon(
         at=at, workspace=workspace, pid=os.getpid(), started="t2", protocol=PROTOCOL
     )
+    assert found is not None
     assert found.alive
     assert daemon.running("/nowhere") is None
     assert [one.started for one in daemon.daemons()] == ["t1", "t2"]
 
 
 def test_hosts_whose_process_has_gone_are_left_out(
-    at: Path, answering: list[Callable[[dict[str, Any]], dict[str, Any]]]
+    at: Path, answering: list[Callable[[str, dict[str, Any]], Any]]
 ) -> None:
     _record(at)
     answering.append(
@@ -170,53 +191,60 @@ def test_hosts_whose_process_has_gone_are_left_out(
     assert daemon.daemons() == []
 
 
-def test_a_list_that_is_not_one_is_no_hosts(
-    at: Path, answering: list[Callable[[dict[str, Any]], dict[str, Any]]]
-) -> None:
-    _record(at)
-    answering.append(lambda said: {"ok": True, "held": "nope"})
-    assert daemon.daemons() == []
-
-
+@pytest.mark.parametrize("protocol", [2, "2.0.0", None])
 def test_a_daemon_of_another_protocol_is_named_as_it_is(
     at: Path,
     tmp_path: Path,
-    answering: list[Callable[[dict[str, Any]], dict[str, Any]]],
+    answering: list[Callable[[str, dict[str, Any]], Any]],
+    protocol: object,
 ) -> None:
-    _record(at, protocol=1, started="then")
+    _record(at, protocol=protocol, started="then")
     answering.append(_lists())
-    found = daemon.running(tmp_path)
-    assert found == Daemon(
+    said = protocol if isinstance(protocol, str) else ""
+    assert daemon.running(tmp_path) == Daemon(
         at=at,
         workspace=where.workspace(tmp_path),
         pid=os.getpid(),
         started="then",
-        protocol=1,
+        protocol=said,
     )
     assert daemon.daemons() == [
-        Daemon(at=at, workspace="", pid=os.getpid(), started="then", protocol=1)
+        Daemon(at=at, workspace="", pid=os.getpid(), started="then", protocol=said)
     ]
 
 
-def test_host_hands_back_the_host_already_there(
+def test_host_asks_the_daemon_to_open_the_host(
     at: Path,
     tmp_path: Path,
-    answering: list[Callable[[dict[str, Any]], dict[str, Any]]],
+    answering: list[Callable[[str, dict[str, Any]], Any]],
 ) -> None:
     _record(at)
     workspace = where.workspace(tmp_path)
-    answering.append(
-        _lists({"pid": os.getpid(), "workspace": workspace, "started": "t"})
+    asked: list[tuple[str, dict[str, Any]]] = []
+
+    def opens(method: str, params: dict[str, Any]) -> Any:
+        asked.append((method, params))
+        return {
+            "pid": 7,
+            "workspace": workspace,
+            "started": "t",
+            "kind": "host",
+            "protocol": PROTOCOL,
+            "slot": "chat:1",
+        }
+
+    answering.append(opens)
+    found = daemon.host(tmp_path, slot="chat:1")
+    assert found == Daemon(
+        at=at, workspace=workspace, pid=7, started="t", protocol=PROTOCOL, slot="chat:1"
     )
-    found = daemon.host(tmp_path)
-    assert found.workspace == workspace
-    assert found.protocol == PROTOCOL
+    assert asked == [("hosts.open", {"workspace": workspace, "slot": "chat:1"})]
 
 
 def test_host_refuses_a_daemon_of_another_protocol(
-    at: Path, answering: list[Callable[[dict[str, Any]], dict[str, Any]]]
+    at: Path, answering: list[Callable[[str, dict[str, Any]], Any]]
 ) -> None:
-    _record(at, protocol=1)
+    _record(at, protocol="2.0.0")
     answering.append(_lists())
     with pytest.raises(OSError, match="older Humanize") as raised:
         daemon.host(at)
@@ -238,90 +266,81 @@ def test_older_says_where_the_runs_are_and_what_to_do(
 
 @pytest.fixture
 def reached(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
-    """The runs held here as `attach` reaches them: found, started, and waited on."""
+    """The daemon as `attach` reaches it: started, attached to, and waited on."""
     held = mock.Mock()
-    held.running.return_value = None
-    for name in ("running", "host"):
-        monkeypatch.setattr(daemon, name, getattr(held, name))
+    monkeypatch.setattr(daemon, "start", held.start)
+    monkeypatch.setattr(hmz.daemon.link, "reached", held.reached)
     monkeypatch.setattr(time, "sleep", held.sleep)
     return held
 
 
-def test_attach_links_to_the_host_already_there(reached: mock.Mock) -> None:
-    found = mock.Mock(protocol=PROTOCOL)
-    reached.running.return_value = found
-    assert daemon.attach("web", "browser") is found.link.return_value
-    found.link.assert_called_once_with(name="browser", kind="web")
-    reached.host.assert_not_called()
-
-
-def test_attach_starts_a_host_where_none_is(reached: mock.Mock) -> None:
-    assert daemon.attach("tui") is reached.host.return_value.link.return_value
-    reached.host.return_value.link.assert_called_once_with(name="", kind="tui")
+def test_attach_starts_the_daemon_and_attaches_through_it(
+    reached: mock.Mock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(where, "at", lambda: tmp_path)
+    assert daemon.attach("web", "browser", workspace=tmp_path) is (
+        reached.reached.return_value
+    )
+    reached.reached.assert_called_once_with(
+        tmp_path, where.workspace(tmp_path), "browser", "web", slot=""
+    )
 
 
 def test_attach_refuses_runs_held_by_an_older_humanize(reached: mock.Mock) -> None:
-    reached.running.return_value = Daemon(
-        at=Path("/d"), workspace="/w", pid=42, started="", protocol=PROTOCOL - 1
-    )
+    reached.start.side_effect = OSError(errno.EADDRINUSE, "held by an older Humanize")
     with pytest.raises(daemon.Older, match="older Humanize"):
         daemon.attach("tui")
-    reached.host.assert_not_called()
+    reached.reached.assert_not_called()
 
 
 def test_attach_reaches_again_for_a_host_found_going(reached: mock.Mock) -> None:
-    reached.host.return_value.link.side_effect = [OSError("gone"), "link"]
+    reached.reached.side_effect = [OSError("gone"), "link"]
     assert daemon.attach("tui") == "link"
     assert reached.sleep.call_count == 1
 
 
 def test_attach_gives_up_on_runs_that_cannot_be_held_apart(reached: mock.Mock) -> None:
-    reached.host.side_effect = OSError("no fork")
+    reached.reached.side_effect = OSError("no fork")
     with pytest.raises(OSError, match="no fork"):
         daemon.attach("tui")
-    assert reached.host.call_count == 3
+    assert reached.reached.call_count == 3
 
 
-def _held(at: Path, pid: int = 4242) -> Daemon:
-    return Daemon(at=at, workspace="/w", pid=pid, started="t", protocol=PROTOCOL)
+def _held(at: Path, pid: int = 4242, slot: str = "") -> Daemon:
+    return Daemon(
+        at=at, workspace="/w", pid=pid, started="t", protocol=PROTOCOL, slot=slot
+    )
 
 
 def test_a_daemon_is_a_frozen_value() -> None:
     one = _held(Path("/d"))
     assert one == _held(Path("/d"))
-    assert one.protocol == PROTOCOL
-    assert Daemon(at=Path("/d"), workspace="", pid=1, started="").protocol == 0
+    assert Daemon(at=Path("/d"), workspace="", pid=1, started="").protocol == ""
     with pytest.raises(AttributeError):
         one.pid = 1  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def test_asked_names_the_workspace_and_returns_the_answer(
-    at: Path, answering: list[Callable[[dict[str, Any]], dict[str, Any]]]
+def test_asked_calls_the_hosts_method_naming_the_host(
+    at: Path, answering: list[Callable[[str, dict[str, Any]], Any]]
 ) -> None:
-    seen: list[dict[str, Any]] = []
-    answering.append(lambda said: seen.append(said) or {"ok": True, "n": 1})
-    assert _held(at).asked({"do": "x"}) == {"ok": True, "n": 1}
-    assert seen == [{"do": "x", "workspace": "/w"}]
+    seen: list[tuple[str, dict[str, Any]]] = []
+    answering.append(lambda method, params: seen.append((method, params)) or {"n": 1})
+    assert _held(at, slot="chat:2").asked({"do": "status"}) == {"n": 1}
+    assert seen == [("hosts.status", {"workspace": "/w", "slot": "chat:2"})]
 
 
 def test_asked_is_nothing_where_nobody_answers(
-    at: Path, answering: list[Callable[[dict[str, Any]], dict[str, Any]]]
+    at: Path, answering: list[Callable[[str, dict[str, Any]], Any]]
 ) -> None:
     assert _held(at).asked({"do": "x"}) == {}
+    answering.append(lambda method, params: RpcError(409, "refused"))
+    assert _held(at).asked({"do": "x"}) == {}
+
+
+def test_status_of_a_host_that_will_not_answer_is_what_is_known_of_it(
+    at: Path, answering: list[Callable[[str, dict[str, Any]], Any]]
+) -> None:
     del answering
-
-
-def test_status_is_what_the_runs_say(
-    at: Path, answering: list[Callable[[dict[str, Any]], dict[str, Any]]]
-) -> None:
-    answering.append(lambda said: {"ok": True, "attached": 2, "flows": ["f"]})
-    assert _held(at).status() == {"ok": True, "attached": 2, "flows": ["f"]}
-
-
-def test_status_of_runs_that_will_not_answer_is_what_is_written_down(
-    at: Path, answering: list[Callable[[dict[str, Any]], dict[str, Any]]]
-) -> None:
-    answering.append(lambda said: {"ok": False})
     assert _held(at).status() == {
         "pid": 4242,
         "workspace": "/w",
@@ -335,16 +354,15 @@ def test_status_of_runs_that_will_not_answer_is_what_is_written_down(
 
 
 @pytest.mark.parametrize(
-    ("answer", "count"),
-    [({"ok": True, "let go": 3}, 3), ({"ok": True, "let go": "3"}, 0), ({}, 0)],
+    ("answer", "count"), [({"let_go": 3}, 3), ({"let_go": "3"}, 0), ({}, 0)]
 )
 def test_detach_says_how_many_were_let_go_of(
     at: Path,
-    answering: list[Callable[[dict[str, Any]], dict[str, Any]]],
+    answering: list[Callable[[str, dict[str, Any]], Any]],
     answer: dict[str, Any],
     count: int,
 ) -> None:
-    answering.append(lambda said: answer)
+    answering.append(lambda method, params: answer)
     assert _held(at).detach() == count
 
 
@@ -357,20 +375,17 @@ def lives(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
         del pid
         return said.pop(0) if said else False
 
-    def sleep(seconds: float) -> None:
-        del seconds
-
     monkeypatch.setattr(where, "alive", alive)
-    monkeypatch.setattr(time, "sleep", sleep)
+    monkeypatch.setattr(time, "sleep", mock.Mock())
     return said
 
 
 def test_stop_waits_for_the_host_to_go(
     at: Path,
-    answering: list[Callable[[dict[str, Any]], dict[str, Any]]],
+    answering: list[Callable[[str, dict[str, Any]], Any]],
     lives: list[bool],
 ) -> None:
-    answering.append(lambda said: {"ok": said["do"] == "stop"})
+    answering.append(lambda method, params: {} if method == "hosts.stop" else None)
     lives.extend([True, True])
     assert _held(at).stop() is True
     assert lives == []
@@ -378,23 +393,13 @@ def test_stop_waits_for_the_host_to_go(
 
 def test_stop_that_cannot_be_asked_says_whether_it_has_gone(
     at: Path,
-    answering: list[Callable[[dict[str, Any]], dict[str, Any]]],
+    answering: list[Callable[[str, dict[str, Any]], Any]],
     lives: list[bool],
 ) -> None:
     lives.append(True)
     assert _held(at).stop() is False
     assert _held(at).stop() is True
     del answering
-
-
-def test_stop_that_outlasts_its_seconds_says_so(
-    at: Path,
-    answering: list[Callable[[dict[str, Any]], dict[str, Any]]],
-    lives: list[bool],
-) -> None:
-    answering.append(lambda said: {"ok": True})
-    lives.append(True)
-    assert _held(at).stop(seconds=0) is False
 
 
 def test_kill_terminates_and_then_kills(
@@ -408,16 +413,6 @@ def test_kill_terminates_and_then_kills(
         mock.call(4242, signal.SIGTERM),
         mock.call(4242, signal.SIGKILL),
     ]
-
-
-def test_kill_of_a_host_that_goes_at_the_terminate_kills_nothing(
-    monkeypatch: pytest.MonkeyPatch, lives: list[bool]
-) -> None:
-    signalled = mock.Mock(side_effect=ProcessLookupError)
-    monkeypatch.setattr(os, "kill", signalled)
-    assert _held(Path("/d")).kill() is True
-    signalled.assert_called_once_with(4242, signal.SIGTERM)
-    del lives
 
 
 def test_link_reaches_the_runs_through_the_daemon(

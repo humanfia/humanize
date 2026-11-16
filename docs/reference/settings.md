@@ -47,6 +47,9 @@ enable_sentry: false               # this machine
 details: true                      # this machine
 btw: claude/claude-opus-5:high     # this machine
 every_epic: true                   # this machine
+sandbox:                           # this machine; written by hand
+  backend: auto                    # auto, landlock or bwrap: what holds a grant on Linux
+  native: [codex]                  # CLIs whose own sandbox holds their grant instead
 daemons:                           # this machine; Settings › Daemons in the web interface
 - name: gpu
   via: ssh                         # the default; or easytier, with a secret of at least 16 bytes
@@ -97,6 +100,7 @@ backup:                            # this machine
 | `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
 | `daemons` | list of `{name, via, ...}`: `via` is `ssh` (the default, where it is missing) or `easytier`. Over ssh, `{alias, config}` for a `Host` of your ssh config, or `{host, user, port, identity_file, proxy_jump, options: [[keyword, value]]}` typed in or imported (an older entry with both still works); over EasyTier, `{secret, peers}` alone: a secret of at least 16 bytes in UTF-8, and at least one EasyTier node its network meets through, each `tcp`, `udp`, `ws`, `wss`, `quic` or `wg` `://host:port` | `[]`: Local alone | the web interface's Settings › Daemons, [`POST /api/daemons`](/reference/web#api-settings) and its `import` | `hmz web` | at once: a daemon added is reached the first time the page asks for it, one removed is let go of |
 | `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | [`/settings notifications`](/reference/tui#notifications-page), the web interface's Settings › Notifications, [`POST /api/notifications/settings`](/reference/web#api-notifications) | `hmz`, `hmz web` | immediately: the next notice of a kind is told or not |
+| <span id="sandbox"></span>`sandbox` | `{backend: str, native: [str]}` | `backend`: `auto` (any value but `landlock` and `bwrap` reads as it); `native`: `[]` (an entry that is not a string is ignored) | nobody: written by hand | every process that fences an agent: `backend` where the fence is put up, on that machine; `native` by the Codex driver | at the next turn fenced. `backend` picks Landlock or bubblewrap on Linux, `auto` being Landlock where it can hold the grant and bubblewrap otherwise; `native` names CLIs whose own sandbox holds their grant around the commands they run alone, of which only `codex` is honoured. See [Permissions](/user/permissions#choose-how-this-machine-holds-a-grant) |
 | <span id="spelling"></span>`spelling` | `int` | absent: written before `-e` wrote `@` only before a provider | every write of the file, as `2` | every process, as it reads the file | absent, `envs` are read as their old spelling meant and rewritten once; `2`, as written |
 
 What error reports contain and exclude is listed on `/settings` › General › **What is sent**.
@@ -228,7 +232,7 @@ entry that does not validate is skipped. A runtime an earlier Humanize wrote wit
 | --- | --- |
 | `partition`, `account`, `qos`, `constraint`, `workdir` | `str` |
 | `time` | `str`: minutes, `MM:SS`, `HH:MM:SS`, `D-HH[:MM[:SS]]`, `UNLIMITED` or `INFINITE` |
-| `python` | `str`: absolute, or under `~/` |
+| `python` | `str`: absolute, or under `~/`; accepted and not used |
 | `via` | `"srun"` or `"tcp"` |
 | `run_args`, `fallback` | `[str]` |
 | `harness` | `str`, as for `ssh` |
@@ -243,7 +247,6 @@ runtimes:
       partition: batch
       account: myteam
       time: '04:00:00'
-      python: ~/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/bin/python3.12
       via: tcp
       max_jobs: 8
       max_wait: 600

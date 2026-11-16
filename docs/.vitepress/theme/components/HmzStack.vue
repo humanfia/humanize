@@ -17,13 +17,6 @@ interface Layer {
 
 const ALLOWED: Record<string, string[]> = {
   'hmz.coganchor': ['hmz.runtime.telemetry'],
-  'hmz.coganchor.serve': [
-    'hmz.coganchor.proto',
-    'hmz.coganchor.fence',
-    'hmz.coganchor.linux.landlock',
-    'hmz.coganchor.linux.seccomp',
-    'hmz.coganchor.linux.syscalls',
-  ],
   'hmz.runtime': [],
   'hmz.runtime.kept': ['hmz.coganchor.spelling'],
   'hmz.runtime.settings': ['hmz.runtime.kept', 'hmz.coganchor.machines.store', 'hmz.coganchor.settings'],
@@ -57,6 +50,7 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.flows': ['hmz.runtime.flowing', 'hmz.coganchor.faking'],
   'hmz.runtime.doing': [
     'hmz.coganchor',
+    'hmz.rpc',
     'hmz.flows',
     'hmz.runtime.backing',
     'hmz.runtime.epic',
@@ -67,7 +61,15 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.telemetry',
     'hmz.runtime.tracing',
   ],
-  'hmz.daemon': ['hmz.runtime', 'hmz.rpc'],
+  'hmz.daemon': [
+    'hmz.coganchor',
+    'hmz.reach',
+    'hmz.rpc',
+    'hmz.rtc',
+    'hmz.runtime',
+    'hmz.trust',
+  ],
+  'hmz.daemon.where': [],
   'hmz.daemon.api': ['hmz.coganchor', 'hmz.daemon', 'hmz.reach.routes', 'hmz.rpc', 'hmz.runtime'],
   'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where', 'hmz.rpc.pipe'],
   'hmz.relay': [],
@@ -109,7 +111,6 @@ const CLI_IMPORTS = [
   'hmz.runtime',
   'hmz.flows',
   'hmz.coganchor',
-  'hmz.coganchor.serve',
   'hmz.runtime.telemetry',
 ]
 
@@ -152,8 +153,8 @@ const LAYERS: Layer[] = [
   {
     id: 'daemon',
     dotted: 'hmz.daemon',
-    here: "A workspace's runs held apart from the terminal, and the socket every frontend reaches them over.",
-    note: 'Names the runtime by its front door, `hmz.runtime`, and serves its methods over `rpc`.',
+    here: "A workspace's runs held apart from the terminal, and the one JSON-RPC endpoint every client reaches them through.",
+    note: 'Serves `hmz.rpc` over the carriers of `hmz.reach`, secured by `hmz.trust` and `hmz.rtc`; names the runtime by its front door.',
     spec: 'daemon.md#4-wire-protocol',
     ref: '/reference/daemon',
   },
@@ -273,14 +274,6 @@ const LAYERS: Layer[] = [
     ref: '/reference/agents',
   },
   {
-    id: 'serve',
-    dotted: 'hmz.coganchor.serve',
-    here: 'The half of the anchor that ships to the target machine.',
-    note: 'The target may be any architecture, so it may import `hmz.coganchor.proto`, and the fence and its Linux bindings where a fence is asked about, and nothing else.',
-    spec: 'core.md#6-placements',
-    ref: '/reference/remote-execution',
-  },
-  {
     id: 'telemetry',
     dotted: 'hmz.runtime.telemetry',
     here: 'What Humanize reports about itself, and whether it does.',
@@ -307,7 +300,7 @@ const BANDS: { label: string; ids: string[] }[] = [
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
   { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },
-  { label: 'driving agents', ids: ['coganchor', 'serve'] },
+  { label: 'driving agents', ids: ['coganchor'] },
   { label: 'remembered', ids: ['telemetry', 'settings', 'kept'] },
 ]
 

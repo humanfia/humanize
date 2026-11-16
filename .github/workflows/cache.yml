@@ -38,6 +38,7 @@ jobs:
     outputs:
       python: ${{ steps.filter.outputs.python }}
       desktop: ${{ steps.filter.outputs.desktop }}
+      coganchor: ${{ steps.filter.outputs.coganchor }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,6 +56,10 @@ jobs:
               - .github/workflows/cache.yml
             desktop:
               - desktop/**
+              - .github/workflows/cache.yml
+            coganchor:
+              - crates/coganchor/Cargo.toml
+              - crates/coganchor/Cargo.lock
               - .github/workflows/cache.yml
 
   # ci.yml's `static` and `tests` read these.
@@ -90,6 +95,35 @@ jobs:
       - name: pre-commit install-hooks
         if: runner.os == 'Linux'
         run: uv run --frozen --all-extras pre-commit install-hooks
+
+  # ci.yml's `coganchor` reads these, named and laid out as that job is.
+  coganchor:
+    name: coganchor (${{ matrix.os }})
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.changes.outputs.coganchor == 'true') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: crates/coganchor
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: crates/coganchor
+
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets
+
+      - name: cargo test --no-run
+        run: cargo test --locked --no-run
 
   # ci.yml's `desktop` reads these. Named as that job is, since the Rust cache's key carries the
   # job's name; it builds what that job builds, so every crate it needs is in the cache.

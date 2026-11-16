@@ -110,6 +110,7 @@ jobs:
             integration-anchor:
               - *shared
               - src/hmz/**
+              - crates/coganchor/**
               - tests/integration/*_anchor*.py
               - tests/integration/doubles_core.py
               - tests/integration/doubles_easytier.py
@@ -137,6 +138,9 @@ jobs:
               - .github/workflows/ci.yml
               - src/hmz/web/static/**
               - tests/unit/web/js/**
+            coganchor:
+              - crates/coganchor/**
+              - .github/workflows/ci.yml
             desktop:
               - desktop/**
               - .github/workflows/ci.yml
@@ -202,6 +206,25 @@ jobs:
       - name: uv sync
         run: uv sync --frozen --all-extras
 
+      # The anchor runs only as `coganchor`, which the tests find in crates/coganchor/target.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: crates/coganchor
+          # Restores what cache.yml saved on `main`, and writes nothing.
+          save-if: false
+
+      - name: cargo build crates/coganchor
+        run: cargo build --locked --manifest-path crates/coganchor/Cargo.toml
+
+      # The fence's second backend on Linux, for the tests that put a program inside it: bwrap,
+      # and the namespaces an ordinary user may make, which Ubuntu's AppArmor holds back.
+      - name: bubblewrap
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
       - name: pytest tests/unit/<package>, a package at a time
         env:
           CHANGES: ${{ needs.changes.outputs.changes || '' }}
@@ -261,6 +284,50 @@ jobs:
       - name: node --test tests/unit/web/js
         if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
         run: node --test 'tests/unit/web/js/*.test.mjs'
+
+  # The anchor's own program in crates/coganchor: held to rustfmt and clippy, and tested, on
+  # Linux, where its ptrace, seccomp and Landlock halves build, and on macOS, where the anchor
+  # and the broker do. On Linux also built static, as the wheel carries it.
+  coganchor:
+    name: coganchor (${{ matrix.os }})
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"coganchor"')) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: crates/coganchor
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: crates/coganchor
+          # Restores what cache.yml saved on `main`, and writes nothing.
+          save-if: false
+
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --locked
+
+      - name: cargo build, static
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends musl-tools
+          rustup target add x86_64-unknown-linux-musl
+          cargo build --locked --release --target x86_64-unknown-linux-musl
+          file target/x86_64-unknown-linux-musl/release/coganchor | grep -Eq 'static(ally|-pie) linked'
 
   # The macOS app in desktop/: its Rust held to rustfmt and clippy, its tests, and the app built
   # and its disk image as a release builds them, but unoptimised.
@@ -370,12 +437,12 @@ jobs:
 
   ci-ok:
     if: always()
-    needs: [changes, static, tests, desktop, desktop-windows]
+    needs: [changes, static, tests, coganchor, desktop, desktop-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           # `changes` on a dispatch, and what the change left alone.
-          allowed-skips: changes, tests, desktop, desktop-windows
+          allowed-skips: changes, tests, coganchor, desktop, desktop-windows
           jobs: ${{ toJSON(needs) }}

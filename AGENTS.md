@@ -8,7 +8,8 @@ For implementation:
 
 For tests:
 
-- MUST put a test in exactly one of `tests/unit/`, `tests/integration/`, `tests/system/`.
+- MUST put a Python test in exactly one of `tests/unit/`, `tests/integration/`, `tests/system/`.
+- The Rust crate's own tests live in `crates/coganchor`, in-file `#[cfg(test)]` modules and `crates/coganchor/tests/`, and run with `cargo test`; the three directories above are for Python tests.
 - `tests/unit/<package>/`, one directory per `src/hmz` top-level package: MUST test only that package's public names (no `_private` names or modules), MUST mock other `hmz` packages, MUST NOT start a subprocess or open a socket.
 - `tests/integration/test_<topic>_*.py`, flat: packages wired together against fakes this repo writes; CI runs each topic alone (`core`, `agents`, `tui`, `daemon`, `anchor`, `web`, `reach`, `relay`).
 - `uv run pytest` runs unit and integration, which is what CI runs.

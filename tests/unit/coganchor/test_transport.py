@@ -2,23 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shlex
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from hmz.coganchor import rendezvous, transport
-from hmz.coganchor.proto import Channel
+from hmz.coganchor import binary, transport
 from hmz.coganchor.rendezvous import Meeting
 from hmz.coganchor.transport import (
     APPLE,
     CONTAINER_CACHE,
     CONTAINER_MIRRORS,
-    PYTHON_CANDIDATES,
     REMOTE_CACHE,
     REMOTE_MIRRORS,
     SLURM,
@@ -26,7 +24,9 @@ from hmz.coganchor.transport import (
     Road,
     Target,
     Transport,
-    python_command,
+    awaiting,
+    coganchor_command,
+    idling,
     serve_line,
     ssh_flags,
 )
@@ -333,35 +333,13 @@ def test_ssh_options_become_flags_in_order(
     assert ssh_flags(options) == flags
 
 
-# -------------------------------------------------------------------- python command
+# ----------------------------------------------------------------- the coganchor line
 
 
-def test_finding_python_runs_the_interpreter_found() -> None:
-    line = python_command(["-c", "pass"])
-    assert line[:2] == ["/bin/sh", "-c"]
-    assert line[3:] == ["humanize", "-c", "pass"]
-    script = line[2]
-    assert all(one in script for one in PYTHON_CANDIDATES)
-    assert 'exec "$py" "$@"' in script
-    assert "sys.version_info < (3, 12)" in script
-    assert "exit 127" in script
-
-
-def test_running_an_archive_touches_it_first() -> None:
-    script = python_command(["serve"], bundle="$HOME/x.pyz")[2]
-    assert script.startswith('touch -c "$HOME/x.pyz"')
-    assert 'exec "$py" "$HOME/x.pyz" "$@"' in script
-
-
-def test_a_python_named_is_tried_before_every_other() -> None:
-    script = python_command([], python="/opt/my py/bin/python3")[2]
-    assert script.index("'/opt/my py/bin/python3'") < script.index("python3.14")
-    homed = python_command([], python="~/py/bin/python3")[2]
-    assert 'for py in "$HOME"/py/bin/python3 python3 ' in homed
-
-
-def test_settings_are_exported_and_made_before_the_search() -> None:
-    script = python_command([], setting=(("HUMANIZE_SHADOW", "$HOME/m"),))[2]
+def test_settings_are_exported_and_made_before_the_program_runs() -> None:
+    script = coganchor_command(
+        ["anchor"], "$HOME/c", setting=(("HUMANIZE_SHADOW", "$HOME/m"),)
+    )[2]
     assert script.startswith(
         'HUMANIZE_SHADOW="$HOME/m"; export HUMANIZE_SHADOW; mkdir -p "$HUMANIZE_SHADOW"'
     )
@@ -369,9 +347,9 @@ def test_settings_are_exported_and_made_before_the_search() -> None:
 
 
 def test_directories_owned_are_checked_and_closed_before_the_settings() -> None:
-    script = python_command(
-        [],
-        bundle="/tmp/c-7/x.pyz",
+    script = coganchor_command(
+        ["anchor"],
+        "/tmp/c-7/coganchor-x",
         setting=(("HUMANIZE_SHADOW", "/tmp/m-7/abc"),),
         owned=("/tmp/c-7", "/tmp/m-7"),
     )[2]
@@ -475,8 +453,7 @@ def test_a_slurm_road_is_a_step_of_the_job_carrying_argv_straight_through() -> N
     assert "--chdir=/" in line
     assert line[-2:] == ["ls", "a b"]
     assert (road.cache, road.mirrors) == (REMOTE_CACHE, REMOTE_MIRRORS)
-    assert road.python == "/opt/py"
-    assert Road.to(Target.parse(f"{SLURM}://42")).python == ""
+    assert "/opt/py" not in line
 
 
 def test_a_container_on_another_daemon_is_reached_through_it() -> None:
@@ -488,12 +465,6 @@ def test_a_container_on_another_daemon_is_reached_through_it() -> None:
 def test_nothing_is_started_on_the_far_side_of_a_listener(spec: str) -> None:
     with pytest.raises(ValueError, match="nothing is started"):
         Road.to(Target.parse(spec))
-
-
-def test_humanize_runs_locally_as_this_interpreter() -> None:
-    line = Road.to(Target.parse("local")).hmz(["internal", "anchor"])
-    assert line[0] == sys.executable
-    assert line[-2:] == ["internal", "anchor"]
 
 
 class Ran:
@@ -510,104 +481,6 @@ class Ran:
         return subprocess.CompletedProcess(argv, self.code, b"", self.err)
 
 
-@pytest.fixture
-def archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    held = tmp_path / "humanize.pyz"
-    held.write_bytes(b"PK-archive")
-    monkeypatch.setattr(transport, "bundled", lambda: (held, "0123456789abcdef"))
-    return held
-
-
-def test_the_archive_is_pushed_once_per_machine(
-    archive: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ran = Ran()
-    monkeypatch.setattr(subprocess, "run", ran)
-    road = Road.to(Target.parse("ssh://pushed-once"))
-    road.forget()
-    where = road.installed()
-    assert where == f"{REMOTE_CACHE}/humanize-0123456789abcdef.pyz"
-    assert road.installed() == where
-    assert len(ran.asked) == 1
-    argv, fed = ran.asked[0]
-    assert argv[0] == "ssh"
-    assert fed == b"PK-archive"
-    road.forget()
-    road.installed()
-    assert len(ran.asked) == 2
-    road.forget()
-
-
-def test_humanize_far_away_runs_the_installed_archive(
-    archive: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(subprocess, "run", Ran())
-    road = Road.to(Target.parse("docker://far-hmz"))
-    road.forget()
-    line = road.hmz(["internal", "anchor", "serve"], setting=(("A", "/b"),))
-    assert line[:4] == ["docker", "exec", "-i", "far-hmz"]
-    assert line[-4:] == ["humanize", "internal", "anchor", "serve"]
-    assert f"{CONTAINER_CACHE}/humanize-0123456789abcdef.pyz" in line[-5]
-    assert 'A="/b"; export A' in line[-5]
-    road.forget()
-
-
-def test_each_user_of_a_container_is_given_an_archive_of_their_own(
-    archive: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ran = Ran()
-    monkeypatch.setattr(subprocess, "run", ran)
-    bare = Road.to(Target.parse("docker://shared-box"))
-    one = Road.to(Target.parse("docker://shared-box?user=1000"))
-    two = Road.to(Target.parse("docker://shared-box?user=1001:1001"))
-    bare.forget()
-    name = "humanize-0123456789abcdef.pyz"
-    assert one.installed() == f"{CONTAINER_CACHE}-1000/{name}"
-    assert two.installed() == f"{CONTAINER_CACHE}-1001/{name}"
-    assert one.installed() == f"{CONTAINER_CACHE}-1000/{name}"
-    assert len(ran.asked) == 2
-    first = ran.asked[0][0]
-    assert first[:6] == ["docker", "exec", "-i", "-u", "1000", "shared-box"]
-    assert f'[ -O "{CONTAINER_CACHE}-1000" ]' in first[8]
-    assert f'HUMANIZE_BUNDLES="{CONTAINER_CACHE}-1000"' in first[8]
-    # A container replaced is replaced for every user a target of it named.
-    bare.forget()
-    one.installed()
-    two.installed()
-    assert len(ran.asked) == 4
-    serving = one.hmz(["internal", "anchor", "serve"])[8]
-    assert f'[ -O "{CONTAINER_CACHE}-1000" ]' in serving
-    assert CONTAINER_MIRRORS not in serving
-    mirror = one.mirror("abc")
-    harness = one.hmz(["internal", "anchor"], setting=(("HUMANIZE_SHADOW", mirror),))
-    assert f'[ -O "{CONTAINER_CACHE}-1000" ]' in harness[8]
-    assert f'[ -O "{CONTAINER_MIRRORS}-1000" ]' in harness[8]
-    bare.forget()
-
-
-def test_an_archive_that_would_not_install_says_why(
-    archive: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(subprocess, "run", Ran(1, b"disk full\n"))
-    road = Road.to(Target.parse("ssh://refuses"))
-    road.forget()
-    with pytest.raises(
-        ConnectionError, match="could not install Humanize on ssh://refuses: disk full"
-    ):
-        road.installed()
-
-
-def test_an_archive_that_cannot_be_built_is_a_connection_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def broken() -> tuple[Path, str]:
-        raise OSError("read-only")
-
-    monkeypatch.setattr(transport, "bundled", broken)
-    with pytest.raises(ConnectionError, match="read-only"):
-        Road.to(Target.parse("ssh://unbuildable")).installed()
-
-
 def test_a_road_runs_a_short_command_with_its_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -618,6 +491,41 @@ def test_a_road_runs_a_short_command_with_its_input(
     assert ran.asked == [(["docker", "exec", "-i", "c", "cat"], b"in")]
 
 
+class Uname(Ran):
+    """`subprocess.run`, with the target answering `uname -sm` as `said`."""
+
+    def __init__(self, said: bytes = b"Linux x86_64\n", code: int = 0) -> None:
+        super().__init__(code)
+        self.said = said
+
+    def __call__(
+        self, argv: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[bytes]:
+        done = super().__call__(argv, **kwargs)
+        if "exec uname -sm" in argv[-1]:
+            return subprocess.CompletedProcess(argv, 0, self.said, b"")
+        return done
+
+
+@pytest.fixture
+def build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """`coganchor` chosen, on a machine that is Linux on x86-64 as the targets below are."""
+    import platform
+
+    program = tmp_path / "coganchor"
+    program.write_bytes(b"\x7fELF coganchor")
+    monkeypatch.setenv(binary.VARIABLE, str(program))
+    monkeypatch.setenv(binary.BINARIES, "")
+    monkeypatch.delenv(binary.BINARIES)
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    return program
+
+
+def _named(program: Path) -> str:
+    return f"coganchor-{hashlib.sha256(program.read_bytes()).hexdigest()[:16]}"
+
+
 # -------------------------------------------------------------------- serving lines
 
 
@@ -626,39 +534,15 @@ def test_a_road_runs_a_short_command_with_its_input(
     [(None, ["--stdio"]), (Meeting("t", "h", 1), ["--peer", "t@h:1"])],
 )
 def test_the_serving_line_names_its_exports(
-    meeting: Meeting | None, how: list[str]
+    build: Path, meeting: Meeting | None, how: list[str]
 ) -> None:
     line = serve_line(Target.parse("local"), ["/a", "/b:/c"], meeting=meeting)
-    assert line[0] == sys.executable
-    at = line.index("internal")
-    assert line[at:] == [
-        "internal",
-        "anchor",
-        "serve",
-        *how,
-        "--export",
-        "/a",
-        "--export",
-        "/b:/c",
-    ]
+    assert line == [str(build), "anchor", *how, "--export", "/a", "--export", "/b:/c"]
 
 
-def test_a_peer_target_is_met_at_its_broker(monkeypatch: pytest.MonkeyPatch) -> None:
-    met: list[tuple[Meeting, str]] = []
-
-    class Sock:
-        def makefile(self, mode: str) -> Any:
-            return None
-
-    def dial(meeting: Meeting, role: str) -> Sock:
-        met.append((meeting, role))
-        return Sock()
-
-    monkeypatch.setattr(rendezvous, "dial", dial)
-    link = transport.connect(Target.parse("peer://t@b:7"), [])
-    assert isinstance(link.channel, Channel)
-    assert link.process is None
-    assert met == [(Meeting("t", "b", 7), rendezvous.ANCHOR)]
+def test_a_peer_target_is_met_by_coganchor_and_not_by_this_process() -> None:
+    with pytest.raises(ConnectionError, match="a meeting for one session"):
+        transport.connect(Target.parse("peer://t@b:7"), [])
 
 
 class Child:
@@ -703,20 +587,216 @@ def test_closing_a_transport_puts_its_process_down(
     assert child.calls == calls
 
 
-def test_a_slurm_job_is_given_the_archive_and_runs_it_under_its_python(
-    archive: Path, monkeypatch: pytest.MonkeyPatch
+# ----------------------------------------------------------------------- coganchor
+
+
+def test_coganchor_is_shipped_once_per_machine_named_by_its_digest(
+    build: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    ran = Ran()
+    ran = Uname()
     monkeypatch.setattr(subprocess, "run", ran)
-    road = Road.to(Target.parse(f"{SLURM}://4242?python=/opt/py"))
+    road = Road.to(Target.parse("docker://shipped-once"))
+    road.forget()
+
+    line = road.hmz(["internal", "anchor", "serve", "--stdio", "--export", "/w"])
+
+    name = _named(build)
+    (probe, _), (install, fed) = ran.asked
+    assert probe == [
+        "docker",
+        "exec",
+        "-i",
+        "shipped-once",
+        "/bin/sh",
+        "-c",
+        "exec uname -sm",
+    ]
+    assert fed == build.read_bytes()
+    script = install[-1]
+    assert f'c="{CONTAINER_CACHE}"' in script
+    assert f'p="$c/{name}"' in script
+    assert 't="$p.$$"' in script
+    assert f"-eq {len(fed)} ]" in script
+    assert 'chmod 700 "$t"' in script
+    assert '-name "coganchor-*" -o -name "humanize-*.pyz*"' in script
+    assert "-mtime +13" in script
+    assert line[:4] == ["docker", "exec", "-i", "shipped-once"]
+    assert line[-5:] == ["coganchor", "anchor", "--stdio", "--export", "/w"]
+    assert f'exec "{CONTAINER_CACHE}/{name}" "$@"' in line[-6]
+    assert f'touch -c "{CONTAINER_CACHE}/{name}"' in line[-6]
+
+    road.hmz(["internal", "anchor", "serve", "--stdio"])
+    assert len(ran.asked) == 2
+    road.forget()
+    road.shipped()
+    assert len(ran.asked) == 4
+    road.forget()
+
+
+def test_a_harness_elsewhere_runs_coganchor_cog_with_its_settings(
+    build: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(subprocess, "run", Uname())
+    road = Road.to(Target.parse("ssh://cog-far"))
+    road.forget()
+
+    line = road.hmz(
+        ["internal", "anchor", "--target=local", "claude"],
+        setting=(("HUMANIZE_SHADOW", f"{REMOTE_MIRRORS}/m"),),
+    )
+
+    said = shlex.split(line[-1])
+    assert said[:3] == ["exec", "/bin/sh", "-c"]
+    assert said[4:] == ["coganchor", "cog", "--target=local", "claude"]
+    assert f'HUMANIZE_SHADOW="{REMOTE_MIRRORS}/m"; export HUMANIZE_SHADOW' in said[3]
+    assert f'"{REMOTE_CACHE}/{_named(build)}"' in said[3]
+    road.forget()
+
+
+def test_each_user_of_a_container_is_shipped_coganchor_into_their_own_directory(
+    build: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran = Uname()
+    monkeypatch.setattr(subprocess, "run", ran)
+    road = Road.to(Target.parse("docker://owned-box?user=1000"))
     road.forget()
 
     line = road.hmz(["internal", "anchor", "serve", "--stdio"])
 
-    ((installing, fed),) = ran.asked
-    assert installing[:2] == ["srun", "--jobid=4242"]
-    assert "for py in /opt/py python3 " in installing[installing.index("-c") + 1]
-    assert fed == b"PK-archive"
-    assert line[:2] == ["srun", "--jobid=4242"]
-    assert "for py in /opt/py python3 " in line[line.index("-c") + 1]
+    install = ran.asked[1][0]
+    assert install[:6] == ["docker", "exec", "-i", "-u", "1000", "owned-box"]
+    assert f'[ -O "{CONTAINER_CACHE}-1000" ]' in install[-1]
+    assert f'[ -O "{CONTAINER_CACHE}-1000" ]' in line[-4]
+    assert CONTAINER_MIRRORS not in line[-4]
+    name = _named(build)
+    assert road.shipped() == f"{CONTAINER_CACHE}-1000/{name}"
+    other = Road.to(Target.parse("docker://owned-box?user=1001:1001"))
+    assert other.shipped() == f"{CONTAINER_CACHE}-1001/{name}"
+    asked = len(ran.asked)
+    # A container replaced is replaced for every user a target of it named.
+    Road.to(Target.parse("docker://owned-box")).forget()
+    road.shipped()
+    other.shipped()
+    assert len(ran.asked) == asked + 4
+    mirror = road.mirror("abc")
+    harness = road.hmz(["internal", "anchor"], setting=(("HUMANIZE_SHADOW", mirror),))
+    assert f'[ -O "{CONTAINER_CACHE}-1000" ]' in harness[-3]
+    assert f'[ -O "{CONTAINER_MIRRORS}-1000" ]' in harness[-3]
     road.forget()
+
+
+def test_a_machine_nothing_is_built_for_is_refused_by_name(
+    build: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran = Uname(b"Linux riscv64\n")
+    monkeypatch.setattr(subprocess, "run", ran)
+    road = Road.to(Target.parse("ssh://unbuilt"))
+    road.forget()
+
+    with pytest.raises(
+        ConnectionError, match="no coganchor is built for Linux riscv64"
+    ):
+        road.hmz(["internal", "anchor", "serve", "--stdio"])
+    assert len(ran.asked) == 1
+    road.forget()
+
+
+def test_a_machine_that_cannot_be_asked_what_it_is_says_why(
+    build: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(subprocess, "run", Ran(255, b"Connection refused\n"))
+    road = Road.to(Target.parse("ssh://unasked"))
+    road.forget()
+
+    with pytest.raises(ConnectionError, match=r"ssh://unasked.*Connection refused"):
+        road.shipped()
+
+
+def test_coganchor_that_would_not_install_says_why(
+    build: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Full(Uname):
+        def __call__(
+            self, argv: list[str], **kwargs: Any
+        ) -> subprocess.CompletedProcess[bytes]:
+            done = super().__call__(argv, **kwargs)
+            if kwargs.get("input"):
+                return subprocess.CompletedProcess(argv, 1, b"", b"disk full\n")
+            return done
+
+    monkeypatch.setattr(subprocess, "run", Full())
+    road = Road.to(Target.parse("ssh://full"))
+    road.forget()
+
+    with pytest.raises(
+        ConnectionError, match="could not install Humanize on ssh://full: disk full"
+    ):
+        road.shipped()
+    road.forget()
+
+
+def test_a_slurm_road_ignores_its_python_where_coganchor_runs(
+    build: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(subprocess, "run", Uname())
+    road = Road.to(Target.parse(f"{SLURM}://4343?python=/opt/py"))
+    road.forget()
+
+    line = road.hmz(["internal", "anchor", "serve", "--stdio"])
+
+    assert line[:2] == ["srun", "--jobid=4343"]
+    assert "/opt/py" not in " ".join(line)
+    assert line[-2:] == ["anchor", "--stdio"]
+    road.forget()
+
+
+def test_coganchor_runs_locally_as_this_machines_build(build: Path) -> None:
+    line = serve_line(Target.parse("local"), ["/a"])
+
+    assert line == [str(build), "anchor", "--stdio", "--export", "/a"]
+    assert os.environ[binary.BINARIES] == str(binary.shelf())
+
+
+def test_coganchor_refuses_a_line_it_does_not_carry_out(build: Path) -> None:
+    with pytest.raises(ValueError, match="hmz internal hook"):
+        Road.to(Target.parse("local")).hmz(["internal", "hook"])
+    with pytest.raises(ValueError, match="hmz web"):
+        Road.to(Target.parse("local")).hmz(["web"])
+
+
+def test_coganchor_line_touches_and_runs_the_program() -> None:
+    line = coganchor_command(
+        ["anchor", "--stdio"], "$HOME/c/coganchor-x", setting=(("A", "/b"),)
+    )
+
+    assert line[:2] == ["/bin/sh", "-c"]
+    assert line[3:] == ["coganchor", "anchor", "--stdio"]
+    assert line[2].index('A="/b"') < line[2].index('touch -c "$HOME/c/coganchor-x"')
+    assert line[2].endswith('exec "$HOME/c/coganchor-x" "$@"')
+
+
+def test_a_container_idles_without_python() -> None:
+    assert idling() == ["/bin/sh", "-c", "exec sleep 2147483647"]
+
+
+def test_a_job_waits_for_the_build_its_node_asks_for(
+    build: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    other = tmp_path / "aarch64"
+    other.write_bytes(b"another")
+
+    def packaged(system: str, machine: str) -> Path | None:
+        return other if binary.named(system, machine) == "linux-aarch64" else None
+
+    monkeypatch.setattr(binary, "packaged", packaged)
+
+    script = awaiting(REMOTE_CACHE)
+
+    assert (
+        f'"Linux x86_64"|"Linux amd64") p="{REMOTE_CACHE}/{_named(build)}";;' in script
+    )
+    assert (
+        f'"Linux aarch64"|"Linux arm64") p="{REMOTE_CACHE}/{_named(other)}";;'
+    ) in script
+    assert "Darwin" not in script
+    assert script.endswith('while [ ! -f "$p" ]; do sleep 1; done')

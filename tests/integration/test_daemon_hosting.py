@@ -13,7 +13,7 @@ import pytest
 
 from hmz import daemon
 from hmz.daemon import where
-from hmz.daemon.proto import PROTOCOL
+from hmz.rpc import PROTOCOL
 from hmz.sdk import Daemons
 from tests.integration.doubles_daemon import (
     SAYS,

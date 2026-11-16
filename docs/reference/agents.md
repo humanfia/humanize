@@ -545,7 +545,7 @@ host.
 ### Enforcement
 
 `agent.natively(fence)` returns what the CLI does not enforce itself. That remainder is held
-from outside by putting `python -Pm hmz internal fence --policy=<Fence JSON> --` outermost around
+from outside by putting `coganchor internal fence --policy=<Fence JSON> --` outermost around
 the turn:
 
 | Mechanism | Holds |
@@ -567,7 +567,9 @@ in a home the fence does not write is followed, while a link where a fenced prog
 put one (a scratch, or a state directory, that an earlier turn replaced with a link out of the
 wall) refuses the turn, exit 126: `hmz internal fence: <path>: it is a link where a fenced
 program could have made one, which no fence follows to write` (or `it leads through <link>, a
-link ...`). A fence that writes `/` follows every link. A path that cannot be reached (missing,
+link ...`). A fence that writes `/` follows every link -- but where it carves something out,
+one that leads into a carve-out refuses the turn the same way (`<path>: it leads to <where>,
+which is carved out of this fence`). A path that cannot be reached (missing,
 past a file, not searchable) is granted nothing, as before; on a Mac, a path not there yet
 is granted by the path it would be reached at. The agent makes the directories its CLI keeps
 its state in the same way before the turn, through no such link.
@@ -1293,7 +1295,7 @@ right after the program's name).
 - A harness on another machine (`AnchorConfig.harness`, `hmz.coganchor.elsewhere.afar`) is
   started in one built on that machine: `AgentBase.homed` builds none here, and the anchor's
   options carry what it is made of (`AnchorConfig.home`, the session's skills and merges) to
-  the `hmz internal anchor` there, which builds it from that machine's user's own
+  the `coganchor cog` there, which builds it from that machine's user's own
   configuration around the CLI it supervises, keeps it on that machine, and removes it when
   the CLI exits. The brought skills are carried there first
   ([Remote execution › Where the harness runs](/reference/remote-execution#where-the-harness-runs)).
@@ -1490,7 +1492,7 @@ same CLI is a place on the chain. A turn taken at another place is interrupted a
 `interrupt` reaches the stand-in's turn, and `cut` also puts the stand-in's transport down. A cut
 turn that lands goes on in the stand-in's conversation, as far as it got.
 
-<small>Defined in [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py), [`src/hmz/coganchor/standin.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/standin.py).</small>
+<small>Defined in [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py), [`crates/coganchor/src/cog/standin.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/standin.rs).</small>
 
 ## Watchdog {#when-a-cli-stops-answering}
 

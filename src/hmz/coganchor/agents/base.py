@@ -4522,7 +4522,7 @@ class AgentBase(ABC):
         what is left once the CLI has enforced its own part (:meth:`natively`) can be put
         around it from outside here: on Linux by Landlock, at an ABI that can cut the network
         where the network is to be cut, beside a seccomp filter for every protocol Landlock
-        cannot; on a Mac by Seatbelt.
+        cannot, or by bubblewrap, as `sandbox.backend` chooses; on a Mac by Seatbelt.
 
         An agent whose turns land on another machine is fenced by its anchor, on both
         machines and whatever its CLI enforces natively (:meth:`_abroad`), and is refused here
@@ -4539,7 +4539,7 @@ class AgentBase(ABC):
         """
         if config.fence is None:
             return
-        from hmz.coganchor.fence import enforceable
+        from hmz.coganchor.fence import enforceable, needs
 
         if config.machine is not None:
             self._abroad(config)
@@ -4548,31 +4548,22 @@ class AgentBase(ABC):
         if rest.open:
             return
         if not enforceable(net=not rest.online):
-            needs = (
-                "Landlock ABI 4 (Linux 6.7 or later) and seccomp to cut the network"
-                if not rest.online
-                else "Landlock (Linux 5.13 or later, with landlock in its lsm= list)"
-            )
-            if sys.platform == "darwin":
-                needs = (
-                    "Seatbelt, which a process already inside a sandbox cannot apply"
-                )
             raise Unfenced(
                 f"{type(self).__name__} cannot be held to its permission on this machine: "
-                f"it does not enforce it natively, and fencing it from outside needs {needs}"
+                "it does not enforce it natively, and fencing it from outside needs "
+                f"{needs(net=not rest.online)}"
             )
         if (rest.keep or rest.deny) and sys.platform != "darwin":
             # Landlock holds a carve-out only by granting what is around it, which needs
-            # every directory above it listed; asked now rather than where a turn is spawned.
-            from hmz.coganchor.fence.wrap import expanded
+            # every directory above it listed; bubblewrap only by mounting over it, which
+            # needs it there. Asked now rather than where a turn is spawned.
+            from hmz.coganchor.fence import unheld
 
-            try:
-                expanded(rest)
-            except OSError as why:
+            if (why := unheld(rest)) is not None:
                 raise Unfenced(
                     f"{type(self).__name__} cannot be held to its permission on this "
                     f"machine: what it carves out cannot be held ({why})"
-                ) from why
+                )
 
     def _abroad(self, config: AgentConfig) -> None:
         """Refuses a fence an anchored agent cannot be held to, as its config arrives.
@@ -4666,6 +4657,8 @@ class AgentBase(ABC):
                     if net
                     else ""
                 )
+                + ", or a bubblewrap that starts there"
+                + (" with a network namespace of its own" if net else "")
                 + "; grant the agent everything, or run it where it can be fenced"
             )
         _FENCING.add(key)
@@ -4708,6 +4701,11 @@ class AgentBase(ABC):
           where the agent is built, to decide whether it can be served here at all, and of the
           widened one from :meth:`fenced` where a turn is spawned; the two must agree about
           what the CLI enforces.
+
+        The first two are waived for a CLI the person at this machine named in
+        `sandbox.native` (:func:`~hmz.coganchor.fence.natives`), whose own sandbox holds the
+        commands the CLI runs and no more: that is a trade they asked for, and the driver
+        says so once for the agent. The last two never are.
 
         What is returned must be `fence` or wider, never narrower, and is best said with
         :meth:`Fence.without <hmz.coganchor.fence.Fence.without>`:
@@ -5431,11 +5429,12 @@ class AgentBase(ABC):
           brought back as the turn ends (:meth:`_bringing`).
         """
         from hmz.coganchor.backends import named
-        from hmz.coganchor.serve.sessions import (
+        from hmz.coganchor.tailing import (
             HOST_SPECIFIC_ENV,
             HOST_SPECIFIC_PREFIXES,
+            Tail,
+            road,
         )
-        from hmz.coganchor.tailing import Tail, road
 
         with self._holding:
             if self._tailed or not self._tailing():

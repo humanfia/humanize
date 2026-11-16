@@ -18,8 +18,9 @@ import { withBase } from 'vitepress'
 - **One writer.** Nobody else may edit the target's workspace while an agent works on it.
 - **A lost link does not stop it.** Work that needs the target fails; the agent exits with its
   own status.
-- **Nothing to install over there.** Any POSIX machine with Python 3.12 or newer, no root. The
-  agent side needs Linux.
+- **Nothing to install over there.** Any Linux or macOS machine on x86-64 or aarch64 with a
+  `/bin/sh`: no Python, no root. Humanize copies over one small program of its own. The agent
+  side needs Linux.
 - **The agent can move too.** Onto its work's own machine, taking its
   [account](/features/accounts) with it, or onto a third machine: one setting of the runtime,
   its harness, says where.

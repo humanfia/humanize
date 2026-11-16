@@ -17,7 +17,6 @@ from hmz.coganchor.homes import (
     merged,
     merger,
     virtual,
-    words,
 )
 
 if TYPE_CHECKING:
@@ -227,13 +226,6 @@ def test_a_virtual_home_reads_back_as_itself() -> None:
     )
 
     assert Virtual.loads(spec.dumps()) == spec
-    assert words(spec) == [
-        "copy=config.toml=.codex.toml",
-        "keep=state_*.sqlite*",
-        "make=sessions",
-        "skill=review",
-        "record=state_*.sqlite=threads=rollout_path",
-    ]
 
 
 @pytest.mark.parametrize(

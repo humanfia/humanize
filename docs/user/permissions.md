@@ -35,10 +35,12 @@ it, however it tried.
 
 ## Before you start
 
-- **Linux with Landlock, or macOS**: on Linux, a kernel of 5.13 or newer, booted with it, and
-  6.7 or newer for a role that may not reach the network. On macOS, any version: Humanize
-  uses the Seatbelt sandbox built into it. See [Pitfalls](#pitfalls) for where a role is
-  refused.
+- **Linux with Landlock or bubblewrap, or macOS**: on Linux, a kernel of 5.13 or newer,
+  booted with Landlock, and 6.7 or newer for a role that may not reach the network; or,
+  where the kernel is older, [bubblewrap](https://github.com/containers/bubblewrap) (`bwrap`,
+  the `bubblewrap` package) and a kernel that lets an ordinary user make a namespace. On
+  macOS, any version: Humanize uses the Seatbelt sandbox built into it. See
+  [Pitfalls](#pitfalls) for where a role is refused.
 - The flow's page, which says what its roles are granted. Most say nothing, and run at the
   default below.
 
@@ -216,15 +218,17 @@ Every grant below everything is enforced on the agent's process and on every com
 Where a CLI can hold part of a grant itself, it is told to. Humanize holds the rest from
 outside:
 
-- **The preset and the rules** are held by Landlock, a Linux kernel feature, or on macOS by
-  Seatbelt, the sandbox macOS is built with. An agent cannot write outside what its grant lets
-  it write, or read outside what it lets it read. A rule that takes something back from a
-  wider one (`deny("~/.ssh")` under `read_only("/")`) is held too: Seatbelt is told so in as
-  many words, and Landlock, which can only grant, is given everything beside it instead.
+- **The preset and the rules** are held by Landlock, a Linux kernel feature, or where
+  Landlock cannot hold them by bubblewrap, which gives the agent a filesystem made of what it
+  is granted; on macOS by Seatbelt, the sandbox macOS is built with. An agent cannot write
+  outside what its grant lets it write, or read outside what it lets it read. A rule that
+  takes something back from a wider one (`deny("~/.ssh")` under `read_only("/")`) is held
+  too: Seatbelt is told so in as many words, bubblewrap mounts an empty directory over it,
+  and Landlock, which can only grant, is given everything beside it instead.
 - **`network=False`** cuts the network. The agent can still reach the hosts its model and
   its login are at, and nothing else: no web search, no package index, no host a command
   names. On Linux nothing from outside reaches it either: a program it runs may serve on this
-  machine's loopback address and on no other. Seatbelt cannot tell one address from another
+  machine's loopback address and on no other -- under bubblewrap, on a loopback of its own. Seatbelt cannot tell one address from another
   when a program starts to serve, so on macOS a program it runs may serve on any address,
   while it still reaches nothing but its model. A machine that reaches the network through a
   proxy of its own (`HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`) still reaches the model through
@@ -232,9 +236,9 @@ outside:
 
 | Backend | `preset` and `granular` | `network=False` |
 | --- | --- | --- |
-| every CLI | <Badge type="tip" text="held by Landlock or Seatbelt" /> | <Badge type="tip" text="cut but for its model" /> |
-| `cursor-agent`, `mcode` | <Badge type="tip" text="held by Landlock or Seatbelt" /> | <Badge type="danger" text="refused" /> |
-| a CLI added over ACP | <Badge type="tip" text="held by Landlock or Seatbelt" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
+| every CLI | <Badge type="tip" text="held by Landlock, bubblewrap or Seatbelt" /> | <Badge type="tip" text="cut but for its model" /> |
+| `cursor-agent`, `mcode` | <Badge type="tip" text="held by Landlock, bubblewrap or Seatbelt" /> | <Badge type="danger" text="refused" /> |
+| a CLI added over ACP | <Badge type="tip" text="held by Landlock, bubblewrap or Seatbelt" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
 
 A role at `read-only`, with no rule that lets it write its workdir, also runs in its CLI's
 read-only mode, where the CLI has one (every CLI but `dsh`, `mcode` and CLIs added over the
@@ -283,6 +287,32 @@ claude: this account will not run an agent at bypass, so it runs at acceptEdits,
 It keeps the same freedom: Claude asks before what `acceptEdits` does not cover, and Humanize
 says yes. The organisation's own `deny` rules still apply.
 
+### Choose how this machine holds a grant
+
+On Linux Humanize uses Landlock where it can hold the grant and bubblewrap otherwise. To pin one
+of them, or to let Codex's own sandbox hold its grant, set `sandbox` in
+[`settings.yaml`](/reference/settings#machine-settings) by hand:
+
+```yaml
+sandbox:
+  backend: bwrap      # auto (the default), landlock or bwrap; read on Linux only
+  native: [codex]     # CLIs whose own sandbox holds the grant instead
+```
+
+A pinned backend that cannot start here refuses the role rather than fall back to the other.
+
+`native` is a trade, never a default. Codex's sandbox holds the commands the agent runs: what
+they may write and whether they reach the network. It holds nothing of Codex itself, the MCP
+servers and hooks it starts, or what anything reads -- Codex reads everything. Codex is the one
+CLI it applies to; another named there is fenced as before. Codex still falls back to the fence
+where its sandbox cannot say the grant (a rule that takes something back from a wider one),
+where its sandbox will not start here, or where its work lands on another machine. Where it does
+hold the grant, the agent says so once:
+
+```text
+codex: held to its permission by Codex's own sandbox, as sandbox.native asks: that holds the commands the agent runs, reading everything, and not Codex itself, its MCP servers or its hooks
+```
+
 ### On another machine
 
 A [container](/user/containers) or an [ssh host](/user/remote-execution) is held to the same
@@ -301,14 +331,18 @@ there and ends with its own exit status.
 Humanize never runs an agent with more than its grant. A role is refused before it starts
 (`HarnessSandboxed`) when:
 
-- **this machine cannot fence:** a Linux kernel older than 5.13 or booted without Landlock,
-  or a Mac where Humanize itself runs inside another sandbox, which cannot start one of its
-  own. A kernel older than 6.7 cannot cut the network, so `network=False` is refused
-  there. So is a Linux machine where Humanize may not look into the programs it starts
-  (inside a container with its default seccomp profile, or with Yama's `ptrace_scope` at 2
-  or 3): it could not keep what they listen on to this machine.
+- **this machine cannot fence:** a Linux kernel older than 5.13 or booted without Landlock
+  that has no bubblewrap that starts either (no `bwrap`, or no namespace an ordinary user may
+  make), or a Mac where Humanize itself runs inside another sandbox, which cannot start one
+  of its own. A kernel older than 6.7 cannot cut the network with Landlock, so without
+  bubblewrap `network=False` is refused there. So is a Linux machine where Humanize may not
+  look into the programs it starts (inside a container with its default seccomp profile, or
+  with Yama's `ptrace_scope` at 2 or 3) and bubblewrap cannot start: it could not keep what
+  they listen on to this machine. A machine whose `sandbox.backend` pins a backend is refused
+  where that backend cannot start.
 - **a rule cannot be held here:** a rule that takes back part of a tree its preset grants,
-  where this machine's sandbox cannot draw that line. Humanize refuses rather than run the
+  where this machine's sandbox cannot draw that line -- under bubblewrap, a rule for a path
+  that is not there yet. Humanize refuses rather than run the
   agent without it.
 - **the CLI would reach the web around the cut:** `cursor-agent` or `mcode` with
   `network=False`.

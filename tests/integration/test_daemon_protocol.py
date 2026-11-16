@@ -6,10 +6,10 @@ by a socket of the test's own, and daemons and hosts that went away under their 
 
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import socket
+import struct
 import subprocess
 import sys
 import time
@@ -20,7 +20,7 @@ import pytest
 from hmz import daemon
 from hmz.daemon import where
 from hmz.daemon.link import reached
-from hmz.daemon.proto import CONTROL, GONE, MESSAGE, PROTOCOL, Frames, frame, spoken
+from hmz.rpc import PROTOCOL, Frames, encode
 from tests.integration.doubles_daemon import hosting, project, standing, until
 
 if TYPE_CHECKING:
@@ -51,44 +51,37 @@ def _bare() -> socket.socket:
     return one
 
 
-def _read(one: socket.socket) -> list[tuple[bytes, bytes]]:
-    """Every frame the daemon sent, until it closed the socket.
+def _said(
+    one: socket.socket, *calls: dict[str, Any], more: int = 0
+) -> list[dict[str, Any]]:
+    """Says each call, in frames of its own, and reads an answer to each and `more`."""
+    frames, answers = Frames(), list[dict[str, Any]]()
+    for call in calls:
+        one.sendall(encode({"jsonrpc": "2.0", **call}))
+    while len(answers) < len(calls) + more:
+        chunk = one.recv(1 << 16)
+        assert chunk, "the daemon closed without answering"
+        answers.extend(json.loads(payload) for payload in frames.feed(chunk))
+    return sorted(answers, key=lambda one: one["id"])
 
-    Linux says a socket closed with what this end sent still unread as a reset rather than an
-    end, once what was sent this way has been read.
-    """
-    frames, read = Frames(), list[tuple[bytes, bytes]]()
-    with contextlib.suppress(ConnectionResetError):
-        while chunk := one.recv(1 << 16):
-            read.extend(frames.feed(chunk))
-    return read
 
-
-def _answer(said: dict[str, Any], kind: bytes = CONTROL) -> dict[str, Any]:
-    with _bare() as one:
-        one.sendall(spoken(kind, said))
-        frames = Frames()
-        while chunk := one.recv(1 << 16):
-            for _, payload in frames.feed(chunk):
-                return json.loads(payload)
-    raise AssertionError("the daemon closed without answering")
+_HELLO = {
+    "id": 0,
+    "method": "session.hello",
+    "params": {"protocol": PROTOCOL, "client": {"name": "", "kind": "cli"}},
+}
 
 
 def test_the_daemon_lists_the_workspaces_it_holds(
     held: daemon.Daemon, workspace: Path
 ) -> None:
-    said = _answer({"do": "list"})
+    with _bare() as one:
+        _, said = _said(one, _HELLO, {"id": 1, "method": "hosts.list"})
 
-    assert said["ok"]
-    assert [(one["workspace"], one["pid"]) for one in said["held"]] == [
+    assert [(one["workspace"], one["pid"]) for one in said["result"]["held"]] == [
         (where.workspace(workspace), held.pid)
     ]
     assert where.held(where.at())["protocol"] == PROTOCOL
-
-
-def test_a_question_the_daemon_does_not_know_is_refused(held: daemon.Daemon) -> None:
-    del held
-    assert _answer({"do": "nope"}) == {"ok": False, "why": "no such request: 'nope'"}
 
 
 def test_a_question_about_a_workspace_is_answered_by_its_host(
@@ -96,77 +89,58 @@ def test_a_question_about_a_workspace_is_answered_by_its_host(
 ) -> None:
     said = held.asked({"do": "status"})
 
-    assert said["ok"]
     assert (said["pid"], said["state"]) == (held.pid, "idle")
 
 
-@pytest.mark.parametrize("kind", [CONTROL, MESSAGE])
 def test_a_workspace_no_host_holds_is_said_to_be_held_by_nobody(
-    held: daemon.Daemon, tmp_path: Path, kind: bytes
+    held: daemon.Daemon, tmp_path: Path
 ) -> None:
     del held
-    nowhere = str(tmp_path / "nowhere")
-    said = _answer({"do": "hello", "workspace": nowhere, "id": "r1"}, kind)
-
-    assert not said["ok"]
-    assert said["why"] == f"no runs are held in {nowhere}"
-    with pytest.raises(OSError, match="no runs are held"):
-        reached(where.at(), nowhere)
-
-
-def test_a_reader_of_another_protocol_is_told_so_rather_than_left_waiting(
-    held: daemon.Daemon,
-) -> None:
-    del held
+    nowhere = tmp_path / "nowhere"
+    nowhere.mkdir()
     with _bare() as one:
-        one.sendall(frame(b"H", b"{}"))
-        ((kind, payload),) = _read(one)
+        _, said = _said(
+            one,
+            _HELLO,
+            {"id": 1, "method": "hosts.status", "params": {"workspace": str(nowhere)}},
+        )
 
-    assert kind == GONE
-    assert b"newer Humanize" in payload
+    assert said["error"] == {
+        "code": 404,
+        "message": f"no runs are held in {where.workspace(nowhere)}",
+    }
+
+
+def test_a_chat_whose_host_has_gone_is_not_held_again(workspace: Path) -> None:
+    chat = daemon.host(workspace, slot="chat:0a")
+    assert chat.kill()
+    assert until(lambda: daemon.running(workspace, slot="chat:0a") is None)
+
+    with pytest.raises(OSError, match=r"This chat has folded away\."):
+        reached(where.at(), chat.workspace, slot="chat:0a")
 
 
 def test_a_length_no_frame_has_is_closed_on_and_nobody_else_notices(
     held: daemon.Daemon,
 ) -> None:
     with _bare() as one:
-        one.sendall(b"M\xff\xff\xff\xff")
-        assert _read(one) == []
+        one.sendall(struct.pack(">I", 0xFFFFFFFF))
+        assert one.recv(1 << 16) == b""
 
     assert held.status()["state"] == "idle"
 
 
-def test_a_hello_arriving_in_pieces_is_still_handed_to_its_host(
-    held: daemon.Daemon,
-) -> None:
-    hello = frame(
-        MESSAGE,
-        json.dumps(
-            {
-                "do": "hello",
-                "id": "r1",
-                "workspace": held.workspace,
-                "name": "slow",
-                "kind": "sdk",
-                "replay": False,
-            }
-        ).encode(),
-    )
+def test_a_hello_arriving_in_pieces_is_still_answered(held: daemon.Daemon) -> None:
+    del held
+    frame = encode({"jsonrpc": "2.0", **_HELLO})
     with _bare() as one:
-        one.sendall(hello[:7])
+        one.sendall(frame[:7])
         time.sleep(0.1)
-        one.sendall(hello[7:])
-        frames, replied = Frames(), None
-        while replied is None:
-            chunk = one.recv(1 << 16)
-            assert chunk, "the daemon closed without replying"
-            for _, payload in frames.feed(chunk):
-                said = json.loads(payload)
-                if said.get("type") == "reply":
-                    replied = said
-        assert replied["ok"]
-        assert replied["to"] == "r1"
-        assert [one["name"] for one in held.status()["clients"]] == ["slow"]
+        one.sendall(frame[7:])
+        hello, said = _said(one, {"id": 1, "method": "rpc.discover"}, more=1)
+
+    assert hello["result"]["protocol"] == PROTOCOL
+    assert said["result"]["info"]["version"] == PROTOCOL
 
 
 def test_runs_held_by_an_older_humanize_are_left_alone(workspace: Path) -> None:
@@ -174,11 +148,13 @@ def test_runs_held_by_an_older_humanize_are_left_alone(workspace: Path) -> None:
     with standing(where.at(), {}):
         found = daemon.running()
         assert found is not None
-        assert found.protocol == 0
-        assert [(one.pid, one.protocol) for one in daemon.daemons()] == [(found.pid, 0)]
+        assert found.protocol == ""
+        assert [(one.pid, one.protocol) for one in daemon.daemons()] == [
+            (found.pid, "")
+        ]
         with pytest.raises(OSError, match="older Humanize"):
             daemon.host()
-        with pytest.raises(OSError, match="host"):
+        with pytest.raises(OSError, match="did not say hello"):
             found.link()
 
 

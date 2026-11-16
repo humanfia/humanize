@@ -12,7 +12,7 @@ from hmz.daemon.api import files, runs
 from hmz.rpc import RpcError
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
     from hmz.rpc import Call
@@ -23,6 +23,7 @@ class _Session:
 
     def __init__(self) -> None:
         self._closed = threading.Event()
+        self._closing: list[Callable[[], None]] = []
 
     @property
     def closed(self) -> bool:
@@ -31,8 +32,13 @@ class _Session:
     def wait(self, timeout: float | None = None) -> bool:
         return self._closed.wait(timeout)
 
+    def closing(self, told: Callable[[], None]) -> None:
+        self._closing.append(told)
+
     def close(self) -> None:
         self._closed.set()
+        for told in self._closing:
+            told()
 
 
 class _Call:

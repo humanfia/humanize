@@ -17,7 +17,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.fence import NONE, READ, Fence, enforceable, landlocked
+from hmz.coganchor.fence import (
+    BWRAP,
+    NONE,
+    READ,
+    Fence,
+    able,
+    enforceable,
+    landlocked,
+    wrapper,
+)
 from hmz.coganchor.providers import redirect
 
 if TYPE_CHECKING:
@@ -28,12 +37,32 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+#: Each backend this machine can put a fence up with: the one it chooses for itself, and
+#: bubblewrap where it starts here.
+BACKENDS = [
+    "auto",
+    pytest.param(
+        "bwrap",
+        marks=pytest.mark.skipif(
+            sys.platform != "linux" or not able(BWRAP)[0],
+            reason="this machine has no bwrap that starts",
+        ),
+    ),
+]
+
+
 def _turn(
-    put_up: str, fence: Fence, work: Path, script: str
+    put_up: str, fence: Fence, work: Path, script: str, sandbox: str = "auto"
 ) -> subprocess.CompletedProcess[str]:
     """One turn of an agent that is this Python running `script`, inside the fence."""
     if put_up == "wrapper":
-        around = ["internal", "fence", f"--policy={fence.dumps()}", "--"]
+        around = [
+            "internal",
+            "fence",
+            f"--policy={fence.dumps()}",
+            f"--sandbox={sandbox}",
+            "--",
+        ]
     else:
         around = [
             "internal",
@@ -54,6 +83,7 @@ def _turn(
     )
 
 
+@pytest.mark.parametrize("backend", BACKENDS)
 @pytest.mark.parametrize(
     "put_up",
     [
@@ -68,8 +98,10 @@ def _turn(
     ],
 )
 def test_a_scratch_swapped_for_a_link_out_is_refused_where_the_fence_is_put_up_again(
-    tmp_path: Path, put_up: str
+    tmp_path: Path, put_up: str, backend: str
 ) -> None:
+    if put_up == "supervisor" and backend == "bwrap":
+        pytest.skip("a supervised agent is walled in by Landlock alone")
     tmp_path = tmp_path.resolve()
     home, work, state = tmp_path / "home", tmp_path / "work", tmp_path / "state"
     for one in (home, work, state):
@@ -92,11 +124,12 @@ def test_a_scratch_swapped_for_a_link_out_is_refused_where_the_fence_is_put_up_a
         work,
         f"import os; os.rename({str(scratch)!r}, {str(state / 'aside')!r}); "
         f"os.symlink({str(home)!r}, {str(scratch)!r})",
+        backend,
     )
-    if sys.platform == "darwin":
+    if sys.platform == "darwin" or backend == "bwrap":
         # Seatbelt lets no directory it writes be taken from its name, nor any root be made
-        # a link; one is put there as a fence from before that, or a program outside any,
-        # could have left it.
+        # a link, and a directory bubblewrap mounts cannot be moved; one is put there as a
+        # fence from before that, or a program outside any, could have left it.
         assert swapped.returncode != 0
         assert scratch.is_dir()
         assert not scratch.is_symlink()
@@ -107,7 +140,13 @@ def test_a_scratch_swapped_for_a_link_out_is_refused_where_the_fence_is_put_up_a
 
     # The next turn's fence reaches its scratch through no link a fenced program could have
     # made: refused before anything runs, and nothing written into the home.
-    said = _turn(put_up, fence, work, f"open({str(scratch / 'x')!r}, 'w').write('x')")
+    said = _turn(
+        put_up,
+        fence,
+        work,
+        f"open({str(scratch / 'x')!r}, 'w').write('x')",
+        backend,
+    )
 
     assert said.returncode != 0
     assert "a link where a fenced program could have made one" in said.stderr
@@ -159,9 +198,7 @@ print(json.dumps({how.__name__: tried(how) for how in hows}))
 def test_a_root_a_seatbelt_profile_writes_cannot_be_swapped_for_a_link(
     tmp_path: Path,
 ) -> None:
-    from hmz.coganchor.darwin import seatbelt
-
-    if not seatbelt.available():
+    if not enforceable(net=False):
         pytest.skip("this Mac is already inside a sandbox")
     tmp_path = tmp_path.resolve()
     d, e, f, out = (tmp_path / name for name in ("d", "e", "f", "out"))
@@ -170,12 +207,18 @@ def test_a_root_a_seatbelt_profile_writes_cannot_be_swapped_for_a_link(
     out.mkdir()
     f.write_text("kept")
     (out / "secret").write_text("secret")
-    profile = seatbelt.Profile(read=("/",), write=(str(d), str(e), str(f)))
+    fence = Fence(read=("/",), write=(str(d), str(e), str(f)))
 
     done = subprocess.run(
-        profile.command(
-            [sys.executable, "-I", "-B", "-c", _SWAPS, *map(str, (d, e, f, out))]
-        ),
+        [
+            *wrapper(fence),
+            sys.executable,
+            "-I",
+            "-B",
+            "-c",
+            _SWAPS,
+            *map(str, (d, e, f, out)),
+        ],
         capture_output=True,
         text=True,
         timeout=60,

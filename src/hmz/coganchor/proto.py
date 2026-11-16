@@ -84,7 +84,7 @@ class Kind(enum.Enum):
 
 
 class Op(enum.Enum):
-    """Remote operations understood by :mod:`hmz.coganchor.serve`."""
+    """Remote operations understood by the serving half, `coganchor anchor`."""
 
     # Handshake.
     HELLO = "hello"
@@ -107,8 +107,8 @@ class Op(enum.Enum):
 
     # Process execution.  EXEC opens a stream that CHUNK/END frames feed;
     # SIGNAL is a separate request naming that stream.  An EXEC carrying a
-    # ``fence`` runs its command inside that fence, drawn again on the target
-    # (:mod:`hmz.coganchor.fence.abroad`), or not at all.
+    # ``fence`` runs its command inside that fence, drawn again on the target,
+    # or not at all.
     EXEC = "exec"
     SIGNAL = "signal"
 

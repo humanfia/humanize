@@ -43,7 +43,7 @@ LARGEST = 1 << 31
 #: How long a handle nobody uses is kept, in seconds.
 _UNUSED = 600.0
 
-#: How often the handles of a session are looked over for one gone unused, in seconds.
+#: How often the handles open are looked over for one gone unused, in seconds.
 _LOOKING = 30.0
 
 #: What the bytes of a write handle are written to, in its directory, until they are taken.
@@ -79,8 +79,10 @@ class _Open:
 _lock = threading.Lock()
 #: Every handle open, by the text that names it.
 _open: dict[str, _Open] = {}
-#: The sessions whose handles are being watched, for their ending and for handles unused.
+#: The sessions told to end their handles as they close.
 _watched: set[int] = set()
+#: Whether handles are being looked over for one gone unused.
+_looking = False
 
 
 def reading(peer: Peer, path: Path) -> str:
@@ -221,16 +223,20 @@ def _still(handle: str, one: _Open, *, drop: bool = False) -> None:
 
 
 def _made(one: _Open) -> str:
-    """Opens a handle, and watches its session for its ending."""
+    """Opens a handle, ended with its session, and looked over until it is used no more."""
     handle = secrets.token_urlsafe(16)
+    peer = one.peer
     with _lock:
         _open[handle] = one
-        watching = id(one.peer) not in _watched
-        _watched.add(id(one.peer))
-    if watching:
-        threading.Thread(
-            target=_watch, args=(one.peer,), daemon=True, name="hmz-files"
-        ).start()
+        told = id(peer) not in _watched
+        _watched.add(id(peer))
+        global _looking  # noqa: PLW0603 -- the one sweeper there is, started once wanted
+        looks = not _looking
+        _looking = True
+    if told:
+        peer.closing(lambda: _closed(peer))
+    if looks:
+        threading.Thread(target=_sweep, daemon=True, name="hmz-files").start()
     return handle
 
 
@@ -253,27 +259,32 @@ def _found(call: Call, handle: str, *, writes: bool | None) -> _Open:
         return one
 
 
-def _expire(now: float, peer: Peer | None = None) -> None:
-    """Ends every handle gone unused too long, and every one of a session that has closed."""
-    ended = peer is not None and peer.closed
+def _expire(now: float) -> None:
+    """Ends every handle gone unused too long."""
     with _lock:
-        gone = [
-            (handle, one)
-            for handle, one in _open.items()
-            if now - one.used > _UNUSED or (ended and one.peer is peer)
-        ]
+        gone = [(h, one) for h, one in _open.items() if now - one.used > _UNUSED]
     for handle, one in gone:
         _end(handle, one.peer)
 
 
-def _watch(peer: Peer) -> None:
-    """Ends a session's handles when it ends, and each of them gone unused meanwhile."""
+def _closed(peer: Peer) -> None:
+    """Ends every handle of a session that has closed."""
+    with _lock:
+        _watched.discard(id(peer))
+        gone = [h for h, one in _open.items() if one.peer is peer]
+    for handle in gone:
+        _end(handle, peer)
+
+
+def _sweep() -> None:
+    """Ends each handle gone unused too long, for as long as any is open."""
+    global _looking  # noqa: PLW0603 -- the one sweeper there is, gone once nothing is open
     while True:
-        peer.wait(_LOOKING)
-        _expire(time.monotonic(), peer)
+        time.sleep(_LOOKING)
+        _expire(time.monotonic())
         with _lock:
-            if peer.closed or not any(one.peer is peer for one in _open.values()):
-                _watched.discard(id(peer))
+            if not _open:
+                _looking = False
                 return
 
 

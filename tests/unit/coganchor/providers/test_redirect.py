@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
-import sys
+from pathlib import Path
 
 import pytest
 
-from hmz.coganchor.providers.redirect import Swaps, command, failed, read
+from hmz.coganchor import binary
+from hmz.coganchor.providers.redirect import Swaps, command
 
 
 def test_an_empty_table_points_nothing_anywhere() -> None:
@@ -66,43 +66,24 @@ def test_a_table_holding_only_sessions_still_points_somewhere() -> None:
     assert Swaps.of([], kept=[("/a", "/b")])
 
 
-def test_swaps_named_on_a_command_line_are_read_back() -> None:
-    held = read(["/a=/b", "/c/d=/e"], ["/s=/t"])
-
-    assert held == Swaps.of([("/a", "/b"), ("/c/d", "/e")], [("/s", "/t")])
-
-
-@pytest.mark.parametrize("said", ["/a", "a=/b", "/a=b", "=/b"])
-def test_a_swap_that_is_not_two_absolute_paths_is_refused(said: str) -> None:
-    with pytest.raises(ValueError, match="not FROM=TO"):
-        read([said])
-
-
 def test_nothing_to_point_anywhere_runs_the_command_as_it_is() -> None:
     assert command([], ["codex", "exec"]) == ["codex", "exec"]
 
 
-def test_the_command_runs_the_supervisor_with_every_swap() -> None:
-    said = command([("/a", "/b")], ["codex", "exec"], kept=[("/s", "/t")])
+def test_the_supervisor_is_coganchor_with_every_swap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
+
+    said = command([("/a", "/b")], ["codex"], kept=[("/s", "/t")])
 
     assert said == [
-        sys.executable,
-        "-Pm",
-        "hmz",
+        "/opt/coganchor",
         "internal",
         "cred",
         "--map=/a=/b",
         "--keep=/s=/t",
         "--",
         "codex",
-        "exec",
     ]
-
-
-@pytest.mark.skipif(not hasattr(os, "WIFEXITED"), reason="POSIX wait statuses")
-@pytest.mark.parametrize(
-    ("status", "code"),
-    [(0, 0), (3 << 8, 3), (9, 128 + 9), (15, 128 + 15)],
-)
-def test_a_wait_status_comes_to_an_exit_status(status: int, code: int) -> None:
-    assert failed(status) == code
+    assert command([], ["codex"]) == ["codex"]

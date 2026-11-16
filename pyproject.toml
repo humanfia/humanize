@@ -276,18 +276,11 @@ ignore = [
 "docs/tapes/stage.py" = ["INP001"]
 # And the one that plays a tape into a terminal, run the same way, which says what it wrote.
 "docs/tapes/cast.py" = ["INP001", "T201"]
-# The syscall layer's domain type is the string path: it reads them out of ptrace
-# registers and puts them on a wire, so `pathlib` would only convert them twice. Named
-# rather than the whole of `coganchor`, which also holds the drivers and the facts about
-# the CLIs they drive -- and those write a path the way everything else here does.
-"src/hmz/coganchor/{anchor,argv,execproxy,handlers,netproxy,policy,proto,remote,shadow,standin,statepaths,supervisor,transport}.py" = [
-    "PTH",
-]
-"src/hmz/coganchor/linux/**" = ["PTH"]
-"src/hmz/coganchor/serve/**" = ["PTH"]
-# The same, for the half of a redirected run that reads paths out of a tracee: what
-# it holds is what the process itself named, byte for byte, and back again.
-"src/hmz/coganchor/providers/_trace.py" = ["PTH"]
+# The wire's domain type is the string path: a path is what a traced process named and what
+# crosses to the target, so `pathlib` would only convert them twice. Named rather than the
+# whole of `coganchor`, which also holds the drivers and the facts about the CLIs they drive
+# -- and those write a path the way everything else here does.
+"src/hmz/coganchor/{anchor,argv,policy,proto,remote,statepaths,transport}.py" = ["PTH"]
 # A handle and the client it came off, a session and its agent: each pair is two
 # halves of one object declared in one file, and the underscore keeps the halves
 # out of the package's public surface rather than out of each other's.

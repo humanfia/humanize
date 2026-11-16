@@ -327,6 +327,19 @@ def test_the_far_end_closing_closes_the_session(pipes: Pipes) -> None:
     assert peer.closed
 
 
+def test_closing_is_told_once_to_each_callback_and_at_once_after_it(
+    pipes: Pipes,
+) -> None:
+    near, _ = pipes()
+    told: list[str] = []
+    peer = Peer(near, on_close=lambda: told.append("on_close"))
+    peer.closing(lambda: told.append("first"))
+    peer.close()
+    peer.close()
+    peer.closing(lambda: told.append("late"))
+    assert told == ["on_close", "first", "late"]
+
+
 def test_json_written_is_utf8_without_escapes(pipes: Pipes) -> None:
     near, far = pipes()
     Peer(near).notify("x", {"name": "日本"})

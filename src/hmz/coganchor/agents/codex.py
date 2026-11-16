@@ -48,11 +48,15 @@ Codex runs. A fence claimed natively would be one those reach straight past, so
 :meth:`~hmz.coganchor.agents.AgentBase.natively` is left saying Codex enforces none of it. And
 on a machine that lends no user namespace the claim would be empty besides: bubblewrap cannot
 start there, and the Landlock backend 0.153.4 falls back to (:data:`_LANDLOCK`) holds nothing
-but `read-only`. What the fence does lean on Codex for is what no wall around a process can
-stop, being run by OpenAI rather than here: its web search, and the ChatGPT apps an account
-has connected. A fence that cuts the network turns both off, whatever `web_search` says --
-``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``. And at
-`read-only` a fence that grants it is not cut by Codex instead: that sandbox cuts a command's
+but `read-only`. Unless the person at the machine names `codex` in `sandbox.native`: then
+Codex's sandbox is told what it can say of the fence, turn by turn, and nothing is put around
+Codex -- its commands held, and Codex itself, its MCP servers and its hooks not
+(:meth:`CodexAgent.holds`), which the agent is told once. What the fence does lean on Codex
+for is what no wall around a process can stop, being run by OpenAI rather than here: its web
+search, and the ChatGPT apps an account has connected. A fence that cuts the network turns
+both off, whatever `web_search` says -- ``-c web_search="disabled"``, which is the setting
+that does, and ``--disable apps``. And at `read-only` a fence that grants it is not cut by
+Codex instead: that sandbox cuts a command's
 network with its writes, so a `read-only` turn whose fence grants the network is sent that
 sandbox with the network left on (:data:`_REACHING`). On Linux and macOS a rung under a fence
 held around Codex is left to that fence (:func:`_abroad`): Codex's own sandbox cannot start
@@ -329,6 +333,10 @@ type _Knows = tuple[
     str, tuple[str, ...], tuple[str, ...], Fence | None, str, tuple[str, ...]
 ]
 
+#: What the agent is noted to have been told where its own sandbox holds its fence, beside
+#: the rungs it has been told it runs below (:meth:`CodexAgent._stepped`).
+_NATIVE = "sandbox.native"
+
 #: The sandboxes a rung may ask for that confine a command at all, and so the ones
 #: :data:`_LANDLOCK` has anything to do with.
 _SANDBOXED = ("read-only", "workspace-write")
@@ -379,41 +387,105 @@ def _abroad(config: AgentConfig, sandbox: object) -> bool:
     return not fence.outward
 
 
+def _runs(mode: str, *flags: str) -> bool:
+    """Whether this machine's Codex runs a `true` in its own sandbox at a mode.
+
+    Asked of Codex itself rather than of the kernel, the sandbox being Codex's to start. A
+    tenth of a second, and asked once per process by each that wants it.
+
+    Args:
+      mode: The sandbox mode, as `sandbox_mode` names it.
+      flags: More of what `codex sandbox` is started with.
+
+    Returns:
+      Whether it ran.
+    """
+    from hmz.coganchor.backends import elsewhere
+
+    codex = elsewhere("codex") or "codex"
+    try:
+        return (
+            subprocess.run(
+                [
+                    codex,
+                    "sandbox",
+                    *flags,
+                    "-c",
+                    f'sandbox_mode="{mode}"',
+                    "--",
+                    "true",
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                check=False,
+            ).returncode
+            == 0
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 @functools.cache
 def _landlocked() -> bool:
     """Whether this machine's Codex holds a read-only command only with :data:`_LANDLOCK` on.
 
-    Asked of Codex itself rather than of the kernel, the sandbox being Codex's to start: one
-    sandboxed `true` as the rung would run it, and again with the feature on where that one
-    failed. Each is a tenth of a second, and it is asked once per process.
+    One sandboxed `true` as the rung would run it, and again with the feature on where that
+    one failed.
 
     Returns:
       True where bubblewrap cannot start and Landlock can, and False where bubblewrap starts
       -- which is the better sandbox, and the one Codex picks by itself -- or where neither
       does, which the feature would not mend.
     """
-    from hmz.coganchor.backends import elsewhere
+    return not _runs("read-only") and _runs("read-only", "--enable", _LANDLOCK)
 
-    codex = elsewhere("codex") or "codex"
 
-    def runs(*flags: str) -> bool:
-        rung = ("-c", 'sandbox_mode="read-only"')
-        try:
-            return (
-                subprocess.run(
-                    [codex, "sandbox", *flags, *rung, "--", "true"],
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=10,
-                    check=False,
-                ).returncode
-                == 0
+@functools.cache
+def _starts() -> bool:
+    """Whether this machine's Codex starts the sandbox a fence handed to it is held by.
+
+    `workspace-write`, as it would run it with nothing else said: the one :func:`_held`
+    sends where the workdir may be written, and the wider of the two it sends.
+    """
+    return _runs("workspace-write")
+
+
+def _held(fence: Fence, cwd: str) -> dict[str, Any]:
+    """The `sandboxPolicy` a turn is sent where Codex's own sandbox holds its fence.
+
+    Read-only where the fence does not let the directory it works in be written, the network
+    as the fence has it; else `workspaceWrite`, whose roots are what the fence writes but for
+    the devices and `/proc`, which a sandbox Codex makes already lets a command use, and
+    which leaves out `/tmp` and `$TMPDIR` where the fence does. Reading is everything, which
+    is all Codex's sandbox can say of it.
+
+    Args:
+      fence: The fence.
+      cwd: Where the session works.
+
+    Returns:
+      The policy.
+    """
+    if not fence.allows(cwd, write=True):
+        return {"type": "readOnly", "networkAccess": fence.online}
+    tmpdir = os.environ.get("TMPDIR", "")
+    return {
+        "type": "workspaceWrite",
+        "writableRoots": [
+            one
+            for one in fence.write
+            if not any(
+                one == at or one.startswith(f"{at}/") for at in ("/dev", "/proc")
             )
-        except (OSError, subprocess.SubprocessError):
-            return False
-
-    return not runs() and runs("--enable", _LANDLOCK)
+        ],
+        "networkAccess": fence.online,
+        "excludeSlashTmp": not fence.allows("/tmp", write=True),  # noqa: S108
+        "excludeTmpdirEnvVar": not (
+            tmpdir.startswith("/") and fence.allows(tmpdir, write=True)
+        ),
+    }
 
 
 @functools.cache
@@ -2335,9 +2407,17 @@ class CodexSession(SessionBase):
         said = turning(rung)
         config = self._agent.config
         fence = config.fence
+        if fence is not None and self._agent.holds(fence):
+            said["sandboxPolicy"] = _held(fence, self.cwd)
+            if self._agent._stepped(_NATIVE):
+                self._narrates(
+                    "codex: held to its permission by Codex's own sandbox, as sandbox.native "
+                    "asks: that holds the commands the agent runs, reading everything, and "
+                    "not Codex itself, its MCP servers or its hooks"
+                )
         # Read off the rung as this server runs it, after any step down: a rung stepped down
         # to `read-only` is one whose network the permission may still grant.
-        if _abroad(config, rung.get("sandbox")) and fence is not None:
+        elif _abroad(config, rung.get("sandbox")) and fence is not None:
             said["sandboxPolicy"] = _EXTERNAL | {
                 "networkAccess": "enabled" if fence.online else "restricted"
             }
@@ -2803,6 +2883,52 @@ class CodexAgent(AgentBase):
             server.stop()
             raise Failed(1, argv, "", "app server stopped while it started")
         return server
+
+    def natively(self, fence: Fence) -> Fence:
+        """None of the fence, but where `sandbox.native` names Codex and it can hold it all.
+
+        Codex's own sandbox holds the commands the agent runs and nothing else, as the module
+        says, so it holds no part of a fence by the rules
+        :meth:`~hmz.coganchor.agents.AgentBase.natively` sets -- unless the person at this
+        machine named `codex` in `sandbox.native`, trading the rest for it (:meth:`holds`).
+        Then each turn is sent what it can say of the fence (:func:`_held`), and nothing is
+        put around Codex from outside.
+
+        Args:
+          fence: The fence this agent is held to.
+
+        Returns:
+          A fence that holds nothing from outside, where Codex's sandbox holds it; `fence`
+          itself otherwise.
+        """
+        if self.holds(fence):
+            return fence.without(filesystem=True, network=True)
+        return fence
+
+    def holds(self, fence: Fence) -> bool:
+        """Whether Codex's own sandbox holds this agent's fence, rather than one from outside.
+
+        Where `sandbox.native` names `codex`; the CLI runs here, with its work, since a
+        sandbox Codex makes on this machine holds nothing of a command run on another; the
+        fence carves nothing out of a grant, which `writableRoots` has no word for; and this
+        Codex's sandbox starts here (:func:`_starts`). Otherwise the fence is held from
+        outside, as though nothing had been named: never wider than the person asked for.
+
+        Args:
+          fence: The fence.
+
+        Returns:
+          Whether it is held so.
+        """
+        from hmz.coganchor.fence import natives
+
+        return (
+            "codex" in natives()
+            and self.config.machine is None
+            and not (fence.keep or fence.deny)
+            and not fence.open
+            and _starts()
+        )
 
     def _native(self) -> bool:
         """Whether this agent's turns are taken by the target's own Codex, asked without starting.
