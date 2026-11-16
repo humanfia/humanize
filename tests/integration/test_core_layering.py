@@ -97,6 +97,13 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.tracing",
     },
     "hmz.daemon": {"hmz.runtime"},
+    # The methods a daemon serves beyond epics and sessions, each family through what keeps it.
+    "hmz.daemon.api": {
+        "hmz.coganchor",
+        "hmz.reach.routes",
+        "hmz.rpc",
+        "hmz.runtime",
+    },
     # The carriers to a daemon: ssh and EasyTier as the anchor reaches them, and the socket of
     # this machine's daemon where `where` says it is.
     "hmz.reach": {"hmz.coganchor", "hmz.daemon.where"},
@@ -123,6 +130,7 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.web": {
         "hmz.coganchor",
         "hmz.daemon",
+        "hmz.rpc",
         "hmz.runtime.epic",
         "hmz.runtime.kept",
         "hmz.runtime.watching",

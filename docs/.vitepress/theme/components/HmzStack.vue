@@ -68,6 +68,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.tracing',
   ],
   'hmz.daemon': ['hmz.runtime'],
+  'hmz.daemon.api': ['hmz.coganchor', 'hmz.reach.routes', 'hmz.rpc', 'hmz.runtime'],
   'hmz.reach': ['hmz.coganchor', 'hmz.daemon.where'],
   'hmz.relay': [],
   'hmz.rpc': [],
@@ -88,6 +89,7 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.web': [
     'hmz.coganchor',
     'hmz.daemon',
+    'hmz.rpc',
     'hmz.runtime.epic',
     'hmz.runtime.kept',
     'hmz.runtime.watching',
@@ -154,6 +156,13 @@ const LAYERS: Layer[] = [
     note: 'Names the runtime by its front door, `hmz.runtime`.',
     spec: 'daemon.md#4-wire-protocol',
     ref: '/reference/daemon',
+  },
+  {
+    id: 'api',
+    dotted: 'hmz.daemon.api',
+    here: 'The methods a daemon serves beyond epics and sessions, one module per family: settings, accounts, fallbacks, runtimes, EasyTier.',
+    note: 'Reaches what each family keeps through `coganchor` and the runtime, and checks a listener with `reach.routes`.',
+    spec: 'daemon.md#418-settings',
   },
   {
     id: 'reach',
@@ -293,7 +302,7 @@ const LAYERS: Layer[] = [
 
 const BANDS: { label: string; ids: string[] }[] = [
   { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
-  { label: 'holding a run', ids: ['daemon'] },
+  { label: 'holding a run', ids: ['daemon', 'api'] },
   { label: 'reaching a daemon', ids: ['reach', 'relay', 'rpc', 'rtc', 'trust'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },

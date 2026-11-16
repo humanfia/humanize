@@ -316,6 +316,8 @@ ignore = [
 # `BudgetExceeded`, `TempCloneBusy` -- as the flow API's spec names them, rather than each
 # given an `Error` suffix that would say only that they are exceptions.
 "src/hmz/flows/errors.py" = ["N818"]
+# The docstring every unit adding a family of daemon methods writes, word for word, as one line.
+"src/hmz/daemon/api/__init__.py" = ["E501"]
 # What a command line writes, it prints.
 "src/hmz/cli/**" = ["T201"]
 # And so does a flow: what it prints is what its run shows whoever is watching. The flows
