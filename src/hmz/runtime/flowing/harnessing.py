@@ -275,10 +275,19 @@ def fenced(
     from hmz.coganchor import backends
     from hmz.coganchor.fence import Fence
 
+    # The scopes said as the rules they are, widest first so the narrower roots win. A
+    # stopgap until the flow API says its permission in rules itself.
+    access = {
+        PermissionKind.NONE: "none",
+        PermissionKind.READ: "read",
+        PermissionKind.ALL: "write",
+    }
     return Fence.of(
-        local=permission.local,
-        user=permission.user,
-        system=permission.system,
+        rules=[
+            ("/", access[permission.system]),
+            ("~", access[permission.user]),
+            (".", access[permission.local]),
+        ],
         online=permission.online == PermissionKind.ALL,
         workdir=workdir,
         home=home,

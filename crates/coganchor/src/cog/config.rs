@@ -214,7 +214,7 @@ pub fn refused(config: &AnchorConfig, harness: &Target, net: &str) -> Result<(),
         }
     }
     if let Some(fence) = &config.fence
-        && !open(fence)
+        && !fence.open()
     {
         fenceable(fence, &harness.scheme, config.net_remote || net == "remote")?;
     }
@@ -243,21 +243,12 @@ pub fn refused(config: &AnchorConfig, harness: &Target, net: &str) -> Result<(),
     Ok(())
 }
 
-/// `Fence.open`: the whole filesystem to write, and the network.
-fn open(fence: &Fence) -> bool {
-    fence.online
-        && fence
-            .write
-            .iter()
-            .any(|one| abspath(one).is_ok_and(|one| one == "/"))
-}
-
 /// `AnchorConfig._fenceable` (anchor.py:348-371): a fence this session could not hold.
 fn fenceable(fence: &Fence, harness: &str, net_remote: bool) -> Result<(), String> {
-    if fence.scopes.is_empty() {
+    if fence.drawn.is_empty() {
         return Err(
             "a fence drawn path by path cannot be held on another machine; draw it from its \
-             levels with Fence.of"
+             rules with Fence.of"
                 .into(),
         );
     }
@@ -427,21 +418,26 @@ mod tests {
         }
     }
 
-    fn fence(scopes: &[&str], online: bool) -> Fence {
+    fn fence(rules: &[(&str, &str)], online: bool) -> Fence {
         Fence {
             write: vec!["/w".into()],
             online,
-            scopes: scopes.iter().map(|one| (*one).to_owned()).collect(),
+            drawn: rules
+                .iter()
+                .map(|(path, access)| ((*path).to_owned(), (*access).to_owned()))
+                .collect(),
             ..Fence::default()
         }
     }
 
+    const RULES: [(&str, &str); 3] = [("/", "read"), ("~", "read"), (".", "write")];
+
     fn levelled() -> Fence {
-        fence(&["all", "read", "read"], true)
+        fence(&RULES, true)
     }
 
     fn cut() -> Fence {
-        fence(&["all", "read", "read"], false)
+        fence(&RULES, false)
     }
 
     /// `refused`, with the harness the config names (`ssh://box` and `same` spelled out).

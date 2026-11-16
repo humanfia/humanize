@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from hmz.coganchor import binary
 from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.argv import forget, kept, options, render
-from hmz.coganchor.fence import ALL, NONE, READ, Fence
+from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.homes import Virtual
 
 if TYPE_CHECKING:
@@ -58,9 +58,7 @@ NATIVE = AnchorConfig(
 FENCED = AnchorConfig(
     target="local",
     fence=Fence.of(
-        local=ALL,
-        user=READ,
-        system=NONE,
+        rules=[("~", READ), (".", WRITE)],
         online=False,
         workdir="/srv/project",
         home="/home/me",

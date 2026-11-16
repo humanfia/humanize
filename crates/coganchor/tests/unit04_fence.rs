@@ -19,7 +19,7 @@ fn fence(policy: &str, argv: &[&str]) -> Output {
 
 fn policy(write: &str) -> String {
     format!(
-        r#"{{"read":["/"],"write":["{write}"],"online":true,"hosts":[],"tmp":"","scopes":[],"listen":[]}}"#
+        r#"{{"read":["/"],"write":["{write}"],"online":true,"hosts":[],"tmp":"","drawn":[],"listen":[]}}"#
     )
 }
 
@@ -250,4 +250,60 @@ fn child(handoff: i32) -> i32 {
         }
     }
     0
+}
+
+#[test]
+fn landlock_holds_what_a_fence_carves_out_of_a_grant() {
+    if landlock::abi() < 1 {
+        eprintln!("skipped: no Landlock");
+        return;
+    }
+    // Not on the checkout, which Docker Desktop mounts where Landlock's rules on a file fail.
+    let dir = tempfile::tempdir().unwrap();
+    let w = std::fs::canonicalize(dir.path()).unwrap();
+    std::fs::create_dir_all(w.join("secret")).unwrap();
+    std::fs::create_dir_all(w.join("ro")).unwrap();
+    std::fs::write(w.join("secret/key"), "key\n").unwrap();
+    std::fs::write(w.join("ro/notes"), "notes\n").unwrap();
+    std::fs::write(w.join("ok"), "ok\n").unwrap();
+    let said = format!(
+        r#"{{"read":["/"],"write":["{w}"],"keep":["{w}/ro"],"deny":["{w}/secret"]}}"#,
+        w = w.display()
+    );
+    let script = format!(
+        "echo changed > {w}/ok && echo wrote; cat {w}/secret/key 2>/dev/null || echo hidden; \
+         (echo x > {w}/ro/notes) 2>/dev/null || echo kept; cat {w}/ro/notes; \
+         touch {w}/new 2>/dev/null || echo closed",
+        w = w.display()
+    );
+    let done = fence(&said, &["sh", "-c", &script]);
+    let out = String::from_utf8_lossy(&done.stdout);
+    assert!(done.status.success(), "{}", stderr(&done));
+    assert_eq!(out, "wrote\nhidden\nkept\nnotes\nclosed\n");
+    assert_eq!(std::fs::read_to_string(w.join("ok")).unwrap(), "changed\n");
+}
+
+#[test]
+fn a_carve_out_that_cannot_be_held_is_refused_before_anything_runs() {
+    if landlock::abi() < 1 {
+        eprintln!("skipped: no Landlock");
+        return;
+    }
+    let dir = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+    let w = std::fs::canonicalize(dir.path()).unwrap();
+    std::fs::write(w.join("file"), "").unwrap();
+    let said = format!(
+        r#"{{"read":["/"],"write":["{w}/file"],"deny":["{w}/file/x"]}}"#,
+        w = w.display()
+    );
+    let done = fence(&said, &["true"]);
+    assert_eq!(done.status.code(), Some(126));
+    assert_eq!(
+        stderr(&done),
+        format!(
+            "hmz internal fence: [Errno 20] a path carved out beneath it cannot be held, it \
+             not being a directory: '{}/file'\n",
+            w.display()
+        )
+    );
 }

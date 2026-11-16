@@ -822,7 +822,9 @@ NOT update anything itself.
 
 **3.15.1.1** The page MUST follow the notices of Local and of every remote daemon while it is `up`,
 as each daemon makes them (Section 4.19 of [DAEMON]), through `notices.subscribe`, resuming after
-the last notice heard of that daemon.
+the last notice heard of that daemon: with `after` the `id` of that notice, which grows with each
+notice (Section 4.19.1.2 of [DAEMON]), or, where none was heard, the `last` the first
+`notices.subscribe` of that daemon answered.
 
 **3.15.1.2** Each notice MUST name its workspace, its epic, its flow and its task, and, where it is
 a question, the role asking and the question.
@@ -963,8 +965,10 @@ component lacks one extension of lowercase letters or digits, or that is longer 
 MUST be refused 404, as MUST a path naming no file.
 
 **4.5.5** An HTML file MUST be served with `Content-Security-Policy: default-src 'self'; img-src
-'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none';
-base-uri 'none'; form-action 'self'`, and with `Cache-Control: no-cache`.
+'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self' ws: wss:;
+frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, and with `Cache-Control: no-cache`:
+`'self'` lets the page reach the server's own `/rpc` and `/dial`, and `ws:` and `wss:` the relay of
+any `webrtc:` route, whose host the server cannot know.
 
 **4.5.6** A failure the server does not anticipate MUST be refused 500, `Something went wrong here:
 <why>`, and its traceback written to the server's standard error.
@@ -997,7 +1001,8 @@ daemon id the page pins, and MUST open a WebSocket.
 
 **4.8.2** The server MUST refuse, by closing the WebSocket with the code 1008 and a reason of one
 sentence, a `route` that is not a route, a `unix:`, `stdio:local` or `webrtc:` route, and an
-untrusted route without `id`.
+untrusted route without `id`, the last with `<route> needs the id of the daemon it reaches.`
+(Section 3.5.6 of [WIRE]).
 
 **4.8.3** The server MUST open the carrier the route names as Section 3.4 of [WIRE] states, and,
 where it is untrusted, MUST open mutual TLS over it as this machine's device (Section 4.4 of
@@ -1021,17 +1026,20 @@ of this machine (Section 3.4.10 of [FILES]), which the page writes through Local
 
 ### 4.9. Pipe providers
 
-**4.9.1** The page served by the server MUST reach Local through `/rpc`, the routes `stdio:ssh`,
-`stdio:wsl`, `tcp`, `ws`, `wss`, `easytier` and `relay` through `/dial`, and `webrtc` through the
-browser's own WebRTC (Section 4.7 of [WIRE]).
+**4.9.1** The page served by the server MUST keep Local as the route `unix:` and reach it through
+`/rpc`, the routes `stdio:ssh`, `stdio:wsl`, `tcp`, `ws`, `wss`, `easytier` and `relay` through
+`/dial`, and `webrtc` through the browser's own WebRTC (Section 4.7 of [WIRE]).
 
 **4.9.2** The page shown by the desktop application MUST reach every daemon through the
 application's pipes (Section 3.12 of [DESKTOP]), and `webrtc` routes through the web view's own
-WebRTC.
+WebRTC; it MUST keep Local as the route `stdio:local` on macOS and `stdio:wsl` on Windows (Section
+3.5 of [DESKTOP]).
 
 **4.9.3** The page MUST speak one RPC session per daemon it reaches, over whichever pipe provider,
 as [WIRE] states: racing the routes, pinning the daemon id, saying `session.hello` with `kind` `web`
-or `desktop`, and attaching again with `since` after a reconnection.
+or `desktop`, and attaching again with `since` after a reconnection; it MUST say a route it has no
+provider for as Section 3.3.2 of [WIRE] states, a route not open in time as Section 3.4.9 of [WIRE]
+states, and a daemon with no route as Section 3.6.3 of [WIRE] states.
 
 **4.9.4** The page MUST check that the `daemon_id` `session.hello` answers over `/dial` is the id it
 pins, and MUST close the session where it is not.

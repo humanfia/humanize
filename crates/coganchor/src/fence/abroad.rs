@@ -1,8 +1,8 @@
 //! A fence drawn again on the target, around a command a fenced agent runs there. Port of
 //! `hmz.coganchor.fence.abroad` and `hmz.coganchor.serve.fencing`. [Unit 4]
 //!
-//! What crosses to the target is not a fence but what it was drawn from (`abroad.told`): the
-//! three levels, whether the network is cut, and for a CLI that runs there itself the hosts
+//! What crosses to the target is not a fence but what it was drawn from (`abroad.told`): its
+//! rules, whether the network is cut, and for a CLI that runs there itself the hosts
 //! its model is at and the state it keeps under its home. This end draws the same fence again
 //! around its own workdirs, its own home and its own minimum ([`drawn`]), and runs the
 //! command under `coganchor internal fence` ([`fenced`]).
@@ -14,7 +14,7 @@ use std::path::{Component, Path, PathBuf};
 use serde_json::{Map, Value};
 
 use crate::anchor::ExportTable;
-use crate::fence::policy::{ALL, LEVELS, READ, normpath, truthy};
+use crate::fence::policy::{normpath, rules, truthy};
 use crate::fence::{Fence, wrap};
 use crate::proto::RemoteError;
 
@@ -22,9 +22,9 @@ use crate::proto::RemoteError;
 pub const HOME: &str = "~/";
 
 /// The command line running `argv` (or `program`, where it is on this machine) inside the
-/// fence the `EXEC` request's `fence` levels draw around this machine's own paths: the
+/// fence the `EXEC` request's `fence` rules draw around this machine's own paths: the
 /// exports, this user's home, this machine's minimum. `EPERM` where this machine cannot hold
-/// it; `EIO` where the levels are malformed.
+/// it; `EIO` where the rules are malformed.
 ///
 /// A program named by `programs` is looked up on this process's own `PATH`: the request's
 /// environment is not handed down here.
@@ -97,7 +97,8 @@ fn strings(said: &Map<String, Value>, name: &str) -> Result<Vec<String>, String>
 ///
 /// `workdirs` are the directories this machine exports, the first of them the workdir;
 /// `home` is the home of the user commands run as, which is no home where it is `/` or not a
-/// directory. Refuses levels that are not a fence's, a scratch that is not an absolute path of
+/// directory, and `~` is then the first workdir. The workdirs after the first are each drawn as
+/// the workdir is ([`Fence::beside`]). Refuses rules that are not a fence's, a scratch that is not an absolute path of
 /// its own, a path to write that is neither under `~/` nor absolute (or that has `..` in it),
 /// and a port that is not one.
 pub fn drawn(
@@ -110,17 +111,10 @@ pub fn drawn(
     let Some((first, rest)) = workdirs.split_first() else {
         return Err("a fence is drawn around a workdir, and there is none".into());
     };
-    let levels: Vec<&str> = ["local", "user", "system"]
-        .iter()
-        .filter_map(|one| said.get(*one).and_then(Value::as_str))
-        .filter(|one| LEVELS.contains(one))
-        .collect();
-    if levels.len() != 3 {
-        return Err(format!(
-            "a fence's levels are each one of {}",
-            LEVELS.join(", ")
-        ));
-    }
+    let drawn = said
+        .get("rules")
+        .and_then(rules)
+        .ok_or("a fence's rules are a list of [path, access]")?;
     let online = match said.get("online") {
         None => true,
         Some(Value::Bool(online)) => *online,
@@ -146,17 +140,6 @@ pub fn drawn(
         ));
     }
     let homed = !home.is_empty() && normpath(home) != "/" && Path::new(home).is_dir();
-    let local = levels[0];
-    let widened: Vec<String> = if local == ALL {
-        rest.to_vec()
-    } else {
-        Vec::new()
-    };
-    let seen: Vec<String> = if local == READ {
-        rest.to_vec()
-    } else {
-        Vec::new()
-    };
     let listen: Vec<u16> = match said.get("listen") {
         None => Vec::new(),
         Some(Value::Array(ports)) => ports
@@ -170,10 +153,7 @@ pub fn drawn(
             .ok_or("a fence's listen is a list of ports")?,
         Some(_) => return Err("a fence's listen is a list of ports".into()),
     };
-    let mut reading = seen;
-    reading.extend(read.iter().cloned());
-    let mut writing = widened;
-    writing.extend(write.iter().cloned());
+    let mut writing = write.to_vec();
     writing.extend(kept.iter().filter(|one| one.starts_with('/')).cloned());
     if homed {
         writing.extend(
@@ -182,18 +162,16 @@ pub fn drawn(
                 .map(|rest| Path::new(home).join(rest).to_string_lossy().into_owned()),
         );
     }
-    let fence = Fence::of(
-        local,
-        levels[1],
-        levels[2],
-        online,
-        first,
-        if homed { home } else { first },
-        &hosts,
-        &reading,
-        &writing,
-    )?
-    .granting(&[], &[], &[], &listen);
+    let home = if homed { home } else { first.as_str() };
+    let mut fence = Fence::of(&drawn, online, first, home, "", &hosts, read, &writing)?.granting(
+        &[],
+        &[],
+        &[],
+        &listen,
+    );
+    for one in rest {
+        fence = fence.beside(one, home);
+    }
     Ok(if tmp.is_empty() {
         fence
     } else {
@@ -381,38 +359,101 @@ mod tests {
         let home = std::fs::canonicalize(dir.path()).unwrap();
         let home = home.to_string_lossy().into_owned();
         let fence = drawn(
-            &said(
-                json!({"local": "all", "user": "read", "system": "none", "online": false,
-                         "write": ["~/.cli", "/opt/state"], "listen": [8080], "tmp": "/tmp/x/"}),
-            ),
+            &said(json!({
+                "rules": [["/", "none"], ["~", "read"], [".", "write"]], "online": false,
+                "write": ["~/.cli", "/opt/state"], "listen": [8080], "tmp": "/tmp/x/",
+            })),
             &["/w1".into(), "/w2".into()],
             &home,
             &[],
             &[],
         )
         .unwrap();
-        assert!(fence.write.contains(&"/w1".to_owned()));
-        assert!(fence.write.contains(&"/w2".to_owned()));
-        assert!(fence.write.contains(&"/opt/state".to_owned()));
-        assert!(fence.write.contains(&format!("{home}/.cli")));
-        assert!(fence.read.contains(&home));
+        assert!(fence.allows("/w1/a", true));
+        assert!(fence.allows("/w2/a", true));
+        assert!(fence.allows("/opt/state/a", true));
+        assert!(fence.allows(&format!("{home}/.cli/a"), true));
+        assert!(fence.allows(&format!("{home}/.bashrc"), false));
+        assert!(!fence.allows("/srv/elsewhere", false));
         assert!(!fence.online);
         assert_eq!(fence.listen, vec![8080]);
         assert_eq!(fence.tmp, "/tmp/x");
-        assert_eq!(fence.scopes, vec!["all", "read", "none"]);
+        assert_eq!(
+            fence.drawn,
+            vec![
+                ("/".to_owned(), "none".to_owned()),
+                ("~".to_owned(), "read".to_owned()),
+                (".".to_owned(), "write".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_fence_carves_out_around_the_targets_own_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = std::fs::canonicalize(dir.path()).unwrap();
+        let home = home.to_string_lossy().into_owned();
+        let fence = drawn(
+            &said(json!({"rules": [
+                ["/", "read"], [".", "write"], ["./secret", "none"], ["~/.ssh", "none"],
+            ]})),
+            &["/srv/work".into(), "/srv/more".into()],
+            &home,
+            &[],
+            &[],
+        )
+        .unwrap();
+        assert!(fence.allows("/srv/work/a.py", true));
+        assert!(!fence.allows("/srv/work/secret/key", false));
+        assert!(fence.allows("/srv/more/a.py", true));
+        assert!(!fence.allows("/srv/more/secret/key", false));
+        assert!(!fence.allows(&format!("{home}/.ssh/id"), false));
+        assert!(fence.allows(&format!("{home}/.bashrc"), false));
+    }
+
+    #[test]
+    fn every_export_is_drawn_as_the_workdir() {
+        for (local, written, read) in [
+            ("write", true, true),
+            ("read", false, true),
+            ("none", false, false),
+        ] {
+            let fence = drawn(
+                &said(json!({"rules": [[".", local]]})),
+                &["/w".into(), "/x".into()],
+                "/",
+                &[],
+                &[],
+            )
+            .unwrap();
+            assert_eq!(fence.allows("/x/a", true), written, "{local}");
+            assert_eq!(fence.allows("/x/a", false), read, "{local}");
+        }
     }
 
     #[test]
     fn what_is_not_a_fence_is_refused() {
         let w = ["/w".to_owned()];
-        let base = json!({"local": "read", "user": "none", "system": "none"});
+        let base = json!({"rules": [["/", "none"]]});
         let with = |key: &str, value: Value| {
             let mut one = said(base.clone());
             one.insert(key.into(), value);
             one
         };
         assert!(drawn(&said(base.clone()), &[], "/", &[], &[]).is_err());
-        assert!(drawn(&with("local", json!("most")), &w, "/", &[], &[]).is_err());
+        assert!(drawn(&said(json!({})), &w, "/", &[], &[]).is_err());
+        for rules in [
+            json!("/"),
+            json!([["/"]]),
+            json!([["/", 1]]),
+            json!([["/", "all"]]),
+            json!([["relative", "read"]]),
+        ] {
+            assert!(
+                drawn(&with("rules", rules.clone()), &w, "/", &[], &[]).is_err(),
+                "{rules}"
+            );
+        }
         assert!(drawn(&with("tmp", json!("relative")), &w, "/", &[], &[]).is_err());
         assert!(drawn(&with("tmp", json!("/a/../b")), &w, "/", &[], &[]).is_err());
         assert!(drawn(&with("write", json!(["rel"])), &w, "/", &[], &[]).is_err());
@@ -420,8 +461,6 @@ mod tests {
         assert!(drawn(&with("listen", json!([0])), &w, "/", &[], &[]).is_err());
         assert!(drawn(&with("listen", json!([65536])), &w, "/", &[], &[]).is_err());
         assert!(drawn(&with("online", json!("no")), &w, "/", &[], &[]).is_err());
-        // The levels must nest.
-        assert!(drawn(&with("user", json!("all")), &w, "/", &[], &[]).is_err());
     }
 
     #[test]

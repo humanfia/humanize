@@ -40,7 +40,7 @@ pub struct ExecRequest {
     /// The working directory, as the target names it.
     pub cwd: String,
     pub env: Vec<(OsString, OsString)>,
-    /// The fence's levels, where the agent is fenced.
+    /// The fence's rules, where the agent is fenced.
     pub fence: Option<serde_json::Value>,
 }
 

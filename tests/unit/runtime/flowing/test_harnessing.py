@@ -184,18 +184,14 @@ def test_the_fence_is_the_permissions_scopes_around_the_workdir(
     assert (known, unknown) == ("the fence", "the fence")
     assert drawn == [
         {
-            "local": PermissionKind.NONE,
-            "user": PermissionKind.NONE,
-            "system": PermissionKind.NONE,
+            "rules": [("/", "none"), ("~", "none"), (".", "none")],
             "online": False,
             "workdir": "/w",
             "home": "/h",
             "hosts": ("api.example.com",),
         },
         {
-            "local": PermissionKind.ALL,
-            "user": PermissionKind.READ,
-            "system": PermissionKind.READ,
+            "rules": [("/", "read"), ("~", "read"), (".", "write")],
             "online": True,
             "workdir": "/w",
             "home": "/h",

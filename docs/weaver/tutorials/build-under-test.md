@@ -161,7 +161,6 @@ from hmz.flows import (
     ...
     LocalEnv,
     Permission,  # [!code ++]
-    PermissionKind,  # [!code ++]
     flow,
 )
 
@@ -169,7 +168,7 @@ from hmz.flows import (
 class Reviewer(Agent):  # [!code ++]
     """Reads what the builder wrote, and writes nothing."""  # [!code ++]
 
-    _permission = Permission(local=PermissionKind.READ)  # [!code ++]
+    _permission = Permission("read-only")  # [!code ++]
 
 
 class Agents(AgentCollection):
@@ -178,9 +177,10 @@ class Agents(AgentCollection):
     reviewer: Reviewer  # [!code ++]
 ```
 
-`local=PermissionKind.READ` means the reviewer may read the directory it works in and write
-none of it, whichever CLI fills the role. [Permissions](/user/permissions) has the other
-scopes.
+The `read-only` preset means the reviewer may read the directory it works in, and the rest of
+the machine, and write none of it, whichever CLI fills the role. It may still reach the
+network, since `network` is a knob of its own. [Permissions](/user/permissions) has the other
+presets, and the per-path rules that carve exceptions out of one.
 
 ## Step 4: run the tests yourself
 
@@ -190,7 +190,7 @@ code. A flow may run programs in a workspace whose type carries `ShellEnvMixin`:
 ```python
 from hmz.flows import (
     ...
-    PermissionKind,
+    Permission,
     ShellEnvMixin,  # [!code ++]
     flow,
 )
@@ -267,7 +267,6 @@ from hmz.flows import (
     FlowParams,
     LocalEnv,
     Permission,
-    PermissionKind,
     ShellEnvMixin,
     flow,
 )
@@ -287,7 +286,7 @@ TAIL = 4000
 class Reviewer(Agent):  # ①
     """Reads what the builder wrote, and writes nothing."""
 
-    _permission = Permission(local=PermissionKind.READ)
+    _permission = Permission("read-only")
 
 
 class Agents(AgentCollection):
@@ -503,7 +502,7 @@ milliseconds on fakes. Save this under `.hmz/tests/`:
 
 ```python
 # .hmz/tests/test_build_under_test.py
-from hmz.flows import PermissionKind
+from hmz.flows import Permission
 from hmz.sdk import fakes
 
 SUITE = ("python", "-m", "pytest", "-q")
@@ -539,7 +538,7 @@ async def test_the_notes_are_the_next_prompt() -> None:
     )
     assert builder.prompts == ["add from_roman", "IIII is accepted"]
     assert (len(builder.sessions), len(reviewer.sessions)) == (1, 2)  # ⑥
-    assert reviewer.sessions[0].permission.local == PermissionKind.READ  # ⑦
+    assert reviewer.sessions[0].permission == Permission("read-only")  # ⑦
 ```
 
 ```sh

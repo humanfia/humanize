@@ -24,6 +24,7 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::Path;
 
+use crate::fence::policy::{depth, under};
 use crate::fence::{Able, Fence};
 
 /// The command a profile is applied with (`SANDBOX_EXEC`).
@@ -53,15 +54,32 @@ pub fn profile(fence: &Fence, port: Option<u16>) -> (String, Vec<(String, String
         write.push(fence.tmp.clone());
     }
     write.extend(security());
-    rules(&fence.read, &write, port)
+    rules(&fence.read, &write, &fence.keep, &fence.deny, port)
 }
+
+/// What a path carved out, or granted again beneath a carve-out, is said with (`_DENY`,
+/// `_KEEP`, `_READ`, `_WRITE`).
+const DENY: &str = "(deny file-read* file-write* process-exec {})";
+const KEEP: &str = "(deny file-write* {})";
+const READ: &str = "(allow file-read* process-exec {})";
+const WRITE: &str = "(allow file-read* file-write* process-exec {})";
 
 /// The profile for exactly these paths and port, and the parameters the paths are named by
 /// (`Profile.rules`). Named by parameter rather than written into the profile, so that a path
 /// holding a quote or a backslash is a path rather than the end of a string.
+///
+/// What is carved out beneath a grant -- `keep` kept to reading, `deny` kept out of reach -- is
+/// said after the grants, shallowest first, since a later rule in a profile wins over an
+/// earlier one: so a path's level is that of the deepest path named above it, as a fence reads
+/// it, and a path granted again beneath a carve-out is said again after it. Each carve-out is
+/// named as given and as it resolves, which can only deny more. None may be taken from its
+/// name, nor may any directory on the way down to it, nor may a link be made at any of their
+/// names.
 pub fn rules(
     read: &[String],
     write: &[String],
+    keep: &[String],
+    deny: &[String],
     port: Option<u16>,
 ) -> (String, Vec<(String, String)>) {
     let mut params = Vec::new();
@@ -103,6 +121,7 @@ pub fn rules(
             "(deny file-write-unlink (require-all (vnode-type DIRECTORY) (require-any {itself})))"
         ));
     }
+    lines.extend(carved(read, write, keep, deny, &mut named));
     lines.push(format!(
         "(allow file-read* file-write* (regex #\"{TERMINALS}\"))"
     ));
@@ -118,6 +137,95 @@ pub fn rules(
         ));
     }
     (lines.join("\n"), params)
+}
+
+/// The rules that carve `keep` and `deny` out of the grants said before them (`_carved`).
+///
+/// Each carve-out, and each grant beneath one said again after it, shallowest first -- a
+/// carve-out before a grant at the same path, which the grant then wins -- and then what holds
+/// every carve-out at its name: neither it nor a directory on the way down to it taken from its
+/// name, and no link made at any of them.
+fn carved(
+    read: &[String],
+    write: &[String],
+    keep: &[String],
+    deny: &[String],
+    named: &mut impl FnMut(&[String], &str, bool) -> Vec<String>,
+) -> Vec<String> {
+    let deny = held(deny, true);
+    let keep = held(keep, true);
+    let cuts: Vec<&String> = deny.iter().chain(&keep).collect();
+    if cuts.is_empty() {
+        return Vec::new();
+    }
+    let beneath = |one: &String| cuts.iter().any(|cut| under(one, cut));
+    let mut said: Vec<(String, u8, &str)> = deny
+        .iter()
+        .map(|one| (one.clone(), 0, DENY))
+        .chain(keep.iter().map(|one| (one.clone(), 0, KEEP)))
+        .chain(
+            held(read, true)
+                .into_iter()
+                .filter(|one| beneath(one))
+                .map(|one| (one, 1, READ)),
+        )
+        .chain(
+            held(write, false)
+                .into_iter()
+                .filter(|one| beneath(one))
+                .map(|one| (one, 1, WRITE)),
+        )
+        .collect();
+    said.sort_by_key(|(path, again, _)| (depth(path), *again));
+    let mut lines: Vec<String> = said
+        .iter()
+        .enumerate()
+        .map(|(index, (path, _, rule))| {
+            let param = named(std::slice::from_ref(path), &format!("C{index}_"), false);
+            rule.replace("{}", &format!("(subpath {})", param[0]))
+        })
+        .collect();
+    let mut ways: Vec<String> = Vec::new();
+    for path in &cuts {
+        for one in above(path).into_iter().chain([(*path).clone()]) {
+            if !ways.contains(&one) {
+                ways.push(one);
+            }
+        }
+    }
+    let held_at = joined(&named(&ways, "A", false), "literal");
+    lines.push("(allow file-read-metadata)".into());
+    lines.push(format!("(deny file-write-unlink (require-any {held_at}))"));
+    lines.push(format!(
+        "(deny file-write-create (require-all (vnode-type SYMLINK) (require-any {held_at})))"
+    ));
+    // A root written again beneath a carve-out is held at its name as every one is.
+    let again: Vec<String> = said
+        .iter()
+        .filter(|(_, _, rule)| *rule == WRITE)
+        .map(|(path, _, _)| path.clone())
+        .collect();
+    if !again.is_empty() {
+        let itself = joined(&named(&again, "G", false), "literal");
+        lines.push(format!(
+            "(deny file-write-create (require-all (vnode-type SYMLINK) (require-any {itself})))"
+        ));
+        lines.push(format!(
+            "(deny file-write-unlink (require-all (vnode-type DIRECTORY) (require-any {itself})))"
+        ));
+    }
+    lines
+}
+
+/// Every directory a path is beneath, but `/` (`_above`).
+fn above(path: &str) -> Vec<String> {
+    let names: Vec<&str> = path
+        .split('/')
+        .filter(|one| !one.is_empty() && *one != ".")
+        .collect();
+    (1..names.len())
+        .map(|index| format!("/{}", names[..index].join("/")))
+        .collect()
 }
 
 fn joined(params: &[String], kind: &str) -> String {

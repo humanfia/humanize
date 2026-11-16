@@ -363,16 +363,19 @@ secret of at least 16 bytes in UTF-8, and the shared EasyTier nodes it meets thr
 of [FILES]); a shorter secret MUST be refused with `A secret must be at least 16 bytes.`
 
 **3.8.5.2** The name and the secret of the EasyTier network MUST be derived from the secret by
-SHA-256, each under a label of its own; the secret itself MUST NOT leave the machine it is set on,
-nor be passed on any command line.
+SHA-256, each under a label of its own: the name the SHA-256 of the UTF-8 of `hmz-easytier-name`, a
+NUL and the secret, and the network's secret that of `hmz-easytier-secret`, a NUL and the secret,
+each in lowercase hexadecimal; the secret itself MUST NOT leave the machine it is set on, nor be
+passed on any command line.
 
 **3.8.5.3** A daemon whose `listen` names `easytier:<name>` MUST join the network of that entry and
-make a TCP listener of its own, on its machine's loopback alone and at a port fixed by hmz,
-reachable over that network, carrying mutual TLS as any `tcp` listener does.
+make a TCP listener of its own, on its machine's loopback alone and at the port 41817, reachable
+over that network at the virtual address `10.144.144.1`, which it MUST take, and at that port
+alone, carrying mutual TLS as any `tcp` listener does.
 
 **3.8.5.4** A client opening `easytier:<name>` MUST join the network of its own entry of that name,
-expose the daemon's port on a port of this machine's loopback, wait until it answers, and then open
-mutual TLS over it as Section 4.4 of [WIRE] states.
+expose the daemon's port, `10.144.144.1:41817`, on a port of this machine's loopback, wait until it
+answers, and then open mutual TLS over it as Section 4.4 of [WIRE] states.
 
 **3.8.5.5** EasyTier MUST run without root and without a virtual network device, on either side.
 
@@ -808,10 +811,10 @@ still answering the last question`.
 **4.8.8.11** `epic.unaside` MUST take `side`, MUST close that side conversation, and MUST be refused
 with `no aside <side> is open`.
 
-**4.8.8.12** Every side conversation MUST be read-only, MUST carry no skills but The Epic's
-`ask-conversation` (Section 9.6.10 of [CORE]), MUST NOT be seen by the epic, MUST be answered only
-to the frontend that opened it, and MUST NOT write where any epic keeps its sessions nor into the
-harness's own home.
+**4.8.8.12** Every side conversation MUST run at the `read-only` rung, MUST carry no skills but The
+Epic's `ask-conversation` (Section 9.6.10 of [CORE]), MUST NOT be seen by the epic, MUST be answered
+only to the frontend that opened it, and MUST NOT write where any epic keeps its sessions nor into
+the harness's own home.
 
 **4.8.8.13** A side conversation MUST be closed by `epic.unaside`, when its frontend leaves, when an
 epic starts on the host, and when the host closes; no message announces side conversations.
@@ -1115,7 +1118,9 @@ pair over: give one, or listen.`
 
 **4.14.2.2** `pair.claim` MUST take `token` and `name` (the device's name, of the grammar of Section
 3.8.1.4), MUST pair the session's device as Section 4.5.8 of [WIRE] states, and MUST be answered
-with `daemon_id` and `device`, the name the device was paired under.
+with `daemon_id` and `device`, the name the device was paired under; a `name` not of that grammar
+MUST be refused 400, `A device's name begins with a letter or a digit, holds letters, digits, '.',
+'_' and '-', and is not local.`
 
 **4.14.2.3** `pair.claim` on a paired session MUST be refused 409, `This device is already paired.`
 
@@ -1128,7 +1133,8 @@ with `daemon_id` and `device`, the name the device was paired under.
 
 **4.14.3.2** `devices.revoke` MUST take `name`, MUST revoke that device as Section 4.6.3 of [WIRE]
 states, and MUST be answered with `dropped`, the number of sessions closed; `local` MUST be refused
-400 and an unknown name 404, `There is no device <name>.`
+400, `local cannot be revoked.` (Section 4.6.4 of [WIRE]), and an unknown name 404, `There is no
+device <name>.`
 
 **4.14.3.3** `devices.revoke` MUST be a write.
 
@@ -1314,9 +1320,9 @@ and MUST answer `days_back`, `days` (per UTC day, oldest first), `flows` (costli
 
 **4.17.2.1** `flows.get` MUST take `name` and `workspace`, and MUST answer what the flow declares:
 `name`, `ref`, `description`, `resumable`, `resumes`, `agents` (each `name`, `required`, `auto`,
-`harness`, `permission`, `skills`, and `clis`: the CLIs installed on the daemon's machine that can
-fill it), `envs` (each `name`, `required`, `auto`, `cpu`, `memory`, `gpu`, `image`), `params` (its
-JSON schema) and `remembered` (`agents`, `envs`, `params`, `budget`, `profile_flow`,
+`harness`, `permission` (`{preset, network, granular: [{path, access}]}`), `skills`, and `clis`: the
+CLIs installed on the daemon's machine that can fill it), `envs` (each `name`, `required`, `auto`,
+`cpu`, `memory`, `gpu`, `image`), `params` (its JSON schema) and `remembered` (`agents`, `envs`, `params`, `budget`, `profile_flow`,
 `profile_environment`, `backup`, as the workspace last set the flow up).
 
 **4.17.2.2** A name that is not one of `flows.list` MUST be refused 404, `<name> is not a flow on

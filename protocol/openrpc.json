@@ -303,6 +303,9 @@
           "$ref": "#/components/errors/TooLarge"
         },
         {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
           "$ref": "#/components/errors/Forbidden"
         },
         {

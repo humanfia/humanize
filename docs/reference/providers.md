@@ -743,7 +743,7 @@ added, and the turn gets `--provider <name>`; the user's own `models.json` is ne
 
 ### Hosts reachable under a cut network
 
-A flow role whose `online` is `NONE` is fenced to the hosts `backends.reachable(profile,
+A flow role whose `network` is `False` is fenced to the hosts `backends.reachable(profile,
 environ)` returns, `environ` being the environment a turn under the account runs with,
 `providers.composed(provider, profile)`: this process's own, less every variable the account
 hushes and plus the ones it sets. The flow's fence and the agent's own widening of it both read

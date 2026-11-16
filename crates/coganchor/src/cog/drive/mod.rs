@@ -288,7 +288,7 @@ fn fenced(remote: &dyn Remote, fence: Option<&Fence>, home: &str) -> anyhow::Res
     let Some(fence) = fence else {
         return Ok(None);
     };
-    if fence.online && fence.write.iter().any(|one| one == "/") {
+    if fence.open() {
         return Ok(None);
     }
     if !hello_fences(&remote.info(), !fence.online) {
@@ -307,15 +307,12 @@ fn fenced(remote: &dyn Remote, fence: Option<&Fence>, home: &str) -> anyhow::Res
 }
 
 /// What the target is told of a fence for a CLI that runs there (`abroad.told`, native): the
-/// levels, `online`, the model's `hosts`, the state the CLI writes under this machine's home
+/// rules, each `[path, access]` in the order they are said, `online`, the model's `hosts`, the state the CLI writes under this machine's home
 /// as `~/...`, `programs`, and the ports it may `listen` on where it names any.
 fn told(fence: &Fence, home: &str) -> anyhow::Result<Meta> {
-    let [local, user, system] = fence.scopes.as_slice() else {
-        if fence.scopes.is_empty() {
-            anyhow::bail!("a fence drawn path by path cannot be drawn again on another machine");
-        }
-        anyhow::bail!("a fence has three levels, not {}", fence.scopes.len());
-    };
+    if fence.drawn.is_empty() {
+        anyhow::bail!("a fence drawn path by path cannot be drawn again on another machine");
+    }
     let root = normpath(home);
     let under = format!("{}/", root.trim_end_matches('/'));
     let write: Vec<String> = fence
@@ -325,9 +322,7 @@ fn told(fence: &Fence, home: &str) -> anyhow::Result<Meta> {
         .map(|one| format!("{TILDE}{}", local::relpath(one, &root)))
         .collect();
     let mut said = Meta::new();
-    said.insert("local".into(), Value::from(local.clone()));
-    said.insert("user".into(), Value::from(user.clone()));
-    said.insert("system".into(), Value::from(system.clone()));
+    said.insert("rules".into(), serde_json::json!(fence.drawn));
     said.insert("online".into(), Value::from(fence.online));
     said.insert("hosts".into(), Value::from(fence.hosts.clone()));
     said.insert("write".into(), Value::from(write));

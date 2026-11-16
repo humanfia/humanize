@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor.fence import ALL, READ
+from hmz.coganchor.fence import READ, WRITE
 from hmz.coganchor.proto import Op, RemoteOSError, Stream, hello_fences
 from tests.integration.doubles_anchor import VIRTUAL, Link, echoing, linked
 
@@ -257,8 +257,8 @@ def test_a_tunnel_opened_from_the_target_carries_bytes_both_ways(link: Link) -> 
 
 
 def _levels(*, online: bool) -> dict[str, Any]:
-    """A fence as a target is told it: the levels, drawn again around its own paths."""
-    return {"local": ALL, "user": READ, "system": READ, "online": online}
+    """A fence as a target is told it: the rules, drawn again around its own paths."""
+    return {"rules": [["/", READ], ["~", READ], [".", WRITE]], "online": online}
 
 
 def test_a_fenced_command_runs_inside_the_targets_wall(link: Link) -> None:
@@ -269,7 +269,7 @@ def test_a_fenced_command_runs_inside_the_targets_wall(link: Link) -> None:
     ran = _run(
         link,
         ["/bin/sh", "-c", "cat note; touch written"],
-        fence={"local": READ, "user": READ, "system": READ, "online": True},
+        fence={"rules": [["/", READ], ["~", READ], [".", READ]], "online": True},
     )
 
     # The workspace read, and not written: the wall is the target's own, around its paths.
@@ -289,13 +289,13 @@ def test_an_unfenced_command_runs_without_the_wall(link: Link) -> None:
     assert (outside / "reached").exists()
 
 
-def test_levels_that_are_no_fences_are_refused(link: Link) -> None:
+def test_rules_that_are_no_fences_are_refused(link: Link) -> None:
     ran_at = link.real / "ran"
 
     ran = _run(
         link,
         ["/bin/sh", "-c", f"touch {ran_at}"],
-        fence={"local": "most", "user": READ, "system": READ, "online": True},
+        fence={"rules": [["/", "most"]], "online": True},
     )
 
     assert isinstance(ran.error, OSError)

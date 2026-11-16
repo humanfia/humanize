@@ -33,9 +33,14 @@ def _coganchor(_coganchor_stand_in: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
 @pytest.fixture(autouse=True)
 def _fences_hold(monkeypatch: pytest.MonkeyPatch) -> None:
-    """This machine able to fence the filesystem and the network, as `coganchor` would say.
+    """This machine able to fence the filesystem and the network, carve-outs and all.
 
     Asking is running `coganchor internal able`, which a unit test does not do; a test about a
     machine that cannot fence says so itself.
     """
     monkeypatch.setattr(fence, "able", lambda: (True, True))
+
+    def held(_: fence.Fence) -> str | None:
+        return None
+
+    monkeypatch.setattr(fence, "unheld", held)

@@ -298,7 +298,7 @@ as a usage error and exits 2.
 | a redirect that is not two absolute paths | `unsupported redirect 'a=b'; expected two absolute paths` |
 | an empty hush, or one containing `=` | `unsupported hush 'A=B'; expected a variable name` |
 | a projection without a variable name and an absolute path | `unsupported projection X='rel'; expected a variable name and an absolute path` |
-| a non-open `fence` with no `scopes` (drawn path by path) | `a fence drawn path by path cannot be held on another machine; draw it from its levels with Fence.of` |
+| a non-open `fence` with no `drawn` rules (drawn path by path) | `a fence drawn path by path cannot be held on another machine; draw it from its rules with Fence.of` |
 | a non-open `fence` with a harness on another machine | `a fence is drawn around this machine's paths, and cannot hold a harness on another machine` |
 | a `fence` with `online=False` and `net="remote"` | `a fence that cuts the network keeps the agent's own connections here; --net remote would send them past it` |
 
@@ -481,7 +481,7 @@ from its `spawn`. The refusals (`<where>` is `<backend>[@<provider>]` of the env
 | `HarnessSandboxed` | `<where> cannot fence the agent to its permission: it needs Landlock[ ABI 4 and seccomp]; grant the agent everything, or set the harness of the runtime it is on to local` | `env`, the machine cannot hold the fence |
 | `UnsupportedOperation` | `a <kind>[ and a <kind>] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local`, `<kind>` being `permission_request` or `pre_tool_use` | `env`, a `PreToolUse` or `PermissionRequest` hook hung; one hung after the session opened is refused from its next turn, and the session stays where it is |
 | `HarnessNotInstalled` | `<cli> is not installed here: <install line>` | the harness is here and the CLI is not on this machine |
-| `HarnessSandboxed` | `<role>=<cli>[@<account>]/<model>:<effort>: <AgentClass>: a fence cannot hold a harness that runs on another machine` | a harness runtime, and the role's `Permission` is anything but every scope `ALL` |
+| `HarnessSandboxed` | `<role>=<cli>[@<account>]/<model>:<effort>: <AgentClass>: a fence cannot hold a harness that runs on another machine` | a harness runtime, and the role's `Permission` fences anything ([Flows › Enforcement](/reference/flows#enforcement)) |
 | `EnvUnavailable`, `EnvConnectionError`, `ResourceUnmet` | as the runtime's own environment would be refused | a harness runtime that cannot be opened, reached, or given a container |
 
 ### Recording
@@ -497,8 +497,9 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
 - **A fence cannot follow a harness elsewhere.** A fence names this machine's paths. On a
   harness runtime, and under an `AnchorConfig.harness` elsewhere, any non-open fence
   is refused;
-  a flow role must grant `local`, `user`, `system` and `online` all `ALL`. The default
-  `Permission` (`local=ALL, user=READ, system=READ, online=ALL`) is refused.
+  a flow role must be `Permission(preset="danger-full-access")`, with `network=True` and no
+  granular rule that takes anything back. The default `Permission()` (`workspace-write`, which
+  only reads outside the workdir) is refused.
 - **Accounts do not follow a harness elsewhere.** See [Where the account lives](#where-the-account-lives).
 - **Gating hooks need the harness here.** A role with a `PreToolUse` or `PermissionRequest`
   hook hung is refused under the setting `env`; set the runtime's harness to `local`. One hung
@@ -779,13 +780,13 @@ machine, Humanize books a meeting:
 ## A fence on both machines {#a-fence-on-both-machines}
 
 `AnchorConfig.fence` is held by the anchor on each machine around that machine's own paths,
-never by a wrapper around the anchor. The fence must have `scopes` (built with `Fence.of`);
-what crosses is its levels, not its paths.
+never by a wrapper around the anchor. The fence must have `drawn` rules (built with `Fence.of`);
+what crosses is its anchored rules, not its paths.
 
 | Arrangement | This machine | Target |
 | --- | --- | --- |
-| Supervised | The agent process is walled in by Landlock before it runs, with the mirror granted at the workdir's level. Below `all`, every change to the workspace the supervisor would replay on the target fails `EACCES` before the target is asked, as the wall refuses it here. Where `online=False`, a proxy served by the anchor process is its only way out, passing the fence's hosts; binds are limited to a kernel-chosen port and the fence's `listen` ports, on loopback. The supervisor, its link and the mirror are outside the wall. | Every command the agent runs is sent with `{local, user, system, online, tmp}`, `tmp` being the agent's scratch directory here. The serving half draws the fence again (`abroad.drawn`) around its exported directories, its own `$HOME` and its own minimum, and runs the command under its own `hmz internal fence` with its scratch at that same path: made `0700` there if missing, through no link a fenced command could have made, and left afterwards; used where it is a directory of the serving user's own (not a link), and otherwise replaced by one made for the one command. A command that names the path, as Claude Code's shell commands name the file they write their working directory to, finds it. Where `online=False`, the command reaches no host. |
-| Native | nothing | The CLI is run under `hmz internal fence` on the target with the levels, the hosts its model is at, the state it writes under its home (sent as `~/…`), the turn's credential directory, read access to its own install tree, and its `listen` ports. |
+| Supervised | The agent process is walled in by Landlock before it runs, with the mirror drawn as the workdir is: the access `.` has, and every rule beneath `.` beneath it (`Fence.beside`). A directory of the mirror holding a carve-out is granted as its entries as they stand when the wall goes up, so what is fetched into it later stays out of reach. Where the mirror is below `write`, every change to the workspace the supervisor would replay on the target fails `EACCES` before the target is asked, as the wall refuses it here. Where `online=False`, a proxy served by the anchor process is its only way out, passing the fence's hosts; binds are limited to a kernel-chosen port and the fence's `listen` ports, on loopback. The supervisor, its link and the mirror are outside the wall. | Every command the agent runs is sent with `{rules, online, tmp}`, `rules` being the fence's `drawn` rules as `[path, access]` pairs and `tmp` being the agent's scratch directory here. The serving half draws the fence again (`abroad.drawn`) around its exported directories (each drawn as the workdir is), its own `$HOME` and its own minimum, and runs the command under its own `hmz internal fence` with its scratch at that same path: made `0700` there if missing, through no link a fenced command could have made, and left afterwards; used where it is a directory of the serving user's own (not a link), and otherwise replaced by one made for the one command. A command that names the path, as Claude Code's shell commands name the file they write their working directory to, finds it. Where `online=False`, the command reaches no host. |
+| Native | nothing | The CLI is run under `hmz internal fence` on the target with the anchored rules, the hosts its model is at, the state it writes under its home (sent as `~/…`), the turn's credential directory, read access to its own install tree, and its `listen` ports. |
 | Afar | refused | refused |
 
 - A CLI's own sandbox is not used under an anchor: it would wrap a command here that runs on
@@ -813,6 +814,7 @@ what crosses is its levels, not its paths.
 | agent construction, supervised | `Unfenced` | `<Agent> cannot be held to its permission: it is supervised on this machine, which has no Landlock[ ABI 4 and seccomp to cut the network]` |
 | first turn, supervised | `Unfenced` | `<id>: <target> cannot fence the commands the agent runs there: it needs Seatbelt on a Mac, or Landlock (Linux 5.13 or later, not refused by a container's seccomp profile)[, at ABI 4 (Linux 6.7) with seccomp, to cut the network]; grant the agent everything, or run it where it can be fenced` |
 | anchor start, supervised | `PermissionError` | `this machine cannot fence the agent: it needs Landlock[ ABI 4 and seccomp]` |
+| anchor start, supervised | `OSError` | `[Errno N] <why>: '<path>'`: a directory holding a carve-out cannot be listed, or a grant holding one is not a directory, so Landlock cannot hold it; nothing is started |
 | anchor start, supervised | `ValueError` | `<path>: it is a link where a fenced program could have made one, which no fence follows to write`: a path the fence writes, or the scratch, leads through a link in a directory a fence writes ([Agents › Enforcement](/reference/agents#enforcement)); nothing is started |
 | native turn | `PermissionError` | `the target cannot fence the CLI: it needs Landlock[ ABI 4 and seccomp]` |
 | a fenced command on the target | `PermissionError` | `this machine cannot fence a command: it needs Landlock[ ABI 4 and seccomp]`; on a macOS target, `… it needs Seatbelt, which a process already inside a sandbox cannot apply` |

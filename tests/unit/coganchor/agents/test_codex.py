@@ -29,7 +29,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.base import KEEPING
 from hmz.coganchor.agents.codex import strict, turning, unattended
-from hmz.coganchor.fence import ALL, READ, Fence
+from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
 from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner, fenceable
@@ -753,9 +753,7 @@ def test_a_native_codex_cut_off_the_network_is_not_configured_from_this_machines
     spawner.script = lambda proc: proc.exit(255)
     anchor = AnchorConfig(target="ssh://box", workspace=str(tmp_path), native=True)
     offline = Fence.of(
-        local=ALL,
-        user=READ,
-        system=READ,
+        rules=[("/", READ), (".", WRITE)],
         online=False,
         workdir=tmp_path,
         home=tmp_path / "home",

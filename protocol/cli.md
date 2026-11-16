@@ -1151,7 +1151,8 @@ standard output, flushed, as each listener opens, `<route>` the listener's route
 **13.2.3** `hmz daemon connect --stdio` MUST reach this machine's daemon over its socket, starting
 it where none runs (Section 3.4 of [DAEMON]), and MUST then carry every byte of its standard input
 to the socket and every byte of the socket to its standard output, unchanged and in order, until
-either ends; it MUST write nothing else to standard output.
+either ends, and MUST then close both, half-closing neither (Section 3.4.10 of [WIRE]); it MUST
+write nothing else to standard output.
 
 **13.2.4** `hmz daemon pair` MUST call `pair.create` on this machine's daemon, starting it where
 none runs, with the routes of `--route` where any is given and the lifetime `--seconds`, and MUST
