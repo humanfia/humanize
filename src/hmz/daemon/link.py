@@ -454,7 +454,8 @@ def reached(
         attached: Any = peer.call(
             "epic.attach",
             {"workspace": workspace, "slot": slot, "replay": replay},
-            timeout=_PATIENCE,
+            # Starting a host is a fork and its handshake, each given as long.
+            timeout=_PATIENCE * 3,
         )
     except (RpcError, Closed, TimeoutError) as why:
         peer.close()

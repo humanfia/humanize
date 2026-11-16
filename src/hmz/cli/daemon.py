@@ -295,8 +295,10 @@ def _hmz() -> Path:
     import shutil
     from pathlib import Path
 
-    found = shutil.which(sys.argv[0]) or sys.argv[0]
-    return Path(found).resolve()
+    # Not resolved: a link an installer keeps in place across upgrades is what stays there.
+    ran = sys.argv[0]
+    found = shutil.which("hmz") if ran.endswith(".py") else shutil.which(ran)
+    return Path(found or ran).absolute()
 
 
 def _plist(hmz: Path) -> str:

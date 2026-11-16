@@ -49,19 +49,30 @@ _KINDS = frozenset({"tcp", "ws", "relay", "webrtc", "easytier"})
 
 
 def spec(text: str) -> Route:
-    """Reads one listener spec.
+    """Reads one listener spec: a route of a kind a daemon listens on, or one of port `0`.
+
+    A spec is not a route: port `0` names any free port (Section 3.9.2 of daemon.md), which no
+    route names (Section 3.3.4 of wire.md), and the route of the listener is the port taken.
+    So a `tcp` or `ws` spec of port `0` is read as a route of another port, and then given `0`.
 
     Raises:
       ValueError: `<spec> is not a listener.`
     """
+    import dataclasses
+    import re
+
     from hmz.reach import Route
 
+    anywhere = re.fullmatch(r"((?:tcp|ws)://.+):0(/.*)?", text)
+    read = f"{anywhere[1]}:1{anywhere[2] or ''}" if anywhere else text
     try:
-        route = Route.parse(text)
+        route = Route.parse(read)
     except ValueError:
         route = None
     if route is None or route.kind not in _KINDS:
         raise ValueError(f"{text} is not a listener.")
+    if anywhere:
+        route = dataclasses.replace(route, port=0, url=text if route.url else "")
     return route
 
 

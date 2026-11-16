@@ -91,7 +91,10 @@ class Outgoing:
         if told and self.ended and _sub(data) in self.ended:
             return
         with self._lock:
-            if self._closed or self._flushing:
+            if self._flushing:
+                # Its last answer is on its way out: nothing after it is, nor fails.
+                return
+            if self._closed:
                 raise BrokenPipeError("the session has closed")
             self._waiting.append((data, told))
             self._size += len(data)
@@ -102,7 +105,10 @@ class Outgoing:
                 self._size = sum(len(one[0]) for one in kept)
             self._lock.notify()
         if behind:
-            self._behind()
+            # Off this thread, which may hold a subscription that ending them all waits on.
+            threading.Thread(
+                target=self._behind, daemon=True, name="hmz-behind"
+            ).start()
 
     def close(self) -> None:
         """Closes the pipe now, whatever is still queued."""

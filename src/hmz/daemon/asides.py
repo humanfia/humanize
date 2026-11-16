@@ -82,9 +82,15 @@ class _Workspace:
         self.standing: dict[str, dict[str, Any]] = {}
         self.asides: dict[str, _Aside] = {}
         self.used = time.monotonic()
+        #: Held while the daemon's frontend is being attached, so that it is attached once.
+        self._attaching = threading.Lock()
 
     def attached(self) -> Subscription:
         """The daemon's frontend of the workspace's own host, attached where it is not."""
+        with self._attaching:
+            return self._attaches()
+
+    def _attaches(self) -> Subscription:
         from hmz.daemon.hosts import Subscription
         from hmz.runtime.watching.following import Following
 

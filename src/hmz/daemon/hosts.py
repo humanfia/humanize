@@ -385,7 +385,7 @@ class Hosts:
         if mine:
             try:
                 hosted = self._starts(workspace, slot)
-            except OSError as why:
+            except Exception as why:  # noqa: BLE001 -- whoever waits on it is told why
                 with self._lock:
                     del self._starting[key]
                 starting.set_exception(
@@ -394,9 +394,18 @@ class Hosts:
             else:
                 with self._lock:
                     del self._starting[key]
-                    self._held[key] = hosted
                     self.ever = True
-                starting.set_result(hosted)
+                    # Held only while its link is open: one that closed on its way here is
+                    # gone already, and its link's closing found nothing to let go of.
+                    if hosted.peer is not None and not hosted.peer.closed:
+                        self._held[key] = hosted
+                    up = key in self._held
+                if up:
+                    starting.set_result(hosted)
+                else:
+                    starting.set_exception(
+                        RpcError(Code.UNAVAILABLE, "The host went as it came up.")
+                    )
                 self._changed()
         return starting.result()
 
@@ -424,10 +433,12 @@ class Hosts:
 
         def went() -> None:
             with self._lock:
+                # A slot is gone for good only once its host was held: one that never came
+                # up may be started again.
                 if self._held.get(key) is hosted:
                     del self._held[key]
-                if slot:
-                    self._gone.add(key)
+                    if slot:
+                        self._gone.add(key)
             hosted.went()
             self._changed()
 

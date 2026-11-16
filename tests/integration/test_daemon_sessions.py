@@ -166,7 +166,9 @@ def test_a_device_pairs_over_tcp_and_attaches_and_is_dropped_once_revoked(
     daemon.start()
     paired = code()
     (route,) = paired.routes
+    # Port 0 named any free port, and the code carries the one taken.
     assert route.startswith("tcp://127.0.0.1:")
+    assert int(route.rsplit(":", 1)[1]) > 0
     me = device(tmp_path / "afar", monkeypatch)
 
     afar = secured(route, me, paired.id)
