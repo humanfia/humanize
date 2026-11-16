@@ -15,7 +15,7 @@ from hmz.daemon.link import Link, linked, reached, remote
 from hmz.runtime import Refused
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Callable, Mapping
 
 
 class _Asked:
@@ -390,47 +390,77 @@ def test_reached_says_the_host_went_away_when_its_session_ends(
     assert list(link) == [{"type": "gone", "why": "the host went away"}]
 
 
-class _Afar:
-    """Another machine's interface, as `Remotes` reaches it: what it was asked, what it says."""
+class _Client:
+    """The client of a session to another machine's daemon, as `Remotes.client` hands it out."""
 
     def __init__(self) -> None:
-        self.asked: list[tuple[str, str, dict[str, Any] | None]] = []
+        self.calls: list[tuple[str, dict[str, Any], str | None]] = []
+        self.listener: Callable[[str, dict[str, Any]], None] | None = None
+        self.ended = threading.Event()
+        self.closed = False
 
-    def followed(
-        self, name: str, path: str, going: threading.Event
-    ) -> Iterable[tuple[str, Any]]:
-        del going
-        self.asked.append((name, path, None))
-        yield "hello", {"epoch": "e", "me": "c7"}
-        yield "record", {"type": "started", "seq": 1, "task": "hi"}
-        yield "standing", {"type": "run", "state": "running"}
-        yield "gone", {"why": "closing"}
+    def heard(self, listener: Callable[[str, dict[str, Any]], None]) -> None:
+        self.listener = listener
 
-    def asked_of(self, name: str, path: str, body: dict[str, Any] | None = None) -> Any:
-        self.asked.append((name, path, body))
-        if body and body.get("text") == "no":
-            from hmz.runtime.doing.daemons import Unreached
+    def call(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        *,
+        idem: str | None = None,
+        seconds: float | None = None,
+    ) -> Any:
+        del seconds
+        self.calls.append((method, dict(params or {}), idem))
+        if method == "epic.attach":
+            assert self.listener is not None
+            # Told before the answer is read: kept until the link knows its `sub`.
+            self.listener("epic.event", {"sub": "s1", "message": {"type": "started"}})
+            self.listener("epic.event", {"sub": "s0", "message": {"type": "other"}})
+            return {"sub": "s1", "client": "c7"}
+        if params and params.get("text") == "no":
+            raise Refused("refused there")
+        return {"run": 3}
 
-            raise Unreached("refused there", status=409)
-        return {"ok": True, "run": 3}
+    def wait(self, timeout: float | None = None) -> bool:
+        return self.ended.wait(timeout)
+
+    def close(self) -> None:
+        self.closed = True
 
 
-def test_a_remote_link_asks_that_interface_and_is_told_its_stream() -> None:
-    afar = _Afar()
-    remotes = mock.Mock(followed=afar.followed, asked=afar.asked_of)
+def test_a_remote_link_attaches_over_that_daemon_s_session() -> None:
+    client = _Client()
+    remotes = mock.Mock(client=mock.Mock(return_value=client))
 
     link = remote(remotes, "box", "/w s")
-    told = list(link)
+    assert client.listener is not None
+    client.listener("epic.event", {"sub": "s1", "message": {"type": "run"}})
 
     assert link.client == "c7"
-    assert [one["type"] for one in told] == ["started", "run", "gone"]
-    assert told[-1]["why"] == "closing"
     assert link.say("hello")["run"] == 3
     with pytest.raises(Refused, match="refused there"):
         link.say("no")
-    assert afar.asked[0] == ("box", "/api/held/stream?workspace=/w%20s", None)
-    assert afar.asked[1] == (
-        "box",
-        "/api/held/say",
-        {"text": "hello", "to": "", "workspace": "/w s", "slot": ""},
+    assert client.calls[0] == (
+        "epic.attach",
+        {"workspace": "/w s", "slot": "", "replay": True},
+        None,
     )
+    method, params, idem = client.calls[1]
+    assert (method, params) == ("epic.say", {"text": "hello", "to": "", "sub": "s1"})
+    assert idem
+    remotes.client.assert_called_once_with("box")
+    client.ended.set()
+    assert [one["type"] for one in link] == ["started", "run", "gone"]
+    link.close()
+    assert client.calls[-1] == ("epic.detach", {"sub": "s1"}, None)
+    assert client.closed
+
+
+def test_a_remote_link_to_a_daemon_not_reached_is_refused() -> None:
+    from hmz.runtime.doing.daemons import Unreached
+
+    remotes = mock.Mock(client=mock.Mock(side_effect=Unreached("box is not reached")))
+
+    with pytest.raises(OSError, match="box is not reached"):
+        remote(remotes, "box", "/w")
