@@ -169,6 +169,15 @@ failure to start with its reason, without waiting out a timeout.
 
 **3.4.5** Asking the daemon which epics are going MUST NOT start a host.
 
+**3.4.6** A daemon `hmz daemon serve` starts with no terminal, as the service of Section 3.9.6 does,
+MUST take, once as it starts, the environment its user's login shell gives, MUST keep its own where
+that shell does not answer within 5 seconds, and MUST append to `PATH` each of `~/.local/bin`,
+`$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` and `/bin` that it lacks; any
+other daemon MUST keep the environment it was started with.
+
+**3.4.7** Every host MUST take the daemon's environment; a changed environment MUST NOT reach a
+daemon that is running, and reaches its hosts once the daemon is started again.
+
 ### 3.5. Epics outlive their frontends
 
 **3.5.1** The daemon and every host MUST outlive the terminal and the frontend that started them.

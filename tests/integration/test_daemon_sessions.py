@@ -33,7 +33,6 @@ if TYPE_CHECKING:
 
 pytestmark = [
     pytest.mark.timeout(120),
-    pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
 

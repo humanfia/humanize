@@ -340,7 +340,8 @@ class Router:
         from hmz.rpc import Dispatcher
 
         dispatcher = Dispatcher()
-        served = {**families(), **methods(self)}
+        found = families()
+        served = {**found, **methods(self, found)}
         for name, handler in served.items():
             try:
                 dispatcher.register(name, self._guarded(name, handler))
