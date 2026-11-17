@@ -11,6 +11,7 @@ import { covered, go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
+import { paramsForm } from '../asking/form.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
 import { firstWorkspace, workspacePicker } from '../places.js'
 import { bar, choice, menu, section } from '../shell.js'
@@ -199,7 +200,8 @@ export function mount(root, { query }) {
       const wants = [role.cpu && `${role.cpu} CPU`, role.memory && `${Math.ceil(role.memory / 2 ** 30)} GiB`, role.gpu && `${role.gpu} GPU`, role.image && role.image].filter(Boolean)
       return h('div', { class: 'role', 'data-hmz': 'env', 'data-role': role.name }, h('h3', {}, role.name, h('span', { class: 'dim' }, wants.join(' · '))), places[role.name].node)
     })
-    const params = schemaForm(flow.params, kept.params || {})
+    // The same form a person answers a question with: a field for each param, by its type.
+    const params = paramsForm(flow.params, kept.params || {})
     const budget = budgetFields(kept.budget || {}, summarise)
     const profileFlow = h('input', { type: 'checkbox', checked: Boolean(kept.profile_flow), 'data-hmz': 'profile-flow' })
     const profileEnvironment = h('input', { type: 'checkbox', checked: Boolean(kept.profile_environment), 'data-hmz': 'profile-environment' })
@@ -346,63 +348,4 @@ function budgetFields(kept, changed) {
 function minutesOf(duration) {
   const seconds = secondsOf(duration)
   return seconds === null ? '' : String(Math.round(seconds / 60))
-}
-
-/**
- * A form for a flow's params, read off the JSON schema its params model gives: a field for
- * each, by its type, and JSON for whatever has no field of its own.
- */
-function schemaForm(schema, kept) {
-  const fields = []
-  const readers = {}
-  for (const [name, property] of Object.entries(schema.properties || {})) {
-    const value = name in kept ? kept[name] : property.default
-    const id = `param-${name}`
-    let input
-    let read
-    const kind = typeOf(property)
-    if (property.enum) {
-      input = h('select', { id }, property.enum.map((one) => h('option', { value: JSON.stringify(one), selected: one === value }, String(one))))
-      read = () => JSON.parse(input.value)
-    } else if (kind === 'boolean') {
-      input = h('input', { id, type: 'checkbox', checked: Boolean(value) })
-      read = () => input.checked
-    } else if (kind === 'integer' || kind === 'number') {
-      input = h('input', { id, type: 'number', step: kind === 'integer' ? '1' : 'any', value: value ?? '', min: property.minimum, max: property.maximum })
-      read = () => (input.value === '' ? null : Number(input.value))
-    } else if (kind === 'string') {
-      input = (value || '').length > 60 ? h('textarea', { id, rows: '3' }, value || '') : h('input', { id, type: 'text', value: value ?? '' })
-      read = () => input.value
-    } else {
-      input = h('textarea', { id, rows: '3', class: 'mono' }, value === undefined ? '' : JSON.stringify(value, null, 2))
-      read = () => {
-        if (!input.value.trim()) return null
-        try {
-          return JSON.parse(input.value)
-        } catch {
-          throw new Error(`${name} is not JSON.`)
-        }
-      }
-    }
-    readers[name] = read
-    fields.push(h('div', { class: 'field' }, h('label', { for: id }, name), input, property.description ? h('span', { class: 'hint' }, property.description) : null))
-  }
-  return {
-    fields,
-    read() {
-      const said = {}
-      for (const [name, read] of Object.entries(readers)) {
-        const value = read()
-        if (value !== null && value !== '') said[name] = value
-      }
-      return said
-    },
-  }
-}
-
-function typeOf(property) {
-  if (property.type) return Array.isArray(property.type) ? property.type.find((one) => one !== 'null') : property.type
-  const branches = property.anyOf || property.oneOf || []
-  const found = branches.find((one) => one.type && one.type !== 'null')
-  return found ? found.type : ''
 }

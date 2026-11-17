@@ -4543,3 +4543,720 @@ input[aria-invalid='true'] {
     opacity: 0;
   }
 }
+
+/* asks ------------------------------------------------------------- a question asked of you */
+
+/* A question's card reads top to bottom: what it asks as its headline, what it shows beside it,
+   and the answer last. A form asked whole has room to be read, past the dock's usual height. */
+.questions:has(> .ask-card:not(.ask-settled)) {
+  max-height: min(64vh, 760px);
+}
+
+.questions-settled {
+  gap: 6px;
+}
+
+.ask-card {
+  gap: 12px;
+  padding: 14px 16px 16px;
+  scroll-margin: 12px;
+}
+
+/* Arriving, a card is marked once and the mark fades: it never goes on calling. */
+.ask-card.ask-new {
+  animation: ask-arrive 2.2s ease-out;
+}
+
+@keyframes ask-arrive {
+  from {
+    box-shadow: 4px 4px 0 var(--budget), 0 0 0 5px color-mix(in srgb, var(--budget) 35%, transparent);
+  }
+}
+
+.ask-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.ask-prompt {
+  font: 600 15px/1.45 var(--sans);
+  color: var(--ink);
+}
+
+/* Gone from what is waiting, and what became of it not yet heard: shown, no longer answerable. */
+.ask-card.is-leaving {
+  opacity: 0.6;
+}
+
+.ask-card.is-held {
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.ask-held {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.ask-wait {
+  color: var(--budget-ink);
+}
+
+/* ---- context */
+
+.ask-blocks {
+  display: grid;
+  gap: 8px;
+  white-space: normal;
+  min-width: 0;
+}
+
+.said .ask-blocks {
+  margin-top: 8px;
+}
+
+.ask-block {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.ask-block > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  list-style: none;
+  min-width: 0;
+}
+
+.ask-block > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ask-block > summary::before {
+  content: '▸';
+  color: var(--ink-3);
+  font-size: 11px;
+  flex: none;
+}
+
+.ask-block[open] > summary::before {
+  content: '▾';
+}
+
+.ask-block > summary:hover {
+  background: var(--hover);
+}
+
+.ask-block-kind {
+  font: 600 10.5px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+  flex: none;
+}
+
+.ask-block-title {
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ask-block-sum {
+  color: var(--ink-3);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ask-block-diff .ask-block-sum {
+  font-family: var(--mono);
+}
+
+/* Open, a note says itself: its summary would only say it twice. */
+.ask-block-markdown[open] .ask-block-sum {
+  display: none;
+}
+
+.ask-block-body {
+  border-top: 1px solid var(--line);
+  padding: 10px 12px;
+  max-height: 420px;
+  overflow: auto;
+  min-width: 0;
+}
+
+.ask-plain {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ask-markdown {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.ask-markdown > :first-child {
+  margin-top: 0;
+}
+
+.ask-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.ask-markdown :is(h1, h2, h3, h4) {
+  font-size: 14px;
+  margin: 12px 0 6px;
+}
+
+.ask-markdown :is(pre, code) {
+  font: 12.5px var(--mono);
+  background: var(--side);
+}
+
+.ask-markdown pre {
+  padding: 8px 10px;
+  overflow-x: auto;
+}
+
+.ask-markdown a {
+  color: var(--link);
+}
+
+.ask-markdown blockquote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--line-strong);
+  color: var(--ink-2);
+}
+
+.ask-code {
+  margin: 0;
+  font: 12.5px/1.5 var(--mono);
+  white-space: pre;
+}
+
+.ask-diff {
+  display: grid;
+  gap: 10px;
+}
+
+.ask-diff-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font: 12px var(--mono);
+  margin-bottom: 4px;
+}
+
+.ask-diff-name {
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.ask-diff-add {
+  color: var(--done);
+}
+
+.ask-diff-del {
+  color: var(--fail);
+}
+
+.ask-diff-lines {
+  margin: 0;
+  font: 12px/1.5 var(--mono);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.ask-diff-line {
+  display: block;
+  padding: 0 8px;
+  white-space: pre;
+  min-width: max-content;
+}
+
+.ask-diff-line.is-add {
+  background: color-mix(in srgb, var(--done) 15%, transparent);
+}
+
+.ask-diff-line.is-del {
+  background: color-mix(in srgb, var(--fail) 13%, transparent);
+}
+
+.ask-diff-line.is-hunk {
+  color: var(--ink-3);
+  background: var(--hover);
+}
+
+.ask-scroll {
+  overflow-x: auto;
+}
+
+.ask-table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  width: max-content;
+  min-width: 100%;
+}
+
+.ask-table :is(th, td) {
+  border-bottom: 1px solid var(--line);
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ask-table th {
+  font: 600 10.5px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  border-bottom-color: var(--line-strong);
+}
+
+.ask-table .num {
+  text-align: right;
+  font-family: var(--mono);
+}
+
+.ask-table-wrap > .btn {
+  margin-top: 6px;
+}
+
+.ask-image-hold {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  max-width: 100%;
+}
+
+.ask-image {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+
+.ask-image-hold.full {
+  cursor: zoom-out;
+}
+
+.ask-image-hold.full .ask-image {
+  max-height: none;
+}
+
+.ask-json {
+  font: 12.5px/1.6 var(--mono);
+}
+
+.ask-json-kids {
+  padding-left: 16px;
+  border-left: 1px dotted var(--line-strong);
+  margin-left: 4px;
+}
+
+.ask-json-node > summary {
+  cursor: pointer;
+}
+
+.ask-json-key {
+  color: var(--ink-2);
+}
+
+.ask-json-string {
+  color: var(--pink-ink);
+}
+
+.ask-json-number,
+.ask-json-boolean {
+  color: var(--cyan-ink);
+}
+
+.ask-json-null {
+  color: var(--ink-3);
+}
+
+.ask-chart-note {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+}
+
+.ask-chart-drawn {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* ---- the form */
+
+.ask-form {
+  display: grid;
+  gap: 14px;
+}
+
+.ask-fields {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.ask-field {
+  gap: 6px;
+  min-width: 0;
+}
+
+.ask-label-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ask-label {
+  font: 600 13px var(--sans);
+  color: var(--ink);
+}
+
+.ask-tag {
+  font: 500 10.5px var(--mono);
+  letter-spacing: 0.04em;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-3);
+}
+
+.ask-suggested {
+  border-color: var(--budget);
+  color: var(--budget-ink);
+}
+
+.ask-field :is(input:not([type='checkbox']), select, textarea) {
+  width: 100%;
+  font-size: 14px;
+}
+
+.ask-field textarea {
+  min-height: 72px;
+}
+
+.ask-field.has-problem :is(input, select, textarea) {
+  border-color: var(--fail);
+}
+
+.ask-field .problem {
+  margin: 0;
+  font-weight: 500;
+}
+
+.ask-field .problem::before {
+  content: '! ';
+  font-weight: 700;
+}
+
+.ask-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ask-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 7px 14px;
+  border: 2px solid var(--line-strong);
+  background: var(--control);
+  color: var(--control-ink);
+  font: 600 14px var(--sans);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+.ask-choice:hover:not(:disabled) {
+  border-color: var(--edge);
+}
+
+.ask-choice:is([aria-checked='true'], [aria-pressed='true']) {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--edge);
+  box-shadow: 3px 3px 0 var(--pink);
+}
+
+.ask-choice:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.ask-key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font: 600 10.5px var(--mono);
+  border: 1px solid currentColor;
+  opacity: 0.55;
+}
+
+.ask-default {
+  color: var(--budget);
+  font-size: 16px;
+  line-height: 0;
+}
+
+.ask-listed {
+  display: grid;
+  gap: 6px;
+}
+
+.ask-group {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line-strong);
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.ask-list {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.ask-items {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.ask-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.ask-item-n {
+  font: 12px var(--mono);
+  color: var(--ink-3);
+  padding-top: 8px;
+  min-width: 18px;
+}
+
+.ask-remove {
+  font-size: 18px;
+}
+
+.ask-text {
+  display: grid;
+  gap: 4px;
+}
+
+.ask-text-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ask-preview {
+  border: 1px solid var(--line-strong);
+  padding: 8px 10px;
+  min-height: 72px;
+  background: var(--field);
+}
+
+.ask-count {
+  justify-self: end;
+  font: 11px var(--mono);
+  color: var(--ink-3);
+}
+
+.ask-secret {
+  flex-wrap: nowrap;
+}
+
+.ask-secret input {
+  flex: 1;
+}
+
+.ask-more > summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font: 600 12.5px var(--sans);
+  padding: 2px 0;
+}
+
+.ask-more > summary:hover {
+  color: var(--ink);
+}
+
+.ask-more-fields {
+  display: grid;
+  gap: 16px;
+  padding: 12px 0 0 12px;
+  border-left: 2px solid var(--line);
+  margin-top: 8px;
+}
+
+.ask-general,
+.ask-said .problem,
+.ask-said .error {
+  margin: 0;
+}
+
+.ask-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ask-send {
+  min-height: 38px;
+  padding: 8px 18px;
+  font-size: 14px;
+}
+
+/* Not yet complete, it still sends -- to say what is missing -- but does not call to be pressed. */
+.ask-send.is-left {
+  background: var(--control);
+  color: var(--control-ink);
+}
+
+.ask-keys {
+  font: 11px var(--mono);
+}
+
+.ask-draft {
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.ask-options {
+  gap: 8px;
+}
+
+.ask-line input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.ask-text-answer {
+  display: grid;
+  gap: 10px;
+}
+
+.ask-face {
+  min-height: 80px;
+}
+
+.ask-face-note {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+:is(.ask-choice, .ask-block > summary, .ask-more > summary, .ask-image-hold, .ask-dismiss):focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* ---- once it is answered, or withdrawn: one line saying so */
+
+.ask-card.ask-settled {
+  border: 1px solid var(--line-strong);
+  box-shadow: none;
+  background: var(--surface);
+  padding: 8px 8px 8px 12px;
+}
+
+.ask-closed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ask-closed-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  font-weight: 700;
+  border: 2px solid var(--done);
+  color: var(--done);
+}
+
+.is-withdrawn .ask-closed-mark {
+  border-color: var(--line-strong);
+  color: var(--ink-3);
+}
+
+.ask-closed-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ask-closed-said {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ask-closed-asked {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ask-dismiss {
+  font-size: 18px;
+}
+
+.ask-form-note {
+  margin-top: 6px;
+  font: 11.5px var(--mono);
+}
+
+@media (max-width: 860px) {
+  .ask-card {
+    padding: 12px;
+  }
+
+  .ask-choice {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .ask-keys {
+    display: none;
+  }
+}
+
+/* Where there is no keyboard to press them on, the numbers of the choices say nothing. */
+@media (pointer: coarse) {
+  .ask-key {
+    display: none;
+  }
+}
+
+/* /asks */
