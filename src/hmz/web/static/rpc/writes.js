@@ -10,5 +10,5 @@ export const WRITES = new Set([
   'flowverses.install', 'flowverses.uninstall', 'settings.set', 'settings.forget',
   'accounts.create', 'accounts.correct', 'accounts.remove', 'accounts.models', 'accounts.copy',
   'nous.set', 'nous.rename', 'nous.clear', 'runtimes.set', 'runtimes.remove', 'runtimes.import',
-  'easytier.set', 'easytier.remove',
+  'easytier.set', 'easytier.remove', 'aichan.create', 'aichan.forget', 'env.write', 'env.exec',
 ])

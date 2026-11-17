@@ -647,7 +647,8 @@ with -32600, `A client says session.hello first.`, and `session.hello` called ag
 
 **6.5.3** `session.hello` MUST take `protocol`, the client's protocol version, and `client`, `{name,
 kind}`: `name` the user's name for the client (Section 4.7.1.5 of [DAEMON]) and `kind` one of `tui`,
-`web`, `desktop`, `cli`, `sdk` and `bridge`. A `protocol` that is not a version of [SEMVER] MUST be
+`web`, `desktop`, `cli`, `sdk`, `bridge` and `ai-chan`, the last only as Section 4.22.6.2 of
+[DAEMON] permits. A `protocol` that is not a version of [SEMVER] MUST be
 refused with -32602, `session.hello takes protocol as a version.`
 
 **6.5.4** `session.hello` MUST be answered with `daemon_id`, `version` (the daemon's hmz version),
@@ -686,7 +687,7 @@ protocol gives -- and, where a method states further fields, `data`, an object h
 | -32800 | The call was given up: `The call was cancelled.` |
 | 400 | A value the method refuses |
 | 401 | The session is unpaired (Section 4.5.10) |
-| 403 | Refused to this device, a pairing code not valid included |
+| 403 | Refused to this device, a pairing code not valid included, or out of a session's reach (Section 4.21 of [DAEMON]) |
 | 404 | What the call names does not exist |
 | 409 | Refused in the state things are in, a host's refusal included |
 | 410 | No such subscription: `There is no subscription <sub>.` |
@@ -801,6 +802,13 @@ daemon's protocol version.
 result, the document of the protocol MUST state the intended behaviour, as Section 2.2.7 of [CORE]
 states.
 
+**6.11.6** Every method of [OPENRPC] MUST carry the extensions `x-hmz-reach` and `x-hmz-writes`, as
+Section 4.21.2 of [DAEMON] defines them.
+
+**6.11.7** A parameter or a member of a result that [OPENRPC] marks `deprecated` is one no document
+of the protocol states: a client MUST NOT send it and MUST NOT read it, and a daemon MAY take it
+and MAY answer it.
+
 ## 7. Security Considerations
 
 This section states no requirement of its own. It names the properties stated elsewhere in this
@@ -821,6 +829,9 @@ document on which the security of a user's machine and work depends.
   `session.hello`, `pair.claim` and `rpc.discover` (Section 4.5.10). A paired device is whole, as a
   frontend over the socket is (Section 5 of [DAEMON]).
 - **Revocation.** Revoking a device closes its live sessions at once (Section 4.6.3).
+- **Scoped links.** A session over the scoped link of an Ai-chan conversation is admitted as one
+  over a trusted carrier, but is held to that conversation's reach and is not whole (Section 4.21
+  of [DAEMON] and Section 4.22.6 of [DAEMON]).
 - **WebRTC.** Signalling crosses the relay and is not trusted: the daemon signs both DTLS
   fingerprints with its device key, and the browser checks that signature against the daemon id it
   pins before any frame (Section 4.7.5 and Section 4.7.6); the daemon identifies the browser by the

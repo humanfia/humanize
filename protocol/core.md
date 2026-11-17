@@ -5,7 +5,7 @@
 This document is the base document of the Humanize Protocol. It states the conventions every
 document of the protocol follows, defines the terms they share, and specifies the behaviour of hmz
 that is common to every interface: epics, agents, accounts, placements, environments, chats, side
-questions, monitoring, backups, telemetry and updates.
+questions, monitoring, backups, telemetry, updates and Ai-chan.
 
 ## Status of This Document
 
@@ -94,10 +94,8 @@ normative. It is cited by the tag [CORE].
   - [9.3. Guarantees](#93-guarantees)
   - [9.4. What a side conversation is told](#94-what-a-side-conversation-is-told)
   - [9.5. Who answers](#95-who-answers)
-  - [9.6. The btw agent asking sessions](#96-the-btw-agent-asking-sessions)
-  - [9.7. Choosing the btw agent](#97-choosing-the-btw-agent)
-  - [9.8. Whom a side question is asked of](#98-whom-a-side-question-is-asked-of)
-  - [9.9. Lifetime of side conversations and asides](#99-lifetime-of-side-conversations-and-asides)
+  - [9.6. Whom a side question is asked of](#96-whom-a-side-question-is-asked-of)
+  - [9.7. Lifetime of side conversations and asides](#97-lifetime-of-side-conversations-and-asides)
 - [10. Monitoring](#10-monitoring)
   - [10.1. Scope](#101-scope)
   - [10.2. Terminology](#102-terminology)
@@ -121,16 +119,25 @@ normative. It is cited by the tag [CORE].
   - [13.2. Terminology](#132-terminology)
   - [13.3. Learning the newest release](#133-learning-the-newest-release)
   - [13.4. `hmz update`](#134-hmz-update)
-- [14. Security Considerations](#14-security-considerations)
-- [15. References](#15-references)
-  - [15.1. Normative References](#151-normative-references)
+- [14. Ai-chan](#14-ai-chan)
+  - [14.1. Scope](#141-scope)
+  - [14.2. Terminology](#142-terminology)
+  - [14.3. Making a conversation](#143-making-a-conversation)
+  - [14.4. The flow](#144-the-flow)
+  - [14.5. Permission and confinement](#145-permission-and-confinement)
+  - [14.6. What Ai-chan does](#146-what-ai-chan-does)
+  - [14.7. Shown to other frontends](#147-shown-to-other-frontends)
+  - [14.8. Turns, folding and carrying on](#148-turns-folding-and-carrying-on)
+- [15. Security Considerations](#15-security-considerations)
+- [16. References](#16-references)
+  - [16.1. Normative References](#161-normative-references)
 
 ## 1. Introduction
 
 This document is the base document of the Humanize Protocol. It states the conventions every
 document of the protocol follows, defines the terms they share, and specifies the behaviour of hmz
 that is common to every interface: epics, agents, accounts, placements, environments, chats, side
-questions, monitoring, backups, telemetry and updates.
+questions, monitoring, backups, telemetry, updates and Ai-chan.
 
 This document is organised as follows:
 
@@ -145,6 +152,7 @@ This document is organised as follows:
 - Section 11: Backups.
 - Section 12: Telemetry.
 - Section 13: Updates.
+- Section 14: Ai-chan.
 
 ## 2. Conventions and Terminology
 
@@ -257,8 +265,8 @@ epic.
 **2.4.6** A **turn** is one message given to a session together with everything the harness does
 until it answers that message.
 
-**2.4.7** A **side question**, also called **btw**, is a question about an epic that the user asks a
-separate agent, outside every session of the epic.
+**2.4.7** A **side question**, also called **btw**, is a question about one session of an epic that
+the user asks a copy of that session, outside every session of the epic.
 
 ### 2.5. Agents and where they run
 
@@ -308,6 +316,9 @@ terminal interface (TUI), the web interface, or the desktop application for macO
 
 **2.6.4** Every frontend, `hmz exec` and every program using the software development kit is a
 client of a daemon, and runs and holds every epic through one (Section 3.3.8 of [DAEMON]).
+
+**2.6.5** **Ai-chan** is the agent through which the user operates hmz by talking to it, held by the
+daemon as a frontend of its own and limited to a scope and a permission (Section 14).
 
 ## 3. Epics
 
@@ -396,8 +407,8 @@ that cannot be read, or that names a **runtime** which is not saved.
 **3.3.1.9** hmz MUST refuse to start an epic that is given a parameter the flow does not declare, or
 a parameter value that cannot be read as the declared type.
 
-**3.3.1.10** hmz MUST refuse to start an epic that is given no budget, unless its flow is `chat`
-(Section 3.3.4.2).
+**3.3.1.10** hmz MUST refuse to start an epic that is given no budget, unless its flow is `chat` or
+`ai_chan` (Section 3.3.4.2).
 
 **3.3.1.11** hmz MUST refuse to start an epic that names a backup target which does not exist
 (Section 11.3.2).
@@ -463,8 +474,8 @@ declares a parameter of that name.
 **3.3.4.1** Every epic MUST execute under a budget that sets at least one limit, and a limit MUST
 NOT be negative.
 
-**3.3.4.2** An epic of the `chat` flow that is given no budget MUST execute under a budget whose
-cost limit is unbounded.
+**3.3.4.2** An epic of the `chat` flow or of the `ai_chan` flow that is given no budget MUST execute
+under a budget whose cost limit is unbounded.
 
 **3.3.4.3** The graceful flag of each limit of a budget MUST be true unless it is given as false,
 for that limit or for every limit.
@@ -3465,57 +3476,41 @@ MUST be offered by the web interface.
 
 ### 9.1. Scope
 
-This section defines side questions: questions the **user** asks about an **epic** without the
-question reaching the **flow** of that epic. It states who answers a side question, what the
-answerer is told, what the answerer is permitted to do, how the **btw** agent is chosen, how the
-user picks whom a side question is asked of, and how long a side conversation lasts, in every
-**frontend** that offers side questions.
+This section defines side questions: questions the **user** asks about one **session** of an
+**epic** without the question reaching the **flow** of that epic. It states who answers a side
+question, what the answerer is told, what the answerer is permitted to do, how the user picks the
+session a side question is asked of, and how long a side conversation lasts, in every **frontend**
+that offers side questions.
 
 Out of scope:
 
 - The layout of btw mode in the terminal interface: [TUI].
 - The layout of the btw panel in the web interface: Section 3 of [WEB].
-- The `btw` key of `settings.yaml`: Section 3 of [FILES].
 - The methods a frontend calls to ask a side question: Section 4 of [DAEMON].
 - What an epic records and how its figures are worked out: Section 3, Section 10.
+- Questions about an epic as a whole, or about several epics: Ai-chan, Section 14.
 
 ### 9.2. Terminology
 
 **9.2.1** **Side conversation**: a **session** that hmz opens beside an epic to answer side
 questions, and that is not a session of the epic's flow.
 
-**9.2.2** **Btw agent**: the **agent** that answers a side question about an epic as a whole.
-
-**9.2.3** **Session side copy**: the side conversation that answers side questions about one session
+**9.2.2** **Session side copy**: the side conversation that answers side questions about one session
 of an epic.
 
-**9.2.4** **Fork**: a session side copy that its **harness** opens as a copy of the asked session's
+**9.2.3** **Fork**: a session side copy that its **harness** opens as a copy of the asked session's
 own history.
 
-**9.2.5** **Snapshot**: the bounded description of an epic, frozen when a side question is asked,
+**9.2.4** **Snapshot**: the bounded description of an epic, frozen when a side question is asked,
 that a side conversation is told (Section 9.4).
 
-**9.2.6** **Ask line**: a line of the btw agent's answer of the form `@ask <agent>/<n>: <question>`,
-in which `<agent>/<n>` names a session of the epic, alone or after list markers (`-`, `*`, `+`,
-`<n>.`, `<n>)`) or quote markers (`>`), and optionally wrapped in backticks.
-
-**9.2.7** **Btw mode**: the state of the terminal interface in which every line the user types,
+**9.2.5** **Btw mode**: the state of the terminal interface in which every line the user types,
 other than a `/` command, is a side question ([TUI]).
 
-**9.2.8** **Btw panel**: the part of the web interface's epic view in which the user asks side
+**9.2.6** **Btw panel**: the part of the web interface's epic view in which the user asks side
 questions (Section 3 of [WEB]).
 
-**9.2.9** **Aside**: one side question together with the answer to it.
-
-**9.2.10** **The Epic**: the name under which a frontend offers the btw agent as the one a side
-question is asked of.
-
-**9.2.11** **Ask command**: a run of `hmz-ask ask --to <agent>/<n> --question <question>` by the btw
-agent, in which `<agent>/<n>` names a session of the epic; `hmz-ask list` lists the sessions of the
-epic the side question is about, one `<agent>/<n>` per line, as the frontend lists them (Section
-9.4.10), and is not an ask.
-
-**9.2.12** **Ask**: an ask line or an ask command.
+**9.2.7** **Aside**: one side question together with the answer to it.
 
 ### 9.3. Guarantees
 
@@ -3533,8 +3528,7 @@ where that agent has none, one whose grant is `read` on `/` with the network; it
 told as Section 4.6.2.3 tells a confinement that writes nothing.
 
 **9.3.5** Every side conversation MUST run with no skills, no goals, no tools of the flow, no hooks
-of the flow and no approval of MCP servers, except what Section 9.6.10 to Section 9.6.14 give the
-btw agent.
+of the flow and no approval of MCP servers.
 
 **9.3.6** A side conversation MUST NOT modify any file of the **workspace**.
 
@@ -3549,8 +3543,8 @@ the epic or as spans of the epic's trace.
 **9.3.10** A frontend MUST refuse a side question to a side conversation while that side
 conversation is answering an earlier one.
 
-**9.3.11** A frontend MUST word the refusal of Section 9.3.10 as Section 12.10 of [TUI], Section
-4.15.3.5 of [DAEMON] and Section 4.8.8.10 of [DAEMON] state.
+**9.3.11** A frontend MUST word the refusal of Section 9.3.10 as Section 12.9 of [TUI], Section
+4.15.3.6 of [DAEMON] and Section 4.8.8.10 of [DAEMON] state.
 
 **9.3.12** A failure to answer a side question MUST be reported to the user as a failure of the side
 question and MUST NOT be reported as a failure of the epic.
@@ -3582,21 +3576,16 @@ said and did and what its flow printed, each cut to at most 600 characters.
 
 **9.4.9** A snapshot MUST NOT contain any agent's thinking.
 
-**9.4.10** Every side question put to the btw agent, the first and every later one, MUST list the
-sessions of the epic by `<agent>/<n>`, saying where none is open yet, and MUST state that the btw
-agent can ask them by ask commands, and by ask lines where it cannot run a command (Section 9.6).
+**9.4.10** A snapshot MUST contain only the observations of the asked session's agent and of the
+flow, and MUST NOT list the sessions of the epic.
 
-**9.4.11** A snapshot told to a session side copy MUST contain only the observations of the asked
-session's agent and of the flow, and MUST NOT list the sessions of the epic.
-
-**9.4.12** A fork MUST be told which session it is a copy of, and MUST be told not to carry on that
+**9.4.11** A fork MUST be told which session it is a copy of, and MUST be told not to carry on that
 session's task.
 
-**9.4.13** Every question after the first in one side conversation MUST be put to that side
-conversation without a further snapshot, and, to the btw agent, with only what Section 9.4.10
-states.
+**9.4.12** Every question after the first in one side conversation MUST be put to that side
+conversation without a further snapshot.
 
-**9.4.14** A snapshot MUST be of the epic the side question is about alone, and MUST NOT contain
+**9.4.13** A snapshot MUST be of the epic the side question is about alone, and MUST NOT contain
 observations of any other epic.
 
 ### 9.5. Who answers
@@ -3607,14 +3596,15 @@ session side copy of that session.
 **9.5.2** A side question asked while the user reads an agent's transcript MUST be answered by the
 session side copy of that agent's newest session.
 
-**9.5.3** A side question asked anywhere else MUST be answered by the btw agent.
+**9.5.3** A side question asked while the user reads neither MUST be refused, saying that a side
+question is asked of a session, and that Ai-chan (Section 14) answers about an epic as a whole.
 
 **9.5.4** Where the harness of the asked session can fork a session, the session side copy MUST be a
 fork.
 
 **9.5.5** Where the harness of the asked session cannot fork a session, or the fork does not open,
 or the fork returns no answer, the session side copy MUST be a new session of the same agent told a
-snapshot (Section 9.4.11).
+snapshot (Section 9.4.10).
 
 **9.5.6** A session that has ended MUST be askable as Section 9.5.1 to Section 9.5.5 state.
 
@@ -3625,140 +3615,69 @@ session.
 **9.5.8** Where the session the user reads no longer exists, a frontend MUST refuse the side
 question, naming that session.
 
-**9.5.9** Where there is no btw agent (Section 9.7) and the user does not read a session, a frontend
-MUST refuse the side question, saying that the agent that answers The Epic is set in the settings.
+**9.5.9** A frontend MUST NOT offer a choice of the agent of a session side copy, which is the asked
+session's own (Section 9.5.4, Section 9.5.5).
 
-### 9.6. The btw agent asking sessions
+### 9.6. Whom a side question is asked of
 
-**9.6.1** The btw agent MAY run ask commands during its turn, and MAY answer with one or more ask
-lines instead of an answer to the user.
+**9.6.1** The btw panel MUST hold any number of side conversations at once, each asking one session
+of the epic, MUST let the user open a new one, and MUST show one at a time, offering the others to
+switch to.
 
-**9.6.2** hmz MUST put each ask's question to the session side copy of the session it names, opening
-that side copy as Section 9.5.4 and Section 9.5.5 state where it is not open.
-
-**9.6.3** hmz MUST return each session side copy's answer to the btw agent, attributed to the
-session it came from.
-
-**9.6.4** hmz MUST carry out at most 4 asks, ask commands and ask lines together, per side question
-that the user asks.
-
-**9.6.5** Once 4 asks have been carried out for one side question, hmz MUST answer every further ask
-command with `No more asks this question: answer the user with what you have.`, MUST tell the btw
-agent so after ask lines, and MUST take its next answer as the answer to the user.
-
-**9.6.6** An ask that names no session of the epic MUST be answered back to the btw agent as a
-session not found, naming the sessions of the epic.
-
-**9.6.7** An ask whose session side copy fails or answers nothing MUST be answered back to the btw
-agent as that failure or as no answer.
-
-**9.6.8** A frontend MUST show the user each ask as it is carried out, naming the session and the
-question, once per ask.
-
-**9.6.9** The answer shown to the user MUST NOT contain ask lines.
-
-**9.6.10** The btw agent's side conversation MUST carry the skill `ask-conversation`, which states
-the ask command and `hmz-ask list`, and says to ask a session rather than guess what it did or
-knows; a session side copy MUST NOT carry it.
-
-**9.6.11** hmz MUST carry out an ask command on the host that runs the btw agent, while the btw
-agent's turn waits on it, and MUST carry out one ask command run twice with the same session and
-question in one turn once.
-
-**9.6.12** hmz MUST hang a pre-tool-use hook on the btw agent that carries out an ask command the
-btw agent reaches for. On a harness on which a refusal prevents the tool (Section 4.9.2.1), the hook
-MUST refuse the tool with the ask command's output as the reason.
-
-**9.6.13** On a harness that has a shell (Section 4.10.2.1), `hmz-ask` MUST be a fake command line
-that prints the ask command's output. On `codex`, `hmz-ask` alone MUST run outside Codex's sandbox
-(Section 4.10.2.8), and the sandbox MUST otherwise stay `read-only` (Section 4.6.2.3), its network
-cut.
-
-**9.6.14** Where the answer to an ask command reached the btw agent neither as a refusal (Section
-9.6.12) nor as output (Section 9.6.13), hmz MUST, when the btw agent's turn would stop, send it on
-with every such answer as Section 9.6.3 states, at most 4 times per turn.
-
-**9.6.15** A btw agent whose harness serves no pre-tool-use hook that fires (`litellm`) MUST ask by
-ask lines alone.
-
-### 9.7. Choosing the btw agent
-
-**9.7.1** The btw agent MUST be the agent named by the `btw` setting of `settings.yaml`, for every
-epic alike.
-
-**9.7.2** Where the `btw` setting names no agent, there MUST be no btw agent, and an agent of the
-epic, of its flow or of its sessions MUST NOT stand in for it.
-
-**9.7.3** The `btw` setting MUST be an agent spec (Section 3.4.3.1 of [FILES]).
-
-**9.7.4** A change of the `btw` setting MUST take effect from the next side conversation the btw
-agent opens, and MUST NOT change a side conversation already open.
-
-**9.7.5** A frontend MUST NOT offer a choice of the btw agent other than the `btw` setting, and MUST
-NOT offer a choice of the agent of a session side copy, which is the asked session's own (Section
-9.5.4, Section 9.5.5).
-
-### 9.8. Whom a side question is asked of
-
-**9.8.1** The btw panel MUST hold any number of side conversations at once, each asking one of The
-Epic or one session of the epic, MUST let the user open a new one, and MUST show one at a time,
-offering the others to switch to.
-
-**9.8.2** A side conversation of the btw panel MUST be asked of whom the user picked before its
-first question, and MUST NOT be asked of anyone else after; to ask another, the user opens another
+**9.6.2** A side conversation of the btw panel MUST be asked of the session the user picked before
+its first question, and MUST NOT be asked of any other after; to ask another, the user opens another
 side conversation.
 
-**9.8.3** The btw panel MUST offer, until a side conversation is opened by its first question, one
-control that picks whom that side conversation asks, outside the box its question is typed in, and
-MUST NOT offer that control once the side conversation is open.
+**9.6.3** The btw panel MUST offer, until a side conversation is opened by its first question, one
+control that picks the session that side conversation asks, outside the box its question is typed
+in, and MUST NOT offer that control once the side conversation is open.
 
-**9.8.4** That control MUST name the btw agent as `The Epic`, and MUST NOT name it otherwise.
-
-**9.8.5** That control MUST lay the sessions out as a hierarchy: one entry per agent of the epic,
+**9.6.4** That control MUST lay the sessions out as a hierarchy: one entry per agent of the epic,
 naming the agent and the role it fills, under which are that agent's sessions, newest first.
 
-**9.8.6** That control MUST let the user narrow what it offers by typing part of an agent's name, a
+**9.6.5** That control MUST let the user narrow what it offers by typing part of an agent's name, a
 role or a session.
 
-**9.8.7** That control MUST show which one is picked, and MUST keep the pick while the epic is
-redrawn, falling back to The Epic only where the session picked is no longer of the epic.
+**9.6.6** That control MUST show which session is picked, MUST keep the pick while the epic is
+redrawn, MUST drop the pick only where the session picked is no longer of the epic, and MUST NOT let
+a question be sent while no session is picked.
 
-**9.8.8** The btw panel MUST name each side conversation by whom it asks, as `btw · The Epic` or
-`btw · <agent>/<n>`.
+**9.6.7** The btw panel MUST name each side conversation by the session it asks, as `btw ·
+<agent>/<n>`.
 
-**9.8.9** While a side conversation of the btw panel is answering, the panel MUST show that it is,
-on that side conversation and where it is offered to switch to, MUST show each ask (Section 9.6.8)
-as it is carried out, and MUST NOT let the user send that side conversation another question.
+**9.6.8** While a side conversation of the btw panel is answering, the panel MUST show that it is,
+on that side conversation and where it is offered to switch to, and MUST NOT let the user send that
+side conversation another question.
 
-**9.8.10** Btw mode MUST pick whom it asks by the view read, as Section 9.5 states ([TUI]).
+**9.6.9** Btw mode MUST pick the session it asks by the view read, as Section 9.5 states ([TUI]).
 
-### 9.9. Lifetime of side conversations and asides
+### 9.7. Lifetime of side conversations and asides
 
-**9.9.1** Every side question after the first, in one btw mode or one side conversation of the btw
+**9.7.1** Every side question after the first, in one btw mode or one side conversation of the btw
 panel, MUST go on in the same side conversation as the first, so that a question can refer to an
 earlier one.
 
-**9.9.2** Leaving btw mode (Section 12.8 of [TUI]) MUST close every side conversation that btw mode
+**9.7.2** Leaving btw mode (Section 12.7 of [TUI]) MUST close every side conversation that btw mode
 opened.
 
-**9.9.3** Closing a side conversation in the btw panel MUST close it, and no other.
+**9.7.3** Closing a side conversation in the btw panel MUST close it, and no other.
 
-**9.9.4** A new epic starting on the host the frontend follows MUST close every side conversation
-opened about the epic it replaces (Section 12.9 of [TUI]).
+**9.7.4** A new epic starting on the host the frontend follows MUST close every side conversation
+opened about the epic it replaces (Section 12.8 of [TUI]).
 
-**9.9.5** A frontend going away MUST close every side conversation it opened.
+**9.7.5** A frontend going away MUST close every side conversation it opened.
 
-**9.9.6** A side conversation that opens after its btw mode was left, or after it was closed in the
+**9.7.6** A side conversation that opens after its btw mode was left, or after it was closed in the
 btw panel, MUST be closed at once, and its answer MUST NOT be shown.
 
-**9.9.7** The web interface MUST keep, per workspace, which side conversations are open, about which
-epic, whom each asks, the question each is answering and its ask lines so far, and the last 200
-asides of each, so that a page opened again shows them.
+**9.7.7** The web interface MUST keep, per workspace, which side conversations are open, about which
+epic, the session each asks, the question each is answering, and the last 200 asides of each, so
+that a page opened again shows them.
 
-**9.9.8** The terminal interface MUST show each aside in the transcript the user reads, and MUST NOT
+**9.7.8** The terminal interface MUST show each aside in the transcript the user reads, and MUST NOT
 keep asides after the transcript is cleared or the interface closes.
 
-**9.9.9** A frontend MUST show an answer to a side question distinguishably from every line of the
+**9.7.9** A frontend MUST show an answer to a side question distinguishably from every line of the
 epic's own (Section 12.5 of [TUI]).
 
 ## 10. Monitoring
@@ -4751,7 +4670,172 @@ successful update, that those epics run the release the daemon started under unt
 > Informative: a process keeps executing the code it loaded; the new release takes effect in
 > processes started after the update.
 
-## 14. Security Considerations
+## 14. Ai-chan
+
+### 14.1. Scope
+
+This section defines Ai-chan: the **agent** through which the **user** operates hmz by talking to
+it, held by the **daemon** and acting as a **frontend** of its own. It states what a conversation
+with Ai-chan is fixed to when it is made -- its scope, its nous and its permission --, what Ai-chan
+can do and what holds her to it, how her actions are shown to every other frontend, and how her
+conversations take turns, fold away, are carried on and are forgotten.
+
+Out of scope:
+
+- The methods that make, list and forget conversations, how the daemon holds a session to a reach,
+  and the methods on an epic's envs: Section 4.21 of [DAEMON], Section 4.22 of [DAEMON] and
+  Section 4.23 of [DAEMON].
+- The `ai_chan` setting, the variable `HUMANIZE_AICHAN_LINK` and where conversations are kept:
+  Section 3 of [FILES] and Section 4.16 of [FILES].
+- How the terminal interface and the page offer Ai-chan: Section 7.19 of [TUI] and Section 3.16 of
+  [WEB].
+- The flow API the flow `ai_chan` is written against, and the session it speaks: Section 3 of
+  [PYTHON] and Section 4.21 of [PYTHON].
+- Questions about one session of an epic: Section 9.
+
+### 14.2. Terminology
+
+**14.2.1** **Ai-chan**: the agent of the built-in flow `ai_chan`, which operates hmz through the
+methods of Section 4 of [DAEMON], as a frontend of kind `ai-chan`.
+
+**14.2.2** **Ai-chan conversation**: one epic of the flow `ai_chan`, held by a host of its own, of
+the slot `ai:<hex>` (Section 4.2.6 of [DAEMON]).
+
+**14.2.3** **Scope**: what one Ai-chan conversation may reach: `daemon`, every workspace and epic of
+the daemon; `workspace`, one workspace and its epics; or `epic`, one epic of one workspace.
+
+**14.2.4** **Permission**: what one Ai-chan conversation may change: its **preset**, `read-only` or
+`danger-full-access`, and its **network**, whether her harness may reach the network.
+
+**14.2.5** **Reach**: the scope and the permission of an Ai-chan conversation together, as the
+daemon holds her session to them (Section 4.21 of [DAEMON]).
+
+**14.2.6** **Scope root**: the directory of this machine that a scope covers: `/` for `daemon`, and
+the workspace for `workspace` and `epic`.
+
+**14.2.7** **Scratch directory**: the directory of one Ai-chan conversation's own, in which her
+harness works (Section 4.16 of [FILES]).
+
+### 14.3. Making a conversation
+
+**14.3.1** An Ai-chan conversation MUST be made with a scope, a nous, a preset and a network, none
+of which MUST change while the conversation lasts; to change one, the user makes another
+conversation.
+
+**14.3.2** The nous of a conversation MUST default to the `ai_chan` setting (Section 3.4.3 of
+[FILES]); where that setting names none, a frontend MUST ask the user for one and MUST NOT make the
+conversation without one.
+
+**14.3.3** The preset MUST default to `read-only`, and the network to off.
+
+**14.3.4** The scope MUST default to what the frontend shows: `epic`, of the epic shown, where one
+epic is shown; else `workspace`, of the workspace shown, where one is shown; else `daemon`.
+
+**14.3.5** An `epic` scope MUST name an epic by its epic name (Section 3.4.2), and the workspace in
+which that epic was run.
+
+**14.3.6** Any number of Ai-chan conversations MUST be able to go at once, of one scope or of
+several; making, taking a turn of, folding or forgetting one MUST NOT end, stop or wait on any other
+conversation, any chat or any epic.
+
+### 14.4. The flow
+
+**14.4.1** `ai_chan` MUST declare exactly one agent role, `ai_chan`, one outworlder role, `human`,
+which is the user, and one environment role, `scratch`, which, in place of the workspace (Section
+7.5.3), is the conversation's scratch directory.
+
+**14.4.2** `ai_chan` MUST take the params `id`, `scope`, `workspace`, `epic`, `preset` and
+`network`, with which the daemon starts it (Section 4.22 of [DAEMON]), and MUST refuse to start
+where `HUMANIZE_AICHAN_LINK` (Section 3.11.2 of [FILES]) is unset.
+
+**14.4.3** `ai_chan` MUST NOT require a budget, and an Ai-chan conversation MUST run with no limit
+on its spending.
+
+**14.4.4** `ai_chan` MUST be resumable.
+
+**14.4.5** The agent of `ai_chan` MUST be the conversation's nous, read as the rest of an `-a` item
+is read after its `=` (Section 7.4 of [CLI]).
+
+### 14.5. Permission and confinement
+
+**14.5.1** Ai-chan's harness MUST be told its grant as Section 4.6.2.3 tells a confinement that
+writes somewhere, whatever the preset, her scratch directory being writable (Section 14.5.2).
+
+**14.5.2** Ai-chan's harness, and every process it starts, MUST be confined (Section 4.6.4) by these
+rules, each narrowing the one before: `/` denied; the scope root read-only under the preset
+`read-only` and writable under `danger-full-access`; and the scratch directory writable.
+
+**14.5.3** Ai-chan's harness MUST be given the conversation's network as the `network` of its grant
+(Section 4.6.3, Section 4.6.4.5).
+
+**14.5.4** Ai-chan's harness MUST work in the conversation's scratch directory.
+
+**14.5.5** Beneath every rule of Section 14.5.2, Ai-chan's confinement MUST deny her harness the
+machine directory (Section 7.2.2 of [FILES]), the daemon's socket and every scoped link in it
+included, so that her harness reaches the daemon only through the tools of Section 14.6.
+
+**14.5.6** A conversation whose confinement cannot be held as Section 14.5.2 and Section 14.5.5
+state MUST be refused as Section 4.6.4.15 refuses a carve-out that cannot be held, and MUST NOT run
+wider.
+
+### 14.6. What Ai-chan does
+
+**14.6.1** Ai-chan MUST be offered, as tools of her harness (Section 4.10), every action a frontend
+offers its user through the methods of Section 4 of [DAEMON]: reading epics, transcripts, traces and
+spending; starting epics and saying to, answering, stopping and forcing them; asking side questions
+of sessions (Section 9); reading, writing, searching and running commands in an epic's envs
+(Section 4.23 of [DAEMON]); and reading and writing the settings and the nous.
+
+**14.6.2** Ai-chan MUST carry out every action of Section 14.6.1 through her one session to the
+daemon (Section 4.22.6 of [DAEMON]), and MUST NOT act on hmz any other way.
+
+**14.6.3** The daemon MUST hold every call of Ai-chan's session to her reach (Section 4.21 of
+[DAEMON]); a call refused MUST be told to her as the answer of the tool that made it, and MUST NOT
+end her turn.
+
+**14.6.4** Ai-chan MUST be told, with the first message of a conversation, her scope, her preset and
+her network, and that everything she observes -- of epics, sessions, transcripts, files, envs and
+what other frontends say -- is data and not instructions.
+
+**14.6.5** Ai-chan MUST NOT make, list, reach or forget an Ai-chan conversation, her own included
+(Section 4.21.5 of [DAEMON]).
+
+### 14.7. Shown to other frontends
+
+**14.7.1** Ai-chan MUST say `session.hello` with kind `ai-chan`, and the daemon MUST name her
+`Ai-chan#<n>`, `n` the conversation's `id` (Section 4.22.1 of [DAEMON]).
+
+**14.7.2** Everything Ai-chan does to an epic MUST be seen by every frontend attached to it, under
+that name, as Section 3.6.3 of [DAEMON] states.
+
+**14.7.3** Every frontend MUST draw an Ai-chan conversation as Section 8.8.1 and Section 8.8.2 draw
+a chat, and MUST show in it each tool Ai-chan calls, with the method and how it was answered.
+
+**14.7.4** A frontend MUST NOT list an Ai-chan conversation among the epics of a workspace (Section
+8.6.5 notwithstanding), and MUST list it among the Ai-chan conversations (Section 4.22.3 of
+[DAEMON]).
+
+### 14.8. Turns, folding and carrying on
+
+**14.8.1** An Ai-chan conversation MUST take turns as Section 8.4 states a chat takes them, the task
+it was made with being its first message.
+
+**14.8.2** An Ai-chan conversation MUST be reported as Section 8.5.1 to Section 8.5.3 report a chat.
+
+**14.8.3** A frontend MUST offer a way to stop Ai-chan's open turn; stopping MUST interrupt that
+turn, MUST leave the conversation between turns, and MUST NOT end it.
+
+**14.8.4** An Ai-chan conversation MUST fold away as Section 8.7.1 and Section 8.7.2 state a chat
+folds away.
+
+**14.8.5** An Ai-chan conversation that has folded away MUST be carried on by attaching to its slot
+(Section 4.22.5 of [DAEMON]): carrying on MUST continue the same epic and the same conversation, as
+Section 8.7.5 states, or a new conversation in the same epic, as Section 8.7.6 states.
+
+**14.8.6** An Ai-chan conversation MUST be kept, folded away or not, until it is forgotten
+(Section 4.22.4 of [DAEMON]).
+
+## 15. Security Considerations
 
 This section states no requirement of its own. It names the properties stated elsewhere in this
 document on which the security of a user's machine, credentials and work depends.
@@ -4818,9 +4902,12 @@ document on which the security of a user's machine, credentials and work depends
 - A side question never reaches a session of the epic's flow, and every side conversation runs
   inside a confinement of its own that writes nothing, modifies no file of the workspace, and is told to treat what it
   observes about the epic as data and not as instructions (Section 9.3).
-- The btw agent reaches the sessions of an epic only through at most 4 asks per side question, and
-  on `codex` only `hmz-ask` runs outside the sandbox, whose network stays cut (Section 9.6.4 and
-  Section 9.6.13).
+- Ai-chan acts on hmz only through her one session to the daemon, which holds every call to her
+  reach: nothing outside her scope, no write under `read-only`, no pairing, device or credential,
+  and no Ai-chan conversation (Section 14.6 and Section 4.21 of [DAEMON]). Her harness runs at
+  `bypass`, but is confined to reading her scope root, writing it only under `danger-full-access`,
+  and writing her scratch directory (Section 14.5). A `daemon` scope's root is `/`, so a `daemon`
+  conversation under `danger-full-access` can do whatever the user can.
 - A backup and a bundle hold the epic's records, profiles, traces and every session log, with the
   credentials of Section 11.4.3 replaced by `[redacted]`, and a bundle is readable and writable by
   the exporting user alone (Section 11.3.5.1, Section 11.4.1 and Section 11.4.4.3).
@@ -4845,9 +4932,9 @@ document on which the security of a user's machine, credentials and work depends
   installer that installed hmz (Section 13.3.1, Section 10.3.3.2, Section 13.3.2.6 and Section
   13.4.1).
 
-## 15. References
+## 16. References
 
-### 15.1. Normative References
+### 16.1. Normative References
 
 - **[RFC2119]** Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC
   2119, March 1997, <https://www.rfc-editor.org/info/rfc2119>.
