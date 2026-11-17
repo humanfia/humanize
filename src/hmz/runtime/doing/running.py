@@ -478,6 +478,10 @@ class Chatting:
         except RuntimeError:  # the loop closed between the two
             return
 
+    def interrupt(self) -> bool:
+        """Stops the turn going, leaving the chat between turns; whether one was going."""
+        return self._chat.interrupt()
+
     def close(self) -> None:
         """Ends the chat and its conversation, without waiting for it."""
         import contextlib

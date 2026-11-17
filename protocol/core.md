@@ -125,7 +125,7 @@ normative. It is cited by the tag [CORE].
   - [14.1. Scope](#141-scope)
   - [14.2. Terminology](#142-terminology)
   - [14.3. Making a conversation](#143-making-a-conversation)
-  - [14.4. The flow](#144-the-flow)
+  - [14.4. The chat](#144-the-chat)
   - [14.5. Permission and confinement](#145-permission-and-confinement)
   - [14.6. What Ai-chan does](#146-what-ai-chan-does)
   - [14.7. Shown to other frontends](#147-shown-to-other-frontends)
@@ -413,8 +413,7 @@ that cannot be read, or that names a **runtime** which is not saved.
 **3.3.1.9** hmz MUST refuse to start an epic that is given a parameter the flow does not declare, or
 a parameter value that cannot be read as the declared type.
 
-**3.3.1.10** hmz MUST refuse to start an epic that is given no budget, unless its flow is `ai_chan`
-(Section 3.3.4.2).
+**3.3.1.10** hmz MUST refuse to start an epic of a flow that is given no budget (Section 3.3.4.2).
 
 **3.3.1.11** hmz MUST refuse to start an epic that names a backup target which does not exist
 (Section 11.3.2).
@@ -480,9 +479,8 @@ declares a parameter of that name.
 **3.3.4.1** Every epic of a flow MUST execute under a budget that sets at least one limit, and a
 limit MUST NOT be negative.
 
-**3.3.4.2** A chat MUST execute under no budget, with no limit on its spending (Section 8.3). An
-epic of the `ai_chan` flow that is given no budget MUST execute under a budget whose cost limit is
-unbounded.
+**3.3.4.2** A chat, an Ai-chan conversation among them, MUST execute under no budget, with no
+limit on its spending (Section 8.3, Section 14.4).
 
 **3.3.4.3** The graceful flag of each limit of a budget MUST be true unless it is given as false,
 for that limit or for every limit.
@@ -4829,17 +4827,16 @@ Out of scope:
   Section 3 of [FILES] and Section 4.16 of [FILES].
 - How the terminal interface and the page offer Ai-chan: Section 7.19 of [TUI] and Section 3.16 of
   [WEB].
-- The flow API the flow `ai_chan` is written against, and the session it speaks: Section 3 of
-  [PYTHON] and Section 4.21 of [PYTHON].
+- The session Ai-chan speaks: Section 4.21 of [PYTHON].
 - Questions about one session of an epic: Section 9.
 
 ### 14.2. Terminology
 
-**14.2.1** **Ai-chan**: the agent of the built-in flow `ai_chan`, which operates hmz through the
+**14.2.1** **Ai-chan**: the assistant of an Ai-chan conversation, which operates hmz through the
 methods of Section 4 of [DAEMON], as a frontend of kind `ai-chan`.
 
-**14.2.2** **Ai-chan conversation**: one epic of the flow `ai_chan`, held by a host of its own, of
-the slot `ai:<hex>` (Section 4.2.6 of [DAEMON]).
+**14.2.2** **Ai-chan conversation**: one chat (Section 8), held by a host of its own, of the slot
+`ai:<hex>` (Section 4.2.6 of [DAEMON]).
 
 **14.2.3** **Scope**: what one Ai-chan conversation may reach: `daemon`, every workspace and epic of
 the daemon; `workspace`, one workspace and its epics; or `epic`, one epic of one workspace.
@@ -4878,23 +4875,18 @@ which that epic was run.
 several; making, taking a turn of, folding or forgetting one MUST NOT end, stop or wait on any other
 conversation, any chat or any epic.
 
-### 14.4. The flow
+### 14.4. The chat
 
-**14.4.1** `ai_chan` MUST declare exactly one agent role, `ai_chan`, one outworlder role, `human`,
-which is the user, and one environment role, `scratch`, which, in place of the workspace (Section
-7.5.3), is the conversation's scratch directory.
+**14.4.1** An Ai-chan conversation MUST be a chat (Section 8) whose assistant is the conversation's
+nous, read as the rest of an `-a` item is read after its `=` (Section 7.4 of [CLI]), and whose
+assistant works in the conversation's scratch directory in place of the workspace (Section 8.3.1).
 
-**14.4.2** `ai_chan` MUST take the params `id`, `scope`, `workspace`, `epic`, `preset` and
-`network`, with which the daemon starts it (Section 4.22 of [DAEMON]), and MUST refuse to start
-where `HUMANIZE_AICHAN_LINK` (Section 3.11.2 of [FILES]) is unset.
+**14.4.2** Its host MUST start the chat with the conversation's `id`, `scope`, `workspace`,
+`epic`, `preset` and `network` (Section 4.22 of [DAEMON]), and MUST refuse to start it where
+`HUMANIZE_AICHAN_LINK` (Section 3.11.2 of [FILES]) is unset.
 
-**14.4.3** `ai_chan` MUST NOT require a budget, and an Ai-chan conversation MUST run with no limit
-on its spending.
-
-**14.4.4** `ai_chan` MUST be resumable.
-
-**14.4.5** The agent of `ai_chan` MUST be the conversation's nous, read as the rest of an `-a` item
-is read after its `=` (Section 7.4 of [CLI]).
+**14.4.3** An Ai-chan conversation carried on with nothing said MUST wait, between turns, for what is
+said next.
 
 ### 14.5. Permission and confinement
 

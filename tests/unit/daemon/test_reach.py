@@ -9,7 +9,7 @@ from unittest import mock
 import pytest
 
 from hmz.daemon import reach as reaching
-from hmz.daemon.reach import Conversations, Held, Reach
+from hmz.daemon.reach import Conversations, Held, Links, Reach
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -228,3 +228,55 @@ def test_conversations_that_cannot_be_read_are_none(kept: Conversations) -> None
     (kept.at / "conversations.yaml").write_text("{not: a list}")
 
     assert kept.all() == []
+
+
+def test_her_host_has_her_chat_anew_then_carried_on(
+    kept: Conversations, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    links = Links(mock.Mock(), mock.Mock())
+    links.kept = kept
+    made = kept.made(
+        {
+            "slot": "ai:1",
+            "title": "hi",
+            "scope": "daemon",
+            "workspace": "/w",
+            "epic": "",
+            "nous": "claude/opus",
+            "preset": "read-only",
+            "network": False,
+        }
+    )
+    links.tasks["ai:1"] = "hi"
+    hosted = mock.Mock(slot="ai:1", peer=None)
+    hosted.chat.return_value = {"ok": True}
+    reach = {
+        "id": made["id"],
+        "scope": "daemon",
+        "workspace": "/w",
+        "epic": "",
+        "preset": "read-only",
+        "network": False,
+    }
+
+    links.after(hosted)
+
+    hosted.chat.assert_called_once_with(
+        {
+            "do": "start",
+            "by": "hmz",
+            "agent": "claude/opus",
+            "task": "hi",
+            "resume": None,
+            "ai": reach,
+            "scratch": str(kept.scratch(made["id"])),
+        }
+    )
+    hosted.started.assert_not_called()
+    kept.changed(made["id"], record="20260101-chat")
+    monkeypatch.setattr(reaching, "epic_at", "/e/{}".format)
+
+    links.after(hosted)
+
+    said = hosted.chat.call_args.args[0]
+    assert (said["task"], said["resume"]) == ("", "/e/20260101-chat")

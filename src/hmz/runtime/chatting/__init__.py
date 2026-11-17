@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.agents.base import AgentBase, SessionBase
     from hmz.coganchor.agents.native import NativeCommand
-    from hmz.flows import AskUserHookResult, Permission, Usage
+    from hmz.flows import AskUserHookResult, FakeCli, FakeTool, Permission, Usage
     from hmz.runtime.backing import Keeping
     from hmz.runtime.epic import Drove, Epic, Ran
     from hmz.runtime.flowing import AgentDriver, EnvDriver, SessionHandle
@@ -156,15 +156,37 @@ def resolve(
 
 
 @dataclass(frozen=True, slots=True)
+class Role:
+    """What the assistant of a chat is beyond its agent: Ai-chan's, for her conversations.
+
+    Attributes:
+      workdir: Where its harness works, in place of the workspace.
+      permission: What it may touch, in place of the workspace and the web.
+      briefing: What it is told ahead of the first message of each new conversation.
+      tools: The tools it is offered.
+      clis: The command lines put on its PATH.
+      close: What is done once the chat has ended.
+    """
+
+    workdir: Path
+    permission: Permission
+    briefing: str
+    tools: tuple[FakeTool, ...] = ()
+    clis: tuple[FakeCli, ...] = ()
+    close: Callable[[], object] | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ChatSpec:
     """What a chat is started with.
 
     Attributes:
       workspace: The workspace it is had in, on this machine.
       agent: The assistant, as `-a` spells an agent (`claude/MODEL:high`).
-      task: The first message.
+      task: The first message; "" for a chat carried on that waits for the person's.
       resume: The epic directory of a chat to carry on, or None for a new one.
       prefer: This chat's own preference, or None to go by the person's setting.
+      role: What the assistant is beyond its agent, or None for a plain chat's.
     """
 
     workspace: Path
@@ -172,6 +194,7 @@ class ChatSpec:
     task: str
     resume: Path | None = None
     prefer: Prefer | None = None
+    role: Role | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,6 +230,9 @@ class Person(Protocol):
 
 #: The role the assistant is written down as, in the epic and to whatever is told of its sessions.
 ASSISTANT = "assistant"
+
+#: What a turn stopped by the person is answered with, the conversation going on.
+STOPPED = "That turn was stopped."
 
 #: How long a `!` command may run before it is killed: long enough for a build or a test run, not
 #: so long that a command waiting on input it will never get holds the chat for good.
@@ -341,6 +367,15 @@ class Chat:
         talk = self._talk
         return None if talk is None or self._ended else talk.held
 
+    def interrupt(self) -> bool:
+        """Stops the turn going, if one is, leaving the chat between turns; from any thread.
+
+        Returns:
+          Whether a turn was going.
+        """
+        talk = self._talk
+        return talk is not None and talk.interrupt()
+
     @property
     def agents(self) -> tuple[AgentBase, ...]:
         """The coganchor agent behind the conversation open now, where one is behind it."""
@@ -396,7 +431,7 @@ class Chat:
                 watch = getattr(driver, "watch", None)
                 if callable(watch):
                     watch(listener)
-            local = local_env(workspace)
+            local = local_env(spec.role.workdir if spec.role else workspace)
             _priced()
             await _placeable(driver, local)
         except BaseException as why:
@@ -464,6 +499,8 @@ class Chat:
             finally:
                 if keeping is not None:
                     keeping.ended()
+                if spec.role is not None and spec.role.close is not None:
+                    spec.role.close()
         return ChatEnd(epic.path, "stopped")
 
 
@@ -517,6 +554,9 @@ class _Talk:
         self.handle: SessionHandle | None = None
         #: Whether a turn of it has been taken, by when its harness has listed its catalog.
         self.taken = False
+        #: Whether a turn is going, and whether the person stopped the one that was.
+        self.turning = False
+        self._interrupted = False
         #: The assistant as last written down: its CLI, model and effort.
         begun = _drove(_assistant(chat.spec.agent), driver.name)
         self._as = (begun.backend, begun.model, begun.effort)
@@ -550,6 +590,13 @@ class _Talk:
         #: The `!` commands run since the last turn, carried into the next as blocks.
         ran: list[str] = []
         message = chat.spec.task
+        role = chat.spec.role
+        #: Whether the conversation open now was told its role's briefing.
+        briefed = role is None or carrying
+        if not message and role is not None:
+            # Her conversation, with nothing said yet: between turns, waiting on the person.
+            message = await person.next(unkept)
+            unkept = ""
         try:
             while message:
                 line = message.strip()
@@ -587,11 +634,22 @@ class _Talk:
                 # turn, so what `!` ran waits for the turn after it.
                 ahead = bool(ran) and not (native and line[:1] in "/$")
                 prompt = "\n".join([*ran, line]) if ahead else line
+                # Ahead of words alone: a native command starts its turn, or is no command.
+                telling = not briefed and role is not None and not native
+                if telling and role is not None:
+                    prompt = f"{role.briefing}\n\n{prompt}"
                 try:
                     answered = await self._turn(handle, prompt, native=native)
                     if native and line.split(maxsplit=1)[0] in ("/model", "/effort"):
                         self._changed(handle)
                 except HarnessError as failed:
+                    if self._interrupted:
+                        # Stopped by the person: the conversation goes on between turns.
+                        self._interrupted = False
+                        opening = carrying = False
+                        message = await person.next(_said(unkept, STOPPED))
+                        unkept = ""
+                        continue
                     if opening:
                         raise
                     if carrying and isinstance(failed, SessionError):
@@ -599,11 +657,13 @@ class _Talk:
                         # one: a turn that failed -- a limit, the network -- is said instead.
                         unkept = _restarted(str(failed))
                         handle = await self._renewed(handle)
+                        briefed = role is None
                         carrying = False
                         continue
                     answered = f"That turn could not be taken: {failed}"
                 else:
                     self.taken = True
+                    briefed = briefed or telling
                     if ahead:
                         ran.clear()
                 opening = carrying = False
@@ -678,11 +738,19 @@ class _Talk:
           HarnessError: The leaf for why it could not be opened.
         """
         placement = self._local.placement()
-        permission = _permission()
+        role = self._chat.spec.role
+        permission = _permission() if role is None else role.permission
+        offered: dict[str, Any] = (
+            {} if role is None else {"tools": role.tools, "clis": role.clis}
+        )
         # Given only where there is one, as the driver's contract has it.
         handle = await (
             self._driver.open(
-                placement, permission=permission, skills=(), hooks=self._hooks
+                placement,
+                permission=permission,
+                skills=(),
+                hooks=self._hooks,
+                **offered,
             )
             if kept is None
             else self._driver.open(
@@ -691,6 +759,7 @@ class _Talk:
                 skills=(),
                 hooks=self._hooks,
                 carry_on=kept,
+                **offered,
             )
         )
         self.handle = handle
@@ -721,13 +790,24 @@ class _Talk:
         """Takes one turn of the conversation, with no limit on what it spends."""
         from hmz.runtime.flowing.spi import TurnRequest
 
+        self.turning = True
         try:
             answered = await handle.turn(
                 TurnRequest(prompt, native=native), self._spending
             )
         finally:
+            self.turning = False
             self._noting(handle)
         return str(answered)
+
+    def interrupt(self) -> bool:
+        """Stops the turn going, from any thread, and says whether one was."""
+        handle = self.handle
+        if not self.turning or handle is None:
+            return False
+        self._interrupted = True
+        handle.interrupt()
+        return True
 
     def _noting(self, handle: SessionHandle) -> None:
         """Writes down a conversation a driver with no coganchor agent behind it named."""
