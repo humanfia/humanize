@@ -162,6 +162,47 @@ def test_the_page_is_its_own_files_and_nothing_beside_them(project: Path) -> Non
             assert plain.json() == {"error": "Open this as a WebSocket."}
 
 
+def test_the_editor_and_the_terminal_are_served_as_the_pages_own_files(
+    project: Path,
+) -> None:
+    del project
+    with served() as site:
+        browser = Browser(site)
+
+        for path, kind in (
+            ("/vendor/codemirror.js", "text/javascript"),
+            ("/vendor/xterm.js", "text/javascript"),
+            ("/vendor/xterm_css.css", "text/css"),
+        ):
+            got = browser.get(path)
+            assert got.status == 200, path
+            assert got.headers["content-type"].startswith(kind), path
+            assert got.headers["cache-control"] == "no-cache", path
+            # Only a page is held to the policy; what it loads is held by the page's.
+            assert "content-security-policy" not in got.headers, path
+            # Each carries the licences of what was bundled into it.
+            assert got.body.startswith(b"/*! Third-party code"), path
+            assert b"MIT" in got.body[:20_000], path
+            again = browser.get(path, **{"If-None-Match": got.headers["etag"]})
+            assert again.status == 304, path
+
+        # What builds them is not the page's.
+        for nothing in ("/vendor/package.json", "/vendor/codemirror.mjs"):
+            assert browser.get(nothing).status == 404, nothing
+
+        # The editor's and the terminal's own scripts style what they draw, and nothing but the
+        # page's own files is ever run.
+        served_policy = browser.get("/").headers["content-security-policy"]
+        policy = {
+            name: value
+            for name, _, value in (
+                part.strip().partition(" ") for part in served_policy.split(";")
+            )
+        }
+        assert policy["style-src"] == "'self' 'unsafe-inline'"
+        assert policy["script-src"] == "'self'"
+
+
 def test_what_another_site_left_in_the_cookie_jar_is_not_this_ones_business(
     project: Path,
 ) -> None:
