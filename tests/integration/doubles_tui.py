@@ -44,6 +44,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.widgets import OptionList
 
+from hmz.coganchor.agents.native import NativeCommand
 from hmz.flows.builtin import chat
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
@@ -51,6 +52,7 @@ from hmz.tui.flows import Flows
 from hmz.tui.pick import Configures, Confirms
 
 if TYPE_CHECKING:
+    import threading
     from collections.abc import Callable
 
     import pytest
@@ -288,6 +290,8 @@ def stand_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     program.write_text(f"#!{sys.executable}\n{_STAND_IN}")
     program.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.defpath}")
+    # And the daemon's chats, stood in for until it serves them.
+    Chats().install(monkeypatch)
     return _workspace(tmp_path, monkeypatch)
 
 
@@ -320,7 +324,7 @@ async def set_up_own_flow(pilot: Pilot[None]) -> None:
     )  # a dollar, then the button that sets it
     await on(pilot, Flows)
     await leaves(pilot)
-    await shows(pilot, f"◉ {OWN}")
+    await shows(pilot, f"set up: /flow {OWN} <task> starts it")
 
 
 def nothing_installed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -334,6 +338,7 @@ def nothing_installed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
       The workspace, which is the working directory from here on.
     """
     monkeypatch.setenv("PATH", os.defpath)
+    Chats().install(monkeypatch)
     return _workspace(tmp_path, monkeypatch)
 
 
@@ -531,3 +536,145 @@ def _app(pilot: Pilot[None]) -> Humanize:
     app = pilot.app
     assert isinstance(app, Humanize)
     return app
+
+
+#: What a stand-in chat's harness takes at its own prompt: a command and a skill, a command only
+#: its own interface serves, a skill named as a flow is, a shell and files.
+CATALOG = (
+    NativeCommand("/", "compact", "Compact the conversation", "pass"),
+    NativeCommand("/", "config", "Open the settings", "refuse"),
+    NativeCommand("$", "review", "Review the change", "call"),
+    NativeCommand("$", "rlar", "A skill of the flow's name", "call"),
+    NativeCommand("!", "", "Run a shell command", "emulate"),
+    NativeCommand("@", "", "Mention a file", "pass"),
+)
+
+#: What a `!` command run for a stand-in chat prints.
+PRINTED = "file.txt"
+
+
+class Chats:
+    """The daemon's chats (`chat.*`, Section 4.21 of daemon.md), stood in for over the old flow.
+
+    The interface asks the daemon for each through a session of its own; this answers it
+    instead, on the interface's own link to the chat's host, by what the interface asked of
+    that host before chats were a kind of their own: `chat` the flow, started with the agent,
+    each line said to it as the answer to what it waits on or as a word put in. So a test
+    drives the whole chain behind it -- host, driver, stand-in -- and reads what reached it.
+
+    Attributes:
+      asked: Every call made, as `(method, params)`, oldest first.
+      prefer: The chat's preference, and `prefer_from` where it comes from.
+      starting: Set to hold a `chat.start` until it is set, where it is not None.
+      refusing: Whether a held start is refused once let go.
+    """
+
+    def __init__(self, catalog: tuple[NativeCommand, ...] = CATALOG) -> None:
+        self.catalog = catalog
+        self.asked: list[tuple[str, dict[str, Any]]] = []
+        self.prefer = "native"
+        self.prefer_from = "settings"
+        self.starting: threading.Event | None = None
+        self.refusing = False
+
+    def install(self, monkeypatch: pytest.MonkeyPatch) -> Chats:
+        """Answers every `chat.*` the interface asks from here on."""
+
+        # A function rather than this bound method, so that the interface is handed to it.
+        def asked(app: Humanize, request: dict[str, Any]) -> dict[str, Any]:
+            return self._asked(app, request)
+
+        monkeypatch.setattr(Humanize, "_chat_asked", asked)
+        return self
+
+    def started(self) -> list[dict[str, Any]]:
+        """What each `chat.start` was asked with, oldest first."""
+        return [said for method, said in self.asked if method == "chat.start"]
+
+    def _asked(self, app: Humanize, request: dict[str, Any]) -> dict[str, Any]:
+        said = dict(request)
+        method = str(said.pop("do"))
+        self.asked.append((method, said))
+        link = app._link  # noqa: SLF001 -- the host this stands in for the daemon at
+        if method == "chat.start":
+            if self.starting is not None:
+                self.starting.wait(10)
+                if self.refusing:
+                    raise RuntimeError("no room to start")
+            resume = said.get("resume")
+            agents = (
+                {"assistant": said["agent"]}
+                if said.get("agent")
+                else _agents_of(resume)
+            )
+            link.start("chat", said["task"], agents=agents, resume=resume or False)
+            return {"slot": said["slot"], "epic": ""}
+        if method == "chat.say":
+            return self._says(app, str(said["text"]))
+        if method == "chat.commands":
+            return {
+                "entries": [
+                    {
+                        "sigil": one.sigil,
+                        "name": one.name,
+                        "about": one.about,
+                        "how": one.how,
+                        "source": "native",
+                    }
+                    for one in self.catalog
+                ],
+                "prefer": self.prefer,
+                "prefer_from": self.prefer_from,
+            }
+        if method == "chat.set":
+            self.prefer, self.prefer_from = str(said["prefer"]), "chat"
+            return {}
+        raise RuntimeError(f"no such method: {method}")
+
+    def _says(self, app: Humanize, text: str) -> dict[str, Any]:
+        """A line said to the chat: a `!` run as the harness's interface runs one, or said."""
+        link = app._link  # noqa: SLF001 -- the host this stands in for the daemon at
+        if text.startswith("!") and any(
+            one.sigil == "!" and one.how == "emulate" for one in self.catalog
+        ):
+            # Run, shown and carried into the next turn by the chat; here only shown, as the
+            # chat's host tells a frontend of one.
+            app._told(  # noqa: SLF001 -- what the host would have told it
+                {
+                    "type": "shell",
+                    "command": text[1:],
+                    "out": PRINTED,
+                    "err": "",
+                    "status": 0,
+                },
+                app._hearing,  # noqa: SLF001
+            )
+            return {}
+        # What the host waits on now, asked of it rather than of what the interface has been
+        # told so far: a line said just as the interface came back to the chat is said
+        # before the interface has heard what it waits on.
+        pending: list[dict[str, Any]] = (
+            link.asked({"do": "status"}).get("pending") or []
+        )
+        waiting = next(iter(pending), None)
+        if waiting is not None:
+            link.answer(str(waiting["question"]), text)
+        else:
+            link.say(text, to=app._attached)  # noqa: SLF001
+        return {}
+
+
+def _agents_of(epic: str | None) -> dict[str, str]:
+    """What the chat of an epic was had with, by role, for one carried on without an agent."""
+    if not epic:
+        return {}
+    from hmz.coganchor import backends
+    from hmz.runtime.epic import read
+
+    ran = read(Path(epic))
+    if ran is None:
+        return {}
+    return {
+        one.agent: f"{one.backend}/{one.model}:{backends.written(one.effort)}"
+        for one in ran.agents
+    }

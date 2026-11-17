@@ -1263,7 +1263,7 @@ reads only one thing from here: whether you said yes to [reporting](/user/report
 
 ### The first time
 
-With nothing remembered, `hmz` opens on the [`chat`](https://humanfia.ai/flows/chat) flow, with the first
+`hmz` always opens on a new chat. With no chat agent remembered here, it talks to the first
 installed CLI that can run without further setup, at the first model that CLI lists, at effort
 `high` where the model offers it.
 

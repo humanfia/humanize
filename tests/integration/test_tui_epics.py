@@ -22,6 +22,7 @@ from hmz.tui.monitoring import Monitoring
 from hmz.tui.pick import Does, Epics, Exporting, ImportingEpic
 from tests.integration.doubles_tui import (
     OWN,
+    RUNS,
     SIZE,
     claude_logged,
     folds_fast,
@@ -63,7 +64,7 @@ async def chatted(pilot: Pilot[None]) -> None:
     await typed(pilot, "hello")
     await shows(pilot, "heard hello")
     await typed(pilot, "/clear")
-    await shows(pilot, "◉ chat")
+    await shows(pilot, f"◉ {RUNS}")
     workspace = Path.cwd()
     await until(
         pilot,
@@ -156,7 +157,7 @@ async def test_resume_picks_the_last_run_of_a_resumable_flow_back_up(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await typed(pilot, "make it so")
+        await typed(pilot, f"${OWN} make it so")
         await shows(pilot, "the flow is done")
 
         await typed(pilot, "/resume")
@@ -214,7 +215,7 @@ async def test_an_epic_opened_from_epics_is_its_graph_its_sessions_and_what_each
     async with app.run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
         began = time.time()
-        await typed(pilot, "make it so")
+        await typed(pilot, f"${OWN} make it so")
         await shows(pilot, "the flow is done")
         (epic,) = epics(workspace)
         (session,) = Kept(workspace).sessions(epic)
@@ -272,7 +273,7 @@ async def test_the_epic_going_opens_in_exomyth_from_the_monitor(
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await typed(pilot, "wait for it")
+        await typed(pilot, f"${OWN} wait for it")
         await shows(pilot, "still on it")
 
         await pilot.press("left")

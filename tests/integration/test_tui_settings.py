@@ -15,6 +15,7 @@ from hmz.tui.dropdown import Dropdown
 from hmz.tui.pick import Slurming
 from hmz.tui.settings import PAGES, Adjusts
 from tests.integration.doubles_tui import (
+    RUNS,
     SIZE,
     leaves,
     on,
@@ -80,7 +81,7 @@ async def test_settings_opens_on_its_seven_pages_and_esc_closes_it(
         )
 
         await pilot.press("escape")
-        await shows(pilot, "◉ chat")
+        await shows(pilot, f"◉ {RUNS}")
         assert len(app.screen_stack) == 1
 
 
@@ -115,7 +116,7 @@ async def test_a_change_discarded_on_the_way_out_is_not_written(
 
         await leaves(pilot, saving=False)
 
-        await shows(pilot, "◉ chat")
+        await shows(pilot, f"◉ {RUNS}")
     assert "details" not in kept(tmp_path)
 
 
@@ -282,4 +283,4 @@ async def test_usage_says_what_the_epics_spent_by_day_and_by_flow(
         await pilot.press("escape")
         await shows(pilot, "$4.00 in 7 days")
         await pilot.press("escape")
-        await shows(pilot, "◉ chat")
+        await shows(pilot, f"◉ {RUNS}")

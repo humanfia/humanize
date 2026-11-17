@@ -2,29 +2,39 @@
 
 And as many of them as there are: each is an epic of its own, on a host of its own, which goes
 on while another is had and folds away once nobody has looked at it for a while -- and is
-carried on, in the same epic, from `/epics`.
+carried on, in the same epic, from `/epics`. A flow started from it goes on the workspace's
+own host, and `/chat` comes back to it. What its harness takes at its own prompt -- a command,
+a skill, a shell command -- it takes too, and `/prefer` says which a `$` name that is both a
+skill and a flow starts. The daemon's chats are stood in for (:class:`Chats`).
 """
 
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.daemon.link import Link
 from hmz.runtime.epic import Ran, epics, read
 from hmz.tui import Humanize
+from hmz.tui.flows import Flows
 from hmz.tui.monitoring import Monitoring
 from hmz.tui.pick import Does, Epics
 from tests.integration.doubles_tui import (
+    OWN,
+    PRINTED,
+    RUNS,
     SIZE,
+    Chats,
     folds_fast,
     heard,
+    leaves,
     on,
     opened,
     opens,
+    own_flow,
     screen,
+    set_up_own_flow,
     shows,
     stand_in,
     started,
@@ -33,8 +43,9 @@ from tests.integration.doubles_tui import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
     from pathlib import Path
+
+    from textual.pilot import Pilot
 
 #: Every epic here is held by a daemon of the test's own, in this process.
 pytestmark = pytest.mark.usefixtures("daemon")
@@ -90,19 +101,11 @@ async def test_tool_rows_shown_in_detail_are_drawn_as_written_and_again_on_a_res
 def holds_the_start(
     monkeypatch: pytest.MonkeyPatch, *, refusing: bool = False
 ) -> threading.Event:
-    """Holds every `start` asked until the event answered is set, refused if `refusing`."""
-    let_go = threading.Event()
-    asking = Link.asked
-
-    def held(self: Link, said: Mapping[str, Any], **kwargs: Any) -> dict[str, Any]:
-        if said.get("do") == "start":
-            let_go.wait(10)
-            if refusing:
-                raise RuntimeError("no room to start")
-        return asking(self, said, **kwargs)
-
-    monkeypatch.setattr(Link, "asked", held)
-    return let_go
+    """Holds every `chat.start` until the event answered is set, refused if `refusing`."""
+    chats = Chats().install(monkeypatch)
+    chats.starting = threading.Event()
+    chats.refusing = refusing
+    return chats.starting
 
 
 async def test_a_chat_says_it_is_starting_until_it_has_started(
@@ -116,7 +119,7 @@ async def test_a_chat_says_it_is_starting_until_it_has_started(
 
         drawn = await shows(pilot, "starting…")
         assert "starting…" in drawn.splitlines()[-1]
-        assert "◉ chat" not in drawn
+        assert f"◉ {RUNS}" not in drawn
 
         let_go.set()
         drawn = await shows(pilot, "heard hello", "◉ done")
@@ -135,7 +138,7 @@ async def test_a_refused_start_puts_the_status_line_back_at_rest(
         await shows(pilot, "starting…")
 
         let_go.set()
-        drawn = await shows(pilot, "no room to start", "◉ chat")
+        drawn = await shows(pilot, "no room to start", f"◉ {RUNS}")
         assert "starting…" not in drawn
     del workspace
 
@@ -196,7 +199,7 @@ async def test_clear_starts_another_chat_and_the_first_goes_on_to_go_back_to(
         await shows(pilot, "still on it")
 
         await typed(pilot, "/clear")
-        await shows(pilot, "◉ chat")
+        await shows(pilot, f"◉ {RUNS}")
         assert "still on it" not in screen(app)
         assert "stopping" not in screen(app)
 
@@ -263,3 +266,202 @@ async def test_exit_leaves_a_chat_without_asking(workspace: Path) -> None:
         await typed(pilot, "/exit")
 
         await until(pilot, lambda: not app.is_running, "the interface to close")
+
+
+async def chatting(pilot: Pilot[None], said: str = "hello") -> None:
+    """Starts a chat on one line, and waits for its turn to be done."""
+    await opened(pilot)
+    await typed(pilot, said)
+    await shows(pilot, f"heard {said}", "◉ done")
+
+
+async def test_quit_leaves_a_chat_as_exit_does(workspace: Path) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await chatting(pilot)
+
+        await typed(pilot, "/quit")
+
+        await until(pilot, lambda: not app.is_running, "the interface to close")
+
+
+async def test_a_flow_started_from_a_chat_leaves_it_going_and_chat_brings_it_back(
+    workspace: Path,
+) -> None:
+    own_flow(workspace)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await set_up_own_flow(pilot)
+        await chatting(pilot)
+
+        await typed(pilot, f"${OWN} do it")
+
+        # The flow on the screen, on the workspace's own host, and run to its end.
+        await until(pilot, (workspace / "said.txt").exists, "the flow to write")
+        await shows(pilot, "the flow is done")
+        assert "heard hello" not in screen(app)
+
+        await typed(pilot, "/chat")
+
+        await shows(pilot, "heard hello", "◉ done")
+        await typed(pilot, "/chat")
+        await shows(pilot, "the chat is already on the screen")
+        await typed(pilot, "more")
+        await shows(pilot, "heard more")
+    assert (workspace / "said.txt").read_text() == "started: heard do it\n"
+
+
+async def test_a_line_said_after_a_flow_ends_goes_back_to_the_chat(
+    workspace: Path,
+) -> None:
+    own_flow(workspace)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await set_up_own_flow(pilot)
+        await chatting(pilot)
+        await typed(pilot, f"/flow {OWN} do it")
+        await shows(pilot, "the flow is done")
+
+        await typed(pilot, "and now")
+
+        await shows(pilot, "heard and now")
+    # One flow, one chat: nothing said after the flow started another of either.
+    assert heard(workspace) == ["hello", "do it", "and now"]
+
+
+async def test_flow_with_a_task_starts_a_flow_set_up_at_once(workspace: Path) -> None:
+    own_flow(workspace)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await set_up_own_flow(pilot)
+
+        await typed(pilot, f"/flow {OWN} do it")
+
+        await until(pilot, (workspace / "said.txt").exists, "the flow to write")
+    assert heard(workspace) == ["do it"]
+
+
+async def test_a_dollar_skill_is_said_to_the_chat_as_its_harness_takes_it(
+    workspace: Path,
+) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await chatting(pilot)
+
+        await typed(pilot, "$review the diff")
+
+        await shows(pilot, "heard $review the diff")
+    assert heard(workspace)[-1] == "$review the diff"
+
+
+async def test_a_name_both_a_skill_and_a_flow_goes_by_the_chats_preference(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    chats = Chats().install(monkeypatch)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await chatting(pilot)
+        await typed(pilot, "/prefer")
+        await shows(pilot, "native, from the settings file")
+
+        # The skill, as the settings prefer.
+        await typed(pilot, "$rlar go")
+        await shows(pilot, "heard $rlar go")
+
+        await typed(pilot, "/prefer flow")
+        await shows(pilot, "runs the flow where it names both, in this chat")
+        # Recorded by the chat's host, for the chat on the screen.
+        (set_,) = [said for method, said in chats.asked if method == "chat.set"]
+        assert set_["prefer"] == "flow"
+        assert str(set_["slot"]).startswith("chat:")
+
+        # The flow now: not set up here, so its menu, holding the task.
+        await typed(pilot, "$rlar go")
+        await on(pilot, Flows)
+        await leaves(pilot, saving=False)
+        await shows(pilot, "flow not set up; nothing started")
+        await typed(pilot, "/prefer")
+        await shows(pilot, "flow, from this chat")
+    assert heard(workspace).count("$rlar go") == 1
+
+
+async def test_prefer_is_refused_an_argument_it_does_not_take(workspace: Path) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+
+        await typed(pilot, "/prefer neither")
+
+        await shows(pilot, "/prefer takes native or flow")
+
+
+async def test_a_shell_line_and_what_it_printed_are_drawn_as_a_shell_draws_them(
+    workspace: Path,
+) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await chatting(pilot)
+
+        await typed(pilot, "!ls")
+
+        drawn = await shows(pilot, "!ls", f"⎿  {PRINTED}")
+        assert "❯ !ls" not in drawn
+    # Run for the chat rather than said to its assistant.
+    assert "!ls" not in heard(workspace)
+
+
+async def test_a_command_only_the_harness_interface_serves_is_refused(
+    workspace: Path,
+) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await chatting(pilot)
+
+        await typed(pilot, "/config")
+
+        await shows(
+            pilot, "/config is served only by the harness's own interactive interface"
+        )
+        await typed(pilot, "/nonsense")
+        await shows(pilot, "no such command: /nonsense")
+    assert heard(workspace) == ["hello"]
+
+
+async def test_a_harness_command_is_said_to_the_chat(workspace: Path) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await chatting(pilot)
+
+        await typed(pilot, "/compact")
+
+        await shows(pilot, "heard /compact")
+
+
+async def test_the_chats_skills_and_the_flows_are_offered_and_told_apart(
+    workspace: Path,
+) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await chatting(pilot)
+
+        await pilot.press(*"$r")
+
+        drawn = await shows(
+            pilot,
+            "skill · Review the change",
+            "skill and flow: runs the skill; /flow rlar starts the flow",
+        )
+        assert drawn.index("$review") < drawn.index("$rlar")
+
+
+async def test_resume_in_a_chat_carries_on_an_earlier_one(workspace: Path) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await chatting(pilot, "first")
+        await typed(pilot, "/clear")
+        await chatting(pilot, "second")
+
+        await typed(pilot, "/resume")
+        await shows(pilot, "Resume a chat", "first")
+        first, _ = epics(workspace)
+        await opens(pilot, first.name)
+
+        await shows(pilot, "heard first")
+        await typed(pilot, "more")
+        await shows(pilot, "heard more")
+    # Carried on in its own epic: no third.
+    assert len(epics(workspace)) == 2

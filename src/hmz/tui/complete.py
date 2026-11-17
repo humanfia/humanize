@@ -15,6 +15,11 @@ it takes a command line of its own. What a run left behind is `/epics`, which is
 A path written on a form is finished as well, as a shell finishes one (:func:`paths`): where an
 export lands is a file or a directory somebody has to spell, and spelling a path a letter at a
 time with nothing to say what is there is spelling it wrong.
+
+In a chat the harness's own input is offered beside Humanize's (Section 11.10 of [TUI]): its `/`
+commands after Humanize's, its `$` skills ahead of the flows and grouped apart from them, a file
+after `@`. What each of them is, and which one a `$` name that is both would start, is said
+beside it (:func:`tagged`), since a skill and a flow of one name are two things to start.
 """
 
 from __future__ import annotations
@@ -27,13 +32,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Collection, Sequence
 
+    from hmz.coganchor.agents.native import NativeCommand
     from hmz.runtime.flowing import Offer
 
     from .app import Humanize
 
-__all__ = ["VIEWS", "Command", "hinted", "offered", "paths"]
+__all__ = ["VIEWS", "Command", "flow_names", "hinted", "offered", "paths", "tagged"]
 
 #: Every view a command can be typed in: the monitor, the interface's own transcript, one
 #: agent's or one conversation's, and what one outworlder asks.
@@ -93,7 +99,11 @@ _FLOW_AND_NAME = 2
 
 
 def offered(
-    typed: str, commands: tuple[Command, ...], *, flows: bool = True
+    typed: str,
+    commands: tuple[Command, ...],
+    *,
+    flows: bool = True,
+    natives: Sequence[NativeCommand] | None = None,
 ) -> list[str]:
     """What the line being typed could be finished with.
 
@@ -102,11 +112,17 @@ def offered(
       commands: The commands there are.
       flows: Whether a flow may be chosen now, which is what the flows are offered for --
         after a `$` and after `/flow`. Not while one runs: both are refused then.
+      natives: The catalogue of the chat on the screen, or None outside a chat. In one, its
+        `/` commands follow Humanize's, its `$` skills come ahead of the flows -- a name
+        that is both once, among the skills -- and a file is offered after `@` where the
+        harness takes one. An entry only the harness's own interface serves is not offered,
+        being one that is offered to be refused.
 
     Returns:
       Everything the last word could become, in full, so that taking one replaces what was
-      typed rather than being appended to it, and in alphabetical order -- the only order a
-      list of commands has that a reader can predict. Never the word itself, and nothing at
+      typed rather than being appended to it, and in alphabetical order within each group --
+      Humanize's own, then the harness's -- which is the only order a list of commands has
+      that a reader can predict. Never the word itself, and nothing at
       all for a word that has been written out already, whether it is a command or a flow: it
       is finished, and enter over an open list takes what is under the cursor rather than
       sending the line -- so `/flow`, with `/flowverses` beside it in the list, would be a
@@ -115,19 +131,42 @@ def offered(
     """
     words = typed.split(" ")
     tail = words[-1]
+    served = [one for one in natives or () if one.how != "refuse"]
     # A `$` names a flow to start, so it offers the flows and nothing else -- and only while
     # that first word is the one being typed: everything after it is the prompt, which is
-    # prose and has nothing to finish it with.
+    # prose and has nothing to finish it with. In a chat, the skills its harness has first:
+    # grouped apart, each group in its own order, rather than one list mixing the two.
     if typed.startswith("$"):
-        if len(words) > 1 or not flows:
+        if len(words) > 1:
             return []
-        offers = [f"${one.name}" for one in _flows()]
+        skills = sorted(f"${one.name}" for one in served if one.sigil == "$")
+        offers = [
+            *skills,
+            *(
+                named
+                for one in (_flows() if flows else ())
+                if (named := f"${one.name}") not in skills
+            ),
+        ]
+    elif typed.startswith("@") and len(words) == 1:
+        # A file to put in front of the assistant, where its harness takes one.
+        if not any(one.sigil == "@" for one in served):
+            return []
+        offers = [f"@{one}" for one in paths(tail[1:])]
     elif not typed.startswith("/"):
         return []
     elif len(words) == 1:  # still naming the command
         if any(tail.removeprefix("/") == one.name for one in commands):
             return []
-        offers = sorted(f"/{one.name}" for one in commands)
+        mine = sorted(f"/{one.name}" for one in commands)
+        offers = [
+            *mine,
+            *sorted(
+                named
+                for one in served
+                if one.sigil == "/" and (named := f"/{one.name}") not in mine
+            ),
+        ]
     # The flow is the one thing `/flow` takes, and a page the one thing `/settings` does, so
     # each is offered while that word is the one being typed and not after it: a line that
     # already names one is a finished line.
@@ -154,6 +193,16 @@ def offered(
 #: that does not, and the flows there are change when a flow is installed or a file is
 #: written, neither of which happens between two keystrokes.
 _FOR = 2.0
+
+
+def flow_names() -> tuple[str, ...]:
+    """The name of every flow there is to run, as a `$` line names one.
+
+    Returns:
+      Each as it is offered, read as the offers are -- up to a moment ago -- since what a
+      line typed in a chat is depends on them, and that is asked of every line.
+    """
+    return tuple(one.name for one in _flows())
 
 
 def _flows() -> tuple[Offer, ...]:
@@ -186,6 +235,49 @@ def _found(_moment: int, _where: str) -> tuple[Offer, ...]:
     from hmz.runtime.flowing import found
 
     return tuple(found())
+
+
+def tagged(
+    offer: str,
+    natives: Sequence[NativeCommand],
+    flows: Collection[str],
+    prefer: str,
+) -> str:
+    """What one offer made in a chat is, said beside it: the harness's own, or a flow.
+
+    Args:
+      offer: The offer, sigil and all.
+      natives: The chat's catalogue.
+      flows: The flows a `$` names, by the name each is offered under.
+      prefer: The chat's preference, `native` or `flow`, which says what a `$` name that is
+        both starts.
+
+    Returns:
+      `skill` or `flow` for a `$` name, with what the skill does where its harness says; for a
+      name that is both, which one the preference starts and that `/flow <name>` starts the
+      flow either way; what the harness says a `/` command or an `@` does; and "" for one that
+      is neither, which is Humanize's own command and says what it does for itself.
+    """
+    sigil, name = offer[:1], offer[1:]
+    native = next(
+        (
+            one
+            for one in natives
+            if one.sigil == sigil and (one.name == name or sigil == "@")
+        ),
+        None,
+    )
+    if sigil == "$":
+        flow = name in flows
+        if native is not None and flow:
+            picks = "the skill" if prefer == "native" else "the flow"
+            return f"skill and flow: runs {picks}; /flow {name} starts the flow"
+        if flow:
+            return "flow"
+        if native is not None:
+            return f"skill · {native.about}" if native.about else "skill"
+        return ""
+    return native.about if native is not None else ""
 
 
 def hinted(typed: str, commands: tuple[Command, ...]) -> str:

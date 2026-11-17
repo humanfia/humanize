@@ -27,7 +27,7 @@ class Humanize(App[None]):
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `flow` | `""` | The flow to open on. `""`: the flow remembered for this directory, else `chat`. |
+| `flow` | `""` | The flow to hold set up for `/flow` and `$` lines. `""`: the flow remembered for this directory, else none. It always opens on a new [chat](#chat). |
 | `agents` | `None` | What each agent role runs. `None`: what is remembered for the flow, with unremembered roles [filled by default](#default-fill). |
 | `params` | `None` | The flow's params. `None`: remembered, else the flow's defaults. |
 | `link` | `None` | The [link](/reference/daemon#link) to a host. `None`: the workspace's host, attached through this machine's daemon as `kind="tui"` when it mounts. |
@@ -104,8 +104,11 @@ conversation), `outworlder` and `monitor`.
 
 ### Chat {#chat}
 
-A run of the flow named `chat` (a path or ref whose last part is `chat` included) -- or, with
-none running, `chat` set up -- is one conversation, read as Claude Code reads one:
+An epic of kind `chat` -- or, with no epic of a flow on the screen, the chat this interface
+holds and has not started yet -- is one conversation, read as Claude Code reads one. It is told
+by the epic's kind, never by a flow's name: a flow named `chat` is a flow. The interface opens
+on a new chat, its agent the chat agent remembered for this directory, else the first that
+[fills by default](#default-fill).
 
 | | |
 | --- | --- |
@@ -113,8 +116,12 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 | Above the prompt | No outworlder line, and its agent's line marks neither `reading` nor `unread`. |
 | Status line | `running` while a turn is open, `done` once it waits for you ([left side](#status-left)). |
 | Stopping | None: `/stop` is refused, and [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) starts another chat and leaves this one going. |
-| Leaving | [`/exit`](#leaving-and-letting-go) and `ctrl+q` ask nothing. |
+| Leaving | [`/exit`](#leaving-and-letting-go), `/quit` and `ctrl+q` ask nothing. |
 | Beside it | Each chat runs on a host of its own, its own epic, beside every other chat and the flow of this directory, which may be started or `/resume`d while chats go. A chat nobody reads for **60 s** between turns folds away. |
+| Starting a flow | `$<flow> <task>` or `/flow <flow> <task>` puts the flow on the screen, on this directory's own host, and leaves the chat going on its own; `/chat` brings it back, as it stands or, folded away meanwhile, as it was left, carried on by the next line. A line said while no epic of a flow is going goes to the chat. |
+| Its harness's own input | A line starting `/`, `$`, `!` or `@` is first read as the harness reads it at its own prompt, against the catalogue the chat's host gives (`chat.commands`): its commands and skills are said to it, a `!` command runs for the chat and is drawn dim, as a shell draws it, with what it printed under it, and a command only the harness's own interface serves is refused, `<cmd> is served only by the harness's own interactive interface`. Humanize keeps `/clear`, `/resume`, `/exit`, `/quit`, `/btw`, `/flow`, `/epics`, `/settings`, `/chat` and `/prefer`. A `/` naming nothing is `no such command`. |
+| `$` names both | A `$<name>` that is both a skill and a flow runs the skill unless the chat prefers flows: `/prefer` says which and where it comes from (the settings file, or this chat), `/prefer native\|flow` sets it for this chat. `/flow <name> <task>` always starts the flow. |
+| `/resume` | Lists the other chats of this directory, newest first; the one picked is carried on. |
 | `/epics` | No `Exomyth` row for a chat's epic; `continue` in place of `resume epic`: one still going is read where it is, one folded away is carried on, in the same epic, by the next line you say. |
 
 ### Turn lines {#turn-lines}
@@ -155,7 +162,7 @@ State: the first row that holds.
 
 | # | Condition | Text |
 | --- | --- | --- |
-| 0 | A [chat](#chat) going | `◉ done` with no turn open and a *listen* question pending; else `<spinner> running… (<s>s)`, as row 2 without the names and the stop hint. |
+| 0 | A [chat](#chat) on the screen | `◉ done` between turns, as its host says its turn; `<spinner> running… (<s>s)` while one is open, as row 2 without the names and the stop hint; with none going, `◉ <agent> · <directory>`, the agent the next line talks to. |
 | 1 | A run going, no turn open, a *listen* question pending | `·\|· waiting for <you\|name> · ctrl+c twice to stop` (muted, not animated). `you` where some such question is unowned or owned by this frontend; else the first owner's name. |
 | 2 | A turn open, or a run going | `<spinner> <names>… (<s>s · ctrl+c twice to stop)`. Spinner `·\|·` `·/·` `·—·` `·\·`, a frame per 0.5 s, cyan. `<names>`: the working agents, comma-separated; with none, the flows running joined by ` ▸ ` (innermost last), else the flow set up. `<s>`: since the oldest open turn began, else since the run began. |
 | 3 | Otherwise | `◉ <flow> · <cwd>`, with `$HOME` as `~`. |
@@ -240,7 +247,7 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 
 | Command | Args | Views | Refused (and unlisted) when | Also unlisted when |
 | --- | --- | --- | --- | --- |
-| <span id="cmd-flow"></span>`/flow` | `[flow]` | all | never; `[flow]` itself is refused while a run is going | — |
+| <span id="cmd-flow"></span>`/flow` | `[flow] [task]` | all | never; `[flow]` itself is refused while a run is going | — |
 | <span id="cmd-btw"></span>`/btw` | `[question]` | all | nobody to ask (see [btw](#btw)) | — |
 | <span id="cmd-epics"></span>`/epics` | `[@daemon]` | all | never | — |
 | <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing |
@@ -250,6 +257,9 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 | <span id="cmd-claim"></span>`/claim` | `[on\|off]` | `outworlder` | on an outworlder another frontend holds | — |
 | <span id="cmd-stop"></span>`/stop` | — | all | no run going, a [chat](#chat) going, or it is stopping | — |
 | <span id="cmd-exit"></span>`/exit` | — | all | never | — |
+| <span id="cmd-quit"></span>`/quit` | — | all | never | — |
+| <span id="cmd-chat"></span>`/chat` | — | all | the [chat](#chat) is on the screen | — |
+| <span id="cmd-prefer"></span>`/prefer` | `[native\|flow]` | all | anywhere but a [chat](#chat) | — |
 
 </RefFilter>
 
@@ -257,16 +267,18 @@ Each command's line in the completion list:
 
 | Command | About | Instead, when |
 | --- | --- | --- |
-| `/flow` | `Switch flow` | `Set up the running flow's agents` — a run is going |
+| `/flow` | `Set up a flow, or start one on a task` | `Set up the running flow's agents` — a run is going |
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage epics here, or of another daemon` | |
-| `/resume` | `Resume the last epic in this directory` | |
+| `/resume` | `Resume the last epic in this directory` | `Resume an earlier chat here` — a [chat](#chat) |
 | `/settings` | `Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace, usage` | |
-| `/clear` | `Clear the screen` | |
+| `/clear` | `Clear the screen` | `Start a new chat` — a [chat](#chat) |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
 | `/stop` | `Stop the flow without confirmation` | |
-| `/exit` | `Exit` | `Exit; a running flow can be left running` — a run but a [chat](#chat) is going |
+| `/exit`, `/quit` | `Exit` | `Exit; a running flow can be left running` — a run but a [chat](#chat) is going |
+| `/chat` | `Back to the chat, which went on while a flow was on the screen` | |
+| `/prefer` | `What $<name> runs where it names a skill and a flow` | |
 
 The completion list shows the commands that are available in the view, not refused and not
 unlisted, alphabetically. Availability and about texts are re-evaluated whenever the view, the
@@ -284,7 +296,11 @@ Every message is red and prefixed `hmz: `.
 | `/afk`, `/claim` | argument not `on`/`off` | `expected 'on' or 'off', not '<word>'` |
 | `/claim off` | not held by this frontend | `<role> is not yours to release` |
 | `/stop` | nothing running | `no flow is running` |
-| `/stop` | a [chat](#chat) going | `a chat is not stopped: /clear starts another` |
+| `/stop` | a [chat](#chat) on the screen | `a chat is not stopped: /clear starts another` |
+| `/chat` | the chat is on the screen | `the chat is already on the screen` |
+| `/chat` | any argument | `/chat takes no arguments` |
+| `/prefer` | not in a chat | `/prefer works only in a chat: /chat goes back to it` |
+| `/prefer` | an argument but `native` or `flow` | `/prefer takes native or flow` |
 | `/stop` | stopping | `the flow is already stopping: it is finishing the turn it was in` |
 | `/resume` | a run going | `cannot resume an epic while a flow is running: press ctrl+c twice to stop it first` |
 
@@ -413,14 +429,14 @@ Paths are not names: use `/flow ./path`.
 | a question is answerable here (home, monitor, the asking outworlder's view, the conversation it is part of, or the view it was shown on) | Taken as the answer. |
 | `<name>` not among the offered flows | `hmz: no such flow: <name>`, and for a name said as before the `@` (`local/x`) ` -- a flow of local is called @local/x now` |
 | a run going | `hmz: cannot choose a flow while one is running` |
-| the flow is [set up](#set-up) | Chosen; with a task, the run starts. Without a task, `enter a task to start the flow`. |
+| the flow is [set up](#set-up) | Chosen; with a task, the run starts. Without a task, `set up: /flow <flow> <task> starts it`. |
 | not set up | `/flow` opens inside it, holding the task; the run starts when the menu is saved. Leaving without saving: `flow not set up; nothing started` (dim). |
 
 <span id="set-up"></span>A flow is **set up** here when all hold: the remembered agent roles
 are exactly the declared agent roles; every required environment role has a remembered
-environment; remembered params validate against the flow's `FlowParams`; there is a budget,
-unless the flow needs none (`chat`). A flow that fails to load counts as set up (and fails
-when run).
+environment; remembered params validate against the flow's `FlowParams`; there is a budget. A
+flow that fails to load counts as set up (and fails when run). `/flow <flow> <task>` starts a
+flow the same way a `$` line does.
 
 Names are those offered by completion, which are what `-f` takes: as `official` lists them for
 the flows built in and those installed from it (`$chat`, `$alice/kernel`), `$@local/<flow>`,

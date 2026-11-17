@@ -138,6 +138,8 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.coganchor",
         "hmz.flows",
         "hmz.runtime.flowing",
+        # What a line typed in a chat is, read as its harness reads it.
+        "hmz.runtime.chatting",
         "hmz.runtime.epic",
         "hmz.runtime.exporting",
         "hmz.runtime.kept",
