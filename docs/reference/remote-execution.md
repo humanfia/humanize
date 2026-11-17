@@ -791,10 +791,9 @@ what crosses is its anchored rules, not its paths.
 
 - A CLI's own sandbox is not used under an anchor: it would wrap a command here that runs on
   the target. Codex is sent `sandboxPolicy: {"type": "externalSandbox", "networkAccess":
-  "enabled" | "restricted"}` (by the fence's `online`) where the fence writes nothing the rung
-  forbids: nothing at all for `read-only`, nothing of the home or system for
-  `workspace-write`; Cursor's `workspace-write` runs without `cursorsandbox` where
-  the fence writes nothing of the home or the system.
+  "enabled" | "restricted"}` (by the fence's `online`) where the fence writes nothing its own
+  sandbox forbids: nothing at all where that is `read-only`, nothing of the home or system
+  where it is `workspace-write`; Cursor runs with its own sandbox disabled.
 - Whatever a driver grants its CLI past the wall (a port it serves on, a sign-in outside its
   home, generated settings) is granted on both machines.
 - A flow session supervised here in a mirror (`shadow` set) has its fence drawn around the

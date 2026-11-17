@@ -229,6 +229,11 @@ def _accelerators() -> tuple[str, ...]:
     )
 
 
+def _written() -> tuple[str, ...]:
+    """What every fence writes however little its rules do: :data:`DEVICES` and the GPUs'."""
+    return (*DEVICES, *_accelerators())
+
+
 def _temporary() -> tuple[str, ...]:
     """:data:`TEMPORARY`, and the directory `TMPDIR` names where it is absolute."""
     named = os.environ.get("TMPDIR", "")
@@ -414,8 +419,9 @@ class Fence:
     CLI at all.
 
     Drawn from a flow's rules by :meth:`of`, which adds the minimum every program needs to
-    run; made wider by :meth:`granting` and narrower by nothing, since a fence that can only
-    widen once built is one nobody can quietly tighten into a CLI that cannot start.
+    run; made wider by :meth:`granting`, and narrower only by :meth:`reading`, which keeps
+    that minimum -- a fence that cannot otherwise be narrowed once built is one nobody can
+    quietly tighten into a CLI that cannot start.
 
     Attributes:
       read: Absolute paths that may be read, listed and executed.
@@ -555,7 +561,7 @@ class Fence:
         )
         return fence._at(held).granting(  # noqa: SLF001 -- its own class's
             read=(*SYSTEM, *_ours(), *read),
-            write=(*DEVICES, *_accelerators(), *write),
+            write=(*_written(), *write),
         )
 
     def _at(self, held: dict[str, str]) -> Fence:
@@ -634,6 +640,48 @@ class Fence:
         return any(
             access == WRITE and path.partition("/")[0] != _WORKDIR
             for path, access in self.standing
+        )
+
+    @property
+    def writes(self) -> bool:
+        """Whether this fence lets anything be written that a flow's rules said may be.
+
+        What a driver reads off the fence to tell its CLI what it may do: a fence that writes
+        nothing is one whose CLI's file-writing tools are withheld, its shell kept -- the fence
+        refuses any write the shell attempts -- and one that writes somewhere is one whose CLI
+        is given every tool, the fence holding where the writes land. Read off the rules that
+        stand (:attr:`standing`), so that a write a later rule takes back writes nothing; for a
+        fence drawn path by path, off the paths it writes beyond the minimum every program
+        needs, which are devices and not anybody's files.
+        """
+        if self.drawn:
+            return any(access == WRITE for _, access in self.standing)
+        minimum = _normal(_written())
+        return any(path not in minimum for path in self.write)
+
+    def reading(self) -> Fence:
+        """This fence with nothing written but the minimum every program needs to run.
+
+        Every path it writes is read instead, and every rule it was drawn from that writes
+        reads: the read-only twin of it, which reaches what it reaches and changes nothing --
+        what a side conversation about an agent is held to, whatever that agent may write.
+        The devices of :data:`DEVICES` and the GPUs' nodes stay written, as :meth:`of` writes
+        them whatever the rules say, and the carve-outs, the network, the hosts, the ports and
+        the scratch directory stay as they are. What the CLI itself writes -- its state, its
+        account -- coganchor grants where it spawns it, as it does for every fence.
+
+        Returns:
+          The twin, for which :attr:`writes` is False.
+        """
+        minimum = _normal(_written())
+        return dataclasses.replace(
+            self,
+            read=(*self.read, *(one for one in self.write if one not in minimum)),
+            write=tuple(one for one in self.write if one in minimum),
+            drawn=tuple(
+                (path, READ if access == WRITE else access)
+                for path, access in self.drawn
+            ),
         )
 
     @property

@@ -94,8 +94,8 @@ Out of scope:
 - The layout and format of files hmz writes, including the progress record of a resumable epic, kept
   conversations, flowverse clones and installed flows: Section 4 of [FILES], Section 6 of [FILES],
   Section 7 of [FILES].
-- How a permission is enforced on a harness (the fence and the harness's approval rung), the harness
-  configuration layering, and each harness's accepted models and efforts: Section 4 of [CORE].
+- How a permission is enforced on a harness (the fence, and what the harness is told of it), the
+  harness configuration layering, and each harness's accepted models and efforts: Section 4 of [CORE].
 - Accounts a turn runs as: Section 5 of [CORE].
 - Where a session's harness runs (placements, harness settings, mirrors): Section 6 of [CORE].
 - Environment backends, runtimes, and how resources size a container or job: Section 7 of [CORE].

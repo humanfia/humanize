@@ -125,10 +125,10 @@ Who answers depends on what is on the screen when you type `/btw`:
   by running `hmz-ask ask --to <session> --question "…"` (`hmz-ask list` lists the sessions).
   hmz catches that command where The Epic runs and answers it mid-turn: Claude Code and Qwen
   Code hear the answer through a hook, a CLI that ran the command reads it from its output, and
-  any other CLI is told it when its turn would end. A CLI that cannot run a command at the
-  read-only rung asks by replying with `@ask <session>: <question>` lines instead.
-  MiniMax Code, DeepSeek Harness and ACP agents have no read-only rung, so they cannot answer
-  The Epic; a side question to one fails, saying so.
+  any other CLI is told it when its turn would end. A CLI with no shell to run a command in
+  asks by replying with `@ask <session>: <question>` lines instead. Every CLI can be The Epic,
+  MiniMax Code, DeepSeek Harness and ACP agents included: what keeps it from writing is the
+  fence it runs in, not a mode of its own.
 
 The snapshot holds:
 
@@ -191,8 +191,11 @@ What to look at, by number:
 
 ## What a side conversation may do
 
-Every side conversation runs read-only, with no skills, no goals and none of the flow's tools.
-It can read the workspace, but it cannot change anything and it cannot steer the flow. Its
+Every side conversation runs read-only, inside a [fence](/user/permissions) of its own that
+writes nothing (the read-only twin of its agent's fence, or one reading the whole machine), with
+no skills, no goals and none of the flow's tools. Its CLI keeps its shell but not its
+file-writing tools. It can read the workspace, but it cannot change anything and it cannot steer
+the flow. A machine that cannot hold a fence refuses the side question, saying what it needs. Its
 turns are real turns, though: they count against the run's [budget](/features/allowances).
 They do not appear on the monitor or in the run's [trace](/user/tracing).
 

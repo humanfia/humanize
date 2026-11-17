@@ -1903,7 +1903,7 @@ outside any directory **hmz** creates.
 directory of the **user** that a **harness** reads as its configuration, that holds settings, model
 or provider declarations, agents, commands, skills, hooks or tool servers.
 
-**8.2.4** The term managed item MUST carry the meaning Section 4.2.9 of [CORE] gives it.
+**8.2.4** The term managed item MUST carry the meaning Section 4.2.8 of [CORE] gives it.
 
 **8.2.5** **Virtual config home**: a process-private temporary directory on the **harness machine**
 that **hmz** creates for one **harness** process and that the process uses as its harness home.

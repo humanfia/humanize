@@ -42,8 +42,23 @@ pytestmark = pytest.mark.usefixtures("daemon")
 
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
-    """The stand-in `claude` on `PATH`, really asked what it runs as the interface opens."""
+    """The stand-in `claude` on `PATH`, really asked what it runs as the interface opens.
+
+    A side conversation runs inside a fence that writes nothing, which is not put up here: the
+    stand-in writes what it was asked where the tests read it.
+    """
     del asking
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: object) -> list[str]:
+        del fence
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     return stand_in(tmp_path, monkeypatch)
 
 
