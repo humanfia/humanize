@@ -30,6 +30,7 @@ It is normative. It is cited by the tag [TUI].
   - [7.17. `/stop`](#717-stop)
   - [7.18. `/exit`](#718-exit)
   - [7.19. `/ai`](#719-ai)
+  - [7.20. `/env [role]`](#720-env-role)
 - [8. `$` lines](#8--lines)
 - [9. Saying something](#9-saying-something)
 - [10. Questions](#10-questions)
@@ -324,7 +325,7 @@ in this order:
 ## 7. Commands
 
 **7.1** The interface MUST offer exactly these commands: `/flow`, `/btw`, `/epics`, `/resume`,
-`/settings`, `/clear`, `/afk`, `/claim`, `/stop`, `/exit`, `/ai`.
+`/settings`, `/clear`, `/afk`, `/claim`, `/stop`, `/exit`, `/ai`, `/env`.
 
 **7.2** The interface MUST echo a command line as typed, MUST split its arguments as a POSIX shell
 splits words, and MUST refuse a line it cannot split, saying why.
@@ -517,6 +518,49 @@ tool Ai-chan calls as a tool line of a turn is shown (Section 14.7.3 of [CORE]).
 
 **7.19.8** `/clear` while the log screen follows an Ai-chan conversation MUST leave that
 conversation to its host and follow this directory's own host again.
+
+### 7.20. `/env [role]`
+
+**7.20.1** `/env` MUST open a sheet of the envs of the epic going, or of the last one, of the host
+this interface follows -- a chat's workspace among them -- as the snapshot `envs` holds them
+(Section 4.24.2 of [DAEMON]), each derived env under the env it was derived from, each named by its
+chain and marked where it is closed; `/env <role>` MUST open the first env of that role, and MUST be
+refused, naming the roles it takes, for a role that has none.
+
+**7.20.2** `/env` MUST be refused while the host holds no env.
+
+**7.20.3** An env MUST open on its pages as Section 7.13.3 of [CORE] chooses them: `Files` where it
+serves files, `Changes` where it serves git, and `Shell` where it serves a shell; it MUST open on
+the first of them whose capability its role declares, else `Files`, and `tab` and `shift+tab` MUST
+step through them.
+
+**7.20.4** `Files` MUST list one directory of the env at a time (`env.list`), directories first;
+`enter` MUST open a directory, and `backspace` the directory above.
+
+**7.20.5** `enter` on a file MUST open it in an editor of the interface's own that highlights its
+syntax by its name, and MUST write the file 1 second after the user stops typing and on leaving the
+editor, each time as `env.write` with `if_match` the `etag` last read or written. A write refused
+because the file changed MUST keep the user's text and MUST open a box offering to keep the user's
+text, which writes it over the file, or to read the file again. A binary file, and a file larger
+than 5 MiB, MUST NOT open in that editor.
+
+**7.20.6** `e` on a file MUST open a copy of it in the editor `VISUAL` names, else `EDITOR`, else
+`vi`, handing it the terminal until it exits, and MUST then write the copy back as Section 7.20.5
+writes, where it changed.
+
+**7.20.7** `Changes` MUST list the env's git status (`env.git.status`) in the groups of Section
+3.17.4.1 of [WEB], and MUST show the change of the file selected (`env.git.diff`) highlighted as a
+diff; it MUST let the user stage, unstage and, after a box, discard a file, and commit with a
+message (`env.git.commit`).
+
+**7.20.8** `Shell` MUST open a terminal in the env (`env.term.open`), or attach again to one this
+interface opened that is still alive, and MUST hand it the whole terminal: every key typed goes to
+it (`env.term.input`), what it prints is drawn as it comes and acknowledged as drawn
+(`env.term.ack`), and a change of the terminal's size is passed on (`env.term.resize`).
+
+**7.20.9** In `Shell`, `~.` typed at the start of a line MUST give the terminal back to the
+interface and leave the terminal running; the terminal ending MUST give it back too, saying its exit
+status.
 
 ## 8. `$` lines
 
@@ -1438,6 +1482,9 @@ in this document that bear on security.
   9.10). `/claim` holds an outworlder for one frontend (Section 7.16), `/afk` does not change an
   outworlder another frontend holds (Section 7.15.3), and `/stop` and stopping on the way out stop
   the epic for every frontend (Section 7.17.1 and Section 7.18.5).
+- **Environments.** `/env` writes the files of an epic's envs and opens a shell in them, as the
+  user the daemon runs as (Section 7.20); every change and every shell opened is written in the
+  epic's history (Section 4.24.1.8 of [DAEMON]).
 - **Error reports.** The interface asks once whether hmz can report its own failures, saying what
   would be sent and what would not, and leaving the box leaves the question unanswered (Section
   19.13.1); the General page holds the answer and says where `HUMANIZE_SENTRY` overrides it
