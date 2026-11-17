@@ -110,7 +110,7 @@ straight into the one named, and the word is offered as you type it:
 
 | Page | `/settings …` | What it holds |
 | --- | --- | --- |
-| [**General**](#general) | `general` | whether the screen [shows the working](#details), which agent `/btw` talks to, and whether Humanize reports what goes wrong |
+| [**General**](#general) | `general` | whether the screen [shows the working](#details), what [Ai-chan](/user/ai-chan) thinks with by default, and whether Humanize reports what goes wrong |
 | [**Notifications**](#notifications) | `notifications` | which epics on this machine you are told of, and whether the terminal's bell and your system tell you too |
 | [**Daemons**](#daemons) | `daemons` | this machine's daemon and other machines', reached over ssh or EasyTier, and how each stands |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
@@ -210,7 +210,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
   <span class="sel"> ⚙  <b>General</b>                                    details off · reports off </span> <span class="n">1</span>
-     <span class="m">this machine: what epics show, who answers The Epic, error reports</span>
+     <span class="m">this machine: what epics show, Ai-chan's nous, error reports</span>
    ────────────────────────────────────────────────────────────────────────
    ◉  <b>Accounts</b>                                                0 accounts
      <span class="m">what agents sign in as, under each CLI</span>
@@ -248,8 +248,8 @@ switch on [Details](#details), so every tool call and every line of thinking sho
      <span class="m">show every tool call and all of the thinking</span>
                                       <span class="p">╭─ Details ────────────────────────╮</span>
    <span class="p">Agents</span>                             <span class="p">│</span><span class="sel"> on  show tool calls and thinking </span><span class="p">│</span> <span class="n">4</span>
-   <b>/btw The Epic</b>                      <span class="p">│</span> off ✔  show turn responses only  <span class="p">│</span>
-     <span class="m">the agent that answers side q</span>   <span class="p">╰──────────────────────────────────╯</span>
+   <b>Ai-chan</b>                            <span class="p">│</span> off ✔  show turn responses only  <span class="p">│</span>
+     <span class="m">the nous a new conversation</span>     <span class="p">╰──────────────────────────────────╯</span>
 
    <span class="p">Privacy</span>
    <b>Error reports</b>                                               <span class="m">○ off ▾</span>
@@ -315,7 +315,7 @@ about.
 | Heading | Row | What it is |
 | --- | --- | --- |
 | Display | Details | whether the screen [shows the working](#details): every tool call and all of the thinking |
-| Agents | /btw The Epic | the agent that answers a side question asked of The Epic, about a whole epic ([`/btw`](/user/btw)): `none`, the one you chose, or `another…`, which chooses its CLI, account, model and effort. With `none`, only a conversation can be asked. It takes effect the next time you enter btw mode. |
+| Agents | Ai-chan | the nous a new conversation with [Ai-chan](/user/ai-chan) thinks with unless you pick another: `none`, the one you chose, another [nous](#nous), or `another…`, which chooses its CLI, account, model and effort. With `none`, each new conversation asks for one. It takes effect from the next conversation made; one already made keeps its own. |
 | Privacy | Error reports | whether Humanize [reports what goes wrong](/user/reporting) to its developers |
 | Privacy | What is sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 

@@ -57,6 +57,7 @@ step:
 
 - [Talking to a running turn](/user/steering)
 - [Side questions (/btw)](/user/btw)
+- [Ai-chan (/ai)](/user/ai-chan)
 - [Many conversations at once](/user/conversations)
 - [Showing the working](/user/settings#details)
 - [Watching a run (the monitor)](/user/monitor)

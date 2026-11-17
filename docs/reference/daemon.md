@@ -65,6 +65,7 @@ mount would list each machine's daemon on every other.
 | File | Written | Mode | Content | Removed |
 | --- | --- | --- | --- | --- |
 | `daemon.sock` | when the daemon binds | `0600` | Unix stream socket, backlog 64. A stale one is unlinked only after the lock is held. | when the daemon closes |
+| `ai-<hex>.sock` | before the host of the Ai-chan conversation of slot `ai:<hex>` starts | `0600` | Unix stream socket: that conversation's [scoped link](#scoped-links). | when that host goes, and when the daemon closes |
 | `daemon.json` | after binding, atomically (`.daemon.json.<random>.new`, fsync → rename) | `0600` | See below. | when the daemon closes |
 | `daemon.lock` | at start | `0600` | Empty. Held with `flock(LOCK_EX \| LOCK_NB)` for the daemon's lifetime; the kernel releases it when the process ends. | never |
 | `daemon.log` | at start; append | `0600` | What belongs to no run: the daemon's file descriptors 1 and 2, a host process's before it has held a run, start failures, socket-path `chdir` failures. Never rotated. | never |
@@ -188,7 +189,7 @@ object, at most 32 MiB), whichever carrier it came over:
 | Calls the daemon makes | None. |
 
 The methods served here are `session.*`, `rpc.discover`, `pair.*`, `devices.*`, [`hosts.*`](#control-requests),
-[`epic.*`](#requests) and `btw.*`; every other family (settings, epics written down, flows, …)
+[`epic.*`](#requests), `btw.*` and [`aichan.*`](#ai-chan); every other family (settings, epics written down, flows, …)
 is a module of `hmz.daemon.api` naming its own in `METHODS`, found by `pkgutil` as the daemon
 starts. A method `protocol/openrpc.json` lists that nothing serves is refused -32601.
 
@@ -236,7 +237,7 @@ up as `told` `{tag, message}`.
 A workspace's runs are held by more than one host: its own, slot `""`, which runs its flows one
 at a time and refuses a second (`a flow is already running`), and one per chat, slot
 `chat:<hex>` (12 hex digits from `hmz.daemon.where.chat()`), and one per `hmz exec`, slot
-`exec:<hex>`, beside it. `epic.attach` and `hosts.open` with `chat:` or `exec:` alone make a new
+`exec:<hex>`, and one per [Ai-chan](#ai-chan) conversation, slot `ai:<hex>`, beside it. `epic.attach` and `hosts.open` with `chat:` or `exec:` alone make a new
 slot of that kind; one whose host has gone is refused 409 (`This chat has folded away.`, `This
 epic has ended.`). A chat started on a slot
 of its own never waits on a flow, nor a flow on it, and a second chat is a second slot. Every
@@ -361,16 +362,93 @@ is closed on `unaside`, when its frontend detaches, when a run starts, and when 
 No message announces asides. A harness with no read-only rung (`mcode`, `dsh`, ACP) is refused:
 `<harness> cannot answer a side question: it has no read-only rung`.
 
-The Epic's aside (`runs` with `asks: true`) carries the `ask-conversation` skill, a pre-tool-use
-and a stop hook, and the fake command line `hmz-ask` (`ask --to <agent>/<n> --question <q>`,
-`list`). A run of it, caught by the hook or by the command, answers the turn's `aside` with
-`ask`; the frontend carries it out and sends `answered`, and the turn goes on. The answer
-reaches the agent as the hook's refusal on `claude` and `qwen`, as the command's output where it
-ran, and otherwise as what the stop hook sends the agent on with. One question asked twice in a
-turn is asked once. On `codex`, whose `read-only` sandbox refuses the socket `hmz-ask` reaches
-the host on, `hmz-ask` alone runs outside the sandbox, by `prefix_rule(pattern=["hmz-ask"],
-decision="allow")` in `rules/hmz.rules` of its virtual home; every other command stays in the
-sandbox, network cut.
+`btw.*` opens only session side copies: an aside is always of one session of the epic, and
+of no other agent.
+
+## Ai-chan {#ai-chan}
+
+Each [Ai-chan](/user/ai-chan) conversation is an epic of the built-in flow `ai_chan`, held by a
+host of its own on the slot `ai:<hex>`: in the workspace of its scope, or, for the scope
+`daemon`, in `H/ai/<machine>/`. Its harness runs at `bypass`, confined: `/` denied, the scope
+root (`/` for `daemon`, the workspace otherwise) read-only under `read-only` and writable under
+`danger-full-access`, its scratch directory `H/ai/<machine>/<id>/` writable, and this machine's
+directory -- the daemon's socket and every scoped link -- denied beneath all of it. A
+conversation whose confinement cannot be held is refused rather than run wider. It has no
+budget.
+
+### `aichan.*` {#aichan-methods}
+
+| Method | Fields (default) | Answer | Refusals |
+| --- | --- | --- | --- |
+| `aichan.create` (write) | `scope` (`daemon`, `workspace`, `epic`; required), `workspace` (for `workspace` and `epic`), `epic` (an epic name, for `epic`), `nous` (`""`: the [`ai_chan` setting](/reference/settings#ai-chan)), `preset` (`read-only`), `network` (`false`), `title` (`""`: the task's first line, cut at 80), `task` (required) | `id`, `workspace`, `slot`, once its host has taken the start | 400 `An Ai-chan's scope is daemon, workspace or epic.`, `A <scope> scope names its workspace.`, `A daemon scope names no workspace and no epic.`, `A workspace scope names no epic.`, `An epic scope names its epic.`, `An Ai-chan's preset is read-only or danger-full-access.`, `Name Ai-chan's nous: the ai_chan setting names none.`, `<nous> is not a nous or an agent spec.`, `Tell Ai-chan something to start with.`; 404 `There is no epic <epic> in <workspace>.`; 409 the host's `why` |
+| `aichan.list` | — | `conversations`, newest first: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `state` (`running`, `waiting`, `folded`), `created` | — |
+| `aichan.forget` (write) | `id` (required) | `{}`; closes its host, removes its entry and scratch directory, keeps its epic's records | 404 `There is no Ai-chan #<id>.` |
+
+`id` counts from 1. Conversations are kept in `H/ai/<machine>/conversations.yaml` across the
+daemon's restarts. `epic.attach` on the `ai:` slot of a conversation whose host has gone starts
+that host again, carrying its epic on (`resume`), and attaches; on an `ai:` slot of no
+conversation it is refused 404, `There is no Ai-chan conversation <slot>.` `epic.stop` on an
+Ai-chan host interrupts her open turn and leaves the conversation between turns, and is refused
+with `Ai-chan is not answering, so there is nothing to stop` while none is open. A host folds
+its conversation as it folds a chat, and then goes.
+
+### Scoped links {#scoped-links}
+
+Before it starts a conversation's host, the daemon listens on `<mdir>/ai-<hex>.sock` (`0600`),
+the conversation's **scoped link**, whose path the host gives the flow as
+`HUMANIZE_AICHAN_LINK`; it is removed when the host goes. A session over it is admitted as one
+over the socket, says `session.hello` with kind `ai-chan`, and is named `Ai-chan#<id>` by every
+host, whatever it says. A `session.hello` of another kind over a scoped link is refused 403,
+`This link is Ai-chan's.`; one of kind `ai-chan` over any other carrier, 403 `Only Ai-chan
+says hello as ai-chan.`
+
+### Reach {#reach}
+
+A session over a scoped link carries its conversation's **reach**: `scope`, `workspace`,
+`epic`, `preset`, `network`. Every call it makes is held to it before it is carried out, by the
+`x-hmz-reach` and `x-hmz-writes` extensions each method carries in `openrpc.json`:
+
+| `x-hmz-reach` `scope` | The method acts on | Reached by |
+| --- | --- | --- |
+| `any` | nothing of one workspace, or what its answer lists | every reach; the answer filtered |
+| `daemon` | the daemon, its machine, every workspace | the scope `daemon` |
+| `workspace` | the workspace named | `daemon`, or `workspace` of that workspace |
+| `epic` | the epic or host named | `daemon`; `workspace` where it ran or stands there; `epic` where it is that epic, or the host's epic going, stopping or last is |
+| `never` | pairing, devices, credentials, the network's secrets, `aichan.*` | nobody |
+
+A call with no `workspace` where the method names one is held as `daemon`, and so is
+`epic.attach` with `scratch`. A call is refused 403, with no effect, by the first that holds:
+
+1. `never`: `Ai-chan cannot call <method>.`
+2. it names a host of an `ai:` slot: `Ai-chan cannot reach an Ai-chan conversation.`
+3. out of reach: `<method> is out of Ai-chan's scope: <what>.`, `<what>` being `the daemon`,
+   `the workspace <workspace>`, `the epic <epic>` or `the host <slot> of <workspace>`
+4. `x-hmz-writes` and the preset `read-only`: `Ai-chan is read-only, and <method> changes
+   things.`
+
+`hosts.list`, `hosts.running`, `workspaces.list`, `runs.list` and `notices.*` answer such a
+session only with what its reach reaches, counts and totals included, and never an `ai:` slot.
+An `epic` reach's subscription ends `gone` (`out of Ai-chan's scope`) once another epic starts
+on its host.
+
+### Envs of an epic {#envs}
+
+Ai-chan reads, writes, searches and runs commands in the envs of an epic going on a host, as its
+flow would, without attaching and without telling the epic. Each takes `workspace`, `slot` and
+(but `hosts.env.list`) `env`, a role of the epic; a `path` is relative to the env's workdir.
+
+| Method | Fields (default) | Answer |
+| --- | --- | --- |
+| `hosts.env.list` | — | `envs`: `name`, `kind`, `workdir`, `can` (of `read`, `write`, `exec`, `grep`) |
+| `hosts.env.read` | `path`, `offset` (`0`), `length` (`1048576`, the most) | `text` (UTF-8, bad bytes as U+FFFD), `size`, `eof` |
+| `hosts.env.write` (write) | `path`, `text` | `size`; makes the directories |
+| `hosts.env.exec` (write) | `argv` (non-empty), `seconds` (1–3600, `120`) | `code` (`null` where killed at `seconds`), `stdout`, `stderr` (each the last 1 MiB) |
+| `hosts.env.grep` | `pattern` (POSIX ERE), `path` (`.`), `limit` (1–2000, `200`) | `matches` (`path`, `line`, `text` cut at 400), `more` |
+
+Refusals: 400 `<path> is outside the env <env>.` (by `..`, an absolute path or a symbolic
+link), 400 for an empty `argv`; 404 `The epic has no env <env>.`, `There is
+no file <path> in <env>.`; 409 `no flow is running, so no env is open`, `The env <env> cannot <what>.`,
+`<what>` being `read files`, `write files`, `run commands` or `search files`.
 
 ## Messages {#messages}
 

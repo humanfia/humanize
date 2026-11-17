@@ -41,6 +41,8 @@ in a browser does.
   [Your epics and WSL](#your-epics-and-wsl).
 - **The page is the whole window**, up to its top edge. Drag the window by any empty part of
   the top row, and double-click it to zoom or maximize.
+- **Ai-chan is in the window too**: her face, on every view, opens the
+  [drawer](/user/web#ai-chan) of your conversations with [Ai-chan](/user/ai-chan).
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown
   in the Finder or Explorer.
 

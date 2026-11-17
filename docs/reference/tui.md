@@ -145,7 +145,7 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 
 | Part | Text | Condition |
 | --- | --- | --- |
-| btw | `btw · <target>` or `btw · The Epic`, cyan | [btw mode](#btw) on |
+| btw | `btw · <agent>/<n>`, cyan | [btw mode](#btw) on |
 | afk | `afk` | away for every role; |
 | | `afk <role>, <role>` | away for some roles; yellow |
 | details | `details`, muted | details on |
@@ -241,7 +241,8 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 | Command | Args | Views | Refused (and unlisted) when | Also unlisted when |
 | --- | --- | --- | --- | --- |
 | <span id="cmd-flow"></span>`/flow` | `[flow]` | all | never; `[flow]` itself is refused while a run is going | — |
-| <span id="cmd-btw"></span>`/btw` | `[question]` | all | nobody to ask (see [btw](#btw)) | — |
+| <span id="cmd-ai"></span>`/ai` | — | all | never | — |
+| <span id="cmd-btw"></span>`/btw` | `[question]` | `session` | the conversation read is gone; while [Ai-chan](#ai) is followed | — |
 | <span id="cmd-epics"></span>`/epics` | `[@daemon]` | all | never | — |
 | <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing |
 | <span id="cmd-settings"></span>`/settings` | `[page]` | all | never | — |
@@ -258,6 +259,7 @@ Each command's line in the completion list:
 | Command | About | Instead, when |
 | --- | --- | --- |
 | `/flow` | `Switch flow` | `Set up the running flow's agents` — a run is going |
+| `/ai` | `Talk to Ai-chan, in a conversation new or kept` | |
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage epics here, or of another daemon` | |
 | `/resume` | `Resume the last epic in this directory` | |
@@ -294,7 +296,7 @@ Every message is red and prefixed `hmz: `.
 | `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, daemons, accounts, fallback, runtimes, backup, workspace or usage` |
 | `/epics <word>` | not `@` and a daemon's name | `/epics takes a daemon as @<name>: choose @local, @<daemon>, …` |
 | `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
-| `/btw` | no agent to ask | `/btw requires a coding agent` |
+| `/btw` | not on one agent's transcript | the wrong-view message, adding that `/ai` asks Ai-chan about the epic |
 | `/btw` | the session is gone | `/btw: no conversation found for <agent>/<n>` |
 | `/btw <q>` | busy | `btw is still answering the last question` |
 
@@ -309,6 +311,10 @@ changes will apply to the next epic`.
 
 Enters [btw mode](#btw), asking `[question]` if given. In btw mode, `/btw` alone leaves and
 `/btw <q>` asks. The question is the `shlex`-split words joined by one space.
+
+### `/ai` {#ai-command}
+
+Opens the [Ai-chan menu](#ai).
 
 ### `/epics [@daemon]` {#epics-command}
 
@@ -485,15 +491,29 @@ where it is one, else on the view being read:
 
 | Aspect | Rule |
 | --- | --- |
-| Enter | `/btw [question]`. Prints `btw · <target\|The Epic> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
+| Enter | `/btw [question]`, on one agent's transcript only. Prints `btw · <agent>/<n> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
 | In btw mode | Every line not starting with `/` is one more turn of the same side conversation. |
 | Leave | `/btw` alone or `esc`: `btw: exited`; a run starting: `btw: exited -- a new flow started`. Side sessions are closed (`unaside`). |
-| Target | A `session` view: that conversation (for a role view, its newest). Any other view: **The Epic**, the agent set as **/btw The Epic** on [General](#general-page), the same for every epic. With none set, `/btw` there is refused: `hmz: /btw: Nobody answers The Epic yet: set the agent that does in the settings, under General.` No agent of the run stands in, and an epic keeps no agent of its own (a `btw` line an earlier release wrote in `epic.jsonl` is skipped). |
-| Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that role. Ended sessions included. |
-| btw agent | Seeded with a snapshot (the last 32 of up to 80 observations, 600 characters each) and the list of sessions. It carries the `ask-conversation` skill and is told the sessions and how to ask with every question. It asks by running `hmz-ask ask --to <agent>/<n> --question <question>` (`hmz-ask list` lists the sessions), caught where it runs and answered mid-turn, or by replying with lines `@ask <agent>/<n>: <question>`, bare, after `-`/`*`/`+`/`<n>.`/`>` markers or in backticks; each is put to that session's side copy (`btw · asking <key>: <question>`), and answers to lines return as `<answer from="<key>">…</answer>`. At most 4 asks per question; failures return as `(session <k> not found; the sessions are: …)`, `(could not ask: <e>)`, `(no answer)`. |
-| Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. |
+| Target | The conversation read (for an agent's view, its newest): its session side copy. Nothing picks another agent. On any other view `/btw` is refused, saying `/ai` asks [Ai-chan](#ai) about the epic. |
+| Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that agent (the last 32 observations, 600 characters each). Ended sessions included. |
+| Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. A harness with no read-only rung (`mcode`, `dsh`, ACP) is refused. |
 | Answer | `●` (cyan) `btw · <question>` (dim), then the answer in cyan, continuation lines indented 2, on the current view. |
-| Failures | `hmz: btw is still answering the last question`, `hmz: /btw could not read flow progress: <e>`, `hmz: /btw could not start: <e>`, `hmz: /btw: <why>` (e.g. `the agent returned no answer`). |
+| Failures | `hmz: btw is still answering the last question`, `hmz: /btw: no conversation found for <agent>/<n>`, `hmz: /btw could not read flow progress: <e>`, `hmz: /btw could not start: <e>`, `hmz: /btw: <why>` (e.g. `the agent returned no answer`). |
+
+## Ai-chan (`/ai`) {#ai}
+
+[Ai-chan](/user/ai-chan) conversations of this machine's daemon (`aichan.list`), in a
+[menu](#menus):
+
+| Element | Rule |
+| --- | --- |
+| List | **New** first, then every conversation, newest first: its title, scope, nous, preset, whether its network is on, and its state: `running` (a turn open), `waiting` (between turns), `folded` (no host holds it). |
+| Choosing one | The log screen follows its host (`epic.attach` on its `ai:` slot), which carries a folded one on. |
+| **New** | A form, in order: **Scope** (`daemon`, `workspace`, `epic`; default `epic` of the epic going or last on the host followed, where there is one, else `workspace` of this directory); **Nous** (every nous of `nous.list`; default the [`ai_chan` setting](#general-page)); **Preset** (`read-only`, `danger-full-access`; default `read-only`); **Network** (`off`, `on`; default `off`). **Done** leaves the menu with the log screen waiting; the first line said makes the conversation (`aichan.create`, the line its task), then follows it. |
+| **Forget** | On a conversation: asks for confirmation, then `aichan.forget`. |
+| Following | Drawn as a [chat](#chat); the status line names `Ai-chan#<n>` and the scope. Each tool Ai-chan calls is a tool line of her turn: the method and how it was answered. |
+| Lines | A line said is her next turn. `/stop` stops her open turn and leaves the conversation between turns (`Ai-chan is not answering, so there is nothing to stop` with none open). `/btw` is refused. `/clear` leaves her to her host and follows this directory's own host again. |
+| Refusals | `aichan.create`'s, in red with `hmz: `: `Name Ai-chan's nous: the ai_chan setting names none.`, `Tell Ai-chan something to start with.`, `There is no epic <epic> in <workspace>.`, and the host's own reason where it refuses the start. |
 
 ## Several frontends {#several-people-on-one-run}
 
@@ -1351,7 +1371,7 @@ Storage keys are in [Settings](/reference/settings).
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ ⚙  General                                      details off · reports on │
-  │    this machine: what epics show, who answers The Epic, error reports    │
+  │    this machine: what epics show, Ai-chan's nous, error reports          │
   │──────────────────────────────────────────────────────────────────────────│
   │ ♪  Notifications                                5 of 5 kinds · system on │
   │    which epics on this machine you are told of                           │
@@ -1384,7 +1404,7 @@ Storage keys are in [Settings](/reference/settings).
 
 | Card | Summary | `● unsaved` when |
 | --- | --- | --- |
-| ⚙ General | `details on\|off · reports on\|off\|not set` | details, The Epic's agent or reports changed |
+| ⚙ General | `details on\|off · reports on\|off\|not set` | details, Ai-chan's nous or reports changed |
 | ♪ Notifications | `<n> of 5 kinds · system on\|off` | a kind or the system changed |
 | ⇄ Daemons | `<n> daemon(s)` (Local included) | never |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
@@ -1442,7 +1462,7 @@ in force.
 | --- | --- | --- |
 | Error reports, Details | at once on save | — |
 | Notifications | at once on save: the next notice of a kind is told or not | — |
-| /btw The Epic | next time btw mode is entered | `takes effect on next /btw` |
+| Ai-chan | the next Ai-chan conversation made; one already made keeps its own | `takes effect on the next Ai-chan conversation` |
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Nous | next failed turn | — |
@@ -1457,7 +1477,7 @@ order done, including things done at once, even after a discard), then:
 | --- | --- |
 | Error reports on / off | `error reporting enabled` / `error reporting disabled` |
 | Details on / off | `showing details: tool calls, thinking, and backend output` / `showing turn responses only, without details` |
-| /btw The Epic | `/btw will ask <spec> about The Epic next time you enter btw mode`, or with none `/btw will ask nobody about The Epic: set its agent to ask it` |
+| Ai-chan | `a new Ai-chan conversation thinks with <spec>`, or with none `a new Ai-chan conversation asks for its nous` |
 | Forget | `cleared saved settings for this directory; Humanize will open without them on next launch` |
 
 ### General page {#general-page}
@@ -1468,7 +1488,7 @@ in this order, under the heading in the first column.
 | Heading | Row | Values (description) | Default | Stored as |
 | --- | --- | --- | --- | --- |
 | Display | **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
-| Agents | **/btw The Epic** ▾ `the agent that answers side questions asked of The Epic` | `none` (`nobody answers The Epic`), the current choice (`chosen`), `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up The Epic's agent`) | none | `btw` (`cli[@account]/model:effort`) |
+| Agents | **Ai-chan** ▾ `the nous a new conversation with Ai-chan thinks with` | `none` (`each new conversation asks`), the current choice (`chosen`), every nous, `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up Ai-chan`) | none | `ai_chan` (an agent spec or a nous) |
 | Privacy | **Error reports** ▾ `send error reports to Humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
 | Privacy | **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
 
@@ -2202,7 +2222,7 @@ and when the width changes. The status line says `· copied` for 2 s.
 | --- | --- | --- |
 | `enable_sentry` | machine | Error reports, the first-start question |
 | `details` | machine | Details |
-| `btw` | machine | /btw The Epic |
+| `ai_chan` | machine | Ai-chan |
 | `backup` | machine | the Backup page |
 | `workspaces.<dir>.flow` | directory | saving `/flow` |
 | `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget, profile, backup}` | directory, per flow | saving `/flow` |
@@ -2248,4 +2268,3 @@ Textual.
 | Exit dialog `force` | waits ≤ 10 s |
 | Transcripts kept | 32 × 2 000 lines |
 | Pinned lines | 5 |
-| btw asks per question | 4 |
