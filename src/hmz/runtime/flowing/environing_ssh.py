@@ -205,7 +205,7 @@ def _opened(
     from hmz.coganchor.remote import RemoteClient
 
     try:
-        link = transport.connect(transport.Target.parse(target), ["/"])
+        link = transport.connect(transport.Target.parse(target), ["/"], token)
     except ValueError as error:
         raise EnvUnavailable(f"{provider!r} is not an ssh host: {error}") from error
     except OSError as error:
