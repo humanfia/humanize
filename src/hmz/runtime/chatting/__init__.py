@@ -485,6 +485,9 @@ class _Talk:
         self.handle: SessionHandle | None = None
         #: Whether a turn of it has been taken, by when its harness has listed its catalog.
         self.taken = False
+        #: The assistant as last written down: its CLI, model and effort.
+        begun = _drove(_assistant(chat.spec.agent), driver.name)
+        self._as = (begun.backend, begun.model, begun.effort)
 
     async def had(self, before: Ran | None) -> None:
         """Has every turn of the conversation, from the first message to the empty one.
@@ -554,6 +557,8 @@ class _Talk:
                 prompt = "\n".join([*ran, line]) if ahead else line
                 try:
                     answered = await self._turn(handle, prompt, native=native)
+                    if native and line.split(maxsplit=1)[0] in ("/model", "/effort"):
+                        self._changed(handle)
                 except HarnessError as failed:
                     if opening:
                         raise
@@ -574,6 +579,31 @@ class _Talk:
                 unkept = ""
         finally:
             await asyncio.shield(self._close(handle))
+
+    def _changed(self, handle: SessionHandle) -> None:
+        """Writes the assistant down again where a `/model` or `/effort` changed it.
+
+        As the chat's agent from then on: recorded in its epic as a `set` (Section 6.5.21 of
+        [FILES]) and remembered for the workspace's next chat (Section 8.9.5 of [CORE]).
+        """
+        from hmz.coganchor.backends import written
+        from hmz.runtime.epic import Drove
+        from hmz.runtime.kept import Runs
+        from hmz.runtime.settings import Settings
+
+        agent = getattr(handle, "agent", None)
+        if agent is None:
+            return
+        cli, model, effort = self._as[0], str(agent.config.model), str(agent.effort)
+        if (cli, model, effort) == self._as:
+            return
+        self._as = (cli, model, effort)
+        provider = self._driver.provider
+        now = Drove(ASSISTANT, cli, model, effort, provider, self._driver.name)
+        self._epic.write("set", agents=[now._asdict()])
+        spec = f"{cli}/{model}" + (f":{written(effort)}" if effort else "")
+        with contextlib.suppress(Exception):
+            Settings(self._chat.spec.workspace).chat_agent = Runs(spec, provider)
 
     def _dollar(self, line: str) -> tuple[frozenset[str], Prefer]:
         """What a `$` line is read against: the flow it names, if any, and the preference.

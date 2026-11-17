@@ -78,6 +78,8 @@ class Agent:
 
     fence: Fence | None
     epic: object = None
+    config: Any = None
+    effort: str = ""
 
     def fenced(self) -> Fence | None:
         return self.fence
@@ -791,3 +793,34 @@ def test_a_slash_name_is_said_until_the_harness_has_listed_its_catalogue() -> No
     # What it does list is served either way.
     listed = resolve("/compact", catalog=early, flows=(), prefer="native", listed=False)
     assert (listed.kind, listed.entry) == ("native", early[0])
+
+
+def test_a_model_or_effort_changed_in_a_chat_is_its_agent_from_then_on(
+    wired: Wired,
+) -> None:
+    from types import SimpleNamespace
+
+    wired.driver.fence = Fence()
+    wired.driver.catalog = [NativeCommand("/", "model", "the model", "call")]
+
+    async def switched(session: Session, request: TurnRequest) -> str:
+        if request.native and session.agent is not None:
+            session.agent.config = SimpleNamespace(model="opus")
+            return "model: opus"
+        if session.agent is not None and session.agent.config is None:
+            session.agent.config, session.agent.effort = (
+                SimpleNamespace(model="haiku"),
+                "low",
+            )
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = switched
+
+    ended = _had(wired, Person(says=["/model opus", "/model opus"]))
+
+    (set_,) = [one for one in _events(ended.epic) if one.get("event") == "set"]
+    assert (set_["agents"][0]["model"], set_["agents"][0]["effort"]) == ("opus", "low")
+    assert _ran(ended.epic).agents[-1].model == "opus"
+    chosen = Settings(wired.workspace).chat_agent
+    assert chosen is not None
+    assert chosen.spec == "claude/opus:low"
