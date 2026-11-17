@@ -7974,7 +7974,7 @@
       "EnvId": {
         "type": "string",
         "minLength": 1,
-        "description": "An environment of the host, as the envs snapshot names it (Section 4.21.2 of [DAEMON])."
+        "description": "An environment of the host, as the envs snapshot names it (Section 4.24.2 of [DAEMON])."
       },
       "EnvPath": {
         "type": "string",
@@ -7984,7 +7984,7 @@
       "TermId": {
         "type": "string",
         "minLength": 1,
-        "description": "A terminal of the host (Section 4.21.4 of [DAEMON])."
+        "description": "A terminal of the host (Section 4.24.4 of [DAEMON])."
       },
       "Data": {
         "type": "string",
@@ -8073,7 +8073,7 @@
             }
           }
         },
-        "description": "One environment of the envs snapshot (Section 4.21.2 of [DAEMON])."
+        "description": "One environment of the envs snapshot (Section 4.24.2 of [DAEMON])."
       },
       "EnvEntry": {
         "type": "object",
@@ -8109,7 +8109,7 @@
             "type": "string"
           }
         },
-        "description": "One path of an environment (Section 4.21.3 of [DAEMON])."
+        "description": "One path of an environment (Section 4.24.3 of [DAEMON])."
       },
       "NousList": {
         "type": "object",

@@ -371,7 +371,7 @@ this machine lets frontends reach environments (Section 7.13 of [CORE]); hmz MUS
 
 **3.4.12.2** `envs.paired_terminals` MUST be a boolean: `true` lets a session over an untrusted
 carrier -- a paired device's, or one over EasyTier -- open a terminal in an environment and type into
-it (Section 4.21.4.10 of [DAEMON]); an absent value, or any value but `true`, MUST be read as
+it (Section 4.24.4.10 of [DAEMON]); an absent value, or any value but `true`, MUST be read as
 `false`.
 
 ### 3.5. `workspaces`

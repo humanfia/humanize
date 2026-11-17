@@ -46,7 +46,7 @@ It is normative. It is cited by the tag [DAEMON].
   - [4.18. Settings](#418-settings)
   - [4.19. Notices](#419-notices)
   - [4.20. Methods and the interfaces they replace](#420-methods-and-the-interfaces-they-replace)
-  - [4.21. Environments](#421-environments)
+  - [4.24. Environments](#424-environments)
 - [5. Security Considerations](#5-security-considerations)
 - [6. References](#6-references)
   - [6.1. Normative References](#61-normative-references)
@@ -443,7 +443,7 @@ daemon uninstall` MUST stop, disable and remove it.
 
 **3.9.7** A daemon MUST pair devices and revoke them as Section 4.5 of [WIRE] and Section 4.6 of
 [WIRE] state; every session of any carrier MUST then be as whole as a session over its socket, but
-for terminals (Section 4.21.4.10).
+for terminals (Section 4.24.4.10).
 
 **3.9.8** A daemon MUST fetch the newest release of hmz as Section 13.3 of [CORE] states, and every
 flowverse's index once as it starts, without telling any client.
@@ -677,7 +677,7 @@ to the same call in the same state.
 #### 4.7.3. Order
 
 **4.7.3.1** A host MUST carry out the calls of one frontend in the order sent, except `epic.aside`
-and the calls to an environment (Section 4.21), which MUST be carried out apart from that order so
+and the calls to an environment (Section 4.24), which MUST be carried out apart from that order so
 that no other call waits on them.
 
 **4.7.3.2** A host MUST NOT let a call of one frontend delay the calls or messages of another.
@@ -912,7 +912,7 @@ in `elided`.
 - `env_used`: `env` (an `id` of `envs`), `by` (the name of the frontend), `what` (`wrote`, `made`,
   `renamed`, `removed`, `opened a terminal`, `staged`, `unstaged`, `discarded`, `committed` or
   `rewound`) and, where the call named one, `path`: one change a frontend made to an environment
-  (Section 4.21.1.8).
+  (Section 4.24.1.8).
 
 **4.9.2.5** A conversation MUST be keyed `<agent>/<n>`, `<agent>` the agent's own name and `n` the
 count of sessions that agent opened in the epic, assigned once as the session opens.
@@ -954,7 +954,7 @@ MUST send a snapshot to every frontend whenever it changes.
 - `usage`: `run`, `usage`, `budget`; sent at most once a second; initially `0`, `null`, `null`.
 - `board`: `items`: `[{key, value, about, whose, by, at}]`, or `null` for an epic with no board;
   initially `null`.
-- `envs`: `envs`: the environments of Section 4.21.2; initially `[]`.
+- `envs`: `envs`: the environments of Section 4.24.2; initially `[]`.
 
 #### 4.9.4. `gone`
 
@@ -970,7 +970,7 @@ every epic subscription of it, and MUST attach again as Section 3.6.11 states.
 
 #### 4.9.5. Messages to one frontend
 
-**4.9.5.1** `term` and `term_exit` (Section 4.21.4) MUST be sent only to the frontends that section
+**4.9.5.1** `term` and `term_exit` (Section 4.24.4) MUST be sent only to the frontends that section
 names, MUST NOT carry `seq`, MUST NOT be kept, and MUST NOT be sent on attach.
 
 ### 4.10. Semantics a frontend observes
@@ -1649,31 +1649,31 @@ stands for the path or method name of the row before.
 under `/api/notifications` -- MUST NOT be methods: each client keeps them for itself (Section 3.8.1
 and Section 3.15 of [WEB]), and reaches each daemon itself.
 
-### 4.21. Environments
+### 4.24. Environments
 
-#### 4.21.1. General
+#### 4.24.1. General
 
-**4.21.1.1** A **call to an environment** is a method of Section 4.21. Each MUST take `sub`, an epic
+**4.24.1.1** A **call to an environment** is a method of Section 4.24. Each MUST take `sub`, an epic
 subscription, as a call to an epic does (Section 4.8.1.1), and exactly the fields its paragraph
 lists; every one but `env.term.input`, `env.term.resize`, `env.term.ack` and `env.term.close` MUST
-take `env`, the `id` of one entry of the snapshot `envs` (Section 4.21.2).
+take `env`, the `id` of one entry of the snapshot `envs` (Section 4.24.2).
 
-**4.21.1.2** The host the subscription is attached to MUST carry out a call to an environment, and
+**4.24.1.2** The host the subscription is attached to MUST carry out a call to an environment, and
 the call MUST be answered as Section 4.7.2 states, with the refusals of this section as `why`.
 
-**4.21.1.3** A call to an environment MUST be carried out apart from the order of Section 4.7.3.1,
+**4.24.1.3** A call to an environment MUST be carried out apart from the order of Section 4.7.3.1,
 so that no other call waits on it.
 
-**4.21.1.4** `env.write`, `env.mkdir`, `env.rename`, `env.remove`, `env.git.stage`,
+**4.24.1.4** `env.write`, `env.mkdir`, `env.rename`, `env.remove`, `env.git.stage`,
 `env.git.unstage`, `env.git.discard`, `env.git.commit` and `env.git.rewind` MUST be writes.
 
-**4.21.1.5** A `path` MUST name a path of the env machine: relative to the env's workdir, or an
+**4.24.1.5** A `path` MUST name a path of the env machine: relative to the env's workdir, or an
 absolute POSIX path. Bytes -- `data`, `replay`, `old` and `new` -- MUST be base64 [RFC4648].
 
-**4.21.1.6** A call to an environment MUST reach only what the env serves, as Section 7.13 of
+**4.24.1.6** A call to an environment MUST reach only what the env serves, as Section 7.13 of
 [CORE] states, whatever its role declares.
 
-**4.21.1.7** A call to an environment MUST be refused with the first of these that holds:
+**4.24.1.7** A call to an environment MUST be refused with the first of these that holds:
 
 | Where | `why` |
 | --- | --- |
@@ -1683,61 +1683,61 @@ absolute POSIX path. Bytes -- `data`, `replay`, `old` and `new` -- MUST be base6
 | `term` names no terminal of the host | `There is no terminal <term>.` |
 | `path` names nothing | `No such file: <path>` |
 
-`<what>` MUST be `files` for the calls of Section 4.21.3, `shell` for those of Section 4.21.4, and
-`git` for those of Section 4.21.5.
+`<what>` MUST be `files` for the calls of Section 4.24.3, `shell` for those of Section 4.24.4, and
+`git` for those of Section 4.24.5.
 
-**4.21.1.8** Each write of Section 4.21, and `env.term.open` opening a terminal, MUST be recorded
+**4.24.1.8** Each write of Section 4.24, and `env.term.open` opening a terminal, MUST be recorded
 with `env_used` (Section 4.9.2.4) once it is carried out, `what` being, in the order of Section
-4.21.1.4, `wrote`, `made`, `renamed`, `removed`, `staged`, `unstaged`, `discarded`, `committed` and
+4.24.1.4, `wrote`, `made`, `renamed`, `removed`, `staged`, `unstaged`, `discarded`, `committed` and
 `rewound`, and `opened a terminal`; `path` MUST be the `path` the call named, where it named one.
 What is typed into a terminal and what a terminal prints MUST NOT be recorded.
 
-#### 4.21.2. The snapshot `envs`
+#### 4.24.2. The snapshot `envs`
 
-**4.21.2.1** `envs` MUST hold one entry per environment of the epic going, or of the last one, of
+**4.24.2.1** `envs` MUST hold one entry per environment of the epic going, or of the last one, of
 its host -- every root env of its roles, and of a chat its workspace, and every derived env -- each
 root env in the order of its roles, and each derived env after the env it was derived from.
 
-**4.21.2.2** Each entry MUST carry: `id`, text a client MUST NOT read anything into, the same for one
+**4.24.2.2** Each entry MUST carry: `id`, text a client MUST NOT read anything into, the same for one
 env for the life of its host; `role`, the env role; `chain`, the env's label, its role followed by
 each derivation that made it (Section 3.11 of [PYTHON]); `parent`, the `id` of the env it was
 derived from, or `null`; `run`, its epic number; `backend`, its kind (Section 7.2.1 of [CORE]);
 `provider` (Section 7.2.2 of [CORE]); `workdir` (Section 7.2.4 of [CORE]); `available`, whether the
-calls of Section 4.21 reach it at all; `open`, whether it is open; `caps`; `declared`; and `facts`,
+calls of Section 4.24 reach it at all; `open`, whether it is open; `caps`; `declared`; and `facts`,
 `{cpu, memory, gpu_count, gpu_memory}` as its probe found them (Section 7.3.1.4 of [CORE]), each
 `null` where not found.
 
-**4.21.2.3** `caps` and `declared` MUST each be a list of the names `files`, `shell`, `bash`, `git`,
+**4.24.2.3** `caps` and `declared` MUST each be a list of the names `files`, `shell`, `bash`, `git`,
 `git_worktree`, `rewind`, `scratch` and `temp_clone`, which stand for `FilesEnvMixin`,
 `ShellEnvMixin`, `BashEnvMixin`, `GitEnvMixin`, `GitWorktreeEnvMixin`, `RewindableEnvMixin`,
 `ScratchDirEnvMixin` and `TemporaryClonedDirEnvMixin` (Section 3.11 of [PYTHON]): `caps` those the
 env serves (Section 7.3.2.3 of [CORE] and Section 7.3.2.4 of [CORE]), `declared` those its role
 declares.
 
-**4.21.2.4** A host MUST send `envs` again whenever an env is opened, derived, destroyed or closed,
+**4.24.2.4** A host MUST send `envs` again whenever an env is opened, derived, destroyed or closed,
 and when an epic starts.
 
-#### 4.21.3. Files
+#### 4.24.3. Files
 
-**4.21.3.1** `env.list` MUST take `path`, and MUST answer `path`, that directory as an absolute
+**4.24.3.1** `env.list` MUST take `path`, and MUST answer `path`, that directory as an absolute
 path, and `entries`, one per entry of it, directories first and then by name, each `name`, `kind`
 (`file`, `dir`, `link` or `other`), `size` (bytes), `mtime` (Unix seconds, with a fraction) and, of
 a link, `target`.
 
-**4.21.3.2** `env.stat` MUST take `path`, and MUST answer that path as an entry of `env.list` is
+**4.24.3.2** `env.stat` MUST take `path`, and MUST answer that path as an entry of `env.list` is
 answered, with `path` as an absolute path.
 
-**4.21.3.3** `env.read` MUST take `path`, `offset` (integer, `0`) and `length` (integer, 1 048 576,
+**4.24.3.3** `env.read` MUST take `path`, `offset` (integer, `0`) and `length` (integer, 1 048 576,
 and at most that), and MUST answer `data`, at most `length` bytes of the file from `offset`; `size`
 and `mtime`, of the whole file; `etag`, the SHA-256 of the whole file in lowercase hexadecimal; and
 `eof`, whether `data` reaches the end of the file.
 
-**4.21.3.4** `env.find` MUST take `limit` (integer, 20 000), and MUST answer `paths`, at most `limit`
+**4.24.3.4** `env.find` MUST take `limit` (integer, 20 000), and MUST answer `paths`, at most `limit`
 files of the env's workdir relative to it, and `truncated`, whether there were more: in a git
 repository the files `git ls-files -co --exclude-standard` lists, and elsewhere every file but those
 under a directory named `.git` or `node_modules`.
 
-**4.21.3.5** `env.search` MUST take `query` (text, required, not empty), `regex` (boolean, `false`:
+**4.24.3.5** `env.search` MUST take `query` (text, required, not empty), `regex` (boolean, `false`:
 whether `query` is a regular expression rather than literal text), `case` (boolean, `false`:
 whether case counts), `glob` (text, `""`: where not empty, the glob a file's path MUST match) and
 `limit` (integer, 2 000), and MUST answer `matches`, at most `limit`, each `path` (relative to the
@@ -1745,73 +1745,73 @@ workdir), `line` and `column` (each counting from 1) and `text` (the line), and 
 there were more. It MUST search the files `env.find` would list, with `rg` where it is on the env
 machine's `PATH`, else with `grep`, skipping binary files.
 
-**4.21.3.6** `env.write` MUST take `path`, `data` (required) and `if_match` (text or `null`, `null`),
+**4.24.3.6** `env.write` MUST take `path`, `data` (required) and `if_match` (text or `null`, `null`),
 MUST make the file hold exactly `data`, and MUST answer the file's new `etag`, `size` and `mtime`.
 With `if_match` `null` it MUST write whatever the file holds; with `if_match` `""` it MUST write only
 where there is no file at `path`; with any other `if_match` it MUST write only where the file's
 `etag` is `if_match`. A write refused for `if_match` MUST be refused with `<path> changed since you
 read it.` and MUST leave the file as it was.
 
-**4.21.3.7** `env.mkdir` MUST take `path`, and MUST make that directory and every missing directory
+**4.24.3.7** `env.mkdir` MUST take `path`, and MUST make that directory and every missing directory
 above it; `env.rename` MUST take `path` and `to`, and MUST move `path` to `to`; `env.remove` MUST
 take `path`, and MUST remove it and everything under it. Each MUST answer `{}`.
 
-#### 4.21.4. Terminals
+#### 4.24.4. Terminals
 
-**4.21.4.1** A **terminal** is a process a frontend runs in an env under a pseudo-terminal, as
+**4.24.4.1** A **terminal** is a process a frontend runs in an env under a pseudo-terminal, as
 Section 7.13 of [CORE] states. A host MUST give each terminal an id, text that names no other
 terminal of the host. A frontend **views** a terminal from when it opens it or attaches to it again
 with `env.term.open` until the terminal ends, it closes it, or it leaves (Section 4.7.4).
 
-**4.21.4.2** `env.term.open` MUST take `cols` and `rows` (integers, required, at least 1) and `term`
+**4.24.4.2** `env.term.open` MUST take `cols` and `rows` (integers, required, at least 1) and `term`
 (text). Without `term` it MUST start a terminal of that size in the env's workdir, and MUST answer
 `term`, its id; `shell`, the command it runs as a list of words, or `null` where it runs the login
 shell of Section 7.13.4 of [CORE]; and `replay`, `""`. With `term`, a terminal of that env, it MUST
 start no terminal, MUST resize that one to `cols` and `rows`, and MUST answer as without, `replay`
 being what that terminal kept (Section 7.13.6 of [CORE]).
 
-**4.21.4.3** What a terminal prints MUST be sent to every frontend that views it, and to no other,
+**4.24.4.3** What a terminal prints MUST be sent to every frontend that views it, and to no other,
 as the message `term`, carrying `term` and `data`: at most 64 KiB each, of what the terminal printed
 over about 16 milliseconds, in order. When a terminal ends, every frontend that views it MUST be
 sent `term_exit`, carrying `term` and `status`, its exit status, `128 + n` where signal `n` ended
 it. Neither is a history record nor a snapshot (Section 4.9.5).
 
-**4.21.4.4** `env.term.input` MUST take `term` and `data` (required), and MUST type `data` into the
+**4.24.4.4** `env.term.input` MUST take `term` and `data` (required), and MUST type `data` into the
 terminal; `env.term.resize` MUST take `term`, `cols` and `rows` (as `env.term.open` takes them), and
 MUST resize the terminal; each MUST answer `{}`.
 
-**4.21.4.5** `env.term.ack` MUST take `term` and `bytes` (integer, required), the bytes of `data` of
+**4.24.4.5** `env.term.ack` MUST take `term` and `bytes` (integer, required), the bytes of `data` of
 that terminal this frontend has drawn since its last `env.term.ack`, and MUST answer `{}`.
 
-**4.21.4.6** A host MUST NOT send a frontend more of a terminal's output while more than 1 MiB of
+**4.24.4.6** A host MUST NOT send a frontend more of a terminal's output while more than 1 MiB of
 what it sent that frontend of that terminal is not acknowledged, and MUST stop reading the terminal
 while every frontend that views it is so far behind, so that what the terminal prints waits in the
 terminal rather than in the host or the daemon (Section 6.10 of [WIRE]).
 
-**4.21.4.7** `env.term.close` MUST take `term`, MUST kill that terminal as Section 7.13.5 of [CORE]
+**4.24.4.7** `env.term.close` MUST take `term`, MUST kill that terminal as Section 7.13.5 of [CORE]
 states, and MUST answer `{}`.
 
-**4.21.4.8** `env.term.list` MUST answer `terms`, every terminal of that env that is alive or that
+**4.24.4.8** `env.term.list` MUST answer `terms`, every terminal of that env that is alive or that
 a frontend still views, each `term`, `env`, `title` (a name for the user), `cols`, `rows` and
 `alive`.
 
-**4.21.4.9** A terminal MUST outlive every frontend that views it, as Section 7.13.5 of [CORE]
+**4.24.4.9** A terminal MUST outlive every frontend that views it, as Section 7.13.5 of [CORE]
 states; several frontends MAY view it at once, and each MAY type into it.
 
-**4.21.4.10** `env.term.open` and `env.term.input` on a session over an untrusted carrier (Section
+**4.24.4.10** `env.term.open` and `env.term.input` on a session over an untrusted carrier (Section
 3.5 of [WIRE]) MUST be refused with `Terminals are off for paired devices; turn on
 envs.paired_terminals.` unless the setting `envs.paired_terminals` of the daemon's machine is `true`
 (Section 3.4.12 of [FILES]), read at each call.
 
-#### 4.21.5. Git
+#### 4.24.5. Git
 
-**4.21.5.1** The calls of Section 4.21.5 MUST work the git repository the env's workdir is in, with
+**4.24.5.1** The calls of Section 4.24.5 MUST work the git repository the env's workdir is in, with
 git's optional locks off (`--no-optional-locks` and `GIT_OPTIONAL_LOCKS=0`), no pager
 (`GIT_PAGER=cat`) and paths unquoted (`core.quotepath=off`), and MUST be refused with `<role>: this
 environment has no git.` where the env serves neither `GitEnvMixin` nor `GitWorktreeEnvMixin`, or
 its workdir is in no repository.
 
-**4.21.5.2** `env.git.status` MUST answer `root`, the repository's top directory; `branch`, the
+**4.24.5.2** `env.git.status` MUST answer `root`, the repository's top directory; `branch`, the
 branch checked out, or `null` where none is; `head`, the commit checked out, or `null` before the
 first; `upstream`, the branch's upstream, or `null`; `ahead` and `behind`, the commits the branch is
 ahead of and behind its upstream; and `files`, each `path` (relative to `root`), `orig` (where it was
@@ -1819,30 +1819,30 @@ renamed or copied from, only where it was), `index` and `worktree` (the `X` and 
 `git status --porcelain=v2`, `.` for unchanged and `?` for untracked) and `state` (`conflict` for an
 unmerged path, `untracked` for an untracked one, `changed` otherwise).
 
-**4.21.5.3** `env.git.diff` MUST take `path` and `staged` (boolean, `false`), and MUST answer `old`
+**4.24.5.3** `env.git.diff` MUST take `path` and `staged` (boolean, `false`), and MUST answer `old`
 and `new`, the two sides of that file's change -- the index and the worktree, or with `staged` the
 commit checked out and the index -- each `null` where that side has no such file, and `binary`,
 whether git reads either side as binary.
 
-**4.21.5.4** `env.git.log` MUST take `limit` (integer, 50), and MUST answer `commits`, at most
+**4.24.5.4** `env.git.log` MUST take `limit` (integer, 50), and MUST answer `commits`, at most
 `limit` commits from the one checked out, newest first, each `hash`, `parents`, `author`, `date`
 (ISO 8601) and `subject`.
 
-**4.21.5.5** `env.git.stage`, `env.git.unstage` and `env.git.discard` MUST each take `paths`
+**4.24.5.5** `env.git.stage`, `env.git.unstage` and `env.git.discard` MUST each take `paths`
 (required, not empty): `env.git.stage` MUST add those paths to the index, removals included;
 `env.git.unstage` MUST make the index of those paths that of the commit checked out; and
 `env.git.discard` MUST make the worktree of those paths that of the index, and remove those that are
 untracked. Each MUST answer `{}`.
 
-**4.21.5.6** `env.git.commit` MUST take `message` (text, required, not empty) and `amend` (boolean,
+**4.24.5.6** `env.git.commit` MUST take `message` (text, required, not empty) and `amend` (boolean,
 `false`), MUST commit the index with that message, amending the commit checked out where `amend` is
 `true`, and MUST answer `head`, the new commit.
 
-**4.21.5.7** `env.git.snapshots` MUST answer `snapshots`, the snapshot refs of the env as
+**4.24.5.7** `env.git.snapshots` MUST answer `snapshots`, the snapshot refs of the env as
 `snapshots` answers them (Section 3.11.7 of [PYTHON]); `env.git.rewind` MUST take `ref`, one of
 them, MUST rewind the env to it as `rewind` does, and MUST answer `{}`.
 
-**4.21.5.8** `env.git.rewind` MUST be refused with `<role> is working here; stop it first`, `<role>`
+**4.24.5.8** `env.git.rewind` MUST be refused with `<role> is working here; stop it first`, `<role>`
 the role of the session, while a session working in that env has a turn open.
 
 ## 5. Security Considerations
@@ -1868,12 +1868,12 @@ on that machine. The name a frontend gives in `session.hello` is taken as given 
 (Section 4.7.1.5); the device name of a paired session is the one it claimed under (Section 4.14.2).
 
 Environments. A paired session reads and writes the files of every environment of every epic its
-daemon holds, and works their git repositories, as the daemon's user (Section 4.21.3 and Section
-4.21.5). A terminal is a shell on the env machine; a session over an untrusted carrier opens one, or
+daemon holds, and works their git repositories, as the daemon's user (Section 4.24.3 and Section
+4.24.5). A terminal is a shell on the env machine; a session over an untrusted carrier opens one, or
 types into one, only where the setting `envs.paired_terminals` of the daemon's machine is on
-(Section 4.21.4.10). Every change a frontend makes to an environment, and every terminal it opens,
+(Section 4.24.4.10). Every change a frontend makes to an environment, and every terminal it opens,
 is written in the epic's history with the frontend's name; what a terminal is told and prints never
-is (Section 4.21.1.8).
+is (Section 4.24.1.8).
 
 Secrets. The daemon answers no value of an account's variables, no EasyTier secret, no TURN
 credential and no credential of a URL (Section 4.18.1.1, Section 4.18.1.7, Section 4.18.2.2, Section

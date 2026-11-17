@@ -51,7 +51,7 @@ EPIC = (
     "quit",
 )
 
-#: Every call to an epic's environments (Section 4.21 of daemon.md), by what follows `env.`.
+#: Every call to an epic's environments (Section 4.24 of daemon.md), by what follows `env.`.
 ENV = (
     "list",
     "stat",
@@ -80,7 +80,7 @@ ENV = (
 )
 
 #: The calls a session over an untrusted carrier makes only where `envs.paired_terminals` is on,
-#: and what they are refused with otherwise (Section 4.21.4.10).
+#: and what they are refused with otherwise (Section 4.24.4.10).
 _TERMINAL = ("env.term.open", "env.term.input")
 _NO_TERMINALS = "Terminals are off for paired devices; turn on envs.paired_terminals."
 
@@ -380,9 +380,9 @@ class _Methods:
     def env(self, do: str) -> Handler:
         """The handler of one call to an environment, which the host attached carries out.
 
-        The host is asked `do`, the method's whole name (Section 4.21.1.2). A session over an
+        The host is asked `do`, the method's whole name (Section 4.24.1.2). A session over an
         untrusted carrier opens a terminal, or types into one, only where `envs.paired_terminals`
-        is on (Section 4.21.4.10).
+        is on (Section 4.24.4.10).
         """
         gated = do in _TERMINAL
 

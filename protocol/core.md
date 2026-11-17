@@ -2810,8 +2810,8 @@ Out of scope:
 - The files hmz writes under the **home** and on a target machine: Section 4 of [FILES], Section 9
   of [FILES].
 - The methods a frontend reaches an env through, their parameters, results and refusals: Section
-  4.21 of [DAEMON].
-- How the page and the terminal interface draw an env: Section 3.16 of [WEB] and Section 7.19 of
+  4.24 of [DAEMON].
+- How the page and the terminal interface draw an env: Section 3.17 of [WEB] and Section 7.20 of
   [TUI].
 
 ### 7.2. Terminology
@@ -3272,7 +3272,7 @@ pseudo-terminal.
 **7.13.2** A frontend MUST let the user reach every env of the epic going, or of the last one, of
 the host it is attached to -- every root env of its roles, the workspace of a chat, and every
 derived env, until its flow destroys it -- while that env is open: browse, read and write its files,
-open terminals in it, and see and work its git repository, through the calls of Section 4.21 of
+open terminals in it, and see and work its git repository, through the calls of Section 4.24 of
 [DAEMON].
 
 **7.13.3** What the user can do in an env MUST be what the env serves (Section 7.3.2.3 and Section
@@ -3298,7 +3298,7 @@ again is given first.
 and the means of Section 7.13 MUST NOT be offered to a flow.
 
 **7.13.8** hmz MUST record each change the user makes to an env, and each terminal opened, in the
-epic's history, naming the frontend (Section 4.21.1.8 of [DAEMON]); what is typed into a terminal and
+epic's history, naming the frontend (Section 4.24.1.8 of [DAEMON]); what is typed into a terminal and
 what it prints MUST NOT be recorded.
 
 **7.13.9** Rewinding an env from a frontend MUST be refused while a session working in that env has

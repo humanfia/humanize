@@ -31,7 +31,7 @@ It is normative. It is cited by the tag [WEB].
   - [3.13. Remote daemons](#313-remote-daemons)
   - [3.14. Release notice](#314-release-notice)
   - [3.15. Notifications](#315-notifications)
-  - [3.16. Environments](#316-environments)
+  - [3.17. Environments](#317-environments)
 - [4. The Server](#4-the-server)
   - [4.1. Scope](#41-scope)
   - [4.2. Terminology](#42-terminology)
@@ -114,7 +114,7 @@ draws at a given moment.
 **3.2.5** The **daemon bar** is the area at the foot of the sidebar that names the daemon shown.
 
 **3.2.6** A **view** is what the page draws beside the sidebar: a new epic, an epic, a session, a
-log, an Exomyth, the flows, or the Environments view of an epic (Section 3.16). A **dialog** is what the page draws over a view: search, download, or
+log, an Exomyth, the flows, or the Environments view of an epic (Section 3.17). A **dialog** is what the page draws over a view: search, download, or
 settings.
 
 **3.2.7** An **address** is the part of the page's URL that names one view or dialog, of one daemon.
@@ -381,7 +381,7 @@ offer to change a line the flow owns.
 browser, take it over from another frontend, release it, and set it away or back.
 
 **3.6.3.9** While a host holds the epic, `Epic` MUST link each environment it shows to that env in
-the Environments view (Section 3.16).
+the Environments view (Section 3.17).
 
 #### 3.6.4. Steering an epic that is going
 
@@ -425,7 +425,7 @@ conversation.
 **3.6.6.4** The page MUST NOT offer, for a chat, a graph, its agents or sessions, its Exomyth, its
 people, or a way to stop it. It MUST offer, beside the conversation of a chat a host holds, a side
 panel `Environment` that the user can hide and show, holding the Environments view of the chat's
-envs (Section 3.16) and a link to that view on its own.
+envs (Section 3.17) and a link to that view on its own.
 
 **3.6.6.5** Each chat MUST be an epic of its own, beside every other chat and every flow of its
 workspace; starting a chat or an epic MUST NOT end another.
@@ -871,115 +871,115 @@ specifies.
 
 **3.15.3.2** A click on a system notification MUST bring the page forward on the epic it is about.
 
-### 3.16. Environments
+### 3.17. Environments
 
-#### 3.16.1. The view
+#### 3.17.1. The view
 
-**3.16.1.1** The page MUST offer, for every epic a host holds, the Environments view of its envs, as
+**3.17.1.1** The page MUST offer, for every epic a host holds, the Environments view of its envs, as
 Section 7.13 of [CORE] specifies, at the address of the epic's host, `#/live?workspace=…&slot=…`,
 with `envs/` before `live` and the query parameters `env`, the `id` of the env shown (Section
-4.21.2 of [DAEMON]), and `tab`, the panel shown: `files`, `terminal` or `changes`.
+4.24.2 of [DAEMON]), and `tab`, the panel shown: `files`, `terminal` or `changes`.
 
-**3.16.1.2** The view MUST list the envs of the snapshot `envs` as a tree: grouped by role, each
+**3.17.1.2** The view MUST list the envs of the snapshot `envs` as a tree: grouped by role, each
 derived env under the env it was derived from, each named by its chain and marked where it is
 closed or cannot be reached; choosing one MUST show it and put it in the address.
 
-**3.16.1.3** Above the panels, the view MUST show the env's kind, provider, workdir and what its
+**3.17.1.3** Above the panels, the view MUST show the env's kind, provider, workdir and what its
 probe found of its CPUs, memory and GPUs.
 
-**3.16.1.4** The view MUST offer the panel `Files` where the env's `caps` holds `files`, `Terminal`
+**3.17.1.4** The view MUST offer the panel `Files` where the env's `caps` holds `files`, `Terminal`
 where it holds `shell`, and `Changes` where it holds `git` or `git_worktree`, and no other; it MUST
 open on the panel of the address, else the first of `Files`, `Terminal` and `Changes`, in that
 order, whose capability the env's `declared` also holds, else `Files`.
 
-**3.16.1.5** The view MUST load a panel only when it is first shown; a panel that cannot be loaded
+**3.17.1.5** The view MUST load a panel only when it is first shown; a panel that cannot be loaded
 MUST say it is unavailable, and MUST NOT keep the others from working.
 
-**3.16.1.6** The user MUST be able to resize the tree against the panels by dragging the border
+**3.17.1.6** The user MUST be able to resize the tree against the panels by dragging the border
 between them; on a screen as narrow as a phone's, the tree MUST fold into a picker above the panels.
 
-**3.16.1.7** An env that closes MUST stay shown with what was last read of it, MUST say it has
+**3.17.1.7** An env that closes MUST stay shown with what was last read of it, MUST say it has
 closed, and MUST offer nothing that changes it.
 
-**3.16.1.8** The page MUST draw each `env_used` record (Section 4.9.2.4 of [DAEMON]) where it
+**3.17.1.8** The page MUST draw each `env_used` record (Section 4.9.2.4 of [DAEMON]) where it
 draws the epic's history, as one dim line naming the frontend, what it did and the path.
 
-#### 3.16.2. `Files`
+#### 3.17.2. `Files`
 
-**3.16.2.1** `Files` MUST show the env's workdir as a tree of its files that reads each directory
+**3.17.2.1** `Files` MUST show the env's workdir as a tree of its files that reads each directory
 only when it is opened, and MUST mark in it the file being edited.
 
-**3.16.2.2** The tree MUST let the user make a file or a directory, rename or move one, and delete
+**3.17.2.2** The tree MUST let the user make a file or a directory, rename or move one, and delete
 one after confirmation, from the menu of each entry (Section 3.4.4.1), which MUST also offer to copy
 its path.
 
-**3.16.2.3** Opening a file MUST show it in an editor tab that highlights its syntax by its name.
+**3.17.2.3** Opening a file MUST show it in an editor tab that highlights its syntax by its name.
 A file opened from the tree with a single click MUST replace the previous tab so opened while that
 tab is unchanged and was not opened to keep; editing it, or opening it with a double click, MUST
 keep it. A tab with changes not yet written MUST be marked.
 
-**3.16.2.4** The editor MUST write a tab's changes to the env 800 milliseconds after the user stops
+**3.17.2.4** The editor MUST write a tab's changes to the env 800 milliseconds after the user stops
 typing, when the editor loses focus, and when the user switches tab, each time as `env.write` with
 `if_match` the `etag` last read or written; the user MUST NOT be asked to save.
 
-**3.16.2.5** A write refused because the file changed MUST keep the user's text, and MUST show above
+**3.17.2.5** A write refused because the file changed MUST keep the user's text, and MUST show above
 the editor a banner offering `Compare`, which shows both texts side by side, `Keep mine`, which
 writes the user's text over the file, and `Reload`, which throws the user's text away and reads the
 file.
 
-**3.16.2.6** While the view is visible, the page MUST look at each open file at most every 5 seconds,
+**3.17.2.6** While the view is visible, the page MUST look at each open file at most every 5 seconds,
 MUST read again, without saying so, a file changed in the env whose tab holds no changes, and MUST
-show the banner of Section 3.16.2.5 for one whose tab does.
+show the banner of Section 3.17.2.5 for one whose tab does.
 
-**3.16.2.7** Cmd+P, or Ctrl+P, MUST open a picker of the env's files (`env.find`) narrowed by a fuzzy
+**3.17.2.7** Cmd+P, or Ctrl+P, MUST open a picker of the env's files (`env.find`) narrowed by a fuzzy
 match of what is typed; Cmd+Shift+F, or Ctrl+Shift+F, MUST open a search of the env's files
 (`env.search`) whose results open the file at the line found.
 
-**3.16.2.8** The editor MUST offer find and replace within the file and going to a line, and a
+**3.17.2.8** The editor MUST offer find and replace within the file and going to a line, and a
 status bar saying the line and column, the language, and whether the tab is written.
 
-**3.16.2.9** An image MUST be shown as one; a binary file, and a file larger than 5 MiB, MUST open
+**3.17.2.9** An image MUST be shown as one; a binary file, and a file larger than 5 MiB, MUST open
 read-only, saying why.
 
-#### 3.16.3. `Terminal`
+#### 3.17.3. `Terminal`
 
-**3.16.3.1** `Terminal` MUST offer several terminals of the env, each in a tab, and MUST let the
+**3.17.3.1** `Terminal` MUST offer several terminals of the env, each in a tab, and MUST let the
 user open a new one (`env.term.open`) and close one, which kills it (`env.term.close`).
 
-**3.16.3.2** Shown, `Terminal` MUST attach again to every terminal of the env still alive
+**3.17.3.2** Shown, `Terminal` MUST attach again to every terminal of the env still alive
 (`env.term.list`), drawing what each kept before what it prints next; and so MUST it once the page's
 session is up again after it dropped.
 
-**3.16.3.3** A terminal MUST fill its panel, MUST be resized with it (`env.term.resize`), MUST be
+**3.17.3.3** A terminal MUST fill its panel, MUST be resized with it (`env.term.resize`), MUST be
 drawn in the colours of the page's theme, and MUST offer search within what it shows, links that
 open, and copying and pasting.
 
-**3.16.3.4** The page MUST acknowledge a terminal's output (`env.term.ack`) only once it has drawn
+**3.17.3.4** The page MUST acknowledge a terminal's output (`env.term.ack`) only once it has drawn
 it, at least every 64 KiB drawn.
 
-**3.16.3.5** A terminal that ended MUST say so with its exit status, and MUST take no more input.
+**3.17.3.5** A terminal that ended MUST say so with its exit status, and MUST take no more input.
 
-#### 3.16.4. `Changes`
+#### 3.17.4. `Changes`
 
-**3.16.4.1** `Changes` MUST show the env's git status (`env.git.status`) in the groups `Merge
+**3.17.4.1** `Changes` MUST show the env's git status (`env.git.status`) in the groups `Merge
 Changes` (conflicts), `Staged Changes`, `Changes` and `Untracked`, each with how many files it holds,
 and MUST show the branch and how far it is ahead of and behind its upstream.
 
-**3.16.4.2** Each file MUST offer to stage it, unstage it, discard its changes after confirmation,
+**3.17.4.2** Each file MUST offer to stage it, unstage it, discard its changes after confirmation,
 and open it in `Files`; each group MUST offer to stage or unstage all of it.
 
-**3.16.4.3** `Changes` MUST offer a box for a commit message, which Cmd+Enter, or Ctrl+Enter,
+**3.17.4.3** `Changes` MUST offer a box for a commit message, which Cmd+Enter, or Ctrl+Enter,
 commits (`env.git.commit`), and a choice to amend the last commit.
 
-**3.16.4.4** Choosing a file MUST show its change (`env.git.diff`), read-only, side by side or
+**3.17.4.4** Choosing a file MUST show its change (`env.git.diff`), read-only, side by side or
 inline as the user chooses, with a way to go to the next and the previous change.
 
-**3.16.4.5** `Changes` MUST list the latest commits (`env.git.log`).
+**3.17.4.5** `Changes` MUST list the latest commits (`env.git.log`).
 
-**3.16.4.6** Where the env's `caps` holds `rewind`, `Changes` MUST list its snapshots
+**3.17.4.6** Where the env's `caps` holds `rewind`, `Changes` MUST list its snapshots
 (`env.git.snapshots`), and MUST offer to rewind to each after confirmation (`env.git.rewind`).
 
-**3.16.4.7** `Changes` MUST read the status again on an `env_used` record of its env, when a turn of
+**3.17.4.7** `Changes` MUST read the status again on an `env_used` record of its env, when a turn of
 a session ends, when the page regains focus, and every 5 seconds while it is visible.
 
 ## 4. The Server
@@ -1089,13 +1089,13 @@ MUST be refused 404, as MUST a path naming no file.
 wss:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, and with `Cache-Control:
 no-cache`: `'self'` lets the page reach the server's own `/rpc` and `/dial`, `ws:` and `wss:` the
 relay of any `webrtc:` route, whose host the server cannot know, and `'unsafe-inline'` in
-`style-src` the editor and the terminal of Section 3.16 style what they draw.
+`style-src` the editor and the terminal of Section 3.17 style what they draw.
 
 **4.5.6** A failure the server does not anticipate MUST be refused 500, `Something went wrong here:
 <why>`, and its traceback written to the server's standard error.
 
 **4.5.7** The page's files MUST include, under `vendor/`, `codemirror.js`, the editor of Section
-3.16.2, and `xterm.js` with `xterm_css.css`, the terminal of Section 3.16.3: each built from pinned
+3.17.2, and `xterm.js` with `xterm_css.css`, the terminal of Section 3.17.3: each built from pinned
 releases of those libraries into one file the page imports, served as every other file is, and
 reaching nothing beyond the page's files.
 
@@ -1193,8 +1193,8 @@ requirement.
   need and which run no script (Section 4.5.1 and Section 4.5.5); those libraries are the page's own
   files, so nothing is loaded from elsewhere (Section 4.5.7).
 - **Environments.** The page reads and writes the files of an epic's envs and opens terminals in
-  them as the daemon's user (Section 3.16); every change and every terminal opened is written in the
-  epic's history (Section 4.21.1.8 of [DAEMON]).
+  them as the daemon's user (Section 3.17); every change and every terminal opened is written in the
+  epic's history (Section 4.24.1.8 of [DAEMON]).
 - **The bridge.** `/rpc` is the daemon's own socket carried to the page, and is trusted as the
   socket is (Section 4.7.3): admission to the server is therefore equivalent to acting as the user
   who runs `hmz web` on this machine, with every method of [DAEMON], as it was before this version.
