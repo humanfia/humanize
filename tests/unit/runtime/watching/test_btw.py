@@ -1,4 +1,4 @@
-"""`hmz.runtime.watching.btw`: the prompts side questions are asked with, and `@ask` lines."""
+"""`hmz.runtime.watching.btw`: the prompts side questions are asked with, and who asks."""
 
 from __future__ import annotations
 
@@ -9,15 +9,10 @@ import pytest
 
 from hmz.runtime.watching import btw
 from hmz.runtime.watching.btw import (
-    ASK,
-    HOPS,
     AgentProgress,
     FlowSnapshot,
     Observation,
-    asked,
     compact,
-    format_answers,
-    format_asking,
     format_forked,
     format_snapshot,
     format_turn,
@@ -42,6 +37,11 @@ def _snapshot(**changed: object) -> FlowSnapshot:
         flow="rlar", task="fix the bug", workspace="/w", elapsed=12.34, finished=False
     )
     return dataclasses.replace(base, **changed)
+
+
+def _about(snapshot: FlowSnapshot, question: str) -> str:
+    """The first prompt of a side copy of `builder/1`."""
+    return format_snapshot(snapshot, question, about="builder/1")
 
 
 def _block(prompt: str, heading: str) -> list[str]:
@@ -73,74 +73,6 @@ def test_compact_takes_a_limit() -> None:
     assert compact("abcdef", 4) == "abc…"
 
 
-def test_asked_reads_each_ask_line_off_an_answer() -> None:
-    answer = (
-        "Let me check.\n@ask builder/1: what did you change?\n  @ask  rev/2 :why\nDone."
-    )
-
-    asks, rest = asked(answer)
-
-    assert asks == [("builder/1", "what did you change?"), ("rev/2", "why")]
-    assert rest == "Let me check.\n\n\nDone."
-
-
-@pytest.mark.parametrize(
-    "line",
-    [
-        "- @ask builder/1: what changed?",
-        "> @ask builder/1: what changed?",
-        "1. @ask builder/1: what changed?",
-        "`@ask builder/1: what changed?`",
-        "* `@ask builder/1: what changed?`",
-        "@ask `builder/1`: what changed?",
-    ],
-)
-def test_asked_reads_an_ask_line_in_a_list_a_quote_or_backticks(line: str) -> None:
-    asks, rest = asked(f"Asking.\n{line}")
-
-    assert asks == [("builder/1", "what changed?")]
-    assert rest == "Asking."
-
-
-def test_asked_keeps_the_backtick_a_question_ends_its_code_with() -> None:
-    asks, _ = asked("@ask builder/1: what changed in `foo.py`")
-
-    assert asks == [("builder/1", "what changed in `foo.py`")]
-
-
-@pytest.mark.parametrize(
-    "answer", ["no asks here", "@ask builder/1:", "@ask : question", "say @ask x: y"]
-)
-def test_asked_takes_nothing_that_is_not_an_ask_line(answer: str) -> None:
-    asks, rest = asked(answer)
-
-    assert asks == []
-    assert rest == answer.strip()
-
-
-@pytest.mark.parametrize(
-    ("more", "last"),
-    [
-        (True, "Ask again, or answer the user."),
-        (False, "No more asks this question: answer the user with what you have."),
-    ],
-)
-def test_format_answers_says_each_answer_and_whether_to_ask_more(
-    more: bool, last: str
-) -> None:
-    said = format_answers([("a/1", "one"), ("b/1", "two  lines\nhere")], more=more)
-
-    assert said.splitlines() == [
-        '<answer from="a/1">',
-        "one",
-        "</answer>",
-        '<answer from="b/1">',
-        "two lines here",
-        "</answer>",
-        last,
-    ]
-
-
 def test_format_turn_wraps_a_question() -> None:
     assert format_turn(" what  now? ") == "<user_question>\nwhat now?\n</user_question>"
 
@@ -155,9 +87,11 @@ def test_format_forked_names_the_session_and_asks_the_question() -> None:
 
 
 def test_a_snapshot_with_nothing_observed_says_so() -> None:
-    said = format_snapshot(_snapshot(), "how is it going?")
+    said = _about(_snapshot(), "how is it going?")
 
-    assert said.startswith("You are the btw agent")
+    assert said.startswith(
+        "You are answering a side question about the session `builder/1`"
+    )
     assert "<flow_snapshot>" in said
     assert "</flow_snapshot>" in said
     for line in (
@@ -183,7 +117,7 @@ def test_a_snapshot_with_nothing_observed_says_so() -> None:
 
 
 def test_a_snapshot_says_what_is_missing_and_clamps_what_cannot_be() -> None:
-    said = format_snapshot(
+    said = _about(
         _snapshot(
             flow="", task="", workspace="", elapsed=-5.0, waiting=-2, finished=True
         ),
@@ -202,7 +136,7 @@ def test_a_snapshot_says_what_is_missing_and_clamps_what_cannot_be() -> None:
 
 
 def test_a_snapshot_says_each_agent_and_handover() -> None:
-    said = format_snapshot(
+    said = _about(
         _snapshot(
             agents=(
                 AgentProgress("NeiKos496", "opus", 3, working=True, role="builder"),
@@ -223,7 +157,7 @@ def test_a_snapshot_says_each_agent_and_handover() -> None:
 
 
 def test_a_snapshot_spends_biggest_first_and_never_prices_the_unpriced() -> None:
-    said = format_snapshot(
+    said = _about(
         _snapshot(
             spent=(("small", 10, 0.5, 0.25), ("big", 1000, 12.0, None)),
             kinds=(("input", 900.0, True), ("cache_read", 100.0, False)),
@@ -247,7 +181,7 @@ def test_a_snapshot_keeps_only_the_recent_observations() -> None:
         for at in range(40)
     )
 
-    said = format_snapshot(_snapshot(observations=observations), "q")
+    said = _about(_snapshot(observations=observations), "q")
 
     block = _block(said, "recent_observations:")
     assert block[0] == "- (earlier observations omitted: 8)"
@@ -257,9 +191,7 @@ def test_a_snapshot_keeps_only_the_recent_observations() -> None:
 
 
 def test_an_observation_with_no_text_or_agent_says_so() -> None:
-    said = format_snapshot(
-        _snapshot(observations=(Observation("", "x", "", 0.0),)), "q"
-    )
+    said = _about(_snapshot(observations=(Observation("", "x", "", 0.0),)), "q")
 
     assert _block(said, "recent_observations:") == ["- (flow) [x]: (no text)"]
 
@@ -307,54 +239,10 @@ def test_a_snapshot_bounds_what_it_lists(
 ) -> None:
     many = tuple(make(at) for at in range(shown + 6))
 
-    block = _block(format_snapshot(_snapshot(**{field: many}), "q"), heading)
+    block = _block(_about(_snapshot(**{field: many}), "q"), heading)
 
     assert len(block) == shown + 1
     assert block[-1] == omitted
-
-
-def test_the_btw_agent_is_told_how_to_ask_the_sessions() -> None:
-    said = format_snapshot(
-        _snapshot(sessions=(("builder/1", "the builder"), ("rev/1", "the reviewer"))),
-        "q",
-    )
-
-    assert _block(said, "<sessions>") == [
-        "- builder/1: the builder",
-        "- rev/1: the reviewer",
-    ]
-    assert f'`{ASK} ask --to <session> --question "<question>"`' in said
-    assert f"`{ASK} list`" in said
-    assert "`@ask <session>: <question>`" in said
-    assert f"You may ask up to {HOPS} per user question." in said
-
-
-def test_a_side_question_about_one_session_is_not_told_how_to_ask() -> None:
-    said = format_snapshot(
-        _snapshot(sessions=(("builder/1", "the builder"),)), "q", about="builder/1"
-    )
-
-    assert said.startswith(
-        "You are answering a side question about the session `builder/1`"
-    )
-    assert "@ask" not in said
-    assert ASK not in said
-
-
-def test_the_btw_agent_is_told_how_to_ask_before_any_session_opened() -> None:
-    said = format_asking(())
-
-    assert _block(said, "<sessions>") == ["- none opened yet"]
-    assert f"`{ASK} list`" in said
-
-
-def test_sessions_past_the_bound_are_counted() -> None:
-    many = tuple((f"r/{at}", "x") for at in range(70))
-
-    block = _block(format_snapshot(_snapshot(sessions=many), "q"), "<sessions>")
-
-    assert len(block) == 65
-    assert block[-1] == "- (sessions omitted: 6)"
 
 
 def test_the_snapshot_types_are_frozen() -> None:
@@ -372,9 +260,7 @@ class _Runs:
       forks: Whether a fork of a session will answer, rather than raise.
     """
 
-    def __init__(
-        self, answers: dict[str, list[str | dict[str, object]]], *, forks: bool = True
-    ) -> None:
+    def __init__(self, answers: dict[str, list[str]], *, forks: bool = True) -> None:
         self.answers = answers
         self.forks = forks
         self.opened: list[dict[str, object]] = []
@@ -383,29 +269,24 @@ class _Runs:
         self._of: dict[str, str] = {}
 
     def aside(self, **said: object) -> dict[str, object]:
-        if "prompt" in said or "answered" in said:
+        if "prompt" in said:
             opened = self._of[str(said["side"])]
             if opened.endswith("fork") and not self.forks:
                 raise RuntimeError("the fork would not answer")
-            self.said.append(str(said.get("prompt", said.get("answered"))))
-            answer = self.answers[opened].pop(0)
-            return answer if isinstance(answer, dict) else {"answer": answer}
+            self.said.append(str(said["prompt"]))
+            return {"answer": self.answers[opened].pop(0)}
         side = f"s{len(self.opened) + 1}"
         self.opened.append(said)
         whose = str(said.get("key") or said.get("runs"))
         self._of[side] = f"{whose} fork" if said.get("fork") else whose
         return {"side": side, "forked": bool(said.get("fork"))}
 
-    def btw(
-        self, target: str = "", asking: Callable[[str, str], object] | None = None
-    ) -> btw.Btw:
+    def btw(self, target: str = "builder/1") -> btw.Btw:
         return btw.Btw(
             target,
             aside=self.aside,
             unaside=self.closed.append,
             sessions=lambda: ["builder/1", "critic/1"],
-            source=lambda: {"runs": "claude/opus"},
-            asking=asking,
         )
 
 
@@ -419,111 +300,67 @@ def test_a_fork_that_will_not_answer_is_asked_again_as_a_copy() -> None:
     assert runs.closed == ["s1"]
 
 
-def test_the_btw_agent_carries_out_what_it_asks_and_answers_with_what_came_back() -> (
-    None
-):
-    runs = _Runs(
-        {
-            "claude/opus": [
-                "@ask builder/1: how far along?\n@ask nobody/9: hello?",
-                "nearly done",
-            ],
-            "builder/1 fork": ["two tests left"],
-        }
-    )
-    told: list[tuple[str, str]] = []
-
-    answer = runs.btw(asking=lambda key, question: told.append((key, question))).ask(
-        "status?", _snapshot()
-    )
-
-    assert answer == "nearly done"
-    assert told == [("builder/1", "how far along?"), ("nobody/9", "hello?")]
-
-
-def _asks(to: str, question: str) -> dict[str, object]:
-    """A turn of the btw agent that ran `hmz-ask`, as the runs tell it mid-turn."""
-    return {"ask": {"to": to, "question": question}}
-
-
-def test_the_btw_agent_is_opened_able_to_ask_and_told_how_on_every_turn() -> None:
-    runs = _Runs({"claude/opus": ["one", "two"]})
+def test_a_fork_is_told_what_it_is_and_asked_on_without_more() -> None:
+    runs = _Runs({"builder/1 fork": ["one", "two"]})
     mode = runs.btw()
-    sessions = (("builder/1", "the builder"),)
 
-    mode.ask("first", _snapshot(sessions=sessions))
-    mode.ask("second", _snapshot(sessions=sessions))
+    assert mode.ask("first", _snapshot()) == "one"
+    assert mode.ask("second", _snapshot()) == "two"
 
-    assert runs.opened == [{"runs": "claude/opus", "asks": True}]
-    assert all("- builder/1: the builder" in one for one in runs.said)
-    assert all(f"`{ASK} list`" in one for one in runs.said)
-    assert "<flow_snapshot>" not in runs.said[1]
+    assert runs.opened == [{"key": "builder/1", "fork": True}]
+    assert runs.said == [format_forked("builder/1", "first"), format_turn("second")]
 
 
-def test_what_the_btw_agent_asks_by_command_is_answered_back_into_its_turn() -> None:
-    runs = _Runs(
-        {
-            "claude/opus": [
-                _asks("builder/1", "how far along?"),
-                _asks("nobody/9", "hello?"),
-                "nearly done",
-            ],
-            "builder/1 fork": ["two tests left"],
-        }
-    )
-    told: list[tuple[str, str]] = []
-
-    answer = runs.btw(asking=lambda key, question: told.append((key, question))).ask(
-        "status?", _snapshot()
+def test_a_copy_is_told_a_snapshot_of_its_own_agent_alone() -> None:
+    runs = _Runs({"builder/1": ["from the copy"]}, forks=False)
+    observed = (
+        Observation("builder", "said", "mine", 1.0),
+        Observation("critic", "said", "theirs", 2.0),
+        Observation("", "printed", "the flow's", 3.0),
     )
 
-    assert answer == "nearly done"
-    assert told == [("builder/1", "how far along?"), ("nobody/9", "hello?")]
-    assert runs.said[-2:] == [
-        "two tests left",
-        "(session nobody/9 not found; the sessions are: builder/1, critic/1)",
-    ]
+    runs.btw().ask("what now", _snapshot(observations=observed))
+
+    told = runs.said[-1]
+    assert "mine" in told
+    assert "the flow's" in told
+    assert "theirs" not in told
 
 
-def test_the_btw_agent_asking_by_command_past_its_hops_is_told_to_answer() -> None:
-    runs = _Runs(
-        {
-            "claude/opus": [
-                *(_asks("builder/1", f"question {at}") for at in range(HOPS + 1)),
-                "done asking",
-            ],
-            "builder/1 fork": [f"answer {at}" for at in range(HOPS)],
-        }
+def test_a_session_that_is_not_of_the_run_is_said_not_found() -> None:
+    runs = _Runs({})
+
+    assert runs.btw("nobody/9").ask("hello?", _snapshot()) == (
+        "(session nobody/9 not found)"
     )
-    told: list[tuple[str, str]] = []
-
-    answer = runs.btw(asking=lambda key, question: told.append((key, question))).ask(
-        "go on", _snapshot()
-    )
-
-    assert answer == "done asking"
-    assert len(told) == HOPS
-    assert runs.said[-1] == (
-        "No more asks this question: answer the user with what you have."
-    )
+    assert runs.opened == []
 
 
-def test_the_btw_agent_asks_no_more_than_its_hops() -> None:
-    asking = "\n".join(f"@ask builder/1: question {at}" for at in range(HOPS + 3))
-    runs = _Runs(
-        {
-            "claude/opus": [asking, asking, "done asking"],
-            "builder/1 fork": [f"answer {at}" for at in range(HOPS)],
-        }
-    )
-    told: list[tuple[str, str]] = []
+def test_a_side_conversation_the_runs_closed_is_opened_again() -> None:
+    runs = _Runs({"builder/1 fork": ["one", "two"]})
+    mode = runs.btw()
+    mode.ask("first", _snapshot())
 
-    answer = runs.btw(asking=lambda key, question: told.append((key, question))).ask(
-        "go on", _snapshot()
-    )
+    mode.forget()
+    mode.ask("second", _snapshot())
 
-    assert len(told) == HOPS
-    assert answer == ""  # the @ask lines past the bound are taken off what is said
+    assert [one["key"] for one in runs.opened] == ["builder/1", "builder/1"]
+    assert runs.said[-1] == format_forked("builder/1", "second")
+    assert runs.closed == []
+
+
+def test_closing_closes_the_side_conversation_or_leaves_it_to_the_runs() -> None:
+    runs = _Runs({"builder/1 fork": ["one", "two"]})
+    first, second = runs.btw(), runs.btw()
+    first.ask("q", _snapshot())
+    second.ask("q", _snapshot())
+
+    first.close()
+    second.close(unasking=False)
+
+    assert runs.closed == ["s1"]
+    assert first.closed
+    assert second.closed
 
 
 def test_a_side_conversation_opened_after_the_mode_was_left_is_closed_again() -> None:
@@ -534,66 +371,13 @@ def test_a_side_conversation_opened_after_the_mode_was_left_is_closed_again() ->
         return runs.aside(**said)
 
     mode = btw.Btw(
-        "",
+        "builder/1",
         aside=opens,
         unaside=runs.closed.append,
-        sessions=list,
-        source=lambda: {"runs": "claude/opus"},
+        sessions=lambda: ["builder/1"],
     )
 
     with pytest.raises(btw.Left):
         mode.ask("anything", _snapshot())
     assert runs.closed == ["s1"]
     assert not mode.busy
-
-
-@pytest.mark.parametrize(
-    ("chosen", "expected"),
-    [
-        ("codex@work/gpt:high", {"runs": "codex@work/gpt:high"}),
-        # Nobody named is nobody to ask: no agent of the epic stands in.
-        ("", None),
-    ],
-)
-def test_the_epic_is_answered_by_the_agent_the_settings_name_and_no_other(
-    chosen: str, expected: dict[str, str] | None
-) -> None:
-    assert btw.opened_as(chosen) == expected
-    assert btw.THE_EPIC == "The Epic"
-    assert "settings" in btw.NOBODY
-
-
-#: How a session an earlier run kept is opened: its agent, its conversation, where it is.
-_EARLIER = {"runs": "claude/opus", "recall": "abc", "kept": "/epics/x/sessions/claude"}
-
-
-def _earlier(runs: _Runs) -> btw.Btw:
-    return btw.Btw(
-        "earlier/builder/1",
-        aside=runs.aside,
-        unaside=runs.closed.append,
-        sessions=list,
-        source=lambda: None,
-        opening=_EARLIER,
-    )
-
-
-def test_a_session_an_earlier_run_kept_is_asked_as_a_fork_of_it() -> None:
-    runs = _Runs({"claude/opus fork": ["it said papaya"]})
-
-    answer = _earlier(runs).ask("what was the word", _snapshot())
-
-    assert answer == "it said papaya"
-    assert runs.opened == [{**_EARLIER, "fork": True}]
-
-
-def test_an_earlier_session_whose_fork_will_not_answer_is_asked_of_a_fresh_copy() -> (
-    None
-):
-    runs = _Runs({"claude/opus": ["from the copy"]}, forks=False)
-
-    answer = _earlier(runs).ask("what now", _snapshot())
-
-    assert answer == "from the copy"
-    assert runs.opened == [{**_EARLIER, "fork": True}, {"runs": "claude/opus"}]
-    assert runs.closed == ["s1"]

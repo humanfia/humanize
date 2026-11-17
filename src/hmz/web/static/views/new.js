@@ -325,13 +325,15 @@ function minutesOf(duration) {
 
 /**
  * A form for a flow's params, read off the JSON schema its params model gives: a field for
- * each, by its type, and JSON for whatever has no field of its own.
+ * each, by its type, and JSON for whatever has no field of its own. A field is labelled with
+ * the title the flow gave it, or its name where it gave none.
  */
 function schemaForm(schema, kept) {
   const fields = []
   const readers = {}
   for (const [name, property] of Object.entries(schema.properties || {})) {
     const value = name in kept ? kept[name] : property.default
+    const shown = property.title || name
     const id = `param-${name}`
     let input
     let read
@@ -355,12 +357,12 @@ function schemaForm(schema, kept) {
         try {
           return JSON.parse(input.value)
         } catch {
-          throw new Error(`${name} is not JSON.`)
+          throw new Error(`${shown} is not JSON.`)
         }
       }
     }
     readers[name] = read
-    fields.push(h('div', { class: 'field' }, h('label', { for: id }, name), input, property.description ? h('span', { class: 'hint' }, property.description) : null))
+    fields.push(h('div', { class: 'field' }, h('label', { for: id, title: shown === name ? undefined : name }, shown), input, property.description ? h('span', { class: 'hint' }, property.description) : null))
   }
   return {
     fields,

@@ -68,13 +68,20 @@ def context(state: dict[str, Any] | None = None, *, resumed: bool = False) -> mo
     return mock.Mock(name="ctx", state=state, resumed=resumed)
 
 
-async def call(defined: Defined, task: str, *, ctx: Any, **agents: Any) -> Any:
-    """Runs a builtin flow's own function with `agents`, the workspace, and its own params."""
+async def call(
+    defined: Defined,
+    task: str,
+    *,
+    ctx: Any,
+    params: dict[str, Any] | None = None,
+    **agents: Any,
+) -> Any:
+    """Runs a builtin flow's own function with `agents`, the workspace, and `params`."""
     return await defined.fn(
         task,
         agents=agents,
         envs={"workspace": WORKSPACE},
-        params=defined.declared["params"](),
+        params=defined.declared["params"].model_validate(params or {}),
         ctx=ctx,
     )
 
