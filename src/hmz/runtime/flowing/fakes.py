@@ -118,6 +118,7 @@ if TYPE_CHECKING:
     from .engine import FlowImpl, Recorder
     from .spi import (
         AgentDriver,
+        Ask,
         EnvDriver,
         HookTable,
         OutworlderDriver,
@@ -1443,33 +1444,45 @@ class FakeOutworlder:
     """Whoever is outside the run, answering from a script, or away.
 
     Args:
-      reply: What they answer with; see :data:`Reply`. A function of the prompt is given
-        the schema asked for as `output_schema`.
+      reply: What they answer with; see :data:`Reply`. A mapping is the value of the schema
+        asked for. A function of the prompt is given the schema asked for as
+        `output_schema`.
       away: Whether nobody is there.
 
     Attributes:
       asked: Every prompt they were asked, in order.
+      asks: Every ask they were put, whole -- schema, context, face and session -- in order.
+      shown: Every context pushed to them, as `(session, context)`, in order.
+      faces: Every face a session of theirs was opened with, in order.
     """
 
     def __init__(self, reply: Reply = None, *, away: bool = False) -> None:
         self._script = _Script(reply)
         self.away = away
         self.asked: list[str] = []
+        self.asks: list[Ask] = []
+        self.shown: list[tuple[str, tuple[dict[str, Any], ...]]] = []
+        self.faces: list[Any] = []
 
     def away_for(self, role: str) -> bool:
         """Whether nobody is there, which is the same for every role."""
         del role
         return self.away
 
-    async def run(
-        self,
-        prompt: str,
-        output_schema: type[pydantic.BaseModel] | None,
-        role: str = "",
-    ) -> Any:
+    async def run(self, ask: Ask, role: str = "") -> Any:
         del role
-        self.asked.append(prompt)
-        return await self._script.next(prompt, output_schema, "the outworlder")
+        self.asked.append(ask.prompt)
+        self.asks.append(ask)
+        return await self._script.next(ask.prompt, ask.model, "the outworlder")
+
+    def show(
+        self, context: tuple[dict[str, Any], ...], session: str, role: str
+    ) -> None:
+        del role
+        self.shown.append((session, context))
+
+    def mount(self, face: Any) -> None:
+        self.faces.append(face)
 
 
 # --------------------------------------------------------------------------------- a run

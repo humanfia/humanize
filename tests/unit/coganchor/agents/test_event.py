@@ -132,6 +132,26 @@ def test_events_and_questions_default_to_nothing() -> None:
     event = Event(kind="text", text="hi")
     assert (event.whose, dict(event.tokens), dict(event.spent)) == ("", {}, {})
     assert Question("why?") == Question(text="why?", options=(), asker="")
+    asked = Question("why?")
+    assert (asked.schema, asked.context, asked.face, asked.session, asked.check) == (
+        None,
+        (),
+        "",
+        "",
+        None,
+    )
+
+
+def test_a_question_is_the_same_whatever_checks_its_answer() -> None:
+    def check(value: object) -> tuple[dict[str, object], ...]:
+        del value
+        return ()
+
+    shaped = Question("why?", schema={"type": "object"}, session="lead/1")
+
+    assert Question(
+        "why?", schema={"type": "object"}, session="lead/1", check=check
+    ) == (shaped)
 
 
 def test_saying_gathers_fragments_into_one_utterance() -> None:
