@@ -404,6 +404,7 @@ async def test_a_shell_line_and_what_it_printed_are_drawn_as_a_shell_draws_them(
 
         drawn = await shows(pilot, "!ls", f"⎿  {PRINTED}")
         assert "❯ !ls" not in drawn
+        assert drawn.count("!ls") == 1
     # Run for the chat rather than said to its assistant.
     assert "!ls" not in heard(workspace)
 

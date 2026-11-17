@@ -105,8 +105,10 @@ async def test_every_line_after_the_first_is_a_turn_of_the_same_conversation(
         await typed(pilot, "first")
         await shows(pilot, "heard first")
         await typed(pilot, "second")
-        await shows(pilot, "heard second")
+        drawn = await shows(pilot, "heard second")
 
+    # Every line said is in the conversation, once.
+    assert drawn.count("❯ second") == 1
     assert heard(workspace) == ["first", "second"]
     assert len(started(workspace)) == 1  # one agent process, holding one conversation
 

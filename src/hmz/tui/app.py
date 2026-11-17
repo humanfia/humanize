@@ -5041,14 +5041,10 @@ class Humanize(App[None]):
             self._ended(message)
         elif kind == "asked":
             self._show_question(message)
-        elif kind == "answered":
+        elif kind == "answered" and not (self.chatting() and not self._by(message)):
             self._answered(message)
-        elif kind == "said" and not (
-            self.chatting()
-            and str(message.get("text") or "").startswith("!")
-            and not self._by(message)
-        ):
-            # A `!` this interface said is on the screen already, put down as it was typed.
+        elif kind == "said" and not (self.chatting() and not self._by(message)):
+            # A line of a chat this interface said is on the screen already, as it was typed.
             self._said_by_you(
                 str(message.get("text") or ""),
                 str(message.get("key") or ""),
@@ -5623,10 +5619,10 @@ class Humanize(App[None]):
             self._said_by_you(text)
             self._chat_starts(text)
             return
-        if text.startswith("!"):
-            # A command run for the chat rather than said to its assistant: put down as
-            # typed, the shell's way, since nothing the assistant takes will say it.
-            self._said_by_you(text)
+        # Put down as typed, here and now: what the chat's host tells of a line this interface
+        # said -- an answer to what the chat waits on, or a word put into its turn -- is not
+        # drawn again (`_told`), and a `!` goes to nobody who would say it.
+        self._said_by_you(text)
         self._asks("chat.say", slot=held, text=text)
 
     def _chat_starts(self, task: str) -> None:
