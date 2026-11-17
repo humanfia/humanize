@@ -1824,7 +1824,7 @@ No fields of its own.
 
 ```text
 omp --mode rpc --model <provider/id> [--thinking <rung>]
-  [--resume <id> | --fork <parent>] [--approval-mode always-ask|yolo]
+  [--resume <id> | --fork <parent>] [--approval-mode yolo]
 ```
 
 `OhMyPiAgentConfig` adds no fields; those `PiAgentConfig` adds are not offered.
@@ -1836,10 +1836,12 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
 - A turn ends on the `agent_end` that is terminal (neither `isTerminal` nor `yielded` is
   `false`); omp sends no `agent_settled`. A prompt omp answers itself, a slash command of its own
   (`agentInvoked: false`), also ends the turn.
-- At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
-  `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
-- `reconfigure` to another `--approval-mode`, or another fence, ends the held process before
-  the next turn, which starts one at the new one and resumes the conversation.
+- Under any fence omp runs at `--approval-mode yolo`, asked nothing, whatever the fence writes:
+  omp cannot withhold a tool, and the fence holds the grant. An agent with no fence is told no
+  mode, and runs at omp's own; an `extension_ui_request` it puts is a
+  [question](#questions), as on pi.
+- `reconfigure` to another fence, or to none, ends the held process before the next turn,
+  which starts one inside the new one and resumes the conversation.
 - Offered [fake tools](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
   the prompt whenever their names change; each `host_tool_call` runs on a thread of its own and
   is answered `host_tool_result`. A refused `set_host_tools` fails the turn.
@@ -1887,7 +1889,7 @@ opencode run --format json --dir <dir> --model <provider/id> [--variant <effort>
 ```text
 pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <parent>]
   [--thinking <rung>]
-  [--exclude-tools bash,edit,write,powershell] [--no-context-files] [--no-extensions]
+  [--exclude-tools edit,write] [--no-context-files] [--no-extensions]
   [--offline] [--append-system-prompt <s>]... [--skill <path>]...
   [--extension <hmz>/coganchor/agents/pi_tools.cjs]
 ```
@@ -1900,6 +1902,12 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
 | `offline` | `False` | `--offline`; forced under `network=False` |
 | `append_system_prompt` | `()` | `--append-system-prompt` per entry (text or path) |
 | `skill_paths` | `()` | `--skill` per entry |
+
+`--exclude-tools edit,write` under a fence that writes nothing; `bash` (and `powershell`) is
+kept, and the fence refuses what it writes. pi has no permission gate, so nothing else is said
+about the grant, and an agent with no fence is told nothing. `reconfigure` to another fence,
+or to none, ends the held process before the next turn, which starts one with the tools the new
+one allows and resumes the conversation.
 
 `--session-id` rather than `--continue`, which resumes the newest session in the directory.
 Each process runs in a [virtual home](#virtual-homes) (`PI_CODING_AGENT_DIR`): a gateway
