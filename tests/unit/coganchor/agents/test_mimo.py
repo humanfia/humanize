@@ -117,10 +117,11 @@ def test_the_next_turn_resumes_the_session_it_was_given(
     assert session.id == "ses-9"
 
 
-def test_a_rung_is_its_own_table_and_its_own_flag(
-    spawner: Spawner, tmp_path: Path
+def test_a_fence_is_its_own_table_and_its_own_flag(
+    spawner: Spawner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _mimo(permission="bypass").new(tmp_path)("go")
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    _mimo(fence=Fence(read=("/",), write=("/",)), web_search=True).new(tmp_path)("go")
     proc = spawner.last
     assert proc.args[-1] == "--dangerously-skip-permissions"
     assert "--auto" not in proc.args
@@ -134,6 +135,22 @@ def test_a_rung_is_its_own_table_and_its_own_flag(
     assert "OPENCODE_PERMISSION" not in (proc.env or {})
 
 
+def test_a_fence_that_writes_nothing_withholds_the_edit_and_keeps_the_shell(
+    spawner: Spawner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    _mimo(fence=Fence(read=("/",), online=False)).new(tmp_path)("go")
+    proc = spawner.last
+    assert proc.args[-1] == "--dangerously-skip-permissions"
+    assert _permitted(proc.environ) == {
+        "edit": "deny",
+        "bash": "allow",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "codesearch": "deny",
+    }
+
+
 def test_no_web_takes_its_code_search_too(spawner: Spawner, tmp_path: Path) -> None:
     _mimo(web_search=False).new(tmp_path)("go")
     proc = spawner.last
@@ -143,7 +160,7 @@ def test_no_web_takes_its_code_search_too(spawner: Spawner, tmp_path: Path) -> N
     assert "--dangerously-skip-permissions" not in proc.args
 
 
-def test_an_agent_nobody_set_a_rung_for_is_told_nothing(
+def test_an_agent_nobody_fenced_is_told_nothing(
     spawner: Spawner, tmp_path: Path
 ) -> None:
     _mimo().new(tmp_path)("go")
