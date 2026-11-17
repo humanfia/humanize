@@ -20,8 +20,8 @@ from hmz.sdk import Hmz, Daemons, Refused, fakes
 ## Module {#module}
 
 ```python
-__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses",
-           "Hmz", "Link", "Refused", "Run", "Runtimes", "fakes"]
+__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Flows", "Flowverses", "Hmz", "Link",
+           "NousBook", "Refused", "Run", "Runtimes", "fakes"]
 def __getattr__(name: str) -> object: ...
 ```
 
@@ -34,7 +34,7 @@ def __getattr__(name: str) -> object: ...
 | `Flowverses` | class | `hmz.runtime` | [Flowverses](#flowverses) |
 | `Accounts` | class | `hmz.runtime` | [Accounts](#accounts) |
 | `Runtimes` | class | `hmz.runtime` | [Runtimes](#runtimes) |
-| `Fallbacks` | class | `hmz.runtime` | [Fallbacks](#fallbacks) |
+| `NousBook` | class | `hmz.runtime` | [NousBook](#nousbook) |
 | `Epics` | class | `hmz.runtime` | [Epics](#epics) |
 | `Client` | class | `hmz.sdk.client` | [Client](#client) |
 | `Daemons` | class | `hmz.sdk.daemons` | [Daemons](#daemons) |
@@ -75,7 +75,7 @@ nothing.
 | `verses` | [`Flowverses`](#flowverses) | The same object as `flows.verses`. |
 | `accounts` | [`Accounts`](#accounts) | |
 | `runtimes` | [`Runtimes`](#runtimes) | |
-| `fallbacks` | [`Fallbacks`](#fallbacks) | |
+| `nous` | [`NousBook`](#nousbook) | |
 | `epics` | [`Epics`](#epics) | Of this workspace. |
 
 `workspace` and `home` are computed on each access; the others are created on first access and
@@ -374,25 +374,37 @@ named by `-e <role>=ssh@<name>` and `-e <role>=docker@<name>`. `backend` is `"ss
 | `resolve(runtime: SSHRuntime)` | `SSHHost` | What `ssh -G` makes of it; reaches nothing. |
 | `check(runtime, seconds: float = 30.0)` | `Checked` | **Reaches** it: an ssh host for home, CPUs, memory, GPUs; a docker daemon via `docker info`. Never raises. |
 
-## `Fallbacks` {#fallbacks}
+## `NousBook` {#nousbook}
 
-`Hmz().fallbacks`: [fallback chains](/user/settings#fallback) between *places*, each spelled
-`<cli>[@<account>]/<model>`. A chain is written against one place, its main, and lists the
-places tried after it, in order.
+`Hmz().nous`: every [nous](/user/settings#nous), concrete (`<cli>[@<account>]/<model>[:<effort>]`)
+or virtual (a name standing for a graph). Each has `tries`, `policy`, `timeout` and a `then`
+graph; a virtual one also has its `graph`. Values are `Nous(name, tries, policy, timeout, graph,
+then)`, `Graph(start, nodes)` and `Node(id, use, balance, among, spread, on)` from
+`hmz.coganchor.nous`.
 
 | Member | Returns | Behaviour |
 | --- | --- | --- |
 | `default` | `str` | Property: `"exponential-jitter"`. |
 | `policies()` | `tuple[Policy, ...]` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci`. |
 | `named(policy: str)` | `Policy \| None` | |
-| `spec(backend, model, provider="")` | `str` | `spec("codex", "gpt-5.6-sol", "work")` → `"codex@work/gpt-5.6-sol"`. |
-| `reads(said: str)` | `str` | The canonical spelling, or `""` for none. |
-| `all()` | `list[Falls]` | Every step, in the order written. |
-| `tried(said)` | `Falls` | The step for a place (empty `Falls` where none). |
-| `chain(said)` | `list[str]` | `[said, *to]` where a rule is written against `said`, else `[said]`: a place only on somebody else's chain has none, and chains are never joined. |
-| `points(said, to: Sequence[str])` | `Falls` | Sets the places `said` falls back to, in order (`[]` none; a single string is one place). `ValueError`: not a place, itself, or a place named twice. |
-| `retrying(said, tries: int, policy: str, timeout: float)` | `Falls` | Sets extra tries (`0` none), the wait policy, and the total limit in seconds (`0` none). `ValueError`. |
-| `clear(said)` | `bool` | Removes the step. |
+| `strategies()` | `tuple[Strategy, ...]` | `shuffle`, `round-robin`, `least-busy`, `latency`, `usage`, `cost`, then those added. |
+| `strategy(name, about, picks)` | `Strategy` | Adds one for this process: `picks(members: Sequence[Member]) -> str`, each `Member` holding `name`, `weight`, `busy`, `latency`, `tokens`, `price`, `cooling`. `ValueError` for a built-in name. |
+| `faults()` | `tuple[str, ...]` | What an edge may be named after: every fault class, then `*`. |
+| `spec(backend, model, provider="", effort="")` | `str` | `spec("codex", "gpt-5.6-sol", "work", "high")` → `"codex@work/gpt-5.6-sol:high"`. |
+| `reads(said: str)` | `str` | The canonical spelling of a concrete nous, a virtual one's name, or `""`. |
+| `all()` | `list[Nous]` | Every nous, in the order written. |
+| `rule(said)` | `Nous` | What is written under `said`, else under `said` without its effort, else an empty `Nous`. |
+| `graph(said)` | `Graph \| None` | Reads a nous, a list of nous, or `{start, nodes}` (`nodes` a mapping by id or a list of nodes with `id`). `TypeError` for anything else. |
+| `shown(graph)` | `dict \| None` | The graph as `nous.list` carries it. |
+| `write(name, *, tries=0, policy="", timeout=0.0, graph=None, then=None)` | `Nous` | Writes a nous whole; `graph` and `then` in any shape `graph()` reads. `ValueError`, `TypeError`. |
+| `put(nous: Nous)` | `Nous` | The same, from a `Nous`. |
+| `check(nous, among=None)` | `Nous` | What `put` would write beside `among` (default: every nous written), writing nothing. `ValueError` as `put`. |
+| `checked(name, graph)` | `Graph` | The same for one graph of the nous `name`. |
+| `then(said, to)` | `Nous` | Sets `then`: a `Graph`, a list of nous (a single string is one), or `None`. `ValueError`. |
+| `retrying(said, tries, policy, timeout)` | `Nous` | Sets extra tries (`0` none), the wait policy, and the limit in seconds (`0` none). `ValueError`. |
+| `renamed(said, name)` | `Nous` | Renames a virtual nous, in every graph naming it too. `ValueError`. |
+| `entry(said)` | `str` | The concrete nous a walk of `said` starts at: where an agent at a virtual nous is built. |
+| `clear(said)` | `bool` | Removes the nous. `ValueError` for a virtual one another nous names. |
 
 ## `Epics` {#epics}
 

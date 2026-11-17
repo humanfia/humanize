@@ -84,7 +84,33 @@ _EARLIER = frozenset(
 
 #: The settings a batch apply carries from one daemon to others, by the page each is set on:
 #: never the accounts, which only a secret sets.
-CARRIED = ("general", "fallback", "runtimes", "backup")
+CARRIED = ("general", "nous", "runtimes", "backup")
+
+
+def _named_first(every: Sequence[Any]) -> list[Any]:
+    """Every nous, each after the virtual nous its graph and its `then` name."""
+    held = {one.name: one for one in every}
+    done: list[Any] = []
+    seen: set[str] = set()
+
+    def names(graph: Any) -> list[str]:
+        nodes = graph.nodes if graph is not None else ()
+        return [
+            name for node in nodes for name in (node.use, *(n for n, _ in node.among))
+        ]
+
+    def visit(one: Any) -> None:
+        if one.name in seen:
+            return
+        seen.add(one.name)
+        for name in [*names(one.graph), *names(one.then)]:
+            if name in held:
+                visit(held[name])
+        done.append(one)
+
+    for one in every:
+        visit(one)
+    return done
 
 
 def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
@@ -107,19 +133,23 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
         if settings.enable_sentry is not None:
             general["reports"] = settings.enable_sentry
         sent.append(("settings.set", general))
-    if "fallback" in pages:
+    if "nous" in pages:
+        book = hmz.nous
         sent += [
             (
-                "fallbacks.set",
+                "nous.set",
                 {
-                    "spec": one.spec,
-                    "to": list(one.to),
+                    "name": one.name,
                     "tries": one.tries,
                     "policy": one.policy,
                     "timeout": one.timeout,
+                    "graph": book.shown(one.graph),
+                    "then": book.shown(one.then),
                 },
             )
-            for one in hmz.fallbacks.all()
+            # Each nous after every virtual one its graphs name, so that each write names
+            # only nous the daemon already has.
+            for one in _named_first(book.all())
         ]
     if "runtimes" in pages:
         for one in hmz.runtimes.all():

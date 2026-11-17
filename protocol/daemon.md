@@ -1500,20 +1500,26 @@ refused 404 and a CLI that will not answer 502.
 **4.18.2.6** Every method of Section 4.18.2 but `accounts.list` MUST be a write and MUST answer as
 `accounts.list` does.
 
-#### 4.18.3. `fallbacks.*`
+#### 4.18.3. `nous.*`
 
-**4.18.3.1** `fallbacks.list` MUST answer `steps` (each `spec`, `to`, `tries`, `policy`,
-`timeout`), `policies`, `default` and `places`.
+**4.18.3.1** `nous.list` MUST answer `nous` (each `name`, `virtual`, `tries`, `policy`, `timeout`,
+`graph` and `then`, each graph `null` or `start` and `nodes`, each node `id`, `use`, `balance`,
+`among` (each `nous` and `weight`), `spread` and `on`), `policies`, `default`, `strategies`,
+`faults` (every fault class and `*`) and `concrete` (every concrete nous the daemon's accounts and
+installed harnesses run, without an effort).
 
-**4.18.3.2** `fallbacks.set` MUST take `spec` (a place), `to` (places, in order), `tries` (default
-`0`), `policy` (default `exponential-jitter`) and `timeout` (seconds, `0` for none), write the step,
-and answer as `fallbacks.list` does; a value `Fallbacks` of Section 4.11 of [PYTHON] refuses MUST be
-refused 400.
+**4.18.3.2** `nous.set` MUST take `name`, `tries` (default `0`), `policy` (default
+`exponential-jitter`), `timeout` (seconds, `0` for none), `graph` and `then`, each graph in a shape
+`NousBook.graph` of Section 4.11 of [PYTHON] reads, or `null`, write the nous whole, and answer as
+`nous.list` does; a value `NousBook` refuses MUST be refused 400.
 
-**4.18.3.3** `fallbacks.clear` MUST take `spec`, remove its step, and answer as `fallbacks.list`
-does; a place with no step MUST be refused 404.
+**4.18.3.3** `nous.rename` MUST take `name` and `to`, rename the virtual nous, and answer as
+`nous.list` does; a rename `NousBook` refuses MUST be refused 400.
 
-**4.18.3.4** `fallbacks.set` and `fallbacks.clear` MUST be writes.
+**4.18.3.4** `nous.clear` MUST take `name`, remove its nous, and answer as `nous.list` does; a nous
+with nothing written MUST be refused 404, and one another nous names 400.
+
+**4.18.3.5** `nous.set`, `nous.rename` and `nous.clear` MUST be writes.
 
 #### 4.18.4. `runtimes.*`
 
@@ -1630,7 +1636,7 @@ stands for the path or method name of the row before.
 | `GET`, `POST /api/accounts` | `accounts.list`, `accounts.create` |
 | `POST …/correct`, `…/remove` | `accounts.correct`, `accounts.remove` |
 | `POST …/models`, `…/copy` | `accounts.models`, `accounts.copy` |
-| `GET`, `POST /api/fallbacks`, `POST …/clear` | `fallbacks.list`, `.set`, `.clear` |
+| `GET`, `POST /api/fallbacks`, `POST …/clear` | `nous.list`, `.set`, `.clear` |
 | `GET`, `POST /api/runtimes` | `runtimes.list`, `runtimes.set` |
 | `POST …/remove`, `…/check` | `runtimes.remove`, `runtimes.check` |
 | `GET /api/runtimes/hosts`, `POST …/import` | `runtimes.hosts`, `runtimes.import` |

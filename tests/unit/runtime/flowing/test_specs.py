@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from hmz.coganchor import backends
+from hmz.coganchor import backends, nous
 from hmz.coganchor.machines import store
 from hmz.flows import Budget, EnvBackendKind, Graceful, HarnessKind
 from hmz.runtime.flowing.specs import (
@@ -381,6 +381,34 @@ def test_parse_agents_takes_a_cli_added_by_hand_as_acp(read: list[str]) -> None:
     del read
     (spec,) = parse_agents(["x=mine/m"])
     assert (spec.harness, spec.cli) == (HarnessKind.ACP, "mine")
+
+
+def test_parse_agents_reads_a_virtual_nous_at_where_it_starts(
+    read: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def virtual(name: str) -> bool:
+        return name in named
+
+    named = {"smart"}
+    monkeypatch.setattr(nous, "virtual", virtual)
+
+    def entry(name: str) -> str:
+        if name != "smart":
+            raise ValueError(f"{name!r} is no nous written down")
+        return "codex@work/gpt:high"
+
+    monkeypatch.setattr(nous, "entry", entry)
+
+    (spec,) = parse_agents(["coder=smart"])
+
+    assert spec == AgentSpec(
+        "coder", HarnessKind.CODEX, "work", "gpt", "high", "codex", "smart"
+    )
+    assert read == ["coder=codex@work/gpt:high"]
+    assert str(spec) == "coder=smart"
+    named.add("ghost")
+    with pytest.raises(AgentSpecError, match="'ghost' is no nous written down"):
+        parse_agents(["coder=ghost"])
 
 
 @pytest.mark.parametrize(

@@ -58,7 +58,7 @@ A CI runner starts empty every time. That shapes the whole job:
 
 `hmz exec` does not open on what the interface was set up with in any directory. It uses what
 the machine holds: the flows installed on it, its [accounts](/user/settings#accounts), its
-[fallbacks](/user/settings#fallback), any CLI added on the Accounts page of `/settings`, and
+[nous](/user/settings#nous), any CLI added on the Accounts page of `/settings`, and
 whether [reporting](/user/reporting) was answered yes. A fresh runner holds none of these, so
 on a runner the line is the whole setup; a run is [profiled](/user/tracing#profiling-a-run)
 only where the line says `--profile-flow` or `--profile-environment`.

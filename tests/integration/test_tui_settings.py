@@ -72,7 +72,7 @@ async def test_settings_opens_on_its_seven_pages_and_esc_closes_it(
             "Notifications",
             "Daemons",
             "Accounts",
-            "Fallback",
+            "Nous",
             "Runtimes",
             "Backup",
             "Workspace",

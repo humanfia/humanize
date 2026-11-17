@@ -5384,7 +5384,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, "
+        "Every setting: general, notifications, daemons, accounts, nous, runtimes, backup, "
         "workspace, usage",
         lambda app, argv: app.action_settings(argv[0] if argv else ""),
         takes="[page]",

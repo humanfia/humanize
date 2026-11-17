@@ -6688,14 +6688,14 @@
       ]
     },
     {
-      "name": "fallbacks.list",
-      "summary": "Every fallback step.",
+      "name": "nous.list",
+      "summary": "Every nous.",
       "paramStructure": "by-name",
       "params": [],
       "result": {
         "name": "list",
         "schema": {
-          "$ref": "#/components/schemas/Fallbacks"
+          "$ref": "#/components/schemas/NousList"
         }
       },
       "errors": [
@@ -6720,30 +6720,22 @@
       ]
     },
     {
-      "name": "fallbacks.set",
-      "summary": "Write a fallback step.",
+      "name": "nous.set",
+      "summary": "Write a nous, whole.",
       "paramStructure": "by-name",
       "params": [
         {
-          "name": "spec",
+          "name": "name",
           "required": true,
           "schema": {
             "type": "string"
           }
         },
         {
-          "name": "to",
-          "schema": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        {
           "name": "tries",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
@@ -6760,6 +6752,50 @@
           }
         },
         {
+          "name": "graph",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "object"
+              }
+            ]
+          }
+        },
+        {
+          "name": "then",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "object"
+              }
+            ]
+          }
+        },
+        {
           "name": "idem",
           "schema": {
             "$ref": "#/components/schemas/Idem"
@@ -6769,7 +6805,7 @@
       "result": {
         "name": "set",
         "schema": {
-          "$ref": "#/components/schemas/Fallbacks"
+          "$ref": "#/components/schemas/NousList"
         }
       },
       "errors": [
@@ -6797,12 +6833,68 @@
       ]
     },
     {
-      "name": "fallbacks.clear",
-      "summary": "Remove a fallback step.",
+      "name": "nous.rename",
+      "summary": "Rename a virtual nous.",
       "paramStructure": "by-name",
       "params": [
         {
-          "name": "spec",
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "to",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "rename",
+        "schema": {
+          "$ref": "#/components/schemas/NousList"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        }
+      ]
+    },
+    {
+      "name": "nous.clear",
+      "summary": "Remove a nous.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
           "required": true,
           "schema": {
             "type": "string"
@@ -6818,7 +6910,7 @@
       "result": {
         "name": "clear",
         "schema": {
-          "$ref": "#/components/schemas/Fallbacks"
+          "$ref": "#/components/schemas/NousList"
         }
       },
       "errors": [
@@ -6842,6 +6934,9 @@
         },
         {
           "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
         }
       ]
     },
@@ -7788,21 +7883,6 @@
           "backends": {}
         }
       },
-      "Fallbacks": {
-        "type": "object",
-        "required": [
-          "steps",
-          "policies",
-          "default",
-          "places"
-        ],
-        "properties": {
-          "steps": {},
-          "policies": {},
-          "default": {},
-          "places": {}
-        }
-      },
       "Runtimes": {
         "type": "object",
         "required": [
@@ -8030,6 +8110,25 @@
           }
         },
         "description": "One path of an environment (Section 4.21.3 of [DAEMON])."
+      },
+      "NousList": {
+        "type": "object",
+        "required": [
+          "nous",
+          "policies",
+          "default",
+          "strategies",
+          "faults",
+          "concrete"
+        ],
+        "properties": {
+          "nous": {},
+          "policies": {},
+          "default": {},
+          "strategies": {},
+          "faults": {},
+          "concrete": {}
+        }
       }
     },
     "errors": {

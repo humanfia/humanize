@@ -822,17 +822,16 @@ code {
   overflow: hidden;
 }
 
-.chain-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
+/* A node of a nous graph: its id and kind, what it names, and its edges, boxed. */
+.graph-node {
+  display: grid;
+  gap: 8px;
   padding: 8px;
   border: 1px solid var(--line);
 }
 
-.chain-row > .picker {
-  flex: 1;
-  min-width: 0;
+.graph-node input.narrow {
+  width: 6em;
 }
 
 /* A box ticked beside what it says: said as words, not as a field's name. */

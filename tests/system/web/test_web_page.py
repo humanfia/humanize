@@ -42,7 +42,7 @@ _PAGES = (
     "general",
     "themes",
     "accounts",
-    "fallback",
+    "nous",
     "runtimes",
     "backup",
     "workspace",

@@ -32,9 +32,9 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.accounts import Accounts
     from hmz.runtime.doing.core import Hmz, Holding
     from hmz.runtime.doing.epics import Epics
-    from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
     from hmz.runtime.doing.hosting import Host
+    from hmz.runtime.doing.nous import NousBook
     from hmz.runtime.doing.running import Run
     from hmz.runtime.doing.runtimes import Runtimes
     from hmz.runtime.runner import Refused
@@ -42,12 +42,12 @@ if TYPE_CHECKING:
 __all__ = [
     "Accounts",
     "Epics",
-    "Fallbacks",
     "Flows",
     "Flowverses",
     "Hmz",
     "Holding",
     "Host",
+    "NousBook",
     "Refused",
     "Run",
     "Runtimes",
@@ -58,12 +58,12 @@ __all__ = [
 _WRITTEN = {
     "Accounts": "hmz.runtime.doing.accounts",
     "Epics": "hmz.runtime.doing.epics",
-    "Fallbacks": "hmz.runtime.doing.fallbacks",
     "Flows": "hmz.runtime.doing.flows",
     "Flowverses": "hmz.runtime.doing.flows",
     "Hmz": "hmz.runtime.doing.core",
     "Holding": "hmz.runtime.doing.core",
     "Host": "hmz.runtime.doing.hosting",
+    "NousBook": "hmz.runtime.doing.nous",
     "Refused": "hmz.runtime.runner",
     "Run": "hmz.runtime.doing.running",
     "Runtimes": "hmz.runtime.doing.runtimes",

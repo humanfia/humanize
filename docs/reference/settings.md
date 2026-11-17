@@ -12,7 +12,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | settings | `H/settings.yaml` | this machine, and per workspace | General, Workspace (and `/flow`) | this page |
 | accounts | `H/providers/<cli>/<name>/provider.json`; CLIs added by hand under [`clis`](#clis) in `H/settings.yaml` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
 | runtimes | [`runtimes`](#runtimes) in `H/settings.yaml` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
-| fallbacks | [`fallbacks`](#fallbacks) in `H/settings.yaml` | this machine | Fallback | this page |
+| nous | [`nous`](#nous) in `H/settings.yaml` | this machine | Nous | this page |
 | backups | [`backup`](#backup) in `H/settings.yaml`; clones cached under `hmz.machine()/backup/<name>/` | this machine | none yet: `settings.yaml` | this page |
 | flowverses | `H/flowverses/<name>/index/` (index clones), `H/flowverses/<name>/installed/[<user>/]<flow>/` (installed flows) | this machine | none: `/flow` › Flowverses | [Flows](/reference/flows#flowverses) |
 
@@ -64,12 +64,21 @@ notifications:                     # this machine; /settings notifications
   kinds: {done: true, failed: true, stopped: true, asked: true, listening: true}
   system: true
 spelling: 2                        # how envs are spelled; written with every change
-fallbacks:                         # this machine; the Fallback page
-- spec: claude@work/claude-opus-5
-  to: [codex/gpt-5.6-sol, dsh/deepseek-v4-flash]
-  tries: 3
-  policy: exponential
-  timeout: 600.0
+nous:                              # this machine; the Nous page
+  claude@work/claude-opus-5:
+    tries: 3
+    policy: exponential
+    timeout: 600.0
+    then: [codex/gpt-5.6-sol, dsh/deepseek-v4-flash]
+  smart:
+    tries: 0
+    policy: exponential-jitter
+    timeout: 0.0
+    graph:
+      start: pool
+      nodes:
+        pool: {balance: least-busy, among: {claude@work/claude-opus-5: 1, claude@team/claude-opus-5: 2}, next: cheap}
+        cheap: {use: dsh/deepseek-v4-flash}
 clis:                              # this machine; added on the Accounts page
   my-agent: [my-agent, --acp]
 runtimes:                          # this machine; the Runtimes page
@@ -145,21 +154,26 @@ opens to ask. `profile_flow` and `profile_environment` go with the rest. `hmz ex
 use only their own arguments (`--profile-flow`, `--profile-environment`, `profile_flow=True`,
 `profile_environment=True`).
 
-### `fallbacks`
+### `nous`
 
-[Fallback](/user/settings#fallback) chains, written by `/settings` › Fallback and
-`Hmz().fallbacks`. A list, one entry per place:
+[Nous](/user/settings#nous), written by `/settings` › Nous and `Hmz().nous`. A mapping from
+each nous's name -- a concrete nous `CLI[@ACCOUNT]/MODEL[:EFFORT]`, or a virtual nous's name,
+`[A-Za-z][A-Za-z0-9_.-]*` and no CLI's -- to:
 
 | Field | Type | |
 | --- | --- | --- |
-| `spec` | `str` | `CLI[@ACCOUNT]/MODEL` the entry applies to |
-| `to` | `[str]` | the chain: where the turn goes next, in order |
-| `tries` | `int` | retries before falling |
+| `tries` | `int` | retries before `then` |
 | `policy` | `str` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci` |
-| `timeout` | `float` | seconds |
+| `timeout` | `float` | seconds, `0` for no limit |
+| `graph` | graph | a virtual nous's graph; never on a concrete one |
+| `then` | graph | where a turn goes once the tries are spent |
 
-Invalid entries are dropped on read, and so are places in `to` that cannot be read, name the
-entry's own `spec`, or repeat an earlier one.
+A graph is one nous, a list of nous tried in turn, or `{start, nodes}`, `nodes` mapping each
+node's id to `{use: <nous>}` or `{balance: <strategy>, among: {<nous>: <weight>}, spread: <n>}`,
+with `on: {<fault class or *>: <node id>}` or `next: <node id>` (the same as `on: {'*': …}`).
+A chain is written back as a list. Invalid entries are dropped on read; a write that would name a
+virtual nous nobody wrote, or let nous name one another round, is refused. A `fallbacks` list an
+older Humanize wrote is read as each `spec`'s `then: <to>`, and dropped at the next write.
 
 ### `clis`
 
@@ -275,9 +289,9 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 | --- | --- |
 | Missing, unreadable, invalid YAML, not a mapping | read as empty; never prevents a start |
 | Unknown keys | kept at the top level and in a workspace entry; a flow's entry is replaced whole when `/flow` is saved |
-| Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace removed, or the whole of `fallbacks`, `clis`, `backup` or one runtime); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is never written over: it is left for whoever is editing it to correct. |
+| Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace removed, or the whole of `nous`, `clis`, `backup` or one runtime); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is never written over: it is left for whoever is editing it to correct. |
 | Concurrent writers | serialized by the lock. A write changes only what it is about: every machine key, workspace, workspace key and flow entry another writer wrote survives it, whenever this writer read the file. `envs`, `params`, `budget`, `profile_flow`, `profile_environment` and `backup` not handed to a `/flow` save are carried over from the file as it is at the write. Two writes to the same key or the same flow's entry: the later wins. A writer that cannot open the lock file, gets an error from `flock`, or has waited 30 s for it writes without it. |
-| Write failure, or a file that does not read as a mapping | a `Settings` holds the change in memory and writes nothing; a fallback, added CLI or runtime is refused with `OSError` |
+| Write failure, or a file that does not read as a mapping | a `Settings` holds the change in memory and writes nothing; a nous, added CLI or runtime is refused with `OSError` |
 
 ## `/settings` rows
 
@@ -292,7 +306,7 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 
 Changes are held until saved (the save button, or the question asked on leaving). The pages
 Accounts, Runtimes and Fallback edit the other [stores](#stores); the flowverses are edited
-on `/flow`. `/settings <page>` opens a page by name: `general`, `accounts`, `fallback`,
+on `/flow`. `/settings <page>` opens a page by name: `general`, `accounts`, `nous`,
 `runtimes`, `workspace` (also `settings` and `everywhere` for `general`, `directory` for
 `workspace`, `environments` for `runtimes`; `flowverses` opens `/flow` on its Flowverses
 page). The Workspace page names its directory across its top rather than as a row.

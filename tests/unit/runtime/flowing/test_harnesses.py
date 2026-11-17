@@ -85,6 +85,7 @@ class Config:
     web_search: bool | None = None
     machine: Any = None
     fence: Any = None
+    nous: str = ""
 
 
 @dataclass

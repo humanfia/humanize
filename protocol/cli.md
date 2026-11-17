@@ -400,8 +400,9 @@ gives it with its `./`.
 ### 7.4. Writing an agent
 
 ```abnf
-agent   = role "=" harness [ "@" account ] "/" model [ ":" effort ]
+agent   = role "=" ( harness [ "@" account ] "/" model [ ":" effort ] / nous )
 role    = identifier
+nous    = ALPHA *( ALPHA / DIGIT / "_" / "." / "-" )
 harness = <a harness name or alias, or the name of a harness added under clis>
 account = 1*<character other than "/">
 model   = 1*<character>
@@ -440,7 +441,12 @@ login.
 
 **7.4.12** A `<role>` given twice across every `-a` MUST be a usage error.
 
-> Informative: `coder=claude/claude-opus-5:high`, `rev=codex@work/gpt-5:medium`,
+**7.4.13** The rest of an `-a` item that contains no `/` MUST be read as `<nous>`, the name of a
+virtual nous (Section 4.11.4 of [CORE]); a `<nous>` that names a harness, or no virtual nous written
+in the settings file (Section 3.6 of [FILES]), MUST be a usage error.
+
+> Informative: `coder=claude/claude-opus-5:high`, `rev=codex@work/gpt-5:medium`, `fast=smart` (the
+> virtual nous `smart`),
 > `m=opencode/openrouter/qwen3:8b` (the model is `openrouter/qwen3:8b`, no effort), and
 > `m=opencode/ollama/qwen3:latest:auto` (the model is `ollama/qwen3:latest`).
 
