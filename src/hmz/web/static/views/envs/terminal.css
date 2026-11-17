@@ -1,0 +1,277 @@
+/* An environment's terminals (views/envs/terminal.js): a row of tabs over the shell shown. */
+
+.term-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 240px;
+  min-width: 0;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.term-head {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.term-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.term-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 0 4px 0 10px;
+  border-right: 1px solid var(--line);
+  border-bottom: 2px solid transparent;
+  color: var(--ink-2);
+  font: 500 12px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.term-tab:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.term-tab.active {
+  border-bottom-color: var(--cyan);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.term-tab:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: -2px;
+}
+
+.term-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--done);
+}
+
+.term-tab.exited .term-dot {
+  background: var(--ink-3);
+}
+
+.term-tab.exited .term-title {
+  color: var(--ink-3);
+}
+
+.term-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.term-rename {
+  width: 120px;
+  padding: 1px 4px;
+  border: 1px solid var(--cyan);
+  background: var(--field);
+  color: var(--ink);
+  font: 500 12px var(--sans);
+}
+
+.term-tab .term-close {
+  width: 22px;
+  height: 22px;
+  visibility: hidden;
+}
+
+.term-tab .term-close .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.term-tab.active .term-close,
+.term-tab:hover .term-close,
+.term-tab:focus-within .term-close {
+  visibility: visible;
+}
+
+.term-new {
+  align-self: center;
+  margin-right: 4px;
+}
+
+.term-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--ink-2);
+  font: 13px/1.45 var(--sans);
+}
+
+.term-notice[hidden] {
+  display: none;
+}
+
+.term-notice[data-kind='paired'],
+.term-notice[data-kind='error'] {
+  border-left: 3px solid var(--fail);
+  color: var(--ink);
+}
+
+.term-notice[data-kind='closed'] {
+  border-left: 3px solid var(--ink-3);
+}
+
+.term-notice code {
+  font: 12px var(--mono);
+  padding: 0 3px;
+  background: var(--hover);
+}
+
+.term-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.term-stack {
+  position: absolute;
+  inset: 0;
+}
+
+.term-host {
+  position: absolute;
+  inset: 0;
+  padding: 6px 0 0 10px;
+  background: var(--surface);
+}
+
+.term-host[hidden] {
+  display: none;
+}
+
+.term-host .xterm {
+  height: 100%;
+}
+
+.term-host .xterm-viewport {
+  scrollbar-width: thin;
+}
+
+.term-exit {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--raised);
+  color: var(--ink-2);
+  font: 13px var(--sans);
+}
+
+.term-exit[hidden] {
+  display: none;
+}
+
+.term-find {
+  position: absolute;
+  top: 6px;
+  right: 16px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  background: var(--raised);
+}
+
+.term-find[hidden] {
+  display: none;
+}
+
+.term-find .icon-btn {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+}
+
+.term-find .icon-btn .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.term-find-case {
+  font: 600 11px var(--sans);
+}
+
+.term-find-input {
+  width: 180px;
+  padding: 3px 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--field);
+  color: var(--ink);
+  font: 13px var(--sans);
+}
+
+.term-find-input:focus {
+  outline: 1px solid var(--cyan);
+}
+
+.term-find-count {
+  min-width: 64px;
+  padding: 0 6px;
+  color: var(--ink-3);
+  font: 12px var(--sans);
+}
+
+.term-panel.closed .term-host {
+  opacity: 0.85;
+}
+
+@media (max-width: 600px) {
+  .term-find {
+    left: 8px;
+    right: 8px;
+  }
+
+  .term-find-input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .term-host {
+    padding-left: 4px;
+  }
+}
+
+/* The terminal takes focus through a hidden field: its tab, not an outline, says it has it. And
+   xterm marks a terminal with focus `.focus`, which the page's own `.focus` card would frame. */
+.term-host :focus-visible,
+.term-host .xterm:focus {
+  outline: none;
+}
+
+.term-host .xterm.focus {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+}
