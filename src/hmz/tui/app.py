@@ -440,7 +440,7 @@ _TOLD = {
     "failed": "Failed",
     "stopped": "Stopped",
     "asked": "Question",
-    "listening": "Chat turn",
+    "listening": "Waiting",
 }
 
 #: The frames Claude Code spins while a turn is running, and the words it spins them beside.
@@ -1101,6 +1101,8 @@ class Humanize(App[None]):
         #: turn, since a turn may have given it a skill or a command.
         self._natives: list[NativeCommand] = []
         self._natives_of = ""
+        #: Whether that catalogue is all its harness lists, which it is once a turn was taken.
+        self._listed = False
         #: The task of a chat this interface asked to start and has not yet seen start, which
         #: its host tells as said by the session that asked rather than by this link.
         self._mine = ""
@@ -3353,7 +3355,11 @@ class Humanize(App[None]):
         head, *rest = line.split(None, 1) if line[0] in "$/" else [line]
         reading = " ".join([head, *(one.strip() for one in rest)])
         resolved = resolve(
-            reading, catalog=self._natives, flows=flow_names(), prefer=self._prefer
+            reading,
+            catalog=self._natives,
+            flows=flow_names(),
+            prefer=self._prefer,
+            listed=self._listed,
         )
         if resolved.kind == "reserved":
             return False
@@ -3632,7 +3638,8 @@ class Humanize(App[None]):
     def _btw_snapshot(self) -> FlowSnapshot:
         """Copies the current run into a prompt-sized, immutable observation."""
         return self._following.snapshot(
-            flow=self._flowing(),
+            # A chat has no flow to name, and says what it is instead (Section 9.4.2 of core).
+            flow="chat" if self.chatting() else self._flowing(),
             task=self._flow_task,
             workspace=_where(),
             going=self._run is not None,
@@ -3708,7 +3715,7 @@ class Humanize(App[None]):
             # A new chat, with nothing of the last one's: its own host, its own catalogue,
             # its own preference, once the next line starts it (Section 8.8.4 of [CORE]).
             self._chat_slot = self._chat_epic = ""
-            self._natives, self._natives_of = [], ""
+            self._natives, self._natives_of, self._listed = [], "", False
             self._prefer, self._prefer_from = self.settings.chat_prefer, "settings"
             self._prefer_own = None
             if self._epic_as:
@@ -5461,10 +5468,6 @@ class Humanize(App[None]):
                 f"[red]hmz: {escape(text)}[/]",
                 packs=False,
             )
-        elif kind == "shell":
-            # A `!` command run for the chat, told as a turn's event by a host that tells it
-            # that way: what it printed, under the command already on the screen.
-            self._on_screen(self._shell, {"out": text})
         elif kind == "text":
             # The bullet on the first line, two spaces under it for the rest, which is how
             # Claude Code sets a message it has just written.
@@ -5660,10 +5663,11 @@ class Humanize(App[None]):
             self._chat_started,
             refused=self._not_started,
             slot=self._slot,
-            # The chat's own where one is carried on, which is the agent it was had with.
+            # The chat's own where one is carried on, which is the agent it was had with: ""
+            # says so (Section 4.21.1 of daemon.md).
             agent=written(self._chat_runs)
             if resume is None and self._chat_runs is not None
-            else None,
+            else "",
             task=task,
             resume=str(resume) if resume is not None else None,
             prefer=self._prefer_own,
@@ -5698,8 +5702,9 @@ class Humanize(App[None]):
 
         Args:
           answer: `entries`, each `sigil`, `name`, `about`, `how` and `source`; `prefer`;
-            and `prefer_from`.
+            `prefer_from`; and `listed`.
         """
+        self._listed = answer.get("listed") is True
         self._natives = [
             NativeCommand(
                 one.get("sigil", "/"),

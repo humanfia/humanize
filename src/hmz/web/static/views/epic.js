@@ -16,7 +16,7 @@ import { asides, board, outworlders, question, saying } from '../acting.js'
 import { call, exported, given, hash } from '../api.js'
 import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
-import { ask, placed } from '../held.js'
+import { ask, chatAsk, placed } from '../held.js'
 import { composer as composed } from '../composer.js'
 import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
@@ -722,7 +722,7 @@ export function mount(root, { parts, query }) {
     switch (named) {
       case 'clear':
       case 'chat':
-        return go(`/new?${new URLSearchParams({ ...at, kind: 'chat' })}`)
+        return go(`/new/chat?${new URLSearchParams(at)}`)
       case 'exit':
       case 'quit':
         return go('/new')
@@ -828,15 +828,6 @@ function exomyth(root, name, query) {
 /** Whether an epic is a chat: by its kind, or, for one written before chats had one, by its flow. */
 function isChat(epic) {
   return Boolean(epic) && (epic.kind === 'chat' || chatting(epic))
-}
-
-/**
- * Asks a chat's host one thing -- `say`, `commands` or `set` -- as `chat.<what>` (Section 4.21 of
- * protocol/daemon.md), the host named by its workspace and slot. The same as held.js's `chatAsk`,
- * kept here until that is on this branch.
- */
-function chatAsk(where, what, params = {}) {
-  return call(`chat.${what}`, { ...placed(where), ...params })
 }
 
 /** How long Stop stays asked, waiting for the epic to say it is stopping. */

@@ -133,7 +133,6 @@ export function sayer(key, { chat = false } = {}) {
       case 'refused':
         return chat && kind === 'session' ? [line('refused', refusedSaid(record))] : []
       case 'event':
-        if (mine && record.kind === 'shell') return [shellLine(shellOf(record))]
         if (mine && record.kind === 'result') answer = String(record.text || '')
         return mine ? said(record, kind === 'agent' ? record.session || record.agent : '', began) : []
       default:

@@ -115,7 +115,9 @@ test('a `!` command is read off its record and drawn as a shell draws it', () =>
     { part: 'input', text: '$ ls -1' },
     { part: 'stdout', text: 'a\nb' },
   ])
-  const failed = shellOf({ type: 'event', kind: 'shell', command: '!false', stderr: 'no\n', code: 1 })
+  // Only the host's own `shell` record is one (Section 4.9.2.4 of daemon.md).
+  assert.equal(shellOf({ type: 'event', kind: 'shell', command: 'ls' }), null)
+  const failed = shellOf({ type: 'shell', command: '!false', out: '', err: 'no\n', status: 1 })
   assert.deepEqual(shellParts(failed), [
     { part: 'input', text: '$ false' },
     { part: 'stderr', text: 'no' },

@@ -149,19 +149,18 @@ export function pathItems(dir, base, listed) {
 }
 
 /**
- * A `!` command run in a chat and what it printed, read off its record, or null for a record that
- * is not one: a `shell` record of the host, or an event of that kind.
+ * A `!` command run in a chat and what it printed, read off the host's `shell` record (Section
+ * 4.9.2.4 of daemon.md), or null for a record that is not one.
  *
  * @returns {{command: string, out: string, err: string, status: number|null} | null}
  */
 export function shellOf(record) {
-  if (!record || !(record.type === 'shell' || (record.type === 'event' && record.kind === 'shell'))) return null
-  const status = record.status ?? record.code ?? record.exit
+  if (!record || record.type !== 'shell') return null
   return {
-    command: String(record.command ?? record.input ?? record.text ?? ''),
-    out: String(record.out ?? record.stdout ?? ''),
-    err: String(record.err ?? record.stderr ?? ''),
-    status: typeof status === 'number' ? status : null,
+    command: String(record.command ?? ''),
+    out: String(record.out ?? ''),
+    err: String(record.err ?? ''),
+    status: typeof record.status === 'number' ? record.status : null,
   }
 }
 
