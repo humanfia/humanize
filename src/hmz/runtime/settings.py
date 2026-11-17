@@ -132,21 +132,6 @@ class Settings:
         self._sets("details", on)
 
     @property
-    def ai_chan(self) -> str:
-        """The nous a new Ai-chan conversation defaults to, or "" for none (Section 3.4.3).
-
-        This machine's rather than a workspace's, as `details` is. A change of it changes no
-        conversation already made.
-        """
-        said = self._held.get("ai_chan")
-        return said if isinstance(said, str) else ""
-
-    @ai_chan.setter
-    def ai_chan(self, spec: str) -> None:
-        """Writes down the nous a new Ai-chan conversation defaults to, or "" for none."""
-        self._sets("ai_chan", spec)
-
-    @property
     def btw(self) -> str:
         """The agent that answers side questions asked of The Epic, as `cli@provider/model:effort`.
 
