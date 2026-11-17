@@ -159,10 +159,12 @@ def _forget(router: Router, call: Call) -> dict[str, Any]:
     conversation = next((one for one in kept.all() if one["id"] == ident), None)
     if conversation is None:
         raise RpcError(Code.NOT_FOUND, f"There is no Ai-chan #{ident}.")
+    # Forgotten before its host is closed: a frontend attached to it that attaches again as
+    # it goes finds no conversation to start it again for.
+    kept.forgot(ident)
     hosted = router.hosts.get(str(conversation["workspace"]), str(conversation["slot"]))
     if hosted is not None:
         hosted.stop()
-    kept.forgot(ident)
     return {}
 
 
