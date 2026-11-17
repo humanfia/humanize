@@ -103,7 +103,7 @@ def test_settings_are_written_read_back_and_never_echo_a_secret(
         client,
         "settings.set",
         workspace=workspace,
-        btw="claude/opus",
+        ai_chan="claude/opus",
         details=True,
         reports=False,
         backup={"targets": [{"name": "t", "url": "https://me:pw@x.lab/e.git"}]},
@@ -113,7 +113,7 @@ def test_settings_are_written_read_back_and_never_echo_a_secret(
     )
 
     file = _file()
-    assert (file["btw"], file["details"], file["enable_sentry"]) == (
+    assert (file["ai_chan"], file["details"], file["enable_sentry"]) == (
         "claude/opus",
         True,
         False,

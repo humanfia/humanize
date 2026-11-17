@@ -212,7 +212,7 @@ same way it would locally. Between its turns, your line waits on the pin like an
 ## Variations
 
 - **Ask without steering.** To ask how the run is going without the agent hearing it, use
-  [`/btw`](/user/btw).
+  [`/btw`](/user/btw). To have the line said for you, ask [Ai-chan](/user/ai-chan).
 - **Several lines at once.** <kbd>shift+enter</kbd> starts a new line in the editor, so a
   paragraph goes as one message rather than as several.
 - **Steer one agent of several.** Press <kbd>shift+tab</kbd> until that agent's conversation is

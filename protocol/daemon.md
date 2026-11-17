@@ -1743,8 +1743,8 @@ that holds, and MUST then have no effect:
 2. the call names a host of an `ai:` slot, by `slot` or by `sub`: `Ai-chan cannot reach an Ai-chan
    conversation.`;
 3. the reach does not reach what the call acts on: `<method> is out of Ai-chan's scope: <what>.`,
-   `<what>` being `the daemon`, `the workspace <workspace>`, `the epic <epic>` or `the host <slot>
-   of <workspace>`;
+   `<what>` being `the daemon`, `the workspace <workspace>`, `the epic <epic>`, `the host <slot>
+   of <workspace>`, or `the host of <workspace>` for the slot `""`;
 4. `x-hmz-writes` is `true` and the reach's preset is `read-only`: `Ai-chan is read-only, and
    <method> changes things.`
 

@@ -111,8 +111,8 @@ What you are reading decides more than what is on the screen:
 
 - **The transcript**, drawn from the top with a line saying whose it is.
 - **Where a line you type goes.** See [Talking to a running turn](/user/steering).
-- **Who answers [`/btw`](/user/btw)**: a side copy of that conversation, or the btw agent
-  on the monitor.
+- **Who answers [`/btw`](/user/btw)**: a side copy of that conversation. On the monitor
+  there is none to copy, and `/btw` is refused.
 - **What `/clear` clears**: only that transcript.
 
 ## Example: follow a builder and a tester

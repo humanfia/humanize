@@ -32,7 +32,8 @@ import { withBase } from 'vitepress'
 | You can | Go to |
 | --- | --- |
 | **Talk into a turn.** Correct an agent mid-turn without stopping it. | [Talking to a running turn](/user/steering)<br><small>[Talk into a running turn](/features/steering)</small> |
-| **Side questions.** Ask a running flow what it is up to, without interrupting. | [Side questions](/user/btw) |
+| **Side questions.** Ask one agent of a running flow what it is up to, without interrupting. | [Side questions](/user/btw) |
+| **Ai-chan.** Say what you want done to your epics, and she does it, within the scope and permission you give her. | [Ai-chan](/user/ai-chan) |
 | **Watch every agent.** Who is working, for how long, and who handed over to whom. | [Watching a run](/user/monitor) |
 | **Answer, or step away.** Answer when asked, or say you are away so nothing waits. | [Questions](/user/questions), [Being away](/user/afk)<br><small>[When a flow asks you](/features/human)</small> |
 | **What it costs.** Tokens, money and rate for every agent, live. | [Cost and rate](/user/tally) |

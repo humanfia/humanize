@@ -39,7 +39,7 @@ def read(hmz: Any) -> dict[str, Any]:
       hmz: Humanize, for the workspace.
 
     Returns:
-      `workspace`, `flow`, `chat` (the chat agent remembered there, or ""), `prefer`, `btw`,
+      `workspace`, `flow`, `chat` (the chat agent remembered there, or ""), `prefer`, `ai_chan`,
       `details`, `reports`, `flows`, `backup`, `listen` and `ice_servers`, with nothing
       signed in.
     """
@@ -53,7 +53,7 @@ def read(hmz: Any) -> dict[str, Any]:
         "flow": settings.flow,
         "chat": written(chat) if chat is not None else "",
         "prefer": settings.chat_prefer,
-        "btw": settings.btw,
+        "ai_chan": settings.ai_chan,
         "details": settings.details,
         "reports": settings.enable_sentry,
         "flows": sorted(settings.flows()),
@@ -85,7 +85,7 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
 
     Args:
       hmz: Humanize, for the workspace.
-      said: Any of `chat`, `prefer`, `btw`, `details`, `reports`, `backup`, `listen` and
+      said: Any of `chat`, `prefer`, `ai_chan`, `details`, `reports`, `backup`, `listen` and
         `ice_servers`; anything else is not read.
 
     Returns:
@@ -107,8 +107,8 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
             raise _refused(f"chat is an agent as -a spells one: {why}") from why
     if "prefer" in said and said["prefer"] not in ("native", "flow"):
         raise _refused("prefer is native or flow.")
-    if "btw" in said and not isinstance(said["btw"], str):
-        raise _refused("btw is an agent as -a spells one, or nothing.")
+    if "ai_chan" in said and not isinstance(said["ai_chan"], str):
+        raise _refused("ai_chan is a nous or an agent spec, or nothing.")
     if "details" in said and not isinstance(said["details"], bool):
         raise _refused("details is true or false.")
     if "reports" in said and not isinstance(said["reports"], bool):
@@ -128,8 +128,8 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
         hmz.settings.chat_agent = chat
     if "prefer" in said:
         hmz.settings.chat_prefer = said["prefer"]
-    if "btw" in said:
-        hmz.settings.btw = said["btw"]
+    if "ai_chan" in said:
+        hmz.settings.ai_chan = said["ai_chan"]
     if "details" in said:
         hmz.settings.detailing(on=said["details"])
     if "reports" in said:
