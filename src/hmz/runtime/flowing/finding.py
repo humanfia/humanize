@@ -11,9 +11,9 @@ and nobody installed is not among them: it is a flow to install (:mod:`index`), 
 only an index answers to says so.
 
 Humanize's own are called as its index lists them, `aot` and `alice/kernel`, and every other
-place's after an `@`: `@theirs/review`, `@local/chat`. Which flow a bare name means is nearest
+place's after an `@`: `@theirs/review`, `@local/goal`. Which flow a bare name means is nearest
 first -- yours, then everybody else's -- so a flow of your own may stand in for one of
-Humanize's by taking its name, and `@local/chat` is the spelling that says which one it is.
+Humanize's by taking its name, and `@local/goal` is the spelling that says which one it is.
 
 Reading a flow means importing it: a flow is a directory whose `__init__.py` defines flows with
 :func:`hmz.flows.flow`, and the only way to find out which is to import it. That is
@@ -61,7 +61,6 @@ __all__ = [
     "offered",
     "offers",
     "placed",
-    "privileged",
     "resolved",
     "scratched",
     "within",
@@ -102,15 +101,8 @@ def placed(file: str | os.PathLike[str]) -> Path:
 #: of places has no need to pay for.
 BUILTIN_AT = placed(__file__).parents[2] / "flows" / "builtin"
 
-#: Where the one flow Humanize hands every capability of its harness is: `chat`, the
-#: package's own, said by where it is rather than by a name a flow of yours could take.
-_FULL_AT = BUILTIN_AT / "chat"
-
-#: Where the flows that converse are: `chat` and Ai-chan's `ai_chan`, which take turns, fold
-#: away and are carried on as a chat is, and run without a budget.
-_PRIVILEGED_AT = (_FULL_AT, BUILTIN_AT / "ai_chan")
-
-#: Where the one flow whose `LocalEnv` roles are a scratch directory of its own is: Ai-chan's.
+#: Where Ai-chan's flow is, said by where it is rather than by a name a flow of yours could
+#: take.
 _SCRATCHED_AT = BUILTIN_AT / "ai_chan"
 
 #: What a flow's own name is separated from the one inside it by. A module that holds one
@@ -241,7 +233,7 @@ def offers(one: Flowverse) -> list[Offer]:
       One per flow, by directory, alphabetically: `@<flowverse>/<flow>`, except for Humanize's
       own, which are called as its index lists them, `aot` and `alice/kernel`. Which of the two
       places `official` is kept in a flow of Humanize's is in makes no difference to what it is
-      called: the package's `chat` and an installed `flame_chasoid` are both Humanize's,
+      called: the package's `ralph_loop` and an installed `flame_chasoid` are both Humanize's,
       so both are said the same way and a flow that moves between the two goes on answering to
       the name it had. Yours are named the same way as anybody else's -- `@local/scheduler`,
       `@user/scheduler` -- so that a flow of yours sharing a name with one of Humanize's is
@@ -348,8 +340,7 @@ def resolved(named_: str) -> FlowImpl:
     Anything :func:`hmz.flows.load` takes where no flow is asking: a bare name nearest first,
     `[@<flowverse>/][<user>/]<flow>`, either with `:<inside>`, a path, or a
     `git+<url>[#<subdir>]` ref,
-    which is fetched here, on this thread. `chat` is handed its harness's every capability,
-    with :func:`~hmz.runtime.flowing.engine.full_view`.
+    which is fetched here, on this thread.
 
     Args:
       named_: What the flow is called.
@@ -367,7 +358,7 @@ def resolved(named_: str) -> FlowImpl:
     """
     from hmz.flows import FlowNotFound
 
-    from .engine import FlowImpl, full_view
+    from .engine import FlowImpl
     from .loading import load
 
     try:
@@ -389,8 +380,6 @@ def resolved(named_: str) -> FlowImpl:
         fetched = found_.flow
         assert fetched is not None  # noqa: S101 -- asking its name fetched it
         flow = fetched
-    if _made(flow).is_relative_to(_FULL_AT):
-        full_view(flow)
     return flow
 
 
@@ -451,31 +440,13 @@ def builtin(flow: FlowImpl) -> bool:
     return _made(flow).is_relative_to(BUILTIN_AT)
 
 
-def privileged(flow: FlowImpl) -> bool:
-    """Whether a flow is one Humanize trusts to converse: `chat`, or Ai-chan's `ai_chan`.
-
-    Each runs for as long as somebody answers it, so they are the flows a run may be started
-    without a budget for, and each takes turns, folds away and is carried on as a chat is.
-    `chat` alone, talking to whichever agent it is given, is also handed every capability of
-    its harness (:func:`resolved`). Shipping with Humanize is not what earns either -- the
-    loops beside them in the package declare what they ask of their agents and are held to
-    it, and spend under a budget, like a flow of anybody's.
-
-    Args:
-      flow: The flow.
-
-    Returns:
-      Whether it was defined in the package's own `chat` or `ai_chan`.
-    """
-    made = _made(flow)
-    return any(made.is_relative_to(one) for one in _PRIVILEGED_AT)
-
-
 def scratched(flow: FlowImpl) -> bool:
-    """Whether a flow's `LocalEnv` roles are its conversation's scratch directory: `ai_chan`.
+    """Whether a flow is Ai-chan's `ai_chan`, run in her conversation's scratch directory.
 
-    Ai-chan works in a directory of her conversation's own rather than in the workspace she
-    is about (Section 14.4.1 of core.md).
+    Her `LocalEnv` roles are that directory rather than the workspace she is about, and she
+    talks for as long as you do, so she runs with no budget (Section 14.4 of core.md). Shipping
+    with Humanize is not what earns either: the loops beside her spend under a budget, like a
+    flow of anybody's.
 
     Args:
       flow: The flow.

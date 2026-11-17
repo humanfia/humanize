@@ -13,4 +13,5 @@ export const WRITES = new Set([
   'easytier.set', 'easytier.remove', 'aichan.create', 'aichan.forget', 'hosts.env.write',
   'hosts.env.exec', 'env.write', 'env.mkdir', 'env.rename', 'env.remove', 'env.git.stage',
   'env.git.unstage', 'env.git.discard', 'env.git.commit', 'env.git.rewind',
+  'chat.start', 'chat.say', 'chat.set',
 ])

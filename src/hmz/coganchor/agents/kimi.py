@@ -21,6 +21,23 @@ else can resolve; the daemon holds each on a route of its own -- ``/questions`` 
 The server is the only surface in this CLI where a session is a thing
 rather than an invocation, so the daemon it is, and the cost of that choice -- one ``kimi web``
 per agent, and its argv -- is paid below.
+
+What a person types at Kimi's own prompt reaches a chat here as far as that server reaches,
+and no further (:mod:`hmz.coganchor.agents.native`). Read off the routes 0.42.0 and 2.6.2
+both serve, which are what Kimi's own web client sends them as:
+
+- `/<skill>` for every skill `GET /sessions/<id>/skills` lists that a person may activate is
+  called, as the prompt's `skills` -- the activation the server renders the skill into, with
+  what follows the name as its arguments.
+- `/compact [instructions]` is called, as `POST /sessions/<id>:compact`, and the turn is over
+  once the session stops being busy with it.
+
+Both only once there is a conversation: until then a `/` line is text, as the catalog says.
+
+And nothing else, because nothing else has a route: there is no shell route for a `!`, no
+mention for an `@` beyond the text the model reads, and Kimi's other slash commands are its
+terminal's. Until the server holds a conversation there are no skills to list, so the catalog
+is empty and every line is text.
 """
 
 # A session and the agent holding it are two halves of one object declared in one
@@ -53,6 +70,7 @@ from .base import AgentBase, SessionBase
 from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Question, Usage, say
 from .hooks import EVERYWHERE, Moment
+from .native import NativeCommand
 from .preload import preloaded
 from .watchdog import Watchdog
 
@@ -636,6 +654,16 @@ _PERMITTED = {
 #: this takes away is the web the CLI hands its agent, which is what `web_search` is about.
 _WEB_TOOLS = ("WebSearch", "FetchURL")
 
+#: The kinds of skill a person may activate, as Kimi's `isUserActivatableSkillType` reads them:
+#: an untyped skill, a prompt or inline one, and a flow. A `reference` is the model's to read,
+#: and the server refuses it activated.
+_ACTIVATED = (None, "prompt", "inline", "flow")
+
+#: Kimi's own compaction, which has a route of its own.
+_COMPACT = NativeCommand(
+    "/", "compact", "compact the conversation, with optional instructions", "call"
+)
+
 #: The permission modes in which what the agent reaches for is granted rather than asked
 #: about, which is the whole of what decides whether this driver may answer an approval yes.
 #: `auto` approves before any policy can ask, so an approval under it is one Kimi did not
@@ -968,6 +996,51 @@ class KimiCodeCLISession(SessionBase):
         #: second until the turn dies of it. Remembered here instead, which also keeps
         #: `PERMISSION_REQUEST` at one firing per tool call rather than one per poll.
         self._answered: set[str] = set()
+        #: The skills the server last listed for this conversation, by name, as native
+        #: entries: kept for when the daemon is down, and what a native turn is read against.
+        self._activatable: dict[str, NativeCommand] = {}
+
+    def natives(self) -> list[NativeCommand]:
+        """`/compact`, and every skill the server lists that a person may activate.
+
+        Asked of the server holding the conversation each time, since a skill installed
+        mid-chat is one Kimi offers at once; what it listed last stands while it will not say,
+        or while no daemon is up to ask. Nothing before there is a conversation: there is
+        nothing to list skills for, and a `/` line then is text.
+
+        Returns:
+          The catalog, as far as the server has said it.
+        """
+        session, server = self._id, self._agent._server
+        if session is None:
+            return []
+        if server is not None:
+            # A daemon that will not say, or says something this cannot read, leaves the
+            # catalog as it last stood rather than failing whoever asked for it.
+            with contextlib.suppress(subprocess.CalledProcessError, ValueError):
+                said = server.call("GET", f"/sessions/{session}/skills")
+                listed = (
+                    cast("dict[str, Any]", said).get("skills")
+                    if isinstance(said, dict)
+                    else None
+                )
+                if not isinstance(listed, list):
+                    return [_COMPACT, *self._activatable.values()]
+                skills: dict[str, NativeCommand] = {}
+                for one in cast("list[Any]", listed):
+                    if not isinstance(one, dict):
+                        continue
+                    told = cast("dict[str, Any]", one)
+                    name = str(told.get("name") or "")
+                    # `/compact` is Kimi's compaction, whatever a skill is called.
+                    if (
+                        name not in ("", _COMPACT.name)
+                        and told.get("type") in _ACTIVATED
+                    ):
+                        about = str(told.get("description") or "")
+                        skills[name] = NativeCommand("/", name, about, "call")
+                self._activatable = skills
+        return [_COMPACT, *self._activatable.values()]
 
     def interject(self, text: str) -> None:
         """Puts a word into the turn already running, rather than into the next one.
@@ -1021,8 +1094,76 @@ class KimiCodeCLISession(SessionBase):
         A shape is not a setting of a turn here -- the daemon takes a prompt and nothing
         else about the answer -- so a turn asked for one has already been asked in the
         prompt, which is what :attr:`SessionBase.shapes` says of this backend.
+
+        A native turn's `/compact` is the server's compaction, and a `/<skill>` the prompt
+        with that skill activated -- the line as typed beside the activation, as Kimi's own
+        prompt sends a skill typed into it; any other line, and any line before there is a
+        conversation, is a prompt like any other.
         """
+        name, _, rest = prompt.strip().partition(" ")
+        rest = rest.strip()
+        if self.native_turn and name.startswith("/") and self._id is not None:
+            if name == f"/{_COMPACT.name}":
+                yield from self._compact(self._id, rest)
+                return
+            named = name.removeprefix("/")
+            if named not in self._activatable:
+                # A skill installed since the catalog was last read, or a daemon not up
+                # yet in this process to have read it from.
+                self._agent.server  # noqa: B018 -- started, for the catalog to be asked of
+                self.natives()
+            if named in self._activatable:
+                activated = {"name": named} | ({"args": rest} if rest else {})
+                yield from self._submit(prompt, goal=False, skills=[activated])
+                return
         yield from self._submit(prompt, goal=False)
+
+    def _compact(self, session: str, instruction: str) -> Iterator[Event]:
+        """Compacts the conversation as Kimi's own `/compact` does, and waits for it to finish.
+
+        The route starts the compaction and answers at once; the session says it is busy for
+        as long as the compaction runs, which is what the turn waits on. Over once it has
+        been seen busy and then not, or not busy twice a poll apart: a compaction too quick
+        to be seen running is one that has finished, and a session read once as idle before
+        the server had marked it is not.
+
+        Args:
+          session: The conversation, by the id the daemon gave it.
+          instruction: What to keep, or "" for Kimi's own say.
+
+        Yields:
+          The `result` saying it is done, with what it cost.
+
+        Raises:
+          subprocess.CalledProcessError: If the daemon refuses -- one compaction already
+            running is refused -- or the turn is cut off while it waits.
+        """
+        with self._lock:
+            server = self._agent.server
+            server.call(
+                "POST",
+                f"/sessions/{session}:compact",
+                {"instruction": instruction} if instruction else {},
+            )
+            seen, idle = False, 0
+            while idle < (1 if seen else 2):
+                if self._cut:
+                    raise Failed(1, server._argv, "", f"cut off: {self._cut}")
+                if server.call("GET", f"/sessions/{session}/status")["busy"]:
+                    seen, idle = True, 0
+                else:
+                    idle += 1
+                if idle < (1 if seen else 2):
+                    time.sleep(_POLL_SECONDS)
+            costing = Usage()
+            with contextlib.suppress(subprocess.CalledProcessError):
+                costing = self._counting(server, session)
+            spent = (
+                {self._agent.config.model: int(costing.total)}
+                if costing.total > 0
+                else {}
+            )
+            yield Event(kind="result", text="compacted", tokens=spent, spent=costing)
 
     def _held(self, session: str, what: str) -> list[Any]:
         """Whatever the daemon is holding on one of the two routes a turn stops against.
@@ -1420,7 +1561,13 @@ class KimiCodeCLISession(SessionBase):
         )
         return turn, web
 
-    def _submit(self, prompt: str, *, goal: bool) -> Iterator[Event]:
+    def _submit(
+        self,
+        prompt: str,
+        *,
+        goal: bool,
+        skills: list[dict[str, str]] | None = None,
+    ) -> Iterator[Event]:
         """Runs one turn, saying what the agent says as it says it.
 
         A goal-driven turn is many turns of the model, and it is over when the session falls
@@ -1431,6 +1578,8 @@ class KimiCodeCLISession(SessionBase):
           prompt: The input prompt for this turn, which is the objective as well when it is
             a goal the session is being set.
           goal: Whether to set the prompt as the session's goal before sending it.
+          skills: The skills to activate with the prompt, each by `name` and with the `args`
+            it was typed with, as Kimi's own `/<skill>` activates one; None for none.
 
         Yields:
           What the agent said, in the order it said it, and the answer it ended on.
@@ -1495,7 +1644,12 @@ class KimiCodeCLISession(SessionBase):
                 posted = server.call(
                     "POST",
                     f"/sessions/{session}/prompts",
-                    {"content": [{"type": "text", "text": prompt}], **turn, **web},
+                    {
+                        "content": [{"type": "text", "text": prompt}],
+                        **turn,
+                        **web,
+                        **({"skills": skills} if skills else {}),
+                    },
                 )
                 since = posted["user_message_id"]
                 self._running.prompt = str(posted.get("prompt_id") or "") or None

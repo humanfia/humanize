@@ -43,6 +43,19 @@ def _run(workspace: Path, flow: str = "ralph", *, resumable: bool = False) -> Pa
     return one.path
 
 
+def _old_chat(workspace: Path) -> Path:
+    """A chat as an earlier hmz wrote one: an epic of the flow `chat`, saying no kind."""
+    from hmz.runtime.epic import JOURNAL
+
+    epic = _run(workspace, "chat")
+    journal = epic / JOURNAL
+    events = [json.loads(line) for line in journal.read_text().splitlines()]
+    for one in events:
+        one.pop("kind", None)
+    journal.write_text("".join(json.dumps(one) + "\n" for one in events))
+    return epic
+
+
 def test_the_runs_of_a_workspace_are_read_back(workspace: Path) -> None:
     epics = Epics(workspace)
     assert epics.all() == []
@@ -328,3 +341,34 @@ def test_a_run_went_running_while_it_is_held_and_unfinished_after(
     after = epics.read(held.path)
     assert after is not None
     assert epics.ending(after) == "done"
+
+
+def test_an_epic_is_of_a_flow_but_one_an_earlier_hmz_wrote_of_the_flow_chat(
+    workspace: Path,
+) -> None:
+    from hmz.runtime.doing.epics import kind
+
+    chat, flow = Epics(workspace).read(_old_chat(workspace)), _run(workspace)
+    assert chat is not None
+    assert kind(chat) == "chat"
+    assert kind(Epics(workspace).read(flow) or chat) == "flow"
+    # One written now of a flow called `chat` says it is a flow, and is one.
+    named = Epics(workspace).read(_run(workspace, "chat"))
+    assert named is not None
+    assert kind(named) == "flow"
+
+
+def test_a_chat_to_carry_on_is_a_chat_of_this_workspace(
+    workspace: Path, tmp_path: Path
+) -> None:
+    chat, flow = _old_chat(workspace), _run(workspace)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    epics = Epics(workspace)
+
+    assert epics.chat(str(chat)) == chat
+    assert epics.chat(chat.name) == chat
+    assert epics.chat(str(flow)) is None
+    assert epics.chat("") is None
+    assert epics.chat("20200101-none") is None
+    assert Epics(elsewhere).chat(str(chat)) is None

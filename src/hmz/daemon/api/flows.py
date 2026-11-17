@@ -13,6 +13,8 @@ import json
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any, cast
 
+from pydantic.json_schema import GenerateJsonSchema
+
 from hmz.rpc import Code, RpcError
 
 from .workspaces import place
@@ -34,8 +36,19 @@ __all__ = [
 ]
 
 
+class _Authored(GenerateJsonSchema):
+    """A params schema whose fields carry a title only where the flow wrote one.
+
+    Pydantic titles every field after its name otherwise, and a client shows a field by its
+    title before its name: one it made up would hide the name the flow is set up by.
+    """
+
+    def field_title_should_be_set(self, schema: Any) -> bool:  # noqa: ARG002
+        return False
+
+
 def listed(hmz: Any) -> dict[str, Any]:
-    """The flows on offer in a workspace, the one it opens on, and the flows running."""
+    """The flows on offer in a workspace, the one last set up there, and the flows running."""
     return {
         "flows": [
             {"whose": one.whose, "name": one.name, "about": one.about}
@@ -77,8 +90,9 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
       name: The flow, as it is offered.
 
     Returns:
-      Its agent and environment roles, its params as a JSON schema, whether an epic of it can
-      be picked up, and what this workspace last ran it with.
+      Its agent and environment roles, its params as a JSON schema (a field titled only where
+      the flow titled it), whether an epic of it can be picked up, and what this workspace
+      last ran it with.
 
     Raises:
       RpcError: 404, if there is no such flow, or it will not load.
@@ -122,7 +136,7 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
             }
             for role in flow.envs
         ],
-        "params": flow.params.model_json_schema(),
+        "params": flow.params.model_json_schema(schema_generator=_Authored),
         "remembered": {
             "agents": {
                 role: written(runs) for role, runs in settings.agents(name).items()
@@ -142,8 +156,8 @@ def remembers(hmz: Any, said: Mapping[str, Any]) -> Callable[[], None]:
 
     What a new epic there opens on from then on: its agents, environments, params, budget,
     what of it is profiled and the backup targets it goes to. Refused, as the terminal
-    interface refuses to save it, where a role names no agent or -- for every flow but chat
-    -- nothing says what it may spend. Written down only once what is answered is called:
+    interface refuses to save it, where a role names no agent or nothing says what it may
+    spend. Written down only once what is answered is called:
     `epic.start` writes it once the host has taken the start, so that a start refused
     leaves the set-up there was.
 
@@ -183,7 +197,7 @@ def remembers(hmz: Any, said: Mapping[str, Any]) -> Callable[[], None]:
     ]:
         raise _refused(f"{flow} needs an agent for {', '.join(missing)}.")
     budget: object = said.get("budget")
-    if flow != "chat" and not budget:
+    if not budget:
         raise _refused(f"{flow} needs at least one limit on what it may spend.")
     envs: object = said.get("envs")
     params: object = said.get("params")
@@ -269,16 +283,15 @@ def checked(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
       said: The flow and what it is set up with, as `epic.start` takes them.
 
     Returns:
-      The flow as named, its ref, whether it is `chat`, what it declares as :func:`declared`
-      answers it, the name of the agent filling each agent role, the budget, the backup
-      targets and every limit of the budget nothing it drives can enforce, in words.
+      The flow as named, its ref, what it declares as :func:`declared` answers it, the name
+      of the agent filling each agent role, the budget, the backup targets and every limit
+      of the budget nothing it drives can enforce, in words.
 
     Raises:
       RpcError: 400 with the sentence `hmz exec` prints after `hmz exec: error: `.
     """
     from hmz import working_in
     from hmz.runtime import Refused
-    from hmz.runtime.flowing import privileged
 
     flow: str = said["flow"]
     if flow.startswith("git+"):
@@ -312,7 +325,6 @@ def checked(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "flow": flow,
         "ref": runner.impl.ref,
-        "chats": privileged(runner.impl),
         "declared": declared(hmz, flow),
         "names": {role: one.name for role, one in runner.agents.items()},
         "budget": json.loads(runner.budget.model_dump_json()),

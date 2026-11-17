@@ -56,13 +56,13 @@ const running = [
       { prompt: '' },
       { rule: true },
       {
-        l: '[c]◉[/] ralph_loop[m] · ~/tmp/humanize-demo[/][n]7[/]',
+        l: '[c]◉[/] claude/claude-haiku-4-5-20251001:low[m] · ~/tmp/humanize-demo[/][n]7[/]',
         keys: '/ commands · shift+enter newline · ← monitor · ctrl+c exit',
         hl: true,
       },
     ],
     caption:
-      'Two presses of <kbd>ctrl+c</kbd>. The turn in progress is cut off, and the status line is back to the flow at rest.',
+      'Two presses of <kbd>ctrl+c</kbd>. The turn in progress is cut off, and the status line is back at rest, naming the chat’s agent.',
   },
 ]
 </script>
@@ -100,8 +100,8 @@ In a git repository you can throw away:
 
 ```text
 hmz
-/flow                        choose ralph_loop, set its agent and budget, then save
-❯ Fix the bug in calc.py.    the task; the flow starts
+/flow                                  choose ralph_loop, set its agent and budget, then save
+❯ $ralph_loop Fix the bug in calc.py.  the task; the flow starts
 ctrl+c ctrl+c                stop it once the bug is fixed
 ```
 
@@ -116,11 +116,11 @@ Three words cover what you set up:
   in a fresh conversation each round, until its budget runs out or you stop it.
 - A **role** is a slot the flow declares, such as `agent`, `builder` or `reviewer`. You fill
   each role with an **agent**: a CLI, the account it runs as, a model, and an effort.
-- A **budget** is what an epic may spend: time, dollars or output tokens. Every flow except
-  `chat` needs one, because most flows are loops that never end on their own.
+- A **budget** is what an epic may spend: time, dollars or output tokens. Every flow needs
+  one, because most flows are loops that never end on their own.
 
-You set all three in the `/flow` menu, save, and then type the task. Nothing runs until you
-send that first line.
+You set all three in the `/flow` menu, save, and then start the flow with its task. Nothing
+runs until you send that line.
 
 ## 1. Make something to fix
 
@@ -146,8 +146,9 @@ The first time, Humanize asks whether to report what goes wrong to its developer
 says what a report carries; answer either way, and `/settings` changes it later
 ([Reporting](/user/reporting)).
 
-The interface opens on `chat`: one agent that answers you, a turn at a time. For work that
-runs on its own you choose a **flow**.
+The interface opens on a [chat](/user/chat): one agent that answers you, a turn at a time, as
+its own CLI would. A line you type goes to it. For work that runs on its own you choose a
+**flow**.
 
 ## 3. Choose a flow
 
@@ -343,8 +344,8 @@ a `cost` as well as a `duration`. See [Every run has a budget](/features/allowan
 
 ## 6. Save
 
-Press <kbd>tab</kbd> to reach **Save** under the roles, and <kbd>enter</kbd>. The status line
-now reads `◉ ralph_loop`, and Humanize says `enter a task to start the flow`.
+Press <kbd>tab</kbd> to reach **Save** under the roles, and <kbd>enter</kbd>. `ralph_loop` is
+now set up in this directory, and a `$ralph_loop` line starts it.
 
 Nothing is applied before you save. <kbd>esc</kbd> steps back, and leaving `/flow` with changes
 in it asks `Save?` in a box, with **Save** and **Discard**. A flow with no budget refuses to save, saying
@@ -353,10 +354,13 @@ in it asks `Save?` in a box, with **Save** and **Discard**. A flow with no budge
 ## 7. Say what to do
 
 ```text
-❯ Fix the bug in calc.py.
+❯ $ralph_loop Fix the bug in calc.py.
 ```
 
-Press <kbd>enter</kbd> and the flow starts. What the agent says streams into the transcript as
+`$ralph_loop` names the flow and the rest of the line is its task; a line with no `$` in front
+would go to the chat instead. `/flow ralph_loop Fix the bug in calc.py.` does the same. Press
+<kbd>enter</kbd> and the flow starts, taking the screen from the chat, which waits on its own
+until `/chat` brings it back. What the agent says streams into the transcript as
 it says it:
 
 <TermScreen title="hmz · ralph_loop" :frames="running" />
@@ -377,7 +381,8 @@ What to look at, by number:
 6. **The status line**: who is working, for how long, and how to stop. Its right-hand end is
    the keys that work right now; `ctrl+c stop` means <kbd>ctrl+c</kbd> would start a stop.
    Between pressing <kbd>enter</kbd> and the run starting, it spins on `starting…`.
-7. **Stopped**: back to `◉ ralph_loop`, and `ctrl+c exit`, because nothing is running.
+7. **Stopped**: back to `◉` and the agent of the chat, which the next plain line goes to, and
+   `ctrl+c exit`, because nothing is running. `/chat` puts the chat back on the screen.
 
 While it runs:
 
@@ -409,17 +414,19 @@ git diff start
 
 ## Next time: one line
 
-Humanize remembers the setup for this directory, so the next `hmz` here opens on
-`ralph_loop` with the same agent and budget. Type the task and press <kbd>enter</kbd>.
+Humanize remembers the setup for this directory, so `ralph_loop` starts here with the same
+agent and budget next time. `hmz` opens on a chat, as always: type `$ralph_loop`, the task, and
+press <kbd>enter</kbd>.
 
 What this directory remembers:
 
-- the flow you last saved, which `hmz` opens on;
+- the flow you last saved;
+- the agent of your last [chat](/user/chat) here;
 - for every flow you have set up here: each role's agent (CLI, account, model and effort), the
   flow's own settings, and its budget.
 
 To run another flow without opening the menu, put its name after a `$` at the start of the
-line:
+line, as in step 7:
 
 ```text
 ❯ $ralph_loop Fix the bug in calc.py.
@@ -433,7 +440,10 @@ line:
 | installed from a flowverse you added | `$@<flowverse>/<flow>` |
 
 A flow that is set up here starts at once. One that is not opens the menu on its roles, and
-saving starts it. `$ralph_loop` with nothing after it only chooses the flow.
+saving starts it. `$ralph_loop` with nothing after it only chooses the flow, and asks for a
+task. Where a `$` name is also one of your agent's own skills, the chat's
+[preference](/user/chat#a-name-that-is-both) decides; `/flow <name> <task>` always means the
+flow.
 
 The [Workspace page of `/settings`](/user/settings#workspace) shows what this directory
 remembers, and forgets it.

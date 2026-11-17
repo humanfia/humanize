@@ -456,7 +456,17 @@ def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
         (home() / "settings.yaml").write_text(yaml.safe_dump(said))
 
     targets()
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "--backup", "t", "hi")
+    ran = hmz_exec(
+        "-f",
+        "goal",
+        "-a",
+        f"worker={AGENT}",
+        "-p",
+        "budget.cost=1",
+        "--backup",
+        "t",
+        "hi",
+    )
     assert ran.returncode == 0, ran.stderr
     (name,) = [one.name for one in every()]
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "elsewhere"))

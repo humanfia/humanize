@@ -38,16 +38,14 @@ _FLOWS = {
         params=_Params,
         resumable=True,
     ),
-    "chat": doubles.Described(agents=(_YOU,), params=_Nothing),
+    "talk": doubles.Described(agents=(_YOU,), params=_Nothing),
 }
 
 
 @pytest.fixture(autouse=True)
 def flows(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Two flows that load, `chat` the privileged one; any other will not."""
-    resolved, privileged = doubles.resolving(_FLOWS, frozenset({"chat"}))
-    monkeypatch.setattr(hmz.runtime.flowing, "resolved", resolved)
-    monkeypatch.setattr(hmz.runtime.flowing, "privileged", privileged)
+    """Two flows that load, `talk` only somebody at the prompt; any other will not."""
+    monkeypatch.setattr(hmz.runtime.flowing, "resolved", doubles.resolving(_FLOWS))
 
 
 @pytest.fixture
@@ -65,7 +63,6 @@ def test_declared_of_splits_who_is_chosen_from_who_is_here() -> None:
         (_CODER, _REVIEWER),
         (_BOX,),
         _Params,
-        unbounded=False,
         resumable=True,
         outworlders=("you",),
     )
@@ -74,11 +71,10 @@ def test_declared_of_splits_who_is_chosen_from_who_is_here() -> None:
     assert declared.places == ("box",)
 
 
-def test_declared_of_says_a_privileged_flow_needs_no_budget() -> None:
-    declared = pick.declared_of("chat")
+def test_declared_of_a_flow_of_only_somebody_at_the_prompt_chooses_no_agent() -> None:
+    declared = pick.declared_of("talk")
 
     assert declared is not None
-    assert declared.unbounded
     assert declared.roles == ()
     assert declared.outworlders == ("you",)
 
@@ -88,7 +84,7 @@ def test_declared_of_a_flow_that_will_not_load_is_none() -> None:
 
 
 @pytest.mark.parametrize(
-    ("flow", "model"), [("loop", _Params), ("chat", None), ("gone", None)]
+    ("flow", "model"), [("loop", _Params), ("talk", None), ("gone", None)]
 )
 def test_params_model_is_none_for_no_fields_or_no_flow(
     flow: str, model: type[BaseModel] | None
@@ -105,7 +101,7 @@ def test_params_of_reads_what_was_kept_through_the_flows_model() -> None:
     [
         ("loop", {}),
         ("loop", {"rounds": "many"}),
-        ("chat", {"rounds": 1}),
+        ("talk", {"rounds": 1}),
         ("gone", {"rounds": 1}),
     ],
 )
@@ -252,3 +248,34 @@ def test_budgeted_of_shows_a_budget_without_checking_it(
         sheet.graceful_output_tokens,
     )
     assert (sheet.duration, sheet.cost, sheet.output_tokens, graces) == shown
+
+
+class _Titled(BaseModel):
+    rounds: int = pydantic.Field(
+        default=3, title="Review rounds", description="how many"
+    )
+    goal: str = ""
+
+
+async def test_a_param_is_named_by_its_title_and_by_its_key_without_one() -> None:
+    from textual.app import App
+    from textual.widgets import OptionList
+
+    form = pick.Configures("loop", _Titled, None)
+
+    class _Host(App[None]):
+        def on_mount(self) -> None:
+            self.push_screen(form)
+
+    host = _Host()
+    async with host.run_test() as pilot:
+        await pilot.pause()
+        listing = form.query_one("#choices", OptionList)
+        rows = [
+            str(listing.get_option_at_index(at).prompt)
+            for at in range(listing.option_count)
+        ]
+    titled = next(row for row in rows if "Review rounds" in row)
+    assert "rounds" not in titled.replace("Review rounds", "")
+    assert "how many" in titled
+    assert any("goal" in row for row in rows)

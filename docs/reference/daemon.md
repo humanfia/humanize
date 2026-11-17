@@ -236,9 +236,9 @@ up as `told` `{tag, message}`.
 A workspace's runs are held by more than one host: its own, slot `""`, which runs its flows one
 at a time and refuses a second (`a flow is already running`), and one per chat, slot
 `chat:<hex>` (12 hex digits from `hmz.daemon.where.chat()`), and one per `hmz exec`, slot
-`exec:<hex>`, beside it. `epic.attach` and `hosts.open` with `chat:` or `exec:` alone make a new
-slot of that kind; one whose host has gone is refused 409 (`This chat has folded away.`, `This
-epic has ended.`). A chat started on a slot
+`exec:<hex>`, beside it. `epic.attach`, `hosts.open` and [`chat.start`](#chats) with `chat:`
+(`chat.start` only) or `exec:` alone make a new slot of that kind; one whose host has gone is
+refused 409 (`This chat has folded away.`, `This epic has ended.`). A chat started on a slot
 of its own never waits on a flow, nor a flow on it, and a second chat is a second slot. Every
 call that reaches a host -- `attach`, `running`, `host`, `epic.attach`, `hosts.*` --
 takes `slot`, and without one means the workspace's own. `where.slot(said)` checks one,
@@ -246,10 +246,10 @@ raising `ValueError` (`<slot> is not a slot`) for anything but `""`, `chat:<hex>
 
 A chat's host **folds** its chat away once the chat has waited for its next line with no
 frontend attached for **60 s** (`hmz.runtime.doing.hosting.FOLD`): every role is made away, the
-question waiting is answered with nothing, and the chat ends `done`, keeping its conversation;
-the host is then idle, and goes. A folded host refuses a start (`this chat has folded away;
-carry it on from its epic`): the chat is carried on by starting `chat` on a new slot with
-`resume` its epic, which goes on in that same epic.
+question waiting is answered with nothing, and the chat ends as an empty next message ends it,
+keeping its conversation; the host is then idle, and goes. A folded host refuses `chat.say`
+(`this chat has folded away; carry it on from its epic`): the chat is carried on by
+`chat.start` on a new slot with `resume` its epic, which goes on in that same epic.
 
 Each host process checks every **0.5 s**. The host closes itself, and its process
 exits, when it is **idle** and either a
@@ -281,11 +281,32 @@ over a session of its own (5 s) and returns `{}` on any failure.
 | Method | Answer |
 | --- | --- |
 | `hosts.list` | `held`: `[{pid, workspace, started, slot}]`, in the order taken on. |
-| `hosts.running` | `running`: every host whose epic is going or stopping, with `state`, `run`, `flow`, `epic`, `task`, `turn` (a chat's), `workspace`, `slot`, `asking` (`<run>:<question>`). |
+| `hosts.running` | `running`: every host whose epic is going or stopping, with `state`, `run`, `kind` (the epic's: `flow` or `chat`), `flow`, `epic`, `task`, `turn` (a chat's), `workspace`, `slot`, `asking` (`<run>:<question>`). |
 | `hosts.open` `{workspace, slot?}` | Starts the host where none is: `pid`, `workspace`, `started`, `kind`, `protocol`, `slot`. |
 | `hosts.status` `{workspace, slot?}` | The [status keys](#status). |
 | `hosts.detach` `{workspace, slot?}` | `let_go`, after telling each frontend `gone` (`let go`). |
 | `hosts.stop` `{workspace, slot?}` | `{}` at once; the host then closes. |
+
+### Envs of an epic {#hosts-env}
+
+`hosts.env.*` work in the envs of the epic a host is going with, through each env's own driver on
+the run's loop, as the flow would; they attach nobody, start no host and tell the epic nothing.
+Each takes `{workspace, slot?}`, and each but `hosts.env.list` an `env`: the name of an env role,
+or `workspace` for the run's own workspace until a `LocalEnv` role takes it. A `path` is relative
+to the env's workdir.
+
+| Method | Answer |
+| --- | --- |
+| `hosts.env.list` | `envs`: `[{name, kind, workdir, can}]`, `can` among `read`, `write`, `exec`, `grep`. |
+| `hosts.env.read` `{env, path, offset?, length?}` | `text` (at most 1 MiB from `offset`, as UTF-8, bad bytes as U+FFFD), `size`, `eof`. |
+| `hosts.env.write` `{env, path, text}` | `size`: the file is written whole, its directories made. |
+| `hosts.env.exec` `{env, argv, seconds?}` | `code` (`null` once killed after `seconds`, default 120), and the last 1 MiB of `stdout` and `stderr`. |
+| `hosts.env.grep` `{env, pattern, path?, limit?}` | `matches`: `[{path, line, text}]`, at most `limit` (default 200), each line cut at 400 characters; `more`. Run as `grep -rnIsE` in the env. |
+
+Refused 409 `no flow is running, so no env is open` where no epic is going there (or no host is held),
+404 for an unknown `env` or a missing file, 400 for a path outside the workdir (by `..`, an absolute
+path, or a symbolic link on this machine) or an empty `argv`, and 409 `The env <env> cannot <what>.`
+where the env lacks the capability.
 
 Text clipping: every string longer than 262 144 characters in a history record or snapshot is
 cut to that length plus `… (<n> more characters)`.
@@ -302,9 +323,11 @@ cut to that length plus `… (<n> more characters)`.
 | `slot` | string | Which of its workspace's [hosts](#slots): `""` its own, `chat:<hex>` a chat's, `exec:<hex>` an `hmz exec`'s. |
 | `state` | string | `running`, `stopping` or `idle`. |
 | `run` | int | The run going, else the one stopping, else the last; `0` for none. |
-| `flow` | string | That run's flow, or `""`. |
+| `epic_kind` | string | That epic's kind: `flow`, `chat`, or `""` for none. |
+| `flow` | string | That run's flow, or `""`, as it is for a chat. |
 | `epic`, `task` | string | That run's epic (its directory's name, `""` before it has one) and task, or `""`. |
 | `pending` | list | `[{question, role, text, mode}]`: the questions waited on, as the [`pending` snapshot](#snapshots) says them. |
+| `turn` | string | Of a chat only: `running` while its agent answers, `done` between turns and once it is over. Absent where the host holds no chat. |
 | `ended` | object \| null | How the last run to end here ended: `how` (`done`, `stopped`, `refused`, `budget`, `failed` or `crashed`), `why`, `epic`, `at` (Unix seconds), `run`, `flow`, `task`; `null` before one has. |
 | `budget`, `usage` | object \| null | As JSON, for the run going; `null` while stopping or idle. An infinite cost is the JSON string `"Infinity"`. |
 | `flows` † | list[string] | Canonical refs of the flow calls in progress. |
@@ -333,15 +356,49 @@ taking `idem`.
 | `epic.<do>` | Fields (type, default) | Answer | Refusals |
 | --- | --- | --- | --- |
 | `attach` | as above | `sub`, `client`, `workspace`, `slot` | `the frontend went while it was saying hello`, `this host has closed`, `This chat has folded away.`, `This epic has ended.` |
-| `start` | `flow` (str, required), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path), `backup`, `remember` (bool, `false`) | `run` (int), `slot`, `workspace` | `a flow to start is named`, `a flow is already running`, `a flow is already starting`, `this host has closed`, `an exec host runs one epic` (an exec host that has started one), any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. The daemon checks the epic as `flows.check` does before the host is asked -- so a refusal starts nothing -- and with `remember` checks it as `flows.setup` does, writing it down once the host has taken the start, so that a start refused leaves the set-up there was. A run that is only *stopping* does not block `start`. |
+| `start` | `flow` (str, required; a chat is started by [`chat.start`](#chats) instead), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path), `backup`, `remember` (bool, `false`) | `run` (int), `slot`, `workspace` | `a flow to start is named`, `a chat is started with chat.start` (on a chat host), `a flow is already running`, `a flow is already starting`, `this host has closed`, `an exec host runs one epic` (an exec host that has started one), any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. The daemon checks the epic as `flows.check` does before the host is asked -- so a refusal starts nothing -- and with `remember` checks it as `flows.setup` does, writing it down once the host has taken the start, so that a start refused leaves the set-up there was. A run that is only *stopping* does not block `start`. |
 ### Routing of `say` {#say-routing}
 
 | `to` | The line |
 | --- | --- |
 | `""` | Answers a pending *listen* question the sender may answer, else goes to the first conversation with a turn open (in opening order). |
-| `<agent>` | That agent's newest conversation with a turn open; with none open, in `chat` only, answers a pending listen question the sender may answer. |
-| `<agent>/<n>` | That conversation; with no turn open in it, in `chat` only, answers a pending listen question the sender may answer. |
+| `<agent>` | That agent's newest conversation with a turn open. |
+| `<agent>/<n>` | That conversation. |
 | `outworlder:<role>` | Answers that role's pending listen question only; never put into a turn. |
+
+On a chat host, `epic.say` and `epic.answer` are refused, `say it to the chat with chat.say`:
+every line of a chat, an answer to what its assistant asks included, goes by
+[`chat.say`](#chats).
+
+### Chats {#chats}
+
+A [chat](/user/chat) is started and talked to by calls of its own, each with `workspace` and
+`slot`. `chat.start`, `chat.say` and `chat.set` are writes, taking `idem`; a frontend follows a
+chat's messages by `epic.attach` on its slot, as any epic's.
+
+| Method | Fields | Answer | Refusals |
+| --- | --- | --- | --- |
+| `chat.start` | `workspace`, `slot` (a chat slot, or `chat:` alone for a new one), `agent` (an `-a` spec, required unless `resume`), `task` (the first message, required, not empty), `resume` (an epic directory name, or `null`), `prefer` (`native`, `flow` or `null`), `remember` (bool, `false`) | `slot`, `epic` (the chat's epic directory name) | 400 `a chat starts with something said`, `<slot> is not a chat slot.`, `an agent for the chat is named`, or why the agent is refused; 404 `<epic> is not a chat of <workspace>.`; 409 `a chat is already going on <slot>` |
+| `chat.say` | `workspace`, `slot`, `text` | `{}` | 400 naming the line, for a `$` line naming a flow or a name hmz keeps, which the frontend serves; 404 where no host holds the slot; 409 `this chat has folded away; carry it on from its epic` |
+| `chat.commands` | `workspace`, `slot` | `entries` (`[{sigil, name, about, how, source}]`), `prefer` (`native` or `flow`), `prefer_from` (`chat` or `settings`), `listed` (whether the catalogue is all the CLI lists: once a turn was taken) | as `chat.say` |
+| `chat.set` | `workspace`, `slot`, `prefer` (`native` or `flow`) | `{}` | 400 for any other `prefer`; else as `chat.say` |
+
+- **`chat.start`** starts the slot's host as `epic.attach` does, without attaching, and starts
+  the chat there with `agent` as its assistant and `task` as its first message. With `resume`
+  it carries that chat on, in the same epic, `task` its next turn, with its own agent unless
+  `agent` is given. `prefer` is recorded as the chat's own preference. With `remember`, `agent`
+  is written as the workspace's [chat agent](/reference/settings#chat-agent) once the host has
+  taken the start; a refused start leaves it as it was.
+- **`chat.say`** serves `text` as a line in a chat is
+  [served](/user/chat#what-a-line-means), and otherwise says it to the chat: the next turn
+  between turns, into the open turn where the harness takes a line mid-turn, held for the next
+  turn otherwise. An empty `text` ends the chat. A line delivered, held, refused or dropped is
+  recorded as for `epic.say`.
+- **`chat.commands`** answers the assistant's [catalogue](/user/chat#native-input-by-cli) for
+  its conversation -- or, before it has opened, what its harness's catalogue holds without one
+  -- each with `source` `native`; then each name hmz keeps, `source` `hmz` and `how` `""`; then
+  each flow on offer in the workspace, sigil `$`, `source` `flow` and `how` `""`.
+- **`chat.set`** records `prefer` as the chat's own preference, in its epic.
 
 A line enters a conversation only while a turn is open, one line per agent at a time; it
 waits otherwise, and the next turn to start takes the oldest matching line into its prompt. A
@@ -361,16 +418,14 @@ is closed on `unaside`, when its frontend detaches, when a run starts, and when 
 No message announces asides. A harness with no read-only rung (`mcode`, `dsh`, ACP) is refused:
 `<harness> cannot answer a side question: it has no read-only rung`.
 
-The Epic's aside (`runs` with `asks: true`) carries the `ask-conversation` skill, a pre-tool-use
-and a stop hook, and the fake command line `hmz-ask` (`ask --to <agent>/<n> --question <q>`,
-`list`). A run of it, caught by the hook or by the command, answers the turn's `aside` with
-`ask`; the frontend carries it out and sends `answered`, and the turn goes on. The answer
-reaches the agent as the hook's refusal on `claude` and `qwen`, as the command's output where it
-ran, and otherwise as what the stop hook sends the agent on with. One question asked twice in a
-turn is asked once. On `codex`, whose `read-only` sandbox refuses the socket `hmz-ask` reaches
-the host on, `hmz-ask` alone runs outside the sandbox, by `prefix_rule(pattern=["hmz-ask"],
-decision="allow")` in `rules/hmz.rules` of its virtual home; every other command stays in the
-sandbox, network cut.
+The daemon's `btw.*` asks each side question of a session through a frontend of its own, of
+kind `btw`, on the host holding that session: the workspace's own host for the epic in view
+there, a chat's own slot for that chat. An epic no host holds any longer is asked on the
+workspace's own host with `runs`, `recall`, `kept` and `cwd`; an epic starting there does not
+end such an aside, whose next question opens its side copy again. The daemon reads the epic
+replayed to it on attaching as the epic going, not as one starting, and lets go of a host a
+minute after the last aside on it closed or its last question was asked. An aside whose first
+question fails is not kept.
 
 ## Messages {#messages}
 

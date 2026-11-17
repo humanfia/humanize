@@ -9,12 +9,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
+from pydantic import BaseModel, Field
 
 from hmz.daemon.api import flows, flowverses, notices, paths, workspaces
 from hmz.rpc import Code, RpcError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 #: The OpenRPC document the families are served against.
 OPENRPC = Path(__file__).resolve().parents[3] / "protocol" / "openrpc.json"
@@ -187,6 +191,51 @@ def test_a_flow_not_on_offer_is_not_found() -> None:
     assert missing.value.message == "./mine is not a flow on offer here."
 
 
+def test_a_flows_params_carry_a_title_only_where_the_flow_wrote_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Params(BaseModel):
+        rounds: int = Field(default=3, title="Review rounds", description="how many")
+        focus: str = "tests"
+
+    class Kept:
+        """A workspace that has run nothing yet."""
+
+        def agents(self, _: str) -> dict[str, Any]:
+            return {}
+
+        def __getattr__(self, _: str) -> Callable[[str], None]:
+            return lambda _flow: None
+
+    def opened(_: object) -> object:
+        return SimpleNamespace(settings=Kept())
+
+    def declared(_: str) -> object:
+        return SimpleNamespace(
+            ref="mine",
+            description="",
+            resumable=False,
+            agents=[],
+            envs=[],
+            params=Params,
+        )
+
+    monkeypatch.setattr("hmz.runtime.Hmz", opened)
+    hmz = SimpleNamespace(
+        workspace="/w",
+        flows=SimpleNamespace(
+            all=lambda: [SimpleNamespace(name="mine")], declared=declared
+        ),
+        installed=list,
+    )
+
+    fields = flows.offered(hmz, "mine")["params"]["properties"]
+
+    assert fields["rounds"]["title"] == "Review rounds"
+    assert fields["rounds"]["description"] == "how many"
+    assert "title" not in fields["focus"]
+
+
 @pytest.mark.parametrize(
     ("said", "sentence"),
     [
@@ -199,13 +248,22 @@ def test_a_flow_not_on_offer_is_not_found() -> None:
             "coder is not given an agent as -a spells one: nothing.",
         ),
         ({"flow": "loop"}, "loop needs an agent for coder."),
+        (
+            {"flow": "loop", "agents": {"coder": "claude/opus"}},
+            "loop needs at least one limit on what it may spend.",
+        ),
+        # A flow named chat is a flow like any other, with a budget like any other's.
+        (
+            {"flow": "chat", "agents": {"coder": "claude/opus"}},
+            "chat needs at least one limit on what it may spend.",
+        ),
     ],
 )
 def test_a_set_up_that_cannot_run_is_refused(
     said: dict[str, Any], sentence: str
 ) -> None:
     with pytest.raises(RpcError) as refused:
-        flows.remembers(_flows("loop"), said)
+        flows.remembers(_flows("loop", "chat"), said)
     assert (refused.value.code, refused.value.message) == (Code.REFUSED, sentence)
 
 

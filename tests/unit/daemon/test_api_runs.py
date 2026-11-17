@@ -196,3 +196,78 @@ def test_an_archive_named_by_a_path_is_a_whole_one(
         "Say path as a whole path on this machine.",
     )
     assert not held.archives
+
+
+def _ran(flow: str, **said: Any) -> Any:
+    """An epic read back, as far as a row reads one."""
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        name="20260101-abc",
+        at=Path("/epics/20260101-abc"),
+        workspace="/w",
+        flow=flow,
+        task="hello",
+        began="2026-01-01T00:00:00Z",
+        ended="",
+        agents=(),
+        sessions=(),
+        resumable=False,
+        spent=None,
+        backup=(),
+        backed={},
+        **said,
+        # As `hmz.runtime.epic.read` reads one: of no kind and the flow `chat`, an earlier
+        # hmz's chat.
+        chat=said.get("kind", "chat" if flow == "chat" else "flow") == "chat",
+    )
+
+
+@pytest.mark.parametrize(
+    ("ran", "turn", "ending", "kind", "flow", "how"),
+    [
+        # A chat says so, and no flow; going while its turn is, and stopped between.
+        (_ran("", kind="chat"), "running", "running", "chat", "", "running"),
+        (_ran("", kind="chat"), "done", "running", "chat", "", "stopped"),
+        (_ran("", kind="chat"), "", "done", "chat", "", "stopped"),
+        (_ran("", kind="chat"), "", "failed", "chat", "", "failed"),
+        # As an earlier hmz wrote one: the flow `chat`, and no kind.
+        (_ran("chat"), "done", "running", "chat", "", "stopped"),
+        # A flow named chat now is a flow, said as it went.
+        (_ran("chat", kind="flow"), "", "done", "flow", "chat", "done"),
+        (_ran("ralph"), "", "running", "flow", "ralph", "running"),
+    ],
+)
+def test_an_epic_row_says_its_kind_and_a_chats_state_by_its_turn(
+    ran: Any,
+    turn: str,
+    ending: str,
+    kind: str,
+    flow: str,
+    how: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import hmz.runtime.epic
+
+    def ends(ran: Any, *, going: bool) -> str:
+        del ran, going
+        return ending
+
+    monkeypatch.setattr(hmz.runtime.epic, "ending", ends)
+
+    said = runs.row(ran, held=True, turn=turn)
+
+    assert (said["kind"], said["flow"], said["how"]) == (kind, flow, how)
+
+
+def test_a_host_going_with_a_chat_holds_the_chat_not_a_flow_of_its_name() -> None:
+    chat, named = _ran("", kind="chat"), _ran("", kind="flow")
+    going = [
+        {"workspace": "/w", "kind": "chat", "flow": "", "task": "hello", "turn": "done"}
+    ]
+
+    held = runs.held_by([named, chat], going)
+
+    assert list(held) == [chat.at]
+    assert held[chat.at]["turn"] == "done"

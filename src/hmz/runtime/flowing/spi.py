@@ -66,6 +66,7 @@ if TYPE_CHECKING:
 
     import pydantic
 
+    from hmz.coganchor.agents.native import NativeCommand
     from hmz.coganchor.machines import MachineConfig
     from hmz.flows import (
         EnvBackendKind,
@@ -308,11 +309,14 @@ class TurnRequest:
         one only to a driver that lists the mixin for it.
       output_schema: The model the answer must be an instance of, or None for text.
       limits: What the turn may spend.
+      native: Whether the prompt is a line a person typed in a chat, read as the harness's
+        own prompt reads it (Section 8.9 of [CORE]); a flow's prompts never are.
     """
 
     prompt: str
     output_schema: type[pydantic.BaseModel] | None = None
     limits: Limits = Limits()
+    native: bool = False
 
 
 class UsageSink(Protocol):
@@ -677,6 +681,10 @@ class SessionHandle(Protocol):
         Raises:
           SessionError: If no turn is in flight.
         """
+        ...
+
+    def natives(self) -> list[NativeCommand]:
+        """The native input its harness takes in a chat, as hmz drives it; empty for none."""
         ...
 
     def interrupt(self) -> None:

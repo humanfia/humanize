@@ -620,3 +620,68 @@ def test_a_codex_named_in_sandbox_native_is_fenced_where_its_sandbox_cannot_carv
     # At `bypass` a fence from outside leaves Codex told nothing of its sandbox.
     assert json.loads(said[-1].text)["policy"] is None
     assert wrapped
+
+
+def _natively(session: Any, line: str) -> list[Event]:
+    """What a chat's native line said, taken as a native turn."""
+    return list(session.stream(line, native=True))
+
+
+def test_a_chat_s_skill_and_file_reach_codex_as_its_own_input_items(
+    codex: Standins, tmp_path: Path
+) -> None:
+    (tmp_path / "notes.md").write_text("# notes\n")
+    session = CodexAgent(CONFIG).new(tmp_path)
+
+    names = {(one.sigil, one.name, one.how) for one in session.natives()}
+    said = _natively(session, "$tidy @notes.md")
+
+    assert ("$", "tidy", "call") in names
+    assert said[-1].text == "$tidy @notes.md"
+    (sent,) = (
+        json.loads(one.removeprefix("input "))
+        for one in codex.said()
+        if one.startswith("input ")
+    )
+    assert sent == [
+        {"type": "text", "text": "$tidy @notes.md"},
+        {"type": "skill", "name": "tidy", "path": "/skills/tidy/SKILL.md"},
+        {"type": "mention", "name": "notes.md", "path": str(tmp_path / "notes.md")},
+    ]
+    assert _told(codex, "skills/list")[0]["cwds"] == [str(tmp_path)]
+
+
+def test_a_chat_s_shell_command_runs_on_the_thread_without_a_turn(
+    codex: Standins, tmp_path: Path
+) -> None:
+    session = CodexAgent(CONFIG).new(tmp_path)
+
+    said = _natively(session, "!git status")
+
+    assert said[-1].text == "ran git status\n"
+    assert any(one.kind == "tool" and "git status" in one.text for one in said)
+    assert _told(codex, "thread/shellCommand") == [
+        {"threadId": "t-1", "command": "git status"}
+    ]
+    assert not [one for one in codex.said() if one == "git status"]
+    assert session.id == "t-1"
+
+
+def test_a_chat_s_compact_review_and_rename_are_codex_s_own_calls(
+    codex: Standins, tmp_path: Path
+) -> None:
+    session = CodexAgent(CONFIG).new(tmp_path)
+    session("hello")
+
+    compacted = _natively(session, "/compact")
+    reviewed = _natively(session, "/review base main")
+    renamed = _natively(session, "/rename tidy-up")
+
+    assert compacted[-1].kind == "result"
+    assert _told(codex, "thread/compact/start") == [{"threadId": "t-1"}]
+    assert reviewed[-1].text == 'reviewed {"branch": "main", "type": "baseBranch"}'
+    (review,) = _told(codex, "review/start")
+    assert review["delivery"] == "inline"
+    assert "tidy-up" in renamed[-1].text
+    assert _told(codex, "thread/name/set") == [{"threadId": "t-1", "name": "tidy-up"}]
+    assert session("again") == "again"  # the thread goes on as a conversation

@@ -568,13 +568,19 @@ for line in sys.stdin:
         continue
     params = call.get("params") or {}
     if method == "turn/start":
-        note(params["input"][0]["text"])
+        said = next(one["text"] for one in params["input"] if one["type"] == "text")
+        note(said)
+        if len(params["input"]) > 1:
+            # A chat's native line, sent with the skills and files it names beside it.
+            note("input " + json.dumps(params["input"], sort_keys=True))
         vanishes = pathlib.Path(sys.argv[0]).with_name("vanishes")
         if vanishes.exists() and int(vanishes.read_text()):
             # Gone before it answered: whether it kept the turn, nobody can say.
             vanishes.write_text(str(int(vanishes.read_text()) - 1))
             os._exit(1)
-    elif method in ("thread/start", "thread/resume", "thread/fork", "turn/steer"):
+    elif method in ("thread/start", "thread/resume", "thread/fork", "turn/steer",
+                    "skills/list", "thread/shellCommand", "thread/compact/start",
+                    "review/start", "thread/name/set"):
         note(method + " " + json.dumps(params, sort_keys=True))
     if "id" not in call:
         continue
@@ -583,15 +589,36 @@ for line in sys.stdin:
         result = {"thread": {"id": "t-%d" % next(threads)}}
     elif method == "thread/resume":
         result = {"thread": {"id": params["threadId"]}}
-    elif method == "turn/start":
+    elif method in ("turn/start", "review/start"):
         result = {"turn": {"id": "turn-1"}}
+    elif method == "skills/list":
+        result = {"data": [{"cwd": params["cwds"][0], "errors": [], "skills": [
+            {"name": "tidy", "path": "/skills/tidy/SKILL.md", "description": "tidies up",
+             "enabled": True, "scope": "user"}]}]}
     send({"jsonrpc": "2.0", "id": call["id"], "result": result})
     if method in ("thread/start", "thread/fork"):
         notify("thread/status/changed", threadId=result["thread"]["id"],
                status={"type": "idle"})
     if method == "turn/start":
-        threading.Thread(target=turn, args=(params["threadId"],
-                         params["input"][0]["text"], params), daemon=True).start()
+        threading.Thread(target=turn, args=(params["threadId"], said, params),
+                         daemon=True).start()
+    if method in ("thread/shellCommand", "thread/compact/start"):
+        # Answered with nothing, then done as a turn of the server's own, as codex-cli
+        # 0.163.0 runs both: the command printing what it was asked, or the compaction.
+        notify("turn/started", threadId=params["threadId"], turn={"id": "turn-1"})
+        if method == "thread/shellCommand":
+            item("completed", params["threadId"], id="sh-1", type="commandExecution",
+                 source="userShell", command=params["command"], exitCode=0,
+                 aggregatedOutput="ran " + params["command"] + "\n")
+        else:
+            item("completed", params["threadId"], id="cc-1", type="contextCompaction")
+        done(params["threadId"])
+    if method == "review/start":
+        item("completed", params["threadId"], id="rv-1", type="enteredReviewMode",
+             review="current changes")
+        item("completed", params["threadId"], id="m-1", type="agentMessage",
+             text="reviewed " + json.dumps(params["target"], sort_keys=True))
+        done(params["threadId"])
     if method == "turn/steer":
         item("completed", params["threadId"], id="m-3", type="agentMessage",
              text="heard " + params["input"][0]["text"])

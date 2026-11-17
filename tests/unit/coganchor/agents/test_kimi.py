@@ -78,6 +78,20 @@ class _Daemon:
     headers: list[str] = field(default_factory=list[str])
     #: The routes it refuses, as the daemon refuses one: inside a 200, with a code.
     refused: set[str] = field(default_factory=set[str])
+    #: The skills it lists for the session: two a person may activate, and one only the
+    #: model may read.
+    skills: list[dict[str, Any]] = field(
+        default_factory=lambda: [
+            {"name": "review", "description": "Review it", "path": "/s/review"},
+            {"name": "plan", "description": "Plan it", "type": "flow", "path": "/p"},
+            {
+                "name": "notes",
+                "description": "Notes",
+                "type": "reference",
+                "path": "/n",
+            },
+        ]
+    )
 
     def answer(self, method: str, path: str) -> Any:
         route = path.removeprefix("/api/v1")
@@ -93,6 +107,7 @@ class _Daemon:
             f"{at}/questions?status=pending": {"items": self.questions},
             f"{at}/approvals?status=pending": {"items": self.approvals},
             f"{at}/goal": {"status": "completed"},
+            f"{at}/skills": {"skills": self.skills},
         }
         return (posts if method == "POST" else gets).get(route, {})
 
@@ -728,3 +743,119 @@ def test_a_gateway_started_again_starts_the_daemon_again(
 
     assert len(started) == 2
     assert len(server) == 2
+
+
+def test_the_catalog_is_compact_and_the_skills_a_person_may_activate(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+) -> None:
+    del server
+    session = made().new(tmp_path)
+    assert session.natives() == []
+
+    _turn(session)
+
+    assert [(one.sigil, one.name, one.how) for one in session.natives()] == [
+        ("/", "compact", "call"),
+        ("/", "review", "call"),
+        ("/", "plan", "call"),
+    ]
+    daemon.refused.add(f"/sessions/{_SESSION}/skills")
+    assert [one.name for one in session.natives()] == ["compact", "review", "plan"]
+
+
+def test_a_native_skill_is_activated_with_the_prompt(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+) -> None:
+    del server
+    session = made().new(tmp_path)
+    _turn(session)
+
+    events = list(session.stream("/review the diff", native=True))
+    _turn(session, "/plan as text")
+
+    first, native, flowed = daemon.posted(f"/sessions/{_SESSION}/prompts")
+    assert "skills" not in first
+    assert native["skills"] == [{"name": "review", "args": "the diff"}]
+    assert native["content"] == [{"type": "text", "text": "/review the diff"}]
+    assert "skills" not in flowed
+    assert events[-1].kind == "result"
+
+
+def test_a_native_compact_is_the_servers_compaction(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+) -> None:
+    del server
+    session = made().new(tmp_path)
+    _turn(session)
+
+    events = list(session.stream("/compact keep the tests", native=True))
+    list(session.stream("/compact", native=True))
+
+    assert daemon.posted(f"/sessions/{_SESSION}:compact") == [
+        {"instruction": "keep the tests"},
+        {},
+    ]
+    assert [(one.kind, one.text) for one in events] == [("result", "compacted")]
+    assert len(daemon.posted(f"/sessions/{_SESSION}/prompts")) == 1
+
+
+def test_a_slash_line_before_there_is_a_conversation_is_text(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+) -> None:
+    del server
+
+    list(made().new(tmp_path).stream("/compact", native=True))
+
+    assert daemon.posted(f"/sessions/{_SESSION}:compact") == []
+    (posted,) = daemon.posted(f"/sessions/{_SESSION}/prompts")
+    assert posted["content"] == [{"type": "text", "text": "/compact"}]
+    assert "skills" not in posted
+
+
+def test_a_skill_the_catalog_has_not_read_yet_is_asked_for(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+) -> None:
+    del server
+    session = made().new(tmp_path)
+    _turn(session)
+    daemon.skills = [{"name": "fresh", "description": "New", "path": "/f"}]
+
+    list(session.stream("/fresh", native=True))
+
+    assert daemon.posted(f"/sessions/{_SESSION}/prompts")[-1]["skills"] == [
+        {"name": "fresh"}
+    ]
+
+
+def test_skills_nobody_may_type_are_left_out(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+) -> None:
+    del server
+    session = made().new(tmp_path)
+    _turn(session)
+    daemon.skills = [
+        {"name": "odd", "type": "reference"},
+        {"description": "nameless"},
+        {"name": "compact", "description": "a skill shadowed by Kimi's own"},
+    ]
+
+    assert [one.name for one in session.natives()] == ["compact"]
+    assert session.natives()[0].how == "call"

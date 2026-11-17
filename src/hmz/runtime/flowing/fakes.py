@@ -97,6 +97,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Sequence
     from pathlib import Path
 
+    from hmz.coganchor.agents.native import NativeCommand
     from hmz.flows import (
         AskUserHookResult,
         FakeCli,
@@ -541,6 +542,9 @@ class FakeSession:
         self._steers.append(prompt)
         if self._wake is not None:
             self._wake.set()
+
+    def natives(self) -> list[NativeCommand]:
+        return []
 
     def interrupt(self) -> None:
         self._interrupted.set()

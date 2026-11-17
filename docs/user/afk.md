@@ -44,30 +44,6 @@ const afk = [
   },
 ]
 
-const one = [
-  {
-    label: 'in a chat',
-    lines: [
-      '[dim]❯[/] hey',
-      '[g]●[/] Hey, what shall we build next?[n]1[/]',
-      '[dim]❯[/] /afk on',
-      { t: '[dim]away: agents that ask are told nobody is here[/][n]2[/]', hl: true },
-      '[dim]— the flow is done —[/][n]3[/]',
-      '',
-      { r: '[m]assistant · claude/claude-opus-5-5:high · ○ 1[/]' },
-      { rule: true },
-      { prompt: '' },
-      { rule: true },
-      {
-        l: '[y]afk[/][n]4[/] · [c]◉[/] chat[m] · ~/work/api[/]',
-        keys: '/ commands · shift+enter newline · ctrl+c exit',
-        hl: true,
-      },
-    ],
-    caption:
-      'In <code>chat</code>, every reply waits for your next message, so being away ends the conversation.',
-  },
-]
 </script>
 
 # Being away — `/afk`
@@ -95,17 +71,16 @@ before you leave a long run alone.
 ## How it works
 
 Some flows ask you things: a planner that needs a decision, an agent that asks which of two
-approaches you want, a chat that waits for your next message. Each question is put by an
-**outworlder**, the role in a flow that is you, and while you are here it waits for your
-answer. See [Questions](/user/questions).
+approaches you want. Each question is put by an **outworlder**, the role in a flow that is
+you, and while you are here it waits for your answer. See [Questions](/user/questions). A
+[chat](/user/chat) is not a flow and has no outworlder: `/afk` changes nothing in one.
 
 `/afk on` says you are away. From then on:
 
 - a question already waiting is answered by nobody, at once;
 - an agent that asks is shown asking, is told nobody answered, and carries on;
 - a flow's question is answered with nothing, or with the flow's defaults. One with no
-  default fails the flow with `nobody is there to answer …`, unless the flow handles that;
-- `chat`, waiting for your next message, is answered with nothing and ends.
+  default fails the flow with `nobody is there to answer …`, unless the flow handles that.
   [Questions](/user/questions#when-nobody-is-there) has the table.
 
 Away belongs to the run rather than to your interface. It stays said after you
@@ -146,16 +121,9 @@ A flow may have more than one outworlder, each with a transcript of its own that
 | an outworlder's transcript | that outworlder alone; the status line names it, `afk human` |
 | anywhere else: an agent's or a conversation's transcript, or the monitor | every outworlder at once, undoing what was set for one |
 
-A [`chat`](https://humanfia.ai/flows/chat) has one outworlder, you, and no transcript of it apart
-from the conversation, so `/afk on` is typed in the conversation itself:
-
-<TermScreen title="hmz · chat" :frames="one" />
-
-1. **`Hey, what shall we build next?`**: the assistant's reply, waiting on your next message.
-2. **`away: …`**: the confirmation.
-3. **`— the flow is done —`**: an empty next message ends the chat. This is why
-   `/afk` belongs off in a flow built around talking to you.
-4. **`afk`**: away, on the status line.
+A [chat](/user/chat) has no outworlder: what its agent asks is put to you in its conversation,
+and it waits for your next message however long you are gone. Being away there changes
+nothing, and a chat nobody reads folds away on its own.
 
 Where somebody else has [claimed](/reference/tui#several-people-on-one-run) an outworlder,
 `/afk` from anywhere but an outworlder's transcript leaves theirs as they left it, and `/afk` on their
@@ -176,11 +144,6 @@ A flow's agents never wait for approval, whether you are here or away. See
   [The person as an agent](/weaver/human-agent).
 
 ## Troubleshooting
-
-### The chat ended as soon as I turned it on
-
-In [`chat`](https://humanfia.ai/flows/chat), every reply waits for your next message, and being away answers it
-with nothing, which ends the conversation. Leave `/afk` off in any flow built around talking to you.
 
 ### I came back and the run is waiting on me
 

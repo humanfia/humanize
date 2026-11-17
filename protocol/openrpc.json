@@ -1701,21 +1701,7 @@
           }
         },
         {
-          "name": "asks",
-          "deprecated": true,
-          "schema": {
-            "type": "boolean"
-          }
-        },
-        {
           "name": "prompt",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "answered",
-          "deprecated": true,
           "schema": {
             "type": "string"
           }
@@ -4031,10 +4017,7 @@
             "asides"
           ],
           "properties": {
-            "asides": {},
-            "default": {
-              "deprecated": true
-            }
+            "asides": {}
           }
         }
       },
@@ -4124,10 +4107,7 @@
             "aside": {},
             "to": {},
             "question": {},
-            "answer": {},
-            "asked": {
-              "deprecated": true
-            }
+            "answer": {}
           }
         }
       },
@@ -5885,7 +5865,6 @@
           "required": [
             "flow",
             "ref",
-            "chats",
             "declared",
             "names",
             "budget",
@@ -5898,9 +5877,6 @@
             },
             "ref": {
               "type": "string"
-            },
-            "chats": {
-              "type": "boolean"
             },
             "declared": {
               "$ref": "#/components/schemas/Declared"
@@ -6897,6 +6873,21 @@
           "name": "idem",
           "schema": {
             "$ref": "#/components/schemas/Idem"
+          }
+        },
+        {
+          "name": "chat",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "prefer",
+          "schema": {
+            "enum": [
+              "native",
+              "flow"
+            ]
           }
         }
       ],
@@ -8938,6 +8929,408 @@
         "slot": "slot"
       },
       "x-hmz-writes": false
+    },
+    {
+      "name": "chat.start",
+      "summary": "Start a chat on a chat host, or carry one on.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "type": "string",
+            "pattern": "^chat:[0-9a-f]{0,32}$"
+          }
+        },
+        {
+          "name": "agent",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "task",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "resume",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "prefer",
+          "schema": {
+            "enum": [
+              "native",
+              "flow",
+              null
+            ]
+          }
+        },
+        {
+          "name": "remember",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "start",
+        "schema": {
+          "type": "object",
+          "required": [
+            "slot",
+            "epic"
+          ],
+          "properties": {
+            "slot": {
+              "$ref": "#/components/schemas/Slot"
+            },
+            "epic": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.say",
+      "summary": "Say the next line of a chat.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "text",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "say",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.commands",
+      "summary": "The native entries, hmz names and flows a chat's lines can start with, and its preference.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        }
+      ],
+      "result": {
+        "name": "commands",
+        "schema": {
+          "type": "object",
+          "required": [
+            "entries",
+            "prefer",
+            "prefer_from",
+            "listed"
+          ],
+          "properties": {
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "sigil",
+                  "name",
+                  "about",
+                  "how",
+                  "source"
+                ],
+                "properties": {
+                  "sigil": {
+                    "enum": [
+                      "/",
+                      "$",
+                      "!",
+                      "@"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "about": {
+                    "type": "string"
+                  },
+                  "how": {
+                    "enum": [
+                      "pass",
+                      "call",
+                      "emulate",
+                      "refuse",
+                      ""
+                    ]
+                  },
+                  "source": {
+                    "enum": [
+                      "native",
+                      "hmz",
+                      "flow"
+                    ]
+                  }
+                }
+              }
+            },
+            "prefer": {
+              "enum": [
+                "native",
+                "flow"
+              ]
+            },
+            "prefer_from": {
+              "enum": [
+                "settings",
+                "chat"
+              ]
+            },
+            "listed": {
+              "type": "boolean",
+              "description": "Whether the catalogue is all its harness lists: once the conversation has taken a turn."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "chat.set",
+      "summary": "Override a chat's preference for $ names.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "prefer",
+          "required": true,
+          "schema": {
+            "enum": [
+              "native",
+              "flow"
+            ]
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "set",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
     }
   ],
   "components": {
@@ -9070,6 +9463,7 @@
           "slot",
           "state",
           "run",
+          "epic_kind",
           "flow",
           "epic",
           "task",
@@ -9086,6 +9480,7 @@
           "slot": {},
           "state": {},
           "run": {},
+          "epic_kind": {},
           "flow": {},
           "epic": {},
           "task": {},
@@ -9102,6 +9497,7 @@
         "required": [
           "name",
           "workspace",
+          "kind",
           "flow",
           "task",
           "began",
@@ -9120,6 +9516,12 @@
         "properties": {
           "name": {},
           "workspace": {},
+          "kind": {
+            "enum": [
+              "flow",
+              "chat"
+            ]
+          },
           "flow": {},
           "task": {},
           "began": {},
@@ -9171,7 +9573,9 @@
           "flows",
           "backup",
           "listen",
-          "ice_servers"
+          "ice_servers",
+          "chat",
+          "prefer"
         ],
         "properties": {
           "workspace": {},
@@ -9185,6 +9589,15 @@
           "ice_servers": {},
           "btw": {
             "deprecated": true
+          },
+          "chat": {
+            "type": "string"
+          },
+          "prefer": {
+            "enum": [
+              "native",
+              "flow"
+            ]
           }
         }
       },

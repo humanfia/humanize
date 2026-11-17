@@ -290,7 +290,7 @@ Qwen Code signed in:
 <span class="d">──────────────────────────────────────────────────────────────────────</span>
 <span class="p">❯</span>
 <span class="d">──────────────────────────────────────────────────────────────────────</span>
-  <span class="a">◉</span> chat · ~/src/demo <span class="n">3</span>   <span class="d">/ commands · shift+enter newline · ctrl+c exit</span></pre>
+  <span class="a">◉</span> qwen/qwen3-coder-plus:high · ~/src/demo <span class="n">3</span>   <span class="d">/ commands · shift+enter newline · ctrl+c exit</span></pre>
 
 </Term>
 
@@ -302,11 +302,11 @@ What to look at, by number:
    `/settings` changes it later, and <kbd>esc</kbd> asks again next time. See
    [Reporting](/user/reporting).
 2. **The line above the prompt** names the agent Humanize would start:
-   `role · cli/model:effort`. Here the role is `assistant`, and the CLI is the first one
-   Humanize found that could say what it runs. Seeing a CLI and a model here is the proof that
-   Humanize can drive it.
-3. **The status line** says which [flow](/user/concepts#flow) is chosen, `chat`, and the
-   directory. On the right are the keys that work right now.
+   `role · cli/model:effort`. `hmz` opens on a [chat](/user/chat), whose one agent is the
+   `assistant`, and the CLI is the first one Humanize found that could say what it runs.
+   Seeing a CLI and a model here is the proof that Humanize can drive it.
+3. **The status line** names the chat's agent and the directory. On the right are the keys
+   that work right now.
 
 ### Check it worked
 
@@ -337,11 +337,10 @@ Until it has a key, Humanize lists `dsh` but does not pick it for you. Its model
 `deepseek-v4-flash` and `deepseek-v4-pro`, at the efforts `max`, `high`, `low` and `off`:
 
 ```sh
-hmz exec -f chat -a assistant=dsh/deepseek-v4-flash:high "say hello"
+hmz chat -a dsh/deepseek-v4-flash:high "say hello"
 ```
 
-`chat` and the six loops [FlowBench scores](https://humanfia.ai/flows/) ship with
-Humanize. A flow from a flowverse, such as `flame_chasoid:parallel_git_pr`, runs once you install it
+The six loops [FlowBench scores](https://humanfia.ai/flows/) ship with Humanize. A flow from a flowverse, such as `flame_chasoid:parallel_git_pr`, runs once you install it
 from `/flow`; `hmz exec` installs nothing.
 
 A `dsh` agent works with full access whatever its flow declares. See

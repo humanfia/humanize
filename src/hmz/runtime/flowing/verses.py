@@ -18,11 +18,11 @@ own, and is there whether or not it has been fetched yet: a list that only menti
 somebody had thought to add it would be a list that hid what there is. And `local` and `user`
 are the flows of your own: this project's own flows directory, and the one in your home.
 
-`official` is the one that is read from two places at once. `chat` and the six loops beside it
-are in the package, because a machine that has never reached a network still has to have
-something to open talking to and a loop to leave running; whatever was installed out of
+`official` is the one that is read from two places at once. The six loops are in the package,
+because a machine that has never reached a network still has to have a loop to leave running;
+whatever was installed out of
 Humanize's index is beside them. Which of the two a flow is in is Humanize's business rather
-than anybody else's, so both are offered under the one name: `chat` and an installed `aot` are
+than anybody else's, so both are offered under the one name: `goal` and an installed `aot` are
 each one of Humanize's flows, said the same way. The package's own wins a name they both hold
 -- and an index may not offer one of those names at all.
 
@@ -30,8 +30,8 @@ Those last two are places rather than indexes -- nothing fetches them, nothing i
 into them, and what is in one is whatever you put there -- but they are flowverses all the same,
 because everything that goes looking for a flow has one question to ask and one list to ask it
 of. A flow of yours is read where it stands, offered under the name of the place it is in the
-way an installed flow is, and looked in first: `@local/chat` says which one it is, and a bare
-`chat` finds yours before Humanize's.
+way an installed flow is, and looked in first: `@local/goal` says which one it is, and a bare
+`goal` finds yours before Humanize's.
 
 Nothing here runs a flow, and nothing here reads one. It is the answer to "which flows are
 there, and where did each come from" -- and to the three things that can happen to a flowverse:
@@ -276,7 +276,7 @@ def nearest() -> list[Flowverse]:
     Returns:
       This project's flows, then yours, then the rest as they are listed -- so that a flow of
       your own may stand in for one of Humanize's by taking its name, and a project may mean
-      its own `chat` by `chat`.
+      its own `goal` by `goal`.
     """
     held = flowverses()
     return [one for one in held if one.name in MINE] + [

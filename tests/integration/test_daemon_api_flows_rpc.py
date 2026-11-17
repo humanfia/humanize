@@ -116,12 +116,14 @@ def test_a_workspace_lists_its_flows_and_the_backends_installed(
 ) -> None:
     listed = client.call("flows.list", workspace=str(project))
     names = {one["name"] for one in listed["flows"]}
-    assert {"chat", "ralph_loop"} <= names
+    assert {"goal", "ralph_loop"} <= names
+    # A chat is no flow, and is not offered as one (Section 8.3 of core.md).
+    assert "chat" not in names
     assert listed["running"] == []
 
-    chat = client.call("flows.get", workspace=str(project), name="chat")
-    assert chat["name"] == "chat"
-    assert "assistant" in [one["name"] for one in chat["agents"]]
+    goal = client.call("flows.get", workspace=str(project), name="goal")
+    assert goal["name"] == "goal"
+    assert "worker" in [one["name"] for one in goal["agents"]]
 
     backends = client.call("flows.backends")
     assert set(backends) == {"clis", "installable", "envs"}
@@ -142,14 +144,17 @@ def test_a_line_checks_as_hmz_exec_would_without_starting_anything(
     checked = client.call(
         "flows.check",
         workspace=str(project),
-        flow="chat",
-        agents={"assistant": AGENT},
+        flow="goal",
+        agents={"worker": AGENT},
+        # A limit every model can be held to, priced or not.
+        budget={"duration": 3600},
     )
 
-    assert checked["flow"] == "chat"
-    assert checked["chats"] is True
-    assert checked["names"]["assistant"]
-    assert checked["declared"]["name"] == "chat"
+    assert checked["flow"] == "goal"
+    # A check says nothing of chats, which are no flows (Section 4.17.8.2 of daemon.md).
+    assert "chats" not in checked
+    assert checked["names"]["worker"]
+    assert checked["declared"]["name"] == "goal"
     assert checked["unreadable"] == ""
     assert not started(tmp_path)
 
@@ -162,20 +167,47 @@ def test_a_line_checks_as_hmz_exec_would_without_starting_anything(
             {"flow": "ralph_loop", "agents": {"agent": AGENT}},
         ),
         (
-            ["-f", "chat", "-a", f"assistant={AGENT},stranger={AGENT}", "hello"],
-            {"flow": "chat", "agents": {"assistant": AGENT, "stranger": AGENT}},
+            [
+                "-f",
+                "goal",
+                "-a",
+                f"worker={AGENT},stranger={AGENT}",
+                "-p",
+                "budget.cost=1",
+                "hello",
+            ],
+            {
+                "flow": "goal",
+                "agents": {"worker": AGENT, "stranger": AGENT},
+                "budget": {"cost": 1},
+            },
         ),
         (
-            ["-f", "chat", "-a", f"assistant={NOBODY}", "hello"],
-            {"flow": "chat", "agents": {"assistant": NOBODY}},
+            ["-f", "goal", "-a", f"worker={NOBODY}", "-p", "budget.cost=1", "hello"],
+            {"flow": "goal", "agents": {"worker": NOBODY}, "budget": {"cost": 1}},
         ),
         (
             ["-f", "./no_such_flow", "-p", "budget.cost=1", "work"],
             {"flow": "./no_such_flow", "budget": {"cost": 1}},
         ),
         (
-            ["-f", "chat", "-a", f"assistant={AGENT}", "--backup", "nowhere", "x"],
-            {"flow": "chat", "agents": {"assistant": AGENT}, "backup": ["nowhere"]},
+            [
+                "-f",
+                "goal",
+                "-a",
+                f"worker={AGENT}",
+                "-p",
+                "budget.cost=1",
+                "--backup",
+                "nowhere",
+                "x",
+            ],
+            {
+                "flow": "goal",
+                "agents": {"worker": AGENT},
+                "budget": {"cost": 1},
+                "backup": ["nowhere"],
+            },
         ),
     ],
 )

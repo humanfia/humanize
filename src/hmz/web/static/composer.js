@@ -1,5 +1,7 @@
 // The box a person types into at the foot of a view, as in a chat: it grows with what is
 // typed, Enter sends it and Shift+Enter starts a new line, and what refused it is said over it.
+// Given what to complete with, it offers, over itself, what the word being typed could become,
+// picked with the arrows and taken with Tab or Enter, as a terminal's prompt completes.
 
 import { fill, h, icon, problem } from './dom.js'
 
@@ -12,8 +14,9 @@ import { fill, h, icon, problem } from './dom.js'
  * @param {string} [made.value] What it holds to begin with.
  * @param {boolean} [made.empty] Whether it may be sent empty.
  * @param {string} [made.busy] What it says over itself while what was sent is being taken.
+ * @param {(text: string, caret: number) => Promise<Completing|null>|Completing|null} [made.complete] What the word at the caret could become.
  */
-export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = 'Sending…' }) {
+export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = 'Sending…', complete = null }) {
   const text = h('textarea', { rows: '1', placeholder, 'aria-label': label, 'data-hmz': 'composer-text' }, value)
   const send = h('button', { class: 'send', type: 'submit', 'aria-label': 'Send', title: 'Send' }, icon('send'))
   const said = h('div', { class: 'composer-said', 'aria-live': 'polite' })
@@ -24,7 +27,10 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
     text.style.height = `${Math.min(text.scrollHeight, 320)}px`
   }
   text.addEventListener('input', grow)
+  const offered = complete ? completer(text, complete) : null
+  if (offered) form.prepend(offered.node)
   text.addEventListener('keydown', (event) => {
+    if (offered && offered.key(event)) return
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
       event.preventDefault()
       form.requestSubmit()
@@ -43,6 +49,7 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
       fill(said)
       text.value = ''
       grow()
+      offered?.close()
     } catch (error) {
       fill(said, problem(error))
     } finally {
@@ -54,7 +61,118 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
   })
   // Measured again whenever its box changes, so one built before it is shown fits once shown.
   new ResizeObserver(() => requestAnimationFrame(grow)).observe(text)
-  return { node: form, text, tray, said, send }
+  return { node: form, text, tray, said, send, again: () => offered?.again() }
+}
+
+/**
+ * @typedef {object} Completing What the word at the caret could become.
+ * @property {number} from Where the word starts, which what is taken replaces.
+ * @property {number} to Where it ends.
+ * @property {{label: string, items: {insert: string, name: string, about: string, tag: string, hint: string, refused: boolean}[]}[]} groups
+ *   What is offered, in groups each saying where its items come from.
+ */
+
+/**
+ * The list a box offers completions in, read again as the caret moves: the newest reading only is
+ * drawn, so a slow one never draws over what was typed since.
+ */
+function completer(text, complete) {
+  const list = h('div', { class: 'composer-complete', role: 'listbox', 'aria-label': 'Completions', 'data-hmz': 'completions', hidden: true })
+  let shown = null
+  let items = []
+  let active = 0
+  let asked = 0
+
+  async function again() {
+    const mine = ++asked
+    let got = null
+    try {
+      got = await complete(text.value, text.selectionStart ?? text.value.length)
+    } catch {
+      got = null
+    }
+    if (mine !== asked) return
+    shown = got && got.groups.some((one) => one.items.length) ? got : null
+    items = shown ? shown.groups.flatMap((one) => one.items) : []
+    // Typed further, the best of what is offered now is the one picked.
+    active = 0
+    draw()
+  }
+
+  function draw() {
+    list.hidden = !shown
+    if (!shown) return fill(list)
+    let at = 0
+    fill(
+      list,
+      shown.groups.map((group) => [
+        h('div', { class: 'complete-group', role: 'presentation' }, group.label),
+        group.items.map((one) => {
+          const index = at++
+          return h(
+            'div',
+            {
+              class: ['complete-item', index === active && 'active', one.refused && 'refused'],
+              role: 'option',
+              'aria-selected': String(index === active),
+              'data-hmz': 'completion',
+              // Pressed, not clicked: the box keeps its focus, and so its caret.
+              onmousedown: (event) => {
+                event.preventDefault()
+                take(index)
+              },
+            },
+            h('span', { class: 'complete-name' }, one.name),
+            h('span', { class: ['complete-tag', `tag-${one.tag}`] }, one.tag),
+            one.about ? h('span', { class: 'complete-about' }, one.about) : null,
+            one.hint ? h('span', { class: 'complete-hint', 'data-hmz': 'completion-hint' }, one.hint) : null,
+          )
+        }),
+      ]),
+    )
+    list.querySelector('.active')?.scrollIntoView({ block: 'nearest' })
+  }
+
+  function take(index) {
+    const one = items[index]
+    if (!one || !shown) return
+    const { from, to } = shown
+    text.value = text.value.slice(0, from) + one.insert + text.value.slice(to)
+    const caret = from + one.insert.length
+    text.setSelectionRange(caret, caret)
+    text.dispatchEvent(new Event('input'))
+  }
+
+  function close() {
+    asked++
+    shown = null
+    items = []
+    draw()
+  }
+
+  text.addEventListener('input', again)
+  text.addEventListener('click', again)
+  text.addEventListener('blur', close)
+  return {
+    node: list,
+    again,
+    close,
+    /** Whether a key was the list's: moving through it, taking from it, or closing it. */
+    key(event) {
+      if (!shown || event.isComposing) return false
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        active = (active + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length
+        draw()
+      } else if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey)) {
+        // What would change nothing is not taken: Enter sends the line as it stands.
+        if (event.key === 'Enter' && items[active].insert === text.value.slice(shown.from, shown.to)) return false
+        take(active)
+      } else if (event.key === 'Escape') close()
+      else return false
+      event.preventDefault()
+      return true
+    },
+  }
 }
 
 /** A choice on a composer's bar, drawn as a chip: a word saying what it chooses, and the choice. */

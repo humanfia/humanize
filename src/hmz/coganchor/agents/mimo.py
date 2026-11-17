@@ -5,6 +5,12 @@ driven by is opencode's driver with the command it answers to and the flags that
 rather than as a second name in `hmz.coganchor.agents.opencode` because it is a second backend: it
 has its own home, its own models and its own place at a prompt, and a reader looking for what
 drives `mimo` should find a file called that.
+
+In a chat it carries what opencode's runs carry, the same way: `/<name>` as `--command`, `@path`
+as `--file`, the catalog listed by its own `debug config` and `debug skill`, and `!` not at all.
+What differs is its built-in commands, which are more than opencode's: the ones it serves
+whatever it is configured with are listed here, and the two an experimental flag of its own
+adds are left out, there being no asking a run whether they are on.
 """
 
 from __future__ import annotations
@@ -33,6 +39,22 @@ class MimoCodeSession(OpencodeSession):
     command: ClassVar[str] = "mimo"
     permits: ClassVar[str] = "MIMOCODE_PERMISSION"
     configures: ClassVar[str] = "MIMOCODE_CONFIG_CONTENT"
+    builtins: ClassVar[tuple[tuple[str, str], ...]] = (
+        *OpencodeSession.builtins,
+        (
+            "dream",
+            "manually consolidate project memory from memory files and raw trajectory",
+        ),
+        (
+            "distill",
+            (
+                "find repeated workflows in recent work and package them into skills, "
+                "subagents, or commands"
+            ),
+        ),
+        ("goal", "set a stop-condition goal; runs until a judge says it's met"),
+        ("rebuild", "rebuild the conversation context now from the latest checkpoint"),
+    )
 
     def _environment(self) -> dict[str, str]:
         """What opencode's driver runs a turn with, plus the preload where one is wanted.

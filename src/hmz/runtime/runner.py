@@ -178,7 +178,7 @@ def read_line(argv: list[str]) -> Line:
         metavar="KEY=VALUE[,...]",
         help="a flow param, read as its type or as JSON; budget.duration, budget.cost "
         "(USD), budget.output_tokens and budget.graceful -- or budget.graceful.<limit> "
-        "for one limit -- set what the run may spend, required except for chat",
+        "for one limit -- set what the run may spend, which is required",
     )
     parser.add_argument(
         "--profile-flow",
@@ -284,8 +284,8 @@ class Runner:
             workspace.
           params: The flow's params, as its model or as a mapping of values -- strings from
             `-p` among them -- or None for its defaults.
-          budget: What the run may spend. Only `chat` may be run without one, under
-            `Budget(cost=inf)`.
+          budget: What the run may spend, which every flow is held to: a chat, which spends
+            without one, is no flow (:mod:`hmz.runtime.chatting`).
           profile_flow: Whether to sample the flow's own Python while the run goes. Off
             unless asked, since it is a sampler running for as long as the flow does.
           profile_environment: Whether to sample the programs the agents start while the run
@@ -308,7 +308,7 @@ class Runner:
             backup target settings has none of.
         """
         from hmz.flows import Budget, FlowException
-        from hmz.runtime.flowing import FlowImpl, privileged, resolved
+        from hmz.runtime.flowing import FlowImpl, resolved, scratched
         from hmz.runtime.flowing.specs import EnvSpec as Spec
         from hmz.runtime.flowing.verses import spelled
 
@@ -329,13 +329,14 @@ class Runner:
             self._params = impl.params_of({} if params is None else params)
         except FlowException as why:
             raise Refused(str(why)) from why
-        if budget is None:
-            if not privileged(impl):
-                raise Refused(
-                    f"{self._named} requires a budget: specify with -p "
-                    "budget.cost=...,budget.duration=...,budget.output_tokens=..."
-                )
+        if budget is None and scratched(impl):
+            # Ai-chan talks for as long as you do (Section 14.4.3 of core.md).
             budget = Budget(cost=math.inf)
+        if budget is None:
+            raise Refused(
+                f"{self._named} requires a budget: specify with -p "
+                "budget.cost=...,budget.duration=...,budget.output_tokens=..."
+            )
         self._budget = budget if isinstance(budget, Budget) else _budget(budget)
         self._profile_flow = profile_flow
         self._profile_environment = profile_environment
@@ -351,8 +352,8 @@ class Runner:
         #: The runtimes the agents' harnesses go to where the harness setting of the runtime
         #: their work is on names one: opened the way an environment is, probed with them
         #: before the flow is called, and closed with them.
-        self._harbors = _harbors()
-        self._agents = _agent_drivers(agents_given, self._harbors)
+        self._harbors = harbors()
+        self._agents = agent_drivers(agents_given, self._harbors)
         self._envs, self._unopened = _env_drivers(envs_given, declared)
         #: What each environment role given as an `-e` was given as, which is what its
         #: runtime's fallback list is read off as it is probed.
@@ -381,7 +382,6 @@ class Runner:
         Raises:
           Refused: For a role that cannot be given this.
         """
-        from hmz.coganchor import providers
         from hmz.flows import HarnessKind
         from hmz.runtime.flowing.specs import AgentSpec, SpecError, parse_agents
         from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES
@@ -431,17 +431,8 @@ class Runner:
                 raise Refused(
                     f"{named}: {name!r} declares _clis, and litellm has no shell to run them"
                 )
-            if (
-                isinstance(said, AgentSpec)
-                and said.provider
-                and providers.find(said.cli, said.provider) is None
-            ):
-                # A line naming an account nobody made is a line that was wrong, and is
-                # said before anything runs rather than as the traceback of the first turn.
-                raise Refused(
-                    f"{named}: {name!r} names no {said.cli} account called "
-                    f"{said.provider!r}; make it on the accounts page of /settings"
-                )
+            if isinstance(said, AgentSpec):
+                saved(said, f"{named}: {name!r}")
             drivers[name] = said
             if isinstance(said, AgentSpec):
                 specs[name] = str(said).partition("=")[2]
@@ -785,7 +776,7 @@ class Runner:
             ParamsError,
             RequirementError,
         )
-        from hmz.runtime.flowing import local_env, open_outworlder, privileged, run_flow
+        from hmz.runtime.flowing import local_env, open_outworlder, run_flow
 
         from .backing import Keeping
         from .epic import Epic, Uncarried
@@ -816,7 +807,7 @@ class Runner:
                 self._workspace,
                 ref=impl.ref,
                 agents=[
-                    _drove(role, spec, self._agents[role].name)
+                    drove(role, spec, self._agents[role].name)
                     for role, spec in self._specs.items()
                 ],
                 envs=[f"{role}={spec}" for role, spec in self._places.items()],
@@ -833,8 +824,6 @@ class Runner:
                 },
                 resumable=impl.resumable,
                 picked_up=self._picked_up,
-                # A chat carried on is the same conversation, and so the same epic.
-                reopened=privileged(impl),
                 profile_flow=self._profile_flow,
                 profile_environment=self._profile_environment,
                 backup=self._backup,
@@ -892,15 +881,7 @@ class Runner:
                     epic.stopped()
                     raise
                 finally:
-                    usage = recorder.finished()
-                    epic.write(
-                        "usage",
-                        # Left out where it is not a number, which a price list gone bad
-                        # under the run leaves: nothing reading it back could add it up.
-                        **({"cost": usage.cost} if math.isfinite(usage.cost) else {}),
-                        output_tokens=usage.output_tokens,
-                        seconds=usage.duration.total_seconds(),
-                    )
+                    spent(epic, recorder.finished())
         finally:
             self._still = None
             _GOING.discard(self)
@@ -989,12 +970,9 @@ class Runner:
 
     async def _closed(self, local: EnvDriver | None) -> None:
         """Closes every driver the run was given, and the workspace's, however it ended."""
-        for driver in (*self._agents.values(), *self._envs.values(), local):
-            if driver is None:
-                continue
-            with contextlib.suppress(Exception):
-                await driver.close()
-        await self._harbors.close()
+        await closed(
+            (*self._agents.values(), *self._envs.values(), local), self._harbors
+        )
 
     def run(self, task: str, *, outworlder: OutworlderDriver | None = None) -> Any:
         """Runs the flow to its return, on a loop of its own in this thread.
@@ -1236,10 +1214,46 @@ def _about() -> dict[str, object]:
 telemetry.about("flow", _about)
 
 
-def _agent_drivers(
+# -------------------------------------------------- what a run and a chat both start from
+#
+# A chat (:mod:`hmz.runtime.chatting`) is no flow, but what it talks to is an agent opened as a
+# run opens one, in a workspace opened as a run opens its own, written down in an epic and
+# spending as a run spends: these are those steps, said once for both.
+
+
+def saved(said: AgentSpec, who: str) -> None:
+    """Refuses an agent whose spec names an account nobody made, before anything runs.
+
+    A line naming an account nobody made is a line that was wrong, and is said before
+    anything runs rather than as the traceback of the first turn.
+
+    Args:
+      said: The agent, as `-a` spells one.
+      who: What is refused, as the refusal starts: the flow and the role, or the chat.
+
+    Raises:
+      Refused: For an account that is not there.
+    """
+    from hmz.coganchor import providers
+
+    if said.provider and providers.find(said.cli, said.provider) is None:
+        raise Refused(
+            f"{who} names no {said.cli} account called {said.provider!r}; make it on the "
+            "accounts page of /settings"
+        )
+
+
+def agent_drivers(
     given: Mapping[str, AgentSpec | AgentDriver], harbors: Harbors
 ) -> dict[str, AgentDriver]:
     """A driver per agent role, made for each role given a spec, its harness put as said.
+
+    Args:
+      given: What each role was given: a spec, or a driver already made.
+      harbors: The harness runtimes the drivers put their harnesses on.
+
+    Returns:
+      A driver per role, which has started nothing.
 
     Raises:
       Refused: For a spec its CLI cannot be configured at.
@@ -1257,11 +1271,45 @@ def _agent_drivers(
         raise Refused(str(why)) from why
 
 
-def _harbors() -> Harbors:
-    """The run's harness runtimes, none of them opened yet."""
+def harbors() -> Harbors:
+    """The harness runtimes of a run or a chat, none of them opened yet."""
     from hmz.runtime.flowing.harbors import Harbors
 
     return Harbors()
+
+
+async def closed(
+    drivers: Iterable[AgentDriver | EnvDriver | None], harbors: Harbors
+) -> None:
+    """Closes every driver a run or a chat was given, and its harness runtimes, however it ended.
+
+    Args:
+      drivers: The drivers, None standing for one never made.
+      harbors: The harness runtimes.
+    """
+    for driver in drivers:
+        if driver is None:
+            continue
+        with contextlib.suppress(Exception):
+            await driver.close()
+    await harbors.close()
+
+
+def spent(epic: Epic, usage: Usage) -> None:
+    """Writes what an epic spent since it began or was opened again, as it is about to end.
+
+    Args:
+      epic: The epic.
+      usage: What it spent.
+    """
+    epic.write(
+        "usage",
+        # Left out where it is not a number, which a price list gone bad under the epic
+        # leaves: nothing reading it back could add it up.
+        **({"cost": usage.cost} if math.isfinite(usage.cost) else {}),
+        output_tokens=usage.output_tokens,
+        seconds=usage.duration.total_seconds(),
+    )
 
 
 def _env_drivers(
@@ -1312,8 +1360,17 @@ def _by_role(given: object) -> list[tuple[str, object]]:
     ]
 
 
-def _drove(role: str, spec: str, name: str) -> Drove:
-    """One agent role as the epic writes it down, off the spec it was given as."""
+def drove(role: str, spec: str, name: str) -> Drove:
+    """One agent role as the epic writes it down, off the spec it was given as.
+
+    Args:
+      role: The role.
+      spec: The agent, as `-a` spells one after `<role>=`.
+      name: What the agent is called.
+
+    Returns:
+      The role, as `began` gives it.
+    """
     from hmz.coganchor.spelling import parted
 
     from .epic import Drove

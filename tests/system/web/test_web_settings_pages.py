@@ -136,7 +136,7 @@ def test_notification_kinds_are_saved_as_they_are_toggled(
         go(page, "/settings/notifications")
         expect(page.locator("[data-hmz=notify-failed]")).not_to_be_checked()
         expect(page.locator("[data-hmz=notify-asked]")).to_be_checked()
-        for label in ("Done", "Failed", "Stopped", "Questions", "Chat turns"):
+        for label in ("Done", "Failed", "Stopped", "Questions", "Waiting"):
             expect(page.get_by_label(label, exact=True)).to_be_visible()
         page.get_by_label("Questions", exact=True).uncheck()
         said = page.locator("[data-hmz=notifications-said]")

@@ -3,7 +3,7 @@
 // loop sends each turn to a session -- a fresh one each round, or one kept -- with ordinary
 // code between the turns, and another flow can call it, handing down only the roles it
 // declared. Pick a flow to watch its loop. Each loop is the one the flow really runs, and all
-// four ship with Humanize: `src/hmz/flows/builtin/<name>/__init__.py`. What a called flow is
+// three ship with Humanize: `src/hmz/flows/builtin/<name>/__init__.py`. What a called flow is
 // handed is `protocol/python.md`. The CLIs in the sockets are only examples. Under the lanes, the
 // line of the flow running at each moment, written as the loop is: a session is opened with
 // `spawn()` and is only the conversation; where a turn works is the run's (`run(..., env=None)`,
@@ -35,27 +35,6 @@ interface Loop {
 }
 
 const LOOPS: Loop[] = [
-  {
-    key: 'chat',
-    link: 'https://humanfia.ai/flows/chat',
-    roles: [
-      { name: 'assistant', cli: 'claude' },
-      { name: 'human', cli: 'you' },
-    ],
-    lanes: [
-      { role: 0, label: 'assistant · one session', kept: true },
-      { role: 1, label: 'human · you', kept: true },
-    ],
-    events: [
-      { lane: 0, text: 'answers', code: 'a = await assistant.run(said, session=s)' },
-      { lane: 1, text: 'replies', code: 'said = await human.run(a, session=me)' },
-      { lane: 0, text: 'answers', code: 'a = await assistant.run(said, session=s)' },
-      { lane: 1, text: 'nothing', code: 'said = await human.run(a, session=me)  # ""' },
-      { lane: -1, text: 'ends', code: 'while said: ...  # nothing said: it ends' },
-    ],
-    split: 2,
-    words: ['It answers, then asks you', 'One session; silence ends it'],
-  },
   {
     key: 'ralph_loop',
     link: 'https://humanfia.ai/flows/ralph-loop',
@@ -110,7 +89,7 @@ const LOOPS: Loop[] = [
   },
 ]
 
-const which = ref(3)
+const which = ref(2)
 const loop = computed(() => LOOPS[which.value])
 
 const BEATS = computed(() => [

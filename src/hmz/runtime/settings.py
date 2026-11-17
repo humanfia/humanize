@@ -31,7 +31,7 @@ from __future__ import annotations
 import copy
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import yaml
 
@@ -146,6 +146,21 @@ class Settings:
     def btw(self, spec: str) -> None:
         """Writes down which agent answers The Epic, or "" for none."""
         self._sets("btw", spec)
+
+    @property
+    def ai_chan(self) -> str:
+        """The nous a new Ai-chan conversation defaults to, as a nous's name or an agent spec.
+
+        This machine's rather than a workspace's (Section 3.4.3 of files.md): "" while nobody
+        has chosen one, which is no default, and a frontend asks for one instead.
+        """
+        said = self._held.get("ai_chan")
+        return said if isinstance(said, str) else ""
+
+    @ai_chan.setter
+    def ai_chan(self, spec: str) -> None:
+        """Writes down the nous a new Ai-chan conversation defaults to, or "" for none."""
+        self._sets("ai_chan", spec)
 
     @property
     def every_epic(self) -> bool:
@@ -283,6 +298,57 @@ class Settings:
                 return {}
             said[role] = runs
         return said
+
+    @property
+    def chat_agent(self) -> Runs | None:
+        """The agent a new chat here talks to, or None where none was chosen.
+
+        A workspace's, as a flow's agents are, and read from `chat.agent` alone (Section 3.5.1.9
+        of files.md): a flow called `chat` is a flow, whose agents are no chat's.
+        """
+        raw = self._here().get("chat")
+        return (
+            read_back(cast("dict[str, Any]", raw).get("agent"))
+            if isinstance(raw, dict)
+            else None
+        )
+
+    @chat_agent.setter
+    def chat_agent(self, runs: Runs) -> None:
+        """Writes down the agent a new chat here talks to."""
+
+        def change(held: dict[str, Any]) -> None:
+            mine = self._mine(held)
+            if not isinstance(mine.get("chat"), dict):
+                mine["chat"] = {}
+            cast("dict[str, Any]", mine["chat"])["agent"] = written(runs)
+
+        self._write(change)
+
+    @property
+    def chat_prefer(self) -> Literal["native", "flow"]:
+        """What `$<name>` in a chat means where it names both a native skill and a flow.
+
+        This machine's rather than a workspace's, as `details` is, and overridden for one chat
+        by that chat's own preference (Section 8.9 of [CORE]). `native` unless somebody says
+        otherwise: a chat is meant to take what its harness takes, as its harness takes it.
+        """
+        raw = self._held.get("chat")
+        said = (
+            cast("dict[str, Any]", raw).get("prefer") if isinstance(raw, dict) else None
+        )
+        return "flow" if said == "flow" else "native"
+
+    @chat_prefer.setter
+    def chat_prefer(self, prefer: Literal["native", "flow"]) -> None:
+        """Writes down what `$<name>` in a chat means where it names both."""
+
+        def change(held: dict[str, Any]) -> None:
+            if not isinstance(held.get("chat"), dict):
+                held["chat"] = {}
+            cast("dict[str, Any]", held["chat"])["prefer"] = prefer
+
+        self._write(change)
 
     def envs(self, flow: str) -> dict[str, str]:
         """What each environment role of one flow was last given here, as `-e` spells one.

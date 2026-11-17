@@ -540,8 +540,8 @@ any harness that serves them.
 | When a flow calls another | What the caller hands over covers the callee's declaration. | [`RequirementError`](#requirementerror) leaves; see [What the called flow is handed](#what-the-called-flow-is-handed) |
 | At every use | The view's grant contains the mixin for the operation. | [`CapabilityNotGranted`](#capabilitynotgranted) |
 
-Of the flows Humanize ships in the package, only [`chat`](#the-flow-in-the-package) is marked
-*full view*: each agent role is granted every mixin its harness serves, whatever it declares.
+Every flow, those Humanize ships included, is granted exactly what its roles declare. A
+[chat](/user/chat) is not a flow: its one agent has every capability its harness offers.
 
 ## Permissions {#what-each-agent-may-do}
 
@@ -1310,10 +1310,10 @@ At least one of `duration`, `cost`, `output_tokens` must be set
 otherwise `pydantic.ValidationError`. `Budget(cost=math.inf)` means unlimited and serializes
 as `{"cost": "Infinity"}`.
 
-**Which runs need one.** Every run except of `chat`: from `-p budget.<limit>=`
+**Which runs need one.** Every run of a flow: from `-p budget.<limit>=`
 (see [`budget.*`](#p-budget)), `/flow`, or `budget=` in [Python](/reference/sdk). Without it:
 `<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...`.
-`chat` given none runs under `Budget(cost=math.inf)`.
+A [chat](/user/chat), which is not a flow, runs under none.
 
 ### Effective budget
 
@@ -1334,7 +1334,9 @@ and [`Agent.run`](#run)). They nest:
   own, each limit graceful or hard as the budget leaving it says -- a hard token limit leaves
   a graceful cost limit graceful. Where two budgets leave the same amount, the one hard for
   that limit wins. A turn's own budget lasts one turn: a graceful one only counts; use
-  `graceful=False` to cut a turn short.
+  `graceful=False` to cut a turn short. The leaf `run` raises then has `own=True` where only
+  the turn's own budget is spent, so a flow may catch it and go on; where a budget above the
+  turn is spent too, `run` raises for that one, with `own=False`.
 
 **Enforcement.**
 
@@ -1582,10 +1584,8 @@ nothing was spent. Refusals for one kind of agent grant are computed once per ro
 | anything not handed out by the run | — | `RequirementError`: `<ref>: '<role>' was given <value>, which is not an agent the run handed out` (or `environment`) |
 
 The callee receives **exactly** its declaration: each agent re-granted the callee role's
-mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins. A
-*full view* callee such as `chat` is granted every mixin of each agent's harness in place of
-the role's, and the rest as above. Its hooks and sessions are its own; a session the caller
-opened cannot be used by the callee.
+mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins.
+Its hooks and sessions are its own; a session the caller opened cannot be used by the callee.
 
 `Hmz().flows.running()` lists every flow call currently running in this process (oldest
 first), each with its ref, name, depth, start time, journal id, parent, task and whether it is
@@ -1663,12 +1663,12 @@ nothing answers to raises `FlowNotFound` (`<ref>: no flow is called '<name>'`; a
 
 | Listed as | Is |
 | --- | --- |
-| `chat`, `flame_chasoid` | built in, or installed from `official`'s `flows/<flow>/` |
+| `rlar`, `flame_chasoid` | built in, or installed from `official`'s `flows/<flow>/` |
 | `alice/kernel` | installed from `official`'s `flows/alice/kernel/` |
 | `@theirs/review` | installed from flowverse `theirs` |
 | `@theirs/alice/kernel` | installed from flowverse `theirs`'s `flows/alice/kernel/` |
-| `@local/chat` | this project's `.hmz/flows/chat` |
-| `@user/chat` | `~/.hmz/flows/chat` |
+| `@local/review` | this project's `.hmz/flows/review` |
+| `@user/review` | `~/.hmz/flows/review` |
 
 `-f` takes the listed name; the TUI starts a flow by it (`$@local/twice`). What `/flow`
 remembers is keyed by the listed name ([Settings](/reference/settings)), so what it remembered
@@ -1852,7 +1852,6 @@ role.
 
 | Flow | Agent roles | Roles need | Resumable | Budget | Grant |
 | --- | --- | --- | :-: | --- | --- |
-| [`chat`](https://humanfia.ai/flows/chat) | `assistant`, `human: Outworlder` | | | `Budget(cost=math.inf)` unless one is given | every mixin the harness serves |
 | [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | `agent` | | | required | what each role declares |
 | [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) | `agent` | | ✓ | required | what each role declares |
 | [`continue_loop`](https://humanfia.ai/flows/continue-loop) | `agent` | | | required | what each role declares |
@@ -1860,18 +1859,19 @@ role.
 | [`flame_chase`](https://humanfia.ai/flows/flame-chase) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
 | [`rlar`](https://humanfia.ai/flows/rlar) | `actor`, `reviewer` | | ✓ | required | what each role declares |
 
-`chat` opens one session and takes one turn per line the outworlder says; under `hmz exec`
-(outworlder away) it takes the task as its one turn and returns. Interfaces show that
-outworlder as the conversation itself: its wait for the next line is no separate question, a
-follow-up or steer typed in the assistant's conversation is that line, and the agent's own
-questions show there with their options. The first turn's failure ends
-the run; later failures are reported and the conversation continues.
+A [chat](/user/chat), which `hmz` opens on, is not among them: it is an epic of its own kind,
+with no flow.
 
 The loops are each the plainest form of their idea, written to be read and copied. Each runs
 until its budget is spent (`rlar` also until its reviewer says done), and a turn that fails
 ends the run with that failure; none prints, pauses or counts rounds. What a resumable one
 keeps in its state is what its next turn needs: `stateful_ralph` its [session](#sessions-in-state),
 `flame_chase` whose turn is next (`turn`), `rlar` the last review (`notes`, removed when done).
+
+`flame_chase` also takes a quota for each chaser's turns: `-p first_chaser_duration=600`
+(seconds), `first_chaser_cost=1.5` (USD), `first_chaser_output_tokens=20000`, and the same
+for `second_chaser_*`. A turn that reaches its quota is cut off at once and the other chaser
+takes over from what it left; the run's own `budget.*` still ends the run.
 
 ### The official flowverse {#the-official-flowverse}
 
@@ -2159,7 +2159,7 @@ FlowException
 | <code id="capabilitynotgranted">CapabilityNotGranted</code> | `FlowRuntimeError` | an operation the role did not declare; widening a grant with `derive`; `on_outworlder_run` on an outworlder not from `new()` |
 | <code id="paramserror">ParamsError</code> | `FlowRuntimeError`, `ValueError` | params do not validate |
 | <code id="flowdepthexceeded">FlowDepthExceeded</code> | `FlowRuntimeError`, `RecursionError` | a call would be 65 deep |
-| <code id="budgetexceeded">BudgetExceeded</code> | `FlowRuntimeError` | a budget of this call or one above is spent; sticky |
+| <code id="budgetexceeded">BudgetExceeded</code> | `FlowRuntimeError` | a budget of this call or one above is spent; sticky. `own` is `True` where only the turn's own `budget=` is spent |
 | <code id="durationexceeded">DurationExceeded</code> | `BudgetExceeded`, `TimeoutError` | `duration` elapsed |
 | <code id="costexceeded">CostExceeded</code> | `BudgetExceeded` | `cost` spent |
 | <code id="outputtokensexceeded">OutputTokensExceeded</code> | `BudgetExceeded` | `output_tokens` spent |
