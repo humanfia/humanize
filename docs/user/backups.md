@@ -20,8 +20,7 @@ backup:
 ```
 
 ```console
-$ hmz exec -f chat -a assistant=claude/claude-haiku-4-5 "say hello"
-did: say hello
+$ hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.cost=1 "say hello"
 ```
 
 The repository now holds one commit, `Back up epic 20261012T091500.123Z-1a2b3c (end)`.
@@ -71,8 +70,8 @@ leaves once it has printed its answer; `hmz` waits up to 15 seconds for the ones
 `defaults` are the targets a new epic goes to. Choose others when you start it:
 
 ```console
-$ hmz exec -f chat -a assistant=claude/claude-haiku-4-5 --backup lab --backup home "hi"
-$ hmz exec -f chat -a assistant=claude/claude-haiku-4-5 --backup none "hi"
+$ hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.cost=1 --backup lab --backup home "hi"
+$ hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.cost=1 --backup none "hi"
 ```
 
 The epic remembers which targets it was started with. In `hmz`, the same targets are

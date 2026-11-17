@@ -25,7 +25,7 @@ import { withBase } from 'vitepress'
   hosts as it does this machine's, one at a time, and installs the same Humanize where one is
   missing; a machine you cannot `ssh` to is paired by a code and reached
   [peer to peer over EasyTier](/user/web#over-easytier).
-- **Told when it matters.** An epic ending, a question for you or a `chat` waiting, on any of
+- **Told when it matters.** An epic ending, a question for you or a [chat](/user/chat) waiting, on any of
   them, is a [notification](/user/web#notifications): in the page, the browser or macOS.
 - **Settings become a form.** The terminal interface draws one from a flow's
   [settings](/weaver/flow-settings). Its author writes none of it.

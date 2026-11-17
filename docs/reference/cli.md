@@ -19,6 +19,7 @@ hmz                                    open the terminal interface
 hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
+hmz chat [-a <agent>] [--resume <epic>] [--] <message>  say one message to an agent here
 hmz web [<options>]                    serve every workspace's runs to a browser
 hmz daemon serve|connect --stdio|pair|devices|install|uninstall  this machine's daemon
 hmz relay serve [--listen <host>:<port>]  relay daemons and the devices that reach them
@@ -31,6 +32,7 @@ hmz internal <command> [<args>...]     processes Humanize spawns for itself
 | --- | --- | --- |
 | *(none)* | `opens` | Opens the [terminal interface](/reference/tui). |
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
+| [`chat`](#hmz-chat) | `_chat` | `say one message to an agent in this directory` |
 | [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
 | [`daemon`](#hmz-daemon) | `_daemon` | `run, reach, pair and install this machine's daemon` |
 | [`relay`](#hmz-relay) | `_relay` | `relay daemons and the devices that reach them` |
@@ -51,7 +53,7 @@ thirty words. This page is the full account of each.
 | --- | --- | --- |
 | empty | [Opens the interface](#hmz). | `0`, or `1` (see below) |
 | exactly `["--version"]` | Prints `hmz <version>` (from the installed distribution's metadata) to stdout. | `0` |
-| first word is `exec`, `web`, `daemon`, `relay`, `update`, `backup` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
+| first word is `exec`, `chat`, `web`, `daemon`, `relay`, `update`, `backup` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
 | `-h` or `--help` first | Prints the top-level help. | `0` |
 | anything else | argparse usage error on stderr (below). | `2` |
 
@@ -130,7 +132,7 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | <span id="exec-flow"></span>`-f`, `--flow` | [`<ref>`](#naming-a-flow) | ≥ 1 (**required**; the last wins) | — | The flow. |
 | <span id="exec-agents"></span>`-a`, `--agents` | [`<agent>`](#writing-an-agent) list | 0‥n, merged | none | One agent per agent role. |
 | <span id="exec-envs"></span>`-e`, `--envs` | [`<env>`](#writing-an-environment) list | 0‥n, merged | none | One environment per environment role. |
-| <span id="exec-params"></span>`-p`, `--params` | [`<param>`](#writing-params) list | 0‥n, merged | the flow's defaults | Fields of the flow's `FlowParams`, and, as [`budget.<limit>`](#writing-a-budget), what the run may spend: **required** except for `chat`. |
+| <span id="exec-params"></span>`-p`, `--params` | [`<param>`](#writing-params) list | 0‥n, merged | the flow's defaults | Fields of the flow's `FlowParams`, and, as [`budget.<limit>`](#writing-a-budget), what the run may spend: **required**. |
 | <span id="exec-profile"></span>`--profile-flow` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the flow's own Python, as well as tracing the run. |
 | `--profile-environment` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them. |
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
@@ -326,8 +328,9 @@ Each limit at most once across every `-p`, among the flow's params or apart from
 | `graceful` | `1` `true` `yes` `on` / `0` `false` `no` `off`, case-insensitive. Default `true`: the turn under way when a limit is reached is let finish. | `bool` |
 | `graceful.duration`, `graceful.cost`, `graceful.output_tokens` | As `graceful`, for that limit alone, over what `graceful` says: `budget.cost=5,budget.output_tokens=200k,budget.graceful.output_tokens=false` cuts a turn off at its 200 000th token but lets one that reaches $5 finish. | `Graceful` |
 
-With no `budget.*`, `chat` runs under `Budget(cost=inf)`; any other flow is refused, the other
-flows Humanize ships included.
+With no `budget.*`, every flow is refused, the flows Humanize ships included. A flow named
+`chat` is no exception: it is an ordinary flow. To talk to one agent with no budget, use
+[`hmz chat`](#hmz-chat).
 
 A run with a finite `cost` limit first brings the [price list](/reference/files#h-prices-json)
 up to date when the copy kept is missing or older than 24 h (at most 20 s; never with
@@ -434,7 +437,7 @@ Stage 1–2 messages are preceded by the usage block.
 | a CLI lacking a capability the role needs | `<flow>: '<role>' needs <Mixin>[, <Mixin>…], which <cli> does not support` |
 | an effort off the ladder | `<role>=<spec>: <cli> cannot be asked to think at '<effort>'; expected one of <ladder>` |
 | params the flow rejects | `<canonical ref>: <pydantic validation error>` |
-| no `budget.*`, any flow but `chat` | `<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` |
+| no `budget.*` | `<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` |
 | `--resume` | see [Picking a run up](#picking-a-run-up) |
 | an environment unreachable or smaller than declared | the reason, naming the role |
 | a harness that cannot run where its runtime's harness setting says | see [Where the harness runs](#choosing-where-the-harness-runs) |
@@ -521,7 +524,7 @@ What the flow prints in the host arrives as `printed` records: written to stdout
 `--json`, to stderr with it.
 
 ```console
-$ hmz exec -f chat -a assistant=claude/claude-opus-5:high --json "say hello" | jq -c 'select(.kind == "result")'
+$ hmz exec -f goal -a worker=claude/claude-opus-5:high -p budget.cost=1 --json "say hello" | jq -c 'select(.kind == "result")'
 {"at":1789026740.6,"agent":"NeiKos496","cli":"claude","model":"claude-opus-5","session":"1d1ff959","kind":"result","text":"Hello.","whose":"","tokens":{"claude-opus-5":2080},"spent":{"input":2000,"output":80}}
 ```
 
@@ -562,6 +565,43 @@ also exits `130` without a traceback.
 
 A run that ends because its budget was reached is not a failure: stderr gets
 `hmz exec: stopped -- <why>` naming the limit, and the exit status is `0`.
+
+## `hmz chat` {#hmz-chat}
+
+Takes one turn of a [chat](/user/chat) in the current directory (the *workspace*), with nobody
+at a prompt, and ends it. A chat is not a flow: it has one agent, no params and no budget.
+
+```text
+usage: hmz chat [-h] [-a SPEC] [--resume EPIC] message
+```
+
+`hmz chat` starts the chat on a new chat slot (`chat:`, see
+[Daemon › Slots](/reference/daemon#slots)) of the workspace on this machine's daemon, starting
+the daemon where none runs (`chat.start`), follows its messages (`epic.attach`) until the turn
+is done, and then ends the chat with an empty next message.
+
+| Option | Value | Occurrences | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| <span id="chat-agent"></span>`-a`, `--agent` | an [`<agent>`](#writing-an-agent) after `<role>=`: `cli[@account]/model[:effort]` | 0‥n (the last wins) | the chat agent this workspace remembers ([`workspaces.<path>.chat.agent`](/reference/settings#workspace-settings)); refused where none is, saying to give one with `-a` | The assistant. |
+| <span id="chat-resume"></span>`--resume` | an epic directory name | 0‥1 | — | Carry that chat of this workspace on, in the same epic, with `message` as its next turn and its own agent unless `-a` is given. |
+| `-h`, `--help` | flag | | | Print the help and exit `0`. |
+| `message` | positional string | exactly 1 (**required**, not empty) | — | The first message, or the next. Put `--` before one that starts with `-`. |
+
+The message is served as a line said in a chat ([native input](/user/chat#what-a-line-means)),
+except that a `$` line naming a flow, and a name hmz keeps (`/clear`, `/resume`, `/exit`,
+`/quit`, `/btw`, `/flow`, `/epics`, `/settings`, `/chat`, `/prefer`), are refused, naming it.
+`hmz chat` reads `chat.agent` of the workspace only where it is given no `-a`, and changes
+nothing any workspace remembers.
+
+The turn is drawn on stderr and the answer written to stdout, as
+[`hmz exec`](#watching-a-run) does.
+
+| Exit | When |
+| --- | --- |
+| `0` | The turn is done. |
+| `1` | The turn failed: what the harness said, on stderr. Or the daemon could not be reached, as for `hmz exec`. |
+| `2` | Refused before the chat started: `hmz chat: error: <reason>` on stderr, a refusal of `chat.start` with its message as `<reason>`. |
+| `128 + signum` | `SIGINT`, `SIGTERM` or `SIGHUP`: the chat is left to its host. |
 
 ## `hmz web` {#hmz-web}
 
@@ -959,19 +999,20 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 
 | Status | Command | Meaning |
 | --- | --- | --- |
-| `0` | all | Success. For `hmz exec`, including a run its budget stopped. |
+| `0` | all | Success. For `hmz exec`, including a run its budget stopped; for `hmz chat`, the turn done. |
 | `1` | `hmz` | Runs held by an older Humanize; the daemon could not be reached; or the host let go of the interface. |
 | `1` | `hmz web` | This machine's daemon is an older Humanize's; or the daemon or the port could not be had. |
 | `1` | `hmz daemon` | A daemon already running on `serve`; the daemon unreachable, of another protocol, or refusing; the service could not be installed. |
 | `1` | `hmz relay` | The address could not be listened on. |
 | `1` | `hmz update` | Installed from a source, or no installer, PyPI or install that worked. |
 | `1` | `hmz exec` | The daemon could not be reached (`hmz: the daemon cannot be reached: <why>`); or the flow failed (the `why` of its `ended` record, the exception or traceback, on stderr; the host reports the crash where reporting is on). |
+| `1` | `hmz chat` | The daemon could not be reached; or the turn failed (what the harness said, on stderr). |
 | `1` | `internal …` | Could not connect, listen, supervise, or reach a socket. |
 | `2` | all | The line was wrong: argparse rejections and everything in [What is refused](#what-is-refused-before-anything-runs). |
 | `126` | `internal fence` | The fence could not be put up; the program never ran. |
 | `127` | `internal anchor --native` | The target has no such CLI. |
-| `130` | `hmz exec`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the epic has let go of what it made. |
-| `129`, `143` | `hmz exec` | `SIGHUP`, `SIGTERM`, after the epic has let go of what it made. |
+| `130` | `hmz exec`, `hmz chat`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the epic has let go of what it made; for `hmz chat`, leaving the chat to its host. |
+| `129`, `143` | `hmz exec`, `hmz chat` | `SIGHUP`, `SIGTERM`, as `SIGINT` is. |
 | *program's* | `internal anchor`, `cred`, `fence` | The wrapped program's own status. |
 | *flow's* | `internal cli` | What the flow answered the run with. |
 

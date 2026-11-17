@@ -32,6 +32,7 @@ holds the same table, so an import that breaks it fails the run.
 | a type, mixin, hook or error a flow imports | `flows/`, then check the flows [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still work |
 | how a flow runs: the engine, budgets, resuming, the harness and environment drivers | `runtime/flowing/`, then check those flows too |
 | the `hmz exec` line: a flag, a refusal | `runtime/runner.py` |
+| a chat: what a line typed in one means, how its turns go, its preference | `runtime/chatting/`; what a CLI takes natively is its driver's `natives()` in `coganchor/agents/`, as a list of `NativeCommand` |
 | what a run writes down | `runtime/epic.py` |
 | reading a backend's logs back as a trace | `runtime/tracing/` |
 | what a run looks like as it happens -- who is working, what it has cost, what a side question is told -- for every interface | `runtime/watching/`, once |
@@ -45,7 +46,7 @@ holds the same table, so an import that breaks it fails the run.
 | the frames a session carries, and JSON-RPC over them: calls, notifications, errors, `session.hello` | `rpc/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
-| a flow Humanize ships | `flows/builtin/`, for `chat` and the six loops FlowBench scores. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
+| a flow Humanize ships | `flows/builtin/`, for the six loops FlowBench scores. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
 
 Nothing sits at the top of `src/hmz/` but `__init__.py` and `__main__.py`. Name a module for
 what it holds, in the words `hmz` and these docs use.
@@ -133,6 +134,12 @@ kind of driver it needs, which `protocol/core.md` says.
        state_paths=("~/.minimax", "~/.mavis"),
    ),
    ```
+
+   Where the way it is driven can carry the CLI's own `/` commands, skills, `!` or `@`, the
+   session's `natives()` lists them as `NativeCommand`s (`coganchor/agents/native.py`), each
+   saying whether it is passed, called, emulated or refused, and `stream(..., native=True)`
+   serves a [chat](/user/chat#native-input-by-cli)'s line so. A CLI that lists none takes
+   every line of a chat as text.
 
 ### 2. Offer it to flows, in `flows/`
 
@@ -232,7 +239,7 @@ not the protocol's.
 ::: details Every document
 | | |
 | --- | --- |
-| `protocol/core.md` | Conventions and shared terms; epics, agents, accounts, placements, environments, chat, side questions, monitoring, backups, telemetry, updates |
+| `protocol/core.md` | Conventions and shared terms; epics, agents, accounts, placements, environments, chats and their native input, side questions, monitoring, backups, telemetry, updates |
 | `protocol/cli.md` | Every command line |
 | `protocol/tui.md` | Every behaviour the terminal interface must have |
 | `protocol/daemon.md` | One daemon per machine, remote daemons, and the daemon's protocol as a frontend sees it |
