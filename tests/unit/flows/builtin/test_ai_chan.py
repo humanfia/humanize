@@ -339,3 +339,20 @@ def test_her_command_line_takes_a_mapping_as_json(tools: Any) -> None:
     code, out, _ = tools.CLI.run(["hmz-call", "--help"])
     assert code == 0
     assert "--params" in out
+
+
+async def test_carried_on_with_nothing_said_she_waits_on_you_with_what_she_last_said(
+    ai_chan: Any, client: mock.Mock
+) -> None:
+    del client
+    kept = object()
+    agent, human = her("sure"), her("stop epic 3", "")
+    state: dict[str, Any] = {"conversation": kept, "answered": "anything else?"}
+
+    await call(
+        ai_chan, "", doubles.context(state, resumed=True), ai_chan=agent, human=human
+    )
+
+    assert doubles.prompts(human) == ["anything else?", "sure"]
+    assert doubles.prompts(agent) == ["stop epic 3"]
+    assert state["answered"] == "sure"

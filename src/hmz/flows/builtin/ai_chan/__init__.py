@@ -161,6 +161,12 @@ async def _converse(
     person = await human.spawn()
     said = task
     opening = not ctx.resumed
+    if not said and ctx.resumed:
+        # Carried on by her host with nothing said yet: between turns, waiting on you, with
+        # what she last said.
+        last = str(state["answered"]) if "answered" in state else ""
+        said = await human.run(unkept or last, session=person)
+        unkept = ""
     try:
         while said:
             try:
@@ -182,6 +188,7 @@ async def _converse(
             if unkept:
                 answered, unkept = f"{unkept}\n\n{answered}", ""
             opening, carried = False, None
+            state["answered"] = answered
             said = await human.run(answered, session=person)
     finally:
         with contextlib.suppress(Exception):
