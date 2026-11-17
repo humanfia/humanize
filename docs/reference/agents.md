@@ -384,8 +384,15 @@ Per-backend rules:
 - **mimo**, **opencode**: what is denied goes in a permission table (`OPENCODE_PERMISSION` /
   `MIMOCODE_PERMISSION`), with `--auto` (opencode) or `--dangerously-skip-permissions` (mimo),
   unless `unattended` says otherwise.
-- **qwen**: always `--approval-mode yolo`; its asking modes would leave a held-open session
-  waiting on an approval nothing can answer.
+- **grok**: `grok agent` (the held-open transport) refuses `--tools` and
+  `--disable-web-search`, so a fence that writes nothing, or web search off, takes each turn as
+  a `grok -p` run resuming the same session; a fence that writes somewhere is held open with
+  `--always-approve`. A `session/request_permission` is granted under a fence unless a
+  `PERMISSION_REQUEST` hook refuses it, and refused with no fence.
+- **qwen**: `--approval-mode yolo` under a fence, and no mode with none; its asking modes would
+  leave a held-open session waiting on an approval nothing can answer. `run_shell_command` and
+  `monitor` (a command run in the background, its output streamed back) are kept when the fence
+  writes nothing: both run commands the fence holds.
 
 ### Flow permission to the fence {#the-flow-api-s-permission-on-each-cli}
 
@@ -943,7 +950,7 @@ A refusal reaches the agent only on a backend that waits for the answer:
 | --- | --- | --- |
 | `claude` | at `read-only` and `bypass`: `--permission-prompt-tool stdio` routes every request over the stream | yes at `bypass`; no at `read-only`; at the other rungs and with no rung nothing is routed |
 | `codex` | through the app server, at `auto` (`on-request`) and at any rung given `approvals` | yes at every rung; no with no rung |
-| `grok` | `session/request_permission`, on the held-open transport only | yes at every rung; no with no rung |
+| `grok` | `session/request_permission`, on the held-open transport only | yes under a fence; no with none |
 | `kimi` | each approval on the daemon's `/approvals`: at `auto`, and at `read-only` or no rung | yes at `auto`; no at `read-only` and with no rung |
 
 A hook can turn a yes into a no, never a no into a yes. Under a flow, Codex's refusal carries
