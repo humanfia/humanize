@@ -24,6 +24,10 @@ interface reaches them, claiming the roles a tool answers for and saying what th
         for said in link:
             ...
 
+An `Outworlder` role is answered by an :class:`hmz.runtime.flowing.OutworlderDriver` given to
+:meth:`Hmz.run`, asked each question as one :class:`Ask`: its prompt, the JSON Schema its answer
+is a value of, and the context shown with it -- the same question a person is shown.
+
 What runs an epic in a host is internal to Humanize, and is not offered here.
 
 Everything here is fetched when it is named, for the reason a workspace's own layers are: a
@@ -46,6 +50,7 @@ if TYPE_CHECKING:
         Refused,
         Runtimes,
     )
+    from hmz.runtime.flowing.spi import Ask
     from hmz.sdk import faking as fakes
     from hmz.sdk.client import Client
     from hmz.sdk.daemons import Daemons
@@ -53,6 +58,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "Accounts",
+    "Ask",
     "Client",
     "Daemon",
     "Daemons",
@@ -73,6 +79,7 @@ __all__ = [
 #: Hmz` costs the modules `Hmz` needs rather than every layer Humanize has.
 _WRITTEN = {
     "Accounts": "hmz.runtime",
+    "Ask": "hmz.runtime.flowing.spi",
     "Client": "hmz.sdk.client",
     "Daemon": "hmz.daemon",
     "Daemons": "hmz.sdk.daemons",
