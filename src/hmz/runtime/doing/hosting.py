@@ -92,9 +92,9 @@ __all__ = ["FOLD", "Host", "assistant", "chat_checked", "record"]
 #: socket carrying it has a ceiling of its own.
 _LONGEST = 256 * 1024
 
-#: How long one text of the context beside a question or a `show` may be: an image's, written
-#: in base64, comes to a third more than the 4 MiB it may be, and an image cut short is none.
-_CONTEXT = 8 << 20
+#: What a message that shows something carries whole, never cut: the schema a question is
+#: answered in, and the context beside it, which the runtime holds to 16 MiB itself.
+_WHOLE = frozenset({"schema", "context"})
 
 #: The messages that carry such context.
 _SHOWING = frozenset({"asked", "shown", "pending"})
@@ -196,8 +196,8 @@ def record(
 def _clipped(said: Any, longest: int = _LONGEST, *, shows: bool = False) -> Any:
     """What a message says, with any text too long to carry cut and the rest counted.
 
-    In a message that `shows` -- `asked`, `shown` and `pending` -- what is shown beside the
-    question, its `context`, is cut only past `_CONTEXT`.
+    In a message that `shows` -- `asked`, `shown` and `pending` -- the `schema` and the
+    `context` beside the question are carried whole.
     """
     if isinstance(said, str):
         if len(said) <= longest:
@@ -205,11 +205,9 @@ def _clipped(said: Any, longest: int = _LONGEST, *, shows: bool = False) -> Any:
         return f"{said[:longest]}… ({len(said) - longest} more characters)"
     if isinstance(said, dict):
         return {
-            key: _clipped(
-                value,
-                _CONTEXT if shows and key == "context" else longest,
-                shows=shows,
-            )
+            key: value
+            if shows and key in _WHOLE
+            else _clipped(value, longest, shows=shows)
             for key, value in said.items()  # pyright: ignore[reportUnknownVariableType]
         }
     if isinstance(said, list):
@@ -2524,8 +2522,7 @@ class Host:
           The answer -- the JSON text of the value, for a question asked for a schema -- or
           None where nobody gave one.
         """
-        # Read as they may be: a `Question` of before the schema was asked whole has none.
-        schema: Mapping[str, Any] | None = getattr(question, "schema", None)
+        schema = question.schema
         return self._waits(
             number,
             question.asker or "outworlder",
@@ -2534,10 +2531,10 @@ class Host:
             "ask" if schema is not None else None,
             shaped=_Shaped(
                 schema=schema,
-                context=tuple(getattr(question, "context", ())),
-                face=str(getattr(question, "face", "") or ""),
-                session=str(getattr(question, "session", "") or ""),
-                check=getattr(question, "check", None),
+                context=tuple(question.context),
+                face=question.face,
+                session=question.session,
+                check=question.check,
             ),
         )
 

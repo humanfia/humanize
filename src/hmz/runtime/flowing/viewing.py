@@ -45,6 +45,7 @@ import contextlib
 import contextvars
 import dataclasses
 import inspect
+import json
 import logging
 import threading
 import time
@@ -1400,21 +1401,26 @@ def _checked(context: Sequence[Any]) -> tuple[Any, ...]:
     return blocks
 
 
+#: How much the JSON forms of one ask's or one `show`'s context may come to, in bytes.
+_CONTEXT_MOST = 16 << 20
+
+
 def _jsoned(blocks: tuple[Any, ...]) -> tuple[dict[str, Any], ...]:
-    """Context blocks, each in the JSON form a driver hands on."""
-    return tuple(
+    """Context blocks, each in the JSON form a driver hands on.
+
+    Raises:
+      ValueError: Where they come to more than 16 MiB written.
+    """
+    jsoned = tuple(
         dict(cast("dict[str, Any]", block))
         if isinstance(block, dict)
         else dict(block.as_json())
         for block in blocks
     )
-
-
-#: The fields a hook asked as an outworlder is told, which say whether it is told what the
-#: person is shown and the face they would answer through.
-_HOOK_FIELDS = frozenset(
-    one.name for one in dataclasses.fields(OutworlderRunHookParams)
-)
+    size = len(json.dumps(jsoned, ensure_ascii=False, default=str).encode())
+    if size > _CONTEXT_MOST:
+        raise ValueError(f"the context comes to {size} bytes, past 16 MiB")
+    return jsoned
 
 
 def _answered(
@@ -1752,11 +1758,7 @@ class OutworlderView:
             owner = source.node or node
             # What the hook is told beyond the prompt, where the params say it: the blocks
             # as the flow wrote them, and the face object itself.
-            told: dict[str, Any] = {}
-            if "context" in _HOOK_FIELDS:
-                told["context"] = blocks
-            if "face" in _HOOK_FIELDS:
-                told["face"] = handle.face
+            told: dict[str, Any] = {"context": blocks, "face": handle.face}
             token = CALLING.set(owner)
             try:
                 answered = await _asked(

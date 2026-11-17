@@ -155,9 +155,7 @@ _MISFIT = {
     "error": {
         "code": 400,
         "message": "the answer does not fit: notes: say what should change",
-        "data": {
-            "errors": [{"path": ["notes"], "message": "Say what should change."}]
-        },
+        "data": {"errors": [{"path": ["notes"], "message": "Say what should change."}]},
     }
 }
 
@@ -190,7 +188,9 @@ _HELD = re.compile(r"Content Security Policy|connect-src|img-src")
 
 
 @contextlib.contextmanager
-def _faced(site: Site, engine: str, wire: Wire, *said: re.Pattern[str]) -> Generator[Page]:
+def _faced(
+    site: Site, engine: str, wire: Wire, *said: re.Pattern[str]
+) -> Generator[Page]:
     """The page, as `opened` gives it, which may say only what `said` matches beside its own.
 
     A face failing, or refused a way out, says so in the console as the page's own errors do;
@@ -419,7 +419,9 @@ def test_the_plain_form_is_a_click_away_and_the_face_waits_behind_it(
         assert page.evaluate("window.plains") == [[True, "chosen"], [False, "chosen"]]
 
 
-@pytest.mark.parametrize(("width", "dark"), [(1280, False), (1280, True), (375, False), (375, True)])
+@pytest.mark.parametrize(
+    ("width", "dark"), [(1280, False), (1280, True), (375, False), (375, True)]
+)
 def test_a_face_is_drawn_in_the_pages_colours(
     engine: str, width: int, dark: bool
 ) -> None:
@@ -454,4 +456,3 @@ def test_a_face_is_drawn_in_the_pages_colours(
             name = f"face-{engine}-{width}-{'dark' if dark else 'light'}.png"
             page.wait_for_timeout(250)
             face.screenshot(path=str(Path(shots) / name))
-

@@ -1193,6 +1193,11 @@ class Question:
     text: str
     options: tuple[str, ...] = ()
     asker: str = "outworlder"
+    schema: dict[str, Any] | None = None
+    context: tuple[dict[str, Any], ...] = ()
+    face: str = ""
+    session: str = ""
+    check: Callable[[Any], tuple[dict[str, Any], ...]] | None = None
 
 
 @dataclass

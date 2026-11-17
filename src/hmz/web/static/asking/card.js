@@ -320,25 +320,20 @@ function faced(where, one, kicker, answer, sending, settle) {
   const plain = h('div', { class: 'ask-plain-form', hidden: true }, sending.node)
   const frame = h('div', { class: 'ask-face', 'data-hmz': 'ask-face', 'aria-busy': 'true' }, h('p', { class: 'loading dim', role: 'status' }, `Opening ${(one.face && one.face.title) || 'the flow’s view'}…`))
   const note = h('p', { class: 'dim ask-face-note', hidden: true })
-  const toggle = h('button', { type: 'button', class: 'btn quiet small ask-face-toggle', 'aria-pressed': 'false', 'data-hmz': 'ask-plain' }, 'Plain form')
   let failed = false
+  // The face host draws the one switch between the face and the plain form, and says when
+  // the plain form is to be shown: chosen, or because the face failed or never answered.
   const showPlain = (yes) => {
     plain.hidden = !yes
-    frame.hidden = yes
-    toggle.setAttribute('aria-pressed', String(yes))
-    toggle.textContent = yes ? (one.face && one.face.title) || 'Flow’s view' : 'Plain form'
   }
   const fallBack = (why) => {
     if (failed) return
     failed = true
-    toggle.remove()
     frame.remove()
     note.hidden = false
     note.textContent = `The flow’s own view could not open${why ? ` (${why})` : ''}; here is the plain form.`
     showPlain(true)
   }
-  toggle.addEventListener('click', () => showPlain(plain.hidden))
-  kicker.append(toggle)
   answer.append(frame, note, plain)
   import('../faces/host.js')
     .then(async ({ mountFace }) => {
@@ -355,10 +350,9 @@ function faced(where, one, kicker, answer, sending, settle) {
           }
         },
         theme: themeTokens(),
-        fail: (why) => fallBack(why),
+        plain: (on) => showPlain(on),
       })
       if (!(mounted instanceof Node)) throw new Error('no view')
-      mounted.addEventListener?.('hmz-face-failed', (event) => fallBack(event.detail && event.detail.why))
       if (failed) return
       frame.removeAttribute('aria-busy')
       fill(frame, mounted)
