@@ -386,10 +386,10 @@ the Environments view (Section 3.17).
 
 #### 3.6.4. Steering an epic that is going
 
-**3.6.4.1** Under the graph, while the epic waits on a person, the page MUST show each question with
-its offered answers as buttons and a field for an answer of the user's own.
+**3.6.4.1** Under the graph, while the epic waits on a person, the page MUST show each question as
+Section 3.6.9 states.
 
-**3.6.4.2** A question that another frontend holds MUST say whose it is.
+**3.6.4.2** A question that another frontend holds MUST say whose it is (Section 3.6.9.2).
 
 **3.6.4.3** The page MUST offer a box that sends a line to the epic, to one agent, to one session or
 to one person, as Section 3.6 of [DAEMON] specifies; a session MUST be marked as working while it
@@ -407,7 +407,7 @@ under its open turn.
 session's open turn asks.
 
 **3.6.5.3** The page MUST offer one log per agent, across its sessions, and one log per person, of
-what the person was asked and answered; a line typed under one MUST go to whose it is.
+what the person was asked, was shown and answered; a line typed under one MUST go to whose it is.
 
 **3.6.5.4** The page MUST NOT offer a log of every session at once.
 
@@ -484,6 +484,145 @@ to it.
 
 **3.6.8.5** An imported epic that cannot be resumed on this machine MUST say why, and the page MUST
 NOT offer to resume it.
+
+#### 3.6.9. Questions
+
+**3.6.9.1** A question MUST be drawn as one card, in reading order: the question's `text` as its
+headline; its context blocks beneath (Section 3.6.10); and the means to answer it last.
+
+**3.6.9.2** A question that another frontend holds MUST be drawn read-only, with `Waiting for
+<name>`, `<name>` being that frontend's name.
+
+**3.6.9.3** A question without a schema MUST offer its options as buttons and a field for an answer
+of the user's own, sent as `text` of `epic.answer`.
+
+**3.6.9.4** A question with a schema MUST be answered by one form drawn from the whole schema, sent
+whole as `value` of `epic.answer` (Section 4.8.4 of [DAEMON]); the page MUST NOT ask it a field at a
+time.
+
+**3.6.9.5** The form MUST draw each field of the schema by its type as follows, and MUST draw one
+type, and word it, alike wherever it draws it:
+
+| Field | Drawn as |
+| --- | --- |
+| `enum` or `const` choice of at most 5 values | one row of large buttons, one per value |
+| `enum` choice of more than 5 values | a list to pick from, which the user can search |
+| `boolean` | two buttons, each worded from the field's `description` (as `Yes, write tests` and `No tests`), else `Yes` and `No`; never a lone checkbox |
+| `integer`, `number` | a number field held to the field's bounds |
+| `string` | a text field that grows as its text does; with `format` `date`, `date-time`, `email` or `uri`, the browser's own field of that kind |
+| `string` with `hmz:widget` `markdown` | a text field with a preview of the Markdown |
+| `string` with `hmz:widget` `code` | a text field in a monospaced face that keeps its indentation |
+| `string` with `hmz:widget` `secret` | a field that hides what is typed |
+| `object` | its fields, grouped under its title |
+| `array` | its items, each removable, and `Add` |
+| anything else | a text field taking JSON |
+
+**3.6.9.6** Each field MUST be named by its `title`, else its name, with its `description` as a
+hint beneath it.
+
+**3.6.9.7** The form MUST put the required fields first, in the schema's order. A field with a
+default MUST be filled with it and marked `suggested`, and the fields with defaults MUST be folded
+under `More options (<n>)`, `<n>` being how many, where any field is required.
+
+**3.6.9.8** The button that sends the form MUST say `<n> required left` while `<n>` required fields
+are empty, and `Submit` otherwise. A form every field of which has a default MUST be sendable at
+once with that button or `Enter`.
+
+**3.6.9.9** Where the focus is not in a text field, the digits `1` to `9` MUST pick the option, or
+the value of the first choice of the form, of that number. `Cmd+Enter`, or `Ctrl+Enter`, MUST send
+the answer. The order of `Tab` MUST be the order of reading.
+
+**3.6.9.10** The page MUST check a field when it loses the focus and when the form is sent, and MUST
+NOT check it at each key. What is wrong MUST be said in plain words beside its field.
+
+**3.6.9.11** Where `epic.answer` is refused as an answer that does not fit, the page MUST put each
+of the refusal's `errors` beside the field its `path` names, else above the button, and MUST move
+the focus to the first.
+
+**3.6.9.12** The page MUST keep what the user has typed into a question in this browser, per
+question, until the question is answered or withdrawn, and MUST restore it when the page is opened
+again; a `secret` field MUST NOT be kept.
+
+**3.6.9.13** A question withdrawn MUST stay in its place, read-only, saying why: `went away` for
+`away`, `the run ended` for `over`.
+
+**3.6.9.14** A question answered MUST fold to one line of the answer, `You answered: <answer>`, the
+values of a form joined by ` · ` and text in quotes, as `approve · 'LGTM'`, and a `secret` value
+written `***`.
+
+**3.6.9.15** A new question MUST be marked by the page's marks of Section 3.5 and Section 3.15 and
+one quiet highlight, and by nothing that moves or plays by itself; the page MUST honour
+`prefers-reduced-motion`.
+
+**3.6.9.16** Each field MUST have a label of its own; its hint and what is wrong with it MUST be
+tied to it for assistive technology; the focus MUST be visible; and the colours MUST keep their
+contrast in every theme.
+
+#### 3.6.10. Context blocks
+
+**3.6.10.1** The page MUST draw each context block (Section 3.10.5 of [PYTHON]) of a question in
+the order given, under its `title`, as follows:
+
+| Kind | Drawn as |
+| --- | --- |
+| `markdown` | Markdown, made safe and drawn by `vendor/markdown.js`; where that cannot be loaded, the text as written |
+| `code` | the text in a monospaced face, with its language |
+| `diff` | each file's changes, the lines added and removed marked, as `Changes` draws a change (Section 3.17.4) |
+| `table` | a table under its columns |
+| `image` | the image, with `alt` as its text alternative |
+| `json` | a tree whose branches fold |
+| `chart` | the chart, drawn by `vendor/vega.js`; where that cannot be loaded, a table of the `values` of its `data` |
+
+**3.6.10.2** The first block MUST be open. Every other block MUST be folded behind one line saying
+what it holds, as `+12 −3 in 2 files` for a diff and `table · 40 rows` for a table, and MUST open
+when the user picks that line.
+
+**3.6.10.3** A block of a kind the page does not know MUST be drawn as its `title` and its JSON.
+
+**3.6.10.4** Blocks shown with no question (`shown`, Section 4.9.2.4 of [DAEMON]) MUST be drawn in
+the person's log (Section 3.6.5.3), where they came, with no means to answer.
+
+#### 3.6.11. Faces
+
+**3.6.11.1** A question naming a face (Section 3.10.7 of [PYTHON]) MUST be drawn by that face, in
+place of its context blocks and its form; its `text` MUST stay its headline.
+
+**3.6.11.2** The page MUST read a face's HTML with `epic.face`, once per hash.
+
+**3.6.11.3** A face MUST run in an `<iframe sandbox="allow-scripts allow-forms">` loading
+`faces/frame.html`, and the sandbox MUST NOT allow the same origin: a face has an opaque origin, no
+cookie and no `/rpc`.
+
+**3.6.11.4** The page and a face MUST talk only over a `MessageChannel`, one port of which the page
+hands the frame once, as it loads, with a token made afresh for each frame. The page MUST ignore
+every other message from the frame, and every message that does not come from it.
+
+**3.6.11.5** The page MUST give the face, as `window.hmz`, exactly:
+
+| Call | What it does |
+| --- | --- |
+| `hmz.on("ask", ({prompt, context, schema, errors}) => ...)` | Hands the face each new question of its session, and the `errors` of its answer last refused, `[]` for none |
+| `hmz.on("show", (context) => ...)` | Hands the face the blocks its session is shown (Section 3.10.6 of [PYTHON]) |
+| `hmz.on("theme", (tokens) => ...)` | Hands the face the CSS variables of the page's theme, whenever the theme changes |
+| `hmz.submit(value)` | Answers the question the face holds with `value`, and resolves to `{ok: true}`, or to `{ok: false, errors}` where it is refused |
+| `hmz.resize(height)` | Makes the frame `height` pixels high |
+
+**3.6.11.6** `hmz.submit(value)` MUST send `epic.answer` with `value` (Section 4.8.4 of [DAEMON]):
+`errors` MUST be the refusal's, for an answer that does not fit, and otherwise one error of `path`
+`[]` whose `message` is the refusal's.
+
+**3.6.11.7** The CSS variables of the page's theme MUST be set on the face's `:root` before the face
+loads.
+
+**3.6.11.8** The page MUST mount one frame for each outworlder session (`session`), MUST keep it,
+and what the face holds, across that session's questions, and MUST hand it each of them with
+`ask`.
+
+**3.6.11.9** A face that fails to load, that throws before it calls `hmz.on("ask", ...)`, or that
+has not called it within 5 seconds, MUST give way to the context blocks and the form, as for a
+question naming no face.
+
+**3.6.11.10** The page MUST offer, beside every face, a switch to `Plain form` and back.
 
 ### 3.7. Exomyth
 
@@ -1124,7 +1263,8 @@ here.`
 ### 4.5. Answers and the page's files
 
 **4.5.1** Every answer MUST carry `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`
-and `X-Frame-Options: DENY`.
+and `X-Frame-Options: DENY`, but `faces/frame.html`, which MUST carry `X-Frame-Options: SAMEORIGIN`
+(Section 4.5.8).
 
 **4.5.2** A refusal MUST carry `{"error": "<sentence>"}`, `application/json; charset=utf-8`.
 
@@ -1135,20 +1275,34 @@ files, with the media type of its extension (`.html`, `.js`, `.css`, `.svg`, `.p
 component lacks one extension of lowercase letters or digits, or that is longer than 200 characters,
 MUST be refused 404, as MUST a path naming no file.
 
-**4.5.5** An HTML file MUST be served with `Content-Security-Policy: default-src 'self'; img-src
-'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws:
-wss:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, and with `Cache-Control:
-no-cache`: `'self'` lets the page reach the server's own `/rpc` and `/dial`, `ws:` and `wss:` the
-relay of any `webrtc:` route, whose host the server cannot know, and `'unsafe-inline'` in
-`style-src` the editor and the terminal of Section 3.17 style what they draw.
+**4.5.5** An HTML file but `faces/frame.html` MUST be served with `Content-Security-Policy:
+default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self';
+connect-src 'self' ws: wss:; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action
+'self'`, and with `Cache-Control: no-cache`: `'self'` lets the page reach the server's own `/rpc`
+and `/dial`, and frame `faces/frame.html`, `ws:` and `wss:` the relay of any `webrtc:` route, whose
+host the server cannot know, and `'unsafe-inline'` in `style-src` the editor and the terminal of
+Section 3.17 style what they draw.
 
 **4.5.6** A failure the server does not anticipate MUST be refused 500, `Something went wrong here:
 <why>`, and its traceback written to the server's standard error.
 
 **4.5.7** The page's files MUST include, under `vendor/`, `codemirror.js`, the editor of Section
-3.17.2, and `xterm.js` with `xterm_css.css`, the terminal of Section 3.17.3: each built from pinned
-releases of those libraries into one file the page imports, served as every other file is, and
-reaching nothing beyond the page's files.
+3.17.2; `xterm.js` with `xterm_css.css`, the terminal of Section 3.17.3; `markdown.js`, exporting
+`render(markdown)`, which answers the HTML of the Markdown made safe to put into the page; and
+`vega.js`, exporting `embed(element, spec, {theme})`, which draws a Vega-Lite chart into `element`
+interpreting its expressions without `eval`: each built from pinned releases of those libraries into
+one file the page imports, served as every other file is, and reaching nothing beyond the page's
+files.
+
+**4.5.8** `faces/frame.html`, the document a face runs in (Section 3.6.11), MUST be served with
+`Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' 'self'; style-src
+'unsafe-inline' 'self'; img-src data: blob:; font-src data:; connect-src 'none'; frame-ancestors
+'self'`, and with `Cache-Control: no-cache`: a face reaches no network, and `'self'` lets it import
+the page's files under `vendor/` and `faces/`.
+
+**4.5.9** Every `.js` and `.css` file under `vendor/` and `faces/` MUST be served with
+`Access-Control-Allow-Origin: *`, so that a face, whose origin is opaque, can import it; those files
+hold nothing of the user's.
 
 ### 4.6. `/here`
 
@@ -1243,6 +1397,12 @@ requirement.
   server's own scripts, styles and connections, and inline styles, which the editor and the terminal
   need and which run no script (Section 4.5.1 and Section 4.5.5); those libraries are the page's own
   files, so nothing is loaded from elsewhere (Section 4.5.7).
+- **Faces.** A face is HTML a flow wrote, run in a sandboxed frame of an opaque origin that holds no
+  cookie, reaches neither `/rpc` nor any network, and talks to the page only over one channel,
+  through which it is handed its session's questions and blocks and can do no more than answer the
+  question it holds (Section 3.6.11 and Section 4.5.8).
+  What a face submits is validated by the host as any other answer is (Section 4.8.4 of
+  [DAEMON]). Markdown is made safe before it is drawn, and a chart runs no `eval` (Section 4.5.7).
 - **Environments.** The page reads and writes the files of an epic's envs and opens terminals in
   them as the daemon's user (Section 3.17); every change and every terminal opened is written in the
   epic's history (Section 4.24.1.8 of [DAEMON]).
