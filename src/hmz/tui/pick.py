@@ -43,6 +43,7 @@ import re
 import shlex
 import textwrap
 import threading
+from collections.abc import Mapping
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
@@ -86,7 +87,7 @@ from .dropdown import Dropdown, Value, anchor
 from .selecting import Choices
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Mapping, Sequence
+    from collections.abc import Callable, Generator, Sequence
 
     from pydantic.fields import FieldInfo
     from textual.app import App, ComposeResult
@@ -1991,8 +1992,8 @@ class Chosen(NamedTuple):
       envs: Where each of its environment roles is, by role, as `-e` spells one.
       params: What the flow itself is set up with, or None for a flow that takes no params
         and one that was left at its defaults.
-      budget: What a run of it may spend, or None for none -- which only `chat` may be run
-        with.
+      budget: What a run of it may spend, or None for none -- which no flow may be run with,
+        and which is here only for a menu that answers before one was set.
       profile_flow: Whether a run of it profiles the flow's own Python, as well as tracing
         it.
       profile_environment: Whether a run of it profiles the programs its agents start, as
@@ -2019,8 +2020,6 @@ class Declared(NamedTuple):
       envs: The environment roles somebody names a place for. A `LocalEnv` role is the
         workspace a run is started in, and is not among them either.
       params: What the flow can be set up with.
-      unbounded: Whether a run of it needs no budget, which is `chat` alone: a conversation,
-        which stops when the person does.
       resumable: Whether a run of it can be picked up where it left off.
       outworlders: The `Outworlder` roles, by name, in the order the flow declares them:
         whoever is at this prompt, once apiece, each with a transcript of what it asks.
@@ -2029,9 +2028,18 @@ class Declared(NamedTuple):
     agents: tuple[AgentRole, ...]
     envs: tuple[EnvRole, ...]
     params: type[BaseModel]
-    unbounded: bool = False
     resumable: bool = False
     outworlders: tuple[str, ...] = ()
+
+    @property
+    def unbounded(self) -> bool:
+        """Whether a run of it needs no budget, which no flow's does.
+
+        A chat was the one that did, and a chat is no flow any more (Section 8 of [CORE]):
+        every flow is set up with a budget (Section 8.8 of [TUI]). Kept, always False, for a
+        caller still asking.
+        """
+        return False
 
     @property
     def roles(self) -> tuple[str, ...]:
@@ -2056,20 +2064,16 @@ def declared_of(flow: str) -> Declared | None:
       Its roles, params and marks, and None where reading the flow raised at all -- which is
       a flow to report rather than a reason for a menu not to draw.
     """
-    from hmz.runtime.flowing import privileged, resolved
+    from hmz.runtime.flowing import resolved
 
     try:
-        # Loaded once, and asked both questions: loading a flow reads its directory.
-        impl = resolved(flow)
-        said = impl.describe()
-        unbounded = privileged(impl)
+        said = resolved(flow).describe()
     except Exception:  # noqa: BLE001 -- a flow that will not load is still not a crash
         return None
     return Declared(
         tuple(one for one in said.agents if not one.auto),
         tuple(one for one in said.envs if not one.auto),
         said.params,
-        unbounded=unbounded,
         resumable=said.resumable,
         outworlders=tuple(one.name for one in said.agents if one.auto),
     )
@@ -3271,7 +3275,8 @@ def named_as(ref: str) -> str:
       ref: `<module>:<flow>`, as the running tree names a call.
 
     Returns:
-      The module alone for the flow named after it -- `chat` rather than `chat:chat` -- and
+      The module alone for the flow named after it -- `ralph_loop` rather than
+      `ralph_loop:ralph_loop` -- and
       the ref as it is otherwise.
     """
     where, _, name = ref.partition(":")
@@ -11553,8 +11558,12 @@ _COPY_NAME, _COPY_TASK, _COPY_PATH = "copy-name", "copy-task", "copy-path"
 #: And reading it as its graph, its called flows and its sessions (:mod:`hmz.tui.epic`).
 _GRAPH = "graph"
 
-#: The flow that is a conversation rather than a flow, which has no timeline to draw.
+#: The kind of epic that is a conversation rather than a flow, which has no timeline to draw,
+#: and the flow an earlier hmz ran one as.
 _CHAT = "chat"
+
+#: The kinds an epic can be (Section 3.2.13 of [CORE]).
+_EPIC_KINDS = ("flow", _CHAT)
 
 #: What the trace an export gathers is filed as, inside the run's own `traces/`. Named for
 #: what made it rather than for the moment it was made: a trace gathered by hand keeps both
@@ -11673,9 +11682,46 @@ def _took(ran: Ran) -> str:
     return lasting((ended - began).total_seconds())
 
 
-def chatting(flow: str) -> bool:
-    """Whether a flow, as a run named it, is the conversation that has no timeline."""
-    return re.split(r"[/#]", flow.rstrip("/#"))[-1] == _CHAT
+def chatting(epic: Ran | Mapping[str, Any] | str) -> bool:
+    """Whether an epic is a chat: a conversation, which has no timeline and nothing to stop.
+
+    Read off the epic's kind, which every record, row and status written now carries (Section
+    3.2.13 of [CORE]). Where none is said, the epic was written by an hmz that ran a chat as
+    the flow `chat`, and it is a chat where that is its flow (Section 6.5.20 of [FILES]).
+
+    Args:
+      epic: The epic as a run read back off its record; as a row or a status says it, its kind
+        under `kind` or `epic_kind`; or only the flow it was named by, for one with no kind
+        to say.
+
+    Returns:
+      Whether it is a chat.
+    """
+    if isinstance(epic, str):
+        flow, kind = epic, ""
+    elif isinstance(epic, Mapping):
+        flow = str(epic.get("ref") or epic.get("flow") or "")
+        # A host's own status says `kind` of the host, and `epic_kind` of its epic.
+        kind = str(epic.get("epic_kind") or epic.get("kind") or "")
+    else:
+        flow, kind = epic.flow, str(getattr(epic, "kind", "") or "")
+    if kind in _EPIC_KINDS:
+        return kind == _CHAT
+    return re.split(r"[/#]", named_as(flow).rstrip("/#"))[-1] == _CHAT
+
+
+def _named(epic: Ran | Mapping[str, Any]) -> str:
+    """What one epic is, as a row of a list names it: its flow, or `chat` for a chat.
+
+    Args:
+      epic: The epic, read back off its record or as a daemon's row says it.
+
+    Returns:
+      The word, which for a chat is not its flow: a chat has none.
+    """
+    if chatting(epic):
+        return _CHAT
+    return str(epic.get("flow") or "") if isinstance(epic, Mapping) else epic.flow
 
 
 def _when(said: str) -> str:
@@ -11726,7 +11772,7 @@ class Does(Picks):
         self._resumable = resumable and not foreign
         self._foreign = foreign
         self._uploads = uploads
-        self.asked = f"{_when(ran.began)}{_DOT}{ran.flow}"
+        self.asked = f"{_when(ran.began)}{_DOT}{_named(ran)}"
         #: Where it is written first, on a line of its own: it is the long part and the part
         #: somebody copies, and a path wrapped into the middle of a sentence is one that has
         #: to be picked back out of it.
@@ -11748,7 +11794,7 @@ class Does(Picks):
         somebody who was not there is a bundle with the timeline already in it.
         """
         held: list[tuple[str, str, str]] = []
-        if self._resumable and chatting(self._ran.flow):
+        if self._resumable and chatting(self._ran):
             held.append((CONTINUES, "continue", "carry the conversation on"))
         elif self._resumable:
             held.append(
@@ -11769,7 +11815,7 @@ class Does(Picks):
             )
         )
         # Not for a chat, which is one conversation rather than a flow of them to lay out.
-        if not chatting(self._ran.flow):
+        if not chatting(self._ran):
             held.append((_EXOMYTH, "Exomyth", "the epic as a timeline of its sessions"))
         if self._uploads:
             held.append(
@@ -11788,7 +11834,7 @@ class Does(Picks):
         """Why carrying on is not one of the things there are to do, where it is not."""
         if self._resumable:
             return ""
-        chat = chatting(self._ran.flow)
+        chat = chatting(self._ran)
         if self._foreign:
             what = "chat cannot be continued" if chat else "epic cannot be resumed"
             return f"this {what} here: {escape(self._foreign)}"
@@ -12388,7 +12434,7 @@ class Epics(Sheet[Doing]):
                 not self._every or self._by.get(_BY_WORKSPACE, "") in ("", _ran_in(ran))
             )
             and self.fits(
-                ran.flow, ran.task, ran.name, _ran_in(ran) if self._every else ""
+                _named(ran), ran.task, ran.name, _ran_in(ran) if self._every else ""
             )
         )
 
@@ -12440,7 +12486,7 @@ class Epics(Sheet[Doing]):
                     Option(
                         self._row(
                             seen,
-                            f"{_when(one.began)}{_DOT}{one.flow}",
+                            f"{_when(one.began)}{_DOT}{_named(one)}",
                             self._about(one),
                             here=not self._on and one.name == self._was,
                             inforce=False,
@@ -12634,7 +12680,7 @@ class Epics(Sheet[Doing]):
         return (
             self._ours(ran)
             # A chat is continued rather than resumed, which its own sheet offers.
-            and not chatting(ran.flow)
+            and not chatting(ran)
             and self._picks_up(ran.flow)
             and _hmz().epics.picks_up(ran.at)
         )
@@ -12697,7 +12743,7 @@ class Epics(Sheet[Doing]):
                     # necessarily the one it ran, and carrying it on is refused anyway. A
                     # chat here is always offered, the one going included: whether one gone
                     # can be carried on is said as it is asked to be.
-                    resumable=(chatting(ran.flow) or self._picks_up(ran.flow))
+                    resumable=(chatting(ran) or self._picks_up(ran.flow))
                     if self._ours(ran)
                     else ran.resumable,
                     # Of this directory but brought from elsewhere: why it cannot go on here.
@@ -12881,7 +12927,10 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
     """
 
     def __init__(self, daemon: str, workspace: str) -> None:
-        """Initializes the form on the directory that daemon last ran an epic in, and chat.
+        """Initializes the form on the directory that daemon last ran an epic in.
+
+        With no flow guessed: a chat, which this form once opened on, is no flow (Section 8 of
+        [CORE]), and a flow guessed for somebody is an epic of the wrong flow started there.
 
         Args:
           daemon: The daemon, by name.
@@ -12889,9 +12938,9 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
         """
         super().__init__()
         self._daemon = daemon
-        self._typed_in = {_THERE: workspace, _RUNS: _CHAT, _TASK: "", _GIVEN: ""}
-        # Each a guess, which the first letter typed into it replaces.
-        self._fresh |= {_THERE, _RUNS}
+        self._typed_in = {_THERE: workspace, _RUNS: "", _TASK: "", _GIVEN: ""}
+        # A guess, which the first letter typed into it replaces.
+        self._fresh |= {_THERE}
 
     def asked(self) -> list[Question]:
         """Where, which flow, what to do, and what runs it."""
@@ -13078,8 +13127,6 @@ class RemoteEpics(Sheet[Doing]):
         """Asks what to start there, sets it up as that directory last ran it, and follows it."""
         import asyncio
 
-        from hmz.daemon import where
-
         if self.opening():
             return
         showing = cast(
@@ -13126,7 +13173,6 @@ class RemoteEpics(Sheet[Doing]):
                 said=tuple(self._told),
                 daemon=self._daemon,
                 there=workspace,
-                slot=where.chat() if chatting(flow) else "",
                 start=start,
             )
         )
@@ -13153,7 +13199,7 @@ class RemoteEpics(Sheet[Doing]):
             one
             for one in self._ran
             if self.fits(
-                str(one.get("flow", "")),
+                _named(one),
                 str(one.get("task", "")),
                 str(one.get("name", "")),
                 str(one.get("workspace", "")),
@@ -13170,7 +13216,7 @@ class RemoteEpics(Sheet[Doing]):
                 Option(
                     self._row(
                         seen,
-                        f"{_when(str(one.get('began', '')))}{_DOT}{one.get('flow', '')}",
+                        f"{_when(str(one.get('began', '')))}{_DOT}{_named(one)}",
                         _DOT.join(
                             [
                                 _homed(str(one.get("workspace") or "")),

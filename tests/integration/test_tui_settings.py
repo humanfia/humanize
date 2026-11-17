@@ -12,9 +12,10 @@ from textual.widgets import OptionList
 from hmz.runtime.epic import Epic
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
-from hmz.tui.pick import Slurming
+from hmz.tui.pick import Agent, Catalogue, Clis, Slurming
 from hmz.tui.settings import PAGES, Adjusts
 from tests.integration.doubles_tui import (
+    MODEL,
     RUNS,
     SIZE,
     leaves,
@@ -118,6 +119,46 @@ async def test_a_change_discarded_on_the_way_out_is_not_written(
 
         await shows(pilot, f"◉ {RUNS}")
     assert "details" not in kept(tmp_path)
+
+
+async def test_what_dollar_prefers_in_a_chat_is_saved_for_this_machine(
+    workspace: Path, tmp_path: Path
+) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_settings(pilot, "general")
+        await shows(pilot, "Chat prefers for $")
+
+        await picks(pilot, "prefer", "flow")
+        await shows(pilot, "unsaved changes")
+        await leaves(pilot)
+
+    assert kept(tmp_path)["chat"] == {"prefer": "flow"}
+
+
+async def test_the_chat_agent_set_up_on_the_workspace_page_is_remembered_there(
+    workspace: Path, tmp_path: Path
+) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_settings(pilot, "workspace")
+        await shows(pilot, "Chat agent", "the agent a new chat here talks to")
+
+        await opens(pilot, "chat-agent")
+        await on(pilot, Agent)
+        await shows(pilot, "Set up the chat's agent")
+        await opens(pilot, "cli")
+        await on(pilot, Clis)
+        await opens(pilot, "claude")
+        await on(pilot, Agent)
+        await opens(pilot, "model")
+        await on(pilot, Catalogue)
+        await opens(pilot, MODEL)
+        await on(pilot, Agent)
+        await picks(pilot, "effort", "low")
+        await leaves(pilot)
+
+    workspaces = kept(tmp_path)["workspaces"]
+    assert isinstance(workspaces, dict)
+    assert workspaces[str(workspace)]["chat"] == {"agent": f"claude/{MODEL}:low"}
 
 
 async def test_a_page_named_on_the_command_opens_on_that_page(workspace: Path) -> None:
