@@ -1334,7 +1334,9 @@ and [`Agent.run`](#run)). They nest:
   own, each limit graceful or hard as the budget leaving it says -- a hard token limit leaves
   a graceful cost limit graceful. Where two budgets leave the same amount, the one hard for
   that limit wins. A turn's own budget lasts one turn: a graceful one only counts; use
-  `graceful=False` to cut a turn short.
+  `graceful=False` to cut a turn short. The leaf `run` raises then has `own=True` where only
+  the turn's own budget is spent, so a flow may catch it and go on; where a budget above the
+  turn is spent too, `run` raises for that one, with `own=False`.
 
 **Enforcement.**
 
@@ -1866,6 +1868,11 @@ ends the run with that failure; none prints, pauses or counts rounds. What a res
 keeps in its state is what its next turn needs: `stateful_ralph` its [session](#sessions-in-state),
 `flame_chase` whose turn is next (`turn`), `rlar` the last review (`notes`, removed when done).
 
+`flame_chase` also takes a quota for each chaser's turns: `-p first_chaser_duration=600`
+(seconds), `first_chaser_cost=1.5` (USD), `first_chaser_output_tokens=20000`, and the same
+for `second_chaser_*`. A turn that reaches its quota is cut off at once and the other chaser
+takes over from what it left; the run's own `budget.*` still ends the run.
+
 ### The official flowverse {#the-official-flowverse}
 
 The flows Humanize offers besides the ones in the package, listed by
@@ -2152,7 +2159,7 @@ FlowException
 | <code id="capabilitynotgranted">CapabilityNotGranted</code> | `FlowRuntimeError` | an operation the role did not declare; widening a grant with `derive`; `on_outworlder_run` on an outworlder not from `new()` |
 | <code id="paramserror">ParamsError</code> | `FlowRuntimeError`, `ValueError` | params do not validate |
 | <code id="flowdepthexceeded">FlowDepthExceeded</code> | `FlowRuntimeError`, `RecursionError` | a call would be 65 deep |
-| <code id="budgetexceeded">BudgetExceeded</code> | `FlowRuntimeError` | a budget of this call or one above is spent; sticky |
+| <code id="budgetexceeded">BudgetExceeded</code> | `FlowRuntimeError` | a budget of this call or one above is spent; sticky. `own` is `True` where only the turn's own `budget=` is spent |
 | <code id="durationexceeded">DurationExceeded</code> | `BudgetExceeded`, `TimeoutError` | `duration` elapsed |
 | <code id="costexceeded">CostExceeded</code> | `BudgetExceeded` | `cost` spent |
 | <code id="outputtokensexceeded">OutputTokensExceeded</code> | `BudgetExceeded` | `output_tokens` spent |

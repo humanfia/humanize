@@ -17,6 +17,7 @@ from hmz.flows import (
     Agent,
     AgentCollection,
     Budget,
+    BudgetExceeded,
     CapabilityMissing,
     ClaudeCodeAgent,
     CostExceeded,
@@ -155,6 +156,22 @@ async def held(
     coder = agents["coder"]
     said = await coder.run(task, session=await coder.spawn(), budget=own)
     return said, ctx.budget
+
+
+@flow(agents=Solo, envs=NoEnvs, params=Nothing)
+async def quota(
+    task: str, *, agents: Solo, envs: NoEnvs, params: Nothing, ctx: FlowContext
+) -> tuple[str, bool]:
+    """Takes one turn under a hard quota of a dollar, and says which budget stopped it."""
+    del envs, params, ctx
+    coder = agents["coder"]
+    try:
+        await coder.run(
+            task, session=await coder.spawn(), budget=Budget(cost=1.0, graceful=False)
+        )
+    except BudgetExceeded as error:
+        return type(error).__name__, error.own
+    return "", False
 
 
 @flow(agents=Solo, envs=NoEnvs, params=Nothing)
@@ -554,6 +571,21 @@ async def test_a_flow_is_told_which_limits_over_it_are_graceful() -> None:
 
     assert told.graceful == Graceful(cost=False)
     assert unset.graceful is True
+
+
+@pytest.mark.parametrize(
+    ("budget", "own"),
+    [(Budget(cost=10.0), True), (Budget(cost=1.0, graceful=False), False)],
+    ids=["the-turn's", "the-flow's"],
+)
+async def test_a_turn_stopped_by_its_own_budget_says_so(
+    budget: Budget, *, own: bool
+) -> None:
+    coder = FakeAgentDriver(reply="ok", cost=1.5)
+
+    said = await run_fake(quota, agents={"coder": coder}, budget=budget)
+
+    assert said == ("CostExceeded", own)
 
 
 async def test_a_budget_with_room_lets_every_turn_spend() -> None:

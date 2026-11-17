@@ -1,9 +1,10 @@
 // The page itself, laid out as Codex and Claude lay theirs out: the sidebar of every workspace's
 // epics on the left, and whichever view the address names beside it -- a new chat or epic, its graph, one session's
-// thread, the flows -- with finding a run and the settings opened over it as dialogs. Routed
-// by the address's fragment, so that every view of the page is an address that can be kept,
-// shared or opened again, and the server serves one page for all of them. An address names the
-// daemon it is of first, `#/@<name>/<view>…`, or names none and is of Local.
+// thread, the flows -- and Ai-chan's drawer beside it, with finding a run and the settings opened
+// over it as dialogs. Routed by the address's fragment, so that every view of the page is an
+// address that can be kept, shared or opened again, and the server serves one page for all of
+// them. An address names the daemon it is of first, `#/@<name>/<view>…`, or names none and is of
+// Local.
 
 import { daemon, hash, hello, started } from './api.js'
 import { fill, h, problem } from './dom.js'
@@ -264,6 +265,11 @@ started().then((here) => {
   if (out) return
   mountSidebar(document.getElementById('sidebar'), { here }, where)
   route()
+  // Ai-chan's drawer, beside every view: loaded once the page is let in, as the views are.
+  import('./views/aichan.js').then(
+    (drawer) => drawer.mount(document.querySelector('.app'), where),
+    (error) => console.error(error),
+  )
   // A daemon out of reach is said where each view asks it something; the page is named once it answers.
   named().catch(() => {})
 })
