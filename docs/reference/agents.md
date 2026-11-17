@@ -2186,7 +2186,8 @@ class AgentBase:
     def disable_goals(); def stop()
     def watch(listener: Callable[[AgentBase, SessionBase | None, Event], None])
     def asked(question) -> str | None; def prompted() -> str | None
-    def stands_in() -> AgentBase | None
+    nous: str  # property
+    def stand_in(nous: str) -> AgentBase | None
     def node() -> Provider
     def environment() -> Mapping[str, str]; def hushed() -> frozenset[str]
     def fenced() -> Fence | None; def natively(fence: Fence) -> Fence

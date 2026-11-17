@@ -12,7 +12,7 @@ each refreshing its own token and neither able to see the other's.
 
 Where a turn goes when the account it runs as goes down is not written here: that is a thing about
 the place a turn runs at -- the CLI, the account and the model together -- rather than about the
-credentials it runs with, and `hmz.coganchor.fallbacks` is where it is said.
+credentials it runs with, and `hmz.coganchor.nous` is where it is said.
 """
 
 from __future__ import annotations

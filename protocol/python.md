@@ -2229,7 +2229,7 @@ reading it MUST NOT create it.
 **4.4.1.4** `Hmz.settings` MUST read and write the settings of Section 3 of [FILES] for this
 workspace and this machine; members of its type are not part of this API.
 
-**4.4.1.5** `Hmz.flows`, `Hmz.accounts`, `Hmz.runtimes`, `Hmz.fallbacks`, `Hmz.epics`, `Hmz.backups`
+**4.4.1.5** `Hmz.flows`, `Hmz.accounts`, `Hmz.runtimes`, `Hmz.nous`, `Hmz.epics`, `Hmz.backups`
 and `Hmz.daemons` MUST each return the same object on every access of one `Hmz` instance.
 
 **4.4.1.6** `Hmz.verses` MUST be the identical object `Hmz.flows.verses`.
