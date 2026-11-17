@@ -114,7 +114,7 @@ What to look at, by number:
 ### Check it worked
 
 - After **Detach and exit**, the shell prompt comes back at once, with no `stopping` line.
-- `hmz` in the same directory opens on the flow, still working, and not on a fresh `chat`.
+- `hmz` in the same directory reads the flow, still working, from its start.
 - The transcript holds turns that happened while you were gone.
 
 ## Before you walk away

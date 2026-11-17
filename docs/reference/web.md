@@ -178,7 +178,8 @@ The page speaks one JSON-RPC session to each daemon it reaches -- Local over `/r
 daemon over `/dial`, or over the browser's own WebRTC for a `webrtc:` route -- saying
 `session.hello` as `kind` `web` (`desktop` in [Humanize Desktop](/user/desktop)). Everything it
 shows and does is the [daemon's methods](/reference/daemon), the same any client calls:
-`hosts.running` and `epic.attach` for the epics going, `runs.*` for those written down,
+`hosts.running` and `epic.attach` for the epics going, [`chat.*`](/reference/daemon#chats) to
+start, talk to and complete a chat, `runs.*` for those written down,
 `flows.*`, `settings.*`, `accounts.*`, `notices.subscribe` and the rest. Section 4.20 of
 [`protocol/daemon.md`](https://github.com/humanfia/humanize/blob/main/protocol/daemon.md#420-methods-and-the-interfaces-they-replace)
 maps every route of the HTTP interface `hmz web` served before to the method that serves it now.
@@ -187,10 +188,10 @@ Each view is an address after `#`, so it can be kept and opened again:
 
 | Address | View |
 | --- | --- |
-| `#/new[?workspace=&flow=&resume=<name>]` | A new epic: in the workspace picked (where `hmz web` started by default), the flow picked, or the epic named picked up. The page opens here. |
-| `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own, or a chat's; its address becomes `#/epics/<name>` once it is written down -- a `chat`'s, its conversation's, `#/epics/<name>/sessions/<agent>%2F1`, once that opens. |
+| `#/new[?workspace=&flow=&resume=<name>]` | A new epic, **Chat** or **Flow**: in the workspace picked (where `hmz web` started by default), a [chat](/user/chat) with the agent that workspace remembers, the flow picked, or the epic named picked up. The page opens here. |
+| `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own, or a chat's; its address becomes `#/epics/<name>` once it is written down -- a chat's, its conversation's, `#/epics/<name>/sessions/<agent>%2F1`, once that opens. |
 | `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path -- in Humanize Desktop as it is opened, read from the app and sent in chunks to the daemon shown, as one picked is; in a browser, from the daemon's machine as `runs.import` `{path}` does, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>/exomyth`, its [Exomyth](/user/web#exomyth) -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
-| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. A `chat`, and any other address of one but its Exomyth's, stands in for its conversation's, `#/epics/<name>/sessions/<agent>%2F1`. |
+| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. A chat, and any other address of one but its Exomyth's, stands in for its conversation's, `#/epics/<name>/sessions/<agent>%2F1`. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<agent>/<n>` | The thread of the `n`-th session that agent opened, as the epic going names it (`/` written `%2F`). |
 | `#/epics/<name>/logs/<role>` | One agent's log, across its sessions; or one person's, what they are asked and answer. `#/epics/<name>/logs`, with neither, opens `#/epics/<name>`. |

@@ -134,7 +134,7 @@ own, as [`run_fake`](#fakes) holds it.
 | `agents` | `{role: spec}` where spec is an [`-a` spec](/reference/cli#writing-an-agent) without `<role>=` (`"claude@work/claude-opus-5:high"`) or an `AgentDriver` (e.g. `fakes.FakeAgentDriver`); or an iterable of `AgentSpec` (`Line.agents`). | `()` |
 | `envs` | `{role: spec}` with an [`-e` spec](/reference/cli#writing-an-environment) without `<role>=`, or an `EnvDriver`; or an iterable of `EnvSpec`. | `()` |
 | `params` | A mapping (strings read as `-p` reads them) or an instance of the flow's `FlowParams`. `None`: defaults. | `None` |
-| `budget` | A [`Budget`](/reference/flows#what-a-run-may-spend), or a mapping validated by `Budget.model_validate` (`{"cost": 5}`, `{"duration": 3600}`, `{"duration": "PT1H"}`; `"1h"` is **not** accepted). `None`: `Budget(cost=inf)` for `chat`, else refused. | `None` |
+| `budget` | A [`Budget`](/reference/flows#what-a-run-may-spend), or a mapping validated by `Budget.model_validate` (`{"cost": 5}`, `{"duration": 3600}`, `{"duration": "PT1H"}`; `"1h"` is **not** accepted). `None`: refused. | `None` |
 | `profile_flow` | Whether to [profile](/reference/tracing#profiling-a-run) the flow's own Python, as well as tracing the run; as `--profile-flow`. | `False` |
 | `profile_environment` | Whether to [profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them; as `--profile-environment`. | `False` |
 | `resume` | `False`: from the top. `True`: the newest resumable epic of this flow here. A path: that epic. | `False` |
@@ -222,7 +222,7 @@ the backups too, for at most 60 seconds or until `close()`.
 | Property | Type | Value |
 | --- | --- | --- |
 | `flow` | `str` | The flow as named. |
-| `ref` | `str` | Its canonical ref (`chat:chat`, `humanize1:rlcr`). |
+| `ref` | `str` | Its canonical ref (`rlar:rlar`, `humanize1:rlcr`). |
 | `task` | `str` | |
 | `declaration` | `dict` | What the flow declares: the `declared` mapping the daemon's check answered. |
 | `budget` | `Budget` | What the run may spend. |

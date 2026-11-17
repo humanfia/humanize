@@ -212,7 +212,7 @@ Python with `Hmz().accounts` before the run. See the [SDK reference](/reference/
 
 ## A flow from a flowverse
 
-`ralph_loop` ships with Humanize, as do `chat` and the other loops
+`ralph_loop` ships with Humanize, as do the other loops
 [FlowBench scores](https://humanfia.ai/flows/), so `-f ralph_loop` runs on a fresh runner
 as it is. A flow you [install](/weaver/flowverses) from a flowverse is not there: a fresh runner
 has fetched no flowverse and installed nothing, so `-f flame_chasoid:parallel_git_pr` is refused with

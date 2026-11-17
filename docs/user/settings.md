@@ -117,7 +117,7 @@ straight into the one named, and the word is offered as you type it:
 | [**Nous**](#nous) | `nous` | what agents think with, and where a turn goes when one cannot take it |
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms, Apple containers and Slurm clusters |
 | [**Backup**](#backup) | `backup` | the repositories epics are backed up to, and which are defaults |
-| [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, and forgetting it |
+| [**Workspace**](#workspace) | `workspace` | the flow last set up here, the chat agent, and forgetting them |
 | [**Usage**](#usage) | `usage` | what the epics spent, by day and by flow |
 
 The names they had still open them: `settings` and `everywhere` open General, `directory`
@@ -316,6 +316,7 @@ about.
 | --- | --- | --- |
 | Display | Details | whether the screen [shows the working](#details): every tool call and all of the thinking |
 | Agents | /btw The Epic | the agent that answers a side question asked of The Epic, about a whole epic ([`/btw`](/user/btw)): `none`, the one you chose, or `another…`, which chooses its CLI, account, model and effort. With `none`, only a conversation can be asked. It takes effect the next time you enter btw mode. |
+| Agents | Chat prefers for `$` | `native` or `flow`: what a `$<name>` in a [chat](/user/chat#a-name-that-is-both) means where the name is both one of the agent's own skills and a flow, in every chat that has not said otherwise with `/prefer`. `native` until you change it. |
 | Privacy | Error reports | whether Humanize [reports what goes wrong](/user/reporting) to its developers |
 | Privacy | What is sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 
@@ -1137,7 +1138,7 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
   take it apart; one `-e` would refuse is refused on **Done**, in the words `-e` refuses it in.
 
 What **Done** holds is saved with the flow, from the **Save** button of `/flow`, and it is what the
-next `hmz` here opens on.
+flow starts with here from then on.
 
 ::: details From Python
 Every row of this page is a call on `Hmz().runtimes`: `new`, `add`, `write`, `remove`,
@@ -1199,13 +1200,15 @@ beside the flows installed from them: type `/flow`, press <kbd>←</kbd>, and op
 
 ## Workspace
 
-Run `hmz` in a directory you have used before and it opens on the flow you last saved there,
-with the agents you gave it. This page shows what this directory remembers, and is where you
-make it forget. The line across its top names the directory.
+Run `hmz` in a directory you have used before and it opens on a [chat](/user/chat) with the
+agent you last chatted with there, and every flow you saved there starts as you set it up. This
+page shows what this directory remembers, and is where you make it forget. The line across its
+top names the directory.
 
 | Heading | Row | What it is |
 | --- | --- | --- |
-| Flow | Default flow | the flow it opens on, and how many agents that flow was set up with |
+| Flow | Default flow | the flow last set up here, and how many agents that flow was set up with |
+| Chat | Chat agent | the agent a new chat here starts with: its CLI, account, model and effort, set on the same sheet as a flow's agent |
 | Reset | Forget | a switch: turned `on` and saved, it forgets everything this directory remembers. Its line says how many flows that is. |
 
 **Forget** clears this directory only. Every other directory, and everything on the other
@@ -1215,6 +1218,8 @@ carries on with what it opened with.
 ### What a directory remembers
 
 - **The flow** it last ran.
+- **The chat agent**: the agent of the last chat started here, or changed by `/model` or
+  `/effort` in one, kept apart from every flow's setup.
 - **For each flow it has run:**
   - what each agent role runs: the CLI, the [account](#accounts), the model and the
     effort;
@@ -1239,8 +1244,9 @@ runtime of theirs is saved as `local`, and an ssh host only while none is saved 
 ### Changing it
 
 Change it where you set it: in [`/flow`](/reference/tui). Choose the flow, set each agent and
-environment, what an epic may spend and whether it is profiled, and save. That save is what the next `hmz` here opens
-on. It only opens there: nothing runs until you send the first line.
+environment, what an epic may spend and whether it is profiled, and save. That save is what
+`$<flow>` and `/flow <flow> <task>` start the flow with from then on. Nothing runs until you
+send one. The chat agent is changed on this page, or by `/model` and `/effort` in a chat.
 
 Saving checks the lot before any of it is kept. The flow is loaded, every role is checked
 against what the flow declares, and a flow that refuses a combination of its own settings says
@@ -1260,12 +1266,14 @@ how to read it, is [Tracing](/user/tracing#profiling-a-run).
 What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e`, `-p`,
 `--profile-flow` and `--profile-environment`. An unattended run inherits nothing from how this directory was last set up. It
 reads only one thing from here: whether you said yes to [reporting](/user/reporting).
+[`hmz chat`](/user/chat#from-the-shell) given no `-a` reads one more, the chat agent, and
+writes nothing.
 
 ### The first time
 
-With nothing remembered, `hmz` opens on the [`chat`](https://humanfia.ai/flows/chat) flow, with the first
-installed CLI that can run without further setup, at the first model that CLI lists, at effort
-`high` where the model offers it.
+With nothing remembered, `hmz` opens on a [chat](/user/chat) with the first installed CLI that
+can run without further setup, at the first model that CLI lists, at effort `high` where the
+model offers it. A flow's roles are filled the same way the first time `/flow` opens on it.
 
 ::: details Where it is kept
 General and Workspace are one file, `~/.hmz/settings.yaml` (under `$HUMANIZE_HOME` if you

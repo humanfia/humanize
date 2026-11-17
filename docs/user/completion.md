@@ -96,7 +96,8 @@ What to look at, by number:
 | `/` | every command that would do something now, with what it takes after its name and what it is for |
 | `/flow ` | every flow you can run here, by the name it is offered under |
 | `/settings ` | its nine pages: `general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, `usage` |
-| `$` | the same flows, as `$name`. `$ralph_loop fix the build` starts that flow on that task. |
+| `$` | the same flows, as `$name`. `$ralph_loop fix the build` starts that flow on that task. In a [chat](/user/chat), also the agent's own skills, grouped apart from the flows and tagged with where each comes from; a name that is both says which one the [preference](/user/chat#a-name-that-is-both) picks, and that `/flow <name>` starts the flow. |
+| `/`, `!`, `@` in a chat | what the agent's CLI takes after that sigil, from its [catalogue](/user/chat#native-input-by-cli), and the names Humanize keeps for itself |
 
 The commands follow what is going on. `/stop` is listed while a flow runs and not once it is
 stopping; `/resume` only with nothing running and a run here to carry on; `/claim` only on an
@@ -110,7 +111,7 @@ installed. Each is offered under one name:
 
 | Where the flow comes from | Offered as |
 | --- | --- |
-| Humanize itself, or installed from the official flowverse | a bare name: `chat`, `ralph_loop` |
+| Humanize itself, or installed from the official flowverse | a bare name: `ralph_loop`, `rlar` |
 | this project's `.hmz/flows/` | `@local/twice` |
 | `~/.hmz/flows/` | `@user/twice` |
 | installed from any other flowverse | `@<flowverse>/<flow>` |

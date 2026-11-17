@@ -24,7 +24,9 @@ hmz exec -f stateful_ralph -a agent=claude/claude-opus-5:high -p budget.duration
 
 :::
 
-At the prompt, `/resume` first says which run it carries on, then the flow starts again:
+At the prompt, `/resume` first says which run it carries on, then the flow starts again. It
+does this with a flow on the screen, as after one stops; in a [chat](/user/chat), where `hmz`
+opens, `/resume` carries on an earlier chat instead, and `/epics` picks a flow's run up:
 
 ```text
 resuming 20260930T053826.667Z-55bb87: running stateful_ralph from saved state
@@ -34,9 +36,9 @@ resuming 20260930T053826.667Z-55bb87: running stateful_ralph from saved state
 
 - A flow that can be picked up. Most of the official loops can,
   [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) and [`rlar`](https://humanfia.ai/flows/rlar) among them; each flow's page says
-  whether it can. [`chat`](https://humanfia.ai/flows/chat) cannot, and neither can
-  [`ralph_loop`](https://humanfia.ai/flows/ralph-loop), which keeps nothing but the repository:
-  running it again is carrying it on.
+  whether it can. [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) cannot: it keeps
+  nothing but the repository, so running it again is carrying it on. A [chat](/user/chat) is
+  not picked up but [carried on](#a-chat-is-carried-on).
 - An earlier run of that flow, **in this directory**, that got far enough to save something.
   Runs are kept per directory, so start `hmz` or `hmz exec` where the first run started.
 - Nothing running here now. [Stop](/user/stopping) a running flow first.
@@ -56,8 +58,9 @@ Three things are worth knowing before you rely on it:
 - **It is a new run.** The run that stopped is never reopened. The one that carries it on is a
   run of its own, with its own sessions, its own trace and its own row in
   [`/epics`](/user/tracing#what-a-run-writes-down). A week of stops and starts reads as one run
-  per stretch. A `chat` is the one exception: it is one conversation, so saying something in
-  one that has ended carries it on in its own epic, its agent remembering what was said.
+  per stretch. A [chat](/user/chat) is the one exception: it is one conversation, so saying
+  something in one that has ended carries it on in its own epic, its agent remembering what
+  was said.
 - **The agents' conversations carry over only where the flow kept them.** What carries over
   is what the flow chose to keep, and the files the agents already changed in your project. A
   flow that kept a session in its record, as `stateful_ralph` does, has that conversation
@@ -68,7 +71,7 @@ There are three ways in:
 
 | Way in | Picks up | Runs it with |
 | --- | --- | --- |
-| `/resume` at the prompt | the last run here of a flow that can be picked up | that run's own agents, environments, params, budget and task |
+| `/resume` at the prompt, with a flow on the screen | the last run here of a flow that can be picked up | that run's own agents, environments, params, budget and task |
 | `/epics`, then **resume epic** | any run you choose | the same: that run's own setup |
 | `hmz exec --resume` | the newest run of the `-f` flow here that saved something | the line's own `-a`, `-e` and `-p`, budget included |
 
@@ -145,8 +148,10 @@ hmz exec: stopped -- stateful_ralph:stateful_ralph: its budget's output tokens a
 
 ## Example: pick it up at the prompt
 
-Open `hmz` in the same directory and type `/resume`. The command is offered in the `/` list
-only while there is a run here to carry on and nothing is running:
+In the `hmz` the run stopped in, type `/resume`. The command is offered in the `/` list only
+while there is a run here to carry on and nothing is running. A new `hmz` opens on a
+[chat](/user/chat), where `/resume` lists earlier chats instead: there, open `/epics` and
+choose **resume epic**, as below. Either way:
 
 ```text
 ❯ /resume
@@ -231,8 +236,8 @@ cannot, the line under the list says `<flow> is not resumable, so this epic cann
   [refused](/reference/flows#sessions-in-state).
 - **Give a longer leash.** Pick up an overnight loop that ran out of money with
   `-p budget.duration=8h,budget.cost=40 --resume`.
-- **Start over on purpose.** Run the line without `--resume`. At the prompt, choose the flow
-  and type the task as usual.
+- **Start over on purpose.** Run the line without `--resume`. At the prompt, start the flow
+  as usual: `$<flow> <task>`.
 
 ## If it goes wrong
 
@@ -244,7 +249,7 @@ At the prompt, `/resume` typed when it cannot carry a run on says why:
 | `no epic here was of a flow that can be resumed, so there is nothing to resume` | Every run here was of a flow that cannot be. | Start the flow afresh. |
 | `<run> cannot be resumed: <flow>: a flow of local is called @local/<flow> now` | The run is from before flows of anywhere but `official` were named after an `@`, and is not carried on under the new name. | Start `$@local/<flow>` afresh. |
 | `<flow> does not support resuming, so <run> cannot be resumed` | The flow has been changed since that run and no longer can be. | Start it afresh. |
-| `<run> has no saved state to resume: enter a task to start the flow from the beginning` | The run was killed before it saved anything. | Type the task: the flow starts from the top. |
+| `<run> has no saved state to resume: enter a task to start the flow from the beginning` | The run was killed before it saved anything. | Start it with `$<flow> <task>`: the flow starts from the top. |
 | `<run> cannot be resumed: its saved progress could not be copied (<reason>)` | What the run saved could not be copied into the run that would carry it on: it cannot be read, or the copy could not be written (a full disk). Nothing was started, and the run is left as it was. | Fix what the reason names, and resume it again. |
 | `<run> cannot be read, so there is nothing to resume` | The run's record is damaged. | Pick another run from `/epics`. |
 | `cannot resume an epic while a flow is running: press ctrl+c twice to stop it first` | A flow is running. | [Stop](/user/stopping) it first. |
@@ -264,6 +269,15 @@ hmz exec: error: stateful_ralph has no run to resume here: none saved any progre
 The second one also appears in a directory where the flow never ran: check that you are in
 the directory the first run started in. On a fresh CI runner there is never anything to pick
 up; see [Humanize in CI](/user/ci). More in [Troubleshooting](/user/troubleshooting).
+
+## A chat is carried on {#a-chat-is-carried-on}
+
+A [chat](/user/chat) is never picked up into a new run: it is one conversation, and it goes on
+in its own epic. Carry one on by saying something in it -- `continue` on its row in `/epics`,
+`/resume` in a chat, which lists this directory's earlier chats newest first, the chat's page
+in [`hmz web`](/user/web), or `hmz chat --resume <epic> "<message>"`. Its agent remembers what
+was said, its own [preference](/user/chat#a-name-that-is-both) is kept, and the epic reads as
+`running` again until the chat ends again, having spent what each stretch spent.
 
 ## Make a flow resumable
 

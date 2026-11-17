@@ -1,7 +1,7 @@
 <script setup>
 import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
 
-const status = '[c]◉[/] chat[m] · ~/tmp/humanize-demo[/]'
+const status = '[c]◉[/] claude/claude-haiku-4-5-20251001:low[m] · ~/tmp/humanize-demo[/]'
 const at = (label, line, n, caption) => ({
   label,
   lines: [
