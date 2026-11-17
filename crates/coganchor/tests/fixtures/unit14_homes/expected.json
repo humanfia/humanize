@@ -14,11 +14,11 @@
    },
    "agents/hmz-read-only-web.md": {
     "mode": 420,
-    "text": "---\nname: hmz-read-only-web\ndescription: Reads, the web included, and changes nothing.\ntools: [view_file, grep_search, find_by_name, list_dir, read_url_content, search_web]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files and search them, and read and search the web. You have no way of changing\nanything: no tool here writes a file or runs a command. When asked to change something, say\nthat you cannot.\n"
+    "text": "---\nname: hmz-read-only-web\ndescription: Reads, the web included, and runs commands that change nothing.\ntools: [view_file, grep_search, find_by_name, list_dir, run_command, read_url_content, search_web]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files, search them, run commands, and read and search the web. You may not change\nanything: no tool here writes a file, and any command that tries to write is refused. When\nasked to change something, say that you cannot.\n"
    },
    "agents/hmz-read-only.md": {
     "mode": 420,
-    "text": "---\nname: hmz-read-only\ndescription: Reads, and changes nothing.\ntools: [view_file, grep_search, find_by_name, list_dir]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files and search them. You have no way of changing anything: no tool here writes\na file or runs a command. When asked to change something, say that you cannot.\n"
+    "text": "---\nname: hmz-read-only\ndescription: Reads, and runs commands that change nothing.\ntools: [view_file, grep_search, find_by_name, list_dir, run_command]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files, search them, and run commands. You may not change anything: no tool here\nwrites a file, and any command that tries to write is refused. When asked to change something,\nsay that you cannot.\n"
    },
    "agents/mine.md": {
     "link": "{root}/user/.gemini/antigravity-cli/agents/mine.md"
@@ -83,11 +83,11 @@
    },
    "agents/hmz-read-only-web.md": {
     "mode": 420,
-    "text": "---\nname: hmz-read-only-web\ndescription: Reads, the web included, and changes nothing.\ntools: [view_file, grep_search, find_by_name, list_dir, read_url_content, search_web]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files and search them, and read and search the web. You have no way of changing\nanything: no tool here writes a file or runs a command. When asked to change something, say\nthat you cannot.\n"
+    "text": "---\nname: hmz-read-only-web\ndescription: Reads, the web included, and runs commands that change nothing.\ntools: [view_file, grep_search, find_by_name, list_dir, run_command, read_url_content, search_web]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files, search them, run commands, and read and search the web. You may not change\nanything: no tool here writes a file, and any command that tries to write is refused. When\nasked to change something, say that you cannot.\n"
    },
    "agents/hmz-read-only.md": {
     "mode": 420,
-    "text": "---\nname: hmz-read-only\ndescription: Reads, and changes nothing.\ntools: [view_file, grep_search, find_by_name, list_dir]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files and search them. You have no way of changing anything: no tool here writes\na file or runs a command. When asked to change something, say that you cannot.\n"
+    "text": "---\nname: hmz-read-only\ndescription: Reads, and runs commands that change nothing.\ntools: [view_file, grep_search, find_by_name, list_dir, run_command]\nexcludeDefaultComponents: true\nsubagent: false\n---\n# Reader\n\nYou may read files, search them, and run commands. You may not change anything: no tool here\nwrites a file, and any command that tries to write is refused. When asked to change something,\nsay that you cannot.\n"
    }
   },
   "dropped": {},

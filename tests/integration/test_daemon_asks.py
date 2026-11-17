@@ -3,9 +3,9 @@
 The host opens The Epic as a stand-in on PATH, read-only and carrying the `ask-conversation`
 skill, and catches `hmz-ask` where the stand-in runs it: refused by the pre-tool-use hook on a
 CLI that waits on its hook (`claude`), run as a command line where the stand-in runs it, and
-read off the stream and said when the turn would stop where the CLI did neither (`cursor-agent`
-in plan mode). Either way `Btw` carries the ask out, the asking callback hears it once, and the
-answer reaches The Epic within the question it was asked.
+read off the stream and said when the turn would stop where the CLI did neither (a
+`cursor-agent` whose shell call was never carried out). Either way `Btw` carries the ask out,
+the asking callback hears it once, and the answer reaches The Epic within the question it was asked.
 
 The Epic runs inside a fence that writes nothing, whatever its harness. The fence itself is not
 put up here, only what it is: each one a stand-in would be spawned inside is kept, and the
@@ -88,11 +88,11 @@ prompt = argv[-1]
 note(prompt)
 chat = "chat-1"
 out({"type": "system", "subtype": "init", "session_id": chat, "cwd": ".",
-     "model": flags.get("--model", ""), "permissionMode": "plan"})
+     "model": flags.get("--model", ""), "permissionMode": "default"})
 if "<answer from=" in prompt:
     said = "heard back: " + prompt
 else:
-    # Reached for and refused by plan mode: nothing ran, and nothing was printed.
+    # Reached for and never carried out: nothing ran, and nothing was printed.
     out({"type": "tool_call", "subtype": "started", "call_id": "call-1", "session_id": chat,
          "tool_call": {"shellToolCall": {"args": {"command": ASKING}}}})
     said = "it would not run"
@@ -243,7 +243,10 @@ def test_an_ask_nothing_ran_is_said_as_the_turn_would_stop(
     assert answer.startswith("heard back: ")
     assert f'<answer from="builder/1">\n{FACT}\n</answer>' in answer
     (first, _) = [one.argv for one in stood.calls("cursor-agent")]
-    assert first[first.index("--mode") + 1] == "plan"
+    # Held to reading by its fence, which writes nothing: Cursor cannot withhold its writing
+    # tools alone, so it is asked nothing, put in no mode, and the fence holds the grant.
+    assert "--mode" not in first
+    assert first[first.index("--force") :][:3] == ["--force", "--sandbox", "disabled"]
 
 
 def test_the_epic_is_told_how_to_ask_and_carries_the_skill(

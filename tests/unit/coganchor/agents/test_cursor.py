@@ -190,23 +190,34 @@ def test_a_turn_runs_print_with_the_prompt_after_the_flags(
 
 
 @pytest.mark.parametrize(
-    ("permission", "flags"),
+    ("rules", "flags"),
     [
-        ("read-only", ["--mode", "plan"]),
-        ("workspace-write", ["--force", "--sandbox", "enabled"]),
-        ("auto", ["--auto-review"]),
-        ("bypass", ["--force", "--sandbox", "disabled"]),
-        ("", []),
+        (None, []),
+        ([(".", "read")], ["--force", "--sandbox", "disabled"]),
+        ([(".", "write")], ["--force", "--sandbox", "disabled"]),
     ],
 )
-def test_each_rung_is_its_own_flags(
-    spawner: Spawner, tmp_path: Path, permission: str, flags: list[str]
+def test_a_fenced_turn_is_asked_nothing_and_an_unfenced_one_is_told_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    spawner: Spawner,
+    tmp_path: Path,
+    rules: list[tuple[str, str]] | None,
+    flags: list[str],
 ) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    held = (
+        None
+        if rules is None
+        else Fence.of(
+            rules=rules, online=True, workdir=str(tmp_path), home=str(tmp_path)
+        )
+    )
     spawner.answering(_turn())
-    _cursor(permission=permission).new(tmp_path)("go")
+    _cursor(fence=held).new(tmp_path)("go")
     argv = spawner.last.args
     at = argv.index(str(tmp_path)) + 1
     assert argv[at : argv.index("--trust")] == flags
+    assert "--mode" not in argv
 
 
 def test_its_own_settings_reach_the_command_line(
