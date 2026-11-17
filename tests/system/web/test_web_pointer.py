@@ -155,9 +155,7 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
         assert saved["harness"] == "local"
 
 
-def test_a_nous_and_the_btw_agent_are_picked_not_spelled(
-    project: Path, engine: str
-) -> None:
+def test_a_nous_and_ai_chans_are_picked_not_spelled(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/settings/nous")
         page.locator("[data-hmz=nous-spec]").select_option("claude/claude-opus-4-1")
@@ -169,12 +167,12 @@ def test_a_nous_and_the_btw_agent_are_picked_not_spelled(
         expect(page.locator("[data-hmz=nous-row]")).to_have_count(1)
 
         go(page, "/settings/general")
-        page.locator("[data-hmz=btw-whom]").select_option("chosen")
-        agent = page.locator("[data-hmz=btw-agent]")
-        expect(agent.locator("[data-hmz=pick-model] option").first).to_have_text(
-            "claude-haiku-4-5"
-        )
-        agent.locator("[data-hmz=pick-effort]").select_option("high")
+        # Ai-chan's nous is offered from every nous there is, none until one is picked.
+        setting = page.locator("[data-hmz=ai-chan-setting]")
+        field = setting.locator("[data-hmz=ai-chan-nous]")
+        expect(field).to_have_value("")
+        expect(setting.locator("datalist option").first).to_be_attached()
+        field.fill("claude/claude-opus-4-1")
         page.get_by_role("button", name="Save").click()
         expect(page.get_by_role("button", name="Saved")).to_be_visible()
 
@@ -182,12 +180,12 @@ def test_a_nous_and_the_btw_agent_are_picked_not_spelled(
         browser.signs_in()
         with browser.session() as asked:
             (nous,) = asked.call("nous.list")["nous"]
-            btw = asked.call("settings.get")["btw"]
+            ai_chan = asked.call("settings.get")["ai_chan"]
         assert nous["name"] == "claude/claude-opus-4-1"
         assert [one["use"] for one in nous["then"]["nodes"]] == [
             "claude/claude-haiku-4-5"
         ]
-        assert btw == "claude/claude-haiku-4-5:high"
+        assert ai_chan == "claude/claude-opus-4-1"
 
 
 def test_settings_fit_a_phone(project: Path, engine: str) -> None:

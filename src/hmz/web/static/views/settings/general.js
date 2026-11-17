@@ -1,19 +1,14 @@
-// What is true wherever Humanize runs: whether a turn's working is shown, which agent answers
-// side questions asked of The Epic, and whether Humanize reports its own failures.
+// What is true wherever Humanize runs: whether a turn's working is shown, the nous a new Ai-chan
+// conversation defaults to, and whether Humanize reports its own failures.
 
 import { acting, fill, h, problem } from '../../dom.js'
-import { agentPicker, readBackends } from '../../pickers.js'
+import { nousField } from '../../pickers.js'
 
 export function draw(holder, query, parts, scope) {
-  const shown = (settings) => {
+  const shown = (settings, offered) => {
     const details = h('input', { type: 'checkbox', checked: settings.details })
-    // Who answers The Epic: nobody, or one picked as an agent is picked. No agent of an epic
-    // stands in for it.
-    const whom = h('select', { 'aria-label': 'Who answers The Epic', 'data-hmz': 'btw-whom' }, h('option', { value: 'none', selected: !settings.btw }, 'None'), h('option', { value: 'chosen', selected: Boolean(settings.btw) }, 'Chosen agent'))
-    if (picker) picker.leave()
-    picker = agentPicker({ name: 'btw', get clis() { return backends ? Object.keys(backends.clis) : [] } }, settings.btw, () => {})
-    picker.node.hidden = !settings.btw
-    whom.addEventListener('change', () => (picker.node.hidden = whom.value !== 'chosen'))
+    // The nous a new Ai-chan conversation defaults to: none until one is picked.
+    const aiChan = nousField(settings.ai_chan || '', offered, { label: 'Ai-chan’s nous', hmz: 'ai-chan-nous', placeholder: 'None' })
     const reports = h(
       'select',
       { 'aria-label': 'Report Humanize’s own failures' },
@@ -22,7 +17,7 @@ export function draw(holder, query, parts, scope) {
       h('option', { value: 'no', selected: settings.reports === false }, 'Off'),
     )
     const said = () => {
-      const given = { btw: whom.value === 'chosen' ? picker.value() : '', details: details.checked }
+      const given = { ai_chan: aiChan.input.value.trim(), details: details.checked }
       if (reports.value) given.reports = reports.value === 'yes'
       return given
     }
@@ -37,19 +32,14 @@ export function draw(holder, query, parts, scope) {
           'div',
           { class: 'form' },
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Details'), h('label', { class: 'check' }, details, 'Tool calls and thinking')),
-          h('div', { class: 'field', 'data-hmz': 'btw-agent' }, h('span', { class: 'label' }, 'The Epic'), whom, picker.node, h('span', { class: 'hint' }, 'The agent that answers a side question asked of The Epic, about a whole epic. With none, only a conversation can be asked.')),
+          h('div', { class: 'field', 'data-hmz': 'ai-chan-setting' }, h('span', { class: 'label' }, 'Ai-chan'), aiChan.node, h('span', { class: 'hint' }, 'The nous a new Ai-chan conversation starts with: a nous by its name, or an agent such as claude/claude-opus-5. With none, each conversation names its own.')),
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Error reports'), reports, h('span', { class: 'hint' }, 'Whether Humanize sends a report of its own crashes. Nothing anybody typed, no file and no credential is ever sent.')),
           h('div', { class: 'row' }, save, scope.batch(() => [['settings.set', said()]])),
         ),
       ),
     )
   }
-  let picker = null
-  let backends = null
-  Promise.all([scope.call('settings.get'), readBackends(undefined, scope.name)])
-    .then(([settings, read]) => {
-      backends = read
-      shown(settings)
-    })
+  Promise.all([scope.call('settings.get'), scope.call('nous.list').catch(() => null)])
+    .then(([settings, nous]) => shown(settings, nous))
     .catch((error) => fill(holder, problem(error)))
 }
