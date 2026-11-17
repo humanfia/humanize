@@ -131,13 +131,20 @@ async def test_shift_tab_and_tab_step_between_the_views_of_a_run(
 async def test_btw_asks_a_side_copy_of_the_session_and_leaves_the_run_alone(
     workspace: Path,
 ) -> None:
-    async with Humanize().run_test(size=SIZE) as pilot:
+    async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await working(pilot)
-        await pilot.press("tab", "shift+tab")
+        await pilot.press("tab")
+        await shows(pilot, "reading outworlder human")
+        await pilot.press("shift+tab")
         await shows(pilot, "· conversation 1 ─")
 
         await typed(pilot, "/btw what is it doing")
-        await shows(pilot, "btw · what is it doing heard")
+        await shows(pilot, "btw · what is it doing")
+        await until(
+            pilot,
+            lambda: any("what is it doing" in one for one in heard(workspace)),
+            "the side copy to be asked",
+        )
         await pilot.press("escape")
         await shows(pilot, "btw: exited")
 
