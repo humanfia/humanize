@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.agents import AgentBase, SessionBase
     from hmz.flows import Budget, Usage
-    from hmz.runtime.chatting import Chat, ChatEnd
+    from hmz.runtime.chatting import Chat, ChatEnd, HeldWorkspace
     from hmz.runtime.epic import Epic
     from hmz.runtime.flowing import Declaration, OutworlderDriver
     from hmz.runtime.flowing.engine import Run as EngineRun
@@ -430,6 +430,11 @@ class Chatting:
     def opened(self, callback: Opened) -> None:
         """Has its conversation told to `callback` as it opens."""
         self._chat.opened(callback)
+
+    @property
+    def envs(self) -> HeldWorkspace | None:
+        """The workspace the chat works in while it is had, for the host's env panels."""
+        return self._chat.envs
 
     def noticed(self, callback: Callable[[str], None]) -> None:
         """Takes what a run tells of an environment moved, which a chat never has.

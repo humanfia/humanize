@@ -586,6 +586,28 @@ def test_the_catalog_is_the_open_conversations(wired: Wired) -> None:
     assert seen == [[COMPACT]]
 
 
+def test_a_chat_lists_its_workspace_as_the_env_it_holds_while_it_is_had(
+    wired: Wired,
+) -> None:
+    chat = _chat(wired, Person())
+    seen: list[tuple[str, object, bool]] = []
+
+    async def looks(session: Session, request: TurnRequest) -> str:
+        held = chat.envs
+        assert held is not None
+        (one,) = held.held_envs()
+        seen.append((one.role, one.driver, held.loop is asyncio.get_running_loop()))
+        return "ok"
+
+    wired.driver.reply = looks
+    assert chat.envs is None
+
+    asyncio.run(chat.run())
+
+    assert seen == [("workspace", wired.env, True)]
+    assert chat.envs is None
+
+
 # ---------------------------------------------------------------------------- refusals
 
 

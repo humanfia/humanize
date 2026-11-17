@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from hmz.runtime.flowing.harnesses import Listener
     from hmz.runtime.flowing.specs import AgentSpec
     from hmz.runtime.flowing.spi import HookTable, Kept, Placement
+    from hmz.runtime.flowing.viewing import HeldEnv
     from hmz.runtime.runner import Opened
 
 #: What `$<name>` means where it names both a native skill and a flow.
@@ -332,6 +333,15 @@ class Chat:
         return Usage() if spending is None else spending.usage()
 
     @property
+    def envs(self) -> HeldWorkspace | None:
+        """The workspace the chat works in, listed as a run's environments are for env panels.
+
+        None before the chat has opened it, and once it has ended.
+        """
+        talk = self._talk
+        return None if talk is None or self._ended else talk.held
+
+    @property
     def agents(self) -> tuple[AgentBase, ...]:
         """The coganchor agent behind the conversation open now, where one is behind it."""
         talk = self._talk
@@ -457,6 +467,27 @@ class Chat:
         return ChatEnd(epic.path, "stopped")
 
 
+class HeldWorkspace:
+    """The one environment a chat holds, its workspace, as a run's are listed for env panels.
+
+    Attributes:
+      loop: The loop its driver lives on.
+    """
+
+    def __init__(self, local: EnvDriver, loop: asyncio.AbstractEventLoop) -> None:
+        """Holds the chat's workspace and the loop it was opened on."""
+        from hmz.runtime.flowing.viewing import HeldEnv
+
+        self.loop = loop
+        where = local.placement()
+        chain = f"{where.backend}@{where.provider}{where.workdir}"
+        self._held = (HeldEnv("workspace", chain, None, local, frozenset()),)
+
+    def held_envs(self) -> tuple[HeldEnv, ...]:
+        """The chat's workspace, alone. From any thread."""
+        return self._held
+
+
 class _Talk:
     """One opening of a chat: its turns, its `!` commands and its conversations."""
 
@@ -474,6 +505,7 @@ class _Talk:
         self._chat = chat
         self._driver = driver
         self._local = local
+        self.held = HeldWorkspace(local, asyncio.get_running_loop())
         self._epic = epic
         self._keeping = keeping
         self._spending = spending
