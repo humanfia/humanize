@@ -41,8 +41,11 @@ class _Held(Hosts):
         super().__init__(changed)
         self._holding = holding
 
-    def _starts(self, workspace: str, slot: str) -> Hosted:
-        """Holds a host on a thread of this process, and links it."""
+    def _starts(
+        self, workspace: str, slot: str, env: dict[str, str] | None = None
+    ) -> Hosted:
+        """Holds a host on a thread of this process, and links it; `env` is the process's."""
+        del env
         from hmz.daemon.carrying import serves
         from hmz.reach.pipes import SocketPipe
         from hmz.rpc import Peer
@@ -58,19 +61,11 @@ class _Held(Hosts):
             name="hmz-host",
         ).start()
         hosted = Hosted(workspace, slot)
-        key = (workspace, slot)
-
-        def went() -> None:
-            with self._lock:
-                if self._held.get(key) is hosted:
-                    del self._held[key]
-                    if slot:
-                        self._gone.add(key)
-            hosted.went()
-            self._changed()
-
         hosted.peer = Peer(
-            SocketPipe(ours, trusted=True), hosted.told, on_close=went, name="hmz-link"
+            SocketPipe(ours, trusted=True),
+            hosted.told,
+            on_close=lambda: self.went(hosted),
+            name="hmz-link",
         )
         try:
             said: Any = hosted.peer.call("status", {}, timeout=_PATIENCE)
@@ -99,6 +94,7 @@ class Private(Router):
     ) -> None:
         super().__init__(at, listening, kept=True)
         self.hosts = _Held(self._touched, holding)
+        self.hosts.ai = self.links
 
         def checks(call: Call) -> Any:
             from hmz.daemon.api.flows import checked

@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 from hmz.daemon import where
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
 __all__ = ["settles", "spawns"]
 
@@ -44,7 +44,13 @@ _MARK = "__HMZ_ENV__"
 _OWN = ("PWD", "OLDPWD", "SHLVL", "_")
 
 
-def spawns(said: Sequence[str], seconds: float, *, keep: Sequence[int] = ()) -> None:
+def spawns(
+    said: Sequence[str],
+    seconds: float,
+    *,
+    keep: Sequence[int] = (),
+    env: Mapping[str, str] | None = None,
+) -> None:
     """Starts a process apart from the terminal, and comes back once it is up.
 
     Args:
@@ -53,6 +59,7 @@ def spawns(said: Sequence[str], seconds: float, *, keep: Sequence[int] = ()) -> 
       seconds: How long to wait for it to say so.
       keep: The descriptors besides the standard three and that one it is handed; it holds
         none other of this process's open.
+      env: What its environment holds beside this process's own.
 
     Raises:
       OSError: If it could not be started, or said why it could not come up.
@@ -83,7 +90,7 @@ def spawns(said: Sequence[str], seconds: float, *, keep: Sequence[int] = ()) -> 
                 start_new_session=True,
                 # The daemon's directory is in the temporary directory, which the process
                 # started has to find where this one did.
-                env={**os.environ, "TMPDIR": tempfile.gettempdir()},
+                env={**os.environ, "TMPDIR": tempfile.gettempdir(), **(env or {})},
             )
         finally:
             os.close(log)

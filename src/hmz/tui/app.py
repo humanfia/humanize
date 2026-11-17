@@ -5379,13 +5379,19 @@ class Humanize(App[None]):
                 self.show(f"[dim]{escape(role)} is {escape(now)} to answer now[/dim]")
 
     def _gone(self, why: str) -> None:
-        """Takes the runs letting go of this interface, which is the end of it.
+        """Takes the runs letting go of this interface: the end of it, but for Ai-chan's host.
 
         Args:
           why: Why they let go of it.
         """
         if self._quitting:
             return  # asked for, on the way out
+        if self._ai is not None:
+            # Her host went, forgotten (Section 4.22.4 of daemon.md) or folded away: the
+            # interface goes on, following this directory's own host again.
+            self._moves("", None)
+            self._draw()
+            return
         self._quitting = True
         self.exit(return_code=1, message=f"hmz: {why or 'disconnected from the epics'}")
 
