@@ -134,6 +134,7 @@ def test_an_epic_opens_saying_what_it_is_a_run_of(workspace: Path) -> None:
 
     began, ended = _lines(one.journal)
     assert began["event"] == "began"
+    assert began["kind"] == "flow"
     assert began["flow"] == "ralph"
     assert began["task"] == "fix it"
     assert began["workspace"] == str(workspace.resolve())
@@ -239,15 +240,89 @@ def test_a_journal_that_cannot_be_copied_leaves_no_run_picked_up(
         assert second.resume.read_text() == first.resume.read_text()
 
 
-def test_a_run_reopened_goes_on_in_the_epic_it_picks_up(workspace: Path) -> None:
-    with Epic("chat", "hi", workspace, resumable=True) as first:
+ASSISTANT = Drove("assistant", "claude", "haiku", "low", "", "NeiKos496")
+
+
+def test_a_chat_is_written_down_with_no_flow_and_read_back_as_one(
+    workspace: Path,
+) -> None:
+    with Epic(
+        "", "hi", workspace, kind="chat", agents=[ASSISTANT], prefer="flow"
+    ) as one:
+        pass
+
+    began, _ = _lines(one.journal)
+    assert began["kind"] == "chat"
+    assert (began["task"], began["workspace"]) == ("hi", str(workspace.resolve()))
+    assert began["agents"] == [ASSISTANT._asdict()]
+    assert began["prefer"] == "flow"
+    for absent in (
+        "flow",
+        "ref",
+        "picked_up",
+        "envs",
+        "used",
+        "params",
+        "budget",
+        "profile_flow",
+        "profile_environment",
+    ):
+        assert absent not in began
+    ran = epic.read(one.path)
+    assert ran is not None
+    assert (ran.kind, ran.chat, ran.flow, ran.prefer) == ("chat", True, "", "flow")
+    assert ran.agents == (ASSISTANT,)
+
+
+def test_a_chat_goes_by_the_last_line_to_set_its_agent_and_its_preference(
+    workspace: Path,
+) -> None:
+    changed = ASSISTANT._replace(model="opus")
+    with Epic("", "hi", workspace, kind="chat", agents=[ASSISTANT]) as one:
+        one.write("set", prefer="flow")
+        one.write("set", agents=[changed._asdict()])
+        one.write("set", prefer="native")
+
+    ran = epic.read(one.path)
+    assert ran is not None
+    assert (ran.agents, ran.prefer) == ((changed,), "native")
+
+
+def test_an_epic_that_says_no_kind_is_a_flows_but_one_of_the_flow_chat(
+    workspace: Path,
+) -> None:
+    for flow, kind in (("chat", "chat"), ("ralph", "flow")):
+        at = epic.under(workspace) / f"20260101T000000.000Z-{flow}"
+        at.mkdir(parents=True)
+        _journal(
+            at / JOURNAL,
+            {"event": "began", "flow": flow, "task": "t", "resumable": True},
+        )
+        ran = epic.read(at)
+        assert ran is not None
+        assert ran.kind == kind
+    # Nor is the chat a flow's run to resume, any more than one written with its kind is.
+    assert epic.resumed("chat", workspace) is None
+
+
+def test_a_flow_named_chat_is_an_ordinary_flow(workspace: Path) -> None:
+    with Epic("chat", "hi", workspace) as one:
+        pass
+    ran = epic.read(one.path)
+    assert ran is not None
+    assert (ran.kind, ran.chat, ran.flow) == ("flow", False, "chat")
+
+
+def test_a_chat_reopened_goes_on_in_the_epic_it_picks_up(workspace: Path) -> None:
+    with Epic("", "hi", workspace, kind="chat", agents=[ASSISTANT]) as first:
         first.write("usage", cost=1.0, output_tokens=7, seconds=2.0)
+        first.stopped()
     done = epic.read(first.path)
     assert done is not None
-    assert (done.how, done.reopened) == ("done", "")
+    assert (done.how, done.reopened) == ("stopped", "")
 
     with Epic(
-        "chat", "again", workspace, resumable=True, picked_up=first.path, reopened=True
+        "", "again", workspace, kind="chat", picked_up=first.path, reopened=True
     ) as second:
         assert second.path == first.path
         going = epic.read(first.path)
@@ -256,10 +331,11 @@ def test_a_run_reopened_goes_on_in_the_epic_it_picks_up(workspace: Path) -> None
         assert (going.task, going.how, going.ended) == ("hi", "", "")
         assert going.reopened
         second.write("usage", cost=0.5, output_tokens=3, seconds=1.0)
+        second.stopped()
 
     again = epic.read(first.path)
     assert again is not None
-    assert again.how == "done"
+    assert again.how == "stopped"
     assert again.spent == {"cost": 1.5, "output_tokens": 10, "seconds": 3.0}
     events = [one["event"] for one in _lines(first.journal)]
     assert (events.count("began"), events.count("reopened")) == (1, 1)

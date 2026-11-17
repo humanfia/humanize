@@ -11,9 +11,9 @@ and nobody installed is not among them: it is a flow to install (:mod:`index`), 
 only an index answers to says so.
 
 Humanize's own are called as its index lists them, `aot` and `alice/kernel`, and every other
-place's after an `@`: `@theirs/review`, `@local/chat`. Which flow a bare name means is nearest
+place's after an `@`: `@theirs/review`, `@local/goal`. Which flow a bare name means is nearest
 first -- yours, then everybody else's -- so a flow of your own may stand in for one of
-Humanize's by taking its name, and `@local/chat` is the spelling that says which one it is.
+Humanize's by taking its name, and `@local/goal` is the spelling that says which one it is.
 
 Reading a flow means importing it: a flow is a directory whose `__init__.py` defines flows with
 :func:`hmz.flows.flow`, and the only way to find out which is to import it. That is
@@ -61,7 +61,6 @@ __all__ = [
     "offered",
     "offers",
     "placed",
-    "privileged",
     "resolved",
     "within",
 ]
@@ -100,10 +99,6 @@ def placed(file: str | os.PathLike[str]) -> Path:
 #: Worked out from where this file is rather than by importing the flow API, which a listing
 #: of places has no need to pay for.
 BUILTIN_AT = placed(__file__).parents[2] / "flows" / "builtin"
-
-#: Where the one flow Humanize trusts with more than it declares is: `chat`, the package's own,
-#: said by where it is rather than by a name a flow of yours could take.
-_PRIVILEGED_AT = BUILTIN_AT / "chat"
 
 #: What a flow's own name is separated from the one inside it by. A module that holds one
 #: visible flow is named by itself; one that holds three names the others after it.
@@ -233,7 +228,7 @@ def offers(one: Flowverse) -> list[Offer]:
       One per flow, by directory, alphabetically: `@<flowverse>/<flow>`, except for Humanize's
       own, which are called as its index lists them, `aot` and `alice/kernel`. Which of the two
       places `official` is kept in a flow of Humanize's is in makes no difference to what it is
-      called: the package's `chat` and an installed `flame_chasoid` are both Humanize's,
+      called: the package's `ralph_loop` and an installed `flame_chasoid` are both Humanize's,
       so both are said the same way and a flow that moves between the two goes on answering to
       the name it had. Yours are named the same way as anybody else's -- `@local/scheduler`,
       `@user/scheduler` -- so that a flow of yours sharing a name with one of Humanize's is
@@ -340,8 +335,7 @@ def resolved(named_: str) -> FlowImpl:
     Anything :func:`hmz.flows.load` takes where no flow is asking: a bare name nearest first,
     `[@<flowverse>/][<user>/]<flow>`, either with `:<inside>`, a path, or a
     `git+<url>[#<subdir>]` ref,
-    which is fetched here, on this thread. The one flow that is :func:`privileged` is handed
-    its harness's every capability, with :func:`~hmz.runtime.flowing.engine.full_view`.
+    which is fetched here, on this thread.
 
     Args:
       named_: What the flow is called.
@@ -359,7 +353,7 @@ def resolved(named_: str) -> FlowImpl:
     """
     from hmz.flows import FlowNotFound
 
-    from .engine import FlowImpl, full_view
+    from .engine import FlowImpl
     from .loading import load
 
     try:
@@ -381,8 +375,6 @@ def resolved(named_: str) -> FlowImpl:
         fetched = found_.flow
         assert fetched is not None  # noqa: S101 -- asking its name fetched it
         flow = fetched
-    if privileged(flow):
-        full_view(flow)
     return flow
 
 
@@ -441,24 +433,6 @@ def builtin(flow: FlowImpl) -> bool:
       Whether it was defined under :data:`BUILTIN_AT`.
     """
     return _made(flow).is_relative_to(BUILTIN_AT)
-
-
-def privileged(flow: FlowImpl) -> bool:
-    """Whether a flow is the one Humanize trusts with more than it declares, which is `chat`.
-
-    `chat` talks to whichever agent it is given, and so declares nothing of any: it is handed
-    every capability of its harness instead. And it runs for as long as somebody answers it,
-    so it is the one flow a run may be started without a budget for. Shipping with Humanize is
-    not what earns either -- the loops beside it in the package declare what they ask of their
-    agents and are held to it, and spend under a budget, like a flow of anybody's.
-
-    Args:
-      flow: The flow.
-
-    Returns:
-      Whether it was defined in the package's own `chat`.
-    """
-    return _made(flow).is_relative_to(_PRIVILEGED_AT)
 
 
 def _made(flow: FlowImpl) -> Path:
