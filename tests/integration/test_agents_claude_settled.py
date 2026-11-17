@@ -3,12 +3,12 @@
 The stand-in routes a request over the stream only where it was told
 `--permission-prompt-tool stdio`, as the real CLI does; told nothing, it denies the tool by
 itself. So what is checked is what the runtime makes of a grant and the hooks hung on it, and
-whether a question the agent asks then reaches the hook hung for it.
+whether a question the agent asks then reaches the hook hung for it: routed for every fenced
+agent, whatever its fence writes.
 """
 
 from __future__ import annotations
 
-import dataclasses
 from typing import TYPE_CHECKING
 
 import pytest
@@ -24,6 +24,8 @@ from tests.integration.doubles_agents import Standins, standins
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from hmz.coganchor.fence import Fence
 
 CLAUDE = r"""
 note()
@@ -96,13 +98,26 @@ def test_the_runtime_settles_the_rung_and_asks_from_the_hooks_hung(
     assert (config.permission, config.asks) == (rung, asks)
 
 
-def test_a_question_asked_at_read_only_reaches_the_ask_user_hook(
-    claude: Standins, tmp_path: Path
+def test_a_question_asked_under_a_fence_that_writes_nothing_reaches_the_ask_user_hook(
+    claude: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    # The fence the runtime drew is kept, for the driver to read the grant off; the wall itself
+    # is not put up, since it would keep the stand-in from writing down its calls, and what
+    # is checked here is what Claude is told and where its questions go.
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     config = _settled(READ, frozenset({HookKind.ASK_USER}), tmp_path)
-    # Without the read-only wall, which would keep the stand-in from writing down its calls:
-    # what is checked here is the rung and where its questions go.
-    agent = ClaudeCodeAgent(dataclasses.replace(config, fence=None))
+    assert config.fence is not None
+    assert not config.fence.writes
+    agent = ClaudeCodeAgent(config)
     asked: list[Question] = []
 
     def ask(question: Question) -> str | None:
@@ -114,5 +129,11 @@ def test_a_question_asked_at_read_only_reaches_the_ask_user_hook(
     assert agent.new(tmp_path)("go") == "allow:{'Which?': 'blue'}"
     assert [(one.text, one.options) for one in asked] == [("Which?", ("blue",))]
     (launch,) = (one for one in claude.calls() if not one.stdin)
-    assert launch.flag("--permission-mode") == "plan"
+    assert launch.flag("--permission-mode") == "bypassPermissions"
+    assert launch.flag("--tools") == "default"
+    assert (launch.flag("--disallowedTools") or "").split(",")[:3] == [
+        "Edit",
+        "Write",
+        "NotebookEdit",
+    ]
     assert launch.flag("--permission-prompt-tool") == "stdio"

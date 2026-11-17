@@ -2354,6 +2354,10 @@ def _read_only(source: AgentBase, name: str, asks: _Asks | None = None) -> Agent
     # approval would reach every server this workspace names on the flow's say-so.
     if hasattr(source.config, "allowed_tools"):
         settings["allowed_tools"] = ()
+    # Claude's `asks` would start the copy at `manual`, putting every request to approval --
+    # a source's hook hung on PERMISSION_REQUEST is not the side conversation's to wait on.
+    if hasattr(source.config, "asks"):
+        settings["asks"] = False
     if hasattr(source.config, "approve_mcps"):
         settings["approve_mcps"] = False
     # Codex's read-only sandbox refuses the socket `hmz-ask` reaches this process on: that
