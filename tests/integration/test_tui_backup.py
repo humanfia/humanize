@@ -26,6 +26,7 @@ from tests.integration.doubles_tui import (
     RUNS,
     SIZE,
     folds_fast,
+    gives_a_budget,
     leaves,
     on,
     onto,
@@ -179,13 +180,14 @@ async def test_a_flow_saved_without_choosing_backup_follows_the_defaults(
         await opened(pilot)
         await typed(pilot, "/flow")
         await on(pilot, Flows)
-        await opens(pilot, "chat")
+        await opens(pilot, "goal")
         await picks(pilot, "\x1eprofile-environment", "on")
+        await gives_a_budget(pilot)
         await leaves(pilot)
         await shows(pilot, f"◉ {RUNS}")
 
-    assert Hmz().settings.profile_environment("chat")
-    assert Hmz().settings.backup("chat") is None
+    assert Hmz().settings.profile_environment("goal")
+    assert Hmz().settings.backup("goal") is None
 
 
 async def test_an_epic_uploaded_from_epics_lands_in_its_target(

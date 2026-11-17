@@ -395,6 +395,7 @@ async def test_prefer_is_refused_an_argument_it_does_not_take(workspace: Path) -
 async def test_a_shell_line_and_what_it_printed_are_drawn_as_a_shell_draws_them(
     workspace: Path,
 ) -> None:
+    (workspace / PRINTED).touch()
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await chatting(pilot)

@@ -26,6 +26,7 @@ from tests.integration.doubles_tui import (
     shows,
     stand_in,
     started,
+    talks_set_up,
     typed,
     until,
 )
@@ -41,7 +42,9 @@ pytestmark = pytest.mark.usefixtures("daemon")
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
     """The stand-in `claude` on `PATH`, really asked what it runs as the interface opens."""
     del asking
-    return stand_in(tmp_path, monkeypatch)
+    workspace = stand_in(tmp_path, monkeypatch)
+    talks_set_up(workspace)
+    return workspace
 
 
 #: A flow that asks the person something of its own between two turns of its one agent: a

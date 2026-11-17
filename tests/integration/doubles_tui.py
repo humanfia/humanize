@@ -45,7 +45,6 @@ from typing import TYPE_CHECKING, Any
 from textual.widgets import OptionList
 
 from hmz.coganchor.agents.native import NativeCommand
-from hmz.flows.builtin import chat
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.flows import Flows
@@ -66,16 +65,76 @@ MODEL = "claude-stand-in"
 RUNS = f"claude/{MODEL}:high"
 
 
+#: A flow that is a conversation: one agent, and every line said back is its next turn, as a
+#: chat's are -- but a flow, which the interface reads as any flow: a monitor, views to step
+#: round, a run to stop, a budget to be given.
+TALK = """
+import contextlib
+
+from hmz.flows import (
+    Agent, AgentCollection, AskUserHookAgentMixin, AskUserHookResult, CapabilityNotGranted,
+    EnvCollection, FlowContext, FlowParams, LocalEnv, Outworlder, flow,
+)
+
+
+class Assistant(Agent, AskUserHookAgentMixin):
+    pass
+
+
+class Agents(AgentCollection):
+    assistant: Assistant
+    human: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+class Params(FlowParams):
+    pass
+
+
+@flow(agents=Agents, envs=Envs, params=Params, resumable=True)
+async def talk(task, *, agents, envs, params, ctx: FlowContext) -> None:
+    assistant, human = agents["assistant"], agents["human"]
+    conversation = await assistant.spawn()
+    person = await human.spawn()
+
+    async def asked(params):
+        offered = f" ({' / '.join(params.options)})" if params.options else ""
+        said = await human.run(f"{params.question}{offered}", session=person)
+        return AskUserHookResult(answer=said or None)
+
+    with contextlib.suppress(CapabilityNotGranted):
+        assistant.on_ask_user(asked)
+    said = task
+    while said:
+        answered = await assistant.run(said, session=conversation, env=envs["workspace"])
+        said = await human.run(answered, session=person)
+"""
+
+
 def _talks() -> str:
-    """`chat`, reached through a link called `talk`: the conversation, under another name."""
+    """:data:`TALK`, written where a path names it: `talk`, a flow of its own directory."""
     at = Path(tempfile.mkdtemp(prefix="hmz-talk-")) / "talk"
-    at.symlink_to(Path(chat.__file__).parent, target_is_directory=True)
+    at.mkdir()
+    (at / "__init__.py").write_text(TALK)
     return str(at)
 
 
-#: `chat`, named by a link to its directory rather than as `chat`: the same conversation, which
-#: the interface then reads as any flow -- a monitor, views to step round, a run to stop.
+#: :data:`TALK`, named by its path.
 TALKS = _talks()
+
+
+def talks_set_up(workspace: Path) -> None:
+    """Remembers :data:`TALKS` set up in the workspace: the stand-in, and a budget to spend."""
+    from hmz.runtime.kept import read_back
+    from hmz.runtime.settings import Settings
+
+    runs = read_back(RUNS)
+    assert runs is not None
+    Settings(workspace).remember(TALKS, {"assistant": runs}, budget={"cost": 100.0})
+
 
 #: The terminal every pilot runs in.
 SIZE = (100, 40)
@@ -316,6 +375,13 @@ async def set_up_own_flow(pilot: Pilot[None]) -> None:
     await on(pilot, Flows)
     await opens(pilot, OWN)
     await shows(pilot, trail("Installed", OWN), "an epic needs one")
+    await gives_a_budget(pilot)
+    await leaves(pilot)
+    await shows(pilot, f"set up: /flow {OWN} <task> starts it")
+
+
+async def gives_a_budget(pilot: Pilot[None]) -> None:
+    """Gives the flow open in `/flow` a dollar to spend, every flow needing a budget."""
     await opens(pilot, "\x1ebudget")
     await on(pilot, Configures)
     await opens(pilot, "cost")
@@ -323,8 +389,6 @@ async def set_up_own_flow(pilot: Pilot[None]) -> None:
         "1", "enter", "tab", "enter"
     )  # a dollar, then the button that sets it
     await on(pilot, Flows)
-    await leaves(pilot)
-    await shows(pilot, f"set up: /flow {OWN} <task> starts it")
 
 
 def nothing_installed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -554,17 +618,15 @@ PRINTED = "file.txt"
 
 
 class Chats:
-    """The daemon's chats (`chat.*`, Section 4.21 of daemon.md), stood in for over the old flow.
+    """The daemon's chats (`chat.*`, Section 4.21 of daemon.md), as the interface asks them.
 
-    The interface asks the daemon for each through a session of its own; this answers it
-    instead, on the interface's own link to the chat's host, by what the interface asked of
-    that host before chats were a kind of their own: `chat` the flow, started with the agent,
-    each line said to it as the answer to what it waits on or as a word put in. So a test
-    drives the whole chain behind it -- host, driver, stand-in -- and reads what reached it.
+    Every call goes on to the daemon of the test, whose hosts are held in this process, as it
+    would have; this keeps what was asked, can hold a `chat.start` back (and refuse it once
+    let go), and has every chat's harness list a catalogue of its own -- the stand-in lists no
+    skills, and a test about what a `$` line names needs one that does.
 
     Attributes:
       asked: Every call made, as `(method, params)`, oldest first.
-      prefer: The chat's preference, and `prefer_from` where it comes from.
       starting: Set to hold a `chat.start` until it is set, where it is not None.
       refusing: Whether a held start is refused once let go.
     """
@@ -572,109 +634,36 @@ class Chats:
     def __init__(self, catalog: tuple[NativeCommand, ...] = CATALOG) -> None:
         self.catalog = catalog
         self.asked: list[tuple[str, dict[str, Any]]] = []
-        self.prefer = "native"
-        self.prefer_from = "settings"
         self.starting: threading.Event | None = None
         self.refusing = False
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> Chats:
-        """Answers every `chat.*` the interface asks from here on."""
+        """Watches every `chat.*` the interface asks from here on."""
+        from hmz.runtime.chatting import Chat
+
+        # The interface's one way to the daemon's chats, named rather than reached into.
+        real = vars(Humanize)["_chat_asked"]
+        catalog = list(self.catalog)
 
         # A function rather than this bound method, so that the interface is handed to it.
         def asked(app: Humanize, request: dict[str, Any]) -> dict[str, Any]:
-            return self._asked(app, request)
+            said = dict(request)
+            method = str(said.pop("do"))
+            self.asked.append((method, said))
+            if method == "chat.start" and self.starting is not None:
+                self.starting.wait(10)
+                if self.refusing:
+                    raise RuntimeError("no room to start")
+            return real(app, request)
+
+        def natives(chat: Chat) -> list[NativeCommand]:
+            del chat
+            return catalog
 
         monkeypatch.setattr(Humanize, "_chat_asked", asked)
+        monkeypatch.setattr(Chat, "natives", natives)
         return self
 
     def started(self) -> list[dict[str, Any]]:
         """What each `chat.start` was asked with, oldest first."""
         return [said for method, said in self.asked if method == "chat.start"]
-
-    def _asked(self, app: Humanize, request: dict[str, Any]) -> dict[str, Any]:
-        said = dict(request)
-        method = str(said.pop("do"))
-        self.asked.append((method, said))
-        link = app._link  # noqa: SLF001 -- the host this stands in for the daemon at
-        if method == "chat.start":
-            if self.starting is not None:
-                self.starting.wait(10)
-                if self.refusing:
-                    raise RuntimeError("no room to start")
-            resume = said.get("resume")
-            agents = (
-                {"assistant": said["agent"]}
-                if said.get("agent")
-                else _agents_of(resume)
-            )
-            link.start("chat", said["task"], agents=agents, resume=resume or False)
-            return {"slot": said["slot"], "epic": ""}
-        if method == "chat.say":
-            return self._says(app, str(said["text"]))
-        if method == "chat.commands":
-            return {
-                "entries": [
-                    {
-                        "sigil": one.sigil,
-                        "name": one.name,
-                        "about": one.about,
-                        "how": one.how,
-                        "source": "native",
-                    }
-                    for one in self.catalog
-                ],
-                "prefer": self.prefer,
-                "prefer_from": self.prefer_from,
-            }
-        if method == "chat.set":
-            self.prefer, self.prefer_from = str(said["prefer"]), "chat"
-            return {}
-        raise RuntimeError(f"no such method: {method}")
-
-    def _says(self, app: Humanize, text: str) -> dict[str, Any]:
-        """A line said to the chat: a `!` run as the harness's interface runs one, or said."""
-        link = app._link  # noqa: SLF001 -- the host this stands in for the daemon at
-        if text.startswith("!") and any(
-            one.sigil == "!" and one.how == "emulate" for one in self.catalog
-        ):
-            # Run, shown and carried into the next turn by the chat; here only shown, as the
-            # chat's host tells a frontend of one.
-            app._told(  # noqa: SLF001 -- what the host would have told it
-                {
-                    "type": "shell",
-                    "command": text[1:],
-                    "out": PRINTED,
-                    "err": "",
-                    "status": 0,
-                },
-                app._hearing,  # noqa: SLF001
-            )
-            return {}
-        # What the host waits on now, asked of it rather than of what the interface has been
-        # told so far: a line said just as the interface came back to the chat is said
-        # before the interface has heard what it waits on.
-        pending: list[dict[str, Any]] = (
-            link.asked({"do": "status"}).get("pending") or []
-        )
-        waiting = next(iter(pending), None)
-        if waiting is not None:
-            link.answer(str(waiting["question"]), text)
-        else:
-            link.say(text, to=app._attached)  # noqa: SLF001
-        return {}
-
-
-def _agents_of(epic: str | None) -> dict[str, str]:
-    """What the chat of an epic was had with, by role, for one carried on without an agent."""
-    if not epic:
-        return {}
-    from hmz.coganchor import backends
-    from hmz.runtime.epic import read
-
-    ran = read(Path(epic))
-    if ran is None:
-        return {}
-    return {
-        one.agent: f"{one.backend}/{one.model}:{backends.written(one.effort)}"
-        for one in ran.agents
-    }
