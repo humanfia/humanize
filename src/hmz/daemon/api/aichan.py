@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import functools
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from hmz.daemon import where
 from hmz.daemon.reach import PRESETS, ROLE, SCOPES, ran_in
@@ -137,8 +137,13 @@ def _state(router: Router, conversation: Mapping[str, Any]) -> str:
     if hosted is None:
         return "folded"
     status = hosted.status()
+    if "turn" in status:
+        return "running" if status["turn"] == "running" else "waiting"
+    # Her turn is open while her epic runs and asks nobody what to say next.
+    pending = cast("list[dict[str, Any]]", status.get("pending") or [])
+    listening = any(one.get("mode") == "listen" for one in pending)
     return (
-        "running" if status.get("turn", status.get("state")) == "running" else "waiting"
+        "running" if status.get("state") == "running" and not listening else "waiting"
     )
 
 
