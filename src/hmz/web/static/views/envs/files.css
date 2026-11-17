@@ -1,0 +1,709 @@
+/* The Files panel: the explorer or a search on the left, the tabs and the editor on the right,
+   a status bar under it. Every colour is one of the page's tokens. */
+
+.files {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(180px, var(--files-side, 260px)) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: 13px var(--sans);
+}
+
+.files [hidden] {
+  display: none !important;
+}
+
+/* ----------------------------------------------------------------- the side */
+
+.files-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  background: var(--side);
+  resize: horizontal;
+  overflow: hidden;
+}
+
+.files-side-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+
+.files-side-tab {
+  flex: 1;
+  padding: 6px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ink-2);
+  font: 600 11px var(--sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.files-side-tab[aria-selected='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--live);
+}
+
+.files-explorer,
+.files-search {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+  padding: 6px 8px 0;
+}
+
+.files-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.files-pane-head .icon-btn {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+}
+
+.files-pane-head .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.files-root {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 11px var(--sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.files-filter,
+.files-input {
+  width: 100%;
+  min-height: var(--control-h-sm) !important;
+  padding: 3px 6px;
+  font-size: 12.5px;
+}
+
+.files-tree,
+.files-results {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0 -8px;
+  outline: none;
+}
+
+.files-tree:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--live);
+}
+
+.files-sizer {
+  position: relative;
+  min-width: 100%;
+}
+
+.files-row,
+.files-result,
+.files-result-file {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px 0 calc(8px + var(--depth, 0) * 12px);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.files-row:hover,
+.files-result:hover,
+.files-result-file:hover {
+  background: var(--hover);
+}
+
+.files-row.current {
+  color: var(--live-ink);
+}
+
+.files-row.selected {
+  background: var(--live-soft);
+}
+
+.files-tree:focus .files-row.selected {
+  box-shadow: inset 0 0 0 1px var(--live);
+}
+
+.files-row.is-loading,
+.files-row.is-error {
+  cursor: default;
+  color: var(--ink-3);
+  font-style: italic;
+  padding-left: calc(28px + var(--depth, 0) * 12px);
+}
+
+.files-row.is-error {
+  color: var(--fail);
+}
+
+.files-twisty {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-3);
+}
+
+.files-twisty .icon {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.1s;
+}
+
+.files-twisty.open .icon {
+  transform: rotate(90deg);
+}
+
+.files-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 16px;
+  color: var(--ink-3);
+}
+
+.files-icon .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.files-folder {
+  color: var(--gold);
+}
+
+.files-badge {
+  font: 700 8px/1 var(--mono);
+  letter-spacing: -0.02em;
+}
+
+.files-badge.lane-1 { color: var(--lane-1); }
+.files-badge.lane-2 { color: var(--lane-2); }
+.files-badge.lane-3 { color: var(--lane-3); }
+.files-badge.lane-4 { color: var(--budget-ink); }
+.files-badge.lane-5 { color: var(--lane-5); }
+.files-badge.lane-6 { color: var(--lane-6); }
+
+.files-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files-dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.files-rename {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  min-height: 20px !important;
+  padding: 0 4px;
+  font-size: 12.5px;
+  border-color: var(--live);
+}
+
+.files-tree-error {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* ----------------------------------------------------------------- search */
+
+.files-query {
+  display: flex;
+  gap: 2px;
+}
+
+.files-query .files-input {
+  flex: 1;
+}
+
+.files-toggle {
+  flex: none;
+  width: var(--control-h-sm);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink-2);
+  font: 600 11px var(--mono);
+  cursor: pointer;
+}
+
+.files-toggle[aria-pressed='true'] {
+  border-color: var(--live);
+  background: var(--live-soft);
+  color: var(--ink);
+}
+
+.files-summary {
+  color: var(--ink-3);
+  font-size: 12px;
+  min-height: 16px;
+}
+
+.files-result-file {
+  padding-left: 8px;
+  font-weight: 600;
+}
+
+.files-result-file .files-dir {
+  flex: 1;
+  font-weight: 400;
+}
+
+.files-count {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--line);
+  color: var(--ink-2);
+  font: 11px var(--mono);
+}
+
+.files-result {
+  padding-left: 26px;
+  font: 12px var(--mono);
+}
+
+.files-result:focus-visible {
+  outline: 1px solid var(--live);
+  outline-offset: -1px;
+}
+
+.files-line {
+  flex: none;
+  min-width: 28px;
+  color: var(--ink-3);
+  text-align: right;
+  padding-right: 6px;
+}
+
+.files-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files mark {
+  background: color-mix(in srgb, var(--gold) 40%, transparent);
+  color: inherit;
+}
+
+/* ----------------------------------------------------------------- the editor side */
+
+.files-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.files-tabs {
+  display: flex;
+  flex: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 34px;
+  background: var(--side);
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+
+.files-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 240px;
+  padding: 0 4px 0 10px;
+  border-right: 1px solid var(--line);
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.files-tab:hover {
+  background: var(--hover);
+}
+
+.files-tab.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 2px 0 var(--live);
+}
+
+.files-tab.preview .files-tab-name {
+  font-style: italic;
+}
+
+.files-tab.conflict .files-tab-name {
+  color: var(--fail);
+}
+
+.files-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-tab-dir {
+  color: var(--ink-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.files-tab-close {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  visibility: hidden;
+}
+
+.files-tab-close .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.files-tab.active .files-tab-close,
+.files-tab:hover .files-tab-close,
+.files-tab.dirty .files-tab-close {
+  visibility: visible;
+}
+
+.files-tab-close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.files-dot {
+  display: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* A tab with edits not written shows a dot, the close button taking its place on hover. */
+.files-tab.dirty .files-dot {
+  display: block;
+}
+
+.files-tab.dirty .files-tab-close .icon {
+  display: none;
+}
+
+.files-tab.dirty .files-tab-close:hover .files-dot {
+  display: none;
+}
+
+.files-tab.dirty .files-tab-close:hover .icon {
+  display: block;
+}
+
+.files-banners:empty {
+  display: none;
+}
+
+.files-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--raised);
+  font-size: 12.5px;
+}
+
+.files-banner > span {
+  flex: 1;
+  min-width: 160px;
+}
+
+.files-banner.warn {
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface));
+}
+
+.files-banner.danger {
+  background: color-mix(in srgb, var(--fail) 12%, var(--surface));
+}
+
+.files-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.files-editor,
+.files-other {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.files-editor .cm-editor {
+  height: 100%;
+}
+
+.files-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+.files-editor .cm-scroller {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.files-other {
+  overflow: auto;
+}
+
+.files-welcome,
+.files-notice {
+  max-width: 460px;
+  margin: 48px auto;
+  padding: 0 16px;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.files-notice strong,
+.files-welcome strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.files-notice .row {
+  justify-content: center;
+}
+
+.files-image {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 100%;
+  padding: 16px;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(45deg, var(--grid) 25%, transparent 25%, transparent 75%, var(--grid) 75%),
+    linear-gradient(45deg, var(--grid) 25%, transparent 25%, transparent 75%, var(--grid) 75%);
+  background-position: 0 0, 8px 8px;
+  background-size: 16px 16px;
+}
+
+.files-image img {
+  max-width: 100%;
+  max-height: calc(100% - 32px);
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+.files-caption {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.files-merge-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  font: 600 11px var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.files-merge {
+  height: calc(100% - 26px);
+  overflow: auto;
+}
+
+.files-merge .cm-mergeView {
+  min-height: 100%;
+}
+
+.files-status {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+  min-height: 24px;
+  padding: 0 6px;
+  border-top: 1px solid var(--line);
+  background: var(--side);
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.files-gap {
+  flex: 1;
+}
+
+.files-state {
+  padding: 0 6px;
+}
+
+.files-state.is-saving,
+.files-state.is-dirty {
+  color: var(--ink-3);
+}
+
+.files-state.is-error {
+  color: var(--fail);
+}
+
+.files-status-item {
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+button.files-status-item {
+  cursor: pointer;
+}
+
+button.files-status-item:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.files-status-item.on {
+  color: var(--live-ink);
+}
+
+/* ----------------------------------------------------------------- quick open */
+
+.files-quick {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100% - 32px));
+  max-height: min(420px, calc(100% - 16px));
+  padding: 6px;
+  transform: translateX(-50%);
+  border: 2px solid var(--edge, var(--ink));
+  background: var(--raised);
+  box-shadow: var(--shadow);
+}
+
+.files-quick .files-input {
+  min-height: var(--control-h) !important;
+  font-size: 13.5px;
+}
+
+.files-quick-note {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.files-quick-note:empty {
+  display: none;
+}
+
+.files-quick-list {
+  overflow: auto;
+  margin-top: 4px;
+}
+
+.files-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 6px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.files-pick:hover {
+  background: var(--hover);
+}
+
+.files-pick.active {
+  background: var(--live-soft);
+}
+
+.files-pick .files-name {
+  flex: none;
+  max-width: 60%;
+}
+
+.files-pick mark {
+  background: none;
+  color: var(--live-ink);
+  font-weight: 700;
+}
+
+.files-quick-empty {
+  padding: 8px 6px;
+  color: var(--ink-3);
+}
+
+/* ----------------------------------------------------------------- a phone */
+
+@media (max-width: 700px) {
+  .files {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(140px, 38%) minmax(0, 1fr);
+  }
+
+  .files-side {
+    resize: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .files-quick {
+    width: calc(100% - 32px);
+  }
+}
