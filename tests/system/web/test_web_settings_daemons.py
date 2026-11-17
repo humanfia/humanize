@@ -67,7 +67,7 @@ def test_the_app_and_the_daemon_are_set_apart(project: Path, engine: str) -> Non
         expect(nav.locator(".settings-group")).to_have_text(["App", "Daemon"])
         expect(nav.locator("a:visible").first).to_have_text("Themes")
         expect(nav.locator("a:visible")).to_contain_text(
-            ["Themes", "General", "Accounts", "Fallback", "Runtimes", "Backup"]
+            ["Themes", "General", "Accounts", "Nous", "Runtimes", "Backup"]
         )
         picker = page.locator("[data-hmz=settings-daemon]")
         expect(picker.locator("option")).to_have_text(["Local"])

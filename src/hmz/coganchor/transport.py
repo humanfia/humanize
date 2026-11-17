@@ -16,7 +16,8 @@ containers of this Mac and no other; and a Slurm job's is an `srun` sharing that
 allocation, on the node it was given.
 
 Two of them *find* a serving half somebody else started. ``tcp://host:port`` dials one left
-listening. ``peer://TICKET@BROKER:PORT`` is met through a broker
+listening, and carries the session inside TLS (:mod:`hmz.coganchor.tls`), proving the token
+rather than sending it. ``peer://TICKET@BROKER:PORT`` is met through a broker
 (:mod:`hmz.coganchor.rendezvous`), which is the answer where the two halves are on two machines
 that cannot dial each other and only Humanize can reach both -- and which `coganchor cog` dials
 itself, a meeting being for one session.
@@ -45,7 +46,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from hmz.coganchor import binary
+from hmz.coganchor import binary, tls
 from hmz.coganchor.proto import Channel
 from hmz.coganchor.unix import sockets
 
@@ -1237,12 +1238,15 @@ def connect(target: Target, exports: list[str], token: str | None = None) -> Tra
     """
     if target.scheme == "tcp":
         sock = socket.create_connection((target.host, target.port), timeout=30.0)
-        sock.settimeout(None)
         # Nagle off, the way a punched socket has it off: this protocol is a small request
         # and a small reply, over and over, and a delay waiting for a second frame that is
         # not coming is a delay per syscall the agent makes.
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        return Transport(Channel.from_socket(sock))
+        # The handshake within the same 30 seconds a step; the session as long as it lasts.
+        # An empty token is none, as an empty `$HUMANIZE_TOKEN` is to the serving half.
+        sealed = tls.dial(sock, token.encode() if token else None, target.describe())
+        sock.settimeout(None)
+        return Transport(Channel.from_pipe(sealed, sealed.bound))
     if target.scheme == "peer":
         raise ConnectionError(
             f"{target.describe()} is a meeting for one session, which coganchor keeps"

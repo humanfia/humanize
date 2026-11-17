@@ -42,7 +42,7 @@ It is normative. It is cited by the tag [PYTHON].
   - [4.8. `Flowverses`](#48-flowverses)
   - [4.9. `Accounts`](#49-accounts)
   - [4.10. `Runtimes`](#410-runtimes)
-  - [4.11. `Fallbacks`](#411-fallbacks)
+  - [4.11. `NousBook`](#411-nousbook)
   - [4.12. `Epics`](#412-epics)
   - [4.13. `Backups`](#413-backups)
   - [4.14. The daemon registry](#414-the-daemon-registry)
@@ -1583,8 +1583,9 @@ of the others. A `Graceful` whose three fields agree MUST be read as the `bool` 
 turns each counting. `Usage.cost` MUST be in US dollars. `Usage.output_tokens` MUST be the tokens
 agents wrote.
 
-**3.12.1.6** hmz MUST require a budget for the top call of every epic except of the `chat` flow,
-given as specified in [CLI]. A top call of `chat` given none MUST run under `Budget(cost=math.inf)`.
+**3.12.1.6** hmz MUST require a budget for the top call of every epic except of the `chat` and
+`ai_chan` flows, given as specified in [CLI]. A top call of either given none MUST run under
+`Budget(cost=math.inf)`.
 
 #### 3.12.2. Effective budget
 
@@ -1820,6 +1821,7 @@ that an index lists and that is not installed MUST NOT be found, and naming it M
 | Flow | Agent roles | Role needs | Resumable |
 | --- | --- | --- | :-: |
 | `chat` | `assistant`, `human: Outworlder` | none | ✓ |
+| `ai_chan` | `ai_chan`, `human: Outworlder` | none | ✓ |
 | `ralph_loop` | `agent` | none | |
 | `stateful_ralph` | `agent` | none | ✓ |
 | `continue_loop` | `agent` | none | |
@@ -1829,7 +1831,8 @@ that an index lists and that is not installed MUST NOT be found, and naming it M
 
 **3.14.3.2** The agent roles of `chat` MUST each be granted every mixin its harness serves, whatever
 the role declares. Every other flow MUST be granted exactly what its roles declare. The behaviour of
-`chat` is specified in Section 8 of [CORE].
+`chat` is specified in Section 8 of [CORE], and that of `ai_chan`, whose environment role is
+`scratch` in place of `workspace`, in Section 14 of [CORE].
 
 **3.14.3.3** Each flow of Section 3.14.3.1 other than `chat` MUST run until its budget is spent,
 `rlar` also until its reviewer says the work is done, and MUST end the epic with the failure of any
@@ -2144,8 +2147,8 @@ defines it. An epic is named by its epic directory's base name.
 ### 4.3. The module
 
 ```python
-__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses",
-           "Hmz", "Link", "Refused", "Run", "Runtimes", "fakes"]
+__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Flows", "Flowverses", "Hmz", "Link",
+           "NousBook", "Refused", "Run", "Runtimes", "fakes"]
 def __getattr__(name: str) -> object: ...
 ```
 
@@ -2182,7 +2185,7 @@ class Hmz:
     verses: Flowverses   # property
     accounts: Accounts   # property
     runtimes: Runtimes   # property
-    fallbacks: Fallbacks # property
+    nous: NousBook       # property
     epics: Epics         # property
     backups: Backups     # property
     daemons: Registry    # property; the type of Section 4.14, not hmz.sdk.Daemons
@@ -2229,7 +2232,7 @@ reading it MUST NOT create it.
 **4.4.1.4** `Hmz.settings` MUST read and write the settings of Section 3 of [FILES] for this
 workspace and this machine; members of its type are not part of this API.
 
-**4.4.1.5** `Hmz.flows`, `Hmz.accounts`, `Hmz.runtimes`, `Hmz.fallbacks`, `Hmz.epics`, `Hmz.backups`
+**4.4.1.5** `Hmz.flows`, `Hmz.accounts`, `Hmz.runtimes`, `Hmz.nous`, `Hmz.epics`, `Hmz.backups`
 and `Hmz.daemons` MUST each return the same object on every access of one `Hmz` instance.
 
 **4.4.1.6** `Hmz.verses` MUST be the identical object `Hmz.flows.verses`.
@@ -2315,8 +2318,8 @@ them, or an instance of the flow's `FlowParams`, sent as its JSON; `None` MUST m
 defaults.
 
 **4.4.5.9** The parameter `budget` MUST accept a `Budget` or a mapping validated as `Budget`
-validates one; `None` MUST mean an unlimited cost for the built-in `chat` flow and MUST be refused
-for every other flow.
+validates one; `None` MUST mean an unlimited cost for the built-in `chat` and `ai_chan` flows and
+MUST be refused for every other flow.
 
 **4.4.5.10** `profile_flow` and `profile_environment` MUST mean what `--profile-flow` and
 `--profile-environment` mean in [CLI].
@@ -2803,49 +2806,76 @@ that accept a job.
 **4.10.13** `Runtimes.check` MUST NOT wait longer than `seconds`, MUST NOT prompt for a password,
 and MUST NOT raise: a runtime that does not answer MUST be reported as unreached, with why.
 
-### 4.11. `Fallbacks`
+### 4.11. `NousBook`
 
 ```python
-class Fallbacks:
+class NousBook:
     default: str  # property
-    def all(self) -> list[Falls]: ...
+    def all(self) -> list[Nous]: ...
     def policies(self) -> tuple[Policy, ...]: ...
     def named(self, policy: str) -> Policy | None: ...
+    def strategies(self) -> tuple[Strategy, ...]: ...
+    def strategy(self, name: str, about: str,
+                 picks: Callable[[Sequence[Member]], str]) -> Strategy: ...
     def reads(self, said: str) -> str: ...
-    def spec(self, backend: str, model: str, provider: str = "") -> str: ...
-    def tried(self, said: str) -> Falls: ...
-    def chain(self, said: str) -> list[str]: ...
-    def points(self, said: str, to: Sequence[str]) -> Falls: ...
-    def retrying(self, said: str, tries: int, policy: str, timeout: float) -> Falls: ...
+    def spec(self, backend: str, model: str, provider: str = "", effort: str = "") -> str: ...
+    def rule(self, said: str) -> Nous: ...
+    def graph(self, said: object) -> Graph | None: ...
+    def shown(self, graph: Graph | None) -> dict[str, Any] | None: ...
+    def check(self, nous: Nous, among: Sequence[Nous] | None = None) -> Nous: ...
+    def checked(self, name: str, graph: Graph) -> Graph: ...
+    def put(self, nous: Nous) -> Nous: ...
+    def write(self, name: str, *, tries: int = 0, policy: str = "", timeout: float = 0.0,
+              graph: object = None, then: object = None) -> Nous: ...
+    def faults(self) -> tuple[str, ...]: ...
+    def retrying(self, said: str, tries: int, policy: str, timeout: float) -> Nous: ...
+    def then(self, said: str, to: Graph | Sequence[str] | None) -> Nous: ...
+    def renamed(self, said: str, name: str) -> Nous: ...
+    def entry(self, said: str) -> str: ...
     def clear(self, said: str) -> bool: ...
 ```
 
-**4.11.1** `Fallbacks.default` MUST be `"exponential-jitter"`.
+**4.11.1** `NousBook.default` MUST be `"exponential-jitter"`.
 
-**4.11.2** `Fallbacks.policies()` MUST return the wait policies `none`, `constant`, `linear`,
-`exponential`, `exponential-jitter` and `fibonacci`; `Fallbacks.named(policy)` MUST return one of
+**4.11.2** `NousBook.policies()` MUST return the wait policies `none`, `constant`, `linear`,
+`exponential`, `exponential-jitter` and `fibonacci`; `NousBook.named(policy)` MUST return one of
 them, or `None`.
 
-**4.11.3** `Fallbacks.all()` MUST return every fallback step written, in the order written.
+**4.11.3** `NousBook.strategies()` MUST return the strategies of Section 4.11.4.7 of [CORE], in that
+order, and then those added; `NousBook.strategy(name, about, picks)` MUST add one for this process,
+`picks` returning the name of the member to try next, and MUST raise `ValueError` for a built-in
+name or one that does not match `[A-Za-z][A-Za-z0-9_.-]*`.
 
-**4.11.4** `Fallbacks.reads(said)` MUST return the canonical spelling of a place, or `""` where
-`said` is not one; `Fallbacks.spec(backend, model, provider)` MUST return the place
-`<backend>[@<provider>]/<model>`.
+**4.11.4** `NousBook.all()` MUST return every nous written, in the order written.
 
-**4.11.5** `Fallbacks.tried(said)` MUST return the step written against a place, or an empty `Falls`
-where there is none.
+**4.11.5** `NousBook.reads(said)` MUST return the canonical spelling of a concrete nous, a virtual
+nous's name as it is, or `""` where `said` is neither; `NousBook.spec(backend, model, provider,
+effort)` MUST return the concrete nous `<backend>[@<provider>]/<model>[:<effort>]`.
 
-**4.11.6** `Fallbacks.chain(said)` MUST return `[said, *to]` where a step is written against `said`,
-and `[said]` otherwise; chains MUST NOT be joined.
+**4.11.6** `NousBook.rule(said)` MUST return the nous written under `said`, else that written under
+`said` without its effort, else a `Nous` of that name that says nothing.
 
-**4.11.7** `Fallbacks.points(said, to)` MUST set the places `said` falls back to, in order, and MUST
-raise `ValueError` for a text that is not a place, for `said` itself, and for a place named twice.
+**4.11.7** `NousBook.graph(said)` MUST read a nous graph written as Section 3.6.1.8 of [FILES]
+states, or with `nodes` a list of nodes each holding its `id` and with `among` a list of nous or of
+`{nous, weight}`, and MUST raise `TypeError` for any other shape; `NousBook.shown(graph)` MUST return
+a graph as `nous.list` of Section 4.18.3 of [DAEMON] carries it, or `None` for `None`.
 
-**4.11.8** `Fallbacks.retrying(said, tries, policy, timeout)` MUST set the extra tries, the wait
-policy and the total limit in seconds (`0` meaning none), and MUST raise `ValueError` for an invalid
-value.
+**4.11.8** `NousBook.put(nous)`, `NousBook.write(...)`, `NousBook.retrying(...)` and
+`NousBook.then(said, to)` MUST write the nous and return it as written, and MUST raise `ValueError`
+for a nous Section 3.6.2.3 of [FILES] refuses or a graph Section 4.11.4.9 of [CORE] refuses.
 
-**4.11.9** `Fallbacks.clear(said)` MUST remove the step and return whether there was one.
+**4.11.8.1** `NousBook.check(nous, among)` MUST return the nous as `put` would write it beside
+`among`, or beside every nous written where `among` is `None`, and MUST raise as `put` would, writing
+nothing; `NousBook.checked(name, graph)` MUST do the same for one graph of the nous `name`.
+
+**4.11.9** `NousBook.renamed(said, name)` MUST rename a virtual nous as Section 3.6.2.4 of [FILES]
+states, and MUST raise `ValueError` for a name that is no virtual nous or one already taken.
+
+**4.11.10** `NousBook.entry(said)` MUST return the concrete nous a walk of `said` starts at;
+`NousBook.faults()` MUST return every fault class (Section 4.2.13 of [CORE]) and then `*`.
+
+**4.11.11** `NousBook.clear(said)` MUST remove the nous and return whether there was one, and MUST
+raise `ValueError` for a virtual nous another nous names.
 
 ### 4.12. `Epics`
 
@@ -3305,8 +3335,12 @@ none), `asks`, `sets`, `args` and `stdin`.
 **4.20.2.3** `Model` MUST have the fields `name`, `efforts: tuple[str, ...]` (hardest first) and
 `swarms: bool`.
 
-**4.20.2.4** `Falls` MUST have the fields `spec`, `to: tuple[str, ...]`, `tries: int`, `policy: str`
-and `timeout: float`; `Policy` MUST have the fields `name` and `about`.
+**4.20.2.4** `Nous` MUST have the fields `name`, `tries: int`, `policy: str`, `timeout: float`,
+`graph: Graph | None` and `then: Graph | None`, and the property `virtual: bool`; `Graph` MUST have
+the fields `start` and `nodes: tuple[Node, ...]`; `Node` MUST have the fields `id`, `use`, `balance`,
+`among: tuple[tuple[str, int], ...]`, `spread: int` and `on: tuple[tuple[str, str], ...]`; `Policy`
+and `Strategy` MUST have the fields `name` and `about`; `Member` MUST have the fields `name`,
+`weight`, `busy`, `latency`, `tokens`, `price` and `cooling`.
 
 #### 4.20.3. Flows
 
@@ -3421,6 +3455,11 @@ call it.
 
 **4.21.7** A call on a `Client` whose session has ended MUST raise `Refused` with `code` `503` and
 the message `the daemon went away`.
+
+**4.21.8** `Client.local` with `kind` `ai-chan` MUST open its session over the scoped link that
+`HUMANIZE_AICHAN_LINK` names (Section 3.11.2.17 of [FILES]) in place of the daemon's socket, MUST
+NOT start a daemon, and MUST raise `OSError` where that variable is unset; the flow `ai_chan` speaks
+to the daemon through that `Client` alone (Section 14.6.2 of [CORE]).
 
 ## 5. Security Considerations
 

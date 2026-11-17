@@ -330,7 +330,7 @@ wins are gone; see [Efforts](/user/efforts).
 ### It stopped on its own after a failed turn
 
 A turn that fails ends `flame_chase` with that failure, which the run prints. Humanize has
-already retried it, or moved along its [fallback](/user/settings#fallback) chain, by then.
+already retried it, or moved on through its [nous](/user/settings#nous), by then.
 It is often an account out of quota or signed out. See
 [Troubleshooting](/user/troubleshooting), then pick the run up as in
 [Next steps](#next-steps).

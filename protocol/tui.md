@@ -29,6 +29,7 @@ It is normative. It is cited by the tag [TUI].
   - [7.16. `/claim [on|off]`](#716-claim-onoff)
   - [7.17. `/stop`](#717-stop)
   - [7.18. `/exit`](#718-exit)
+  - [7.19. `/ai`](#719-ai)
 - [8. `$` lines](#8--lines)
 - [9. Saying something](#9-saying-something)
 - [10. Questions](#10-questions)
@@ -62,7 +63,7 @@ It is normative. It is cited by the tag [TUI].
   - [19.5. Daemons](#195-daemons)
   - [19.6. Accounts](#196-accounts)
   - [19.7. Account form](#197-account-form)
-  - [19.8. Fallback](#198-fallback)
+  - [19.8. Nous](#198-nous)
   - [19.9. Runtimes](#199-runtimes)
   - [19.10. Backup](#1910-backup)
   - [19.11. Workspace](#1911-workspace)
@@ -96,8 +97,9 @@ This document does not define the following, each of which the document cited de
 - What each setting means and where it is stored: Section 3 of [FILES].
 - The chat flow's behaviour common to every frontend: Section 8 of [CORE].
 - Side questions' behaviour common to every frontend: Section 9 of [CORE].
+- Ai-chan's behaviour common to every frontend: Section 14 of [CORE].
 - Agents, harnesses, models and efforts: Section 4 of [CORE].
-- Accounts and fallback: Section 5 of [CORE].
+- Accounts and nous: Sections 4 and 5 of [CORE].
 - Placements and runtimes: Section 6 of [CORE].
 - Environments: Section 7 of [CORE].
 - Epics, export, import and resuming: Section 3 of [CORE].
@@ -152,7 +154,7 @@ by the prompt `❯`.
 editor of its own.
 
 **2.15** **Menu**: a screen of its own drawn as Section 15 states: `/flow`, `/epics`, `/settings`,
-every sheet opened from them, and every page opened from the monitor.
+`/ai`, every sheet opened from them, and every page opened from the monitor.
 
 **2.16** **Sheet**: a menu that sets up one thing: an agent, an environment, params, a budget, a
 form.
@@ -322,7 +324,7 @@ in this order:
 ## 7. Commands
 
 **7.1** The interface MUST offer exactly these commands: `/flow`, `/btw`, `/epics`, `/resume`,
-`/settings`, `/clear`, `/afk`, `/claim`, `/stop`, `/exit`.
+`/settings`, `/clear`, `/afk`, `/claim`, `/stop`, `/exit`, `/ai`.
 
 **7.2** The interface MUST echo a command line as typed, MUST split its arguments as a POSIX shell
 splits words, and MUST refuse a line it cannot split, saying why.
@@ -363,8 +365,12 @@ while one is running.
 **7.10.2** In btw mode, `/btw` alone MUST leave btw mode, and `/btw <question>` MUST ask one more
 question.
 
-**7.10.3** `/btw` MUST be refused where there is nobody to ask (Section 9.5.8 of [CORE], Section
-9.5.9 of [CORE]).
+**7.10.3** `/btw` MUST work only in a session view and an agent view (Section 9.5.3 of [CORE]); in
+any other view it MUST be refused as Section 7.4 states, adding that `/ai` asks Ai-chan about the
+epic.
+
+**7.10.4** `/btw` MUST be refused where the session read no longer exists (Section 9.5.8 of
+[CORE]).
 
 ### 7.11. `/epics [@daemon]`
 
@@ -394,7 +400,7 @@ and MUST look again for itself when typed.
 **7.13.1** `/settings` MUST open the settings menu (Section 19) on its landing screen.
 
 **7.13.2** `/settings <page>` MUST open inside the page named: `general`, `notifications`,
-`daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace` or `usage`, compared without
+`daemons`, `accounts`, `nous`, `runtimes`, `backup`, `workspace` or `usage`, compared without
 regard to case.
 
 **7.13.3** `/settings` MUST take `settings` and `everywhere` as `general`, `directory` as
@@ -476,6 +482,41 @@ away as it is; `hmz` run again in the directory MUST read that epic from its sta
 
 **7.18.8** Once the interface has closed, `hmz` MUST give the backups this process queued at most 15
 seconds to finish, saying so where it waits and where one was left unfinished.
+
+### 7.19. `/ai`
+
+**7.19.1** `/ai` MUST open a menu (Section 15) listing, under an entry **New**, every Ai-chan
+conversation of the daemon (Section 4.22.3 of [DAEMON]), newest first, each with its title, its
+scope, its nous, its preset, whether its network is on, and whether a turn is open, it is between
+turns or it has folded away.
+
+**7.19.2** Choosing a conversation MUST follow its host in the log screen, carrying it on where it
+has folded away (Section 14.8.5 of [CORE]), and MUST draw it as Section 7.19.6 states.
+
+**7.19.3** **New** MUST open a form (Section 2.17) asking, in order: the scope, `daemon`, `workspace`
+or `epic`, defaulting to `epic`, of the epic going or last on the host this interface follows, where
+there is one, and otherwise to `workspace`, of this directory; the nous, offering every nous
+`nous.list` answers and defaulting to the `ai_chan` setting (Section 14.3.2 of [CORE]); the preset,
+`read-only` or `danger-full-access`, defaulting to `read-only`; and the network, `off` or `on`,
+defaulting to `off`.
+
+**7.19.4** **Done** on the form of Section 7.19.3 MUST leave the menu with the log screen waiting
+on a new conversation, and the first line said MUST make it by `aichan.create`, that line being its
+task, and MUST then follow its host as Section 7.19.2 states.
+
+**7.19.5** The menu MUST offer **Forget** on a conversation, which asks for confirmation and then
+forgets it by `aichan.forget`.
+
+**7.19.6** While the log screen follows an Ai-chan conversation, the interface MUST draw it as a
+chat (Section 11), naming it `Ai-chan#<n>` on the status line with its scope, and MUST show each
+tool Ai-chan calls as a tool line of a turn is shown (Section 14.7.3 of [CORE]).
+
+**7.19.7** While the log screen follows an Ai-chan conversation, a line said MUST be its next turn,
+`/stop` MUST stop Ai-chan's open turn (Section 14.8.3 of [CORE]) and MUST NOT be refused as Section
+11.5 refuses it, and `/btw` MUST be refused as Section 7.10.3 states.
+
+**7.19.8** `/clear` while the log screen follows an Ai-chan conversation MUST leave that
+conversation to its host and follow this directory's own host again.
 
 ## 8. `$` lines
 
@@ -589,8 +630,8 @@ starts another.
 
 ## 12. Btw mode
 
-**12.1** Entering btw mode MUST say who answers, `btw · <agent>/<n>` or `btw · The Epic`, and that
-each line is a question and `/btw` or `esc` leaves.
+**12.1** Entering btw mode MUST say who answers, `btw · <agent>/<n>`, and that each line is a
+question and `/btw` or `esc` leaves.
 
 **12.2** While btw mode is on, the status line MUST begin with `btw · ` and who answers, in cyan.
 
@@ -598,26 +639,23 @@ each line is a question and `/btw` or `esc` leaves.
 question of the same side conversation.
 
 **12.4** Who answers MUST be as Section 9.5 of [CORE] states, the view read deciding: a session view
-or an agent view its session side copy, any other view The Epic, which is the btw agent.
+or an agent view its session side copy.
 
 **12.5** Each answer MUST be shown in the view read: a cyan bullet, `btw · ` and the question, dim,
 then the answer in cyan.
 
-**12.6** Each ask line the btw agent sends MUST be shown, dim, as `btw · asking <agent>/<n>:` and
-its question.
+**12.6** Btw mode MUST offer no key or list that picks the agent that answers (Section 9.5.9 of
+[CORE]).
 
-**12.7** Btw mode MUST offer no key or list that picks the btw agent, which is the `btw` setting
-alone (Section 9.7.5 of [CORE]).
-
-**12.8** `/btw` alone or `esc` MUST leave btw mode, say `btw: exited`, and close every side
+**12.7** `/btw` alone or `esc` MUST leave btw mode, say `btw: exited`, and close every side
 conversation btw mode opened.
 
-**12.9** An epic starting MUST leave btw mode, saying that a new flow started.
+**12.8** An epic starting MUST leave btw mode, saying that a new flow started.
 
-**12.10** A side question asked while the side conversation is answering an earlier one MUST be
+**12.9** A side question asked while the side conversation is answering an earlier one MUST be
 refused, showing `hmz: btw is still answering the last question` in red.
 
-**12.11** A failure of a side question MUST be shown in red, prefixed `hmz: /btw:`.
+**12.10** A failure of a side question MUST be shown in red, prefixed `hmz: /btw:`.
 
 ## 13. Status line
 
@@ -985,7 +1023,7 @@ with no saved state.
 ### 19.1. Landing screen
 
 **19.1.1** `/settings` MUST be one menu of nine pages, in this order: General, Notifications,
-Daemons, Accounts, Fallback, Runtimes, Backup, Workspace, Usage.
+Daemons, Accounts, Nous, Runtimes, Backup, Workspace, Usage.
 
 **19.1.2** The landing screen MUST show one card per page with a summary of it, and `● unsaved` on
 each card whose page holds a change.
@@ -999,17 +1037,17 @@ return to the landing screen with the cursor on that page's card.
 
 **19.1.6** Each saved setting MUST take effect at once where it can; otherwise the interface MUST
 say beside its row while held and in the transcript when it lands: account changes from the next
-agent session, forgetting a directory from the next launch, the btw agent from the next side
-conversation of the btw agent.
+agent session, forgetting a directory from the next launch, the `ai_chan` setting from the next
+Ai-chan conversation made.
 
 **19.1.7** Leaving `/settings` MUST write one dim line per change into the transcript.
 
 ### 19.2. General
 
 **19.2.1** The General page MUST hold, for this machine: **Details**, whether turns show tool calls,
-thinking and harness output; **/btw The Epic**, the agent that answers side questions asked of The
-Epic: `none`, the current one, or another set up on the agent sheet titled `Set up The Epic's
-agent`; **Error reports**, on or off; and **What is sent**, which says what error reports include
+thinking and harness output; **Ai-chan**, the nous a new Ai-chan conversation defaults to (Section
+14.3.2 of [CORE]): `none`, the current one, another nous, or an agent set up on the agent sheet
+titled `Set up Ai-chan`; **Error reports**, on or off; and **What is sent**, which says what error reports include
 and exclude.
 
 **19.2.2** Once answered, **Error reports** MUST NOT return to unanswered.
@@ -1081,14 +1119,24 @@ it in their place.
 **19.7.3** After an account is made, the interface MUST ask what it runs without holding up the
 menu, saying so while it asks and how that went.
 
-### 19.8. Fallback
+### 19.8. Nous
 
-**19.8.1** The Fallback page MUST list each rule by the place that fails, its retries, its wait
-policy, its limit and the chain of places it falls back to, in order.
+**19.8.1** The Nous page MUST list each nous by its name, marked virtual or concrete, with its
+retries, its wait policy, its limit, and its graph and `then`, each shown as its nodes in order from
+the start, a use node as its nous and a balance node as its strategy and its nous with their weights.
 
-**19.8.2** The rule form MUST take the place that fails, the chain of places, each added, taken off
-and reordered there, the number of tries, the wait policy and the limit, and MUST refuse a chain
-that names the place that fails or one place twice (Section 5 of [CORE]).
+**19.8.2** The nous form MUST take the name -- for a concrete nous, one the daemon's accounts and
+installed harnesses run, or one typed, with an effort; for a virtual nous, a name -- the number of
+tries, the wait policy and the limit, and MUST offer editing a virtual nous's graph and every nous's
+`then` with the graph form.
+
+**19.8.3** The graph form MUST let the user add, change and remove nodes -- a use node naming one
+nous, concrete or virtual; a balance node naming a strategy, its nous each with a weight, and its
+spread -- choose the start node, and set each node's edges, by fault class or `*`, to another node.
+
+**19.8.4** The interface MUST refuse a nous or a graph that Section 4.11.4.9 of [CORE] or Section
+3.6.2 of [FILES] refuses, saying why, MUST let the user rename a virtual nous, and MUST refuse
+removing one that another nous names, saying which.
 
 ### 19.9. Runtimes
 

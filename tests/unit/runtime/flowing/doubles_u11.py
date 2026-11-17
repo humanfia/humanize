@@ -2,10 +2,12 @@
 
 - :class:`MemoryMachine` is a :class:`~hmz.runtime.flowing.environing.Machine` in memory:
   files and directories in dictionaries, and every program it is asked to start answered by a
-  function -- the shell scripts the driver copies, removes and adds worktrees with among them.
+  function -- the shell scripts the driver copies, removes and adds worktrees with among them;
+  a terminal it opens is a :class:`MemoryPty`, which echoes what is typed at it.
 - :class:`FakeRemote` stands for coganchor's `RemoteClient` at the far end of an ssh or a
   `docker exec`: it says what :data:`~hmz.runtime.flowing.environing_ssh.PROBE_SCRIPT` asks,
-  answers commands from a function and keeps files in memory. :func:`reach` puts it where
+  answers commands from a function and keeps files in memory; a command it is asked to run on
+  a pty is a :class:`FakeExec` the test speaks for. :func:`reach` puts it where
   `hmz.coganchor.transport.connect` would have connected.
 - :class:`Runtime` is a saved runtime of any backend, as `hmz.coganchor.machines.store` keeps
   one, and :class:`Held` a container a runtime already runs.
@@ -16,20 +18,28 @@ from __future__ import annotations
 import asyncio
 import errno
 import itertools
+import posixpath
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz.flows import EnvBackendKind, EnvError, EnvUnavailable, TempCloneBusy
+from hmz.flows import (
+    EnvBackendKind,
+    EnvError,
+    EnvFileNotFound,
+    EnvUnavailable,
+    TempCloneBusy,
+)
 from hmz.runtime.flowing.environing import (
     CLONE_SCRIPT,
     REMOVE_SCRIPT,
     Claim,
     Machine,
+    Pty,
     Resources,
 )
 from hmz.runtime.flowing.environing_ssh import PROBE_SCRIPT
-from hmz.runtime.flowing.spi import Placement
+from hmz.runtime.flowing.spi import EnvEntry, Placement
 
 if TYPE_CHECKING:
     import io
@@ -72,6 +82,61 @@ class ScriptedRun:
         self.released += 1
 
 
+class MemoryPty(Pty):
+    """A terminal a :class:`MemoryMachine` opened, echoing whatever is typed at it.
+
+    Attributes:
+      argv: What it runs.
+      cwd: Where.
+      sizes: Every window it was given, as (cols, rows), the one it was opened with first.
+      status: How it ended, or None while it runs.
+      killed: How many times it was killed.
+    """
+
+    def __init__(
+        self, argv: tuple[str, ...], cwd: PurePosixPath, cols: int, rows: int
+    ) -> None:
+        self.argv = argv
+        self.cwd = cwd
+        self.sizes = [(cols, rows)]
+        self.status: int | None = None
+        self.killed = 0
+        self._unread: list[bytes] = []
+        self._arrived = asyncio.Event()
+        self._ended = asyncio.Event()
+
+    async def read(self) -> bytes:
+        while not self._unread:
+            if self.status is not None:
+                return b""
+            self._arrived.clear()
+            await self._arrived.wait()
+        return self._unread.pop(0)
+
+    async def write(self, data: bytes) -> None:
+        if self.status is None:
+            self._unread.append(data)
+            self._arrived.set()
+
+    async def resize(self, cols: int, rows: int) -> None:
+        self.sizes.append((cols, rows))
+
+    async def wait(self) -> int:
+        await self._ended.wait()
+        return self.status or 0
+
+    async def kill(self) -> None:
+        self.killed += 1
+        self.end(137)
+
+    def end(self, status: int) -> None:
+        """Has the program in it exit with `status`."""
+        if self.status is None:
+            self.status = status
+            self._ended.set()
+            self._arrived.set()
+
+
 class MemoryClaim:
     """A hold on a temporary copy, as a machine that can hold one across processes makes it."""
 
@@ -99,6 +164,7 @@ class MemoryMachine(Machine):
       busy: Places another process on the machine holds.
       claims: Every hold let go of, and whether it was forgotten.
       broken: What starting a program raises, where it is not None.
+      ptys: Every terminal opened, in order.
     """
 
     def __init__(
@@ -129,6 +195,7 @@ class MemoryMachine(Machine):
         self.holds = claims
         self.broken: EnvError | None = None
         self.shut = 0
+        self.ptys: list[MemoryPty] = []
 
     # --- what is known without asking
 
@@ -220,6 +287,47 @@ class MemoryMachine(Machine):
     async def is_dir(self, path: PurePosixPath) -> bool:
         return path in self.dirs
 
+    def _entry(self, path: PurePosixPath) -> EnvEntry:
+        if path in self.files:
+            return EnvEntry(path.name, "file", len(self.files[path]), 1.5)
+        if path in self.dirs:
+            return EnvEntry(path.name, "dir", 0, 2.5)
+        raise EnvFileNotFound(f"could not look at {path}")
+
+    async def list(self, path: PurePosixPath) -> list[EnvEntry]:
+        if self._entry(path).kind != "dir":
+            raise EnvError(f"could not list {path}: not a directory")
+        return [
+            self._entry(one)
+            for one in (*self.files, *self.dirs)
+            if one.parent == path and one != path
+        ]
+
+    async def stat(self, path: PurePosixPath) -> EnvEntry:
+        return self._entry(path)
+
+    async def rename(self, path: PurePosixPath, to: PurePosixPath) -> None:
+        self._entry(path)
+        self.dirs = {
+            to / one.relative_to(path) if one.is_relative_to(path) else one
+            for one in self.dirs
+        }
+        self.files = {
+            to / one.relative_to(path) if one.is_relative_to(path) else one: data
+            for one, data in self.files.items()
+        }
+
+    async def pty(
+        self, argv: Sequence[str], cwd: PurePosixPath, *, cols: int, rows: int
+    ) -> MemoryPty:
+        if self.broken is not None:
+            raise self.broken
+        if cwd not in self.dirs:
+            raise EnvUnavailable(f"the workdir {cwd} is not there")
+        opened = MemoryPty(tuple(argv), cwd, cols, rows)
+        self.ptys.append(opened)
+        return opened
+
     async def claim(self, path: PurePosixPath) -> Claim | None:
         if path in self.busy:
             raise TempCloneBusy(f"{path} is held by another process")
@@ -273,15 +381,38 @@ PROBE_SAID = (
 
 
 class FakeExec:
-    """A command started over a :class:`FakeRemote`."""
+    """A command started over a :class:`FakeRemote`.
 
-    def __init__(self, remote: FakeRemote, ended: Callable[..., None] | None) -> None:
+    Attributes:
+      wrote: What hands the client what it writes, on a pty.
+      tty: Whether it runs on a pty, and the window it was started with.
+      stdin: Everything sent to it.
+      sizes: Every window it was given since, as (rows, cols).
+    """
+
+    def __init__(
+        self,
+        remote: FakeRemote,
+        ended: Callable[..., None] | None,
+        wrote: Callable[[int, bytes], None] | None = None,
+        tty: tuple[int, int] | None = None,
+    ) -> None:
         self.remote = remote
         self.ended = ended
+        self.wrote = wrote
+        self.tty = tty
         self.signals: list[int] = []
+        self.stdin: list[bytes] = []
+        self.sizes: list[tuple[int, int]] = []
 
     def close_stdin(self) -> None:
         return
+
+    def send_stdin(self, data: bytes) -> None:
+        self.stdin.append(data)
+
+    def resize(self, rows: int, cols: int) -> None:
+        self.sizes.append((rows, cols))
 
     def signal(self, number: int) -> None:
         self.signals.append(number)
@@ -302,6 +433,8 @@ class FakeRemote:
       dirs: Every directory, by absolute path.
       commands: Every command started that was not the probe, with where.
       execs: What each of those became, in the same order.
+      envs: The environment each command run on a pty was started with.
+      renamed: Every move it was asked for.
       connects: How many times it was connected to.
       closes: How many times a client of it was closed.
     """
@@ -316,6 +449,8 @@ class FakeRemote:
         default_factory=list[tuple[list[str], str]]
     )
     execs: list[FakeExec] = field(default_factory=list[FakeExec])
+    envs: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
+    renamed: list[tuple[str, str]] = field(default_factory=list[tuple[str, str]])
     connects: int = 0
     closes: int = 0
 
@@ -334,13 +469,20 @@ class FakeRemote:
         env: Mapping[str, str],
         wrote: Callable[[int, bytes], None],
         ended: Callable[[dict[str, Any] | None, OSError | None], None],
+        *,
+        tty: bool = False,
+        winsize: tuple[int, int] | None = None,
     ) -> FakeExec:
-        del env
         if argv == ["/bin/sh", "-c", PROBE_SCRIPT]:
             wrote(1, self.probe.encode())
             ended({"exit_code": 0}, None)
             return FakeExec(self, None)
         self.commands.append((argv, cwd))
+        if tty:
+            self.envs.append(dict(env))
+            running = FakeExec(self, ended, wrote, winsize)
+            self.execs.append(running)
+            return running
         said = self.answer(argv, cwd)
         running = FakeExec(self, ended if said is None else None)
         self.execs.append(running)
@@ -358,10 +500,39 @@ class FakeRemote:
     def call(self, op: object, *, path: str) -> dict[str, Any]:
         del op
         if path in self.dirs:
-            return {"kind": "dir"}
+            return {"kind": "dir", "size": 64, "mtime_ns": 2_000_000_000}
         if path in self.files:
-            return {"kind": "file"}
-        raise OSError(errno.ENOENT, "No such file or directory", path)
+            return {
+                "kind": "file",
+                "size": len(self.files[path]),
+                "mtime_ns": 1_500_000_000,
+            }
+        raise _remote(errno.ENOENT, path)
+
+    def listdir(self, path: str) -> dict[str, Any]:
+        if path not in self.dirs:
+            raise _remote(errno.ENOENT, path)
+        under = [
+            one
+            for one in (*self.dirs, *self.files)
+            if one != path and posixpath.dirname(one) == path
+        ]
+        return {
+            "entries": [
+                {**self.call(None, path=one), "name": posixpath.basename(one)}
+                for one in under
+            ]
+        }
+
+    def rename(self, src: str, dst: str) -> None:
+        if src not in self.files:
+            raise _remote(errno.ENOENT, src)
+        self.renamed.append((src, dst))
+        self.files[dst] = self.files.pop(src)
+
+    def unlink(self, path: str) -> None:
+        if self.files.pop(path, None) is None:
+            raise _remote(errno.ENOENT, path)
 
     def read_file(self, path: str, sink: io.BytesIO) -> None:
         if path not in self.files:
@@ -414,8 +585,8 @@ def reach(
     far = FakeRemote() if remote is None else remote
     targets: list[str] = []
 
-    def connect(target: object, exported: list[str]) -> _Link:
-        del exported
+    def connect(target: object, exported: list[str], token: str | None = None) -> _Link:
+        del exported, token
         targets.append(str(target))
         if refused is not None:
             raise refused

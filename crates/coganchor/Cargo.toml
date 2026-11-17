@@ -25,19 +25,25 @@ anyhow = "1"
 caseless = "0.2"
 clap = { version = "4", features = ["derive", "env"] }
 libc = "0.2"
-nix = { version = "0.30", features = ["fs", "ioctl", "mman", "net", "poll", "process", "ptrace", "pthread", "resource", "signal", "socket", "term", "uio", "user", "dir", "hostname", "sched"] }
-rusqlite = { version = "0.37", features = ["bundled"] }
+nix = { version = "0.31", features = ["fs", "ioctl", "mman", "net", "poll", "process", "ptrace", "pthread", "resource", "signal", "socket", "term", "uio", "user", "dir", "hostname", "sched"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-sha2 = "0.10"
+sha2 = "0.11"
 # What a native turn brings back is a tar stream the target wrote.
 tar = { version = "0.4", default-features = false }
 hex = "0.4"
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
-rand = "0.9"
+rand = "0.10"
 time = { version = "0.3", features = ["formatting", "local-offset", "macros"] }
+# A `tcp://` or `peer://` link is TLS 1.3 under a certificate the anchor makes as it starts,
+# each end proving the secret by an HMAC bound to it. ring rather than aws-lc: no cmake for the
+# static musl builds.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rcgen = { version = "0.13", default-features = false, features = ["crypto", "ring"] }
+hmac = "0.13"
 
 
 [dev-dependencies]

@@ -167,8 +167,9 @@ pub struct AnchorArgs {
     /// Serve one session met through a broker.
     #[arg(long, value_name = "TICKET@HOST:PORT")]
     pub peer: Option<String>,
-    /// The secret a client must present.
-    #[arg(long, env = "HUMANIZE_TOKEN", hide_env_values = true)]
+    /// The secret a client must prove (default: $HUMANIZE_TOKEN, but not with --peer, whose
+    /// ticket is the secret).
+    #[arg(long)]
     pub token: Option<String>,
     /// A file holding that secret, read verbatim.
     #[arg(long, value_name = "FILE")]

@@ -25,6 +25,10 @@ The protocol is deliberately errno-faithful: every failure crosses the wire as
 an :attr:`Kind.ERR` frame carrying the remote ``errno``, which is what lets the
 traced process be handed the target's exact error.
 
+A pipe carries the frames as they are; a ``tcp://`` connection carries them
+inside TLS (:mod:`hmz.coganchor.tls`), where the ``HELLO`` proves a key
+instead of presenting a token.
+
 Both halves import this module and nothing else in common, so it must stay
 free of anything platform-specific.
 """
@@ -33,6 +37,7 @@ from __future__ import annotations
 
 import enum
 import functools
+import io
 import json
 import re
 import socket
@@ -106,11 +111,13 @@ class Op(enum.Enum):
     UTIME = "utime"
 
     # Process execution.  EXEC opens a stream that CHUNK/END frames feed;
-    # SIGNAL is a separate request naming that stream.  An EXEC carrying a
-    # ``fence`` runs its command inside that fence, drawn again on the target,
-    # or not at all.
+    # SIGNAL is a separate request naming that stream, and so is RESIZE, which
+    # sets the window of the pty a command runs under -- asked only of a target
+    # whose HELLO reply says ``resize``.  An EXEC carrying a ``fence`` runs its
+    # command inside that fence, drawn again on the target, or not at all.
     EXEC = "exec"
     SIGNAL = "signal"
+    RESIZE = "resize"
 
     # TCP tunnelling.  CONNECT opens a stream carried by CHUNK/END frames.
     CONNECT = "connect"
@@ -263,6 +270,37 @@ class Frame:
         return Stream(self.meta.get("s", int(Stream.DATA)))
 
 
+#: The most a channel over a pipe asks of it at a time.
+_PIPED = 1 << 16
+
+
+class _Piped(io.RawIOBase):
+    """A pipe read and written the way a channel reads and writes a file."""
+
+    def __init__(self, pipe: Any) -> None:
+        super().__init__()
+        self._pipe = pipe
+
+    def readable(self) -> bool:
+        return True
+
+    def writable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: Any) -> int:
+        got = self._pipe.recv(min(len(buffer), _PIPED))
+        buffer[: len(got)] = got
+        return len(got)
+
+    def write(self, data: Any) -> int:
+        self._pipe.sendall(bytes(data))
+        return len(data)
+
+    def close(self) -> None:
+        self._pipe.close()
+        super().close()
+
+
 class Channel:
     """A framed, bidirectional connection.
 
@@ -270,17 +308,36 @@ class Channel:
     by exactly one thread.
     """
 
-    def __init__(self, reader: IO[bytes], writer: IO[bytes], owns: Any = None) -> None:
+    #: What the ``HELLO`` proves the other end by, where this is carried inside TLS (a
+    #: :class:`hmz.coganchor.tls.Bound`); None on a pipe.
+    bound: Any = None
+
+    def __init__(
+        self, reader: IO[bytes], writer: IO[bytes], owns: Any = None, bound: Any = None
+    ) -> None:
         self._reader = reader
         self._writer = writer
         self._owns = owns
         self._send_lock = threading.Lock()
         self._closed = False
+        self.bound = bound
 
     @classmethod
     def from_socket(cls, sock: Any) -> Channel:
         """Wrap a connected socket, keeping it alive for the channel's life."""
         return cls(sock.makefile("rb"), sock.makefile("wb"), owns=sock)
+
+    @classmethod
+    def from_pipe(cls, pipe: Any, bound: Any = None) -> Channel:
+        """Wrap a pipe -- ``recv``, ``sendall`` and ``close`` -- such as a TLS session.
+
+        Closing the channel closes the pipe, which wakes a thread reading it.
+        """
+        piped = _Piped(pipe)
+        # Buffered, so a frame is read into one buffer of its size rather than a fresh one
+        # per TLS record.
+        reader = io.BufferedReader(piped, _PIPED)
+        return cls(reader, cast("IO[bytes]", piped), bound=bound)
 
     def send(self, frame: Frame) -> None:
         blob = frame.encode()

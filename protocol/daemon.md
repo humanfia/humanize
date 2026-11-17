@@ -46,6 +46,9 @@ It is normative. It is cited by the tag [DAEMON].
   - [4.18. Settings](#418-settings)
   - [4.19. Notices](#419-notices)
   - [4.20. Methods and the interfaces they replace](#420-methods-and-the-interfaces-they-replace)
+  - [4.21. Reach](#421-reach)
+  - [4.22. Ai-chan conversations](#422-ai-chan-conversations)
+  - [4.23. Envs of an epic](#423-envs-of-an-epic)
 - [5. Security Considerations](#5-security-considerations)
 - [6. References](#6-references)
   - [6.1. Normative References](#61-normative-references)
@@ -88,6 +91,7 @@ Out of scope:
 - The files the daemon keeps on this machine: Section 7 of [FILES] and Section 4.14 of [FILES].
 - The settings the remote daemons and the listeners are kept in: Section 3 of [FILES].
 - What a chat is, and how a chat folds away: Section 8 of [CORE].
+- What Ai-chan is and what she can do: Section 14 of [CORE].
 - How the page presents daemons: Section 3.13 of [WEB].
 - How the terminal interface presents daemons and `/exit`: [TUI].
 - The release check and `hmz update`: Section 13 of [CORE].
@@ -95,13 +99,14 @@ Out of scope:
 
 ### 3.2. Terminology
 
-**3.2.1** A **host** is what holds the epics of one workspace, of one chat of a workspace, or of one
-epic `hmz exec` started, for every frontend attached to them. A host held by the daemon is held
-apart from every frontend.
+**3.2.1** A **host** is what holds the epics of one workspace, of one chat of a workspace, of one
+Ai-chan conversation, or of one epic `hmz exec` started, for every frontend attached to them. A host
+held by the daemon is held apart from every frontend.
 
 **3.2.2** The **workspace host** of a workspace is the host that runs that workspace's flows. A
-**chat host** is a host that runs one chat of a workspace, and an **exec host** one that runs the
-one epic of one `hmz exec`, each beside the workspace host.
+**chat host** is a host that runs one chat of a workspace, an **Ai-chan host** one that runs one
+Ai-chan conversation (Section 14 of [CORE]), and an **exec host** one that runs the one epic of one
+`hmz exec`, each beside the workspace host.
 
 **3.2.3** A frontend **attaches** to a host when it starts reading and steering the epics that host
 holds, and **detaches** when it stops, without stopping them.
@@ -130,12 +135,12 @@ it.
 
 **3.3.2** The daemon MUST hold the epics of every workspace of its machine and user.
 
-**3.3.3** The daemon MUST hold one workspace host per workspace, one chat host per chat and one exec
-host per `hmz exec` beside it; each host MUST run in a process of its own, standing in its
-workspace.
+**3.3.3** The daemon MUST hold one workspace host per workspace, one chat host per chat, one Ai-chan
+host per Ai-chan conversation a host holds and one exec host per `hmz exec` beside it; each host
+MUST run in a process of its own, standing in its workspace.
 
-**3.3.4** A chat host, an exec host and the workspace host of one workspace MUST NOT wait on each
-other; how many epics each runs at a time is stated in Section 3.4.3 of [CORE].
+**3.3.4** A chat host, an Ai-chan host, an exec host and the workspace host of one workspace MUST
+NOT wait on each other; how many epics each runs at a time is stated in Section 3.4.3 of [CORE].
 
 **3.3.5** Two spellings of one directory MUST name one workspace, and two directories MUST name two
 workspaces.
@@ -191,11 +196,11 @@ stop it.
 seconds have passed since it started.
 
 **3.5.5** A host MUST keep an epic that ended while no frontend was attached, and that nobody
-stopped, until a frontend attaches; it MUST NOT keep a chat that folded away, nor the epic of an
-exec host.
+stopped, until a frontend attaches; it MUST NOT keep a chat or an Ai-chan conversation that folded
+away, nor the epic of an exec host.
 
-**3.5.6** A chat host MUST fold its chat away as Section 8 of [CORE] specifies, and MUST then go
-once it is idle.
+**3.5.6** A chat host MUST fold its chat away as Section 8 of [CORE] specifies, and an Ai-chan host
+its conversation as Section 14.8 of [CORE] specifies, and each MUST then go once it is idle.
 
 **3.5.7** The daemon MUST go once it holds no host and no session is open, and MUST go 60 seconds
 after it started where no host ever came and no session is open, except as Section 3.9.4 states.
@@ -225,8 +230,8 @@ from its start, then how everything stands, then everything as it happens.
 **3.6.3** What one frontend does to an epic MUST be seen by every frontend attached to it, with the
 name of the frontend that did it.
 
-**3.6.4** Each frontend MUST be named by the user and the kind of frontend; two frontends of one
-name MUST be told apart by a number.
+**3.6.4** Each frontend MUST be named by the user and the kind of frontend, and Ai-chan as Section
+14.7.1 of [CORE] names her; two frontends of one name MUST be told apart by a number.
 
 **3.6.5** hmz MUST let any attached frontend: start an epic; resume an epic; say a line to the epic,
 to one agent, to one session or to one person; answer a question; stop an epic; force a stopping
@@ -480,8 +485,9 @@ Out of scope:
 followed. Two spellings of one directory are one workspace path.
 
 **4.2.6** **Slot**: the text naming one host of a workspace: `""` for the workspace's own host,
-`chat:` followed by 1 to 32 lowercase hexadecimal digits for the host of one chat, or `exec:`
-followed by 1 to 32 lowercase hexadecimal digits for the host of one `hmz exec`.
+`chat:` followed by 1 to 32 lowercase hexadecimal digits for the host of one chat, `ai:` followed by
+1 to 32 lowercase hexadecimal digits for the host of one Ai-chan conversation, or `exec:` followed by
+1 to 32 lowercase hexadecimal digits for the host of one `hmz exec`.
 
 **4.2.7** The term host MUST carry the meaning Section 3.2.1 gives it; each slot of a workspace
 names one host, which a client reaches only through the daemon.
@@ -512,6 +518,12 @@ states.
 **4.2.17** **Epic row**: the JSON object Section 4.16.2 defines.
 
 **4.2.18** **Notice**: the JSON object Section 4.19.1 defines.
+
+**4.2.19** **Reach**: the reach of an Ai-chan conversation (Section 14.2.5 of [CORE]) that a session
+carries (Section 4.21).
+
+**4.2.20** **Scoped link**: the socket on which the daemon admits the session of one Ai-chan
+conversation, held to its reach (Section 4.22.6).
 
 ### 4.3. The daemon directory
 
@@ -583,7 +595,8 @@ for <slot>` appended where `slot` is not `""`.
 order taken on, each with `pid`, `workspace`, `started` and `slot`.
 
 **4.6.2.2** `hosts.running` MUST answer `running`, holding, for every host whose epic is going or
-stopping, `state`, `run`, `flow`, `epic`, `task` and, of a chat, `turn` from its status, each with
+stopping, `state`, `run`, `flow`, `epic`, `task` and, of a chat or an Ai-chan conversation, `turn`
+from its status, each with
 `workspace`, `slot` and `asking` (the questions it waits on, each `<run>:<question>`).
 
 **4.6.2.3** `hosts.open` `{workspace, slot}` MUST start the host of that workspace and slot where
@@ -604,7 +617,7 @@ else happens, and the host MUST then close as Section 4.13.6 states.
 #### 4.6.4. Status
 
 **4.6.4.1** The status of a host MUST carry the keys of the following list, and a client MUST read
-an absent `turn` as the host not holding a chat.
+an absent `turn` as the host holding neither a chat nor an Ai-chan conversation.
 
 - `attached`: Integer: the frontends attached.
 - `clients`: `[{client, name, kind}]`, one per frontend attached.
@@ -617,8 +630,8 @@ an absent `turn` as the host not holding a chat.
 - `pending`: `[{question, role, text, mode}]`: every question waiting on a person.
 - `ended`: How the last epic to end on this host ended, `{how, why, epic, at, run, flow, task}`,
   `at` in Unix seconds; `null` before one has ended.
-- `turn`: Of a chat only: `running` while its agent answers, `done` between turns and once it is
-  over.
+- `turn`: Of a chat or an Ai-chan conversation only: `running` while its agent answers, `done`
+  between turns and once it is over.
 - `budget`, `usage`: The epic going's budget and spending as JSON, an infinite limit as the text
   `"Infinity"`; `null` while stopping or idle.
 - `flows`: The canonical refs of the flow calls in progress.
@@ -646,7 +659,8 @@ client id), `workspace` and `slot`.
 for the epic alone in the system's temporary directory, and attach to its own host.
 
 **4.7.1.4** `epic.attach` naming a chat or exec slot whose host has gone MUST be refused 409, `This
-chat has folded away.` for a chat and `This epic has ended.` for an exec slot.
+chat has folded away.` for a chat and `This epic has ended.` for an exec slot; one naming an `ai:`
+slot MUST be as Section 4.22.5.2 states.
 
 **4.7.1.5** A host MUST name a frontend by the `name` of `session.hello` where it is not `""`, else
 `<user>@<kind>`, `<user>` being `HUMANIZE_NAME` where set on the client's side, else the login name,
@@ -718,7 +732,8 @@ refused start MUST leave the set-up as it was.
 `backup is a list of backup target names` for a `backup` that is not one; `this host has closed`; `a
 flow is already running` while an epic is going; `a flow is already starting` while another start is
 under way; `this chat has folded away; carry it on from its epic` on a chat host that has folded
-(Section 4.13.8); `an exec host runs one epic` on an exec host that has started one; and with the
+(Section 4.13.8); `an exec host runs one epic` on an exec host that has started one; `an Ai-chan
+host runs its own conversation` on an Ai-chan host; and with the
 `Refused` message of Section 4.6 of [PYTHON] for everything `flows.check` refuses.
 
 **4.8.2.5** An epic that is stopping MUST NOT prevent `epic.start`.
@@ -789,12 +804,11 @@ and the board's own refusal where the line is not the user's to change.
 MUST open the side conversation on that session: a fork of it where `fork` is `true` and its harness
 forks, otherwise a new session of a copy of its agent.
 
-**4.8.8.3** `epic.aside` with `runs` (an agent spec) MUST open a new session of that agent in the
-workspace; with `runs` and `recall` (the harness's id of a session an earlier epic kept), `kept`
-(where that epic kept it) and `cwd`, it MUST open a fork of that session where `fork` is `true` and
-its harness forks it, otherwise a new session of that agent. With `runs` and `asks` (`true`), the
-side conversation MUST be The Epic's, asking as Section 9.6.10 of [CORE] to Section 9.6.14 of [CORE]
-state.
+**4.8.8.3** `epic.aside` with `runs` (the agent spec of a session an earlier epic kept) MUST open a
+new session of that agent in the workspace, as the session side copy of Section 9.5.5 of [CORE];
+with `runs` and `recall` (the harness's id of that session), `kept` (where that epic kept it) and
+`cwd`, it MUST open a fork of that session where `fork` is `true` and its harness forks it,
+otherwise a new session of that agent.
 
 **4.8.8.4** `epic.aside` with a `key` that names no session MUST be refused with `<key> has no
 conversation to ask`.
@@ -809,9 +823,7 @@ a conversation, or asks an agent`.
 gone`.
 
 **4.8.8.8** `epic.aside` with `side` and `prompt` MUST take one turn of that side conversation and
-be answered with `answer`, its text stripped; for The Epic's, a turn that runs an ask command MUST
-instead be answered with `ask` (`to` and `question`) while the turn waits, and one that runs
-`hmz-ask list` with `ask` whose `to` is empty.
+be answered with `answer`, its text stripped.
 
 **4.8.8.9** `epic.aside` with a `side` this frontend has not open MUST be refused with `no aside
 <side> is open`.
@@ -822,17 +834,12 @@ still answering the last question`.
 **4.8.8.11** `epic.unaside` MUST take `side`, MUST close that side conversation, and MUST be refused
 with `no aside <side> is open`.
 
-**4.8.8.12** Every side conversation MUST run at the `read-only` rung, MUST carry no skills but The
-Epic's `ask-conversation` (Section 9.6.10 of [CORE]), MUST NOT be seen by the epic, MUST be answered
-only to the frontend that opened it, and MUST NOT write where any epic keeps its sessions nor into
-the harness's own home.
+**4.8.8.12** Every side conversation MUST run at the `read-only` rung, MUST carry no skills (Section
+9.3.5 of [CORE]), MUST NOT be seen by the epic, MUST be answered only to the frontend that opened
+it, and MUST NOT write where any epic keeps its sessions nor into the harness's own home.
 
 **4.8.8.13** A side conversation MUST be closed by `epic.unaside`, when its frontend leaves, when an
 epic starts on the host, and when the host closes; no message announces side conversations.
-
-**4.8.8.14** `epic.aside` with `side` and `answered` MUST give The Epic's waiting ask command that
-answer, and MUST be answered as `epic.aside` with `prompt` is; where nothing waits, it MUST be
-refused with `aside <side> asked nothing`.
 
 #### 4.8.9. `epic.status`, `epic.detach` and `epic.quit`
 
@@ -1110,6 +1117,9 @@ question with nothing, and MUST end the chat `done`.
 on by starting the `chat` flow on a new slot with `resume` its epic directory, which continues in
 that same epic.
 
+**4.13.8.3** An Ai-chan host MUST fold its conversation as Section 4.13.8.1 states for a chat; a
+folded conversation is carried on as Section 4.22.5.2 states.
+
 ### 4.14. Sessions, pairing and devices
 
 #### 4.14.1. `session.*` and `rpc.discover`
@@ -1160,8 +1170,8 @@ side conversations the workspace's own host opens (Section 4.8.8), and MUST NOT 
 attached to the workspace's own host only while a `btw.*` call asks something of it or it holds an
 open side conversation, and MUST let go of it once neither has happened for 60 seconds.
 
-**4.15.1.3** The **btw** agent MUST be chosen as Section 9.7 of [CORE] states: the `btw` setting of
-Section 3 of [FILES], and no other.
+**4.15.1.3** Every side conversation of `btw.*` MUST be a session side copy (Section 9.5 of [CORE]),
+and `btw.*` MUST NOT open a side conversation of any other agent.
 
 **4.15.1.4** The side conversations of `btw.*` MUST be kept by the daemon per workspace and per
 `aside` name, the same for every session.
@@ -1171,14 +1181,12 @@ Section 3 of [FILES], and no other.
 **4.15.2.1** `btw.list` MUST take `workspace` and `epic` (an epic name, `""` for the epic in view on
 the workspace's own host).
 
-**4.15.2.2** `btw.list` MUST answer `asides` (each side conversation open about `epic`, in the order
-opened) and `default` (the `btw` setting of Section 3 of [FILES], `""` for none, where a question to
-the btw agent is refused as Section 9.5.9 of [CORE] states).
+**4.15.2.2** `btw.list` MUST answer `asides`, each side conversation open about `epic`, in the order
+opened.
 
-**4.15.2.3** Each of `asides` MUST say `aside` (its name, Section 4.15.3.1), `to` (whom it asks, as
-Section 4.15.3.1), `question` (the question it is answering, `""` for none), `asked` (`[{to,
-question}]`, each session the btw agent has asked on the way to that answer so far) and `said` (each
-side question answered in it, oldest first, as Section 4.15.3 answers it, the latest 200).
+**4.15.2.3** Each of `asides` MUST say `aside` (its name, Section 4.15.3.1), `to` (the session it
+asks, as Section 4.15.3.1), `question` (the question it is answering, `""` for none) and `said`
+(each side question answered in it, oldest first, as Section 4.15.3 answers it, the latest 200).
 
 **4.15.2.4** `btw.list` MUST NOT attach to any host; where the daemon holds no side conversation of
 the workspace, `asides` MUST be `[]`.
@@ -1186,8 +1194,8 @@ the workspace, `asides` MUST be `[]`.
 #### 4.15.3. `btw.ask`
 
 **4.15.3.1** `btw.ask` MUST take `workspace`, `question` (text, required), `aside` (text, required:
-the side conversation, named by the client), `to` (`""` for the btw agent, or `<agent>/<n>`) and
-`epic` (the epic it is about, `""` for none).
+the side conversation, named by the client), `to` (text, required: `<agent>/<n>`, the session
+asked) and `epic` (the epic it is about, `""` for the epic in view on the workspace's own host).
 
 **4.15.3.2** The first question to an `aside` MUST open a side conversation on `to`, about `epic`,
 and every later question to it MUST go on in that side conversation, of that `to` and `epic`
@@ -1198,10 +1206,12 @@ longer holds, the daemon MUST tell the side conversation that epic rather than t
 MUST carry each of its sessions asked on from where that epic kept it; a session that epic did not
 open, or whose agent it did not write, MUST be refused 404.
 
-**4.15.3.4** `btw.ask` MUST answer `aside`, `to`, `question`, `answer`, and `asked` (`[{to,
-question}]`, each session the btw agent asked on the way to its answer).
+**4.15.3.4** `btw.ask` MUST answer `aside`, `to`, `question` and `answer`.
 
-**4.15.3.5** A question to a side conversation still answering MUST be refused 409, `btw is still
+**4.15.3.5** A `to` that is not of the form `<agent>/<n>` MUST be refused 400, `A side question is
+asked of a session, as <agent>/<n>.`
+
+**4.15.3.6** A question to a side conversation still answering MUST be refused 409, `btw is still
 answering the last question asked of it.`; a question closed by a new epic starting 409, `A new epic
 started, which closed what was asked.`; an empty answer 502, `The agent returned no answer.`
 
@@ -1224,6 +1234,9 @@ found in the task, flow or epic name), `offset` (default `0`) and `limit` (defau
 
 **4.16.1.2** `runs.list` MUST answer `runs` (epic rows, newest first), `total`, `offset`, `limit`,
 `counts` (`{ending: n}` over every epic) and `flows` (every flow, sorted).
+
+**4.16.1.3** `runs.list` MUST leave out the epic of every Ai-chan conversation (Section 14.7.4 of
+[CORE]).
 
 #### 4.16.2. Epic rows
 
@@ -1435,16 +1448,16 @@ the one `hmz exec` prints after `hmz exec: error: `, for everything it finds.
 #### 4.18.1. `settings.*`
 
 **4.18.1.1** `settings.get` MUST take `workspace`, for a workspace that need not exist, and answer
-`workspace`, `flow`, `btw`, `details`, `reports` (`null` where never answered), `flows` (the flows
+`workspace`, `flow`, `ai_chan`, `details`, `reports` (`null` where never answered), `flows` (the flows
 set up there), `backup` (`targets`, each `name`, `url` without credentials, `branch`, `policies`,
 `every`; and `defaults`), `listen` and `ice_servers`.
 
-**4.18.1.2** `settings.set` MUST take `workspace` and any of `btw` (text), `details` (boolean),
+**4.18.1.2** `settings.set` MUST take `workspace` and any of `ai_chan` (text), `details` (boolean),
 `reports` (boolean), `backup` (`{targets, defaults}`, every target), `listen` (a list of listener
 specs) and `ice_servers` (a list of `{urls, username, credential}`), MUST be a write, and MUST
 answer as `settings.get` does.
 
-**4.18.1.3** `settings.set` MUST write `btw`, `details`, `backup`, `listen` and `ice_servers` as
+**4.18.1.3** `settings.set` MUST write `ai_chan`, `details`, `backup`, `listen` and `ice_servers` as
 Section 3 of [FILES] defines them, and `reports` as the key `enable_sentry` of Section 3 of [FILES];
 a change of `listen` MUST open and close listeners at once.
 
@@ -1486,20 +1499,26 @@ refused 404 and a CLI that will not answer 502.
 **4.18.2.6** Every method of Section 4.18.2 but `accounts.list` MUST be a write and MUST answer as
 `accounts.list` does.
 
-#### 4.18.3. `fallbacks.*`
+#### 4.18.3. `nous.*`
 
-**4.18.3.1** `fallbacks.list` MUST answer `steps` (each `spec`, `to`, `tries`, `policy`,
-`timeout`), `policies`, `default` and `places`.
+**4.18.3.1** `nous.list` MUST answer `nous` (each `name`, `virtual`, `tries`, `policy`, `timeout`,
+`graph` and `then`, each graph `null` or `start` and `nodes`, each node `id`, `use`, `balance`,
+`among` (each `nous` and `weight`), `spread` and `on`), `policies`, `default`, `strategies`,
+`faults` (every fault class and `*`) and `concrete` (every concrete nous the daemon's accounts and
+installed harnesses run, without an effort).
 
-**4.18.3.2** `fallbacks.set` MUST take `spec` (a place), `to` (places, in order), `tries` (default
-`0`), `policy` (default `exponential-jitter`) and `timeout` (seconds, `0` for none), write the step,
-and answer as `fallbacks.list` does; a value `Fallbacks` of Section 4.11 of [PYTHON] refuses MUST be
-refused 400.
+**4.18.3.2** `nous.set` MUST take `name`, `tries` (default `0`), `policy` (default
+`exponential-jitter`), `timeout` (seconds, `0` for none), `graph` and `then`, each graph in a shape
+`NousBook.graph` of Section 4.11 of [PYTHON] reads, or `null`, write the nous whole, and answer as
+`nous.list` does; a value `NousBook` refuses MUST be refused 400.
 
-**4.18.3.3** `fallbacks.clear` MUST take `spec`, remove its step, and answer as `fallbacks.list`
-does; a place with no step MUST be refused 404.
+**4.18.3.3** `nous.rename` MUST take `name` and `to`, rename the virtual nous, and answer as
+`nous.list` does; a rename `NousBook` refuses MUST be refused 400.
 
-**4.18.3.4** `fallbacks.set` and `fallbacks.clear` MUST be writes.
+**4.18.3.4** `nous.clear` MUST take `name`, remove its nous, and answer as `nous.list` does; a nous
+with nothing written MUST be refused 404, and one another nous names 400.
+
+**4.18.3.5** `nous.set`, `nous.rename` and `nous.clear` MUST be writes.
 
 #### 4.18.4. `runtimes.*`
 
@@ -1616,7 +1635,7 @@ stands for the path or method name of the row before.
 | `GET`, `POST /api/accounts` | `accounts.list`, `accounts.create` |
 | `POST …/correct`, `…/remove` | `accounts.correct`, `accounts.remove` |
 | `POST …/models`, `…/copy` | `accounts.models`, `accounts.copy` |
-| `GET`, `POST /api/fallbacks`, `POST …/clear` | `fallbacks.list`, `.set`, `.clear` |
+| `GET`, `POST /api/fallbacks`, `POST …/clear` | `nous.list`, `.set`, `.clear` |
 | `GET`, `POST /api/runtimes` | `runtimes.list`, `runtimes.set` |
 | `POST …/remove`, `…/check` | `runtimes.remove`, `runtimes.check` |
 | `GET /api/runtimes/hosts`, `POST …/import` | `runtimes.hosts`, `runtimes.import` |
@@ -1628,6 +1647,254 @@ stands for the path or method name of the row before.
 /api/daemons/{name}/connect` and `/d/{name}/api/...` -- and the notifications list -- every path
 under `/api/notifications` -- MUST NOT be methods: each client keeps them for itself (Section 3.8.1
 and Section 3.15 of [WEB]), and reaches each daemon itself.
+
+### 4.21. Reach
+
+#### 4.21.1. General
+
+**4.21.1.1** A session admitted on a scoped link (Section 4.22.6) MUST carry the reach of that
+link's Ai-chan conversation: its `scope`, `workspace`, `epic`, `preset` and `network` (Section 14.2
+of [CORE]). Every other session MUST carry none, and Section 4.21 MUST NOT hold it.
+
+**4.21.1.2** The daemon MUST hold every call of a session that carries a reach to that reach, by the
+extensions of Section 4.21.2, before the call is carried out and before its `idem` is looked up.
+
+**4.21.1.3** A reach MUST reach a workspace where its scope is `daemon`, or where its scope is
+`workspace` and the workspace is its own; the scope `epic` MUST NOT reach a workspace.
+
+**4.21.1.4** A reach MUST reach an epic where its scope is `daemon`; where its scope is `workspace`
+and the epic was run in its workspace; and where its scope is `epic` and the epic is its epic. No
+reach MUST reach the epic of an Ai-chan conversation.
+
+**4.21.1.5** A reach MUST reach a host where its scope is `daemon`; where its scope is `workspace`
+and the host stands in its workspace; and where its scope is `epic` and the epic going, stopping or
+last on that host (`epic` of Section 4.6.4.1) is its epic. A host that holds no epic yet, a host of
+a new slot (Section 4.7.1.2) among them, MUST NOT be reached by the scope `epic`.
+
+**4.21.1.6** A reach MUST NOT reach a host of an `ai:` slot, whatever its scope (Section 4.21.5).
+
+#### 4.21.2. Annotations
+
+**4.21.2.1** Every method of [OPENRPC] MUST carry the extension `x-hmz-reach`, an object holding
+`scope` and, for each of `workspace`, `slot`, `epic` and `sub` by which the method names what it acts
+on, a key of that name whose value is the name of the parameter that carries it.
+
+**4.21.2.2** Every method of [OPENRPC] MUST carry the extension `x-hmz-writes`, `true` for a method
+that changes what the daemon, a host, an epic, a workspace or the settings hold, and `false` for
+one that only reads; every write of Section 4.5.4 MUST carry `true`.
+
+**4.21.2.3** The `scope` of `x-hmz-reach` MUST be one of the following, and a reach MUST reach the
+method as its row states:
+
+| `scope` | What the method acts on | Reached |
+| --- | --- | --- |
+| `any` | Nothing of one workspace; or what its answer lists, filtered as Section 4.21.4 states | always |
+| `daemon` | The daemon, its machine, or every workspace | by the scope `daemon` alone |
+| `workspace` | The workspace its parameters name | where the reach reaches that workspace |
+| `epic` | The epic or host its parameters name | where the reach reaches that epic or host |
+| `never` | Pairing, devices, credentials, the network's secrets, or Ai-chan conversations | never |
+
+**4.21.2.4** The daemon MUST work out what a call acts on from the parameters `x-hmz-reach` names:
+the workspace of a `workspace` parameter (Section 4.5.2); the host of a `workspace` and a `slot`, an
+absent `slot` read as `""`; the epic an `epic` parameter names by its epic name, `""` read as the
+epic in view on the workspace's own host where the method reads it so; and the host of the epic
+subscription a `sub` parameter names, with that host's workspace.
+
+**4.21.2.5** A call whose `workspace` parameter is absent where `x-hmz-reach` names one -- the call
+then acting on every workspace, or on the machine alone -- MUST be held as a method whose `scope` is
+`daemon`.
+
+**4.21.2.6** `epic.attach` with `scratch` `true` MUST be held as a method whose `scope` is `daemon`,
+and `epic.attach` with `slot` `chat:` or `exec:` alone, which makes a host, as one whose
+`x-hmz-writes` is `true`.
+
+#### 4.21.3. Refusals
+
+**4.21.3.1** A call of a session carrying a reach MUST be refused 403, by the first of the following
+that holds, and MUST then have no effect:
+
+1. `x-hmz-reach` `scope` is `never`: `Ai-chan cannot call <method>.`;
+2. the call names a host of an `ai:` slot, by `slot` or by `sub`: `Ai-chan cannot reach an Ai-chan
+   conversation.`;
+3. the reach does not reach what the call acts on: `<method> is out of Ai-chan's scope: <what>.`,
+   `<what>` being `the daemon`, `the workspace <workspace>`, `the epic <epic>` or `the host <slot>
+   of <workspace>`;
+4. `x-hmz-writes` is `true` and the reach's preset is `read-only`: `Ai-chan is read-only, and
+   <method> changes things.`
+
+**4.21.3.2** A call to an epic (`sub`) MUST be held against the host as it stands when the call
+comes.
+
+**4.21.3.3** An epic subscription of a session whose reach has the scope `epic` MUST be ended with
+`gone` `out of Ai-chan's scope` once an epic other than the reach's epic starts on its host.
+
+#### 4.21.4. Answers filtered
+
+**4.21.4.1** To a session carrying a reach, the daemon MUST leave out of each of the following
+answers every entry that the reach does not reach, and every entry of an `ai:` slot, and MUST answer
+as though the entries kept were all there are, counts and totals included:
+
+- `hosts.list` (`held`) and `hosts.running` (`running`): each host;
+- `workspaces.list`: each workspace;
+- `runs.list` (`runs`, `total`, `counts`, `flows`): each epic;
+- `notices.list`, `notices.subscribe` and `notices.event`: each notice, by the host it names.
+
+#### 4.21.5. Ai-chan conversations
+
+**4.21.5.1** `aichan.create`, `aichan.list` and `aichan.forget` MUST carry the `scope` `never`, and
+no reach MUST reach a host of an `ai:` slot (Section 4.21.1.6): Ai-chan neither makes, lists,
+watches, talks to nor forgets an Ai-chan conversation, her own included.
+
+### 4.22. Ai-chan conversations
+
+#### 4.22.1. General
+
+**4.22.1.1** The daemon MUST hold each Ai-chan conversation (Section 14 of [CORE]) from
+`aichan.create` until `aichan.forget`, across its own restarts, recorded as Section 4.16 of [FILES]
+states.
+
+**4.22.1.2** Each conversation MUST have an `id`, an integer one greater than the greatest `id`
+recorded, `1` for the first; and a slot `ai:<hex>` of its own, of the workspace of its host: the
+workspace of its scope, or, for the scope `daemon`, `<home>/ai/<machine>` (Section 4.16.1 of
+[FILES]).
+
+**4.22.1.3** Every host MUST name the session of a conversation's scoped link `Ai-chan#<id>`,
+whatever name its `session.hello` says (Section 4.7.1.5).
+
+#### 4.22.2. `aichan.create`
+
+**4.22.2.1** `aichan.create` MUST take `scope` (text, required: `daemon`, `workspace` or `epic`),
+`workspace` (required for the scopes `workspace` and `epic`, and absent for `daemon`), `epic` (an
+epic name, required for the scope `epic`, and absent otherwise), `nous` (text, default `""` for the
+`ai_chan` setting), `preset` (default `read-only`), `network` (boolean, default `false`), `title`
+(text, default `""` for the first line of `task`, cut at 80 characters) and `task` (text, required,
+not empty), and MUST be a write.
+
+**4.22.2.2** `aichan.create` MUST record the conversation, make its scratch directory (Section 4.16.3
+of [FILES]), start its host as Section 4.22.5.1 states, and, once that host has taken the start, be
+answered with `id`, `workspace` (the workspace of its host) and `slot`.
+
+**4.22.2.3** `aichan.create` MUST be refused 400 with `An Ai-chan's scope is daemon, workspace or
+epic.` for another `scope`; `A <scope> scope names its workspace.` for a `workspace` missing; `A
+daemon scope names no workspace and no epic.` and `A workspace scope names no epic.` for a parameter
+given that the scope does not take; `An epic scope names its epic.` for an `epic` missing; `An
+Ai-chan's preset is read-only or danger-full-access.` for another `preset`; `Name Ai-chan's nous:
+the ai_chan setting names none.` for a `nous` of `""` where that setting names none; `<nous> is not
+a nous or an agent spec.` for a `nous` that names no agent (Section 7.4 of [CLI]); and `Tell Ai-chan
+something to start with.` for an empty `task`. It MUST be refused as Section 4.5.2 states for a
+`workspace` that names no directory, 404 `There is no epic <epic> in <workspace>.` for an `epic` not
+run in that workspace, and 409 with the host's `why` where its host refuses the start.
+
+#### 4.22.3. `aichan.list`
+
+**4.22.3.1** `aichan.list` MUST take no parameter and MUST answer `conversations`, one per
+conversation, newest first, each with `id`, `title`, `scope`, `workspace` (the workspace of its
+host), `epic` (the epic name of an `epic` scope, else `""`), `nous`, `preset`, `network`, `slot`,
+`state` and `created` (`YYYY-MM-DDTHH:MM:SSZ`, in UTC).
+
+**4.22.3.2** `state` MUST be `running` while a host holds the conversation and its turn is open,
+`waiting` while a host holds it between turns, and `folded` while no host holds it.
+
+**4.22.3.3** `aichan.list` MUST NOT start a host.
+
+#### 4.22.4. `aichan.forget`
+
+**4.22.4.1** `aichan.forget` MUST take `id` (integer, required), MUST be a write, MUST close the
+conversation's host where one holds it (Section 4.13.6), MUST forget it as Section 4.16.4 of
+[FILES] states, and MUST answer `{}`.
+
+**4.22.4.2** An `id` of no conversation MUST be refused 404, `There is no Ai-chan #<id>.`
+
+#### 4.22.5. Ai-chan hosts
+
+**4.22.5.1** The host of an `ai:` slot MUST, as it starts, run its conversation's epic of the flow
+`ai_chan`, with the params of Section 14.4.2 of [CORE] from the conversation's record, the agent of
+the role `ai_chan` its `nous`, and `HUMANIZE_AICHAN_LINK` naming the socket of its scoped link
+(Section 3.11.2.17 of [FILES]): anew, with the task of `aichan.create` as the first message, the
+first time; and carrying on its recorded epic (`resume`), waiting between turns, every later time.
+
+**4.22.5.2** `epic.attach` naming the `ai:` slot of a conversation whose host has gone MUST start
+that host as Section 4.22.5.1 states and attach to it; `epic.attach` and `hosts.open` naming an
+`ai:` slot of no conversation MUST be refused 404, `There is no Ai-chan conversation <slot>.`
+
+**4.22.5.3** `epic.stop` on an Ai-chan host MUST interrupt Ai-chan's open turn and leave the
+conversation between turns (Section 14.8.3 of [CORE]); while no turn is open it MUST be refused with
+`Ai-chan is not answering, so there is nothing to stop`.
+
+**4.22.5.4** An Ai-chan host MUST fold its conversation as Section 4.13.8.3 states, and MUST then go
+once it is idle.
+
+#### 4.22.6. Scoped links
+
+**4.22.6.1** Before it starts the host of an Ai-chan conversation, the daemon MUST listen on that
+conversation's scoped link, the socket of Section 7.6.9 of [FILES], and MUST admit each session
+over it as one over a trusted carrier is admitted (Section 3.5.4 of [WIRE]), holding it to the
+conversation's reach (Section 4.21).
+
+**4.22.6.2** On a scoped link, a `session.hello` whose kind is not `ai-chan` MUST be refused 403,
+`This link is Ai-chan's.`; over any other carrier, a `session.hello` whose kind is `ai-chan` MUST be
+refused 403, `Only Ai-chan says hello as ai-chan.`
+
+**4.22.6.3** The daemon MUST stop listening on a scoped link, and close every session over it, when
+the host of its conversation goes.
+
+### 4.23. Envs of an epic
+
+#### 4.23.1. General
+
+**4.23.1.1** Each method of Section 4.23 MUST take `workspace` and `slot`, naming a host; each but
+`env.list` MUST also take `env` (text, required), the name of an env role of the epic going on that
+host. Each MUST be carried out by that host, on that env, as the epic's flow would carry it out
+through the env (Section 7 of [CORE]), without attaching to the host and without telling the epic.
+
+**4.23.1.2** A `path` MUST be read relative to the env's workdir; a `path` that leaves the workdir,
+by `..`, as an absolute path outside it or through a symbolic link, MUST be refused 400, `<path> is
+outside the env <env>.`
+
+**4.23.1.3** A host with no epic going MUST refuse 409, `no flow is running, so no env is open`; an
+`env` naming no env role of that epic MUST be refused 404, `The epic has no env <env>.`; and an env
+that cannot do what is asked MUST be refused 409, `The env <env> cannot <what>.`, `<what>` being
+`read files`, `write files`, `run commands` or `search files`.
+
+**4.23.1.4** `env.write` and `env.exec` MUST be writes, and `env.list`, `env.read` and `env.grep`
+MUST NOT.
+
+#### 4.23.2. `env.list`
+
+**4.23.2.1** `env.list` MUST answer `envs`, one per env role of the epic going on the host, each
+with `name` (the role), `kind` (the env's kind, Section 7 of [CORE]), `workdir` (its workdir on its
+machine) and `can` (those of `read`, `write`, `exec` and `grep` the env offers).
+
+#### 4.23.3. `env.read`
+
+**4.23.3.1** `env.read` MUST take `path` (text, required), `offset` (default `0`) and `length`
+(default and at most `1048576`), and MUST answer `text` (the bytes of the file from `offset`, at
+most `length` of them, read as UTF-8, each byte that is not of valid UTF-8 replaced by U+FFFD),
+`size` (the file's length in bytes) and `eof` (whether they reach its end).
+
+**4.23.3.2** A `path` that names no file MUST be refused 404, `There is no file <path> in <env>.`
+
+#### 4.23.4. `env.write`
+
+**4.23.4.1** `env.write` MUST take `path` (text, required) and `text` (text, required), MUST write
+`text` as UTF-8 as the whole of that file, making the directories it lies in, and MUST answer
+`size`, the bytes written.
+
+#### 4.23.5. `env.exec`
+
+**4.23.5.1** `env.exec` MUST take `argv` (a list of text, required, not empty) and `seconds` (1 to
+3600, default `120`), MUST run `argv` in the env's workdir, and MUST answer `code` (its exit status,
+or `null` where it was killed once `seconds` had passed), `stdout` and `stderr` (each the last
+1048576 bytes it wrote there, read as `env.read` reads them).
+
+**4.23.5.2** An empty `argv` MUST be refused 400, `env.exec runs a command: give argv.`
+
+#### 4.23.6. `env.grep`
+
+**4.23.6.1** `env.grep` MUST take `pattern` (text, required, an extended regular expression of
+POSIX), `path` (default `.`) and `limit` (1 to 2000, default `200`), MUST search every file under
+`path`, and MUST answer `matches`, at most `limit` of them, each `path` (relative to the workdir),
+`line` (from 1) and `text` (the line, cut at 400 characters), and `more` (whether there were more).
 
 ## 5. Security Considerations
 
@@ -1642,14 +1909,15 @@ only by mutual TLS or pinned WebRTC, and only a paired device can call more than
 of [WIRE] and Section 4.7 of [WIRE]). A daemon listens beyond its socket only where `listen` or `hmz
 daemon serve` asks it to (Section 3.9.1).
 
-What a client can do. Every paired session is whole (Section 3.6.1 and Section 3.9.7): it is able to
-start, steer, stop and force epics, to take over a role another frontend claims, to close a host,
-to read and write the settings, accounts, runtimes and flows of the daemon's machine, to list any
-directory the daemon's user can read, to import an archive from any path, to make pairing codes and
-to revoke other devices (Section 3.6.5, Section 4.8, Section 4.14, Section 4.16.6, Section 4.17.7
-and Section 4.18). Pairing a device is therefore equivalent to giving it the daemon's user's account
-on that machine. The name a frontend gives in `session.hello` is taken as given and is not verified
-(Section 4.7.1.5); the device name of a paired session is the one it claimed under (Section 4.14.2).
+What a client can do. Every paired session but Ai-chan's is whole (Section 3.6.1, Section 3.9.7 and
+Section 4.21): it is able to start, steer, stop and force epics, to take over a role another
+frontend claims, to close a host, to read and write the settings, accounts, runtimes and flows of
+the daemon's machine, to list any directory the daemon's user can read, to import an archive from
+any path, to make pairing codes and to revoke other devices (Section 3.6.5, Section 4.8, Section
+4.14, Section 4.16.6, Section 4.17.7 and Section 4.18). Pairing a device is therefore equivalent to
+giving it the daemon's user's account on that machine. The name a frontend gives in `session.hello`
+is taken as given and is not verified (Section 4.7.1.5); the device name of a paired session is the
+one it claimed under (Section 4.14.2).
 
 Secrets. The daemon answers no value of an account's variables, no EasyTier secret, no TURN
 credential and no credential of a URL (Section 4.18.1.1, Section 4.18.1.7, Section 4.18.2.2, Section
@@ -1680,6 +1948,16 @@ held to mutual TLS and pairing there (Section 3.8.5.3).
 
 Services. `hmz daemon install` makes the daemon run at login and keeps it running, with every
 listener `listen` names, until `hmz daemon uninstall` (Section 3.9.6).
+
+Ai-chan. The one session of an Ai-chan conversation is not whole: it comes over a scoped link of
+its own, and every call of it is held to the conversation's reach before it is carried out -- what
+lies outside its scope, every write under `read-only`, pairing, devices, the methods that carry
+credentials or EasyTier secrets, and every Ai-chan conversation are refused, and lists are cut to
+the scope (Section 4.21 and Section 4.22.6). No other session can say it is Ai-chan, and Ai-chan's
+session cannot say it is another (Section 4.22.6.2). What Ai-chan does to an epic is seen by every
+frontend under her name (Section 4.22.1.3). A conversation of the scope `daemon` under
+`danger-full-access` reaches what a paired device reaches. `env.exec` and `env.write` run commands
+and write files in an epic's envs as its flow would, and are writes (Section 4.23).
 
 ## 6. References
 

@@ -54,7 +54,7 @@ while True:
 
 **What a failed turn does.** `run` raises `HarnessError` when the CLI could not take the turn:
 it died mid-turn, the provider throttled it, the connection broke. Humanize has retried it, or
-moved along its [fallback](/user/settings#fallback) chain, before it gets that far. Uncaught,
+moved on through its [nous](/user/settings#nous), before it gets that far. Uncaught,
 that ends the run, as it does in the built-in loops. A loop of yours may catch it and carry on.
 
 A fourth choice matters once a loop runs long: whether a stopped run can be **picked up**.
@@ -342,7 +342,7 @@ async def ralph_loop(
 2. **`spawn` inside the loop**, so every round is a stranger to the last. What one round leaves
    the next is the repository and nothing else.
 3. **Nothing is caught.** A turn that fails has already been retried, or moved along its
-   [fallback](/user/settings#fallback) chain, as the kind of failure calls for, so what reaches
+   [nous](/user/settings#nous), as the kind of failure calls for, so what reaches
    the flow is a failure nothing recovered, and it ends the run.
 
 It is not `resumable`: the repository is all a Ralph loop keeps, so running it again is

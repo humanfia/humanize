@@ -19,9 +19,9 @@ import { withBase } from 'vitepress'
 - **A subscription, a key or a gateway.** Two agents of one CLI can run as two of them at once.
 - **One key, several CLIs.** An Anthropic key works in Claude Code, pi, Oh My Pi, opencode and
   mimocode. A subscription stays in its CLI.
-- **Tried again first.** A turn that failed is retried at its place as often as you said.
-- **Then the chain.** The next [place](/user/settings#fallback) takes over, and the one after it
-  if that fails too: another account, CLI or model, in a new conversation.
+- **Tried again first.** A turn that failed is retried at its nous as often as you said.
+- **Then its nous.** The next [nous](/user/settings#nous) takes over, and the one after it if that
+  fails too, or a balance of several: another account, CLI or model, in a new conversation.
 
 </div>
 
@@ -30,9 +30,9 @@ import { withBase } from 'vitepress'
     <strong>Make an account</strong>
     <span>Signing one in, and pointing it at a key or a gateway.</span>
   </a>
-  <a :href="withBase('/user/settings#fallback')">
-    <strong>Set the chain</strong>
-    <span>The waits, then the places to fall back to, in order.</span>
+  <a :href="withBase('/user/settings#nous')">
+    <strong>Set the nous</strong>
+    <span>The waits, then where a failed turn goes: in order, or balanced.</span>
   </a>
   <a :href="withBase('/reference/providers')">
     <strong>Every way in</strong>

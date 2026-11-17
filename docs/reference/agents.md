@@ -1431,14 +1431,18 @@ missing account; it never falls back to the machine's own.
 
 ## When a turn fails {#retries}
 
-Before a failure reaches the caller, two things are tried in order: retries at the same
-place, in the same conversation, and then each place of the fallback chain, in order.
+A turn is walked through the agent's **nous** (`agent.nous`): its virtual nous where
+`AgentConfig.nous` names one, else its own concrete nous `CLI[@ACCOUNT]/MODEL[:EFFORT]`
+(`agent.spec`). Before a failure reaches the caller, the walk tries, in order: retries at the
+concrete nous, in the same conversation; then its `then` graph; and for a virtual nous, its
+graph, walked again as its own retries say. Nous are written in `nous` in
+`$HUMANIZE_HOME/settings.yaml`, by `Hmz().nous` or the Nous page of `/settings`
+([Nous](/user/settings#nous)). Nothing is retried or walked on by default.
 
 ### Retries
 
-A place is `CLI[@ACCOUNT]/MODEL` (`agent.spec`). Retries are set per place in
-`fallbacks` in `$HUMANIZE_HOME/settings.yaml`, by `Hmz().fallbacks.retrying(place, tries, policy, timeout)` or
-the Fallback page of `/settings`. Nothing is retried by default.
+Retries are set per nous (`tries`, `policy`, `timeout`); a concrete nous with an effort and
+nothing written against it takes what is written against it without the effort.
 
 | Policy | Waits (base 1 s, each capped at 60 s) |
 | --- | --- |
@@ -1449,7 +1453,7 @@ the Fallback page of `/settings`. Nothing is retried by default.
 | `exponential-jitter` (default) | uniformly random up to the exponential wait |
 | `fibonacci` | 1, 1, 2, 3, 5, … |
 
-Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
+Each fault adjusts a concrete nous's retries (`nous.ANSWERS`):
 
 | Fault | Tries (floor) | Wait | Transport reopened | Fix |
 | --- | --- | --- | --- | --- |
@@ -1457,42 +1461,54 @@ Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
 | `spent` | 1 | at least 30 s | no | this account has spent its quota; another one, or a wait, is what answers it |
 | `refused` | none | — | no | that account needs signing in again |
 | `unlisted` | none | — | no | that model is not this account's to name; ask it what it runs and name one of those |
-| `retired` | none | — | no | the model is gone or was never this account's; another place is what answers it |
+| `retired` | none | — | no | the model is gone or was never this account's; another nous is what answers it |
 | `contended` | 3 | constant | no | two turns of it are sharing one database |
-| `dropped` | 1 | the place's | yes | |
+| `dropped` | 1 | the nous's | yes | |
 | `fenced` | none | — | no | the run's network fence keeps it off that host, which no sign-in answers; give the role online of ALL to let it through |
 | `killed` | 1 | constant | yes | the machine it runs on may be out of memory |
 | `missing` | none | — | no | |
 | `sandboxed` | none | — | no | this machine will not let it sandbox itself; run it without one, or somewhere it can |
 | `unmirrored` | none | — | no | that path cannot be made here; use a workdir whose path you can create here, or set the harness of the runtime the work is on to env |
-| unclassified | the place's | the place's | no | |
+| unclassified | the nous's | the nous's | no | |
 
-`Unrecoverable` is never retried or carried.
+`Unrecoverable` is never retried or carried. A virtual nous walked again gets no floor: only its
+own `tries`, never for a fault marked none, and at least the 30 s wait after `throttled` or
+`spent`.
 
-| Refused by `fallbacks` | `ValueError` |
+| Refused by `nous.put` | `ValueError` |
 | --- | --- |
-| a place that does not parse | `'<text>' is not a place: expected CLI[@ACCOUNT]/MODEL` |
+| a name that does not parse | `'<text>' is not a nous: expected HARNESS[@ACCOUNT]/MODEL[:EFFORT] or a name` |
+| a concrete nous with a graph, a virtual one without | `<name> is a concrete nous, and has no graph` / `<name> is a virtual nous, and needs a graph` |
 | an unknown policy | `'<p>' is not a retry policy: none, constant, linear, exponential, exponential-jitter, fibonacci` |
 | negative or infinite numbers | `tries and seconds are counts, not debts or infinities` |
-| a place falling back to itself | `<place> cannot fall back to itself` |
-| a place named twice on one chain | `<place> is already one of the places <spec> falls back to` |
+| a graph that does not hold together | `<name>: the edges come round at node <id>`, `… cannot be reached from the start`, `… is no fault class`, `… is no strategy: …`, `… names <nous> twice` |
+| a virtual nous nobody wrote | `<name> names <nous>, which is no nous written down` |
+| nous naming one another round | `<a> -> <b> -> <a> comes round` |
 
-### Fallback chain {#when-the-place-has-nowhere-left-to-run}
+### Nous graphs {#when-the-place-has-nowhere-left-to-run}
 
-`Hmz().fallbacks.points(place, [other, another])` writes the places a place's turns go to once
-its retries are spent, in order. `fallbacks.chain(place)` is `[place, *to]` for a place a rule is
-written against, and `[place]` for any other, including one that is only on somebody else's
-chain. `agent.stands_in()` returns the stand-in at the next place, built once and kept; a
-stand-in holds the rest of the chain it was reached by and carries on along it, never along a
-rule of its own place. Each stand-in is retried as its own place's rule says. The turn is taken
-in a new session at the other place, by an agent configured as this one (effort, rung, skills);
-settings that were measurements of the old model (`of_model` fields, e.g. Codex `overrides`) are
-dropped when the model changes. An account names no fallback of its own: another account of the
-same CLI is a place on the chain. A turn taken at another place is interrupted and cut there:
+A graph is a start node and nodes: a **use** node walks one nous, its own retries and `then`
+included; a **balance** node picks one of `among` by its strategy (`shuffle`, `round-robin`,
+`least-busy`, `latency`, `usage`, `cost`, or one added with `Hmz().nous.strategy`), and while
+that fails another not yet walked, up to `spread`. A failed node follows its edge for the fault
+class, else its `*` edge, else fails the graph. The first concrete nous to answer ends the walk.
+A balance node first picks, per session, the member that answered last; a member that was
+`throttled` or `spent` in the last 60 s is picked last. What `least-busy`, `latency` and `usage`
+count is this process's turns.
+
+`agent.stand_in(nous)` returns the agent at a concrete nous: the agent itself at its own nous
+(with or without the effort), else a stand-in built once and kept. The turn is taken in a new
+session there, by an agent configured as this one (rung, skills, fake tools), at the nous's
+effort where it names one and this agent's carried down the ladder otherwise; settings that were
+measurements of the old model (`of_model` fields, e.g. Codex `overrides`) are dropped when the
+model changes. A nous whose CLI is not here, or cannot be told what this agent was, fails as the
+failure before it. An agent configured at a virtual nous is built at `Hmz().nous.entry(name)`,
+the first nous of its start node. An account names no fallback of its own: another account of
+the same CLI is a nous of a graph. A turn taken at another nous is interrupted and cut there:
 `interrupt` reaches the stand-in's turn, and `cut` also puts the stand-in's transport down. A cut
 turn that lands goes on in the stand-in's conversation, as far as it got.
 
-<small>Defined in [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py), [`crates/coganchor/src/cog/standin.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/standin.rs).</small>
+<small>Defined in [`src/hmz/coganchor/nous.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/nous.py), `_falling_back` in [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py).</small>
 
 ## Watchdog {#when-a-cli-stops-answering}
 
@@ -1581,7 +1597,7 @@ or flow resources restart the process; an anchored turn always ends it.
   as before, without the flow's skills; there `read-only` or `web_search=False` is
   `Unserved: agy cannot run at read-only or off the web under an account naming its own
   --app_data_dir: ...`, said where the agent is made or reconfigured, and again at a turn
-  whose account a fallback changed to one. agy replaces `jetbox_summaries_proto.pb` (its conversation
+  whose account a stand-in changed to one. agy replaces `jetbox_summaries_proto.pb` (its conversation
   summaries index) rather than writing through it, so that index keeps what Humanize's turns
   wrote to it only for their process.
 - [Fake tools](#callbacks-as-tools) are a plugin `humanize` in a temporary directory added
@@ -1648,7 +1664,7 @@ fall `idle` first, which ends nothing.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `overrides` | `()` | `-c` pairs; only `model_context_window` and `model_auto_compact_token_limit`, positive integers, the second below the first. Dropped when a fallback changes the model. |
+| `overrides` | `()` | `-c` pairs; only `model_context_window` and `model_auto_compact_token_limit`, positive integers, the second below the first. Dropped when a stand-in changes the model. |
 | `features` | `()` | `--enable`/`--disable` pairs by `codex features list` names; `goals` and names beginning `browser_use`, `computer_use`, `standalone_web_search`, `web_search` are refused |
 | `strict_config` | `False` | `--strict-config` |
 | `approvals` | `""` | approval policy replacing the rung's: `untrusted`, `on-request`, `on-failure`, `never` |
@@ -2170,7 +2186,8 @@ class AgentBase:
     def disable_goals(); def stop()
     def watch(listener: Callable[[AgentBase, SessionBase | None, Event], None])
     def asked(question) -> str | None; def prompted() -> str | None
-    def stands_in() -> AgentBase | None
+    nous: str  # property
+    def stand_in(nous: str) -> AgentBase | None
     def node() -> Provider
     def environment() -> Mapping[str, str]; def hushed() -> frozenset[str]
     def fenced() -> Fence | None; def natively(fence: Fence) -> Fence

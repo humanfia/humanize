@@ -254,6 +254,7 @@ def open_agent(spec: AgentSpec, harbors: Harbors | None = None) -> HarnessDriver
             model=spec.model,
             effort=spec.effort,
             provider=spec.provider,
+            nous=spec.nous,
             **identifying(made, spec.cli),
         )
         # Built once and let go, which is where coganchor refuses an effort, a rung or a

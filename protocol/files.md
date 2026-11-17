@@ -22,7 +22,7 @@ It is normative. It is cited by the tag [FILES].
   - [3.3. The file](#33-the-file)
   - [3.4. Machine keys](#34-machine-keys)
   - [3.5. `workspaces`](#35-workspaces)
-  - [3.6. `fallbacks`](#36-fallbacks)
+  - [3.6. `nous`](#36-nous)
   - [3.7. `clis`](#37-clis)
   - [3.8. `runtimes`](#38-runtimes)
   - [3.9. `backup`](#39-backup)
@@ -44,6 +44,7 @@ It is normative. It is cited by the tag [FILES].
   - [4.13. EasyTier](#413-easytier)
   - [4.14. Device identity and paired devices](#414-device-identity-and-paired-devices)
   - [4.15. The web port](#415-the-web-port)
+  - [4.16. Ai-chan](#416-ai-chan)
 - [5. Workspaces](#5-workspaces)
   - [5.1. Scope](#51-scope)
   - [5.2. Terminology](#52-terminology)
@@ -135,7 +136,7 @@ Out of scope:
 - What a runtime does once an env is put on it, and how fallback between runtimes proceeds (Section
   7 of [CORE]).
 - Where a harness runs under a runtime's harness setting (Section 6 of [CORE]).
-- What the fallback of a turn between places does at run time (Section 4 of [CORE]).
+- What a walk of a turn through its nous does at run time (Section 4 of [CORE]).
 - Backups as a feature (Section 11 of [CORE]), notifications (Section 10 of [CORE]), side questions
   (Section 9 of [CORE]), error reports (Section 12 of [CORE]), and the daemons of other machines
   (Section 3 of [DAEMON]).
@@ -157,7 +158,7 @@ or does not hold a mapping at its top level.
 
 **3.2.6** A **writer** is any hmz process that changes the settings file.
 
-**3.2.7** A place MUST be written as Section 4.2.3 of [CORE] defines it.
+**3.2.7** A concrete nous MUST be written as Section 4.2.3 of [CORE] defines it.
 
 **3.2.8** An agent spec MUST be written as Section 4.2.2 of [CORE] defines it, which is the text of
 an `-a` item after `<role>=` (Section 7.4 of [CLI]).
@@ -194,7 +195,7 @@ workspace entry, across every write.
 
 **3.3.3.1** Every write other than that of Section 3.4.7.2 MUST change exactly one thing: one
 machine key, one workspace's `flow` key together with one flow entry, one workspace entry removed,
-the whole value of `fallbacks`, of `clis`, of `backup`, of `daemons`, of `notifications`, of
+the whole value of `nous`, of `clis`, of `backup`, of `daemons`, of `notifications`, of
 `listen`, of `ice_servers` or of `easytier`, or one runtime.
 
 **3.3.3.2** A writer MUST guard, read and replace the settings file as Section 4.5 states for
@@ -210,11 +211,11 @@ MUST keep its mode.
 
 **3.3.3.6** Every write MUST set the key `spelling` to `2`.
 
-**3.3.3.7** Where a write of `enable_sentry`, `details`, `btw`, `every_epic`, `backup` or a
+**3.3.3.7** Where a write of `enable_sentry`, `details`, `ai_chan`, `every_epic`, `backup` or a
 workspace entry fails, or the file is unreadable, the process MUST keep the change in effect for
 itself for as long as it runs and MUST NOT report an error.
 
-**3.3.3.8** Where a write of `fallbacks`, `clis`, `daemons`, `notifications`, `listen`,
+**3.3.3.8** Where a write of `nous`, `clis`, `daemons`, `notifications`, `listen`,
 `ice_servers`, `easytier` or a runtime fails, or the file is unreadable, hmz MUST refuse the change
 with an error that names the file.
 
@@ -239,16 +240,17 @@ call and all reasoning of a turn rather than its responses alone.
 
 **3.4.2.2** Any value of `details` other than `true` MUST be read as `false`.
 
-#### 3.4.3. `btw`
+#### 3.4.3. `ai_chan`
 
-**3.4.3.1** `btw` MUST be a string holding an agent spec,
-`<harness>[@<account>]/<model>[:<effort>]`, or the empty string.
+**3.4.3.1** `ai_chan` MUST be a string holding an agent spec,
+`<harness>[@<account>]/<model>[:<effort>]`, the name of a nous (Section 3.6), or the empty string.
 
-**3.4.3.2** `btw` MUST name the agent that answers a side question asked of The Epic, for every epic
-(Section 9.7 of [CORE]).
+**3.4.3.2** `ai_chan` MUST name the nous a new Ai-chan conversation defaults to (Section 14.3.2 of
+[CORE]); a change of it MUST NOT change a conversation already made.
 
-**3.4.3.3** An absent, empty or non-string `btw` MUST mean that there is no such agent, and that a
-side question asked of The Epic is refused (Section 9.5.9 of [CORE]).
+**3.4.3.3** An absent, empty or non-string `ai_chan` MUST mean that no nous is the default.
+
+**3.4.3.4** `hmz` MUST NOT read the key `btw`, which an earlier release wrote.
 
 #### 3.4.4. `every_epic`
 
@@ -454,41 +456,65 @@ epic they start.
 its agent roles equal the flow's declared agent roles, every required env role has an env spec, its
 params validate, and a budget is present for every flow that requires one.
 
-### 3.6. `fallbacks`
+### 3.6. `nous`
 
 #### 3.6.1. Entries
 
-**3.6.1.1** `fallbacks` MUST be a list of mappings, each saying where a turn at one place goes when
-that place cannot take it (Section 4 of [CORE]).
+**3.6.1.1** `nous` MUST be a mapping from the name of a nous, a concrete nous or the name of a virtual
+nous (Section 4.11.4 of [CORE]), to a mapping saying how a turn at it is retried, what a virtual one
+is, and where a turn goes once its retries are spent.
 
-**3.6.1.2** `spec` MUST be a string naming the place the entry is written against.
+**3.6.1.2** A virtual nous's name MUST match `[A-Za-z][A-Za-z0-9_.-]*` and MUST NOT name a harness.
 
-**3.6.1.3** `to` MUST be a list of places, tried in order once the place of `spec` has failed.
+**3.6.1.3** `tries` MUST be a non-negative integer, the number of times a failed turn is tried again
+at the nous before its `then`, defaulting to 0.
 
-**3.6.1.4** `tries` MUST be a non-negative integer, the number of times a failed turn is tried again
-at the place of `spec` before the next place is taken, defaulting to 0.
-
-**3.6.1.5** `policy` MUST be one of `none`, `constant`, `linear`, `exponential`,
+**3.6.1.4** `policy` MUST be one of `none`, `constant`, `linear`, `exponential`,
 `exponential-jitter` and `fibonacci`, the wait between those tries, defaulting to
 `exponential-jitter`.
 
-**3.6.1.6** `timeout` MUST be a non-negative number of seconds for which trying again MAY go on, 0
+**3.6.1.5** `timeout` MUST be a non-negative number of seconds for which trying again MAY go on, 0
 meaning no limit, and defaulting to 0.
+
+**3.6.1.6** `graph` MUST be a nous graph, present for a virtual nous and absent for a concrete one.
+
+**3.6.1.7** `then` MUST be a nous graph, the graph a turn is walked through once the nous's tries are
+spent, absent for none.
+
+**3.6.1.8** A nous graph MUST be written as one nous, as a list of nous each tried once the one before
+it has failed, or as a mapping of `start`, the id of the node a walk begins at, and `nodes`, a
+mapping from each node's id, matching `[A-Za-z][A-Za-z0-9_.-]*`, to its node.
+
+**3.6.1.9** A node MUST be either a use node, holding `use`, a nous, or a balance node, holding
+`balance`, a strategy (Section 4.11.4.7 of [CORE]), `among`, a mapping from each nous it picks out
+of to its weight, a positive integer, and `spread`, a non-negative integer defaulting to 0.
+
+**3.6.1.10** A node's edges MUST be `on`, a mapping from a fault class (Section 4.2.13 of [CORE]) or
+`*` to the id of a node, and `next`, which MUST mean the same as `on` with `*` alone.
+
+**3.6.1.11** A writer MUST write a graph that is a list of use nodes each with only a `*` edge to the
+next as that list, and as one nous where it holds one node.
 
 #### 3.6.2. Reading and writing
 
-**3.6.2.1** An entry that is not a mapping, whose `spec` does not name a place of an existing
-harness, whose `spec` an earlier entry has, or that has an empty `to` and `tries` of 0 MUST be
-ignored when read.
+**3.6.2.1** An entry whose name does not name a nous of an existing harness or a virtual nous, whose
+graph or `then` is not a nous graph Section 4.11.4.9 of [CORE] allows, that is concrete with a
+`graph` or virtual without one, or that is concrete with `tries` of 0 and no `then`,
+MUST be ignored when read.
 
-**3.6.2.2** A place in `to` that cannot be read as a place, equals `spec`, or repeats an earlier
-place MUST be ignored when read.
+**3.6.2.2** A `tries` or `timeout` that is not a finite number MUST be read as 0, and a negative one
+as 0; a `policy` that names none MUST be read as `exponential-jitter`.
 
-**3.6.2.3** A `tries` or `timeout` that is not a finite number MUST be read as 0, and a negative one
-as 0.
+**3.6.2.3** A write of a nous MUST be refused where the nous could not be read, where its graph or
+`then` names a virtual nous no entry has, or where nous would name one another round.
 
-**3.6.2.4** A write of a fallback MUST be refused where a place cannot be read, where `to` contains
-`spec`, or where `to` names one place twice.
+**3.6.2.4** A virtual nous that another entry's graph or `then` names MUST NOT be removed, and
+renaming a virtual nous MUST rename it in every graph and `then` that names it.
+
+**3.6.2.5** Where the settings file holds the key `fallbacks`, a list of mappings each of `spec`, a
+concrete nous, `to`, a list of concrete nous, and `tries`, `policy` and `timeout`, hmz MUST read each
+as the entry of `spec` with `then` the list `to`, where `nous` holds no entry of that name, and the
+next write of `nous` MUST remove the key `fallbacks`.
 
 ### 3.7. `clis`
 
@@ -711,7 +737,7 @@ two targets share a name, or a default names no target.
 **3.10.1.1** The settings file MUST NOT hold the credentials of any account.
 
 **3.10.1.2** An account MUST be referred to in the settings file only by its name after an `@` in an
-agent spec or a place, in `workspaces.<path>.flows.<flow>.agents`, `btw` and `fallbacks`.
+agent spec or a concrete nous, in `workspaces.<path>.flows.<flow>.agents`, `ai_chan` and `nous`.
 
 **3.10.1.3** A reference to an account that does not exist MUST be refused when an epic is started
 with it (Section 7.7.7 of [CLI]), and MUST NOT make the settings file unreadable.
@@ -777,6 +803,9 @@ place of the build its installation carries (Section 7.5); one that does not exi
 the builds of Section 7.5.1 from which it copies one to another machine; hmz MUST set it to that
 directory.
 
+**3.11.2.17** `HUMANIZE_AICHAN_LINK` MUST name, to the host of an `ai:` slot and to the flow
+`ai_chan` it runs, the socket of that conversation's scoped link (Section 7.6.9, Section 4.22.6 of
+[DAEMON]); the daemon MUST set it for that host alone, and no other process MUST read it.
 #### 3.11.3. Other variables
 
 **3.11.3.1** `NO_COLOR`, `TERM` and `FORCE_COLOR` MUST decide escapes as Section 4.2 of [CLI]
@@ -879,7 +908,7 @@ NOT read, modify, merge or remove `$HOME/.humanize`.
 reporting an error.
 
 **4.4.5** `hmz` MUST NOT create in `<home>` any entry other than those specified in Section 4.5 to
-Section 4.15.
+Section 4.16.
 
 **4.4.6** `hmz` MUST NOT remove `<home>`.
 
@@ -1090,6 +1119,28 @@ decimal digits without a line feed, written by atomic replacement only when that
 
 **4.15.2** `hmz web` MUST read a `<home>/web-port` that does not hold a port from 1 to 65535 as no
 port; the **user** MAY delete it at any time.
+
+### 4.16. Ai-chan
+
+**4.16.1** `<home>/ai/<machine>/`, `<machine>` as Section 4.14.1 names it, MUST hold the Ai-chan
+conversations (Section 14 of [CORE]) of the daemon of this machine, with mode `0700`, and MUST be
+the workspace of the host of every conversation of the scope `daemon`.
+
+**4.16.2** `conversations.yaml` in it MUST be a YAML list of mappings, one per conversation not
+forgotten, in the order made, each with exactly the keys `id` (integer), `title`, `scope`,
+`workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (the epic name of the
+conversation's own epic, `""` before it has one) and `created` (a UTC timestamp), the others as
+`aichan.list` answers them (Section 4.22.3 of [DAEMON]), with mode `0600`, written by atomic
+replacement by the daemon alone.
+
+**4.16.3** `<home>/ai/<machine>/<id>/` MUST be the scratch directory (Section 14.2.7 of [CORE]) of
+the conversation whose `id` is `<id>`, with mode `0700`, made when the conversation is made.
+
+**4.16.4** Forgetting a conversation MUST remove its entry and its scratch directory, and MUST NOT
+remove the records of its epic.
+
+**4.16.5** The **user** MAY delete `<home>/ai/` while no daemon of this home runs, which forgets
+every conversation.
 
 ## 5. Workspaces
 
@@ -1369,7 +1420,7 @@ ends, however it ends, with the keys `flow` and `epic`, equal to those of the ma
 
 **6.5.9** `hmz` MUST NOT write the event `btw` into an epic record.
 
-> Informative: the agent of side questions is the setting of Section 3.4.3, and no epic's own.
+> Informative: a side question is answered by a copy of the session asked, and no epic records it.
 
 **6.5.10** A reader MUST skip a `btw` event in an epic record.
 
@@ -1776,6 +1827,11 @@ its whole life; `hmz` MUST NOT remove it.
 
 **7.6.8** Two processes of **hmz** whose temporary directories differ MUST reach different
 **daemons**.
+
+**7.6.9** `<mdir>/ai-<hex>.sock` MUST be the Unix-domain socket of the scoped link of the Ai-chan
+conversation of the slot `ai:<hex>` (Section 4.22.6 of [DAEMON]), with mode `0600`; the **daemon**
+MUST make it before it starts that conversation's host, and MUST remove it when that host goes and
+when the **daemon** closes.
 
 ### 7.7. Scratch directories in the machine directory
 

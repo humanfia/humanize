@@ -114,7 +114,7 @@ class Provider:
 
     Where a turn goes when an account fails is not written here: that is a thing about the
     place a turn runs at -- the CLI, the account and the model together -- rather than about
-    the credentials it runs with, and `hmz.coganchor.fallbacks` is where it is said.
+    the credentials it runs with, and `hmz.coganchor.nous` is where it is said.
     """
 
     cli: str

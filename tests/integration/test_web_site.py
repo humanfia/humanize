@@ -203,6 +203,29 @@ def test_the_editor_and_the_terminal_are_served_as_the_pages_own_files(
         assert policy["script-src"] == "'self'"
 
 
+def test_a_picture_of_the_page_is_served_as_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from hmz.web import site as serving
+
+    package = tmp_path / "web"
+    (package / "static" / "ai-chan").mkdir(parents=True)
+    (package / "static" / "ai-chan" / "avatar.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    def files(_: str) -> Path:
+        return package
+
+    # The page's own files alone are looked for in `package`.
+    monkeypatch.setattr(serving, "resources", SimpleNamespace(files=files))
+    with served() as site:
+        avatar = Browser(site).get("/ai-chan/avatar.png")
+        assert avatar.status == 200
+        assert avatar.headers["content-type"] == "image/png"
+        assert avatar.body == b"\x89PNG\r\n\x1a\n"
+
+
 def test_what_another_site_left_in_the_cookie_jar_is_not_this_ones_business(
     project: Path,
 ) -> None:

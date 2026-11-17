@@ -228,8 +228,9 @@ impl RemoteClient {
         }
     }
 
-    /// Starts the reader thread and shakes hands, presenting `token`; returns the `HELLO`
-    /// reply. Never call before a fork whose child must not inherit threads.
+    /// Starts the reader thread and shakes hands, presenting `token` (or, inside TLS, proving
+    /// the key the channel is bound to and holding the anchor to proving it back); returns
+    /// the `HELLO` reply. Never call before a fork whose child must not inherit threads.
     pub fn start(&self, token: Option<&str>) -> Result<Meta, RemoteError> {
         {
             let mut reader = self.shared.reader.lock().unwrap();
@@ -243,11 +244,30 @@ impl RemoteClient {
                 );
             }
         }
-        let hello = crate::meta! {
-            "version" => PROTOCOL_VERSION,
-            "token" => token.map_or(Value::Null, Value::from),
+        // Inside TLS the key is the channel's own, proved rather than shown, and `token` is
+        // not asked about; on a pipe the token is presented as it is.
+        let bound = self.channel.bound();
+        let mine = bound.and_then(crate::tls::Bound::cog_proof);
+        let hello = match bound {
+            Some(_) => crate::meta! {
+                "version" => PROTOCOL_VERSION,
+                "proof" => mine.as_ref().map_or(Value::Null, |mine| Value::from(hex::encode(mine))),
+            },
+            None => crate::meta! {
+                "version" => PROTOCOL_VERSION,
+                "token" => token.map_or(Value::Null, Value::from),
+            },
         };
         let info = self.call(Op::Hello, hello)?;
+        if let (Some(bound), Some(mine)) = (bound, &mine) {
+            let said = info.get("proof").and_then(Value::as_str).unwrap_or("");
+            if !bound.anchor_proved(mine, said) {
+                return Err(RemoteError::new(
+                    libc::ECONNREFUSED,
+                    format!("the serving half at {} did not prove the token", bound.whom),
+                ));
+            }
+        }
         let version = info.get("version").cloned().unwrap_or(Value::Null);
         if version != PROTOCOL_VERSION {
             return Err(RemoteError::new(

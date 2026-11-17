@@ -30,8 +30,8 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.backups import Backups
     from hmz.runtime.doing.daemons import Daemons
     from hmz.runtime.doing.epics import Epics
-    from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
+    from hmz.runtime.doing.nous import NousBook
     from hmz.runtime.doing.running import Run
     from hmz.runtime.doing.runtimes import Runtimes
     from hmz.runtime.flowing import AgentDriver, AgentRole, EnvDriver, OutworlderDriver
@@ -59,7 +59,7 @@ class Hmz:
         self._flows: Flows | None = None
         self._accounts: Accounts | None = None
         self._runtimes: Runtimes | None = None
-        self._fallbacks: Fallbacks | None = None
+        self._nous: NousBook | None = None
         self._epics: Epics | None = None
         self._backups: Backups | None = None
         self._daemons: Daemons | None = None
@@ -120,13 +120,13 @@ class Hmz:
         return self._runtimes
 
     @property
-    def fallbacks(self) -> Fallbacks:
-        """Where a turn goes when the place taking it cannot take it at all."""
-        if self._fallbacks is None:
-            from hmz.runtime.doing.fallbacks import Fallbacks
+    def nous(self) -> NousBook:
+        """Every nous: what an agent thinks with, and where its turns go when it cannot."""
+        if self._nous is None:
+            from hmz.runtime.doing.nous import NousBook
 
-            self._fallbacks = Fallbacks()
-        return self._fallbacks
+            self._nous = NousBook()
+        return self._nous
 
     @property
     def epics(self) -> Epics:
