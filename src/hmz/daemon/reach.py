@@ -54,10 +54,11 @@ __all__ = [
     "ran_in",
 ]
 
-#: The flow an `ai:` slot runs, by the name it is offered under.
-FLOW = "ai_chan"
+#: A flow an `ai:` slot runs in place of her chat (Section 14.4 of core.md), by the name it is
+#: offered under -- a test's stand-in -- or "" for her chat.
+FLOW = ""
 
-#: The one agent role that flow declares, which a conversation's nous fills.
+#: The one agent role such a flow declares, which a conversation's nous fills.
 ROLE = "ai_chan"
 
 #: What Ai-chan's session says it is in `session.hello`.
@@ -537,20 +538,35 @@ class Links:
             )
         record = str(conversation.get("record") or "")
         picked = epic_at(record) if record else None
-        said = {
-            "do": "start",
-            "flow": FLOW,
-            "task": "" if picked else self.tasks.get(hosted.slot, ""),
-            "agents": {ROLE: conversation["nous"]},
-            "params": {
-                key: conversation[key]
-                for key in ("id", "scope", "workspace", "epic", "preset", "network")
-            },
-            # With no limit on what it spends (Section 14.4.3 of core.md).
-            "budget": {"cost": "Infinity"},
-            "resume": str(picked) if picked else False,
+        task = "" if picked else self.tasks.get(hosted.slot, "")
+        reach = {
+            key: conversation[key]
+            for key in ("id", "scope", "workspace", "epic", "preset", "network")
         }
-        answer = hosted.started(said)
+        if FLOW:
+            answer = hosted.started(
+                {
+                    "do": "start",
+                    "flow": FLOW,
+                    "task": task,
+                    "agents": {ROLE: conversation["nous"]},
+                    "params": reach,
+                    "budget": {"cost": "Infinity"},
+                    "resume": str(picked) if picked else False,
+                }
+            )
+        else:
+            # Her chat, its assistant playing her role (Section 14.4 of core.md).
+            answer = hosted.chat(
+                {
+                    "do": "start",
+                    "by": "hmz",
+                    "agent": conversation["nous"],
+                    "task": task,
+                    "resume": str(picked) if picked else None,
+                    "ai": reach,
+                }
+            )
         self.tasks.pop(hosted.slot, None)
         if not answer.get("ok"):
             raise RpcError(Code.CONFLICT, str(answer.get("why") or "refused"))
