@@ -178,7 +178,7 @@ def read_line(argv: list[str]) -> Line:
         metavar="KEY=VALUE[,...]",
         help="a flow param, read as its type or as JSON; budget.duration, budget.cost "
         "(USD), budget.output_tokens and budget.graceful -- or budget.graceful.<limit> "
-        "for one limit -- set what the run may spend, required except for chat",
+        "for one limit -- set what the run may spend, and are required",
     )
     parser.add_argument(
         "--profile-flow",
@@ -284,8 +284,7 @@ class Runner:
             workspace.
           params: The flow's params, as its model or as a mapping of values -- strings from
             `-p` among them -- or None for its defaults.
-          budget: What the run may spend. Only `chat` may be run without one, under
-            `Budget(cost=inf)`.
+          budget: What the run may spend, which every flow must be given.
           profile_flow: Whether to sample the flow's own Python while the run goes. Off
             unless asked, since it is a sampler running for as long as the flow does.
           profile_environment: Whether to sample the programs the agents start while the run

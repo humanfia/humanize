@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 _CHECKED: dict[str, Any] = {
     "flow": "asks",
     "ref": "asks:asks",
-    "chats": False,
     "declared": {
         "agents": [{"name": "coder", "auto": False}, {"name": "human", "auto": True}]
     },
@@ -108,12 +107,9 @@ def test_a_run_is_what_the_check_answered_and_nothing_is_started(
 ) -> None:
     run = Run(_Runner(daemon), "do it")
 
-    assert (run.flow, run.ref, run.chats, run.task) == (
-        "asks",
-        "asks:asks",
-        False,
-        "do it",
-    )
+    assert (run.flow, run.ref, run.task) == ("asks", "asks:asks", "do it")
+    # A chat is not a flow, so no run of one is a chat.
+    assert not hasattr(run, "chats")
     assert run.names == {"coder": "NeiKos"}
     assert run.budget.cost == 1.0
     assert (run.epic, run.running, run.raised, run.result) == (None, False, None, None)
