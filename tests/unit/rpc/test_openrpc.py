@@ -25,8 +25,8 @@ SCHEMA_META = Path(__file__).with_name("json-schema-meta-schema.json")
 # The namespaces of Section 4 of daemon.md; a backticked `<namespace>.<name>` in the text names a
 # method or a notification, but for the files the text also names that way.
 NAMESPACES = (
-    "accounts|backups|btw|devices|easytier|epic|files|flows|flowverses|hosts|notices|nous"
-    "|pair|paths|rpc|runs|runtimes|session|settings|workspaces"
+    "accounts|aichan|backups|btw|devices|easytier|env|epic|files|flows|flowverses|hosts"
+    "|notices|nous|pair|paths|rpc|runs|runtimes|session|settings|workspaces"
 )
 NAMED = re.compile(rf"`((?:{NAMESPACES})\.[a-z_]+)`")
 NOT_METHODS = re.compile(r"\.(md|json|jsonl|yaml|yml|py)$")
@@ -150,3 +150,23 @@ def test_every_method_the_text_names_is_in_the_document(
     listed = set(names(document))
     named = {n for n in NAMED.findall(text()) if not NOT_METHODS.search(n)}
     assert named - listed == set()
+
+
+# The scopes of `x-hmz-reach` and the parameters it may name (Section 4.21.2 of daemon.md).
+SCOPES = {"any", "daemon", "workspace", "epic", "never"}
+NAMES = {"workspace", "slot", "epic", "sub"}
+
+
+def test_every_method_says_its_reach_and_whether_it_writes(
+    document: dict[str, Any],
+) -> None:
+    for method in cast("list[dict[str, Any]]", document["methods"]):
+        reach = cast("dict[str, str]", method["x-hmz-reach"])
+        takes = {p["name"] for p in method["params"]}
+        assert reach["scope"] in SCOPES, method["name"]
+        named = set(reach) - {"scope"}
+        assert named <= NAMES, method["name"]
+        assert {reach[n] for n in named} <= takes, method["name"]
+        assert isinstance(method["x-hmz-writes"], bool), method["name"]
+        if "idem" in takes:
+            assert method["x-hmz-writes"], method["name"]
