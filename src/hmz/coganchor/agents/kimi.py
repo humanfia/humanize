@@ -11,14 +11,14 @@ has a real one -- ``kimi -p <prompt> --output-format stream-json`` prints a turn
 and for a driver that only wanted the words that would be the shorter road. It is not taken
 because three of the things this driver is for are not in it. There is no route to a turn that
 is already running, so :meth:`KimiCodeCLISession.interject` -- the reason ``steers`` is True
-here at all -- would have nothing to write to. There is no per-turn body, so the rung an agent
-runs at, its thinking level and its swarm width would have to be the process's own flags,
-fixed for the life of a prompt that is one turn long anyway, and ``--plan``/``--yolo``/``--auto``
-are the only three of them there are. And a turn that stops -- to ask, or for a tool it wants
-approving -- stops against a terminal there, not against an object with an id that something
-else can resolve; the daemon holds each on a route of its own -- ``/questions`` and
-``/approvals`` -- which is what lets a flow answer or refuse one with nobody at a keyboard.
-The server is the only surface in this CLI where a session is a thing
+here at all -- would have nothing to write to. There is no per-turn body, so the permission
+mode an agent runs at, its thinking level and its swarm width would have to be the process's own
+flags, fixed for the life of a prompt that is one turn long anyway, and
+``--plan``/``--yolo``/``--auto`` are the only three of them there are. And a turn that stops --
+to ask, or for a tool it wants approving -- stops against a terminal there, not against an
+object with an id that something else can resolve; the daemon holds each on a route of its own
+-- ``/questions`` and ``/approvals`` -- which is what lets a flow answer or refuse one with
+nobody at a keyboard. The server is the only surface in this CLI where a session is a thing
 rather than an invocation, so the daemon it is, and the cost of that choice -- one ``kimi web``
 per agent, and its argv -- is paid below.
 """
@@ -50,7 +50,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from hmz.coganchor.backends import SWARM
 
 from .base import AgentBase, SessionBase
-from .config import UNSAID, AgentConfig
+from .config import AgentConfig
 from .event import Event, Failed, Question, Usage, say
 from .hooks import EVERYWHERE, Moment
 from .preload import preloaded
@@ -519,12 +519,12 @@ _HELD = ("questions", "approvals")
 #: the session.
 _ANSWERS = ("approved", "rejected")
 
-#: How each rung of the ladder is set on a Kimi session. The daemon takes one of `manual`,
-#: `yolo` and `auto`, and plan mode beside it, and the two are said together because neither
-#: means much alone.
+#: The two permission modes a fenced Kimi session is run at, by the names 0.42.0's daemon
+#: takes in `permission_mode`. Plan mode, the other key the profile takes beside it, is always
+#: sent off where either is sent.
 #:
 #: The names mislead, so here is 0.42.0's own ladder. Kimi calls them Always Ask (`manual`),
-#: Ask When Needed (`yolo`) and Never Ask (`auto`), loosest last -- `yolo` is the middle rung
+#: Ask When Needed (`yolo`) and Never Ask (`auto`), loosest last -- `yolo` is the middle one
 #: and not the top one the word suggests. What decides it is the order its permission policies
 #: are consulted in, the first to answer winning: the one that approves everything on `auto`
 #: is consulted fourth, ahead of every policy that would ask, while the one that approves
@@ -537,83 +537,63 @@ _ANSWERS = ("approved", "rejected")
 #: the plan and todo tools -- plus a `Write` or `Edit` inside a git worktree's own workspace.
 #: Bash asks, every time.
 #:
-#: Each of those is an approval and not a question, and until this driver read `/approvals`
-#: that made all three of the tighter modes unreachable: a turn stopped on one stayed busy
-#: with nothing on the route the poll was reading, and ended as the watchdog's stall. That is
-#: what :meth:`KimiCodeCLISession._approved` buys back, so the table below is the ladder
-#: rather than one rung written four times.
-#:
-#: What each row is, then, and why:
-#:
-#: `read-only` is `manual` with plan mode on. Plan mode is the hard half -- it vetoes `Write`,
-#: `Edit`, `TaskStop` and the two cron tools outright, with no approval offered and nothing to
-#: answer -- and `manual` is the half that catches what plan mode does not. Bash is the one
-#: that matters: Kimi's own plan-mode reminder tells the model "Use Bash only when needed;
-#: Bash follows the normal permission mode and rules", so at `auto` a rung named read-only
-#: would run a command that writes a file. At `manual` that command is an approval instead --
-#: and an approval this driver answers `rejected`, because this rung is not in
-#: :data:`_GRANTED`. That is what makes the name true with no hook hung at all: the write is
-#: refused by the rung itself, and a flow that wants the write allowed asks for a looser rung
-#: rather than for a hook -- a hook can refuse what would have been granted, and there is
-#: nothing here for it to widen. The same goes for the `ExitPlanMode` the model is told to end
-#: a plan with: gated at every mode but `auto`, so at this rung the agent cannot quietly leave
-#: the rung either.
-#:
-#: `auto` is `yolo`, for the reason Humanize's `auto` exists: the agent may ask for more than
-#: it has, and the asking is granted. That is `yolo` exactly -- the dangerous command, the
-#: sensitive file, the path under `.git`, each one asked for and each one answered -- and it
-#: is the same row Codex's table writes as `on-request`.
-#:
-#: `workspace-write` and `bypass` are `auto`, which is the mode where nothing is asked. There
-#: is no sandbox in this CLI, so `workspace-write` cannot be the fenced thing it is on Codex;
-#: what it can be is the rung that changes the workspace without stopping, and that is `auto`.
-#: `bypass` means nothing asked and nothing checked, which is what `auto` is.
+#: A fenced agent runs at `auto`, whatever its fence writes, because what it may do is the
+#: fence's to hold and not a mode's (protocol/core.md Section 4.6.2.2): nothing is put to
+#: approval, and a write the agent is not granted is either a tool it was never handed --
+#: :data:`_WRITING_TOOLS` -- or a `Bash` command the fence refuses as it runs. Plan mode is
+#: off for the same reason. It would refuse `Write` and `Edit` well enough, but it holds the
+#: grant by a mode the model is told it is in, it gates its own `ExitPlanMode`, and it says
+#: nothing about `Bash` -- Kimi's own plan-mode reminder tells the model "Use Bash only when
+#: needed; Bash follows the normal permission mode and rules". Withholding the tools says the
+#: same thing to the model by not giving it the tools, which is the stronger way to say it.
 #:
 #: The one thing `auto` costs is the question. It denies `AskUserQuestion` outright -- "Make a
-#: reasonable decision and continue without asking the user" -- so a turn at either of those
-#: two rungs does not stop to ask a person, and `NOTIFICATION` does not fire there. At
-#: `read-only` and `auto` it does: `AskUserQuestion` is approved by default under both `manual`
-#: and `yolo`, and `/questions` has always been read.
+#: reasonable decision and continue without asking the user" -- so a turn there does not stop
+#: to ask a person, and `NOTIFICATION` does not fire. Nor does it ever raise an approval, so a
+#: hook hung on `PERMISSION_REQUEST` would have nothing to refuse. So while either is hung --
+#: a hook on the approvals, or somebody to answer the questions -- the session runs at `yolo`
+#: instead (Section 4.6.2.4): `AskUserQuestion` is approved by default there and
+#: `/questions` has always been read, and what `yolo` still asks about -- the dangerous
+#: command, the sensitive file, the path under `.git` -- reaches
+#: :meth:`KimiCodeCLISession._approved`, which grants it unless the hook says no. Which is
+#: still every request granted, the bargain Section 4.6.2.2 asks of a harness that cannot
+#: withhold what it asks about; the fence holds the grant either way.
 #:
-#: What would make `read-only` bite harder still is a rung that cannot reach for `Bash` at
-#: all: no call to refuse is a fence, where an approval answered is a gate somebody has to
-#: hold. It is not the `tools` key of this body, which is the thing to say plainly because
-#: this file said the opposite. `sessionAgentConfigSchema` does declare `tools`, so a body
-#: carrying one is taken with a 200 -- and `applySessionAgentConfig` then reads `model`,
-#: `thinking`, `permission_mode`, `plan_mode`, `swarm_mode`, `tower_mode` and the two goal
-#: keys, and nothing else. The allow-list is accepted and dropped, and an agent sent one
-#: keeps all of its tools. What the daemon really takes is `disabled_tools`, on the *prompt*
-#: body rather than this one, which `setSessionDisabledTools` applies to the session. Both
-#: checked against 0.42.0, the first of them live. Which is somebody else's change to make
-#: and is being made: it is a lever on the prompt, and this table sets the session.
-_PERMITTED = {
-    "read-only": {"permission_mode": "manual", "plan_mode": True},
-    "workspace-write": {"permission_mode": "auto", "plan_mode": False},
-    "auto": {"permission_mode": "yolo", "plan_mode": False},
-    "bypass": {"permission_mode": "auto", "plan_mode": False},
-    # An agent nobody wrote a rung for: neither key is sent, and the session runs at whatever
-    # `kimi web` would have run it at on its own. Which is this file's own rule about defaults
-    # applied to the one setting that had been breaking it -- an install that configures
-    # nothing behaves as the bare CLI does. 0.42.0 reads `default_permission_mode` out of the
-    # install's config as it bootstraps a session and leaves the mode at `manual` where there
-    # is none, so what an install that says nothing gets is Always Ask, the same as the person
-    # who starts `kimi web` at a terminal and answers it from the browser.
-    #
-    # Nobody is at the browser here, which is why this row used to be the one that wedged: the
-    # first tool call of such a turn stopped the session somewhere the poll could not move it,
-    # and the watchdog ended it as a stall a quarter of an hour later. It no longer does.
-    # `manual` is a rung this driver can answer now, and saying nothing lands on it the same
-    # way `read-only` does -- the approval is read, a hook gets it, and the turn goes on. On
-    # `rejected`, where no hook said otherwise: what Humanize was told about this agent is
-    # nothing, and nothing is not a yes. See :data:`_GRANTED`.
-    UNSAID: {},
-}
+#: An agent hmz does not fence -- one driven by hand -- is told neither key, and the session
+#: runs at whatever `kimi web` would have run it at on its own. Which is this file's own rule
+#: about defaults: an install that configures nothing behaves as the bare CLI does. 0.42.0
+#: reads `default_permission_mode` out of the install's config as it bootstraps a session and
+#: leaves the mode at `manual` where there is none, so what an install that says nothing gets
+#: is Always Ask, the same as the person who starts `kimi web` at a terminal and answers it
+#: from the browser. Nobody is at that browser here, which is why every approval it raises is
+#: read and answered by :meth:`KimiCodeCLISession._approved` rather than left to stall the
+#: turn until the watchdog ends it.
+_NEVER_ASK = "auto"
+_ASK_WHEN_NEEDED = "yolo"
+
+#: The tools a Kimi agent changes a file with, by the names 0.42.0 registers them under, and
+#: so the ones withheld from an agent whose fence writes nothing (protocol/core.md Section
+#: 4.6.2.3). `Write` writes a file whole and `Edit` replaces a string in one; they are the two
+#: plan mode vetoes as file writes, beside `TaskStop` and the two cron tools, which change no
+#: file and so stay. `Bash` stays too: the fence refuses whatever it would write, and an agent
+#: that may only read still needs a shell to read with.
+#:
+#: Withheld through `disabled_tools`, on the prompt body, the same lever as :data:`_WEB_TOOLS`
+#: and for the same reasons: a disabled tool is not in the request the model is sent at all,
+#: and one reached for anyway is answered by the executor's call guard, not raised as an
+#: approval. The `tools` key of the session profile is not that lever, which is the thing to
+#: say plainly because this file once said the opposite. `sessionAgentConfigSchema` does
+#: declare `tools`, so a body carrying one is taken with a 200 -- and `applySessionAgentConfig`
+#: then reads `model`, `thinking`, `permission_mode`, `plan_mode`, `swarm_mode`, `tower_mode`
+#: and the two goal keys, and nothing else. The allow-list is accepted and dropped. Both
+#: checked against 0.42.0, the first of them live.
+_WRITING_TOOLS = ("Write", "Edit")
 
 #: The two tools a Kimi agent reaches the web with, by the names 0.42.0 registers them under.
 #: `WebSearch` is the search -- registered only where the install has a search provider, which
 #: is why a daemon signed into nothing does not list it -- and `FetchURL` is the one that reads
-#: a page it is given. Both are approved by default at every rung this driver sets, so neither
-#: is a tool the permission ladder above ever takes away.
+#: a page it is given. Both are approved by default at every mode this driver sets, so neither
+#: is a tool the mode above ever takes away.
 #:
 #: They are withheld through `disabled_tools`, which the prompt body takes and the profile body
 #: does not: `promptSubmissionSchema` declares it, and the route hands it to
@@ -629,45 +609,14 @@ _PERMITTED = {
 #: replaces the whole list and the state it replaces is written to the session's own
 #: `state.json`, so a session resumed or forked from one that had the web withheld comes back
 #: with it still withheld -- and an agent that may search would then be an agent that does not.
-#: An empty list is what a session that was never told carries, so saying it costs a turn
-#: nothing. An agent nobody was asked about says neither, the way it sends no rung.
+#: The same list carries :data:`_WRITING_TOOLS`, so the same is true of an agent whose fence
+#: wrote nothing, resumed by one whose fence writes. An empty list is what a session that was
+#: never told carries, so saying it costs a turn nothing. An agent nobody fenced or asked
+#: about says neither, the way it sends no permission mode.
 #:
 #: One thing it cannot do, which is true of every backend here: `Bash` can still `curl`. What
 #: this takes away is the web the CLI hands its agent, which is what `web_search` is about.
 _WEB_TOOLS = ("WebSearch", "FetchURL")
-
-#: The permission modes in which what the agent reaches for is granted rather than asked
-#: about, which is the whole of what decides whether this driver may answer an approval yes.
-#: `auto` approves before any policy can ask, so an approval under it is one Kimi did not
-#: raise; `yolo` is the mode whose bargain is that the agent asks and is granted. `manual` is
-#: neither: it withholds approval for everything but the reads, and an approval arriving
-#: under it is the session doing exactly what the rung told it to.
-_GRANTS = ("auto", "yolo")
-
-#: The rungs at which an approval this driver reads is answered yes. Derived from the table
-#: above rather than written beside it, so that a row whose mode moves takes its answer with
-#: it and the two cannot drift apart.
-#:
-#: Two rows are out, and for one reason said two ways. `read-only` is `manual`: its whole
-#: meaning is that the agent may look at anything and change nothing, and at `manual` the
-#: reads are the part the daemon approves by itself -- so every approval that reaches this
-#: driver at that rung is, by construction, a tool that is not a read. Answering those yes
-#: would make the rung name a thing it does not do: plan mode already refuses the edits, and
-#: the Bash that plan mode lets through is precisely what the approval is for. The silence is
-#: out because it names no mode at all: an agent nobody wrote a rung for bootstraps at
-#: `manual`, and granting there would be Humanize handing out, one call at a time, the `yolo`
-#: that an agent declared at `auto` gets by asking for it.
-#:
-#: Refusing is not the same as leaving it: the daemon holds the tool until somebody resolves
-#: it either way, so saying nothing would be the fifteen-minute stall this reading exists to
-#: remove. `rejected` hands the model a line saying the tool was not run, with the reason --
-#: so a turn at a withholding rung is one the agent is told no by and works around, which is
-#: an outcome a flow can read.
-_GRANTED = frozenset(
-    rung
-    for rung, settings in _PERMITTED.items()
-    if settings.get("permission_mode") in _GRANTS
-)
 
 
 class _AppServer:
@@ -862,12 +811,21 @@ class KimiCodeCLIAgentConfig(AgentConfig):
         `<workspace dir> | Kimi Code`. Worth having only because there is one daemon per agent:
         opened side by side, eight agents on one project are eight identical tabs, and the
         agent's name in the title is what tells them apart.
+      asks: Whether a fenced agent runs at Kimi's `yolo` rather than its `auto`, so that what
+        `yolo` still asks about -- the dangerous command, the sensitive file, the path under
+        `.git` -- is put to a hook hung on `PERMISSION_REQUEST` and granted unless it says no,
+        and so that `AskUserQuestion`, which `auto` denies outright, reaches whoever answers
+        the agent's questions. None, the default, is on while such a hook is hung or something
+        is set to answer (`agent.ask`); a flow says which, since it hangs a hook of its own on
+        every agent it drives and answers through it only while the flow's own is hung.
+        Nothing for an agent nobody fenced, which is told no mode at all.
     """
 
     port: int = 0
     open_browser: bool = False
     log_level: str = "error"
     web_title: str | None = None
+    asks: bool | None = None
 
     def __post_init__(self) -> None:
         """Checks the daemon settings, where a flow can still be told which one it got wrong.
@@ -1090,21 +1048,25 @@ class KimiCodeCLISession(SessionBase):
         The other of the two things a turn stops on, and the one that used to stop it for
         good: the daemon holds an approval until it is resolved, and a poll that read only
         `/questions` left the session busy against a route nothing was answering. Every mode
-        but `auto` raises them, which is what makes the rungs above a ladder rather than one
-        setting written four times.
+        but `auto` raises them: `yolo`, which a fenced agent runs at while a hook is hung, for
+        what it still asks about, and `manual`, which an agent nobody fenced bootstraps at, for
+        nearly everything.
 
-        Answered yes at the rungs that mean granting -- :data:`_GRANTED` -- because nobody is
-        at a prompt there and the rung has already said what the agent may do. Answered no at
-        the two that do not: `read-only`, where every approval that gets this far is by
-        construction a tool that is not a read, and the silence, where nothing said what this
-        agent may do and so nothing said yes.
+        Answered yes for a fenced agent, because nobody is at a prompt and a mode is not what
+        holds its grant (protocol/core.md Section 4.6.2.2): the fence is, and a write it does
+        not grant is refused there whatever was approved here. A harness that cannot withhold
+        what it asks about runs with every request granted. Answered no for an agent nobody
+        fenced (Section 4.9.3.1): it was told nothing, so nothing said what it may do, and
+        nothing is not a yes -- `manual` is what it bootstraps at, and granting there would be
+        Humanize handing out, one call at a time, what nobody granted.
 
-        Put to `PERMISSION_REQUEST` first either way, because this is the moment the backend
-        actually waits on and so the one place a hook here can stop an agent doing something --
-        and because a flow that hung one at a withholding rung asked to be the one deciding.
-        A refusal, the hook's or the rung's, is `rejected` with the reason, which the daemon
-        hands the model as a line saying the tool was not run: the turn goes on, having been
-        refused, rather than ending or hanging.
+        Put to `PERMISSION_REQUEST` first, because this is the moment the backend actually
+        waits on and so the one place a hook here can stop an agent doing something -- which
+        is why the session runs at `yolo` rather than `auto` while one is hung. A refusal is
+        `rejected` with the hook's reason, which the daemon hands the model as a line saying
+        the tool was not run: the turn goes on, having been refused, rather than ending or
+        hanging. A hook can refuse what would have been granted and never more: a
+        :class:`~hmz.coganchor.agents.hooks.Verdict` refuses or says nothing.
 
         Once apiece, by the id the daemon gave it: an approval answered a second time is
         refused rather than resolved, and a refusal a second is a working turn dying inside
@@ -1136,14 +1098,12 @@ class KimiCodeCLISession(SessionBase):
                     "decision": refused,
                     "feedback": asking.because or "refused by a hook",
                 }
-            elif (rung := self._agent.config.permission) in _GRANTED:
+            elif self._agent.config.fence is not None:
                 answer = {"decision": allowed}
             else:
                 answer = {
                     "decision": refused,
-                    "feedback": f"this agent runs at {rung}, which withholds approval"
-                    if rung
-                    else "nothing said what this agent may do",
+                    "feedback": "nothing said what this agent may do",
                 }
             (self._running.server or self._agent.server).call(
                 "POST", f"/sessions/{session}/approvals/{named}", answer
@@ -1374,51 +1334,72 @@ class KimiCodeCLISession(SessionBase):
         """What one turn of this session is run at, in the two halves the daemon takes it in.
 
         Two halves rather than one body because the two routes a turn is made of do not take
-        the same keys. The session profile reads the model, the thinking level, the rung and
-        the width; the prompt body reads all of those and `disabled_tools` besides. Both are
-        `object()` schemas, which drop what they do not declare rather than refusing it, so
-        one body sent to both would be the web said to the profile and silently thrown away
-        -- and a driver relying on that silence is a driver that would never learn the key
-        had moved.
+        the same keys. The session profile reads the model, the thinking level, the
+        permission mode and the width; the prompt body reads all of those and
+        `disabled_tools` besides. Both are `object()` schemas, which drop what they do not
+        declare rather than refusing it, so one body sent to both would be the tools said to
+        the profile and silently thrown away -- and a driver relying on that silence is a
+        driver that would never learn the key had moved.
 
         Returns:
           The settings both routes take, and beside them the ones only the prompt body has
           anywhere to put.
         """
+        config = self._agent.config
+        fence = config.fence
         effort = self.effort
         turn: dict[str, Any] = {
-            "model": self._agent.config.model,
-            # The rung where there is one, and the width beside it. An agent at no rung sends
-            # neither: Kimi then runs the model at its own thinking level, where a `thinking`
-            # of "" is a level it has no word for. A fleet is a width rather than a rung, so
-            # it is asked for only where a rung said so.
+            "model": config.model,
+            # The effort where there is one, and the width beside it. An agent at no effort
+            # sends neither: Kimi then runs the model at its own thinking level, where a
+            # `thinking` of "" is a level it has no word for. A fleet is a width rather than
+            # an effort, so it is asked for only where an effort said so.
             **({"thinking": effort.removeprefix(SWARM)} if effort else {}),
             "swarm_mode": effort.startswith(SWARM),
-            # What it may do without being asked, where a rung said. An agent at no rung
-            # sends neither key and is left wherever this install's own `kimi web` leaves it,
-            # which is what a config written before there was a rung to write comes back off
-            # the disk as too.
-            **_PERMITTED.get(self._agent.config.permission, _PERMITTED[UNSAID]),
         }
-        # And whether the web is the agent's, where anybody said. An agent nobody was asked
-        # about sends neither the key nor an empty list: the session is then left carrying
-        # whatever it already carried, which for one this driver opened is nothing.
+        if fence is not None:
+            # Nothing put to approval and no plan mode, whatever the fence writes: see
+            # :data:`_NEVER_ASK`. An agent nobody fenced sends neither key and is left wherever
+            # this install's own `kimi web` leaves it.
+            turn["permission_mode"] = _ASK_WHEN_NEEDED if self._asks() else _NEVER_ASK
+            turn["plan_mode"] = False
+        # And which tools are withheld, where anybody said: the writing ones where the fence
+        # writes nothing, and the web where the agent may not search. An agent nobody fenced
+        # or asked about sends neither the key nor an empty list: the session is then left
+        # carrying whatever it already carried, which for one this driver opened is nothing.
         #
         # A fence that cuts the network takes the web away whatever was said about searching.
         # `FetchURL` is stopped by the proxy, but `WebSearch` is a search a Kimi install asks
         # its own service for, and that service is on the hosts the fence has to keep open for
         # the model. So a search from inside the fence would get out through the one door that
         # was left. Saying the tools are disabled closes that door.
-        searching = self._agent.config.web_search
-        fence = self._agent.config.fence
+        searching = config.web_search
         if fence is not None and not fence.online:
             searching = False
-        web: dict[str, Any] = (
-            {}
-            if searching is None
-            else {"disabled_tools": list(_WEB_TOOLS) if searching is False else []}
+        if fence is None and searching is None:
+            return turn, {}
+        withheld = [
+            *(_WRITING_TOOLS if fence is not None and not fence.writes else ()),
+            *(_WEB_TOOLS if searching is False else ()),
+        ]
+        return turn, {"disabled_tools": withheld}
+
+    def _asks(self) -> bool:
+        """Whether a fenced session is to run at `yolo` rather than `auto`.
+
+        Returns:
+          What the config says, and where it says nothing, whether anybody is listening for
+          what `yolo` raises and `auto` does not: a hook hung on `PERMISSION_REQUEST`, for the
+          approvals, or something to put a question to, for the `AskUserQuestion` that `auto`
+          denies outright (protocol/core.md Section 4.6.2.4).
+        """
+        said: bool | None = getattr(self._agent.config, "asks", None)
+        if said is not None:
+            return said
+        return (
+            self._agent.hooks.hooked(Moment.PERMISSION_REQUEST)
+            or self._agent.ask is not None
         )
-        return turn, web
 
     def _submit(self, prompt: str, *, goal: bool) -> Iterator[Event]:
         """Runs one turn, saying what the agent says as it says it.
@@ -1789,32 +1770,24 @@ class KimiCodeCLIAgent(AgentBase):
     can say no to something and have the agent hear it.
     """
 
-    #: Said of the backend and not of the rung, by the rule this repository settles the
+    #: Said of the backend and not of the mode, by the rule this repository settles the
     #: question with: a backend that holds a tool until its client answers is a backend where
     #: this moment is real. Kimi holds it -- `/approvals` keeps the call, the turn waits, and
     #: a `rejected` is a line the model reads -- so the moment is declared, once, for the
-    #: class. What a given rung does with it is a fact about the run, the way a turn that
+    #: class. What a given mode does with it is a fact about the run, the way a turn that
     #: calls no tool is a run in which `PRE_TOOL_USE` never arrives. :class:`Unhooked` is for
     #: a hook hung where the backend could never have answered it, which is not this.
     #:
-    #: Being exact about what a hook here buys, rung by rung, because the grant gate narrowed
-    #: it. At `workspace-write` and `bypass` -- Kimi's `auto`, which approves before any
-    #: policy can ask -- no approval is raised and the hook never fires. At `auto`, Kimi's
-    #: `yolo`, it is the whole decision: the dangerous command, the sensitive file and the
-    #: `.git` path are asked about, and :data:`_GRANTED` says yes where the hook says
-    #: nothing. At `read-only` and at no rung at all the answer was already no, so what a
-    #: hook there gets is the sight of the tool and the chance to say why -- not the casting
-    #: vote. It cannot turn that no into a yes, and should not be able to: a
+    #: Being exact about what a hook here buys. Hanging one is itself what moves a fenced
+    #: session from Kimi's `auto`, which approves before any policy can ask and so would never
+    #: fire it, to `yolo`, where the dangerous command, the sensitive file and the `.git` path
+    #: are asked about and the hook is the whole decision: granted where it says nothing,
+    #: refused where it says no. An agent nobody fenced runs at `manual`, where nearly every
+    #: tool is asked about and the answer is already no, so what a hook there gets is the sight
+    #: of the tool and the chance to say why -- not the casting vote. It cannot turn that no
+    #: into a yes, and should not be able to: a
     #: :class:`~hmz.coganchor.agents.hooks.Verdict` can refuse or say nothing, and a hook that
-    #: only watches must never be the thing that widens a rung.
-    #:
-    #: So one rung of the five is where this changes an outcome. Declared for all of them
-    #: anyway, because the rung is the thing that moves: a place may narrow one after the
-    #: agent is built, and the rung an agent comes at is a default rather than a fact about
-    #: this backend. A capability that went false and true as a setting moved under it would
-    #: be a worse promise than one that is occasionally generous -- what this is read for is
-    #: refusing a flow before its first turn, and a promise that changes between the reading
-    #: and the turn refuses nothing.
+    #: only watches must never be the thing that widens a grant.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
 
     #: Kimi keeps itself going toward an objective, which is what `pursue` reaches for.
