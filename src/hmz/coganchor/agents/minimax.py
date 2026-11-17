@@ -35,6 +35,10 @@ it and MiniMax's own service answers, on the very hosts a turn cannot be taken w
 proxy letting the model through lets the search through too, and nothing a driver owns takes
 the tool away. A fence that cuts the network would be one it reaches the web around, so it is
 refused, and the permission is to grant network=True.
+
+In a chat every line is said as text, with no catalog of native input: `mcode exec` is the
+Runtime without its terminal interface, and the `/` commands, `@` mentions and `!` shell mode
+of that interface are the interface's, with no flag of `exec` to ask for any of them.
 """
 
 from __future__ import annotations
