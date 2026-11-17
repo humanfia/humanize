@@ -128,12 +128,23 @@ async def test_shift_tab_and_tab_step_between_the_views_of_a_run(
         await shows(pilot, "reading outworlder human")
 
 
-async def test_btw_asks_a_side_agent_and_leaves_the_run_alone(workspace: Path) -> None:
-    async with Humanize().run_test(size=SIZE) as pilot:
+async def test_btw_asks_a_side_copy_of_the_session_and_leaves_the_run_alone(
+    workspace: Path,
+) -> None:
+    async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await working(pilot)
+        await pilot.press("tab")
+        await shows(pilot, "reading outworlder human")
+        await pilot.press("shift+tab")
+        await shows(pilot, "· conversation 1 ─")
 
         await typed(pilot, "/btw what is it doing")
-        await shows(pilot, "btw · what is it doing heard what is it doing")
+        await shows(pilot, "btw · what is it doing")
+        await until(
+            pilot,
+            lambda: any("what is it doing" in one for one in heard(workspace)),
+            "the side copy to be asked",
+        )
         await pilot.press("escape")
         await shows(pilot, "btw: exited")
 
@@ -143,11 +154,20 @@ async def test_btw_asks_a_side_agent_and_leaves_the_run_alone(workspace: Path) -
     said = heard(workspace)
     assert said[0] == "wait a moment"
     assert said[-1] == "carry on"
-    # The question went to the session's own side copy, and never into the run.
+    # The question went to a side copy of the session, and never into the run's own.
     assert any("what is it doing" in one for one in said)
 
 
-async def test_btw_off_a_session_is_refused_pointing_at_ai_chan(
+async def test_btw_with_no_session_read_is_refused(workspace: Path) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+
+        await typed(pilot, "/btw hey")
+
+        await shows(pilot, "/btw is only available on one agent's", "/ai asks Ai-chan")
+
+
+async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
     workspace: Path,
 ) -> None:
     own_flow(workspace)
@@ -155,7 +175,7 @@ async def test_btw_off_a_session_is_refused_pointing_at_ai_chan(
         await set_up_own_flow(pilot)
         await typed(pilot, "wait a moment")
         await shows(pilot, "still on it")
-        # Over the monitor, where there is no one session to ask: the epic is Ai-chan's.
+        # Over the monitor, where there is no session a side question is of.
         await pilot.press("left")
         await on(pilot, Monitoring)
 

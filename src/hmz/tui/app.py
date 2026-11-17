@@ -3341,7 +3341,10 @@ class Humanize(App[None]):
             )
         target = self._btw_target()
         if not target:
-            return f"/btw: {escape(self._attached)} has no session yet"
+            return (
+                "/btw: a side question is asked of a session; /ai asks Ai-chan about the "
+                "epic"
+            )
         if target not in self._btw_sessions():
             return f"/btw: no conversation found for {target}"
         return ""
@@ -3357,8 +3360,6 @@ class Humanize(App[None]):
             aside=self._link.aside,
             unaside=lambda side: self._asks("unaside", quiet=True, side=side),
             sessions=self._btw_sessions,
-            # Nobody but the session's own copy answers: no agent is chosen for it.
-            source=lambda: None,
         )
         with self._btw_lock:
             self._btw = mode
@@ -3432,7 +3433,6 @@ class Humanize(App[None]):
             task=self._flow_task,
             workspace=_where(),
             going=self._run is not None,
-            working=self._working,
             waiting=len(self._queued) + len(self._given),
             waiting_for_input=bool(self._waits_on()),
         )
