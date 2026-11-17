@@ -160,6 +160,7 @@ impl Server {
         let sink = match op {
             Op::Read => return fsops::read(frame.id, &frame.meta, &self.exports, &*self.channel),
             Op::Signal => return self.signal(frame),
+            Op::Resize => return self.resize(frame),
             Op::Write => fsops::write(frame.id, &frame.meta, &frame.body, &self.exports, outbox())?,
             Op::Exec => sessions::exec(frame.id, &frame.meta, self.exports.clone(), outbox())?,
             Op::Connect => tunnel::connect(frame.id, &frame.meta, outbox())?,
@@ -180,25 +181,38 @@ impl Server {
     fn signal(&self, frame: &Frame) -> Result<(), RemoteError> {
         // As the Python server reads it: `int(meta["target"])` always, `int(meta["sig"])` only
         // once there is a command to send it to.
-        let number = |key: &str| -> Result<i64, RemoteError> {
-            let why = match frame.meta.get(key) {
-                None => format!("'{key}'"),
-                Some(value) => match python_int(value) {
-                    Some(number) => return Ok(number),
-                    None => format!("{key} must be an integer"),
-                },
-            };
-            Err(RemoteError::new(
-                libc::EINVAL,
-                format!("malformed signal request: {why}"),
-            ))
-        };
+        let number = |key: &str| number(frame, "signal", key);
         let target = number("target")?;
         let mut sinks = locked(&self.sinks);
         if let Some(sink) = sinks.get_mut(&(target as u64)) {
             sink.signal(number("sig")? as i32);
         }
         drop(sinks);
+        let _ = self
+            .channel
+            .send(&Frame::reply(frame.id, Meta::new(), Vec::new()));
+        Ok(())
+    }
+
+    /// `RESIZE {target, rows, cols}`: the terminal of the command of exchange `target` is
+    /// given that window, if the command still runs under one; answered either way.
+    fn resize(&self, frame: &Frame) -> Result<(), RemoteError> {
+        let size = |key: &str| -> Result<u16, RemoteError> {
+            u16::try_from(number(frame, "resize", key)?).map_err(|_| {
+                RemoteError::new(
+                    libc::EINVAL,
+                    format!("malformed resize request: {key} must fit 16 bits"),
+                )
+            })
+        };
+        let (target, rows, cols) = (
+            number(frame, "resize", "target")?,
+            size("rows")?,
+            size("cols")?,
+        );
+        if let Some(sink) = locked(&self.sinks).get_mut(&(target as u64)) {
+            sink.resize(rows, cols);
+        }
         let _ = self
             .channel
             .send(&Frame::reply(frame.id, Meta::new(), Vec::new()));
@@ -245,6 +259,9 @@ impl Server {
             "pid" => std::process::id(),
             "exports" => self.exports.hello(),
             "fence" => serde_json::json!({"fs": able.fs, "net": able.net}),
+            // What this anchor serves beyond what the version promises, so that a client
+            // asks only one that does.
+            "resize" => true,
         };
         let _ = self
             .channel
@@ -254,6 +271,21 @@ impl Server {
     fn fail(&self, id: u64, error: &RemoteError) {
         let _ = self.channel.send(&Frame::error(id, error));
     }
+}
+
+/// An integer field of a request `op` names, as Python's `int()` reads it.
+fn number(frame: &Frame, op: &str, key: &str) -> Result<i64, RemoteError> {
+    let why = match frame.meta.get(key) {
+        None => format!("'{key}'"),
+        Some(value) => match python_int(value) {
+            Some(number) => return Ok(number),
+            None => format!("{key} must be an integer"),
+        },
+    };
+    Err(RemoteError::new(
+        libc::EINVAL,
+        format!("malformed {op} request: {why}"),
+    ))
 }
 
 /// Whether a `HELLO`'s `version` equals ours as Python's `==` judges it (`1.0` and `true` do).
@@ -373,6 +405,7 @@ mod tests {
         assert_eq!(hello.meta["platform"], crate::proto::this_platform());
         assert_eq!(hello.meta["exports"][0]["virtual"], "/w");
         assert!(hello.meta["fence"]["fs"].is_boolean());
+        assert_eq!(hello.meta["resize"], true);
         let again = ask(
             &client,
             4,
@@ -419,6 +452,19 @@ mod tests {
             .unwrap();
         let signalled = ask(&client, 2, Op::Signal, meta! {"target" => 77, "sig" => 15});
         assert_eq!(signalled.kind, Kind::Rsp);
+        let resized = ask(
+            &client,
+            2,
+            Op::Resize,
+            meta! {"target" => 77, "rows" => 40, "cols" => 120},
+        );
+        assert_eq!(resized.kind, Kind::Rsp);
+        let malformed = ask(&client, 2, Op::Resize, meta! {"target" => 77, "rows" => -1});
+        assert_eq!(malformed.meta["errno"], libc::EINVAL);
+        assert_eq!(
+            malformed.meta["strerror"],
+            "malformed resize request: rows must fit 16 bits"
+        );
         client
             .send(&Frame::request(
                 3,

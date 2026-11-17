@@ -300,6 +300,19 @@ class ExecHandle:
         except OSError:
             log.debug("could not forward signal %d to remote command", signum)
 
+    def resize(self, rows: int, cols: int) -> None:
+        """Sets the window of the pty the command runs under, which it hears as `SIGWINCH`.
+
+        A no-op on a command run on pipes, and on a target whose handshake did not say it
+        can (an older one, which would refuse the request).
+        """
+        if not self._client.info.get("resize"):
+            return
+        try:
+            self._client.call(Op.RESIZE, target=self.msg_id, rows=rows, cols=cols)
+        except OSError:
+            log.debug("could not resize the terminal of a remote command")
+
 
 class TunnelHandle:
     """Handle on a TCP connection opened from the target."""

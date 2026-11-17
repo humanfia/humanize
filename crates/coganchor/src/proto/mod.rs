@@ -111,12 +111,13 @@ pub enum Op {
     Utime,
     Exec,
     Signal,
+    Resize,
     Connect,
 }
 
 impl Op {
     /// Every operation, in the order `proto.py` declares them.
-    pub const ALL: [Op; 18] = [
+    pub const ALL: [Op; 19] = [
         Op::Hello,
         Op::Listdir,
         Op::Stat,
@@ -134,6 +135,7 @@ impl Op {
         Op::Utime,
         Op::Exec,
         Op::Signal,
+        Op::Resize,
         Op::Connect,
     ];
 
@@ -157,6 +159,7 @@ impl Op {
             Op::Utime => "utime",
             Op::Exec => "exec",
             Op::Signal => "signal",
+            Op::Resize => "resize",
             Op::Connect => "connect",
         }
     }

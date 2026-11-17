@@ -330,6 +330,32 @@ def test_a_signal_the_target_cannot_take_is_let_go(
     assert peer.sent[-1].meta["sig"] == 15
 
 
+def test_a_terminal_is_resized_only_on_a_target_that_says_it_can(
+    opened: Opener,
+) -> None:
+    def resizing(frame: Frame) -> list[Frame]:
+        if frame.op is Op.RESIZE:
+            return [Frame.error(frame.msg_id, OSError(errno.EIO, "no"))]
+        return []
+
+    client, peer = opened(resizing)
+    handle = client.start_exec(["sh"], "/", {}, ignore, ignore, tty=True)
+
+    handle.resize(40, 120)
+    assert peer.sent[-1].op is Op.EXEC, "an older target is not asked"
+    client.info["resize"] = True
+    handle.resize(40, 120)
+
+    asked = peer.sent[-1]
+    assert asked.op is Op.RESIZE
+    assert asked.meta == {
+        **asked.meta,
+        "target": handle.msg_id,
+        "rows": 40,
+        "cols": 120,
+    }
+
+
 def test_a_tunnel_carries_bytes_both_ways(
     opened: Opener,
 ) -> None:

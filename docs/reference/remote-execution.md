@@ -191,8 +191,14 @@ over its stdin and stdout.
 
 The handshake reply (`Op.HELLO`) carries `version`, `hostname`, `platform` (`linux` or
 `darwin`), `python` (`coganchor <version>`: the field keeps the name it had when the serving half was
-Python, so the protocol stays at version 1), `pid`, `exports` (`[{virtual, real}]`) and `fence` (`{fs: bool, net: bool}`, see
-[below](#a-fence-on-both-machines)). A token mismatch fails it with `EACCES`, `invalid token`.
+Python, so the protocol stays at version 1), `pid`, `exports` (`[{virtual, real}]`), `fence` (`{fs: bool, net: bool}`, see
+[below](#a-fence-on-both-machines)) and `resize: true`. A token mismatch fails it with `EACCES`, `invalid token`.
+
+`resize` says the serving half takes `Op.RESIZE {target, rows, cols}`: the window of the pty
+the command of exchange `target` runs under (an `EXEC` with `tty: true`) is set to that, and
+the command's foreground process group is sent `SIGWINCH`. It is answered whether or not that
+command still runs; `rows` or `cols` outside `0..65535` is `EINVAL`. A client asks only a
+serving half whose reply says `resize`; an older one answers the op `ENOSYS`.
 
 ### ssh connections
 
