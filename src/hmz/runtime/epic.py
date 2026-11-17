@@ -42,9 +42,15 @@ flows deep with two of every level going at once reads back as the shape it ran 
 than as thirty-one things one run did -- which is what :func:`tree` reads it as.
 
 It opens when the flow starts and closes when the flow stops, however it stops -- finished,
-failed, or interrupted. A closed epic is never reopened: running the flow again is another
-run, with sessions of its own, and so another epic -- which is what a flow that says it can
-be picked up again is picked up as. What a resumable flow keeps is the engine's journal
+failed, or interrupted. A closed epic of a flow is never reopened: running the flow again is
+another run, with sessions of its own, and so another epic -- which is what a flow that says it
+can be picked up again is picked up as.
+
+A chat (:mod:`hmz.runtime.chatting`) is an epic too, of a kind of its own: one assistant and
+one conversation, no flow, and so no flow, params, envs or budget written down. It is the one
+epic that is opened again: a chat carried on is the same conversation, and so the same epic,
+which says it was `reopened` rather than beginning twice, and says it was `set` each time its
+own preference is. What a resumable flow keeps is the engine's journal
 (:mod:`hmz.runtime.flowing.journaling`), written into the epic of the run keeping it; a run
 picking it up is handed a copy of it in an epic of its own, which the engine compacts and goes
 on appending to.
@@ -64,7 +70,7 @@ import subprocess
 import threading
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, Self, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Self, cast
 
 from hmz import home
 from hmz.coganchor import backends
@@ -79,7 +85,9 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BACKED",
+    "CHAT",
     "ENDINGS",
+    "FLOW",
     "JOURNAL",
     "LOCAL",
     "RECORD",
@@ -169,6 +177,12 @@ UNFINISHED = "unfinished"
 
 #: Every way an epic can have gone, in the order a list of them is found by.
 ENDINGS = (RUNNING, "done", "failed", "stopped", UNFINISHED)
+
+#: The kind of an epic a flow runs, and of every epic whose record says no kind.
+FLOW = "flow"
+
+#: The kind of an epic that is a chat (Section 8 of [CORE]).
+CHAT = "chat"
 
 #: What a session opened as the account this machine is already signed into is written under.
 #: A word rather than the empty string it is configured as: this goes in a directory name and
@@ -307,7 +321,8 @@ class Ran(NamedTuple):
 
     Attributes:
       at: The epic's directory, which is what everything about it is under.
-      flow: The flow that was run, as it was named.
+      flow: The flow that was run, as it was named; "" for a chat, but for one an earlier
+        Humanize wrote, which was of the flow `chat`.
       task: What its agents were asked to do.
       workspace: Where it ran.
       began: When it started.
@@ -345,6 +360,10 @@ class Ran(NamedTuple):
         under in settings.
       backed: How its last backup to each target went, by target: `at`, `ok`, `error` --
         "" where it went -- and `why` it was backed up.
+      kind: :data:`FLOW`, or :data:`CHAT` for a chat -- one whose record says so, or one an
+        earlier Humanize wrote of the flow `chat`, which was what a chat was then.
+      prefer: A chat's own preference (Section 8.9.10 of [CORE]), as it was last set, or ""
+        where it goes by the person's.
     """
 
     at: Path
@@ -370,6 +389,13 @@ class Ran(NamedTuple):
     spent: dict[str, Any] | None = None
     backup: tuple[str, ...] = ()
     backed: dict[str, dict[str, Any]] = {}  # noqa: RUF012 -- a NamedTuple's default
+    kind: str = FLOW
+    prefer: str = ""
+
+    @property
+    def chat(self) -> bool:
+        """Whether this epic is a chat rather than a flow's."""
+        return self.kind == CHAT
 
     @property
     def name(self) -> str:
@@ -723,7 +749,8 @@ def resumed(flow: str, workspace: Path | str | None = None) -> Path | None:
         began = next(
             (one for one in _events(epic) if one.get("event") == "began"), None
         )
-        if began is None or not began.get("resumable"):
+        if began is None or not began.get("resumable") or _kind(began) == CHAT:
+            # A chat is carried on from a list of epics, never as the last one to resume.
             continue
         if flow not in (began.get("ref"), began.get("flow")):
             continue
@@ -741,7 +768,7 @@ class Uncarried(Exception):  # noqa: N818 -- named for what happened, as Refused
 
 
 class Epic:
-    """One run of one flow: the directory it is written to, and what has happened to it."""
+    """One run of one flow, or one chat: the directory it is written to, and what happened to it."""
 
     def __init__(
         self,
@@ -761,11 +788,13 @@ class Epic:
         profile_environment: bool = False,
         backup: Sequence[str] = (),
         reopened: bool = False,
+        kind: Literal["flow", "chat"] = "flow",
+        prefer: str | None = None,
     ) -> None:
         """Opens an epic, and writes down what it is a run of.
 
         Args:
-          flow: The flow being run, as it was named.
+          flow: The flow being run, as it was named; "" for a chat, which has none.
           task: What its agents were asked to do.
           workspace: Where the run happens, defaulting to this directory. Epics are kept
             under the workspace they ran in, since that is what anyone looking for one has.
@@ -792,6 +821,9 @@ class Epic:
           reopened: Whether the run goes on in the epic it is picked up from rather than a
             new one -- a chat carried on, which is one conversation and so one epic -- saying
             it was opened again where it said it began.
+          kind: `flow`, or `chat` for a chat, whose record says nothing of a flow, its envs,
+            params or budget, nor of profiling (Section 6.5.19 of [FILES]).
+          prefer: A chat's own preference, where it has one, or None.
 
         Raises:
           Uncarried: Where the journal of the epic picked up is there and cannot be copied.
@@ -844,10 +876,22 @@ class Epic:
             # What it began as is said already; what carries it on is the line it goes on with.
             self.write("reopened", task=task)
             return
+        if kind == CHAT:
+            self.write(
+                "began",
+                kind=CHAT,
+                task=task,
+                workspace=str(self._where),
+                agents=[one._asdict() for one in agents],
+                **({"backup": list(backup)} if backup else {}),
+                **({"prefer": prefer} if prefer else {}),
+            )
+            return
         from hmz.coganchor.machines.store import SPELLING
 
         self.write(
             "began",
+            kind=FLOW,
             flow=flow,
             task=task,
             workspace=str(self._where),
@@ -1283,7 +1327,8 @@ def spending(
             continue
         for into in (
             by_day.setdefault(when.date().isoformat(), _spent()),
-            by_flow.setdefault(ran.flow, _spent()),
+            # A chat, which has no flow, as what it is.
+            by_flow.setdefault(ran.flow or ran.kind, _spent()),
             whole,
         ):
             spent = ran.spent or {}
@@ -1456,8 +1501,16 @@ def read(epic: Path) -> Ran | None:
         None,
     )
     usages = [one for one in events if one.get("event") == "usage"]
+    # A chat's agent and its own preference are what the last line to say each says, its
+    # `began` among them: either is `set` again as the chat goes (Section 6.5.21 of [FILES]).
+    kind = _kind(began)
+    said_so = [began, *(one for one in events if one.get("event") == "set")]
+    driven = next((one["agents"] for one in reversed(said_so) if "agents" in one), None)
+    preferred = next(
+        (one["prefer"] for one in reversed(said_so) if "prefer" in one), ""
+    )
     agents: list[Drove] = []
-    for one in began.get("agents") or ():
+    for one in cast("list[Any]", driven if isinstance(driven, list) else []):
         if not isinstance(one, dict):
             continue
         said = cast("dict[str, Any]", one)
@@ -1533,7 +1586,21 @@ def read(epic: Path) -> Ran | None:
             for one in events[_here(events) :]
             if one.get("event") == BACKED
         },
+        kind=kind,
+        prefer=str(preferred or "") if kind == CHAT else "",
     )
+
+
+def _kind(began: Mapping[str, Any]) -> str:
+    """The kind of an epic, off its `began`: as it says, or as one that says none is read.
+
+    One that says none was written before an epic had a kind, when a chat was the flow `chat`
+    (Section 6.5.20 of [FILES]).
+    """
+    kind = began.get("kind")
+    if kind in (FLOW, CHAT):
+        return str(kind)
+    return CHAT if kind is None and began.get("flow") == CHAT else FLOW
 
 
 def _here(events: list[dict[str, Any]]) -> int:

@@ -51,24 +51,6 @@ def _agent(
     return fakes.FakeAgentDriver(HarnessKind.CLAUDE, reply=reply, cost=cost)
 
 
-def test_chat_talks_until_the_person_says_nothing(project: Path) -> None:
-    def heard(prompt: str, **_: object) -> str:
-        return f"heard {prompt}"
-
-    assistant = _agent(heard, cost=0.0)
-    person = fakes.FakeOutworlder(["and then?", ""])
-    hmz = Hmz(project)
-
-    hmz.run("chat", "hello", agents={"assistant": assistant}, outworlder=person).run()
-
-    assert assistant.prompts == ["hello", "and then?"]
-    assert person.asked == ["heard hello", "heard and then?"]
-    # One conversation: the second turn is said in the session of the first.
-    assert len(assistant.sessions) == 1
-    # Written in the private daemon's home, which went with it.
-    assert hmz.epics.all() == []
-
-
 def test_goal_sets_the_task_as_the_agents_goal(project: Path) -> None:
     worker = _agent(cost=0.0)
 

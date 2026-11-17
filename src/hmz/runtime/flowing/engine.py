@@ -122,7 +122,6 @@ __all__ = [
     "Run",
     "current",
     "define_flow",
-    "full_view",
     "load_flow",
     "meets",
     "new_outworlder",
@@ -181,7 +180,6 @@ class FlowImpl:
         "_agents",
         "_envs",
         "_eroles",
-        "_full",
         "_order",
         "_params",
         "_roles",
@@ -224,7 +222,6 @@ class FlowImpl:
         self.locals = locals_
         self.ref = f"{globals_.get('__name__', '?')}:{name}"
         self.home: FlowModule | None = None
-        self._full = False
         self._roles: tuple[AgentRole, ...] | None = None
         self._eroles: tuple[EnvRole, ...] = ()
         self._skilled: tuple[AgentRole, ...] = ()
@@ -356,7 +353,6 @@ class FlowImpl:
             raise TypeError(f"{self.ref}: budget={budget!r} is not a Budget")
         run = parent.run
         node = Call(run, parent, self, depth, budget, task)
-        full = self._full
         # What follows is `_agent` and `_env` for the case every call in a large flow is: a
         # view the run handed out, of a kind already checked against this role -- written
         # out here, since a function call per role is a fifth of what a call costs.
@@ -366,11 +362,7 @@ class FlowImpl:
             given = agents.get(name)
             if type(given) is AgentView and not role.auto and role.harness is None:
                 grant = given._grant
-                # A full view is granted its harness's every capability, which only `_agent`
-                # does.
-                if not full and (
-                    grant is role.grant or role._seen.get(grant, _UNSEEN) is None
-                ):
+                if grant is role.grant or role._seen.get(grant, _UNSEEN) is None:
                     views[name] = AgentView(given._driver, role.grant, node, name)
                     continue
             if given is None:
@@ -379,7 +371,7 @@ class FlowImpl:
                 elif role.required:
                     raise MissingRole(f"{self.ref}: no agent was given for {name!r}")
                 continue
-            views[name] = _agent(role, given, node, self, full=full)
+            views[name] = _agent(role, given, node, self)
         env_views: dict[str, EnvView] = {}
         for role in self._eroles:
             name = role.name
@@ -533,7 +525,7 @@ def _json_or_text(value: object) -> object:
 
 
 def _agent(
-    role: AgentRole, given: object, node: Call, flow: FlowImpl, *, full: bool
+    role: AgentRole, given: object, node: Call, flow: FlowImpl
 ) -> AgentView | OutworlderView:
     """The view of what a caller passed for an agent role, narrowed to what it declares.
 
@@ -561,19 +553,7 @@ def _agent(
                 refusal = seen[grant] = _agent_refusal(role, grant)
             if refusal is not None:
                 raise refusal[0](f"{flow.ref}: {role.name!r} {refusal[1]}")
-        if full:
-            # Every capability of its harness, and the rest the callee role's own, as at the
-            # top of a run.
-            grant = Grant.of(
-                frozenset(driver.capabilities),
-                role.permission,
-                role.skills,
-                role.tools,
-                role.clis,
-            )
-        else:
-            grant = role.grant
-        return AgentView(driver, grant, node, role.name)
+        return AgentView(driver, role.grant, node, role.name)
     if kind is OutworlderView:
         person: OutworlderView = given  # pyright: ignore[reportAssignmentType]
         if not role.auto and (role.capabilities or role.harness is not None):
@@ -1806,24 +1786,6 @@ def define_flow[
     )
 
 
-def full_view(flow: Flow) -> Flow:
-    """Hands a flow every capability of each agent's harness, whatever its roles declare.
-
-    What `chat` is, and nothing else should be: a flow that talks to whichever harness it
-    was given, and so declares nothing of any.
-
-    Args:
-      flow: The flow, as `flow()` made it.
-
-    Returns:
-      The same flow.
-    """
-    if type(flow) is not FlowImpl:
-        raise TypeError(f"{flow!r} is not a flow the engine made")
-    flow._full = True
-    return flow
-
-
 def load_flow(ref: str, *, caller_globals: Mapping[str, Any]) -> Flow:
     """Loads the flow a ref names, which is what `hmz.flows.load` answers with.
 
@@ -1960,18 +1922,7 @@ async def run_flow(
     for role in roles:
         driver = agents.get(role.name)
         if driver is not None:
-            grant = (
-                Grant.of(
-                    frozenset(driver.capabilities),
-                    role.permission,
-                    role.skills,
-                    role.tools,
-                    role.clis,
-                )
-                if impl._full
-                else role.grant
-            )
-            views[role.name] = AgentView(driver, grant, top, role.name)
+            views[role.name] = AgentView(driver, role.grant, top, role.name)
     env_views: dict[str, EnvView] = {}
     for role in eroles:
         driver = envs.get(role.name)

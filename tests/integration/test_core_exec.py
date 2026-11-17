@@ -183,33 +183,6 @@ def _refused(capsys: pytest.CaptureFixture[str], *argv: str) -> str:
     return capsys.readouterr().err
 
 
-def test_chat_answers_on_stdout_and_works_in_the_project(
-    tmp_path: Path, project: Path
-) -> None:
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}:high", "hello there")
-
-    assert ran.returncode == 0, ran.stderr
-    assert ran.stdout.strip() == "did: hello there"
-    (start,) = started(tmp_path)
-    assert start["cwd"] == str(project.resolve())
-    assert start["argv"][start["argv"].index("--model") + 1] == MODEL
-    assert start["argv"][start["argv"].index("--effort") + 1] == "high"
-    assert (project / "landed.txt").read_text() == "hello there\n"
-    epics = Hmz(project).epics
-    (epic,) = epics.all()
-    ran_as = epics.read(epic)
-    assert ran_as is not None
-    assert (ran_as.flow, ran_as.task, ran_as.how) == ("chat", "hello there", "done")
-    assert [one.spec for one in ran_as.agents] == [f"{AGENT}:high"]
-    (session,) = ran_as.sessions
-    # Under the agent's own name, which the epic says fills `assistant`.
-    (drove,) = ran_as.agents
-    assert (drove.agent, drove.name) == ("assistant", session.agent)
-    assert session.agent != "assistant"
-    assert session.backend == "claude"
-    assert session.ident == start["session"]
-
-
 def test_goal_says_the_task_as_a_goal() -> None:
     ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win")
 
@@ -218,7 +191,16 @@ def test_goal_says_the_task_as_a_goal() -> None:
 
 
 def test_a_failed_first_turn_fails_the_run_with_what_the_cli_said() -> None:
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "--", "fail: it broke")
+    ran = hmz_exec(
+        "-f",
+        "ralph_loop",
+        "-a",
+        f"agent={AGENT}",
+        "-p",
+        "budget.cost=1",
+        "--",
+        "fail: it broke",
+    )
 
     assert ran.returncode != 0
     assert "it broke" in ran.stderr
@@ -460,22 +442,22 @@ def test_an_env_role_works_where_its_e_names(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("argv", "says"),
     [
-        (["-a", "assistant"], "assistant"),
-        (["-a", "assistant=no-such-cli/m"], "no-such-cli"),
-        (["-a", f"assistant={AGENT},stranger={AGENT}"], "stranger"),
-        (["-a", f"assistant={AGENT}", "-e", "workspace=nowhere/x"], "nowhere"),
-        (["-a", f"assistant={AGENT}", "-e", "workspace=local/elsewhere"], "workspace"),
-        (["-a", f"assistant={AGENT}", "-e", "stranger=local"], "stranger"),
-        (["-a", f"assistant={AGENT}", "-p", "rounds=3"], "rounds"),
-        (["-a", f"assistant={AGENT}", "-p", "budget.cost=lots"], "lots"),
-        (["-a", f"assistant={AGENT}", "-p", "budget.duration=soon"], "soon"),
-        (["-a", f"assistant={AGENT}", "-p", "novalue"], "novalue"),
+        (["-a", "agent"], "agent"),
+        (["-a", "agent=no-such-cli/m"], "no-such-cli"),
+        (["-a", f"agent={AGENT},stranger={AGENT}"], "stranger"),
+        (["-a", f"agent={AGENT}", "-e", "workspace=nowhere/x"], "nowhere"),
+        (["-a", f"agent={AGENT}", "-e", "workspace=local/elsewhere"], "workspace"),
+        (["-a", f"agent={AGENT}", "-e", "stranger=local"], "stranger"),
+        (["-a", f"agent={AGENT}", "-p", "rounds=3"], "rounds"),
+        (["-a", f"agent={AGENT}", "-p", "budget.cost=lots"], "lots"),
+        (["-a", f"agent={AGENT}", "-p", "budget.duration=soon"], "soon"),
+        (["-a", f"agent={AGENT}", "-p", "novalue"], "novalue"),
     ],
 )
 def test_a_wrong_agent_env_or_param_is_refused_before_anything_starts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], argv: list[str], says: str
 ) -> None:
-    said = _refused(capsys, "-f", "chat", *argv, "hello")
+    said = _refused(capsys, "-f", "ralph_loop", *argv, "hello")
 
     assert "hmz exec: error" in said
     assert says in said
