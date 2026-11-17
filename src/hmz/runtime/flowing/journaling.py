@@ -46,6 +46,7 @@ of it -- in this run, or one picking it up -- makes a new session carrying the c
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import itertools
 import json
@@ -417,7 +418,8 @@ class FlowStateImpl:
 
     A value is kept as JSON would give it back -- a tuple as a list, a key of a dict as a
     string -- so a flow reads the same thing from a fresh run as from a resumed one; and
-    what is kept is a copy, so changing the value written afterwards changes nothing kept.
+    what is kept is a copy, as is what is read, so changing the value written or read
+    afterwards changes nothing kept.
     Without a journal -- a resumable flow in a run that is not -- it is kept in memory only.
 
     A session in a value is kept the same way, by `conversations`: its conversation as it
@@ -447,7 +449,7 @@ class FlowStateImpl:
         value = self._held[key]
         conversations = self._conversations
         if key not in self._carrying or conversations is None:
-            return value
+            return copy.deepcopy(value)
         return _carried(value, conversations)
 
     def __setitem__(self, key: str, value: Any) -> None:
