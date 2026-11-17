@@ -124,9 +124,10 @@ flows, search it, copy its path, settings -- one whose directory was deleted say
 epic like it, copy its link, task or name, export, upload, stop), a chat (open, pin, mark as unread, rename, a new chat
 like it, fork, copy its link, first message or ID, upload, archive, delete -- see [Managing a chat](#managing-a-chat)), an agent or a session, a node on the graph, a flow's card or a flowverse's tab, a search
 result, a line of a thread (copy it, or the whole thread; by the keys, <kbd>Tab</kbd> to the thread,
-<kbd>↑</kbd> <kbd>↓</kbd> to a line, then <kbd>Alt</kbd> <kbd>Enter</kbd> or the menu key). Only text to read or write -- a thread,
-a task, a path, an error -- is selected as on a web page, and keeps the browser's own menu; the
-page's buttons, tabs, labels and headings are not. What a menu sends off -- stopping or uploading an
+<kbd>↑</kbd> <kbd>↓</kbd> to a line, then <kbd>Alt</kbd> <kbd>Enter</kbd> or the menu key). On a touch screen, a finger held still on
+anything opens the same menu; sliding first scrolls, and lifting first does nothing. Only text to
+read or write -- a thread, a task, a path, an error -- is selected as on a web page, and keeps the
+browser's own menu; the page's buttons, tabs, labels and headings are not. What a menu sends off -- stopping or uploading an
 epic, forgetting a folder, connecting a daemon -- says `Stopping…`, `Uploading…` and the like at
 the top right of the page, under its bar, where toasts are, until the daemon
 answers. **Hover** over anything cut short -- a folder's name,

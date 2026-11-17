@@ -292,6 +292,12 @@ does, from one table the page carries -- `claude` as `Claude Code`, `claude-fabl
 hold as it is written. An agent MUST be written as `-a` spells it only where it is typed, where it
 is copied, and where what names it is pointed at.
 
+**3.4.4.11** A touch held still on a thing the page draws MUST open, after about half a second,
+what a right click on it opens; moving or scrolling away, or lifting first, MUST leave it closed.
+
+**3.4.4.12** A right click and a held touch MUST leave the browser's own menu, and what is
+selected, where there is text to read or to write.
+
 #### 3.4.5. Paths
 
 **3.4.5.1** Every field that takes a path on this machine MUST offer a browser of directories,

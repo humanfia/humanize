@@ -63,6 +63,151 @@ def _prevented(page: Page, selector: str) -> bool:
     )
 
 
+def _touch_point(target: Locator) -> dict[str, float]:
+    """Where the middle of something is, as a pointer sees it."""
+    box = target.bounding_box()
+    assert box is not None
+    return {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+
+
+_TOUCH = """(el, [kind, point, buttons]) => el.dispatchEvent(new PointerEvent(kind, {
+    bubbles: true, cancelable: true, composed: true, pointerType: 'touch',
+    pointerId: 1, isPrimary: true, button: 0, buttons,
+    clientX: point.x, clientY: point.y}))"""
+
+
+def _touch(target: Locator, kind: str, point: dict[str, float], buttons: int) -> None:
+    """Sends one pointer event of a finger's, at a point."""
+    target.evaluate(_TOUCH, [kind, point, buttons])
+
+
+def _long_press(page: Page, target: Locator, hold: int = 550) -> None:
+    """Holds a finger on something, still, as a phone's long press is."""
+    point = _touch_point(target)
+    _touch(target, "pointerdown", point, 1)
+    page.wait_for_timeout(hold)
+    _touch(target, "pointerup", point, 0)
+
+
+def _folder(page: Page, project: Path) -> Locator:
+    """The workspace of the project, in the sidebar, which has a menu of its own."""
+    return page.locator(
+        f"[data-hmz=workspace][data-path='{project.resolve()}'] .side-folder"
+    )
+
+
+def test_a_long_press_opens_what_a_right_click_opens(
+    project: Path, engine: str
+) -> None:
+    """A finger held on a thing opens its menu, as a phone's long press must."""
+    with served() as site, opened(site, engine=engine, touch=True) as page:
+        folder = _folder(page, project)
+        _long_press(page, folder)
+        menu = page.locator(".popover.context")
+        expect(menu).to_be_visible()
+        expect(menu.locator(".context-head")).to_have_text(str(project.resolve()))
+
+
+def test_a_long_press_that_moves_first_opens_nothing(
+    project: Path, engine: str
+) -> None:
+    """A finger that slides first, as scrolling one does, leaves the menu closed."""
+    with served() as site, opened(site, engine=engine, touch=True) as page:
+        folder = _folder(page, project)
+        point = _touch_point(folder)
+        _touch(folder, "pointerdown", point, 1)
+        page.wait_for_timeout(100)
+        _touch(folder, "pointermove", {"x": point["x"] + 40, "y": point["y"]}, 1)
+        page.wait_for_timeout(500)
+        expect(page.locator(".popover.context")).to_have_count(0)
+        _touch(folder, "pointerup", point, 0)
+
+
+def test_a_long_press_that_scrolls_first_opens_nothing(
+    project: Path, engine: str
+) -> None:
+    """A finger that scrolls first, as reading a list, leaves the menu closed."""
+    with served() as site, opened(site, engine=engine, touch=True) as page:
+        folder = _folder(page, project)
+        point = _touch_point(folder)
+        _touch(folder, "pointerdown", point, 1)
+        page.wait_for_timeout(100)
+        folder.evaluate("(el) => el.dispatchEvent(new Event('scroll'))")
+        page.wait_for_timeout(500)
+        expect(page.locator(".popover.context")).to_have_count(0)
+        _touch(folder, "pointerup", point, 0)
+
+
+def test_a_long_press_on_text_keeps_the_browsers_own_menu(
+    project: Path, engine: str
+) -> None:
+    """A finger held on what is read leaves the browser to select and offer its menu."""
+    with served() as site, opened(site, engine=engine, touch=True) as page:
+        go(page, "/new?flow=chat")
+        composer = page.locator("[data-hmz=composer-text]")
+        _long_press(page, composer)
+        expect(page.locator(".popover.context")).to_have_count(0)
+
+
+_LIFT = """(el, point) => new Promise((done) => {
+    el.dispatchEvent(new PointerEvent('pointerup', {
+        bubbles: true, cancelable: true, composed: true, pointerType: 'touch',
+        pointerId: 1, isPrimary: true, button: 0, buttons: 0,
+        clientX: point.x, clientY: point.y}))
+    const item = [...document.querySelectorAll('.popover.context [role=menuitem]')]
+        .find((one) => one.textContent.includes('Copy path'))
+    item.click()
+    const afterLift = Boolean(document.querySelector('.popover.context'))
+    setTimeout(() => {
+        item.click()
+        done({afterLift, afterTap: Boolean(document.querySelector('.popover.context'))})
+    }, 300)
+})"""
+
+
+def test_the_lift_of_a_long_press_does_not_choose_an_item(
+    project: Path, engine: str
+) -> None:
+    """The click a lifting finger makes is eaten; the tap after it is the user's own."""
+    with served() as site, opened(site, engine=engine, touch=True) as page:
+        folder = _folder(page, project)
+        point = _touch_point(folder)
+        _touch(folder, "pointerdown", point, 1)
+        page.wait_for_timeout(550)
+        expect(page.locator(".popover.context")).to_be_visible()
+        outcome = folder.evaluate(_LIFT, point)
+        assert outcome == {"afterLift": True, "afterTap": False}
+
+
+def test_a_long_hold_still_eats_the_click_its_lift_makes(
+    project: Path, engine: str
+) -> None:
+    """However long the finger stays, the click its lift makes does not choose an item."""
+    with served() as site, opened(site, engine=engine, touch=True) as page:
+        folder = _folder(page, project)
+        point = _touch_point(folder)
+        _touch(folder, "pointerdown", point, 1)
+        page.wait_for_timeout(2500)
+        expect(page.locator(".popover.context")).to_be_visible()
+        outcome = folder.evaluate(_LIFT, point)
+        assert outcome == {"afterLift": True, "afterTap": False}
+
+
+def test_a_long_pressed_menu_fits_a_320_pixel_phone(project: Path, engine: str) -> None:
+    """A menu opened by a held finger is drawn whole within a 320-pixel window."""
+    with (
+        served() as site,
+        opened(site, engine=engine, width=320, height=568, touch=True) as page,
+    ):
+        go(page, "/settings/themes")
+        row = page.locator("[data-hmz=pair]").last
+        row.scroll_into_view_if_needed()
+        _long_press(page, row)
+        menu = page.locator(".popover.context")
+        expect(menu).to_be_visible()
+        _whole(page, menu)
+
+
 def test_a_workdir_says_its_whole_path_on_hover_and_offers_it_on_a_right_click(
     project: Path, engine: str
 ) -> None:
