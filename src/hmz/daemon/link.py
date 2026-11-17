@@ -82,6 +82,16 @@ def _method(do: str) -> str:
     return do if do.startswith("env.") else f"epic.{do}"
 
 
+def _no(why: str, code: int, data: dict[str, Any] | None) -> dict[str, Any]:
+    """A refusal as the daemon said it: why, its code, and its data where it has any."""
+    return {
+        "ok": False,
+        "why": why,
+        "code": code,
+        **({"data": data} if data is not None else {}),
+    }
+
+
 #: Why a link whose session ended without a `gone` is let go.
 _WENT = "the host went away"
 
@@ -190,7 +200,12 @@ class Link:
         if not answer.get("ok"):
             from hmz.runtime import Refused
 
-            raise Refused(str(answer.get("why") or "refused"))
+            code, data = answer.get("code"), answer.get("data")
+            raise Refused(
+                str(answer.get("why") or "refused"),
+                code=code if isinstance(code, int) else 0,
+                data=cast("dict[str, Any]", data) if isinstance(data, dict) else None,
+            )
         return answer
 
     def start(
@@ -245,8 +260,25 @@ class Link:
         """Says a line to the run: into the turn on view `to`, or the next one to start."""
         return self.asked({"do": "say", "text": text, "to": to})
 
-    def answer(self, question: str, text: str) -> dict[str, Any]:
-        """Answers one question an `Outworlder` is waiting on."""
+    def answer(
+        self, question: str, text: str | None = None, value: Any = None
+    ) -> dict[str, Any]:
+        """Answers one question an `Outworlder` is waiting on, in text or as a value.
+
+        Args:
+          question: The question, by its id.
+          text: The answer typed: an option, its number, words, or the JSON of a value.
+          value: The answer as the value of the question's schema, given in place of `text`.
+
+        Returns:
+          The answer, which says `ok`.
+
+        Raises:
+          Refused: If it was refused: a value that does not fit is refused 400, with every
+            way it does not as `data["errors"]`.
+        """
+        if text is None:
+            return self.asked({"do": "answer", "question": question, "value": value})
         return self.asked({"do": "answer", "question": question, "text": text})
 
     def stop(self) -> dict[str, Any]:
@@ -510,7 +542,7 @@ def reached(
         except (Closed, OSError) as why:
             return {"ok": False, "why": f"the host could not be reached: {why}"}
         except RpcError as why:
-            return {"ok": False, "why": why.message}
+            return _no(why.message, why.code, why.data)
         try:
             result: Any = pending.result(seconds)
         except TimeoutError:
@@ -518,7 +550,7 @@ def reached(
                 pending.cancel()
             raise TimeoutError(f"no answer to {do!r} in {seconds}s") from None
         except RpcError as why:
-            return {"ok": False, "why": why.message}
+            return _no(why.message, why.code, why.data)
         except Closed:
             return {"ok": False, "why": gone[0] if gone else _WENT}
         return {"ok": True, **(result if isinstance(result, dict) else {})}
@@ -626,7 +658,9 @@ def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Lin
         try:
             result: Any = client.call(method, params, idem=idem, seconds=seconds)
         except Refused as why:
-            return {"ok": False, "why": gone[0] if gone else str(why)}
+            if gone:
+                return {"ok": False, "why": gone[0]}
+            return _no(str(why), why.code, why.data)
         return {"ok": True, **(result if isinstance(result, dict) else {})}
 
     left = threading.Event()
