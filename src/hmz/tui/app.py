@@ -2392,11 +2392,12 @@ class Humanize(App[None]):
         # And the Ai-chan conversation followed, or the one waiting for its first line.
         if (new := self._ai_new) is not None:
             left = (
-                f"[$accent]Ai-chan{_DOT}new{_DOT}{escape(ai_scope(new._asdict()))}[/]"
+                f"[$accent]Ai-chan{_DOT}new{_DOT}{escape(ai_scope(new._asdict(), short=True))}[/]"
                 f"{_DOT}{left}"
             )
         elif (ai := self._ai) is not None:
-            left = f"[$accent]Ai-chan#{ai['id']}{_DOT}{escape(ai_scope(ai))}[/]{_DOT}{left}"
+            scope = escape(ai_scope(ai, short=True))
+            left = f"[$accent]Ai-chan#{ai['id']}{_DOT}{scope}[/]{_DOT}{left}"
         # For a moment after it happens, beside whatever else the line says: writing to a
         # clipboard is silent, and a person who has just dragged across half a screen is
         # owed the one word that says it went somewhere.
@@ -3498,8 +3499,8 @@ class Humanize(App[None]):
             return
         self._ai_new = asked
         self.show(
-            f"[$accent]Ai-chan{_DOT}{escape(ai_scope(asked._asdict()))}[/] [dim]the next "
-            "line you say starts the conversation; /clear to drop it[/dim]"
+            "[dim]Ai-chan: the next line you say starts the conversation; "
+            "/clear to drop it[/dim]"
         )
         self._draw()
 

@@ -13460,11 +13460,13 @@ def nous_named() -> list[str]:
     return [str(one["name"]) for one in listed.get("nous") or ()]
 
 
-def ai_scope(one: Mapping[str, Any]) -> str:
+def ai_scope(one: Mapping[str, Any], *, short: bool = False) -> str:
     """What one Ai-chan conversation may reach, as a row and the status line say it.
 
     Args:
       one: The conversation, as `aichan.list` answers it.
+      short: Whether to name a workspace by its last part alone, as the status line does,
+        which a whole path would push off the screen.
 
     Returns:
       `daemon`, `workspace <dir>` or `epic <name>`.
@@ -13473,7 +13475,11 @@ def ai_scope(one: Mapping[str, Any]) -> str:
     if scope == "epic":
         return f"epic {one.get('epic') or ''}"
     if scope == "workspace":
-        return f"workspace {_homed(str(one.get('workspace') or ''))}"
+        there = str(one.get("workspace") or "")
+        named = (
+            there.rstrip("/").rsplit("/", 1)[-1] or there if short else _homed(there)
+        )
+        return f"workspace {named}"
     return scope
 
 

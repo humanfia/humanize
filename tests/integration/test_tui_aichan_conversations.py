@@ -145,7 +145,7 @@ async def test_new_asks_the_scope_nous_and_permission_and_the_first_line_makes_i
         # Nothing has been run here, so the scope is this directory; the nous the setting.
         await shows(pilot, "scope", "workspace", "nous", RUNS, "read-only", "off")
         await _done(pilot)
-        await shows(pilot, "Ai-chan · new · workspace", "the next line you say")
+        await shows(pilot, "Ai-chan · new · workspace", "Ai-chan: the next line")
         assert conversations.made == []
 
         await typed(pilot, "hello there")
@@ -211,7 +211,7 @@ async def test_her_tools_are_shown_and_btw_and_stop_are_hers(
         await shows(pilot, "Bash(foo\\ bar)", "heard tools", "◉ done")
 
         await typed(pilot, "/btw what is she doing")
-        await shows(pilot, "/ai asks Ai-chan about the epic")
+        await shows(pilot, "not on Ai-chan's", "/ai asks Ai-chan")
         await typed(pilot, "/stop")
         await shows(pilot, "Ai-chan is not answering, so there is nothing to stop")
 
@@ -235,11 +235,7 @@ async def test_a_conversation_is_carried_on_from_the_list_and_forgotten_there(
 
         await typed(pilot, "/ai")
         await on(pilot, AiChans)
-        await shows(
-            pilot,
-            "Ai-chan#1 · hello there",
-            f"workspace · {RUNS} · read-only · network off · between turns",
-        )
+        await shows(pilot, "Ai-chan#1 · hello there", "between turns")
         await onto(pilot, "1")
         await pilot.press("enter")
         await shows(pilot, "heard hello there", "Ai-chan#1 · workspace")

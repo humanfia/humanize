@@ -161,7 +161,7 @@ async def test_btw_off_a_session_is_refused_pointing_at_ai_chan(
 
         await typed(pilot, "/btw what is it doing")
 
-        await shows(pilot, "/ai asks Ai-chan about the epic")
+        await shows(pilot, "/btw is only available on one agent's", "/ai asks Ai-chan")
     assert _asides(workspace) == []
 
 
