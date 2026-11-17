@@ -289,25 +289,6 @@ def test_epics_are_of_this_directory_until_turned_to_this_machine(
     assert Settings().every_epic is False
 
 
-def test_btw_is_nobodys_until_chosen(held: doubles.Store) -> None:
-    said = Settings()
-    assert said.btw == ""
-
-    said.btw = "claude/haiku:low"
-    assert Settings().btw == "claude/haiku:low"
-
-    said.btw = ""
-    assert Settings().btw == ""
-
-
-def test_btw_that_is_not_a_word_reads_as_unchosen(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    doubles.store(monkeypatch, {"btw": 7})
-
-    assert Settings().btw == ""
-
-
 def test_forgetting_a_workspace_leaves_the_others_and_says_whether_it_was_there(
     held: doubles.Store, tmp_path: Path
 ) -> None:

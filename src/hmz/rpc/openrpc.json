@@ -6827,13 +6827,6 @@
           }
         },
         {
-          "name": "btw",
-          "deprecated": true,
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
           "name": "details",
           "schema": {
             "type": "boolean"
@@ -9587,9 +9580,6 @@
           "backup": {},
           "listen": {},
           "ice_servers": {},
-          "btw": {
-            "deprecated": true
-          },
           "chat": {
             "type": "string"
           },
