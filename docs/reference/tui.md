@@ -1664,8 +1664,9 @@ Humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-
 
 Intro: `What agents think with. A concrete nous is HARNESS[@ACCOUNT]/MODEL[:EFFORT]; a virtual
 nous is a name for a graph of others. A failed turn is retried as the nous says, then goes to its
-then.` Rows: `<name>  virtual|concrete · no retries|<n> retries · <policy> · <limit>[ · graph
-<nodes>] · then <nodes>`, a graph's nodes in order from its start joined by `→`, a use node as its
+then.` Rows:
+`<name>  virtual|concrete · no retries|<n> retries · <policy> · <limit>[ · graph <nodes>] · then <nodes>`,
+a graph's nodes in order from its start joined by `→`, a use node as its
 nous and a balance node as `<strategy>(<nous>×<weight>, …)`; `none` for no graph. Empty: `no nous
 written down yet`. Buttons: **add nous** (`a concrete nous, or a virtual one`), **Search…**,
 **Save**. Semantics: [Nous](/user/settings#nous).
@@ -1683,8 +1684,8 @@ give it retries or a then`), a graph that does not hold together, nous naming on
 
 Graph form: the `start` node ▾, one row per node (as the page shows it), **add node**; **remove**
 on a `then`. Node form: `id`, `kind` ▾ (`use`, `balance`); a use node's `nous` (typed or chosen,
-virtual nous first); a balance node's `strategy` ▾ (each with what it picks), `among` (`<nous>
-<weight>, …`, or **add** from the picker at weight 1) and `spread`; then one row per fault class
+virtual nous first); a balance node's `strategy` ▾ (each with what it picks), `among`
+(`<nous> <weight>, …`, or **add** from the picker at weight 1) and `spread`; then one row per fault class
 and `*`, each ▾ another node or none. Removing a node takes the edges to it away; renaming one
 renames them. On save, renames are applied first, then each nous written and each removed one
 cleared; the transcript says what each came to.
