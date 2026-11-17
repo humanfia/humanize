@@ -8,9 +8,11 @@ how to reach the other one. Both can reach Humanize, which is the whole of what 
 on.
 
 So Humanize holds the meeting. A ticket names it -- one secret, one session -- and each half
-dials a broker with it and says which half it is. The broker tells each half what the other
-looks like from outside, starts them at each other at the same instant so that a hole is
-punched through whatever NAT is between them, and carries the bytes itself when none can be.
+dials a broker with a name derived from it and says which half it is. The broker tells each
+half what the other looks like from outside, starts them at each other at the same instant so
+that a hole is punched through whatever NAT is between them, and carries the bytes itself when
+none can be. The ticket itself never reaches the broker: it is the key the two halves prove to
+each other inside the TLS their session is carried in.
 
 The broker and both halves' dialling are `coganchor`'s (`coganchor broker`, `coganchor anchor
 --peer`, and `coganchor cog` for a `peer://` target). What is left here is what this process
@@ -58,8 +60,8 @@ class Meeting:
     """One session's meeting: which broker holds it, and under what name.
 
     Attributes:
-      ticket: The secret naming the meeting. Both halves present it; nothing else is asked
-        of either, so a ticket is the whole of what may not be shared.
+      ticket: The secret naming the meeting. Both halves prove it to each other; nothing else
+        is asked of either, so a ticket is the whole of what may not be shared.
       host: Where the broker is, as both halves can reach it.
       port: The port it is listening on.
     """

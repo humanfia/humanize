@@ -1218,7 +1218,8 @@ def test_an_agent_says_where_it_runs() -> None:
     assert dict(agent.environment()) == {}
     assert agent.hushed() == frozenset()
     assert agent.anchor is None
-    assert agent.stands_in() is None
+    assert agent.nous == "double/m1"
+    assert agent.stand_in("double/m1") is agent
     assert agent.fenced() is None
 
 

@@ -225,7 +225,9 @@ reference](/reference/providers).
   it first asked. A report carries more than a crash; [Reporting](/user/reporting) lists what
   is sent and what never is.
 - **A remote target served over TCP** is a shell on that machine for anyone who can reach the
-  port. Give it a real token, or prefer `ssh://` and `docker://`. See
+  port and holds its token. The session is encrypted and the token is never sent, but the
+  token is the whole of its protection: give it a real one, or prefer `ssh://` and
+  `docker://`. See
   [Remote execution](/user/remote-execution).
 - **`/afk` is about questions, not actions.** It decides whether a flow may ask you something.
   It never makes an agent ask before it acts.

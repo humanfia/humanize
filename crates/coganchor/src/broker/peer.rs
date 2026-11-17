@@ -35,6 +35,12 @@ use super::{
 /// Fails if the broker cannot be reached, the other half never arrives, or the broker will
 /// not join the two.
 pub fn dial(meeting: &Meeting, role: Role, timeout: Duration) -> io::Result<TcpStream> {
+    // The broker, and anyone between, is told a name for the meeting and never its ticket,
+    // which is the key the two halves then prove to each other inside TLS.
+    let meeting = &Meeting {
+        ticket: crate::tls::meeting_name(&meeting.ticket),
+        ..meeting.clone()
+    };
     // One port for both, taken before either is used: the broker has to see this half at the
     // port its peer will be sent at, and the peer has to find something listening there.
     let (home, ear, port) = both()?;

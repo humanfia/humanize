@@ -219,10 +219,40 @@ def test_a_batch_carries_the_pages_asked_for_as_settings_calls() -> None:
     runtime = SimpleNamespace(
         held=lambda: {"backend": "ssh", "name": "gpu", "made": "typed", "host": "g"}
     )
-    step = SimpleNamespace(spec="claude", to=("codex",), tries=2, policy="p", timeout=5)
+
+    def _shown(graph: object) -> dict[str, object] | None:
+        return None if graph is None else {"start": graph}
+
+    def graph(*names: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            nodes=tuple(SimpleNamespace(use=name, among=()) for name in names)
+        )
+
+    # Written first, but naming `smart` in its `then`: carried after it.
+    concrete = SimpleNamespace(
+        name="claude/a",
+        virtual=False,
+        tries=2,
+        policy="p",
+        timeout=5,
+        graph=None,
+        then=graph("smart"),
+    )
+    virtual = SimpleNamespace(
+        name="smart",
+        virtual=True,
+        tries=0,
+        policy="q",
+        timeout=0,
+        graph=graph("codex/b"),
+        then=None,
+    )
     hmz = SimpleNamespace(
         settings=SimpleNamespace(btw="", details=True, enable_sentry=False),
-        fallbacks=SimpleNamespace(all=lambda: [step]),
+        nous=SimpleNamespace(
+            all=lambda: [concrete, virtual],
+            shown=_shown,
+        ),
         runtimes=SimpleNamespace(all=lambda: [runtime]),
         backups=SimpleNamespace(targets=lambda: [target], defaults=lambda: ["lab"]),
         verses=SimpleNamespace(plain=_plain),
@@ -233,13 +263,25 @@ def test_a_batch_carries_the_pages_asked_for_as_settings_calls() -> None:
     assert sent == [
         ("settings.set", {"btw": "", "details": True, "reports": False}),
         (
-            "fallbacks.set",
+            "nous.set",
             {
-                "spec": "claude",
-                "to": ["codex"],
+                "name": "smart",
+                "tries": 0,
+                "policy": "q",
+                "timeout": 0,
+                "graph": {"start": virtual.graph},
+                "then": None,
+            },
+        ),
+        (
+            "nous.set",
+            {
+                "name": "claude/a",
                 "tries": 2,
                 "policy": "p",
                 "timeout": 5,
+                "graph": None,
+                "then": {"start": concrete.then},
             },
         ),
         (

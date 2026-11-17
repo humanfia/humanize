@@ -240,6 +240,9 @@ class AgentConfig:
         asked about runs at, because a cap nobody chose is a cap that would truncate the one
         turn that needed the room. A conversation may be given one of its own, which is where
         a loop watching what it is costing says so.
+      nous: The virtual nous this agent's turns are walked through, by name, or "" for the
+        concrete nous its harness, account, model and effort make (`hmz.coganchor.nous`). An
+        agent at a virtual nous is built at the concrete nous that nous starts at.
     """
 
     #: Which of this class's own settings are properties of the model rather than of the CLI,
@@ -271,6 +274,7 @@ class AgentConfig:
     web_search: bool | None = None
     fence: Fence | None = None
     budget: Budget | None = None
+    nous: str = ""
 
     def __post_init__(self) -> None:
         # `auto` is the word a line uses for no rung at all, and this is where it stops being

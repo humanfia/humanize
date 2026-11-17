@@ -26,7 +26,7 @@ holds the same table, so an import that breaks it fails the run.
 
 | You are changing | Put it in |
 | --- | --- |
-| how a coding agent CLI is driven, or its accounts, models, fallbacks or prices | `coganchor/` |
+| how a coding agent CLI is driven, or its accounts, models, nous or prices | `coganchor/` |
 | the machine an agent's turns land on | `coganchor/machines/`, per [Machines](/reference/machines#writing-a-machine-of-your-own) |
 | what runs beside the agent or on its target: mirrors, the supervisor, the fence, the serving half, the broker | `crates/coganchor/`, the `coganchor` program, in Rust; see [`coganchor`](/contributing/#coganchor) |
 | a type, mixin, hook or error a flow imports | `flows/`, then check the flows [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still work |
@@ -40,7 +40,7 @@ holds the same table, so an import that breaks it fails the run.
 | a slash command, a key, a menu; what the interface draws of a message | `tui/` |
 | a view of the web interface, or what its server answers | `web/`: the page under `web/static/`, plain ES modules speaking JSON-RPC to daemons (`rpc/`, `api.js`); the server in `site.py` -- the page's files, `/here`, admission -- and its bridges `/rpc` and `/dial` in `bridge.py` |
 | runs kept going after the terminal closes, and the one JSON-RPC endpoint every client reaches them through, on its socket and its listeners | `daemon/` |
-| a method the daemon serves beyond epics and sessions: settings, accounts, fallbacks, runtimes, EasyTier, flows, workspaces, paths, notices, runs, backups, files | `daemon/api/`, a module per family naming its own in `METHODS` |
+| a method the daemon serves beyond epics and sessions: settings, accounts, nous, runtimes, EasyTier, flows, workspaces, paths, notices, runs, backups, files | `daemon/api/`, a module per family naming its own in `METHODS` |
 | a carrier between a client and a daemon: a route, dialing it, listening, racing routes | `reach/` |
 | the frames a session carries, and JSON-RPC over them: calls, notifications, errors, `session.hello` | `rpc/` |
 | a new command | `cli/` |

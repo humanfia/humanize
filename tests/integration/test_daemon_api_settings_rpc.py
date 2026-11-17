@@ -1,6 +1,6 @@
 """The settings family of daemon methods, served by a `Dispatcher` over a real socket pair.
 
-Every method of `settings.*`, `accounts.*`, `fallbacks.*`, `runtimes.*` and `easytier.*` called
+Every method of `settings.*`, `accounts.*`, `nous.*`, `runtimes.*` and `easytier.*` called
 once from a client `Peer`, in a temporary `HUMANIZE_HOME`, with what each writes read back out
 of the settings file and what each refuses refused with the protocol's code.
 """
@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 from hmz import home
-from hmz.daemon.api import accounts, easytier, fallbacks, runtimes, settings
+from hmz.daemon.api import accounts, easytier, nous, runtimes, settings
 from hmz.rpc import PROTOCOL, Call, Dispatcher, Peer, RpcError, admit, document, hello
 from tests.integration.doubles_easytier import kuma
 
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 #: Every family this suite serves.
-_FAMILIES = (settings, accounts, fallbacks, runtimes, easytier)
+_FAMILIES = (settings, accounts, nous, runtimes, easytier)
 
 #: A secret of the kind that must never come back out.
 _SECRET = "an easytier secret of many bytes"
@@ -200,24 +200,43 @@ def test_accounts_are_made_corrected_and_removed_without_their_values(
     _refused(client, 404, "accounts.remove", cli="claude", name="work")
 
 
-def test_fallbacks_and_runtimes_are_written_into_the_settings_file(
+def test_nous_and_runtimes_are_written_into_the_settings_file(
     client: Peer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    listed = _call(client, "fallbacks.list")
+    listed = _call(client, "nous.list")
     assert listed["default"] in {one["name"] for one in listed["policies"]}
+    assert "shuffle" in {one["name"] for one in listed["strategies"]}
+    assert "*" in listed["faults"]
     written = _call(
-        client,
-        "fallbacks.set",
-        spec="claude/opus",
-        to=["codex/gpt"],
-        tries=2,
-        timeout=5,
+        client, "nous.set", name="claude/opus", then=["codex/gpt"], tries=2, timeout=5
     )
-    assert written["steps"][0]["to"] == ["codex/gpt"]
-    assert "fallbacks" in _file()
-    _refused(client, 400, "fallbacks.set", spec="opus")
-    assert _call(client, "fallbacks.clear", spec="claude/opus")["steps"] == []
-    _refused(client, 404, "fallbacks.clear", spec="claude/opus")
+    assert written["nous"][0]["then"]["nodes"][0]["use"] == "codex/gpt"
+    assert "nous" in _file()
+    graph = {
+        "start": "p",
+        "nodes": [
+            {
+                "id": "p",
+                "balance": "round-robin",
+                "among": [{"nous": "claude/opus", "weight": 2}, {"nous": "codex/gpt"}],
+                "on": {"throttled": "q"},
+            },
+            {"id": "q", "use": "grok/g"},
+        ],
+    }
+    made = _call(client, "nous.set", name="smart", graph=graph)
+    assert [one["name"] for one in made["nous"]] == ["claude/opus", "smart"]
+    _refused(client, 400, "nous.set", name="opus")
+    _refused(client, 400, "nous.set", name="smart", graph={"start": "x", "nodes": []})
+    _refused(client, 400, "nous.set", name="claude/opus", then=["smart", "claude/opus"])
+    renamed = _call(client, "nous.rename", name="smart", to="clever")
+    assert [one["name"] for one in renamed["nous"]] == ["claude/opus", "clever"]
+    _refused(client, 400, "nous.rename", name="ghost", to="other")
+    assert [
+        one["name"] for one in _call(client, "nous.clear", name="clever")["nous"]
+    ] == ["claude/opus"]
+    assert _call(client, "nous.clear", name="claude/opus")["nous"] == []
+    _refused(client, 404, "nous.clear", name="claude/opus")
 
     assert _call(client, "runtimes.list")["runtimes"] == []
     made = _call(

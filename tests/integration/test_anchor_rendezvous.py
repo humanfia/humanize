@@ -108,6 +108,43 @@ def test_a_pair_given_no_window_is_carried_whole(
     assert "workspace   /w (1 entries)" in said.stdout
 
 
+def test_a_meeting_is_keyed_by_its_ticket_whatever_token_is_about(
+    broker: tuple[str, int], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Both halves inherit it; neither asks the other for it.
+    monkeypatch.setenv("HUMANIZE_TOKEN", "stray")
+
+    said = _met(Meeting(ticket(), *broker), tmp_path / "target")
+
+    assert said.returncode == 0, said.stderr
+
+
+@pytest.mark.parametrize(
+    "given", [["--token", "s3cret"], ["--token-file", "/dev/null"]]
+)
+def test_a_serving_half_at_a_meeting_takes_no_token(
+    given: list[str], tmp_path: Path
+) -> None:
+    said = subprocess.run(
+        [
+            str(binary.here()),
+            "anchor",
+            "--peer",
+            "T@127.0.0.1:9",
+            *given,
+            "--export",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=PATIENCE,
+        check=False,
+    )
+
+    assert said.returncode == 2
+    assert "--token cannot be given with --peer" in said.stderr
+
+
 def test_two_meetings_at_one_broker_stay_two_sessions(
     broker: tuple[str, int], tmp_path: Path
 ) -> None:
