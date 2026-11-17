@@ -23,7 +23,7 @@ import {
   resolved,
   sendLabel,
   summaryOf,
-  withoutSecrets,
+  draftable,
   widgetOf,
   withdrawnWhy,
   yesNo,
@@ -239,6 +239,6 @@ test('a refusal of an answer is read for the errors of each field', () => {
 test('a secret is never kept in a draft and is said back as stars', () => {
   const schema = { type: 'object', properties: { user: { type: 'string' }, token: { type: 'string', 'hmz:widget': 'secret' }, pin: { type: 'string', format: 'password' } } }
   assert.ok(secretOf(schema.properties.token))
-  assert.deepEqual(withoutSecrets({ user: 'ann', token: 's3cret', pin: '1234' }, schema), { user: 'ann' })
+  assert.deepEqual(draftable({ user: 'ann', token: 's3cret', pin: '1234' }, schema), { user: 'ann' })
   assert.equal(summaryOf({ user: 'ann', token: 's3cret' }, schema), '‘ann’ · token: ***')
 })

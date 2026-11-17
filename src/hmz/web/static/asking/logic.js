@@ -254,13 +254,13 @@ export function secretOf(node = {}) {
   return widgetOf(node) === 'secret' || node.format === 'password'
 }
 
-/** A value with every secret of its schema left out, as a draft may keep it. */
-export function withoutSecrets(value, node = null, root = node) {
+/** What of a form's value a draft may keep: every field but those holding a secret. */
+export function draftable(value, node = null, root = node) {
   if (!node || !value || typeof value !== 'object' || Array.isArray(value)) return value
   const kept = { ...value }
   for (const field of fieldsOf(resolved(node, root).node, root)) {
     if (secretOf(field.raw) || secretOf(field.node)) delete kept[field.name]
-    else if (field.name in kept) kept[field.name] = withoutSecrets(kept[field.name], field.node, root)
+    else if (field.name in kept) kept[field.name] = draftable(kept[field.name], field.node, root)
   }
   return kept
 }

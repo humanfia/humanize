@@ -9,7 +9,7 @@ import { fill, h, problem } from '../dom.js'
 import { ask } from '../held.js'
 import { blocks } from './blocks.js'
 import { schemaForm } from './form.js'
-import { keepDraft, oneLine, pruneDrafts, readDraft, refusalErrors, sendLabel, summaryOf, withdrawnWhy, withoutSecrets } from './logic.js'
+import { keepDraft, oneLine, pruneDrafts, readDraft, refusalErrors, sendLabel, summaryOf, withdrawnWhy, draftable } from './logic.js'
 
 /** Each card drawn, by its node, with what settles it. */
 const settlers = new WeakMap()
@@ -175,7 +175,7 @@ function schemaAnswer(where, one, schema, settle) {
       progress()
       clearTimeout(timer)
       timer = setTimeout(() => {
-        keepDraft(draftOf(where, one), withoutSecrets(value, schema))
+        keepDraft(draftOf(where, one), draftable(value, schema))
         kept.say('Draft kept')
       }, 400)
     },

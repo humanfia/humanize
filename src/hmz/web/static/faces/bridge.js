@@ -73,12 +73,30 @@
     })
   }
 
+  /**
+   * A face's HTML without the doctype it may open with, and the comments before it, since the
+   * frame writes its own: read in one pass, with no pattern that can backtrack.
+   */
+  const undoctyped = (html) => {
+    let at = 0
+    for (;;) {
+      while (at < html.length && /\s/.test(html[at])) at += 1
+      if (!html.startsWith('<!--', at)) break
+      const end = html.indexOf('-->', at + 4)
+      if (end < 0) return html
+      at = end + 3
+    }
+    if (html.slice(at, at + 9).toLowerCase() !== '<!doctype') return html
+    const close = html.indexOf('>', at)
+    return close < 0 ? html : html.slice(close + 1)
+  }
+
   /** Writes the face in, its theme set and the kit beneath it, failures before it listens told. */
   const write = (html, tokens, rule) => {
     const failed = (message) => {
       if (!listening) send({ type: 'failed', message })
     }
-    const body = String(html).replace(/^\s*(?:<!--[\s\S]*?-->\s*)*<!doctype[^>]*>/i, '')
+    const body = undoctyped(String(html))
     const scheme = tokens && tokens['--scheme'] === 'dark' ? 'dark' : 'light'
     document.open()
     addEventListener('error', (event) => failed(event.message || 'The view threw an error.'))
