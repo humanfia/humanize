@@ -97,8 +97,7 @@ def test_a_cli_agent_name_with_a_space_is_refused(named: str) -> None:
 @pytest.mark.parametrize(
     ("said", "named"),
     [
-        ({"permission": "read-only"}, "permission="),
-        ({"permission": "workspace-write"}, "permission="),
+        ({"fence": Fence(read=("/",))}, "writes nothing"),
         ({"web_search": False}, "web_search=False"),
         ({"fence": Fence(online=False)}, "cuts the network"),
     ],
@@ -112,7 +111,7 @@ def test_turning_the_table_off_refuses_what_only_the_table_carries(
 
 @pytest.mark.parametrize(
     "said",
-    [{}, {"permission": "auto"}, {"permission": "bypass"}, {"web_search": True}],
+    [{}, {"fence": Fence(write=("/",))}, {"web_search": True}],
 )
 def test_turning_the_table_off_is_fine_where_it_withholds_nothing(
     said: dict[str, Any],
@@ -207,9 +206,6 @@ def test_the_next_turn_resumes_the_session_the_first_one_opened(
         ({"cli_agent": "plan"}, ["--agent", "plan"]),
         ({"thinking": True}, ["--thinking"]),
         ({"pure": True}, ["--pure"]),
-        ({"permission": "auto"}, ["--auto"]),
-        ({"permission": "read-only"}, ["--auto"]),
-        ({"permission": "bypass"}, ["--auto"]),
         ({"unattended": True}, ["--auto"]),
     ],
 )
@@ -230,10 +226,30 @@ def test_what_the_agent_is_configured_with_goes_on_the_command_line(
     assert argv[at : at + len(flags)] == flags
 
 
-@pytest.mark.parametrize("said", [{}, {"permission": "auto", "unattended": False}])
+@pytest.mark.parametrize(
+    "fence_", [Fence(read=("/",)), Fence(write=("/",)), Fence(online=False)]
+)
+def test_a_fenced_turn_is_asked_nothing_whatever_it_may_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fence_: Fence
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    spawned = spawning(monkeypatch, opening=_TURN)
+    agent = _agent(fence=fence_)
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    assert "--auto" in spawned[0].args
+
+
+@pytest.mark.parametrize(
+    "said",
+    [{}, {"web_search": True}, {"fence": Fence(write=("/",)), "unattended": False}],
+)
 def test_a_bare_turn_carries_no_auto_approval(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, said: dict[str, Any]
 ) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     spawned = spawning(monkeypatch, opening=_TURN)
     agent = _agent(**said)
     heard(agent)
@@ -257,25 +273,29 @@ def _permitted(spawned_env: dict[str, str] | None) -> dict[str, Any] | None:
     [
         ({}, None),
         ({"permission_table": True}, None),
+        # A fence that writes nothing: the file-writing tool withheld, the shell kept.
+        ({"fence": Fence(read=("/",))}, {"edit": "deny", "bash": "allow"}),
         (
-            {"permission": "read-only"},
-            {"edit": "deny", "bash": "deny"} | dict.fromkeys(_REACHES, "allow"),
+            {"fence": Fence(read=("/",), online=False)},
+            {"edit": "deny", "bash": "allow"} | dict.fromkeys(_REACHES, "deny"),
         ),
+        # One that writes somewhere: every tool; the web as `web_search` and the network say.
+        ({"fence": Fence(write=("/",))}, {"edit": "allow", "bash": "allow"}),
         (
-            {"permission": "workspace-write"},
-            {"edit": "allow", "bash": "allow"} | dict.fromkeys(_REACHES, "deny"),
-        ),
-        (
-            {"permission": "bypass"},
+            {"fence": Fence(write=("/",)), "web_search": True},
             {"edit": "allow", "bash": "allow"} | dict.fromkeys(_REACHES, "allow"),
         ),
         (
-            {"permission": "auto", "web_search": False},
+            {"fence": Fence(write=("/",), online=False), "web_search": True},
+            {"edit": "allow", "bash": "allow"} | dict.fromkeys(_REACHES, "deny"),
+        ),
+        (
+            {"fence": Fence(write=("/",)), "web_search": False},
             {"edit": "allow", "bash": "allow"} | dict.fromkeys(_REACHES, "deny"),
         ),
         ({"web_search": True}, dict.fromkeys(_REACHES, "allow")),
         ({"web_search": False}, dict.fromkeys(_REACHES, "deny")),
-        ({"permission": "auto", "permission_table": False}, None),
+        ({"fence": Fence(write=("/",)), "permission_table": False}, None),
     ],
 )
 def test_what_the_agent_may_do_is_a_table_in_the_environment(
@@ -284,6 +304,7 @@ def test_what_the_agent_may_do_is_a_table_in_the_environment(
     said: dict[str, Any],
     table: dict[str, str] | None,
 ) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     monkeypatch.delenv("OPENCODE_PERMISSION", raising=False)
     spawned = spawning(monkeypatch, opening=_TURN)
     agent = _agent(**said)
@@ -463,7 +484,7 @@ def test_a_fence_narrows_the_file_tools_to_what_it_lets_be_read_and_written(
     shared.mkdir()
     fence = Fence(read=(str(shared),), write=(str(work),), online=False)
 
-    table = _fenced_table(monkeypatch, work, permission="bypass", fence=fence)
+    table = _fenced_table(monkeypatch, work, fence=fence)
 
     edit, read = table["edit"], table["read"]
     # Read last rule first: the workdir is everything, less what climbs out of it.
@@ -485,16 +506,28 @@ def test_a_fence_narrows_the_file_tools_to_what_it_lets_be_read_and_written(
     assert {table[named] for named in _REACHES} == {"deny"}
 
 
-def test_a_fence_never_widens_what_read_only_denies(
+def test_a_fence_that_writes_nothing_never_widens_its_denied_edit(
     monkeypatch: pytest.MonkeyPatch, work: Path
 ) -> None:
-    fence = Fence(write=(str(work),), online=True)
+    # Nothing written but what the CLI itself is granted, which is not the agent's to edit.
+    fence = Fence(read=(str(work),), online=True)
 
-    table = _fenced_table(monkeypatch, work, permission="read-only", fence=fence)
+    table = _fenced_table(monkeypatch, work, fence=fence, web_search=True)
 
     assert table["edit"] == "deny"
-    assert table["bash"] == "deny"
+    assert table["bash"] == "allow"
     assert {table[named] for named in _REACHES} == {"allow"}
+
+
+def test_a_read_only_twin_withholds_the_edit_its_agent_had(
+    monkeypatch: pytest.MonkeyPatch, work: Path
+) -> None:
+    fence = Fence(write=(str(work),)).reading()
+
+    table = _fenced_table(monkeypatch, work, fence=fence)
+
+    assert table["edit"] == "deny"
+    assert table["bash"] == "allow"
 
 
 def test_a_fence_that_lets_everything_be_read_says_nothing_of_reading(
@@ -502,7 +535,7 @@ def test_a_fence_that_lets_everything_be_read_says_nothing_of_reading(
 ) -> None:
     fence = Fence(read=("/",), write=(str(work),))
 
-    table = _fenced_table(monkeypatch, work, permission="bypass", fence=fence)
+    table = _fenced_table(monkeypatch, work, fence=fence)
 
     assert "read" not in table
     assert "external_directory" not in table

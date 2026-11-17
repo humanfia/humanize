@@ -392,8 +392,10 @@ Per-backend rules:
   `mcode`'s `smart` is its own reviewer, which fails the turn where it would have asked, and is
   not used.
 - **mimo**, **opencode**: what is denied goes in a permission table (`OPENCODE_PERMISSION` /
-  `MIMOCODE_PERMISSION`), with `--auto` (opencode) or `--dangerously-skip-permissions` (mimo),
-  unless `unattended` says otherwise.
+  `MIMOCODE_PERMISSION`): `edit: deny` and `bash: allow` where the fence writes nothing, `edit`
+  and `bash` both `allow` where it writes somewhere, and the web tools as `web_search` and the
+  fence's network say. Under a fence the turn carries `--auto` (opencode) or
+  `--dangerously-skip-permissions` (mimo), unless `unattended` says otherwise.
 - **grok**: `grok agent` (the held-open transport) refuses `--tools` and
   `--disable-web-search`, so a fence that writes nothing, or web search off, takes each turn as
   a `grok -p` run resuming the same session; a fence that writes somewhere is held open with
@@ -1885,8 +1887,8 @@ opencode run --format json --dir <dir> --model <provider/id> [--variant <effort>
 | `cli_agent` | `""` | `--agent NAME` |
 | `thinking` | `False` | `--thinking`: reasoning streamed as `reasoning` events |
 | `pure` | `False` | `--pure`: no plugins |
-| `unattended` | `None` | `--auto` (opencode) / `--dangerously-skip-permissions` (mimo); `None`: on where a rung is named |
-| `permission_table` | `None` | `OPENCODE_PERMISSION` / `MIMOCODE_PERMISSION` carrying the rung and web answer; `None`: written where either is said; `False` refused beside a withholding rung or `web_search=False` (`Unserved: permission_table=False withholds the only table this backend hears permission='read-only' in`) |
+| `unattended` | `None` | `--auto` (opencode) / `--dangerously-skip-permissions` (mimo); `None`: on where a fence is set |
+| `permission_table` | `None` | `OPENCODE_PERMISSION` / `MIMOCODE_PERMISSION` carrying the grant read off the fence and the web answer; `None`: written where a fence or `web_search` is set; `False` refused beside a fence that writes nothing, a fence that cuts the network, or `web_search=False` (`Unserved: permission_table=False withholds the only table this backend hears a fence that writes nothing in`) |
 
 - The table is written for the turn, never to a settings file. Its `read` and `edit` rules are
   relative to the top of the git checkout the session is in, or `/`.
