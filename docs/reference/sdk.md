@@ -20,8 +20,8 @@ from hmz.sdk import Hmz, Daemons, Refused, fakes
 ## Module {#module}
 
 ```python
-__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Flows", "Flowverses", "Hmz", "Link",
-           "NousBook", "Refused", "Run", "Runtimes", "fakes"]
+__all__ = ["Accounts", "Ask", "Client", "Daemon", "Daemons", "Epics", "Flows", "Flowverses", "Hmz",
+           "Link", "NousBook", "Refused", "Run", "Runtimes", "fakes"]
 def __getattr__(name: str) -> object: ...
 ```
 
@@ -29,6 +29,7 @@ def __getattr__(name: str) -> object: ...
 | --- | --- | --- | --- |
 | `Hmz` | class | `hmz.sdk.running` | [Hmz](#hmz) |
 | `Run` | class | `hmz.sdk.running` | [Run](#run) |
+| `Ask` | frozen dataclass | `hmz.runtime.flowing.spi` | [OutworlderDriver](#outworlderdriver) |
 | `Refused` | exception | `hmz.runtime` | [Refused](#refused) |
 | `Flows` | class | `hmz.runtime` | [Flows](#flows) |
 | `Flowverses` | class | `hmz.runtime` | [Flowverses](#flowverses) |
@@ -138,7 +139,7 @@ own, as [`run_fake`](#fakes) holds it.
 | `profile_flow` | Whether to [profile](/reference/tracing#profiling-a-run) the flow's own Python, as well as tracing the run; as `--profile-flow`. | `False` |
 | `profile_environment` | Whether to [profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them; as `--profile-environment`. | `False` |
 | `resume` | `False`: from the top. `True`: the newest resumable epic of this flow here. A path: that epic. | `False` |
-| `outworlder` | The driver answering `Outworlder` roles (e.g. `fakes.FakeOutworlder`), from this process: the run claims each such role, sets away those its `away_for` says, and answers each question with what its `run(text, None, role)` returns. `None`: every role away, as under `hmz exec`. | `None` |
+| `outworlder` | The [driver](#outworlderdriver) answering `Outworlder` roles (e.g. `fakes.FakeOutworlder`), from this process: the run claims each such role, sets away those its `away_for` says, and answers each question with what its `run(ask, role)` returns. `None`: every role away, as under `hmz exec`. | `None` |
 
 Raises `OSError` where the daemon cannot be reached, and [`Refused`](#refused) for everything
 [`hmz exec` refuses at stage 3](/reference/cli#processing-order), in the same words, plus:
@@ -251,6 +252,70 @@ the backups too, for at most 60 seconds or until `close()`.
 
 `Opened` (`hmz.sdk.running`, frozen dataclass): `key` (`<agent>/<n>`), `role`, `agent`, `cli`,
 `model`, `person: bool`, `env: dict \| None`, `harness`. Records: [Daemon](/reference/daemon).
+
+## `OutworlderDriver` {#outworlderdriver}
+
+```python
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Ask:
+    prompt: str
+    schema: dict[str, Any] | None
+    model: type[BaseModel] | None = None
+    context: tuple[dict[str, Any], ...] = ()
+    face: str = ""
+    session: str = ""
+    errors: tuple[dict[str, Any], ...] = ()
+
+class OutworlderDriver(Protocol):
+    def away_for(self, role: str) -> bool: ...
+    async def run(self, ask: Ask, role: str) -> str | BaseModel | Mapping[str, Any]: ...
+    def show(self, context: tuple[dict[str, Any], ...], session: str, role: str) -> None: ...
+```
+
+What answers a run's `Outworlder` roles from a program, given to [`Hmz.run`](#hmz-run) or
+[`Run`](#run) as `outworlder=`. It is handed each question exactly as a person's frontend is.
+Guide: [The person as an agent › From a program](/weaver/human-agent#from-a-program).
+
+| `Ask` field | Value |
+| --- | --- |
+| `prompt` | What the flow asked. |
+| `schema` | The JSON Schema of the flow's `output_schema`, or `None` for a text question. |
+| `model` | `None` here: the pydantic model lives in the flow's process. [`fakes`](#fakes), in that process, set it. |
+| `context` | The question's [context blocks](/reference/flows#context-blocks), as JSON. |
+| `face` | The hash of the session's [face](/reference/flows#face), or `""`. A driver draws no face. |
+| `session` | `<role>/<n>`: the same for every question of one outworlder session. |
+| `errors` | `()`, or, on a try after a refused answer, `[{path, message}]` saying why. |
+
+| Member | Behaviour |
+| --- | --- |
+| `away_for(role)` | Whether that role is set away when the run starts. An away role is never asked. |
+| `run(ask, role)` | The answer: a `str` for a text question, sent as `text`; a mapping or a pydantic model for a schema question, sent as `value` (a model as `model_dump(mode="json")`). |
+| `show(context, session, role)` | Optional. Called with what the flow [showed](/reference/flows#outworlder) the role; absent, it is not delivered. Its return is ignored. |
+
+**A refused answer.** An answer that does not fit the schema is refused by the host. `run` is
+called again with the same `Ask`, its `errors` set, up to three more times. Where the last of
+those misfits too, the role is set away, and the question is answered as an away person
+answers it.
+
+```python
+from typing import Any
+
+from hmz.sdk import Ask, Hmz
+
+
+class Approver:
+    def away_for(self, role: str) -> bool:
+        return False
+
+    async def run(self, ask: Ask, role: str) -> str | dict[str, Any]:
+        if ask.schema is None:
+            return "looks good"
+        return {"verdict": "approve", "notes": ""}
+
+
+Hmz().run("gate", "add subtract", agents={"builder": "claude/claude-sonnet-5-5:low"},
+          budget={"cost": 1}, outworlder=Approver()).run()
+```
 
 ## `Refused` {#refused}
 
@@ -521,7 +586,8 @@ class Link:
               params: Any = None, budget: Any = None, profile_flow: bool = False,
               profile_environment: bool = False, resume: bool | str | os.PathLike[str] = False) -> dict[str, Any]
     def say(self, text: str, *, to: str = "") -> dict[str, Any]
-    def answer(self, question: str, text: str) -> dict[str, Any]
+    def answer(self, question: str, text: str | None = None,
+               value: Any = None) -> dict[str, Any]
     def stop(self) -> dict[str, Any]
     def force(self) -> dict[str, Any]
     def afk(self, *, on: bool, role: str = "") -> dict[str, Any]
@@ -545,7 +611,8 @@ One frontend of a workspace's host, over this machine's daemon. Obtained from
 | `__iter__` | Yields every message in order until `gone` or `close()`. `RuntimeError` if a listener is set. |
 | `asked(said, *, seconds=None)` | Sends one [request](/reference/daemon#requests) and waits (`seconds=None`: indefinitely). Returns the reply (`ok: true`). Raises [`Refused`](#refused) with the reply's `why`, or `TimeoutError("no answer to '<do>' in <s>s")`. |
 | `start(…)` | `start` request. `agents`/`envs`: specs as `-a`/`-e` after `<role>=`. `params`, `budget`: mappings or models (serialised). `profile_flow`, `profile_environment`: whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run). Reply carries `run`. |
-| `say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board`, `aside` | The request of the same name. |
+| `answer(question, text=None, value=None)` | The [`answer`](/reference/daemon#answering) request, with exactly one of `text` or `value`: the line typed, or a JSON value for a question with a `schema`. A value that does not fit raises `Refused` with code 400, its `data["errors"]` the reasons. |
+| `say`, `stop`, `force`, `afk`, `claim`, `release`, `board`, `aside` | The request of the same name. |
 | `close()` | Lets go of the host; runs continue. |
 
 Every method that sends a request goes through `asked` and raises `Refused` when refused,
@@ -561,8 +628,12 @@ with (Daemons().here() or Daemons().host()).link(name="ci", replay=False) as lin
     for said in link:
         if said["type"] == "pending":
             for asked in said["pending"]:
-                if asked["owner"] == link.client:
+                if asked["owner"] != link.client:
+                    continue
+                if asked["schema"] is None:
                     link.answer(asked["question"], "looks good")
+                else:
+                    link.answer(asked["question"], value={"verdict": "approve"})
 ```
 
 ## `fakes` {#fakes}

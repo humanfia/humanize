@@ -372,6 +372,7 @@ export default defineConfig({
             { text: 'Hooks', link: '/weaver/hooks' },
             { text: 'The agent asking the flow', link: '/weaver/tools' },
             { text: 'The person as an agent', link: '/weaver/human-agent' },
+            { text: 'A face for the person', link: '/weaver/faces' },
           ],
         },
         {

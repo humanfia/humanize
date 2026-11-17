@@ -326,7 +326,7 @@ also sends `figures`, at most once a second; `scratch` attaches to a new directo
 Every other call to an epic is `epic.<do>` `{sub, …}`, answered with the host's fields, or
 refused 409 with its `why`; a `sub` not open on the session is refused 410. `epic.start`,
 `say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board` and `quit` are writes,
-taking `idem`.
+taking `idem`. `face` is a read.
 
 | Any call | Refusal |
 | --- | --- |
@@ -336,6 +336,23 @@ taking `idem`.
 | --- | --- | --- | --- |
 | `attach` | as above | `sub`, `client`, `workspace`, `slot` | `the frontend went while it was saying hello`, `this host has closed`, `This chat has folded away.`, `This epic has ended.` |
 | `start` | `flow` (str, required; a chat is started by [`chat.start`](#chats) instead), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path), `backup`, `remember` (bool, `false`) | `run` (int), `slot`, `workspace` | `a flow to start is named`, `a chat is started with chat.start` (on a chat host), `a flow is already running`, `a flow is already starting`, `this host has closed`, `an exec host runs one epic` (an exec host that has started one), any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. The daemon checks the epic as `flows.check` does before the host is asked -- so a refusal starts nothing -- and with `remember` checks it as `flows.setup` does, writing it down once the host has taken the start, so that a start refused leaves the set-up there was. A run that is only *stopping* does not block `start`. |
+### Answering {#answering}
+
+| `epic.<do>` | Fields | Answer | Refusals |
+| --- | --- | --- | --- |
+| `answer` | `question` (`q<n>`), and exactly one of `text` (str) or `value` (any JSON) | `{}` | 400 `the answer does not fit: <first message>`, with `data: {"errors": [{path, message}]}`; every refusal of a question that is not this frontend's to answer, already answered, or gone |
+| `face` | `hash` (a face's sha256, as an `asked` record names it) | `html`, `title` | 404 `no face <hash>` |
+
+- **A question with a `schema`** takes `value`, or `text` read as JSON. The value is checked
+  against the schema by the host, with the flow's own model, before the flow is handed it. A
+  misfit is refused and leaves the question up: `errors` holds every reason, `path` the list of
+  keys and indexes to the field (`[]` for the whole value), `message` in words.
+- **A question without one** takes `text`. A number picks that option, counting from 1, only
+  where the question has options.
+- **Faces** are handed to the host before the first question that names one, and kept for the
+  epic's lifetime, so a frontend may fetch one by the hash an `asked` record or the `pending`
+  snapshot names, as often as it likes.
+
 ### Routing of `say` {#say-routing}
 
 | `to` | The line |
@@ -430,8 +447,9 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `names` (`{role: agent name}`: what the agent filling each is called, which its conversations are keyed by), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `began` (host monotonic), `at` (Unix time) |
 | `opened` | `role` (the role its agent fills), `key` (`<agent>/<n>`), `agent` (the agent's own name, such as `NeiKos496`), `cli`, `model`, `counts` (sorted token kinds the backend reports), `forks` (bool), `person` (bool), `kept` (directory of the session's logs; `""` for a person or the CLI's own home), `env`, `harness`, `mono`, `wall` (Unix time) |
 | `event` | `key`, `session` (`key` where the event names a conversation, else `""`), `agent`, `cli`, `model`, `ident` (backend's conversation id, `""` until named), `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono`. Same fields as [`hmz exec --json`](/reference/cli#ndjson). |
-| `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list), `mode` (`ask` where there are options or a turn is open, else `listen`), `key` (`<agent>/<n>` of the one conversation with a turn open, else `""`) |
-| `answered` | `question`, `role`, `by`, `client`, `text` (the option chosen, or the text) |
+| `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list; `[]` for a question with a `schema`), `mode` (`ask` where there are options or a turn is open, else `listen`), `key` (`<agent>/<n>` of the one conversation with a turn open, else `""`), `schema` (the JSON Schema the answer must fit, or `null` for text), `context` (list of [block](/reference/flows#context-blocks) JSON forms, `[]`), `face` (`{hash, title}` of the session's [face](/reference/flows#face), or `null`), `session` (`<role>/<n>` of the outworlder session asking, `""` for an agent's question) |
+| `answered` | `question`, `role`, `by`, `client`, `text` (the option chosen, or the text; for a `schema` question, the accepted value as JSON text) |
+| `shown` | `role`, `session`, `context`: blocks the flow put in front of that outworlder with nothing to answer (`Outworlder.show`). Not recorded while the role is away. |
 | `withdrawn` | `question`, `why`: `away` (the role went afk) or `over` (the run ended, stopped, was forced or the host closed) |
 | `said` | `text`, `key`, `by`, `client`: a line a conversation took |
 | `refused` | `agent`, `text`, `because` (the backend's error text, or `the agent refused it`) |
@@ -485,7 +503,7 @@ The latest of each type is kept and re-sent on attach; a changed one is broadcas
 | `sessions` | `run`, `open` (keys still open), `working` (keys with a turn open) | `0`, `[]`, `[]` |
 | `calls` | `calls`: `[{ref, name, depth, since (host monotonic), id, parent (index or null)}]` | `[]` |
 | `waiting` | `queued` `[{text, by, client, to}]`, `given` `[{agent, text, by, client}]` | `[]`, `[]` |
-| `pending` | `pending`: `[{question, run, role, text, options, mode, key, owner (client id or null)}]` | `[]` |
+| `pending` | `pending`: `[{question, run, role, text, options, mode, key, schema, context, face, session, owner (client id or null)}]`, the fields as the [`asked`](#history-records) record's | `[]` |
 | `usage` | `run`, `usage` (Usage JSON or `null`), `budget`; refreshed at most once a second | `0`, `null`, `null` |
 | `board` | `items`: `[{key, value, about, whose (both, user, flow), by, at}]`, or `null` for a run with no board; reset to `null` on start | `null` |
 

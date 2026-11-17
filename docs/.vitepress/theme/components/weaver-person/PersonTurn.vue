@@ -6,8 +6,10 @@
 // waits for what they type, which is the assistant's next prompt; an empty line ends
 // `while said:`. Away -- `hmz exec`, or /afk on -- `run` answers at once: `""` for text, the
 // schema's defaults where every field has one, else `OutworlderAway` (the `Outworlder`
-// docstring in src/hmz/flows/agents.py). It runs no model and spends nothing. The words and
-// the assistant's costs are drawn after the runs on that page.
+// docstring in src/hmz/flows/agents.py). It runs no model and spends nothing. Asked for a
+// shape -- `settle` on that page -- the person gets the whole model as one form, defaults
+// picked and marked suggested, never a question per field. The words and the assistant's
+// costs are drawn after the runs on that page.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
@@ -24,6 +26,7 @@ const BEATS = [
   'What they type is the next prompt',
   'An empty line ends while said:',
   'Away, it answers at once and spends nothing',
+  'Asked for a shape, it is one whole form',
 ]
 
 type Tok = [cls: '' | 'kw' | 'fn' | 'ty', text: string]
@@ -40,6 +43,14 @@ const ERROR = ["hmz exec: error: talk: 'human' is", 'assigned automatically by t
 const TYPED = 'Now in one word.'
 const SAID_1 = '● `calc.py` is a tiny module…'
 const SAID_2 = '● Calculator.'
+
+// `settle`'s form: every field at once, what the flow suggests already picked.
+const FORM_ROWS = [
+  { label: 'Which way should this be built?', opts: ['fast', 'careful · suggested'], picked: 1 },
+  { label: 'Write tests for it?', opts: ['Yes, write tests · suggested', 'No tests'], picked: 0 },
+]
+const FORM_OUT = "Settled(approach='fast', tests=True)"
+const FORM_H = 158
 
 // Along the time axis: the assistant's turns, the person's, and where the loop ends.
 const SPAN = { a1: [0, 0.22], h1: [0.26, 0.5], a2: [0.54, 0.74], h2: [0.78, 0.88] } as const
@@ -63,6 +74,7 @@ interface Layout {
   yH: number
   term: Box
   away: Box
+  form: Box
   print: { x: number; y: number }
   open: Shot
   whole: Shot
@@ -81,6 +93,7 @@ const WIDE: Layout = {
   yH: 150,
   term: { x: 362, y: 190, w: 260 },
   away: { x: 284, y: 266, w: 342 },
+  form: { x: 284, y: 186, w: 342 },
   print: { x: 14, y: 334 },
   open: { x: 141, y: 120, s: 1.35 },
   whole: { x: 320, y: 180, s: 1 },
@@ -99,6 +112,7 @@ const NARROW: Layout = {
   yH: 412,
   term: { x: 92, y: 450, w: 254 },
   away: { x: 14, y: 518, w: 332 },
+  form: { x: 14, y: 444, w: 332 },
   print: { x: 14, y: 616 },
   open: { x: 180, y: 140, s: 1.08 },
   whole: { x: 180, y: 315, s: 1 },
@@ -119,8 +133,24 @@ const lineY = (i: number) => L.value.code.y + 36 + i * LINE
 const codeH = 36 + (CODE.length - 1) * LINE + 12
 const typedX = computed(() => L.value.term.x + 24)
 
+// The form's rows: a label, then its choices side by side.
+const fy = (i: number) => L.value.form.y + 56 + i * 42
+const optW = (n: string) => n.length * CW + 14
+const formOpts = computed(() =>
+  FORM_ROWS.map((row) => {
+    let x = L.value.form.x + 12
+    return row.opts.map((n) => {
+      const o = { n, x, w: optW(n) }
+      x += o.w + 8
+      return o
+    })
+  }),
+)
+const submitW = optW('Submit')
+
 const scene = useScene({
-  still: 'rest',
+  // Held still on the whole loop and the away card, before the form takes their place.
+  still: 'summary',
   repeatDelay: 1.2,
   tick: (dt) => fx?.step(dt),
   build(tl, q) {
@@ -151,7 +181,8 @@ const scene = useScene({
 
     tl.set(one('.world'), { autoAlpha: 1 }, 0)
     tl.set(at('.code-line, .row, .err, .role, .cost, .term, .pill-word, .ends, .away, .a-row, .print, .zero'), { opacity: 0 }, 0)
-    tl.set(at('.card, .fill'), { opacity: 0 }, 0)
+    tl.set(at('.card, .fill, .form, .f-row, .submit, .form-out'), { opacity: 0 }, 0)
+    FORM_ROWS.forEach((row, i) => row.opts.forEach((_, j) => tl.set(one(`.on-${i}-${j}`), { opacity: j === row.picked ? 1 : 0 }, 0)))
     tl.set(at('.pill'), { scaleX: 0, transformOrigin: '0% 50%' }, 0)
     tl.set(at('.lane, .pass'), { drawSVG: '0%' }, 0)
     tl.set(caret, { opacity: 0, attr: { y: lineY(0) - 12 } }, 0)
@@ -229,9 +260,24 @@ const scene = useScene({
     cam.flare({ x: l.x0 + 20, y: l.yH + 27 }, ok, T4 + 1.8, 16, 60)
     tl.to(caret, { opacity: 0.35, duration: 0.6 }, T4 + 2.4)
 
-    tl.addLabel('rest', T4 + 3)
-    cam.shot({ ...l.whole, s: l.whole.s * 1.03 }, T4 + 2.4, 3, 'sine.inOut')
-    tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T4 + 5.6)
+    // 5 · asked for a shape: the whole model as one form, the suggestions already picked.
+    const T5 = T4 + 3.4
+    tl.addLabel('summary', T5)
+    tl.addLabel('beat-5', T5)
+    tl.to(at('.away, .term'), { opacity: 0, duration: 0.4 }, T5)
+    tl.fromTo(one('.form'), { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5 }, T5 + 0.3)
+    tl.to(at('.f-row'), { opacity: 1, duration: 0.4, stagger: 0.2 }, T5 + 0.6)
+    tl.to(one('.submit'), { opacity: 1, duration: 0.4 }, T5 + 1)
+    tl.to(one('.on-0-1'), { opacity: 0, duration: 0.25 }, T5 + 2)
+    tl.to(one('.on-0-0'), { opacity: 1, duration: 0.25 }, T5 + 2)
+    cam.flare({ x: formOpts.value[0][0].x + 20, y: fy(0) + 15 }, warm, T5 + 2, 12, 50)
+    tl.fromTo(one('.submit'), { opacity: 1 }, { opacity: 0.5, duration: 0.15, yoyo: true, repeat: 1 }, T5 + 2.8)
+    tl.fromTo(one('.form-out'), { opacity: 0, x: -6 }, { opacity: 1, x: 0, duration: 0.5 }, T5 + 3.1)
+    cam.flare({ x: l.form.x + 60, y: l.form.y + FORM_H - 16 }, ok, T5 + 3.2, 16, 60)
+
+    tl.addLabel('rest', T5 + 4)
+    cam.shot({ ...l.whole, s: l.whole.s * 1.03 }, T5 + 3.4, 3, 'sine.inOut')
+    tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T5 + 6.6)
 
     // The caret in the terminal blinks the whole time.
     tl.fromTo(tcaret, { opacity: 1 }, { opacity: 0.15, duration: 0.5, repeat: Math.ceil(tl.duration() / 0.5), yoyo: true, ease: 'steps(1)' }, 0)
@@ -246,7 +292,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="4 / 7"
-    label="The person as an agent. The flow talk declares human: Outworlder. Humanize fills that role itself, never -a: naming it with -a is refused with hmz exec: error: talk: 'human' is assigned automatically by the runtime and cannot be set with -a. In the loop, the assistant answers; human.run shows the person that answer and waits for what they type; what they type, Now in one word., is the assistant's next prompt. The next answer is shown, the person enters an empty line, and while said: ends after two turns. When the person is away, under hmz exec or with /afk on, run answers at once without asking: an empty string for text, the schema's defaults where every field has one, otherwise OutworlderAway. It runs no model and spends nothing: the assistant's cost goes up, the person's stays at zero."
+    label="The person as an agent. The flow talk declares human: Outworlder. Humanize fills that role itself, never -a: naming it with -a is refused with hmz exec: error: talk: 'human' is assigned automatically by the runtime and cannot be set with -a. In the loop, the assistant answers; human.run shows the person that answer and waits for what they type; what they type, Now in one word., is the assistant's next prompt. The next answer is shown, the person enters an empty line, and while said: ends after two turns. When the person is away, under hmz exec or with /afk on, run answers at once without asking: an empty string for text, the schema's defaults where every field has one, otherwise OutworlderAway. It runs no model and spends nothing: the assistant's cost goes up, the person's stays at zero. Asked for a shape, as settle asks for Settled, the person gets one whole form: Which way should this be built?, with fast and careful, careful picked and marked suggested; Write tests for it?, with Yes, write tests, picked and suggested, and No tests. The person picks fast and presses Submit, and the flow gets Settled(approach='fast', tests=True)."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <g class="world">
@@ -322,6 +368,26 @@ const scene = useScene({
           <g class="a-row"><text class="a-line" :x="L.away.x + 12" :y="L.away.y + 64">{{ 'otherwise            → ' }}<tspan class="x">OutworlderAway</tspan></text></g>
         </g>
         <text class="zero" :x="L.x0 + 44" :y="L.yH + 28">runs no model, spends nothing</text>
+
+        <!-- asked for a shape: one whole form -->
+        <g class="form">
+          <rect class="card-box form-box" :x="L.form.x" :y="L.form.y" :width="L.form.w" :height="FORM_H" rx="10" />
+          <text class="form-head" :x="L.form.x + 12" :y="L.form.y + 17">human.run(…, output_schema=Settled)</text>
+          <text class="form-q" :x="L.form.x + 12" :y="L.form.y + 36">How should I do this: add subtract?</text>
+          <g v-for="(row, i) in FORM_ROWS" :key="row.label" class="f-row">
+            <text class="f-label" :x="L.form.x + 12" :y="fy(i)">{{ row.label }}</text>
+            <g v-for="(o, j) in formOpts[i]" :key="o.n">
+              <rect class="opt-box" :x="o.x" :y="fy(i) + 6" :width="o.w" height="18" rx="5" />
+              <rect :class="['opt-on', `on-${i}-${j}`]" :x="o.x" :y="fy(i) + 6" :width="o.w" height="18" rx="5" />
+              <text class="opt-word" :x="o.x + o.w / 2" :y="fy(i) + 19" text-anchor="middle">{{ o.n }}</text>
+            </g>
+          </g>
+          <g class="submit">
+            <rect class="submit-box" :x="L.form.x + L.form.w - 12 - submitW" :y="L.form.y + FORM_H - 30" :width="submitW" height="20" rx="5" />
+            <text class="submit-word" :x="L.form.x + L.form.w - 12 - submitW / 2" :y="L.form.y + FORM_H - 16" text-anchor="middle">Submit</text>
+          </g>
+          <text class="form-out" :x="L.form.x + 12" :y="L.form.y + FORM_H - 16">{{ FORM_OUT }}</text>
+        </g>
       </g>
     </svg>
     <canvas ref="canvas" />
@@ -522,6 +588,68 @@ svg {
 .zero {
   font-size: 11px;
   font-style: italic;
+  fill: var(--hmz-accent);
+}
+
+.form-head,
+.opt-word,
+.submit-word,
+.form-out {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  white-space: pre;
+}
+
+.form-box {
+  stroke: var(--hmz-warm);
+  stroke-opacity: 0.7;
+}
+
+.form-head {
+  font-weight: 600;
+  fill: var(--hmz-stage-dim);
+}
+
+.form-q {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--hmz-stage-ink);
+}
+
+.f-label {
+  font-size: 11px;
+  fill: var(--hmz-stage-ink);
+}
+
+.opt-box {
+  fill: none;
+  stroke: var(--hmz-stage-line);
+  stroke-width: 1.1;
+}
+
+.opt-on {
+  fill: var(--hmz-warm);
+  fill-opacity: 0.18;
+  stroke: var(--hmz-warm);
+  stroke-width: 1.4;
+}
+
+.opt-word {
+  font-weight: 600;
+  fill: var(--hmz-stage-ink);
+}
+
+.submit-box {
+  fill: var(--hmz-accent);
+}
+
+.submit-word {
+  font-weight: 700;
+  fill: #fff;
+}
+
+.form-out {
+  font-weight: 700;
   fill: var(--hmz-accent);
 }
 </style>
