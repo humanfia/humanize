@@ -148,6 +148,21 @@ class Settings:
         self._sets("btw", spec)
 
     @property
+    def ai_chan(self) -> str:
+        """The nous a new Ai-chan conversation defaults to, as a nous's name or an agent spec.
+
+        This machine's rather than a workspace's (Section 3.4.3 of files.md): "" while nobody
+        has chosen one, which is no default, and a frontend asks for one instead.
+        """
+        said = self._held.get("ai_chan")
+        return said if isinstance(said, str) else ""
+
+    @ai_chan.setter
+    def ai_chan(self, spec: str) -> None:
+        """Writes down the nous a new Ai-chan conversation defaults to, or "" for none."""
+        self._sets("ai_chan", spec)
+
+    @property
     def every_epic(self) -> bool:
         """Whether `/epics` lists the epics of this whole machine rather than this directory's.
 

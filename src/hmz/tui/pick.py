@@ -113,6 +113,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "AI_NEW",
     "CONTINUES",
     "DETACHES",
     "EXPORTED",
@@ -122,6 +123,10 @@ __all__ = [
     "Account",
     "Accounts",
     "Agent",
+    "AiAsked",
+    "AiChanNew",
+    "AiChans",
+    "AiForgets",
     "Backing",
     "Backups",
     "Catalogue",
@@ -150,12 +155,15 @@ __all__ = [
     "Signs",
     "Speaks",
     "Targets",
+    "ai_chan",
+    "ai_scope",
     "budget_of",
     "called",
     "chatting",
     "complete",
     "declared_of",
     "named_as",
+    "nous_named",
     "opens_on",
     "params_model",
     "params_of",
@@ -11514,8 +11522,8 @@ class Adjusted(NamedTuple):
       forget: Whether to forget what this workspace was set up to run.
       told: What the pages that write for themselves -- the accounts, the runtimes and the
         nous -- did, as lines for the transcript.
-      btw: The agent that answers The Epic, as `cli@provider/model:effort` or "" for none,
-        or None where that was not touched.
+      ai_chan: The nous a new Ai-chan conversation defaults to, as a nous's name or an agent
+        spec, or "" for none, or None where that was not touched.
       corrected: The accounts corrected, as `(cli, name)`, whose models are to be asked for
         again: what an account runs follows from where it signs in, and a gateway moved is a
         list of models from the one it left.
@@ -11525,7 +11533,7 @@ class Adjusted(NamedTuple):
     details: bool | None = None
     forget: bool = False
     told: tuple[str, ...] = ()
-    btw: str | None = None
+    ai_chan: str | None = None
     corrected: tuple[tuple[str, str], ...] = ()
 
 
@@ -13399,3 +13407,381 @@ def _brought(daemon: str, name: str, at: Path) -> tuple[Path, int]:
             with contextlib.suppress(OSError, RuntimeError, ValueError):
                 client.call("files.close", {"handle": handle}, seconds=_ASKING)
     return at, written
+
+
+#: The first row of `/ai`, which makes a conversation rather than carrying one on.
+AI_NEW = "new"
+
+#: What an Ai-chan conversation may reach, widest first, and what it may change there
+#: (Section 14.2.3 and Section 14.2.4 of core.md).
+_AI_SCOPES = ("daemon", "workspace", "epic")
+_AI_PRESETS = ("read-only", "danger-full-access")
+
+#: The rows of the form a new conversation is asked on, in the order Section 7.19.3 of
+#: tui.md asks them.
+_AI_SCOPE, _AI_NOUS, _AI_PRESET, _AI_NETWORK = "scope", "nous", "preset", "network"
+
+#: How each state of a conversation is said on its row (Section 4.22.3.2 of daemon.md).
+_AI_STATES = {
+    "running": "answering",
+    "waiting": "between turns",
+    "folded": "folded away",
+}
+
+
+def ai_chan(method: str, **params: Any) -> Any:
+    """One `aichan.*` call of this machine's daemon (Section 4.22 of daemon.md), answered.
+
+    Args:
+      method: `list`, `create` or `forget`.
+      **params: What it takes.
+
+    Returns:
+      What the daemon answered.
+
+    Raises:
+      LookupError, OSError, RuntimeError, ValueError: If it was not reached or refused it,
+        saying why.
+    """
+    return _rpc(LOCAL_DAEMON, f"aichan.{method}", params, writes=method != "list")
+
+
+def nous_named() -> list[str]:
+    """Every nous this machine's daemon has, by name, as `nous.list` answers them.
+
+    Returns:
+      The names, in the order written down.
+
+    Raises:
+      LookupError, OSError, RuntimeError, ValueError: If it was not reached or refused it,
+        saying why.
+    """
+    listed = _rpc(LOCAL_DAEMON, "nous.list")
+    return [str(one["name"]) for one in listed.get("nous") or ()]
+
+
+def ai_scope(one: Mapping[str, Any]) -> str:
+    """What one Ai-chan conversation may reach, as a row and the status line say it.
+
+    Args:
+      one: The conversation, as `aichan.list` answers it.
+
+    Returns:
+      `daemon`, `workspace <dir>` or `epic <name>`.
+    """
+    scope = str(one.get("scope") or "")
+    if scope == "epic":
+        return f"epic {one.get('epic') or ''}"
+    if scope == "workspace":
+        return f"workspace {_homed(str(one.get('workspace') or ''))}"
+    return scope
+
+
+def _ai_row(one: Mapping[str, Any]) -> str:
+    """What one conversation is, beside its title: scope, nous, permission and how it stands."""
+    state = str(one.get("state") or "")
+    return _DOT.join(
+        [
+            ai_scope(one),
+            str(one.get("nous") or ""),
+            str(one.get("preset") or ""),
+            "network on" if one.get("network") else "network off",
+            _AI_STATES.get(state, state),
+        ]
+    )
+
+
+class AiChans(Picks):
+    """`/ai`: a new Ai-chan conversation, and every one the daemon holds, newest first.
+
+    Enter on one follows it in the log screen; `m` on one offers forgetting it. Read once as
+    the menu opens, and again after a conversation is forgotten.
+    """
+
+    asked = "Ai-chan"
+    about = (
+        "Talk to Ai-chan, who operates hmz for you: carry a conversation on, or start a "
+        "new one."
+    )
+
+    def __init__(self, conversations: Sequence[Mapping[str, Any]]) -> None:
+        """Lists the conversations `aichan.list` answered.
+
+        Args:
+          conversations: Each, newest first, as it answered.
+        """
+        super().__init__(AI_NEW)
+        self._conversations = [dict(one) for one in conversations]
+        self._said = ""
+        #: The ids of the conversations forgotten from here.
+        self.forgotten: set[int] = set()
+
+    def conversation(self, picked: str) -> dict[str, Any] | None:
+        """One conversation listed now, by the id the menu answered with.
+
+        Args:
+          picked: The id, as the menu answered it.
+
+        Returns:
+          The conversation, as `aichan.list` answered it, or None for none of them.
+        """
+        return next(
+            (one for one in self._conversations if str(one["id"]) == picked), None
+        )
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """New, then each conversation by its id."""
+        return [
+            (AI_NEW, "New", "a conversation of its own scope, nous and permission"),
+            *(
+                (
+                    str(one["id"]),
+                    f"Ai-chan#{one['id']}{_DOT}{one.get('title') or ''}",
+                    _ai_row(one),
+                )
+                for one in self._conversations
+            ),
+        ]
+
+    def nothing(self) -> str:
+        """What went wrong forgetting one, or that there are none yet."""
+        if self._said:
+            return f"[$error]{escape(self._said)}[/]"
+        return "" if self._conversations else "no conversation yet"
+
+    def menu(self) -> tuple[str, list[Action]] | None:
+        """Forgetting the conversation under the cursor, after asking."""
+        one = self.conversation(self.under())
+        if one is None:
+            return None
+        return (
+            f"Ai-chan#{one['id']}",
+            [
+                Action(
+                    "forget",
+                    "forget",
+                    "forget the conversation and its scratch directory",
+                    partial(self._forgets, int(one["id"])),
+                    variant="error",
+                )
+            ],
+        )
+
+    @work
+    async def _forgets(self, number: int) -> None:
+        """Asks whether to forget one conversation, and forgets it by `aichan.forget`.
+
+        Args:
+          number: Its id.
+        """
+        import asyncio
+
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        if await showing.push_screen_wait(AiForgets(number)) != "yes":
+            return
+        try:
+            await asyncio.to_thread(ai_chan, "forget", id=number)
+            self.forgotten.add(number)
+            listed = await asyncio.to_thread(ai_chan, "list")
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._said = str(why)
+        else:
+            self._said = ""
+            self._conversations = [dict(one) for one in listed["conversations"]]
+        self._rows = None
+        self._fill()
+
+
+class AiForgets(Popup):
+    """Whether to forget one Ai-chan conversation, which cannot be carried on after."""
+
+    CSS = _popup("AiForgets")
+
+    def __init__(self, number: int) -> None:
+        """Initializes the question.
+
+        Args:
+          number: The conversation's id.
+        """
+        super().__init__()
+        self.asked = f"Forget Ai-chan#{number}?"
+        self.about = (
+            "Its conversation and scratch directory go; it cannot be carried on."
+        )
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Forgetting it, or keeping it."""
+        return [("yes", "forget", "forget it now"), ("no", "keep", "keep it")]
+
+
+class AiAsked(NamedTuple):
+    """A new Ai-chan conversation as the form of `/ai` set it up, waiting for its task.
+
+    Attributes:
+      scope: `daemon`, `workspace` or `epic`.
+      workspace: The workspace of a `workspace` or `epic` scope, else "".
+      epic: The epic of an `epic` scope, else "".
+      nous: What Ai-chan thinks with: a nous's name or an agent spec.
+      preset: `read-only` or `danger-full-access`.
+      network: Whether her harness may reach the network.
+    """
+
+    scope: str
+    workspace: str
+    epic: str
+    nous: str
+    preset: str
+    network: bool
+
+    def made(self, task: str) -> dict[str, Any]:
+        """What `aichan.create` takes for this conversation, `task` its first message.
+
+        Args:
+          task: The first line said.
+
+        Returns:
+          The params.
+        """
+        return {
+            "scope": self.scope,
+            **({"workspace": self.workspace} if self.scope != "daemon" else {}),
+            **({"epic": self.epic} if self.scope == "epic" else {}),
+            "nous": self.nous,
+            "preset": self.preset,
+            "network": self.network,
+            "task": task,
+        }
+
+
+class AiChanNew(Form[AiAsked]):
+    """A new Ai-chan conversation: its scope, its nous, its preset and its network.
+
+    Asked as Section 7.19.3 of tui.md orders them, each defaulting as Section 14.3 of core.md
+    says; the task is the first line said once the form is done.
+    """
+
+    def __init__(
+        self, nouses: Sequence[str], *, workspace: str, epic: str, nous: str
+    ) -> None:
+        """Opens on the defaults.
+
+        Args:
+          nouses: Every nous, by name, as `nous.list` answers them.
+          workspace: The workspace this interface follows.
+          epic: The epic going or last on the host this interface follows, or "" for none.
+          nous: The `ai_chan` setting, or "" where it names none.
+        """
+        super().__init__()
+        self._workspace, self._epic = workspace, epic
+        self._typed_in = {
+            _AI_SCOPE: "epic" if epic else "workspace",
+            _AI_NOUS: nous,
+            _AI_PRESET: _AI_PRESETS[0],
+            _AI_NETWORK: _NO,
+        }
+        self._nouses = list(nouses)
+        if nous and nous not in self._nouses:
+            self._nouses.insert(0, nous)
+
+    def asked(self) -> list[Question]:
+        """The scope, the nous, the preset and the network."""
+        typed = self._typed_in
+        return [
+            Question(
+                _AI_SCOPE, "scope", self.means(_AI_SCOPE, typed[_AI_SCOPE]), _STEPS
+            ),
+            Question(
+                _AI_NOUS,
+                "nous",
+                # An agent of its own is set up as the `ai_chan` setting, on /settings.
+                "what Ai-chan thinks with"
+                if self._nouses
+                else "what Ai-chan thinks with, as -a spells an agent",
+                _STEPS if self._nouses else _WRITES,
+                needed=not typed[_AI_NOUS].strip(),
+            ),
+            Question(
+                _AI_PRESET, "preset", self.means(_AI_PRESET, typed[_AI_PRESET]), _STEPS
+            ),
+            Question(
+                _AI_NETWORK,
+                "network",
+                "whether her harness may reach the network",
+                _STEPS,
+            ),
+        ]
+
+    def choices(self, held: str) -> Sequence[str]:
+        """What each stepped row is picked from.
+
+        Args:
+          held: The row.
+
+        Returns:
+          Its values.
+        """
+        if held == _AI_SCOPE:
+            return _AI_SCOPES if self._epic else _AI_SCOPES[:2]
+        if held == _AI_NOUS:
+            return self._nouses
+        if held == _AI_PRESET:
+            return _AI_PRESETS
+        return (_YES, _NO)
+
+    def means(self, held: str, value: str) -> str:
+        """What a scope reaches, and what a preset lets her change.
+
+        Args:
+          held: The row.
+          value: The value.
+
+        Returns:
+          A few words, or "" for a value that says itself.
+        """
+        if held == _AI_SCOPE:
+            return {
+                "daemon": "every workspace and epic of this daemon",
+                "workspace": f"{_homed(self._workspace)} and its epics",
+                "epic": f"the epic {self._epic} of {_homed(self._workspace)}",
+            }.get(value, "")
+        if held == _AI_PRESET:
+            return {
+                "read-only": "she reads, and changes nothing",
+                "danger-full-access": "she may change what her scope reaches",
+            }.get(value, "")
+        return ""
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "the first line you say starts the conversation"
+
+    def _ask(self) -> None:
+        """Says what this is."""
+        self.query_one("#asked", Label).update("New Ai-chan conversation")
+        self.query_one("#about", Label).update(
+            "What she may reach, what she thinks with, and what she may change: none of "
+            "it changes once the conversation is made."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the conversation set up, once it has a nous."""
+        typed = {key: value.strip() for key, value in self._typed_in.items()}
+        if not typed[_AI_NOUS]:
+            self._wrong = "Name Ai-chan's nous: the ai_chan setting names none."
+            self._fill()
+            return
+        scope = typed[_AI_SCOPE]
+        self.dismiss(
+            AiAsked(
+                scope=scope,
+                workspace="" if scope == "daemon" else self._workspace,
+                epic=self._epic if scope == "epic" else "",
+                nous=typed[_AI_NOUS],
+                preset=typed[_AI_PRESET],
+                network=typed[_AI_NETWORK] == _YES,
+            )
+        )

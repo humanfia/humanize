@@ -96,10 +96,10 @@ def workspace(where: str | os.PathLike[str] | None = None) -> str:
     return str(Path(where or Path.cwd()).resolve())
 
 
-#: What names a host beside a workspace's own: a chat's, `chat:` and a few hex digits, or one
-#: `hmz exec`'s, `exec:` and a few. A workspace's own host -- the one its flows run in, one at
-#: a time -- is the slot "".
-_SLOT = re.compile(r"(?:(?:chat|exec):[0-9a-f]{1,32})?")
+#: What names a host beside a workspace's own: a chat's, `chat:` and a few hex digits, one
+#: `hmz exec`'s, `exec:` and a few, or an Ai-chan conversation's, `ai:` and a few. A
+#: workspace's own host -- the one its flows run in, one at a time -- is the slot "".
+_SLOT = re.compile(r"(?:(?:chat|exec|ai):[0-9a-f]{1,32})?")
 
 
 def slot(said: object) -> str:
@@ -111,7 +111,8 @@ def slot(said: object) -> str:
 
     Args:
       said: What was asked for: "" or None for the workspace's own host, `chat:<hex>` for a
-        chat's, `exec:<hex>` for an `hmz exec`'s.
+        chat's, `exec:<hex>` for an `hmz exec`'s, `ai:<hex>` for an Ai-chan
+        conversation's.
 
     Returns:
       The slot.
