@@ -210,9 +210,7 @@ def test_the_leader_is_joined_only_where_the_config_says(
     ("said", "approved"),
     [
         ({"fence": _WRITES}, True),
-        ({"fence": _WRITES, "permission": "read-only"}, True),
         ({}, False),
-        ({"permission": "bypass"}, False),
     ],
 )
 def test_a_fence_that_writes_is_held_open_with_the_approval(
@@ -247,9 +245,7 @@ _EVERY = [
     ("said", "options", "chosen"),
     [
         ({"fence": _WRITES}, _EVERY, "allow"),
-        ({"fence": _WRITES, "permission": "read-only"}, _EVERY, "allow"),
         ({}, _EVERY, "reject"),
-        ({"permission": "bypass"}, _EVERY, "reject"),
         ({"fence": _WRITES}, _EVERY[:1], "always"),
         (
             {"fence": _WRITES},
@@ -326,8 +322,10 @@ def test_a_session_grok_will_not_open_fails_the_turn(
     assert "no session for you" in str(failed.value.stderr)
 
 
-#: The tools a fence that writes nothing starts Grok Build with: the readers and its shell.
+#: The tools a fence that writes nothing starts Grok Build with: the readers and its shell,
+#: and its web tools where it may search the web.
 _READERS = "read_file,grep,list_dir,run_terminal_cmd"
+_SEARCHERS = f"{_READERS},web_search,web_fetch"
 
 #: What `grok --single` writes with `--output-format streaming-json`.
 _SINGLE = (
@@ -345,11 +343,15 @@ _SINGLE = (
     [
         (
             {"fence": _READS},
-            ["--always-approve", "--tools", _READERS],
+            ["--always-approve", "--tools", _SEARCHERS],
         ),
         (
-            {"fence": _READS, "permission": "bypass"},
-            ["--always-approve", "--tools", _READERS],
+            {"fence": _READS, "web_search": True},
+            ["--always-approve", "--tools", _SEARCHERS],
+        ),
+        (
+            {"fence": Fence(online=False)},
+            ["--always-approve", "--tools", _READERS, "--disable-web-search"],
         ),
         (
             {"fence": Fence(write=("/somewhere",), online=False)},

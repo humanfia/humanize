@@ -2345,17 +2345,13 @@ def _read_only(source: AgentBase, name: str, asks: _Asks | None = None) -> Agent
         else Fence.of(rules=[("/", READ)], online=True, workdir=os.sep, home="")
     )
     settings: dict[str, object] = {"fence": reading, "goals": False}
-    # The rung the flow's `read-only` preset maps to, where the harness has one; one that has
-    # none runs unattended, every request granted, and the fence holds it -- never at a rung
-    # of its source's that would wait on an approval nobody answers.
-    rungs = type(source).rungs
-    settings["permission"] = "read-only" if "read-only" in rungs else "bypass"
     # Claude's allow-list can approve a write in a normal permission mode, and Cursor's MCP
     # approval would reach every server this workspace names on the flow's say-so.
     if hasattr(source.config, "allowed_tools"):
         settings["allowed_tools"] = ()
-    # Claude's `asks` would start the copy at `manual`, putting every request to approval --
-    # a source's hook hung on PERMISSION_REQUEST is not the side conversation's to wait on.
+    # Claude's `asks` would start the copy at `manual`, putting every request to approval, and
+    # Kimi's at `yolo` -- a source's hook hung on PERMISSION_REQUEST is not the side
+    # conversation's to wait on.
     if hasattr(source.config, "asks"):
         settings["asks"] = False
     if hasattr(source.config, "approve_mcps"):

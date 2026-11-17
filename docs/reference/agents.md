@@ -21,10 +21,9 @@ views the flow runtime makes over it (`hmz.runtime.flowing.harnesses.HarnessDriv
 | **Backend** | One coding agent CLI, named by the command it is installed as (`claude`, `codex`, …), or an [ACP CLI](#a-cli-of-your-own) added on this machine. |
 | **Profile** | `hmz.coganchor.backends.Profile`: the facts about one backend that are not code (home, logs, ladders, hosts, ways in). `backends.PROFILES` holds the built-in ones. |
 | **Agent** | An instance of a backend's `AgentBase` subclass: a backend at one config. Holds sessions. |
-| **Config** | A frozen `AgentConfig` subclass: model, effort, rung, account, machine, fence, budget, and backend fields. |
+| **Config** | A frozen `AgentConfig` subclass: model, effort, account, machine, fence, budget, and backend fields. |
 | **Session** | One conversation with the backend, identified by the backend's own id once its first turn lands. |
 | **Turn** | One prompt and everything the CLI does until it answers, ending on exactly one `result` event. |
-| **Rung** | One of the four [permission](#what-an-agent-may-do) levels: `read-only`, `workspace-write`, `auto`, `bypass`. |
 | **Effort** | How hard the model is asked to think, in the backend's own words ([Efforts](#efforts)). |
 | **Moment** | A point of a turn a [hook](#hooks) may be hung on. |
 | **Fence** | What the agent's processes may reach ([The fence](#the-fence)). |
@@ -165,11 +164,10 @@ subclasses it; [Backend notes](#backend-notes) lists each subclass's own fields.
 | `effort` | `str` | required | A rung of the backend's [ladder](#efforts); `""` or `"auto"` for none. |
 | `service_tier` | `str` | `"default"` | `"default"` or `"fast"` ([Service tier](#the-service-tier)). |
 | `machine` | `MachineConfig \| None` | `None` | Where turns land ([Machines](/reference/machines)). |
-| `permission` | `str` | `""` | A [rung](#what-an-agent-may-do), or `""` for none said. |
 | `provider` | `str` | `""` | The [account](/reference/providers); `""` for the CLI as signed in. |
 | `goals` | `bool` | `True` | Whether [goals](#goals) and work-past-the-turn tools are available. |
 | `web_search` | `bool \| None` | `None` | [Web search](#whether-an-agent-may-search-the-web): on, off, or unsaid. |
-| `fence` | `Fence \| None` | `None` | What the agent's processes may reach ([The fence](#the-fence)). |
+| `fence` | `Fence \| None` | `None` | What the agent's processes may reach ([The fence](#the-fence)), and the grant its CLI is [told](#what-an-agent-may-do). |
 | `budget` | `Budget \| None` | `None` | What each turn may spend ([Budgets](#cutting-a-turn-off-and-what-one-turn-may-spend)). |
 
 The config is checked twice: by `__post_init__` when it is built (`ValueError`), and by the
@@ -179,10 +177,8 @@ agent when it is made, reconfigured, or has its effort moved (`Unserved`, a `Val
 | Refused | Error and message |
 | --- | --- |
 | a tier other than `default`/`fast` | `ValueError: service_tier must be one of default, fast, not 'slow'` |
-| a rung that is not one of the four | `ValueError: permission must be one of read-only, workspace-write, auto, bypass, not 'all'` |
 | an effort off the ladder | `Unserved: claude cannot be asked to think at 'warp'; expected one of ultracode, max, xhigh, high, medium, low` |
 | a tier the backend does not serve | `Unserved: PiAgent does not support service tier 'fast'; expected default` |
-| a rung the backend does not take | `Unserved: DshAgent cannot be held to 'read-only'; expected bypass, or left unsaid for the agent as whoever installed the CLI configured it` |
 | `web_search=False` on a backend that cannot be told | `Unserved: PiAgent has no way of being told not to search the web; web_search must be on for it` |
 | a fence that cannot be held | `Unfenced: …` ([conditions](#when-a-fence-is-refused)) |
 | backend-specific combinations | listed under each backend in [Backend notes](#backend-notes) |
@@ -333,11 +329,11 @@ Per backend:
 | Backend | Writes nothing | Writes somewhere | With a hook hung |
 | --- | --- | --- | --- |
 | `agy` | `--agent hmz-read-only` (the reading tools and `run_command`), `--dangerously-skip-permissions` | `--dangerously-skip-permissions` | — |
-| `claude` | `--tools` the default built-ins but `Edit`, `Write`, `NotebookEdit` (`Bash` kept), `bypassPermissions` | `bypassPermissions` | `PERMISSION_REQUEST`: `manual` in place of `bypassPermissions` |
+| `claude` | `--tools default`, `--disallowedTools Edit,Write,NotebookEdit` (`Bash` kept), `bypassPermissions` | `bypassPermissions` | `PERMISSION_REQUEST`: `manual` in place of `bypassPermissions` |
 | `codex` | sandbox `read-only`, approval `never` | sandbox `danger-full-access`, approval `never` | `PERMISSION_REQUEST`: approval `untrusted` |
 | `cursor-agent` | `--force --sandbox disabled`: every tool, the fence holds | the same | — |
 | `dsh` | every request granted, the fence holds | the same | — |
-| `grok` | `--always-approve --tools read_file,grep,list_dir,run_terminal_command` | `--always-approve` | — |
+| `grok` | `--always-approve --tools read_file,grep,list_dir,run_terminal_cmd`, and `web_search,web_fetch` on the end unless web search is off | `--always-approve` | — |
 | `kimi` | `auto`, plan mode off, the write and edit tools in `disabled_tools` | `auto` | `PERMISSION_REQUEST` or `ASK_USER`: `yolo` in place of `auto` |
 | `litellm` | nothing said | nothing said | — |
 | `mcode` | `--permission full`, the fence holds | the same | — |
@@ -360,7 +356,7 @@ Per-backend rules:
   moves the process to `acceptEdits` with a `set_permission_mode` control request, starts every
   later process of the agent on that account at `acceptEdits` with every request granted and
   the same tools withheld, and says once: `claude: this account will not run an agent at
-  bypass, so it runs at acceptEdits, where what it asks for is granted`. The same holds where
+  bypassPermissions, so it runs at acceptEdits, where what it asks for is granted`. The same holds where
   Claude runs as root without `IS_SANDBOX=1`. With a `PERMISSION_REQUEST` hook hung
   (`ClaudeCodeAgentConfig.asks`) it runs at `manual`, so every tool that would change something
   reaches the hook, and what is asked is answered `allow` unless the hook refuses. The CLI
@@ -542,8 +538,11 @@ its state in the same way before the turn, through no such link.
 
 The minimum granted whatever the rules is `LINUX_SYSTEM` and `LINUX_DEVICES` on Linux, and
 `DARWIN_SYSTEM` (`/usr`, `/bin`, `/sbin`, `/System`, `/private/var/select`,
-`/private/var/db/timezone` and the handful of files under `/etc` a program reads to start) and
-`DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
+`/private/var/db/timezone`, the handful of files under `/etc` a program reads to start, and
+the developer tools Apple's `xcrun` shims in `/usr/bin` load: `/private/var/db/xcode_select_link`,
+`/Library/Developer/CommandLineTools`, `/Applications/Xcode.app` and Xcode's license plist
+`/Library/Preferences/com.apple.dt.Xcode.plist`, with the directory `xcode-select` chose
+wherever else it is, the whole app where it is inside one) and `DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
 pseudo-terminals `/dev/ttys*` writable. Seatbelt also lets the current user's `mds`
 directory under `DARWIN_USER_CACHE_DIR` be written, reached as the fence's own paths are and
 granted nothing where it is a link: the Security framework locks its module database there to
@@ -960,10 +959,10 @@ A refusal reaches the agent only on a backend that waits for the answer:
 
 | Backend | When it asks | Default answer with no refusing hook |
 | --- | --- | --- |
-| `claude` | at `read-only` and `bypass`: `--permission-prompt-tool stdio` routes every request over the stream | yes at `bypass`; no at `read-only`; at the other rungs and with no rung nothing is routed |
-| `codex` | through the app server, at `auto` (`on-request`) and at any rung given `approvals` | yes at every rung; no with no rung |
+| `claude` | under a fence: `--permission-prompt-tool stdio` routes every request over the stream (all of them at `manual`, while `asks`) | yes under a fence; with none nothing is routed |
+| `codex` | through the app server, where the approval policy asks: `untrusted` while `approvals` says so, `on-request` where full access is forbidden | yes under a fence; no with none |
 | `grok` | `session/request_permission`, on the held-open transport only | yes under a fence; no with none |
-| `kimi` | each approval on the daemon's `/approvals`: at `auto`, and at `read-only` or no rung | yes at `auto`; no at `read-only` and with no rung |
+| `kimi` | each approval on the daemon's `/approvals`: at `yolo` under a fence while `asks`, and at the `manual` an unfenced agent starts at | yes under a fence; no with none |
 
 A hook can turn a yes into a no, never a no into a yes. Under a flow, Codex's refusal carries
 no reason, so the reason is steered into the turn instead.
@@ -1624,7 +1623,7 @@ fall `idle` first, which ends nothing.
 | `overrides` | `()` | `-c` pairs; only `model_context_window` and `model_auto_compact_token_limit`, positive integers, the second below the first. Dropped when a fallback changes the model. |
 | `features` | `()` | `--enable`/`--disable` pairs by `codex features list` names; `goals` and names beginning `browser_use`, `computer_use`, `standalone_web_search`, `web_search` are refused |
 | `strict_config` | `False` | `--strict-config` |
-| `approvals` | `""` | approval policy replacing the rung's: `untrusted`, `on-request`, `on-failure`, `never` |
+| `approvals` | `""` | approval policy replacing the `never` a fenced agent runs at: `untrusted`, `on-request`, `on-failure`, `never`; nothing for an agent with no fence |
 | `unsandboxed` | `()` | names of fake command lines the agent shelves that run outside Codex's sandbox, by `prefix_rule(pattern=["<name>"], decision="allow")` in `rules/hmz.rules` of the virtual home, beside links to your own rule files; every other command stays in the sandbox |
 
 | Refusal | `ValueError` message |
@@ -1652,7 +1651,8 @@ fall `idle` first, which ends nothing.
   writes into `config.toml` for each workspace it opens a writing thread in is dropped with it.
   The project's `AGENTS.md` and `.codex/config.toml` are read as Codex reads them.
 - No hook table: Codex runs hooks only once trusted in the user's `config.toml`.
-- On another machine, a sandboxed rung whose fence is at least as narrow is sent
+- On another machine, a sandbox (`read-only`, or `workspace-write` where full access is
+  forbidden) whose fence is at least as narrow is sent
   `sandboxPolicy: externalSandbox` ([Remote execution](/reference/remote-execution#a-fence-on-both-machines)).
 - Supervised with its commands on another machine (any anchor but `native`), the server starts
   with `--disable shell_snapshot` unless `features` names it: Codex writes its shell capture
@@ -1669,7 +1669,7 @@ fall `idle` first, which ends nothing.
 
 ```text
 cursor-agent --print --output-format stream-json --workspace <dir> --model <id>
-  [--resume=<chat id>] [<rung flags>] [--trust] [--stream-partial-output] [--approve-mcps]
+  [--resume=<chat id>] [--force --sandbox disabled] [--trust] [--stream-partial-output] [--approve-mcps]
   [--add-dir <dir>]... -- <prompt>
 ```
 
@@ -1687,8 +1687,9 @@ cursor-agent --print --output-format stream-json --workspace <dir> --model <id>
   is used as is. Bracket syntax (`gpt-5.2[effort=low]`) is not built.
 - The id is checked against the account's last catalogue: an unlisted rung is `Unserved`,
   naming those listed. An account never asked refuses nothing.
-- On another machine, `workspace-write` runs `--force --sandbox disabled` where the fence writes
-  nothing of the home or system.
+- `--force --sandbox disabled` goes on every fenced turn, whatever the fence writes, and on no
+  other: `cursor-agent` cannot withhold its writing tools and keep the shell, so the fence holds
+  the grant.
 - Each turn runs in a [virtual home](#virtual-homes) (`CURSOR_CONFIG_DIR`) carrying the flow's
   skills in `skills/` beside links to the user's.
 - `cursor-agent-local`, pointed at an OpenAI-compatible endpoint with
@@ -1711,8 +1712,8 @@ effort goes in the handshake.
   them. Re-read every turn, so a reconfigured agent gets a rebuilt runtime.
 - `web_search`: `False` unmounts the web; unset keeps the profile's. Under a gateway account the
   web keeps `web_fetch` and loses its DeepSeek search.
-- Every runtime runs at `DSH_PERMISSION_MODE=danger-full-access` (`bypass`): the SDK answers no
-  approval request, so the fence is what confines it.
+- Every runtime runs at `DSH_PERMISSION_MODE=danger-full-access`, every request granted: the SDK
+  answers no approval request, so the fence is what confines it.
 - Under a fence that cuts the network, a model endpoint on loopback is unreachable: the runtime
   connects to loopback directly, never through the fence's proxy.
 - `Unrecoverable`: the length refusal, a session id the runtime will not resume, and any
@@ -1734,8 +1735,8 @@ effort goes in the handshake.
 ### Grok Build {#grok-build}
 
 `grok`. Ordinary turns are `session/prompt` on a held `grok agent stdio`, which takes only a
-model, an effort, an approval, an agent profile, a plugin directory and the leader. A
-tool-withholding rung, `web_search=False`, a network-cutting fence, a shape, a fork, or any field
+model, an effort, an approval, an agent profile, a plugin directory and the leader. A fence
+that writes nothing (its tools an allowlist), `web_search=False`, a network-cutting fence, a shape, a fork, or any field
 below but `leader` set away from default sends the turn to
 `grok -p --output-format streaming-json --resume <id> …` instead. `grok -p` takes no MCP
 server, so such a turn is refused while [fake tools](#callbacks-as-tools) are offered.
@@ -1829,7 +1830,8 @@ No fields of its own.
   [Through LiteLLM](/reference/providers#through-litellm).
 - `--effort` is sent only where the account's catalogue lists the rung for the model (only
   `minimax/MiniMax-M3.1-Flash-Preview` takes rungs).
-- `read-only` is refused; `web_search=False` and a network-cutting fence are refused.
+- A fenced turn runs at `--permission full`, whatever the fence writes; an unfenced one is told
+  nothing. `web_search=False` and a network-cutting fence are refused.
 - The stream reports its `task` tool as `SUBAGENT_START`/`SUBAGENT_STOP`; usage arrives on the
   closing result, and the running cost reads its session log.
 - Each start creates `<data directory>.lock` beside its data directory: in a virtual home,
@@ -2127,7 +2129,6 @@ class AgentBase:
     moments: ClassVar[frozenset[Moment]]
     pursues: ClassVar[bool]
     service_tiers: ClassVar[tuple[str, ...]]
-    rungs: ClassVar[tuple[str, ...]]
     counts: ClassVar[frozenset[str]]
 
     id: str; backend: str; config: AgentConfig; effort: str  # settable

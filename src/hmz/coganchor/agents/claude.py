@@ -1118,14 +1118,14 @@ class ClaudeCodeSession(StreamSessionBase):
         if not isinstance(self._agent, ClaudeCodeAgent) or not self._agent.declined():
             return ""
         return (
-            "claude: this account will not run an agent at bypass, so it runs at "
+            "claude: this account will not run an agent at bypassPermissions, so it runs at "
             f"{_DECLINED}, where what it asks for is granted"
         )
 
     def _stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
     ) -> Iterator[Event]:
-        """Takes one turn, starting it again at :data:`_DECLINED` where Claude refused bypass.
+        """Takes one turn, again at :data:`_DECLINED` where Claude refused `bypassPermissions`.
 
         Claude will not start at `bypassPermissions` as root outside a sandbox it was told of
         (`IS_SANDBOX=1`): it says so on stderr and exits before it has read the turn -- and

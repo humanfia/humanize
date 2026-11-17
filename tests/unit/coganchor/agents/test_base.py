@@ -1222,13 +1222,7 @@ def test_an_agent_says_where_it_runs() -> None:
     assert agent.fenced() is None
 
 
-def test_a_fence_or_rung_or_tier_the_backend_cannot_carry_is_refused() -> None:
-    class Narrow(Scripted):
-        rungs: ClassVar[tuple[str, ...]] = ("read-only",)
-
-    with pytest.raises(Unserved, match="cannot be held to 'bypass'"):
-        Narrow(AgentConfig(model="m", effort="", permission="bypass"))
-    assert Narrow(AgentConfig(model="m", effort="", permission="read-only"))
+def test_a_tier_or_web_switch_the_backend_cannot_carry_is_refused() -> None:
     with pytest.raises(Unserved, match="service tier 'fast'"):
         Scripted(AgentConfig(model="m", effort="", service_tier="fast"))
     with pytest.raises(Unserved, match="search the web"):

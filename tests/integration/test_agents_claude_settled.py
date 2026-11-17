@@ -16,6 +16,7 @@ import pytest
 from hmz.coganchor.agents import (
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
+    KimiCodeCLIAgentConfig,
     Question,
 )
 from hmz.flows import HarnessKind, HookKind, Permission
@@ -68,7 +69,6 @@ def _settled(
     config = settled(
         ClaudeCodeAgentConfig(model="claude-stand-in", effort=""),
         HarnessKind.CLAUDE,
-        ClaudeCodeAgent,
         permission,
         hung,
         tellable=True,
@@ -79,23 +79,51 @@ def _settled(
 
 
 @pytest.mark.parametrize(
-    ("permission", "hung", "rung", "asks"),
+    ("permission", "hung", "writes", "asks"),
     [
-        (READ, frozenset({HookKind.ASK_USER}), "read-only", False),
-        (Permission(), frozenset[HookKind](), "bypass", False),
-        (Permission(), frozenset({HookKind.PERMISSION_REQUEST}), "bypass", True),
+        (READ, frozenset({HookKind.ASK_USER}), False, False),
+        (Permission(), frozenset[HookKind](), True, False),
+        (Permission(), frozenset({HookKind.PERMISSION_REQUEST}), True, True),
     ],
 )
-def test_the_runtime_settles_the_rung_and_asks_from_the_hooks_hung(
+def test_the_runtime_settles_the_fence_and_asks_from_the_hooks_hung(
     tmp_path: Path,
     permission: Permission,
     hung: frozenset[HookKind],
-    rung: str,
+    writes: bool,
     asks: bool,
 ) -> None:
     config = _settled(permission, hung, tmp_path)
 
-    assert (config.permission, config.asks) == (rung, asks)
+    assert config.fence is not None
+    assert (config.fence.writes, config.asks) == (writes, asks)
+    assert not hasattr(config, "permission")
+
+
+@pytest.mark.parametrize(
+    ("hung", "asks"),
+    [
+        (frozenset[HookKind](), False),
+        (frozenset({HookKind.STOP, HookKind.PRE_TOOL_USE}), False),
+        (frozenset({HookKind.PERMISSION_REQUEST}), True),
+        (frozenset({HookKind.ASK_USER}), True),
+    ],
+)
+def test_kimi_is_settled_to_ask_only_for_the_hooks_the_flow_hung(
+    tmp_path: Path, hung: frozenset[HookKind], asks: bool
+) -> None:
+    """Said outright, so the driver's own hook and `agent.ask` are not read as the flow's."""
+    config = settled(
+        KimiCodeCLIAgentConfig(model="kimi-stand-in", effort=""),
+        HarnessKind.KIMI,
+        Permission(),
+        hung,
+        tellable=True,
+        workdir=str(tmp_path),
+    )
+
+    assert isinstance(config, KimiCodeCLIAgentConfig)
+    assert config.asks is asks
 
 
 def test_a_question_asked_under_a_fence_that_writes_nothing_reaches_the_ask_user_hook(

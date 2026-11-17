@@ -7,7 +7,7 @@ Each is coganchor's own driver for its CLI, held so that it keeps what
 :mod:`hmz.runtime.flowing.harnessing`.
 
 A session is a coganchor agent of its own and one conversation of it. The agent is what
-coganchor settles everything a session runs by on -- the rung, the web, the skills, the
+coganchor settles everything a session runs by on -- the fence, the web, the skills, the
 machine, the hooks and the person a question goes to -- and two sessions of one flow agent may
 differ in every one of those, so each has its own; they share the CLI, the account and the
 model, which is the driver.
@@ -25,7 +25,7 @@ except the few that decide how a CLI is started, which take hold from the next t
 PRE_TOOL_USE on a CLI that gates its tools with a hook table of its own, and the hooks
 :mod:`~hmz.runtime.flowing.harnessing` starts a CLI asking for -- Codex's `untrusted`
 approvals and its asking feature, whose app server is started again between two turns for
-it, and Kimi Code's asking rung.
+it, and Kimi Code's `yolo`.
 
 What a hook answers is done where the CLI waits for it. A PRE_TOOL_USE hook refuses a tool on
 a CLI that gates its tools (Claude Code, Qwen Code) and watches one already reached for on
@@ -74,7 +74,6 @@ import time
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from hmz.flows import (
-    Access,
     AskUserHookAgentMixin,
     CostExceeded,
     DurationExceeded,
@@ -206,7 +205,7 @@ _ASKING: Final = 300.0
 #: The moments whose hook decides whether a tool runs.
 _GATES: Final = frozenset({HookKind.PRE_TOOL_USE, HookKind.PERMISSION_REQUEST})
 
-#: The hooks whose being hung decides how a session's CLI is started or its rung.
+#: The hooks whose being hung decides how a session's CLI is started.
 _STARTING: Final = frozenset(
     {HookKind.PRE_TOOL_USE, HookKind.PERMISSION_REQUEST, HookKind.ASK_USER}
 )
@@ -256,8 +255,8 @@ def open_agent(spec: AgentSpec, harbors: Harbors | None = None) -> HarnessDriver
             provider=spec.provider,
             **identifying(made, spec.cli),
         )
-        # Built once and let go, which is where coganchor refuses an effort, a rung or a
-        # tier the CLI has no word for -- said here rather than at the first session.
+        # Built once and let go, which is where coganchor refuses an effort or a tier the
+        # CLI has no word for -- said here rather than at the first session.
         kind(config)
     except ValueError as refused:
         raise HarnessUnrecoverable(f"{spec}: {refused}") from refused
@@ -943,7 +942,6 @@ class HarnessDriver:
         return settled(
             self._config,
             self.harness,
-            self._kind,
             permission,
             hung,
             tellable=self.tellable,
@@ -1096,7 +1094,6 @@ def _native(machine: AnchoredConfig) -> AnchoredConfig:
 def settled(
     config: AgentConfig,
     harness: HarnessKind,
-    kind: type[AgentBase],
     permission: Permission,
     hung: frozenset[HookKind],
     *,
@@ -1110,7 +1107,6 @@ def settled(
     Args:
       config: The driver's own config.
       harness: The CLI.
-      kind: coganchor's agent class for it, whose rungs the rung is one of.
       permission: What the session may touch.
       hung: The hooks among :data:`_STARTING` hung on the agent.
       tellable: Whether the CLI can be told about the web.
@@ -1126,7 +1122,11 @@ def settled(
     Raises:
       HarnessUnrecoverable: If the CLI cannot be configured so.
     """
-    from hmz.coganchor.agents import ClaudeCodeAgentConfig, CodexAgentConfig
+    from hmz.coganchor.agents import (
+        ClaudeCodeAgentConfig,
+        CodexAgentConfig,
+        KimiCodeCLIAgentConfig,
+    )
     from hmz.coganchor.machines import AnchoredConfig
 
     here = os.path.expanduser(workdir or os.getcwd())  # noqa: PTH109, PTH111
@@ -1149,7 +1149,6 @@ def settled(
     except ValueError as refused:
         raise HarnessUnrecoverable(str(refused)) from refused
     changes: dict[str, Any] = {
-        "permission": harnessing.rung(harness, permission, rungs=kind.rungs, hung=hung),
         "web_search": harnessing.searching(permission, tellable=tellable),
         "machine": machine,
         "fence": fence,
@@ -1160,7 +1159,7 @@ def settled(
         asks = ((feature, True),) if HookKind.ASK_USER in hung else ()
         changes["features"] = rest + asks
         changes["approvals"] = harnessing.approvals(harness, hung)
-    if isinstance(config, ClaudeCodeAgentConfig):
+    if isinstance(config, (ClaudeCodeAgentConfig, KimiCodeCLIAgentConfig)):
         changes["asks"] = harnessing.prompting(harness, hung)
     try:
         return dataclasses.replace(config, **changes)
@@ -1541,16 +1540,20 @@ class HarnessSession:
                 raise SessionError("a turn is already in flight in this session")
         limits = request.limits
         _refuse_spent(limits)
+        fence = self._agent.config.fence
         if (
             self._driver.harness is HarnessKind.GROK
             and self._tools
-            and self._permission.access(".") != Access.WRITE
+            and fence is not None
+            and not fence.writes
         ):
-            # Grok Build's own driver refuses the turns its read-only rung sends to `grok -p`;
-            # a workdir held from writing by a rule over a wider preset is refused the same,
-            # so that whether the flow's tools reach grok turns on the permission alone.
+            # Grok Build takes the flow's tools only over the conversation it holds open, and
+            # holds open only a fence that writes somewhere: one that writes nothing is an
+            # allowlist of tools, which only `grok -p` carries, and `grok -p` takes no MCP
+            # server. Refused here, before the turn, so that whether the flow's tools reach
+            # grok turns on the fence alone.
             raise HarnessUnrecoverable(
-                f"{self._driver.harness}: a turn that may not write its workdir cannot be "
+                f"{self._driver.harness}: a turn whose fence writes nothing cannot be "
                 "offered the flow's own callbacks"
             )
         goal = (
@@ -1779,7 +1782,6 @@ class HarnessSession:
         now = settled(
             was,
             driver.harness,
-            type(self._agent),
             self._permission,
             hung,
             tellable=driver.tellable,

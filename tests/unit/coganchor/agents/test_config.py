@@ -10,9 +10,7 @@ import pytest
 from hmz.coganchor.agents.config import (
     CUTOFFS,
     OUTCOMES,
-    PERMISSIONS,
     SERVICE_TIERS,
-    UNSAID,
     AgentConfig,
     Budget,
     Unfenced,
@@ -23,8 +21,6 @@ from hmz.coganchor.machines import AnchoredConfig
 
 
 def test_the_vocabularies() -> None:
-    assert PERMISSIONS == ("read-only", "workspace-write", "auto", "bypass")
-    assert UNSAID == ""
     assert SERVICE_TIERS == ("default", "fast")
     assert CUTOFFS == ("next-response", "immediately")
     assert OUTCOMES == ("end", "fail")
@@ -75,11 +71,8 @@ def test_a_budget_that_would_never_bite_is_refused(
 
 def test_a_config_defaults_to_saying_nothing() -> None:
     config = AgentConfig(model="m", effort="high")
-    assert (config.service_tier, config.permission, config.provider) == (
-        "default",
-        UNSAID,
-        "",
-    )
+    assert (config.service_tier, config.provider) == ("default", "")
+    assert not hasattr(config, "permission")
     assert config.goals
     assert config.web_search is None
     assert (config.machine, config.fence, config.budget) == (None, None, None)
@@ -96,19 +89,14 @@ def test_auto_effort_is_no_rung() -> None:
     assert AgentConfig(model="m", effort="auto").effort == ""
 
 
-@pytest.mark.parametrize("permission", [*PERMISSIONS, UNSAID])
-def test_every_rung_and_the_silence_are_sayable(permission: str) -> None:
-    assert AgentConfig(model="m", effort="", permission=permission).permission == (
-        permission
-    )
+def test_there_is_no_permission_rung_to_say() -> None:
+    with pytest.raises(TypeError, match="permission"):
+        AgentConfig(model="m", effort="", permission="bypass")  # pyright: ignore[reportCallIssue]
 
 
 @pytest.mark.parametrize(
     ("kwargs", "match"),
-    [
-        ({"service_tier": "slow"}, "service_tier must be one of"),
-        ({"permission": "root"}, "permission must be one of"),
-    ],
+    [({"service_tier": "slow"}, "service_tier must be one of")],
 )
 def test_a_config_no_backend_could_carry_is_refused(
     kwargs: dict[str, Any], match: str

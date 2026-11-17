@@ -63,7 +63,9 @@ pub const LINUX_SYSTEM: &[&str] = &[
     "/sys",
 ];
 
-/// The same on a Mac (`DARWIN_SYSTEM`).
+/// The same on a Mac (`DARWIN_SYSTEM`), the developer tools Apple's `xcrun` shims load
+/// included: the link `xcode-select` keeps, the Command Line Tools, and the whole of Xcode with
+/// the plist its license is checked against.
 pub const DARWIN_SYSTEM: &[&str] = &[
     "/usr",
     "/bin",
@@ -71,6 +73,10 @@ pub const DARWIN_SYSTEM: &[&str] = &[
     "/System",
     "/private/var/select",
     "/private/var/db/timezone",
+    XCODE_SELECT,
+    "/Library/Developer/CommandLineTools",
+    "/Library/Preferences/com.apple.dt.Xcode.plist",
+    "/Applications/Xcode.app",
     "/etc/ssl",
     "/etc/resolv.conf",
     "/etc/hosts",
@@ -81,6 +87,9 @@ pub const DARWIN_SYSTEM: &[&str] = &[
     "/etc/shells",
     "/etc/localtime",
 ];
+
+/// The link `xcode-select` keeps to the developer directory it chose (`_XCODE_SELECT`).
+const XCODE_SELECT: &str = "/private/var/db/xcode_select_link";
 
 /// What any program needs to write to run at all (`LINUX_DEVICES`).
 pub const LINUX_DEVICES: &[&str] = &[
@@ -373,7 +382,8 @@ impl Fence {
     /// Each rule is a path anchored at `/`, `~` (`home`) or `.` (`workdir`, and `cwd` as well
     /// where it is given), and an access, one of [`LEVELS`]; the last rule that holds a path
     /// decides it. What is left is put in the fence by longest prefix, then the minimum is
-    /// granted over it: [`SYSTEM`] and this program to read, [`DEVICES`] and the GPUs' nodes to
+    /// granted over it: [`SYSTEM`], the developer directory a Mac's `xcode-select` chose and
+    /// this program to read, [`DEVICES`] and the GPUs' nodes to
     /// write; [`TEMPORARY`] to write where the workdir is written, and everything the user may
     /// change where the home is written by a rule at it or above it.
     #[allow(clippy::too_many_arguments)]
@@ -430,6 +440,7 @@ impl Fence {
         .settled()?
         .granting(&[], &writing, &[], &[]);
         let mut reading: Vec<String> = SYSTEM.iter().map(|one| (*one).to_owned()).collect();
+        reading.extend(developer());
         reading.extend(ours());
         reading.extend(read.iter().cloned());
         let mut writing: Vec<String> = DEVICES.iter().map(|one| (*one).to_owned()).collect();
@@ -1038,6 +1049,26 @@ fn accelerators() -> Vec<String> {
     nodes
 }
 
+/// The developer directory `xcode-select` chose, on a Mac, where it is not already read
+/// (`_developer`): read off the link rather than by running `xcode-select -p`, and the whole
+/// app where it is inside one.
+fn developer() -> Vec<String> {
+    if !cfg!(target_os = "macos") {
+        return Vec::new();
+    }
+    let Ok(chosen) = std::fs::canonicalize(XCODE_SELECT) else {
+        return Vec::new();
+    };
+    let chosen = chosen.to_string_lossy().into_owned();
+    if DARWIN_SYSTEM.iter().any(|one| under(&chosen, one)) {
+        return Vec::new();
+    }
+    match chosen.split_once(".app/") {
+        Some((app, _)) => vec![format!("{app}.app")],
+        None => vec![chosen],
+    }
+}
+
 /// Where this program is, read inside every fence (`_ours`): coganchor runs inside the
 /// fences it draws, as `internal cred` around a CLI or as a fence nested in one. Python
 /// granted its interpreter and the `hmz` package; this program is one file, and the directory
@@ -1091,6 +1122,23 @@ mod tests {
 
     fn paths(list: &[&str]) -> Vec<String> {
         list.iter().map(|one| (*one).to_owned()).collect()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_mac_fence_reads_the_developer_tools_xcrun_loads() {
+        let fence = drawn(&[(".", READ)]);
+        for one in [
+            "/private/var/db/xcode_select_link",
+            "/Library/Developer/CommandLineTools/usr/lib/libxcrun.dylib",
+            "/Applications/Xcode.app/Contents/Developer/usr/bin/git",
+        ] {
+            assert!(fence.allows(one, false), "{one}");
+            assert!(!fence.allows(one, true), "{one}");
+        }
+        if let Ok(chosen) = std::fs::canonicalize(XCODE_SELECT) {
+            assert!(fence.allows(&chosen.to_string_lossy(), false));
+        }
     }
 
     #[test]

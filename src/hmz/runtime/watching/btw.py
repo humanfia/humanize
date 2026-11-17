@@ -9,9 +9,9 @@ and it explains where the flow has got to without becoming part of the run.
 A question about the whole flow goes to the btw agent, which may in turn ask any one session's
 side conversation. It does so by running :data:`ASK`, the command its `ask-conversation`
 skill names, which is caught where the agent runs -- by a hook, or by the command itself --
-and handed back here to carry out in the middle of its turn. On a CLI that runs no command at
-the read-only rung it writes a line instead, `@ask <view-key>: <question>`, which the
-interface reads off its answer and carries out.
+and handed back here to carry out in the middle of its turn. On a CLI that cannot run that
+command under a fence that writes nothing it writes a line instead, `@ask <view-key>:
+<question>`, which the interface reads off its answer and carries out.
 
 What opens those conversations and carries a question through them is :class:`Btw`, asking the
 runs through whatever link the frontend holds: the terminal interface and the web interface

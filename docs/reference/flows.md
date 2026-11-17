@@ -662,7 +662,8 @@ except for root, which gets those temporary directories and `/run/user/0` and ke
 as the other rules say. Independently of the rules, the CLI may:
 
 - read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/sys`
-  (on macOS `/System` and `/private/var/select` instead of `/lib*` and `/sys`), its own
+  (on macOS `/System`, `/private/var/select` and the developer tools `xcode-select` chose,
+  which the `xcrun` shims in `/usr/bin` load, instead of `/lib*` and `/sys`), its own
   programs and install trees, and the Python running Humanize;
 - write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU and RDMA nodes;
   on macOS `/dev/ttys*`), `/proc` on Linux (CUDA names a thread through
@@ -754,11 +755,11 @@ can and leaves the rest to the fence.
 
 | `-a` | Writes nothing | Writes somewhere |
 | --- | --- | --- |
-| `claude` | `--tools` the default built-ins but `Edit`, `Write`, `NotebookEdit`; `bypassPermissions` | `bypassPermissions` |
+| `claude` | `--tools default`, `--disallowedTools Edit,Write,NotebookEdit`; `bypassPermissions` | `bypassPermissions` |
 | `codex` | sandbox `read-only`, approval `never` | sandbox `danger-full-access`, approval `never` |
 | `cursor-agent` | `--force --sandbox disabled`; the fence holds | the same |
 | `agy` | Humanize's reader agent (the reading tools and `run_command`), `--dangerously-skip-permissions` | `--dangerously-skip-permissions` |
-| `grok` | `--always-approve --tools read_file,grep,list_dir,run_terminal_command` | `--always-approve` |
+| `grok` | `--always-approve --tools read_file,grep,list_dir,run_terminal_cmd`, and `web_search,web_fetch` unless `network` is `False` | `--always-approve` |
 | `kimi` | `auto`, plan mode off, write and edit tools disabled | `auto` |
 | `mcode` | `full`; the fence holds | the same |
 | `mimo`, `opencode` | `edit` denied, `bash` allowed | nothing denied |
@@ -773,7 +774,7 @@ can and leaves the rest to the fence.
   (the same tools withheld), Codex the `workspace-write` sandbox with approval `on-request`.
 - A hook only an asking CLI can deliver changes how it is started. Claude Code runs at
   `manual` instead of `bypassPermissions` while `on_permission_request` is hung. Codex runs with approval
-  policy `untrusted` while `on_permission_request` is hung, and enables its
+  policy `untrusted` instead of `never` while `on_permission_request` is hung, and enables its
   `default_mode_request_user_input` feature while `on_ask_user` is hung. Kimi Code runs at
   `yolo` instead of `auto` while either is hung. Humanize answers yes unless the hook says no.
 - `network` also switches the CLI's own web tools (on for `True`, off for `False`) where the CLI

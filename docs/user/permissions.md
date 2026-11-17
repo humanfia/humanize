@@ -283,7 +283,7 @@ yes. The fence still holds where its writes land.
 agent runs at `acceptEdits` instead, and says so once:
 
 ```text
-claude: this account will not run an agent at bypass, so it runs at acceptEdits, where what it asks for is granted
+claude: this account will not run an agent at bypassPermissions, so it runs at acceptEdits, where what it asks for is granted
 ```
 
 It keeps the same freedom: Claude asks before what `acceptEdits` does not cover, and Humanize

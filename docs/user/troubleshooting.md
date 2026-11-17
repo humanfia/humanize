@@ -821,7 +821,7 @@ asks before it reaches past the workspace, and Humanize says yes. Its
 
 **Verify.** The agent's turns go through as usual.
 
-### `claude: this account will not run an agent at bypass, so it runs at acceptEdits, where what it asks for is granted` {#claude-this-account-will-not-run-an-agent-at-bypass-so-it-runs-at-acceptedits}
+### `claude: this account will not run an agent at bypassPermissions, so it runs at acceptEdits, where what it asks for is granted` {#claude-this-account-will-not-run-an-agent-at-bypasspermissions-so-it-runs-at-acceptedits}
 
 **Symptom.** A note during a Claude Code agent's first turn. The work goes on.
 

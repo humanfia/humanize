@@ -1148,10 +1148,10 @@ nothing. Each harness MUST be launched as the table states:
 | Kind | Writes nothing | Writes somewhere |
 | --- | --- | --- |
 | `agy` | hmz's reader agent, whose tools are the reading tools and `run_command`, skip permissions | skip permissions |
-| `claude` | `--tools` its default built-in tools but `Edit`, `Write` and `NotebookEdit`, `bypassPermissions` | `bypassPermissions` |
+| `claude` | `--tools default`, `--disallowedTools` `Edit`, `Write` and `NotebookEdit`, `bypassPermissions` | `bypassPermissions` |
 | `codex` | sandbox `read-only`, approval `never` | sandbox `danger-full-access`, approval `never` |
 | `cursor-agent` | `--force`, sandbox off | `--force`, sandbox off |
-| `grok` | always approve, tools `read_file`, `grep`, `list_dir` and `run_terminal_command` | always approve |
+| `grok` | always approve, tools `read_file`, `grep`, `list_dir` and `run_terminal_cmd`, and `web_search` and `web_fetch` unless web search is off | always approve |
 | `kimi` | `auto`, plan mode off, its write and edit tools disabled | `auto` |
 | `mcode` | `full` | `full` |
 | `mimo`, `opencode` | edit denied, bash allowed | nothing denied |
@@ -1163,7 +1163,7 @@ nothing. Each harness MUST be launched as the table states:
 
 **4.6.2.4** While a permission-request hook is hung on the agent, `claude` MUST run in its `manual`
 permission mode where the table says `bypassPermissions`, and `codex` with the approval policy
-`untrusted` (Section 4.9.3.3). While a permission-request hook or an ask-user hook is hung, `kimi`
+`untrusted` where the table says `never` (Section 4.9.3.3). While a permission-request hook or an ask-user hook is hung, `kimi`
 MUST run at `yolo` where the table says `auto`.
 
 **4.6.2.5** Where Claude Code refuses `bypassPermissions` for the account or because it runs as
@@ -1480,8 +1480,8 @@ into a grant.
 
 **4.9.3.3** While a permission-request hook is hung, `claude` MUST run in its manual permission mode
 where it would run at `bypassPermissions`, so that every tool that changes something reaches the
-hook, and `codex` MUST run with the approval policy `untrusted`; each MUST take effect from the
-session's next turn.
+hook, and `codex` MUST run with the approval policy `untrusted` where it would run at `never`;
+each MUST take effect from the session's next turn.
 
 #### 4.9.4. Questions
 
