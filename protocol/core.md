@@ -2742,7 +2742,7 @@ be accepted and MUST NOT be used.
 **6.9.1.11** `tcp://HOST:PORT` MUST name a serving half listening at that address.
 
 **6.9.1.12** `peer://TICKET@HOST:PORT` MUST name a serving half waiting at the broker at `HOST:PORT`
-under `TICKET`.
+under the name Section 6.10.13 derives from `TICKET`.
 
 **6.9.1.13** A `peer://` target given together with a harness machine other than this machine MUST
 be refused with `ValueError`.
@@ -2778,7 +2778,40 @@ command a request asks for, and MAY follow a symbolic link that leads out of the
 given it as the name of a file that holds the token and that only the user can read.
 
 **6.10.7** A broker ticket MUST be unguessable, MUST be the whole of what authenticates a peer at
-the broker, and MUST pair only the two halves presenting it.
+the broker, and MUST pair only the two halves presenting the name derived from it (Section
+6.10.13).
+
+**6.10.8** On a connection a serving half accepts under `--listen` or meets under `--peer`, and on
+one a half makes to reach a `tcp://` or `peer://` target, the two halves MUST speak TLS 1.3 and no
+earlier version, with the application protocol `hmz-anchor`, before any frame; a half MUST close a
+connection whose handshake agrees on no application protocol or another. The serving half MUST be
+the TLS server, under a self-signed ECDSA P-256 certificate it generates when it starts and stores
+nowhere. The other half MUST be the TLS client, MUST present no certificate, and MUST accept any
+certificate whose TLS 1.3 handshake signature verifies. A serving half on its standard input and
+output MUST NOT speak TLS.
+
+**6.10.9** The binding of a connection of Section 6.10.8 MUST be the SHA-256 of the DER
+SubjectPublicKeyInfo of the serving half's certificate, and its key MUST be the bytes of the token
+as given on `tcp://` and `--listen`, and the bytes of `TICKET` on `peer://` and `--peer`; a half
+reaching a `peer://` target MUST NOT use a token.
+
+**6.10.10** On a connection of Section 6.10.8 the handshake MUST carry no token. Its request MUST
+carry `proof`, the lowercase hex of HMAC-SHA256 under the key of the bytes `hmz-anchor cog`, a NUL
+and the binding, or null where the client holds no key; its reply MUST carry `proof`, the
+lowercase hex of HMAC-SHA256 under the key of the bytes `hmz-anchor anchor`, a NUL, the binding
+and the 32 bytes of the request's proof, or null where the serving half holds no key.
+
+**6.10.11** A serving half holding a key MUST compare a request's proof with its own in constant
+time, and MUST refuse a handshake whose proof is missing or another as it refuses another token
+(Section 6.10.2).
+
+**6.10.12** A client holding a key MUST refuse a reply whose proof is missing or another, before it
+sends any other request, with `ConnectionError: the serving half at <target> did not prove the
+token`.
+
+**6.10.13** Each half of a `peer://` meeting MUST present to the broker, and in a punched
+connection's greeting, the lowercase hex of the SHA-256 of the bytes `hmz-anchor ticket`, a NUL and
+`TICKET`, in place of `TICKET`, and MUST NOT send `TICKET` to the broker or outside TLS.
 
 ## 7. Environments
 
@@ -4864,6 +4897,11 @@ document on which the security of a user's machine, credentials and work depends
   a token-less non-loopback listener, but confines neither the commands a request runs nor symbolic
   links leaving the exported tree; its token appears on no command line and a broker ticket is the
   whole of a peer's authentication (Section 6.10).
+- A `tcp://` or `peer://` session crosses the network inside TLS 1.3, in which each half proves the
+  token or ticket by an HMAC bound to the serving half's certificate, so neither the secret nor the
+  session is seen on the network or by the broker, and a half that cannot prove the secret is
+  refused; the certificate itself is not vouched for, so who is at the other end is as certain as
+  the secret is kept (Section 6.10.8 to Section 6.10.13).
 - What hmz starts on other machines carries labels naming the user, host and owning process, and
   hmz removes as leftovers only what names this user and this host; mirrors under harness location
   standalone remain in the harness machine's cache between turns (Section 6.6.1.3, Section 7.7.1.9

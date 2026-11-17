@@ -226,6 +226,23 @@ def test_state_without_a_journal_is_a_mapping_of_json() -> None:
         _ = state["list"]
 
 
+def test_a_value_read_from_state_and_changed_changes_nothing_kept() -> None:
+    state = FlowStateImpl({"held": {"seen": ["a"]}}, None, 0)
+    state["log"] = ["turn 1"]
+
+    state["log"].append("turn 2")
+    state["held"]["seen"].append("b")
+    state.get("held")["more"] = 1
+    assert state["log"] == ["turn 1"]
+    assert state["held"] == {"seen": ["a"]}
+
+    # Assigned again, the change is kept.
+    log = state["log"]
+    log.append("turn 2")
+    state["log"] = log
+    assert state["log"] == ["turn 1", "turn 2"]
+
+
 @pytest.mark.parametrize("value", [object(), {1, 2}, b"bytes"])
 def test_state_refuses_what_json_cannot_hold(value: object) -> None:
     state = FlowStateImpl({}, None, 0)

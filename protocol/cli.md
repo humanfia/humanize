@@ -1034,6 +1034,13 @@ standard error and exit with status 2, and MAY do so in another form than Sectio
 **11.2.16** The help of `coganchor` MUST list `cog`, `anchor` and `broker`, and MUST NOT list
 `internal`.
 
+**11.2.17** `hmz internal anchor serve --peer` with `--token` or `--token-file` MUST be a usage
+error, and MUST ignore `HUMANIZE_TOKEN`: the ticket is its secret (Section 6.10.9 of [CORE]).
+
+**11.2.18** `hmz internal anchor` reaching a serving half that does not prove the token (Section
+6.10.12 of [CORE]) MUST exit with status 1, writing `hmz: <reason>` where `<reason>` says `the
+serving half at <target> did not prove the token`.
+
 ### 11.3. `hmz internal cred`
 
 ```text
@@ -1333,7 +1340,9 @@ document states.
 - **Listening addresses.** `hmz web` listens on loopback addresses only (Section 8.2.2). `hmz
   internal anchor serve`, which is `coganchor anchor` (Section 11.2.12), refuses to listen on a
   non-loopback address without a token and refuses a client that presents another token (Section
-  11.2.8, Section 11.2.9). `hmz internal anchor rendezvous` listens on `0.0.0.0` by default
+  11.2.8, Section 11.2.9); listening or met through a broker, it speaks only TLS, inside which the
+  token or ticket is proved and never sent, and `hmz internal anchor` refuses one that cannot prove
+  it back (Section 11.2.17, Section 11.2.18). `hmz internal anchor rendezvous` listens on `0.0.0.0` by default
   (Section 11.2.10). `hmz daemon serve` makes this machine's daemon reachable on every listener it
   is given, each admitting only paired devices over mutual TLS or WebRTC (Section 13.2.1). `hmz
   relay serve` listens where it is told, on plain WebSockets, admits anybody, and carries only what

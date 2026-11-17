@@ -49,12 +49,17 @@ pub struct Server {
 
 impl Server {
     /// A server for one connection; requests are refused until a `HELLO` presents `token`
-    /// (none needed when `token` is `None`).
+    /// (none needed when `token` is `None`). On a channel carried inside TLS the `HELLO`
+    /// proves the key the channel is bound to instead, and `token` is not asked about.
     pub fn new(channel: Arc<Channel>, exports: Arc<ExportTable>, token: Option<String>) -> Server {
+        let keyed = match channel.bound() {
+            Some(bound) => bound.key.is_some(),
+            None => token.is_some(),
+        };
         Server {
             channel,
             exports,
-            authenticated: token.is_none(),
+            authenticated: !keyed,
             token,
             refused: false,
             sinks: Arc::default(),
@@ -205,14 +210,28 @@ impl Server {
         Ok(())
     }
 
-    /// `HELLO {version, token}`: checked, then answered with what this machine is. It may be
+    /// `HELLO {version, token}`, or inside TLS `HELLO {version, proof}`: checked, then
+    /// answered with what this machine is (and inside TLS this side's proof). It may be
     /// repeated.
     fn hello(&mut self, frame: &Frame) {
-        if let Some(token) = &self.token
-            && frame.meta.get("token").and_then(Value::as_str) != Some(token.as_str())
-        {
-            self.fail(frame.id, &RemoteError::new(libc::EACCES, "invalid token"));
-            return;
+        let invalid = RemoteError::new(libc::EACCES, "invalid token");
+        let mut proof = None;
+        match self.channel.bound() {
+            Some(bound) if bound.key.is_some() => {
+                let said = frame.meta.get("proof").and_then(Value::as_str);
+                match said.and_then(|said| bound.cog_proved(said)) {
+                    Some(cog) => proof = bound.anchor_proof(&cog).map(hex::encode),
+                    None => return self.fail(frame.id, &invalid),
+                }
+            }
+            Some(_) => {}
+            None => {
+                if let Some(token) = &self.token
+                    && frame.meta.get("token").and_then(Value::as_str) != Some(token.as_str())
+                {
+                    return self.fail(frame.id, &invalid);
+                }
+            }
         }
         let version = frame.meta.get("version").cloned().unwrap_or(Value::Null);
         if !speaks_ours(&version) {
@@ -235,7 +254,7 @@ impl Server {
         }
         self.authenticated = true;
         let able = fences();
-        let reply = meta! {
+        let mut reply = meta! {
             "version" => PROTOCOL_VERSION,
             "hostname" => nix::unistd::gethostname()
                 .map(|h| h.to_string_lossy().into_owned())
@@ -246,6 +265,9 @@ impl Server {
             "exports" => self.exports.hello(),
             "fence" => serde_json::json!({"fs": able.fs, "net": able.net}),
         };
+        if self.channel.bound().is_some() {
+            reply.insert("proof".into(), proof.map_or(Value::Null, Value::from));
+        }
         let _ = self
             .channel
             .send(&Frame::reply(frame.id, reply, Vec::new()));

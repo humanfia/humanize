@@ -259,8 +259,8 @@ and `get(key, default=None)`.
 | --- | --- |
 | `state[key] = value` | `key` must be a `str`, else `StateNotSerializable` (`a state key is a string, not <key>`). `value` is serialized with `json.dumps(..., allow_nan=True)`; a value it cannot serialize (or a recursion error) raises `StateNotSerializable` (also a `TypeError`): `<type> cannot be kept in a flow's state: <error>`. What is stored is the JSON round-trip of the value (a tuple becomes a list, dict keys become strings), so a fresh run and a resumed run read identical values. The write is appended to the journal and flushed before `__setitem__` returns. |
 | `del state[key]` | Removes the key; `KeyError` if absent. Journaled and flushed. |
-| `state[key]` | `KeyError` if absent. A [session kept](#sessions-in-state) in the value is read back as a new session each time. |
-| Mutating a value in place | Not recorded. Assign the value again to record it. |
+| `state[key]` | `KeyError` if absent. Each read returns a copy. A [session kept](#sessions-in-state) in the value is read back as a new session each time. |
+| Mutating a value in place | Changes only the copy read, not the state. Assign the value again to keep the change. |
 
 A resumable flow run without a journal (a resumable flow called from a non-resumable run, or
 [`run_fake`](#run-fake) without `journal=`) gets a state held in memory only.

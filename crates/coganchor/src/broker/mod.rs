@@ -1,14 +1,16 @@
 //! The broker: where two halves meet when neither can dial the other. Port of
 //! `hmz.coganchor.rendezvous` and `hmz internal anchor rendezvous`. [Unit 3]
 //!
-//! A ticket names a meeting. Each half dials the broker with it and says which half it is;
-//! the broker tells each what the other looks like from outside, starts them at each other at
-//! the same instant (hole punching), and carries the bytes itself where they cannot meet.
+//! A ticket names a meeting. Each half dials the broker with a name derived from it
+//! ([`crate::tls::meeting_name`]; the ticket itself is the secret the halves prove to each
+//! other inside TLS, and never leaves either) and says which half it is; the broker tells each
+//! what the other looks like from outside, starts them at each other at the same instant (hole
+//! punching), and carries the bytes itself, still encrypted, where they cannot meet.
 //!
 //! The broker's wire is one compact JSON object per `\n`-terminated line, read a byte at a
 //! time so that nothing of the session that may follow is ever buffered:
 //!
-//! 1. half: `{"ticket":T,"role":"anchor"|"serve","at":[[ip,port],...]}`
+//! 1. half: `{"ticket":NAME,"role":"anchor"|"serve","at":[[ip,port],...]}`
 //! 2. broker: `{"seen":[ip,port]}` (or `{"go":"no","why":...}`)
 //! 3. broker: `{"peer":[[ip,port],...],"punch":SECONDS}` (or `{"go":"no","why":...}`)
 //! 4. half, after punching: `{"direct":true|false}`
