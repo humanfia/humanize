@@ -13,6 +13,8 @@ client ever sees:
 - `ask` `{client, said}`: what a frontend asked, answered as :meth:`hmz.runtime.Host.asked`
   answers it.
 - `detach` `{client}`: lets a frontend go.
+- `env` `{said}`: a `hosts.env.*` on the epic going, which no frontend asks, answered as
+  :meth:`hmz.runtime.Host.env` answers it.
 - `status`: how the host stands, with what it said of itself.
 - `detach_all`: lets every frontend go, answering how many.
 - `close`, a notification: closes the host.
@@ -132,6 +134,8 @@ class Carrier:
             return {"client": client}
         if method == "ask":
             return host.asked(str(said["client"]), dict(said["said"]))
+        if method == "env":
+            return host.env(dict(said["said"]))
         if method == "detach":
             host.detach(str(said["client"]))
             return {}
