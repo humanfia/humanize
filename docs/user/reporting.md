@@ -50,8 +50,8 @@ To see or change your answer later, type `/settings` and open its first page, **
   │   show every tool call and all of the thinking                           │
   │                                                                          │
   │ Agents                                                                   │
-  │ /btw The Epic                                                     none ▾ │
-  │   the agent that answers side questions asked of The Epic                │
+  │ Ai-chan                                                           none ▾ │
+  │   the nous a new conversation with Ai-chan thinks with                   │
   │                                                                          │
   │ Privacy                                                                  │
   │ Error reports                                                    ○ off ▾ │  ①

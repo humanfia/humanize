@@ -405,7 +405,7 @@ now.
 **Cause.** There was nothing to stop. `/stop` is listed only while a flow runs and has not
 already been told to stop; typed out otherwise, it says why it did nothing. The same goes for
 every command the list leaves out: `/resume` with a flow going or nothing here to carry on,
-`/btw` with nobody to ask.
+`/btw` with no conversation on the screen to ask.
 
 **Fix.** Nothing to do. Wait for a flow that is stopping to finish its turn.
 
@@ -506,16 +506,16 @@ of. The run is untouched.
 
 **Verify.** It opens on the run, read from the top.
 
-### `/btw requires a coding agent` {#btw-needs-a-coding-agent-to-ask}
+### `/btw is only available on …` {#btw-needs-a-conversation}
 
-**Symptom.** A [`/btw`](/user/btw) on the monitor is refused.
+**Symptom.** A [`/btw`](/user/btw) on the monitor, or on the home transcript, is refused.
 
-**Cause.** There, `/btw` asks the btw agent. None is set in `/settings`, and no flow is set up to
-copy one from. `btw is still answering the last question` means the side conversation has not
-answered yet.
+**Cause.** A side question is asked of one session, and no conversation is on the screen to
+copy. `btw is still answering the last question` means the side conversation has not answered
+yet.
 
-**Fix.** Choose a flow, or set the **/btw agent** on the General page of `/settings`. For the
-second message, wait for the answer.
+**Fix.** Read a conversation and ask again. To ask about the epic as a whole, ask
+[Ai-chan](/user/ai-chan) with `/ai`. For the second message, wait for the answer.
 
 **Verify.** `/btw` opens the side conversation.
 

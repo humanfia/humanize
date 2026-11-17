@@ -283,6 +283,7 @@ export default defineConfig({
           items: [
             { text: 'Talking to a running turn', link: '/user/steering' },
             { text: 'Side questions (/btw)', link: '/user/btw' },
+            { text: 'Ai-chan (/ai)', link: '/user/ai-chan' },
             { text: 'Many conversations at once', link: '/user/conversations' },
             { text: 'Watching a run (the monitor)', link: '/user/monitor' },
             { text: 'The mission board', link: '/user/board' },
