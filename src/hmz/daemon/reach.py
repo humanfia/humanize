@@ -546,6 +546,8 @@ class Links:
                 key: conversation[key]
                 for key in ("id", "scope", "workspace", "epic", "preset", "network")
             },
+            # With no limit on what it spends (Section 14.4.3 of core.md).
+            "budget": {"cost": "Infinity"},
             "resume": str(picked) if picked else False,
         }
         answer = hosted.started(said)

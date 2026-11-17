@@ -22,14 +22,19 @@ from hmz.tui.pick import Backing, Does, Epics, Targets
 from hmz.tui.settings import Adjusts
 from hmz.tui.stored import Stored
 from tests.integration.doubles_tui import (
+    OWN,
+    RUNS,
     SIZE,
     folds_fast,
+    gives_a_budget,
     leaves,
     on,
     onto,
     opened,
     opens,
+    own_flow,
     picks,
+    set_up_own_flow,
     shows,
     stand_in,
     typed,
@@ -129,11 +134,12 @@ async def test_flow_offers_the_defaults_and_starts_the_epic_on_the_targets_chose
         {"name": "spare", "url": str(spare), "policies": ["end"]},
         defaults=("lab",),
     )
+    own_flow(workspace)
     async with Humanize().run_test(size=SIZE) as pilot:
-        await opened(pilot)
+        await set_up_own_flow(pilot)
         await typed(pilot, "/flow")
         await on(pilot, Flows)
-        await opens(pilot, "chat")
+        await opens(pilot, OWN)
         await shows(pilot, "where each epic is backed up (the defaults)")
 
         await opens(pilot, "\x1ebackup")
@@ -144,10 +150,9 @@ async def test_flow_offers_the_defaults_and_starts_the_epic_on_the_targets_chose
         await shows(pilot, "lab, spare")
         await leaves(pilot)
 
-        await typed(pilot, "hello")
-        await shows(pilot, "heard hello")
-        await typed(pilot, "/clear")
-        await shows(pilot, "◉ chat")
+        # A flow, which a chat is not: its epic goes where the flow menu said.
+        await typed(pilot, f"${OWN} hello")
+        await shows(pilot, "the flow is done")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
 
     assert Hmz().backups.wait(60)
@@ -158,12 +163,12 @@ async def test_flow_offers_the_defaults_and_starts_the_epic_on_the_targets_chose
     assert _log(lab) == [f"Back up epic {epic.name} (end)"]
     assert _log(spare) == [f"Back up epic {epic.name} (end)"]
     # Remembered for the flow here, and opened on next time.
-    assert Hmz().settings.backup("chat") == ("lab", "spare")
+    assert Hmz().settings.backup(OWN) == ("lab", "spare")
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "/flow")
         await on(pilot, Flows)
-        await opens(pilot, "chat")
+        await opens(pilot, OWN)
         await shows(pilot, "lab, spare")
 
 
@@ -175,13 +180,14 @@ async def test_a_flow_saved_without_choosing_backup_follows_the_defaults(
         await opened(pilot)
         await typed(pilot, "/flow")
         await on(pilot, Flows)
-        await opens(pilot, "chat")
+        await opens(pilot, "goal")
         await picks(pilot, "\x1eprofile-environment", "on")
+        await gives_a_budget(pilot)
         await leaves(pilot)
-        await shows(pilot, "◉ chat")
+        await shows(pilot, f"◉ {RUNS}")
 
-    assert Hmz().settings.profile_environment("chat")
-    assert Hmz().settings.backup("chat") is None
+    assert Hmz().settings.profile_environment("goal")
+    assert Hmz().settings.backup("goal") is None
 
 
 async def test_an_epic_uploaded_from_epics_lands_in_its_target(
@@ -194,7 +200,7 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
         await typed(pilot, "hello")
         await shows(pilot, "heard hello")
         await typed(pilot, "/clear")
-        await shows(pilot, "◉ chat")
+        await shows(pilot, f"◉ {RUNS}")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
         assert _log(lab) == []  # no policy, so only by hand
 

@@ -1948,6 +1948,11 @@ opencode run --format json --dir <dir> --model <provider/id> [--variant <effort>
 - mimocode reads `~/.claude.json` at start; where the fence does not let it,
   `MIMOCODE_DISABLE_CLAUDE_CODE=1` is set.
 - Both keep sessions in SQLite; traces read it with a query.
+- In a chat, `/<name> args` runs as `--command <name>` with the arguments as the message, and
+  `@<path>` in any other line is attached as `--file <path>` where it exists. The catalog is
+  the built-ins (opencode: `init`, `review`; mimocode adds `dream`, `distill`, `goal`,
+  `rebuild`), the commands `<cli> debug config` lists and the skills `<cli> debug skill`
+  lists, asked once per session. MCP prompts are not listed, and `!` is not reachable.
 
 ### pi {#pi}
 
@@ -1984,7 +1989,9 @@ its own name.
 turn runs as a separate command (`--json-schema` is refused with stream-json input). The
 opening turn is `--session-id <new uuid>`; later ones `--resume <id>`; a fork
 `--resume <parent> --fork-session`. An id already used in the project is retried under a new
-one.
+one. In a chat, a `/` command and `@<path>` are passed as typed and expanded by Qwen Code
+itself; the `/` catalog is the `slash_commands` of the `system` record that opened the last
+turn (empty before the first). `!` is not reachable: headless, it is sent as words.
 
 | Field | Default | Meaning |
 | --- | --- | --- |

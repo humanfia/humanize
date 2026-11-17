@@ -35,7 +35,7 @@ _CHUNK = 4096
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A project, and an epic of a chat written down in it."""
     at = install(tmp_path, monkeypatch)
-    with Epic("chat", "hello there", at):
+    with Epic("", "hello there", at, kind="chat"):
         pass
     return at
 
@@ -119,7 +119,13 @@ def test_an_epic_is_listed_read_carried_away_in_chunks_and_read_back_in(
     listed = client.call("runs.list", {"workspace": str(project)}, timeout=30)
     (run,) = listed["runs"]
     name = run["name"]
-    assert (run["flow"], run["task"], listed["total"]) == ("chat", "hello there", 1)
+    # An epic an earlier hmz wrote of the flow `chat` reads as a chat, of no flow.
+    assert (run["kind"], run["flow"], run["task"], listed["total"]) == (
+        "chat",
+        "",
+        "hello there",
+        1,
+    )
     one = client.call("runs.get", {"name": name}, timeout=30)
     assert (one["name"], one["task"], one["calls"]) == (name, "hello there", [])
 

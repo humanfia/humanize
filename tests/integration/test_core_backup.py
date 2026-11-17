@@ -108,9 +108,11 @@ def test_an_epic_is_backed_up_once_it_ends_with_no_credential_in_it(
 
     ran = _exec(
         "-f",
-        "chat",
+        "goal",
         "-a",
-        f"assistant={AGENT}",
+        f"worker={AGENT}",
+        "-p",
+        "budget.cost=1",
         "--backup",
         "t",
         "say sk-abcdefghijklmnopqrstuv",
@@ -121,7 +123,7 @@ def test_an_epic_is_backed_up_once_it_ends_with_no_credential_in_it(
     assert _log(bare) == [f"Back up epic {epic.name} (end)"]
     under = backing.where(epic)
     journal = _show(bare, f"{under}/epic.jsonl")
-    assert '"flow": "chat"' in journal
+    assert '"flow": "goal"' in journal
     assert "sk-abcdefghijklmnopqrstuv" not in journal
     assert "[redacted]" in journal
     assert _show(bare, f"{under}/manifest.json")
@@ -139,7 +141,7 @@ def test_an_epic_goes_to_the_default_targets_as_its_sessions_close(
         defaults=("t",),
     )
 
-    ran = _exec("-f", "chat", "-a", f"assistant={AGENT}", "hello")
+    ran = _exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "hello")
 
     assert ran.returncode == 0, ran.stderr
     done = subprocess.run(
@@ -154,7 +156,17 @@ def test_an_epic_goes_to_the_default_targets_as_its_sessions_close(
 def test_no_backup_is_made_where_none_is_asked_for(bare: Path, project: Path) -> None:
     _targets({"name": "t", "url": str(bare), "policies": ["end"]}, defaults=("t",))
 
-    ran = _exec("-f", "chat", "-a", f"assistant={AGENT}", "--backup", "none", "hi")
+    ran = _exec(
+        "-f",
+        "goal",
+        "-a",
+        f"worker={AGENT}",
+        "-p",
+        "budget.cost=1",
+        "--backup",
+        "none",
+        "hi",
+    )
 
     assert ran.returncode == 0, ran.stderr
     assert _log(bare) == []
@@ -182,7 +194,12 @@ def test_an_epic_is_backed_up_by_hand_and_once_for_what_it_holds(
     bare: Path, project: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _targets({"name": "t", "url": str(bare)}, defaults=("t",))
-    assert _exec("-f", "chat", "-a", f"assistant={AGENT}", "hi").returncode == 0
+    assert (
+        _exec(
+            "-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "hi"
+        ).returncode
+        == 0
+    )
     epic = _epic(project)
     assert _log(bare) == []
 
@@ -204,7 +221,17 @@ def test_an_unreachable_remote_holds_up_nothing_and_says_why(
     _targets({"name": "t", "url": str(tmp_path / "nowhere.git"), "policies": ["end"]})
 
     began = time.monotonic()
-    ran = _exec("-f", "chat", "-a", f"assistant={AGENT}", "--backup", "t", "hi")
+    ran = _exec(
+        "-f",
+        "goal",
+        "-a",
+        f"worker={AGENT}",
+        "-p",
+        "budget.cost=1",
+        "--backup",
+        "t",
+        "hi",
+    )
 
     assert ran.returncode == 0, ran.stderr
     assert time.monotonic() - began < 60
@@ -228,7 +255,9 @@ def test_a_backup_never_holds_the_run_up(
 
     monkeypatch.setattr(backing, "unpacked", slow)
 
-    Hmz(project).run("chat", "hi", agents={"assistant": AGENT}, backup=["t"]).run()
+    Hmz(project).run(
+        "goal", "hi", agents={"worker": AGENT}, budget={"cost": 1}, backup=["t"]
+    ).run()
 
     assert backing.wait(0) is False
     held.set()
@@ -247,7 +276,15 @@ def test_an_epic_backed_up_on_one_machine_is_downloaded_on_another(
     _targets(target)
     assert (
         _exec(
-            "-f", "chat", "-a", f"assistant={AGENT}", "--backup", "t", "hi"
+            "-f",
+            "goal",
+            "-a",
+            f"worker={AGENT}",
+            "-p",
+            "budget.cost=1",
+            "--backup",
+            "t",
+            "hi",
         ).returncode
         == 0
     )
@@ -264,7 +301,7 @@ def test_an_epic_backed_up_on_one_machine_is_downloaded_on_another(
     assert (held.key, held.epic, held.flow, held.task, held.how) == (
         backing.where(first),
         first.name,
-        "chat",
+        "goal",
         "hi",
         "done",
     )
@@ -302,7 +339,12 @@ def test_an_epic_this_machine_backed_up_and_still_has_is_not_downloaded(
     bare: Path, project: Path
 ) -> None:
     _targets({"name": "t", "url": str(bare), "policies": ["end"]}, defaults=("t",))
-    assert _exec("-f", "chat", "-a", f"assistant={AGENT}", "hi").returncode == 0
+    assert (
+        _exec(
+            "-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "hi"
+        ).returncode
+        == 0
+    )
 
     with pytest.raises(ValueError, match="already here"):
         Hmz().backups.pulled("t", backing.where(_epic(project)))
@@ -312,7 +354,12 @@ def test_epics_of_two_runs_share_one_repository(bare: Path, project: Path) -> No
     _targets({"name": "t", "url": str(bare), "policies": ["end"]}, defaults=("t",))
 
     for said in ("one", "two"):
-        assert _exec("-f", "chat", "-a", f"assistant={AGENT}", said).returncode == 0
+        assert (
+            _exec(
+                "-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", said
+            ).returncode
+            == 0
+        )
 
     first, second = Hmz(project).epics.all()
     listed = subprocess.run(

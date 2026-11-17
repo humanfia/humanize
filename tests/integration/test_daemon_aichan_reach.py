@@ -80,11 +80,7 @@ def workspace(
         "import sys\n"
         "if 'hmz.daemon.detached' in sys.orig_argv:\n"
         "    from hmz.daemon import reach\n"
-        "    from hmz.runtime import flowing\n"
         f"    reach.FLOW = {str(flow)!r}\n"
-        # Spends without a budget, as `ai_chan` does (Section 14.4.3 of core.md).
-        "    was = flowing.privileged\n"
-        "    flowing.privileged = lambda impl: was(impl) or impl.name == 'ai_chan'\n"
     )
     monkeypatch.setenv("PYTHONPATH", str(custom))
     with hosting():

@@ -17,6 +17,9 @@ gateway or its cloud, passed on the call rather than through the environment -- 
 call in this process, and this process's environment is everybody's. With no account, litellm
 reads the variables it always reads, which is the machine's own account for every vendor it
 speaks.
+
+In a chat every line is said as text, with no catalog of native input: there is no harness to
+read a `/`, `!` or `@`, only a model, and a line is what the model is sent.
 """
 
 # A session and the agent holding it are two halves of one object declared here.

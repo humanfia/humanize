@@ -531,3 +531,56 @@ def test_a_harness_on_another_machine_has_the_run_s_settings_merged_there(
     assert json.loads((far / ".qwen" / "settings.json").read_text()) == {
         "model": {"name": "theirs"}
     }
+
+
+def test_before_a_turn_the_catalog_is_a_file_alone(tmp_path: Path) -> None:
+    catalog = _agent().new(tmp_path).natives()
+
+    assert [(one.sigil, one.name, one.how) for one in catalog] == [("@", "", "pass")]
+
+
+def test_the_catalog_is_the_commands_the_last_turn_opened_on(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    opened = {"type": "system", "subtype": "init", "session_id": "qs-1"}
+    turns = iter(
+        [
+            (line({**opened, "slash_commands": ["init", "review", "", 3]}), _result()),
+            (line({**opened, "slash_commands": ["review"]}), _result()),
+        ]
+    )
+
+    def answers(told: str) -> Iterable[str]:
+        del told
+        return next(turns)
+
+    spawning(monkeypatch, answers=answers)
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+
+    _turn(session)
+    first = session.natives()
+    _turn(session)
+
+    assert [(one.sigil, one.name, one.how) for one in first] == [
+        ("/", "init", "pass"),
+        ("/", "review", "pass"),
+        ("@", "", "pass"),
+    ]
+    assert [one.name for one in session.natives() if one.sigil == "/"] == ["review"]
+
+
+def test_a_native_line_is_written_as_it_was_typed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent()
+    heard(agent)
+
+    list(agent.new(tmp_path).stream("/review @a.py", native=True))
+
+    (process,) = spawned
+    assert [json.loads(one)["message"]["content"] for one in process.told] == [
+        "/review @a.py"
+    ]

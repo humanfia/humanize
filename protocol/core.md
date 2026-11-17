@@ -83,12 +83,13 @@ normative. It is cited by the tag [CORE].
 - [8. Chat](#8-chat)
   - [8.1. Scope](#81-scope)
   - [8.2. Terminology](#82-terminology)
-  - [8.3. The flow](#83-the-flow)
+  - [8.3. The chat](#83-the-chat)
   - [8.4. Turns](#84-turns)
   - [8.5. Status](#85-status)
   - [8.6. Many chats](#86-many-chats)
   - [8.7. Folding away and carrying on](#87-folding-away-and-carrying-on)
   - [8.8. Drawing a chat](#88-drawing-a-chat)
+  - [8.9. Native input](#89-native-input)
 - [9. Side Questions](#9-side-questions)
   - [9.1. Scope](#91-scope)
   - [9.2. Terminology](#92-terminology)
@@ -339,7 +340,7 @@ Out of scope:
 - Where an agent's harness and an environment are placed, and fallback between runtimes (Section 6,
   Section 7).
 - Which agents and accounts exist and how a turn is taken (Section 4, Section 5).
-- The `chat` flow and its conversation semantics (Section 8).
+- Chats, epics of their own kind, and their conversation semantics (Section 8).
 - Live figures, traces, profiles and notices of an epic (Section 10).
 - Backups, export and import of an epic (Section 11).
 
@@ -380,12 +381,16 @@ host's.
 
 **3.2.12** **Price list**: the list of per-token model prices kept on this machine (Section 10.3.3).
 
+**3.2.13** **Kind**: what an epic is: `flow`, an epic of a flow, or `chat`, a chat (Section 8).
+Where this section speaks of an epic's flow, roles, parameters, budget, stopping or picking up, it
+speaks of epics of kind `flow` alone; a chat is started, limited and ended as Section 8 states.
+
 ### 3.3. Lifecycle
 
 #### 3.3.1. Starting
 
-**3.3.1.1** hmz MUST start an epic only when a user or a program asks for one through `hmz exec`
-([CLI]), a frontend ([TUI], Section 3 of [WEB]) or the SDK (Section 4 of [PYTHON]).
+**3.3.1.1** hmz MUST start an epic only when a user or a program asks for one through `hmz exec` or
+`hmz chat` ([CLI]), a frontend ([TUI], Section 3 of [WEB]) or the SDK (Section 4 of [PYTHON]).
 
 **3.3.1.2** hmz MUST refuse to start an epic whose flow cannot be found or loaded (Section 3.3.2).
 
@@ -408,8 +413,8 @@ that cannot be read, or that names a **runtime** which is not saved.
 **3.3.1.9** hmz MUST refuse to start an epic that is given a parameter the flow does not declare, or
 a parameter value that cannot be read as the declared type.
 
-**3.3.1.10** hmz MUST refuse to start an epic that is given no budget, unless its flow is `chat` or
-`ai_chan` (Section 3.3.4.2).
+**3.3.1.10** hmz MUST refuse to start an epic that is given no budget, unless its flow is `ai_chan`
+(Section 3.3.4.2).
 
 **3.3.1.11** hmz MUST refuse to start an epic that names a backup target which does not exist
 (Section 11.3.2).
@@ -472,11 +477,12 @@ declares a parameter of that name.
 
 #### 3.3.4. Budget
 
-**3.3.4.1** Every epic MUST execute under a budget that sets at least one limit, and a limit MUST
-NOT be negative.
+**3.3.4.1** Every epic of a flow MUST execute under a budget that sets at least one limit, and a
+limit MUST NOT be negative.
 
-**3.3.4.2** An epic of the `chat` flow or of the `ai_chan` flow that is given no budget MUST execute
-under a budget whose cost limit is unbounded.
+**3.3.4.2** A chat MUST execute under no budget, with no limit on its spending (Section 8.3). An
+epic of the `ai_chan` flow that is given no budget MUST execute under a budget whose cost limit is
+unbounded.
 
 **3.3.4.3** The graceful flag of each limit of a budget MUST be true unless it is given as false,
 for that limit or for every limit.
@@ -557,9 +563,6 @@ epic, and MUST exit only after the epic has closed everything it opened.
 
 **3.3.5.9** hmz MUST record an epic ended by stopping or forcing as `stopped`.
 
-**3.3.5.10** A frontend MUST NOT offer a stop for an epic of the `chat` flow; how a chat ends is
-defined in Section 8.
-
 #### 3.3.6. Ending states
 
 **3.3.6.1** hmz MUST read back every epic in exactly one of the endings `running`, `done`, `failed`,
@@ -578,8 +581,8 @@ other than a stop or a budget exhaustion.
 **3.3.6.6** An epic MUST read back as `unfinished` while it has recorded no end and no process on
 this machine holds it.
 
-**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end, except as Section 3.3.7.10
-provides.
+**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end, except a chat carried on
+(Section 8.7.9).
 
 **3.3.6.8** Where a frontend reports how the last epic of a host slot ended, it MUST distinguish an
 epic refused before its flow was called, an epic ended by its budget, an error the flow raised and
@@ -611,7 +614,7 @@ and MUST start from a copy of the origin's flow state.
 
 **3.3.7.5** hmz MUST refuse to pick up, stating the reason, where the flow is not resumable as it is
 now, where no epic of the flow in the workspace recorded flow state, or where the origin was
-imported and Section 3.3.7.11 forbids it.
+imported and Section 3.3.7.10 forbids it.
 
 **3.3.7.6** `hmz exec --resume` MUST pick up the newest epic of the named flow in the current
 workspace that can be picked up, and MUST use the agents, envs, parameters and budget given on its
@@ -627,11 +630,7 @@ defines; every other session MUST start fresh.
 
 **3.3.7.9** What the origin spent MUST NOT count against the budget of the epic that picks up.
 
-**3.3.7.10** An epic of the `chat` flow that is carried on MUST continue in the same epic rather
-than a new one; that epic MUST record that it was opened again, MUST read back as `running` until it
-ends again, and MUST read back as having spent the sum of what each opening spent.
-
-**3.3.7.11** hmz MUST refuse to pick up an imported epic unless the workspace it executed in exists
+**3.3.7.10** hmz MUST refuse to pick up an imported epic unless the workspace it executed in exists
 on this machine at the same absolute path and, where that workspace is a git repository and the epic
 recorded a commit, the repository holds that commit; the refusal MUST state which condition failed.
 
@@ -681,22 +680,18 @@ epic, and MUST NOT fail to list the other epics because of it.
 
 #### 3.4.3. Concurrency
 
-**3.4.3.1** At most one epic of a flow other than `chat` MUST execute at a time in a workspace's own
-host slot.
+**3.4.3.1** At most one epic MUST execute at a time in a workspace's own host slot.
 
 **3.4.3.2** hmz MUST refuse a request to start an epic in a workspace's own host slot while another
 epic executes or stops there.
 
-**3.4.3.3** Any number of `chat` epics MAY execute in one workspace, each in a host slot of its own,
-concurrently with the epic of the workspace's own host slot.
-
-**3.4.3.4** An epic started by `hmz exec` MUST execute in an exec host slot of its own, held by the
+**3.4.3.3** An epic started by `hmz exec` MUST execute in an exec host slot of its own, held by the
 daemon (Section 3.2.2 of [DAEMON]), and MUST NOT be refused because another epic executes in the
 same workspace.
 
-**3.4.3.5** Epics of different workspaces MUST execute independently of one another.
+**3.4.3.4** Epics of different workspaces MUST execute independently of one another.
 
-**3.4.3.6** hmz MUST report whether an epic is held by a host on this machine, whichever host holds
+**3.4.3.5** hmz MUST report whether an epic is held by a host on this machine, whichever host holds
 it.
 
 > Informative: a frontend's request to start an epic goes to a host slot, held in a **daemon**
@@ -3352,14 +3347,15 @@ a turn open.
 
 ### 8.1. Scope
 
-This section defines the chat: the built-in **flow** named `chat`, in which the **user** talks to
-one **agent**, one turn at a time, in one conversation. It states how a chat starts, takes turns,
-reports its status, runs beside other **epics**, folds away, is carried on and ends, and what every
-**frontend** draws and refuses for it.
+This section defines the chat: a kind of **epic** of its own, apart from the epics of **flows**, in
+which the **user** talks to one **agent**, one turn at a time, in one conversation, in one
+**workspace**. It states how a chat starts, takes turns, reports its status, runs beside other
+epics, folds away, is carried on and ends, what every **frontend** draws and refuses for it, and how
+it takes the input its harness takes natively.
 
 Out of scope:
 
-- The flow API that `chat` is written against: Section 3 of [PYTHON].
+- How each harness is driven: Section 4.
 - How hosts are started, linked and let go: Section 3 of [DAEMON], Section 4 of [DAEMON].
 - The terminal interface's layout outside a chat: [TUI].
 - The web interface's layout outside a chat: Section 3 of [WEB].
@@ -3369,10 +3365,9 @@ Out of scope:
 
 ### 8.2. Terminology
 
-**8.2.1** **Chat**: an epic of the flow `chat`, where a flow is `chat` when its name is `chat` or
-when it is named by a path or reference whose last part is `chat`.
+**8.2.1** **Chat**: an epic of kind `chat` (Section 3.2.13).
 
-**8.2.2** **Assistant**: the one agent **role** of `chat`, and the agent that fills it.
+**8.2.2** **Assistant**: the one agent of a chat.
 
 **8.2.3** **Conversation**: the one **session** of the assistant in a chat.
 
@@ -3387,22 +3382,43 @@ turns, leaving its epic recorded so that it can be carried on.
 
 **8.2.7** **Carrying on**: resuming a chat in its own epic with its own conversation.
 
-### 8.3. The flow
+**8.2.8** **Sigil**: one of `/`, `$`, `!` and `@` at the start of a line said in a chat.
 
-**8.3.1** `chat` MUST declare exactly one agent role, `assistant`, one outworlder role, `human`,
-which is the user, and one environment role, `workspace`, which is the **workspace** on this
-machine.
+**8.2.9** **Native input**: a line said in a chat that the assistant's harness's own interactive
+interface reads by its sigil rather than as a message.
 
-**8.3.2** `chat` MUST take no params.
+**8.2.10** **Catalogue**: the list of native entries that a harness's driver exposes for an open
+conversation (Section 8.9.2).
 
-**8.3.3** `chat` MUST NOT require a budget, and a chat MUST run with no limit on its spending.
+**8.2.11** **Preference**: what a chat takes a `$` name to be where the name is both a native skill
+and a flow: `native` or `flow`.
 
-**8.3.4** The assistant MUST have every capability that its **harness** offers, the web included.
+### 8.3. The chat
 
-**8.3.5** `chat` MUST be resumable.
+**8.3.1** A chat MUST have exactly one role, the assistant, filled by an agent with every capability
+that its **harness** offers, the web included.
 
-**8.3.6** `chat` MUST be the flow the terminal interface opens on in a workspace for which no flow
-is remembered.
+**8.3.2** A chat MUST work in one workspace on this machine.
+
+**8.3.3** A chat MUST take no params and MUST NOT be given a budget, and MUST run with no limit on
+its spending.
+
+**8.3.4** A chat MUST have no flow and no outworlder role.
+
+**8.3.5** hmz MUST record a chat with kind `chat` and every other epic with kind `flow`, and MUST
+read an epic record that gives no kind as kind `flow`, except one whose flow is `chat`, which MUST
+be read as a chat (Section 6 of [FILES]).
+
+**8.3.6** The name `chat` MUST NOT be reserved: a flow named `chat` MUST be an ordinary flow, and an
+epic of it MUST be of kind `flow`.
+
+**8.3.7** hmz MUST refuse to start a chat that is given an agent specification that cannot be read
+or that names a runtime which is not saved, MUST state the reason, MUST make the refusal before any
+session opens, and MUST NOT create an epic directory for the refused request.
+
+**8.3.8** A workspace MUST remember the agent of the last chat started or changed in it through a
+frontend, apart from the remembered setup of every flow, as Section 3.4.1.6 states for a remembered
+agent; a frontend MUST offer that agent when it starts a chat in that workspace.
 
 ### 8.4. Turns
 
@@ -3420,12 +3436,12 @@ harness accepts a message mid-turn, and MUST otherwise be held for the next turn
 **8.4.5** A frontend MUST NOT draw the chat's wait for the next message as a question to the user.
 
 **8.4.6** A question the assistant asks the user mid-turn MUST be shown in the conversation with the
-options it offers, and the user's next message MUST answer it.
+options it offers, and the user's next message MUST answer it; no outworlder takes part.
 
 **8.4.7** An empty next message MUST end the chat.
 
-**8.4.8** Where the **outworlder** `human` is away, the chat MUST take its first turn and then end,
-the next message being empty.
+**8.4.8** Where nobody is at a prompt to say the next message ([CLI]), the chat MUST take its first
+turn and then end, the next message being empty.
 
 **8.4.9** Where the first turn of a chat that is not carried on fails, the epic MUST end failed with
 what the harness said.
@@ -3464,6 +3480,9 @@ workspace.
 **8.6.5** A frontend MUST list every chat among the epics of its workspace, with its status as
 Section 8.5 states it.
 
+**8.6.6** Each chat MUST execute in a chat host slot of its own (`chat:` followed by hexadecimal
+digits, Section 4.2.6 of [DAEMON]), concurrently with the epic of the workspace's own host slot.
+
 ### 8.7. Folding away and carrying on
 
 **8.7.1** A chat MUST fold away once it is between turns and no frontend has followed it for the
@@ -3487,8 +3506,12 @@ message that carried it on in that new conversation.
 **8.7.7** A chat of another workspace, or one that cannot be carried on here, MUST be refused,
 saying that the chat cannot be continued here.
 
-**8.7.8** A chat MUST NOT be carried on by `/resume` or by resuming the workspace's last epic; it
-MUST be carried on only from a list of epics or by saying something in it.
+**8.7.8** A chat MUST NOT be carried on by resuming the workspace's last epic; it MUST be carried on
+only from a list of epics, by `/resume` in a chat (Section 8.9.8) or by saying something in it.
+
+**8.7.9** A chat that is carried on MUST record that it was opened again, MUST read back as
+`running` until it ends again, and MUST read back as having spent the sum of what each opening
+spent.
 
 ### 8.8. Drawing a chat
 
@@ -3512,6 +3535,82 @@ leave a chat that a host holds to that host.
 **8.8.7** Every behaviour of a chat that the web interface offers MUST be offered by the terminal
 interface by keys and commands, and every behaviour of a chat that the terminal interface offers
 MUST be offered by the web interface.
+
+### 8.9. Native input
+
+**8.9.1** A chat MUST take the input its harness takes natively, wherever the way hmz drives that
+harness can carry it, and MUST refuse, saying why, native input that only the harness's own
+interactive interface can serve, such as a settings dialog or a login.
+
+**8.9.2** The driver of each harness MUST expose a catalogue of native entries for an open
+conversation, each entry giving a sigil, a name (empty for `!`), a one-line about, and how hmz
+serves it, which MUST be one of:
+
+| How | Meaning |
+| --- | --- |
+| `pass` | The line goes into the turn unchanged, and the harness expands it. |
+| `call` | hmz calls the harness's own operation for it, such as a compaction or a review. |
+| `emulate` | hmz does what the harness's interactive interface would do. |
+| `refuse` | Only the harness's interactive interface can serve it. |
+
+**8.9.3** The catalogue of each of the following harnesses MUST hold the following entries, served
+as stated:
+
+| Harness | Entries | How |
+| --- | --- | --- |
+| `claude` | `/<name>` for every command or skill in its session's list of slash commands | `pass` |
+| `claude` | `/model`, `/effort` | `call` |
+| `claude` | `!` | `emulate` |
+| `claude` | `@<path>` | `pass` |
+| `claude` | `/config`, `/mcp`, `/agents`, `/login`, `/permissions`, `/doctor` | `refuse` |
+| `codex` | `$<skill>` for every skill in its skills list | `call`, as a skill input item |
+| `codex` | `@<path>` | `call`, as a mention, or as an image for an image file |
+| `codex` | `!` | `call`, as the app server's shell command; `emulate` where Codex's sandbox fences |
+| `codex` | `/compact`, `/review`, `/rename`, `/model`, `/effort` | `call` |
+| `pi`, `omp` | `/<name>` for every command in its own command list | `pass` |
+| `pi`, `omp` | `!`, and `!!`, which runs the command without sending it | `call` |
+| `pi`, `omp` | `/compact` | `call` |
+
+**8.9.4** Where Codex's own sandbox holds the fence (Section 4.6.4), its `!` MUST be emulated. Every
+other built-in harness MUST hold in its catalogue the native entries its transport reaches, every
+other line being passed as text; `litellm` and every ACP harness MUST have no catalogue, every line
+being text.
+
+**8.9.5** `/model` and `/effort` MUST change the model or the effort of the conversation, and the
+agent so changed MUST be the chat's agent from then on, recorded in its epic and remembered as
+Section 8.3.8 states.
+
+**8.9.6** A `!<command>` that hmz emulates MUST run in the chat's workspace under the same
+confinement as the assistant's commands (Section 4.6.4), MUST show the command and its output in the
+conversation, MUST NOT open a turn, and MUST carry the command and its output into the next turn as
+`<bash-input>`, `<bash-stdout>` and `<bash-stderr>` blocks ahead of the message.
+
+**8.9.7** Frontends MUST keep `/clear`, `/resume`, `/exit`, `/quit`, `/btw`, `/flow`, `/epics`,
+`/settings`, `/chat` and `/prefer` for hmz, and MUST NOT serve them from the catalogue.
+
+**8.9.8** In a chat, each of `/clear`, `/resume`, `/exit`, `/quit` and `/btw` MUST do what the
+harness's own command of that name does: `/clear` starts a new conversation, as a new chat (Section
+8.8.4); `/resume` picks an earlier chat of this workspace to carry on; `/exit` and `/quit` leave
+(Section 8.8.6); and `/btw` asks a side question (Section 9).
+
+**8.9.9** In a chat, `$<name>` MUST name a native skill or a flow: where only one of them exists it
+MUST be that one, where neither exists the line MUST be said to the chat as prose, and where both
+exist the chat's preference MUST decide.
+
+**8.9.10** The preference MUST be `native` unless the user sets it to `flow` in the settings file
+(`chat.prefer`, Section 3 of [FILES]), and MAY be overridden for one chat (`/prefer` in [TUI], a
+toggle in Section 3 of [WEB], `chat.set` in Section 4 of [DAEMON]); the override MUST be recorded in
+that chat's epic and MUST survive carrying on.
+
+**8.9.11** `/flow <name> [task]` MUST always name a flow.
+
+**8.9.12** Any other line of a chat that starts with a sigil and names an entry of the catalogue
+MUST be served as the catalogue says.
+
+**8.9.13** A line of a chat that starts with `/` and names no entry of the catalogue MUST be passed
+to the harness as text where the catalogue holds no entry with sigil `/` or the conversation has
+not yet taken a turn, by when every harness has listed its catalogue, and MUST otherwise be
+refused, naming it; a line that starts with `!` or `@` and names no entry MUST be passed as text.
 
 ## 9. Side Questions
 
@@ -3902,12 +4001,12 @@ by its budget, or is refused by hmz after a frontend asked to start it.
 
 **10.4.2.5** hmz MUST raise a notice of kind `asked` when a flow asks a person a question.
 
-**10.4.2.6** hmz MUST raise a notice of kind `listening` when a flow other than `chat` waits for the
-next thing a person says.
+**10.4.2.6** hmz MUST raise a notice of kind `listening` when a flow waits for the next thing a
+person says.
 
-**10.4.2.7** For a `chat` epic, hmz MUST raise a notice of kind `done` when a turn of its agent is
+**10.4.2.7** For a chat, hmz MUST raise a notice of kind `done` when a turn of its assistant is
 done, MUST raise a notice of its end only where it failed or ended during a turn not yet noticed,
-and MUST NOT raise a notice of kind `stopped`.
+and MUST NOT raise a notice of kind `stopped` or `listening`.
 
 **10.4.2.8** hmz MUST NOT raise a notice for anything that stood before hmz began working notices
 out, and MUST NOT raise a second notice for a question already noticed.
@@ -4121,7 +4220,7 @@ Out of scope:
 - The layout of an epic directory and of the git clones hmz keeps (Section 6 of [FILES], Section 7
   of [FILES]).
 - How a frontend offers export, import, backup and download ([TUI], Section 3 of [WEB]).
-- Whether an imported epic can be picked up (Section 3.3.7.11).
+- Whether an imported epic can be picked up (Section 3.3.7.10).
 
 ### 11.2. Terminology
 

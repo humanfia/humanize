@@ -13,8 +13,6 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.daemon import reach
-from hmz.runtime import flowing
-from hmz.runtime.flowing import finding
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import Acts, AiChanNew, AiChans, AiForgets
@@ -41,15 +39,23 @@ if TYPE_CHECKING:
     from hmz.daemon.private import Private
 
 
-#: Stands in for the flow `ai_chan`: a chat with her, as Humanize's `chat` has with its agent.
+#: Stands in for the flow `ai_chan`: the stand-in agent talking to the person, every line said
+#: back its next turn, as `TALK` of the interface's own tests does.
 _AI_CHAN = """
+import contextlib
+
 from hmz.flows import (
-    Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, Outworlder, flow,
+    Agent, AgentCollection, AskUserHookAgentMixin, AskUserHookResult, CapabilityNotGranted,
+    EnvCollection, FlowParams, LocalEnv, Outworlder, flow,
 )
 
 
+class Her(Agent, AskUserHookAgentMixin):
+    pass
+
+
 class Agents(AgentCollection):
-    ai_chan: Agent
+    ai_chan: Her
     human: Outworlder
 
 
@@ -70,6 +76,13 @@ class Params(FlowParams):
 async def ai_chan(task, *, agents, envs, params, ctx):
     her, human = agents["ai_chan"], agents["human"]
     talk, person = await her.spawn(), await human.spawn()
+
+    async def asked(params):
+        said = await human.run(params.question, session=person)
+        return AskUserHookResult(answer=said or None)
+
+    with contextlib.suppress(CapabilityNotGranted):
+        her.on_ask_user(asked)
     said = task
     while said:
         answered = await her.run(said, session=talk, env=envs["workspace"])
@@ -83,8 +96,7 @@ def workspace(
 ) -> Path:
     """The stand-in `claude` on `PATH`, the `ai_chan` setting naming it, and her flow.
 
-    The daemon's `aichan.*` is its own; the flow her host runs is the stand-in above, held
-    as a chat is, which is how the interface reads her conversation.
+    The daemon's `aichan.*` is its own; the flow her host runs is the stand-in above.
     """
     del asking, daemon
     here = stand_in(tmp_path, monkeypatch)
@@ -93,13 +105,6 @@ def workspace(
     flow.mkdir(parents=True)
     (flow / "__init__.py").write_text(_AI_CHAN)
     monkeypatch.setattr(reach, "FLOW", str(flow))
-    was = finding.privileged
-
-    def chats(impl: Any) -> bool:
-        return was(impl) or impl.name == "ai_chan"
-
-    monkeypatch.setattr(finding, "privileged", chats)
-    monkeypatch.setattr(flowing, "privileged", chats)
     return here
 
 

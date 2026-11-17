@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
     from hmz.sdk.running import Opened
 
-__all__ = ["Out", "Shown", "colours", "terminal"]
+__all__ = ["Out", "Shown", "colours", "terminal", "unreached"]
 
 
 #: The bullet a thing an agent said is set on, and the star a turn is closed with. The same
@@ -62,6 +62,23 @@ _MILLION = 1000 * 1000
 #: is roughly one step a frame: enough to read as moving, and few enough writes that a run
 #: watched over ssh is not a run being drawn over ssh.
 _FRAMES = 10
+
+
+def unreached(error: OSError) -> str:
+    """What a command says of a daemon it could not reach, or one of another version.
+
+    Here because `hmz exec` and `hmz chat` say it in the same words (Section 7.1.9 and
+    Section 15.3.4 of cli.md).
+
+    Args:
+      error: Why it could not be reached; `EADDRINUSE` for a daemon of another version,
+        whose refusal is said as it is.
+    """
+    import errno
+
+    if error.errno == errno.EADDRINUSE:
+        return f"hmz: {error.strerror or error}"
+    return f"hmz: the daemon cannot be reached: {error}"
 
 
 def terminal(stream: IO[str] | None = None) -> bool:

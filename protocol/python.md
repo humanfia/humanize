@@ -100,7 +100,7 @@ Out of scope:
 - Where a session's harness runs (placements, harness settings, mirrors): Section 6 of [CORE].
 - Environment backends, runtimes, and how resources size a container or job: Section 7 of [CORE].
 - Which epic a resume picks up, and what an epic records: Section 3 of [CORE].
-- The behaviour of the `chat` flow: Section 8 of [CORE].
+- The behaviour of a chat, which is not a flow: Section 8 of [CORE].
 
 ### 3.2. Terminology
 
@@ -1583,9 +1583,8 @@ of the others. A `Graceful` whose three fields agree MUST be read as the `bool` 
 turns each counting. `Usage.cost` MUST be in US dollars. `Usage.output_tokens` MUST be the tokens
 agents wrote.
 
-**3.12.1.6** hmz MUST require a budget for the top call of every epic except of the `chat` and
-`ai_chan` flows, given as specified in [CLI]. A top call of either given none MUST run under
-`Budget(cost=math.inf)`.
+**3.12.1.6** hmz MUST require a budget for the top call of every epic except of the `ai_chan` flow,
+given as specified in [CLI]. A top call of it given none MUST run under `Budget(cost=math.inf)`.
 
 #### 3.12.2. Effective budget
 
@@ -1820,7 +1819,6 @@ that an index lists and that is not installed MUST NOT be found, and naming it M
 
 | Flow | Agent roles | Role needs | Resumable |
 | --- | --- | --- | :-: |
-| `chat` | `assistant`, `human: Outworlder` | none | ✓ |
 | `ai_chan` | `ai_chan`, `human: Outworlder` | none | ✓ |
 | `ralph_loop` | `agent` | none | |
 | `stateful_ralph` | `agent` | none | ✓ |
@@ -1829,12 +1827,11 @@ that an index lists and that is not installed MUST NOT be found, and naming it M
 | `flame_chase` | `first_chaser`, `second_chaser` | none | ✓ |
 | `rlar` | `actor`, `reviewer` | none | ✓ |
 
-**3.14.3.2** The agent roles of `chat` MUST each be granted every mixin its harness serves, whatever
-the role declares. Every other flow MUST be granted exactly what its roles declare. The behaviour of
-`chat` is specified in Section 8 of [CORE], and that of `ai_chan`, whose environment role is
-`scratch` in place of `workspace`, in Section 14 of [CORE].
+**3.14.3.2** Every flow MUST be granted exactly what its roles declare. A chat is not a flow, and
+is specified in Section 8 of [CORE]; the behaviour of `ai_chan`, whose environment role is
+`scratch` in place of `workspace`, is specified in Section 14 of [CORE].
 
-**3.14.3.3** Each flow of Section 3.14.3.1 other than `chat` MUST run until its budget is spent,
+**3.14.3.3** Each flow of Section 3.14.3.1 MUST run until its budget is spent,
 `rlar` also until its reviewer says the work is done, and MUST end the epic with the failure of any
 turn that fails.
 
@@ -2321,8 +2318,8 @@ them, or an instance of the flow's `FlowParams`, sent as its JSON; `None` MUST m
 defaults.
 
 **4.4.5.9** The parameter `budget` MUST accept a `Budget` or a mapping validated as `Budget`
-validates one; `None` MUST mean an unlimited cost for the built-in `chat` and `ai_chan` flows and
-MUST be refused for every other flow.
+validates one; `None` MUST mean an unlimited cost for the built-in `ai_chan` flow and MUST be
+refused for every other flow.
 
 **4.4.5.10** `profile_flow` and `profile_environment` MUST mean what `--profile-flow` and
 `--profile-environment` mean in [CLI].
@@ -2388,7 +2385,7 @@ the host that runs an epic is internal to hmz (Section 4.15).
 class Run:
     def __init__(self, runner: Runner, task: str, *,
                  outworlder: OutworlderDriver | None = None) -> None: ...
-    flow: str; ref: str; chats: bool; task: str; declaration: Declaration
+    flow: str; ref: str; task: str; declaration: Declaration
     budget: Budget; profile_flow: bool; profile_environment: bool
     backup: tuple[str, ...]; usage: Usage; agents: tuple[Opened, ...]
     names: dict[str, str]; epic: Path | None; running: bool
@@ -2414,29 +2411,26 @@ One `Run` is one epic, held by a daemon on a new exec slot of the workspace (Sec
 **4.5.1.2** `Run.flow` MUST be the flow as it was named; `Run.ref` MUST be its canonical ref, as the
 daemon's check answered it.
 
-**4.5.1.3** `Run.chats` MUST be `True` where, and only where, the flow is the built-in `chat` flow,
-as the daemon's check answered it.
-
-**4.5.1.4** `Run.declaration` MUST be what the flow declares (Section 4.20.3), as the daemon's check
+**4.5.1.3** `Run.declaration` MUST be what the flow declares (Section 4.20.3), as the daemon's check
 answered it.
 
-**4.5.1.5** `Run.budget` MUST be the `Budget` the epic is held to; `Run.usage` MUST be what it has
+**4.5.1.4** `Run.budget` MUST be the `Budget` the epic is held to; `Run.usage` MUST be what it has
 spent so far, as the latest `usage` snapshot of its subscription says.
 
-**4.5.1.6** `Run.backup` MUST be the names of the backup targets the epic goes to.
+**4.5.1.5** `Run.backup` MUST be the names of the backup targets the epic goes to.
 
-**4.5.1.7** `Run.agents` MUST be an `Opened` (Section 4.20.7) for each **session** still open,
+**4.5.1.6** `Run.agents` MUST be an `Opened` (Section 4.20.7) for each **session** still open,
 oldest first, as the `opened` records and the `sessions` snapshot say.
 
-**4.5.1.8** `Run.names` MUST map each agent role to the name of the agent filling it, as the
+**4.5.1.7** `Run.names` MUST map each agent role to the name of the agent filling it, as the
 `started` record says, or as the daemon's check answered before it.
 
-**4.5.1.9** `Run.epic` MUST be the epic directory once the `run` snapshot names it, and `None`
+**4.5.1.8** `Run.epic` MUST be the epic directory once the `run` snapshot names it, and `None`
 before.
 
-**4.5.1.10** `Run.running` MUST be `True` from `start()` until the `ended` record has come.
+**4.5.1.9** `Run.running` MUST be `True` from `start()` until the `ended` record has come.
 
-**4.5.1.11** Once the `ended` record has come, `Run.raised` and `Run.result` MUST be as Section
+**4.5.1.10** Once the `ended` record has come, `Run.raised` and `Run.result` MUST be as Section
 4.5.2.2 states, and `None` until then.
 
 #### 4.5.2. Driving

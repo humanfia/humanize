@@ -7,7 +7,8 @@ import SpecReader from '../.vitepress/theme/components/user-after/SpecReader.vue
 Run a flow from one shell line, with nobody at the prompt: from a script, a cron entry or a CI
 job. By the end of this page you can write that line, check it before you schedule it, read
 what it prints, and act on how it ended. Reach for it whenever a run should start without you,
-or when another program wants to read the run as it happens.
+or when another program wants to read the run as it happens. To ask one agent one thing, with
+no flow and no budget, `hmz chat "<message>"` is the line: see [Chat](/user/chat#from-the-shell).
 
 ## Try it
 
@@ -46,7 +47,7 @@ answer at once:
 | --- | --- | --- |
 | `-f` | which flow: the name `/flow` offers it under, a path, or a `git+…#flow` ref | always |
 | `-a` | which CLI, account, model and effort fills each agent role | one per role |
-| `-p budget.…` | what the run may spend | every flow but `chat` |
+| `-p budget.…` | what the run may spend | always |
 | `-p` | the flow's own [params](/weaver/flow-settings), where you want other than the defaults | when you want them |
 | `-e` | where an environment role is, for a flow that works on [another machine](/user/remote-execution) | when the flow has one |
 | `--profile-flow` | sample the flow's own Python, so the run's trace shows where the flow spent its time | no |
@@ -89,7 +90,7 @@ You never name the person or the working directory. Humanize fills those roles i
 
 ### Set the budget {#say-what-the-run-may-spend}
 
-A loop runs until something stops it, so every flow but `chat` needs a budget, given as
+A loop runs until something stops it, so every flow needs a budget, given as
 `-p budget.<key>=`:
 
 | Key | Written as |
@@ -199,7 +200,7 @@ The run goes to **stderr**. What each turn answered, and whatever the flow print
 **stdout**, so a script can take one without the other:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
+hmz chat -a claude/claude-haiku-4-5-20251001:low \
     "Summarise in one line: Humanize runs coding agents in loops." \
     > summary.txt 2> run.log
 ```
@@ -212,10 +213,12 @@ $ tail -2 run.log
 ✻ Worked for 9s · assistant
 ```
 
-1. **`> summary.txt`** takes the answer alone. [`chat`](https://humanfia.ai/flows/chat) needs no budget, and with
-   nobody at a prompt it answers once and returns.
+1. **`> summary.txt`** takes the answer alone. [`hmz chat`](/user/chat#from-the-shell) needs
+   no flow and no budget: it takes one turn and returns. `hmz exec` splits its streams the
+   same way.
 2. **`2> run.log`** keeps the run: every tool call, every turn's cost, and any
-   `hmz exec: …` line. Redirected, the lines come out without colour or the ticking clock.
+   `hmz chat: …` line (`hmz exec: …` for a flow). Redirected, the lines come out without colour
+   or the ticking clock.
 
 At a terminal the same lines are drawn in colour, with a clock at the foot while a turn thinks:
 `⠹ agent is working · 12s`. `NO_COLOR` turns colour off. `FORCE_COLOR=1` turns it on for a log
@@ -232,8 +235,8 @@ second, with exit status 2, before any agent starts. So try the line by hand onc
 ```console
 $ hmz exec -f ralph_loop -a agent=claude/claude-haiku-4-5-20251001:low "x"
 hmz exec: error: ralph_loop requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...
-$ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:ultra "x"
-hmz exec: error: assistant=claude/claude-haiku-4-5-20251001:ultra: claude cannot be asked to think at 'ultra'; expected one of ultracode, max, xhigh, high, medium, low
+$ hmz exec -f ralph_loop -a agent=claude/claude-haiku-4-5-20251001:ultra -p budget.cost=1 "x"
+hmz exec: error: agent=claude/claude-haiku-4-5-20251001:ultra: claude cannot be asked to think at 'ultra'; expected one of ultracode, max, xhigh, high, medium, low
 ```
 
 What is only known once a machine is reached, such as an [environment](/user/remote-execution)
@@ -265,7 +268,7 @@ own lines, such as the review `rlar` ends on, move to stderr with the rest, so t
 always parses.
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "say hello" \
+hmz exec -f goal -a worker=claude/claude-haiku-4-5-20251001:low -p budget.cost=1 --json "say hello" \
     | jq -c 'select(.kind == "result")'
 ```
 
@@ -274,7 +277,7 @@ That object, spread out here:
 ```json
 {
   "at": 1790747303.0952988,
-  "agent": "assistant",
+  "agent": "worker",
   "cli": "claude",
   "model": "claude-haiku-4-5-20251001",
   "session": "0a7264b6-8180-406e-bcc0-c1feb14a1964",
@@ -343,8 +346,8 @@ same line again, without `--resume`, carries it on.
 
 With nobody at a prompt, the run behaves as if you were [away](/user/afk) the whole time:
 
-- A flow that talks to you is answered with nothing, so `chat` does the one thing it was given
-  and returns.
+- A flow that talks to you is answered with nothing, and goes on as it would with you away.
+  `hmz chat`, for the same reason, takes its one turn and returns.
 - An agent that stops to ask a question is told nobody answered, and carries on. The question
   is still printed, and with `--json` it is an object of kind `asks`.
 - A flow that needs an answer it has no default for fails, and says so.
@@ -369,7 +372,7 @@ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 \
 - **The CLI is not signed in.** Nothing catches it before the run: the first turn fails, and
   the run ends with what the CLI said, exit status `1`. Run the line by hand once and read what
   it prints.
-- **A script that waits for ever on `chat`.** It will not: with nobody at a prompt, `chat`
+- **A script that waits for ever on `hmz chat`.** It will not: with nobody at a prompt, a chat
   answers once and returns.
 - **A long job that dies when the round ends.** A server or a training run an agent starts goes
   with its session, unless the agent detached it: started with `setsid nohup … &` from a shell

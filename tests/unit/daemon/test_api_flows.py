@@ -248,13 +248,22 @@ def test_a_flows_params_carry_a_title_only_where_the_flow_wrote_one(
             "coder is not given an agent as -a spells one: nothing.",
         ),
         ({"flow": "loop"}, "loop needs an agent for coder."),
+        (
+            {"flow": "loop", "agents": {"coder": "claude/opus"}},
+            "loop needs at least one limit on what it may spend.",
+        ),
+        # A flow named chat is a flow like any other, with a budget like any other's.
+        (
+            {"flow": "chat", "agents": {"coder": "claude/opus"}},
+            "chat needs at least one limit on what it may spend.",
+        ),
     ],
 )
 def test_a_set_up_that_cannot_run_is_refused(
     said: dict[str, Any], sentence: str
 ) -> None:
     with pytest.raises(RpcError) as refused:
-        flows.remembers(_flows("loop"), said)
+        flows.remembers(_flows("loop", "chat"), said)
     assert (refused.value.code, refused.value.message) == (Code.REFUSED, sentence)
 
 

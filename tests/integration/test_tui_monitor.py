@@ -12,6 +12,7 @@ from hmz.runtime.watching.monitor import Monitor
 from hmz.tui import Humanize
 from hmz.tui.monitoring import Details, Halts, Monitoring
 from tests.integration.doubles_tui import (
+    OWN,
     RUNS,
     SIZE,
     TALKS,
@@ -25,6 +26,7 @@ from tests.integration.doubles_tui import (
     shows,
     stand_in,
     started,
+    talks_set_up,
     typed,
     until,
 )
@@ -42,13 +44,18 @@ pytestmark = pytest.mark.usefixtures("daemon")
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
     """The stand-in `claude` on `PATH`, really asked what it runs as the interface opens."""
     del asking
-    return stand_in(tmp_path, monkeypatch)
+    workspace = stand_in(tmp_path, monkeypatch)
+    talks_set_up(workspace)
+    return workspace
 
 
-async def working(pilot: Pilot[None]) -> None:
-    """Starts chat, under another name, on a turn held open until it is told more."""
+async def working(pilot: Pilot[None], flow: str = TALKS) -> None:
+    """Starts chat, under another name, on a turn held open until it is told more.
+
+    Or, with no flow named, a chat itself: what a line said starts.
+    """
     await opened(pilot)
-    await typed(pilot, "wait a moment")
+    await typed(pilot, f"/flow {flow} wait a moment" if flow else "wait a moment")
     await shows(pilot, "still on it")
 
 
@@ -83,7 +90,7 @@ async def test_the_monitor_counts_the_tokens_a_finished_turn_spent(
 ) -> None:
     async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
-        await typed(pilot, "hello")
+        await typed(pilot, f"/flow {TALKS} hello")
         await shows(pilot, "heard hello")
 
         await pilot.press("left")
@@ -173,7 +180,7 @@ async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
     own_flow(workspace)
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await typed(pilot, "wait a moment")
+        await typed(pilot, f"${OWN} wait a moment")
         await shows(pilot, "still on it")
         # Over the monitor, where there is no session a side question is of.
         await pilot.press("left")
@@ -197,7 +204,7 @@ async def test_the_epic_opens_from_the_monitor_and_is_stopped_there(
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await typed(pilot, "wait a moment")
+        await typed(pilot, f"${OWN} wait a moment")
         await shows(pilot, "still on it")
         await pilot.press("left")
         await on(pilot, Monitoring)

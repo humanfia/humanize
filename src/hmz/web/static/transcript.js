@@ -4,6 +4,7 @@
 // written down.
 
 import { h, lasting } from './dom.js'
+import { refusedSaid, shellOf, shellParts } from './natives.js'
 import { copy, menuOn } from './ui.js'
 
 /** How much of a long line is shown before the rest is folded away. */
@@ -25,6 +26,7 @@ const GLYPHS = {
   you: '❯',
   btw: '●',
   turn: '❯',
+  refused: '✕',
 }
 
 /** One line of a transcript. */
@@ -47,6 +49,26 @@ export function line(kind, body, { who = '', folded = false } = {}) {
   ])
 }
 
+/**
+ * A `!` command run in a chat and what it printed, drawn as a shell draws them: the command on
+ * its prompt, its output under it, what it complained of set apart, and how it exited where it
+ * failed.
+ */
+export function shellLine(ran) {
+  const parts = shellParts(ran)
+  const text = parts.map((one) => one.text).join('\n')
+  const said = h(
+    'div',
+    { class: 'said shell', 'data-hmz': 'said-shell' },
+    h('span', { class: 'g', 'aria-hidden': 'true' }, '!'),
+    h('div', { class: 'body' }, parts.map((one) => h('pre', { class: `shell-${one.part}` }, one.text))),
+  )
+  return menuOn(said, () => [
+    { label: 'Copy', glyph: 'copy', act: () => copy(text, 'Copied') },
+    { label: 'Copy output', glyph: 'copy', act: () => copy([ran.out, ran.err].filter(Boolean).join('\n'), 'Copied') },
+  ])
+}
+
 /** A thread as text: each line, whose it is where it says, one after another. */
 function threadOf(one) {
   const thread = one.closest('.thread')
@@ -65,7 +87,8 @@ function threadOf(one) {
  * every answer the person gave as a line of theirs, and what to say next is never drawn as
  * asked, since it is only the reply said back. Anything else said in asking it -- that a turn
  * could not be taken, or that the conversation could not be carried on -- is the flow's own
- * word in the conversation, and is drawn there, as the terminal interface draws it.
+ * word in the conversation, and is drawn there, as the terminal interface draws it. A `!`
+ * command the chat ran is drawn as a shell draws it, and a line it refused with why.
  *
  * Given `folded`, every tool is one line to open, as Ai-chan's are drawn.
  *
@@ -106,6 +129,11 @@ export function sayer(key, { chat = false, folded = false } = {}) {
         return chat && kind !== 'person' && record.text ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
       case 'started':
         return chat && kind !== 'person' && record.task ? [line('you', record.task)] : []
+      // A chat's own: what its person ran, or said and it would not take.
+      case 'shell':
+        return chat && kind === 'session' ? [shellLine(shellOf(record))] : []
+      case 'refused':
+        return chat && kind === 'session' ? [line('refused', refusedSaid(record))] : []
       case 'event':
         if (mine && record.kind === 'result') answer = String(record.text || '')
         return mine ? said(record, kind === 'agent' ? record.session || record.agent : '', began, folded) : []

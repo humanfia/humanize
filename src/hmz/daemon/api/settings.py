@@ -39,15 +39,20 @@ def read(hmz: Any) -> dict[str, Any]:
       hmz: Humanize, for the workspace.
 
     Returns:
-      `workspace`, `flow`, `ai_chan`, `details`, `reports`, `flows`, `backup`, `listen` and
-      `ice_servers`, with nothing signed in.
+      `workspace`, `flow`, `chat` (the chat agent remembered there, or ""), `prefer`, `ai_chan`,
+      `details`, `reports`, `flows`, `backup`, `listen` and `ice_servers`, with nothing
+      signed in.
     """
     from hmz.coganchor import settings as kept
+    from hmz.runtime.kept import written
 
     settings, held = hmz.settings, kept.read()
+    chat = settings.chat_agent
     return {
         "workspace": str(hmz.workspace),
         "flow": settings.flow,
+        "chat": written(chat) if chat is not None else "",
+        "prefer": settings.chat_prefer,
         "ai_chan": settings.ai_chan,
         "details": settings.details,
         "reports": settings.enable_sentry,
@@ -80,19 +85,28 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
 
     Args:
       hmz: Humanize, for the workspace.
-      said: Any of `ai_chan`, `details`, `reports`, `backup`, `listen` and `ice_servers`;
-        anything else, the `btw` an earlier release wrote among it, is not read.
+      said: Any of `chat`, `prefer`, `ai_chan`, `details`, `reports`, `backup`, `listen` and
+        `ice_servers`; anything else is not read.
 
     Returns:
       What :func:`read` answers afterwards.
 
     Raises:
-      RpcError: 400 for a value of another type, a listener that is not one, a backup target
-        that is not one, or a credential still struck.
+      RpcError: 400 for a value of another type, a chat agent or a listener that is not
+        one, a backup target that is not one, or a credential still struck.
     """
     from hmz.coganchor import settings as kept
+    from hmz.runtime.doing.hosting import assistant
 
     # All of it read before any of it is written: a request refused changes nothing.
+    chat = None
+    if "chat" in said:
+        try:
+            chat = assistant(str(said["chat"] or ""))
+        except ValueError as why:
+            raise _refused(f"chat is an agent as -a spells one: {why}") from why
+    if "prefer" in said and said["prefer"] not in ("native", "flow"):
+        raise _refused("prefer is native or flow.")
     if "ai_chan" in said and not isinstance(said["ai_chan"], str):
         raise _refused("ai_chan is a nous or an agent spec, or nothing.")
     if "details" in said and not isinstance(said["details"], bool):
@@ -110,6 +124,10 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
         _back_up_to(hmz, said["backup"])
     if machine:
         kept.changes(lambda now: now.update(machine))
+    if chat is not None:
+        hmz.settings.chat_agent = chat
+    if "prefer" in said:
+        hmz.settings.chat_prefer = said["prefer"]
     if "ai_chan" in said:
         hmz.settings.ai_chan = said["ai_chan"]
     if "details" in said:

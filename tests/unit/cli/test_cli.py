@@ -39,6 +39,7 @@ def test_many_says_a_count_as_english_does(
 def test_the_commands_are_these_and_the_internal_door() -> None:
     commands = [
         "exec",
+        "chat",
         "web",
         "daemon",
         "relay",

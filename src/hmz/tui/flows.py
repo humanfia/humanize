@@ -962,13 +962,12 @@ class Flows(Drafts[Chosen]):
                     "what the flow itself takes",
                 )
             )
-        unbounded = self._declared is not None and self._declared.unbounded
         lines.append(
             (
                 _BUDGET,
                 "budget",
                 "set" if self._budget is not None else "none",
-                f"what an epic may spend: {_spending(self._budget, unbounded=unbounded)}",
+                f"what an epic may spend: {_spending(self._budget)}",
             )
         )
         # Straight under the budget, the ones about the run rather than any role: two
@@ -1236,8 +1235,8 @@ class Flows(Drafts[Chosen]):
 
         Unless something a run needs has not been answered: an agent that names no model is
         a run that stops on its first turn, an environment nobody said the place of is a run
-        refused before it starts, and so is a run given no budget -- which only `chat` may
-        be. Each is said where it would be answered.
+        refused before it starts, and so is a run given no budget, which no flow may be run
+        without (Section 16.4.6 of [TUI]). Each is said where it would be answered.
         """
         declared = self._declared
         missing = [
@@ -1255,7 +1254,7 @@ class Flows(Drafts[Chosen]):
             self._said = iffy(f"{escape(', '.join(missing))} is not configured yet")
             self._to_roles()
             return
-        if self._budget is None and declared is not None and not declared.unbounded:
+        if self._budget is None and declared is not None:
             self._said = iffy("this flow requires a budget: set the budget first")
             self._to_roles()
             return
@@ -1984,7 +1983,7 @@ def _wont_load(flow: str, also: str = "") -> str:
     return bad(said)
 
 
-def _spending(held: Budget | None, *, unbounded: bool) -> str:
+def _spending(held: Budget | None) -> str:
     """What a run of this flow may spend, said the way a row about it says it.
 
     Said on the row rather than only inside the sheet it opens, because a budget nobody can
@@ -1994,17 +1993,12 @@ def _spending(held: Budget | None, *, unbounded: bool) -> str:
 
     Args:
       held: What was set here, or None for none.
-      unbounded: Whether the flow needs none: a conversation, which stops when you do.
 
     Returns:
       The caps, or what having none comes to.
     """
     if held is None:
-        return (
-            "none needed; runs until you stop it"
-            if unbounded
-            else "none set; an epic needs one"
-        )
+        return "none set; an epic needs one"
     return f"stops at {spent(held)}"
 
 

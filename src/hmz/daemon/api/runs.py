@@ -44,6 +44,7 @@ __all__ = [
     "calls",
     "detail",
     "held_by",
+    "kind",
     "labelled",
     "listed",
     "local",
@@ -62,11 +63,8 @@ BUNDLE = "application/vnd.hmz.epic+gzip"
 #: A Windows path: a drive's, or a share's such as `\\wsl$\...`.
 _WINDOWS = re.compile(r"[A-Za-z]:[\\/]|\\\\")
 
-#: How a chat is said between its turns, and once it is over however it ended but failing.
+#: Where a chat is in its turn between its turns, as its host says it.
 DONE = "done"
-
-#: The flow that is a conversation, said a turn at a time rather than as one run.
-CHAT = "chat"
 
 #: The most rows one page of the list holds.
 _PAGE = 200
@@ -327,7 +325,10 @@ def held_by(
                 continue
             if epic and ran.name != epic:
                 continue
-            if not epic and ran.flow != standing.get("flow"):
+            if not epic and (
+                ran.flow != standing.get("flow")
+                or (standing.get("kind") or kind(ran)) != kind(ran)
+            ):
                 continue
             if not epic and standing.get("task") and ran.task != standing.get("task"):
                 continue
@@ -345,8 +346,8 @@ def held_by(
 def running() -> list[dict[str, Any]]:
     """What each host of this machine runs, as `held_by` reads it; one running nothing is left out.
 
-    Each its state, the run's number, its flow, task and epic, of a chat its turn, and its
-    `workspace`, its `slot` and the questions it waits on, each `<run>:<question>`, as
+    Each its state, the run's number, its kind, flow, task and epic, of a chat its turn, and
+    its `workspace`, its `slot` and the questions it waits on, each `<run>:<question>`, as
     `asking`: as each host says it of itself.
     """
     said: list[dict[str, Any]] = []
@@ -359,6 +360,7 @@ def running() -> list[dict[str, Any]]:
             {
                 "state": status["state"],
                 "run": run,
+                "kind": status.get("epic_kind") or "",
                 "flow": status.get("flow") or "",
                 "epic": status.get("epic") or "",
                 "task": status.get("task") or "",
@@ -399,14 +401,16 @@ def row(
 
     first = ran.task.strip().splitlines()[0] if ran.task.strip() else ""
     how = ending(ran, going=held or going)
-    if ran.flow == CHAT and how != "failed":
+    chat = kind(ran) == "chat"
+    if chat and how != "failed":
         # A chat is going while its agent answers, and stopped between turns or once over,
-        # short of failing.
+        # short of failing (Section 8.5 of core.md).
         how = RUNNING if how == RUNNING and turn != DONE else "stopped"
     return {
         "name": ran.name,
         "workspace": resolved(ran.workspace),
-        "flow": ran.flow,
+        "kind": "chat" if chat else "flow",
+        "flow": "" if chat else ran.flow,
         "task": first[:_TOLD] + ("…" if len(first) > _TOLD else ""),
         "began": ran.began,
         "ended": ran.ended,
@@ -424,6 +428,13 @@ def row(
         "backup": list(ran.backup),
         "backed": ran.backed,
     }
+
+
+def kind(ran: Ran) -> str:
+    """What one epic is, `flow` or `chat`, as its record says it (Section 8.3.5 of core.md)."""
+    from hmz.runtime.doing.epics import kind
+
+    return kind(ran)
 
 
 def labelled(spent: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -580,7 +591,8 @@ def listed(
         "offset": offset,
         "limit": limit,
         "counts": counts,
-        "flows": sorted({ran.flow for ran in every}),
+        # What `flow` finds them by: a chat, of no flow, as `chat` (:func:`found`).
+        "flows": sorted({"chat" if kind(ran) == "chat" else ran.flow for ran in every}),
     }
 
 
