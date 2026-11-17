@@ -104,7 +104,8 @@ class Subscription:
         with self._lock:
             if self._gone:
                 return
-            reach = self.session.reach
+            # The daemon's own frontends, side questions' among them, carry no reach.
+            reach = getattr(self.session, "reach", None)
             if (
                 reach is not None
                 and reach.scope == "epic"
