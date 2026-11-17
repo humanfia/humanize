@@ -14,7 +14,7 @@ import { asides, board, outworlders, question, saying } from '../acting.js'
 import { call, exported, hash } from '../api.js'
 import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
-import { ask } from '../held.js'
+import { ask, follow } from '../held.js'
 import { composer as composed } from '../composer.js'
 import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
@@ -22,6 +22,7 @@ import { bar, dragged, keep, kept, sidePanel, tabbed } from '../shell.js'
 import { backedSaid, epicMenu, upload } from '../sidebar.js'
 import { copy, menuOn, toast } from '../ui.js'
 import { saidTraced, sayer } from '../transcript.js'
+import { usedLine } from './envs/tree.js'
 
 /** The most lines of a run going drawn at once: past it, the oldest go. */
 const LINES = 3000
@@ -99,7 +100,10 @@ export function mount(root, { parts, query }) {
           ),
         )
       }
-      region('panel-tabs', ['none'], () => fill(panel.body))
+      region('panel-tabs', ['none'], () => {
+        leaveEnv()
+        fill(panel.body)
+      })
       return
     }
     if (!name) {
@@ -146,8 +150,15 @@ export function mount(root, { parts, query }) {
     const state = markOf(how, { chat, turn, asked, epic: detail.name })
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
     const stopWaits = Date.now() - (stopsAsked.get(detail.name) || 0) < STOP_WAITS
-    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, stopWaits], () => {
+    const env = chat && going ? chatEnv() : null
+    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, stopWaits, Boolean(env)], () => {
       const actions = []
+      // A chat's workspace, opened beside it: its files, a terminal in it and its changes.
+      if (env) actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Environment', title: 'Environment', 'data-hmz': 'env-open', onclick: () => {
+        tab = 'env'
+        panel.open()
+        draw()
+      } }, icon('folder')))
       // A chat is never stopped from its page: it is a conversation, as a chat app's.
       if (!chat && going && run.state === 'running') actions.push(stopWaits ? h('button', { class: 'btn danger', type: 'button', disabled: true }, 'Stopping…') : confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', busy: 'Stopping…', held: true, act: () => stopping(detail.name) }))
       else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', busy: 'Stopping…', act: () => ask(here, 'force') }))
@@ -308,6 +319,11 @@ export function mount(root, { parts, query }) {
           box.append(line)
           added = true
         }
+        // What a person did in one of the run's environments, said dimly where it happened.
+        if (record.type === 'env_used') {
+          box.append(h('div', { class: 'said env-used', 'data-hmz': 'env-used' }, h('span', { class: 'g', 'aria-hidden': 'true' }, '·'), h('div', { class: 'body dim' }, usedLine(record, envsOf()))))
+          added = true
+        }
       }
       while (box.childElementCount > LINES) {
         box.firstElementChild.remove()
@@ -428,8 +444,13 @@ export function mount(root, { parts, query }) {
     const items = going && standing.board ? standing.board.items : null
     // A chat's person is whoever is typing to it: nobody else to hand it to.
     const people = going && !chat ? run.started.outworlders || [] : []
-    const tabs = [['epic', 'Epic'], ['aside', 'Aside'], items ? ['board', 'Board'] : null, people.length ? ['people', 'People'] : null].filter(Boolean)
+    const env = chat && going ? chatEnv() : null
+    const tabs = [['epic', 'Epic'], ['aside', 'Aside'], items ? ['board', 'Board'] : null, people.length ? ['people', 'People'] : null, env ? ['env', 'Environment'] : null].filter(Boolean)
     if (!tabs.some(([key]) => key === tab)) tab = 'epic'
+    // The environment is worked in, which wants the room an editor does.
+    panel.node.classList.toggle('envs-wide', tab === 'env')
+    // Left once another tab is picked; kept, and put back, while only the row of tabs is drawn again.
+    if (tab !== 'env') leaveEnv()
     region('panel-tabs', [tabs, tab], () => {
       fill(
         panel.body,
@@ -463,6 +484,34 @@ export function mount(root, { parts, query }) {
       })
     } else if (tab === 'board') {
       region('panel-board', [items], () => fill(pane, board(here, items || [])))
+    } else if (tab === 'env') {
+      const host = { workspace: here.workspace, slot: here.slot }
+      region('panel-env', [host], () => {
+        if (envFrame && envFrame.key === JSON.stringify(host)) {
+          fill(pane, envFrame.node)
+          return
+        }
+        leaveEnv()
+        const into = h('div', { class: 'envs-holder' })
+        fill(pane, into)
+        const mine = envMounting
+        import('./envs.js').then(
+          (module) => {
+            if (mine !== envMounting) return
+            envFrame = { key: JSON.stringify(host), node: into }
+            envFrame.made = module.frame(into, {
+              follow: (told) => follow(host, (state) => told(state, '')),
+              env: env.id,
+              compact: true,
+              full: (id, panel) => envsAddress(host, { env: id, tab: panel }),
+            })
+          },
+          (error) => {
+            console.error(error)
+            if (mine === envMounting) fill(pane, problem(`The environment failed to open: ${error.message}`))
+          },
+        )
+      })
     } else if (tab === 'people') {
       const clients = standing.clients && standing.clients.clients
       region('panel-people', [people, standing.claims, standing.away, held().me, clients], () =>
@@ -522,7 +571,33 @@ export function mount(root, { parts, query }) {
     )
     if (figures && figures.spending && figures.spending.length) parts.push(section('Spending', spendingOf(figures)))
     const places = placesOf(detail, run)
-    if (places.length) parts.push(section('Environments', h('ul', { class: 'links', 'data-hmz': 'environments' }, places.map(([key, where, harness]) => h('li', {}, h('span', { class: 'mono' }, key), ` ${where}`, harness ? h('div', { class: 'dim' }, `harness on ${harness}`) : null)))))
+    // While it goes, where each session works opens that environment, and every one is a click away.
+    const envs = going ? envsOf() : []
+    const envsAt = (query) => envsAddress({ workspace: here.workspace, slot: here.slot }, query || {})
+    const placeOf = (key, where, harness, role, workdir) => {
+      // Its role's environment that works where it does, else its role's latest at the top.
+      const roles = role ? envs.filter((one) => one.role === role).sort((a, b) => (b.run || 0) - (a.run || 0)) : []
+      const env = (workdir && roles.find((one) => one.workdir === workdir)) || roles.find((one) => !one.parent) || null
+      return h(
+        'li',
+        {},
+        h('span', { class: 'mono' }, key),
+        ' ',
+        env ? h('a', { href: envsAt({ env: env.id }), 'data-hmz': 'env-link', title: 'Open this environment' }, where) : where,
+        harness ? h('div', { class: 'dim' }, `harness on ${harness}`) : null,
+      )
+    }
+    if (places.length || envs.length) {
+      parts.push(
+        section(
+          'Environments',
+          places.length ? h('ul', { class: 'links', 'data-hmz': 'environments' }, places.map(([key, where, harness, role, workdir]) => placeOf(key, where, harness, role, workdir))) : null,
+          envs.length ? h('p', {}, h('a', { href: envsAt(null), 'data-hmz': 'envs-open' }, `Open ${envs.length === 1 ? 'its environment' : `its ${envs.length} environments`}`)) : null,
+        ),
+      )
+    }
+    const used = run ? run.records.filter((one) => one.type === 'env_used').slice(-8) : []
+    if (used.length) parts.push(section('Done in its environments', h('ul', { class: 'links dim', 'data-hmz': 'env-used-list' }, used.map((one) => h('li', {}, usedLine(one, envs.length ? envs : envsOf()))))))
     const clients = (standing.clients && standing.clients.clients) || []
     if (going && clients.length) {
       const me = held() ? held().me : ''
@@ -561,6 +636,28 @@ export function mount(root, { parts, query }) {
 
   function held() {
     return seen && seen.held
+  }
+
+  /** The environments the host has open, as its `envs` snapshot lists them. */
+  function envsOf() {
+    const standing = held() ? held().standing : {}
+    return (standing.envs && standing.envs.envs) || []
+  }
+
+  /** A chat's own environment, its workspace -- or the first it has -- to open beside it. */
+  function chatEnv() {
+    const envs = envsOf()
+    return envs.find((one) => one.role === 'workspace' && !one.parent && one.open !== false) || envs.find((one) => !one.parent && one.open !== false) || null
+  }
+
+  /** The environment opened in the panel, and which opening of it is the latest. */
+  let envFrame = null
+  let envMounting = 0
+
+  function leaveEnv() {
+    envMounting++
+    if (envFrame && envFrame.made) envFrame.made.leave()
+    envFrame = null
   }
 
   /**
@@ -602,6 +699,7 @@ export function mount(root, { parts, query }) {
   return {
     leave() {
       stop()
+      leaveEnv()
       clearInterval(ticking)
       removeEventListener('focus', draw)
       document.removeEventListener('visibilitychange', draw)
@@ -640,6 +738,12 @@ function exomyth(root, name, query) {
     },
     moved: () => false,
   }
+}
+
+/** The address of the Environments view of a host's envs, `#/envs/live?workspace=…&slot=…&env=…&tab=…`. */
+function envsAddress(host, { env = '', tab = '' } = {}) {
+  const query = new URLSearchParams(Object.entries({ workspace: host.workspace, slot: host.slot, env, tab }).filter(([, value]) => value))
+  return hash(`/envs/live?${query}`)
 }
 
 /** How long Stop stays asked, waiting for the epic to say it is stopping. */
@@ -697,7 +801,7 @@ function spendingOf(figures) {
 /** Where each session of an epic works, and where its harness was put, as each opened. */
 function placesOf(detail, run) {
   if (run) {
-    return run.records.filter((one) => one.type === 'opened' && !one.person && (one.env || one.harness)).map((one) => [one.key, placed(one.env), one.harness || ''])
+    return run.records.filter((one) => one.type === 'opened' && !one.person && (one.env || one.harness)).map((one) => [one.key, placed(one.env), one.harness || '', (one.env && one.env.role) || '', (one.env && one.env.workdir) || ''])
   }
   return sessionsOf(detail).filter((one) => one.harness).map((one) => [one.key, '', one.harness]).concat(detail.used.map((one) => [one.split('=')[0], one.split('=').slice(1).join('='), '']))
 }

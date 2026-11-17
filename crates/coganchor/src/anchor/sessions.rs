@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{self, Read, Write};
-use std::os::fd::OwnedFd;
+use std::os::fd::{AsRawFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::{Path, PathBuf};
@@ -303,10 +303,16 @@ fn start(
     });
     let (stdin, inbox) = mpsc::channel::<Option<Vec<u8>>>();
 
-    // What the client's stdin goes to, and what output comes from.
+    // What the client's stdin goes to, what output comes from, and what a `RESIZE` sets the
+    // window of: a copy of the master, which neither ends the output nor holds it open, since
+    // that ends with the last copy of the slave.
+    let mut terminal = None;
     let (input, outputs): (Option<Input>, Vec<(File, Stream)>) = match master {
         Some(master) => {
             let writer = master.try_clone().map_err(|e| abandon(&mut child, &e))?;
+            terminal = Some(OwnedFd::from(
+                master.try_clone().map_err(|e| abandon(&mut child, &e))?,
+            ));
             (Some(Box::new(writer)), vec![(master, Stream::Stdout)])
         }
         None => {
@@ -373,7 +379,12 @@ fn start(
         return Err(RemoteError::from_io(&error, None));
     }
 
-    Ok(Box::new(ExecSink { pid, stdin, shared }))
+    Ok(Box::new(ExecSink {
+        pid,
+        stdin,
+        shared,
+        terminal,
+    }))
 }
 
 /// Kills the command's group and reaps it, when what serves it could not be started: the
@@ -602,6 +613,8 @@ struct ExecSink {
     pid: libc::pid_t,
     stdin: Sender<Option<Vec<u8>>>,
     shared: Arc<Shared>,
+    /// The pty master the command runs under, if it runs under one.
+    terminal: Option<OwnedFd>,
 }
 
 impl Sink for ExecSink {
@@ -631,6 +644,22 @@ impl Sink for ExecSink {
         if !*reaped {
             // SAFETY: killpg takes no pointers; an error (the group gone) is ignored.
             unsafe { libc::killpg(self.pid, signal) };
+        }
+    }
+
+    /// Sets the window of the command's terminal, which the kernel tells its foreground
+    /// process group of with `SIGWINCH`. A command run on pipes has no window to set.
+    fn resize(&mut self, rows: u16, cols: u16) {
+        if let Some(master) = &self.terminal {
+            let size = libc::winsize {
+                ws_row: rows,
+                ws_col: cols,
+                ws_xpixel: 0,
+                ws_ypixel: 0,
+            };
+            // SAFETY: `size` is a valid winsize for the kernel to read; an error (the terminal
+            // gone with the command) is ignored.
+            unsafe { libc::ioctl(master.as_raw_fd(), libc::TIOCSWINSZ, &size) };
         }
     }
 
@@ -798,6 +827,35 @@ mod tests {
         assert_eq!(text, "tty\r\n33 101\r\noops\r\n");
         assert!(output(&frames, Stream::Stderr).is_empty());
         assert_eq!(reply(&frames).meta, crate::meta! {"exit_code" => 0});
+    }
+
+    #[test]
+    fn resizes_the_terminal_it_runs_under() {
+        let mut meta = sh("stty size; read line; stty size");
+        meta.insert("tty".into(), Value::Bool(true));
+        meta.insert("winsize".into(), serde_json::json!([24, 80]));
+        let (sink, out) = run(meta);
+        let mut sink = sink.unwrap();
+        let deadline = Instant::now() + WAIT;
+        while !output(&out.frames(), Stream::Stdout).ends_with(b"24 80\r\n") {
+            assert!(Instant::now() < deadline, "{:?}", out.frames());
+            thread::sleep(Duration::from_millis(10));
+        }
+        sink.resize(50, 132);
+        sink.feed(Stream::Stdin, b"go\n").unwrap();
+        let frames = out.closed(WAIT);
+        let text = String::from_utf8(output(&frames, Stream::Stdout)).unwrap();
+        assert_eq!(text, "24 80\r\ngo\r\n50 132\r\n");
+        assert_eq!(reply(&frames).meta, crate::meta! {"exit_code" => 0});
+    }
+
+    #[test]
+    fn a_command_on_pipes_has_no_window_to_resize() {
+        let (sink, out) = run(sh("echo plain"));
+        let mut sink = sink.unwrap();
+        sink.resize(10, 10);
+        let frames = out.closed(WAIT);
+        assert_eq!(output(&frames, Stream::Stdout), b"plain\n");
     }
 
     #[test]

@@ -40,6 +40,7 @@ import { withBase } from 'vitepress'
 | **A budget on every run.** Time, cost or output tokens; the first limit reached stops it. | [Run it unattended](/user/unattended)<br><small>[A budget on every run](/features/allowances)</small> |
 | **Stop it.** From the keyboard, and by force if it will not stop. | [Stopping](/user/stopping) |
 | **Leave it running.** Close the terminal; open Humanize in the same directory to find it again. | [Daemon reference](/reference/daemon)<br><small>[Close the terminal, keep the run](/features/daemon)</small> |
+| **Into its environments.** Edit an environment's files, open a shell in it, and stage and commit what changed, while the run goes. | [In a browser](/user/web)<br><small>[Into its environments](/features/environments)</small> |
 
 ## Where the work lands
 

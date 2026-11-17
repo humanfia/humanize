@@ -111,11 +111,13 @@ class Op(enum.Enum):
     UTIME = "utime"
 
     # Process execution.  EXEC opens a stream that CHUNK/END frames feed;
-    # SIGNAL is a separate request naming that stream.  An EXEC carrying a
-    # ``fence`` runs its command inside that fence, drawn again on the target,
-    # or not at all.
+    # SIGNAL is a separate request naming that stream, and so is RESIZE, which
+    # sets the window of the pty a command runs under -- asked only of a target
+    # whose HELLO reply says ``resize``.  An EXEC carrying a ``fence`` runs its
+    # command inside that fence, drawn again on the target, or not at all.
     EXEC = "exec"
     SIGNAL = "signal"
+    RESIZE = "resize"
 
     # TCP tunnelling.  CONNECT opens a stream carried by CHUNK/END frames.
     CONNECT = "connect"

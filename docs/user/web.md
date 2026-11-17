@@ -120,8 +120,10 @@ The panel beside it (the button at the top right shows and hides it) holds:
 - **Epic.** How long it has been going, what it has spent and how fast, a meter for each limit of
   its [budget](/features/allowances), the task, who handed to whom in words, **Spending** by
   model and kind of token (`≥` marks a figure that is only a floor), **Environments** -- where
-  each session works and where its harness went -- the **Frontends** reading it, the flows going
-  or the flows it called, and how it was set up and where it is written down.
+  each session works and where its harness went, each a link into that environment's files, shell
+  and changes while the epic is held (see [Into its environments](/features/environments)) -- the
+  **Frontends** reading it, the flows going or the flows it called, and how it was set up and
+  where it is written down. A chat has an **Environment** panel beside its conversation instead.
 - **Aside.** A side question, as [`/btw`](/user/btw) asks it, of one session's side copy --
   any epic's session, an earlier one forked from where that epic kept it, so it answers with
   that session's own history. Keep as many asides as you like: each is a side conversation of

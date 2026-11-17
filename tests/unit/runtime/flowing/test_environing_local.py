@@ -19,10 +19,11 @@ from hmz.flows import (
     EnvError,
     EnvFileNotFound,
     EnvPermissionDenied,
+    EnvUnavailable,
     TempCloneBusy,
 )
 from hmz.runtime.flowing.environing_local import LocalMachine
-from hmz.runtime.flowing.spi import Placement
+from hmz.runtime.flowing.spi import EnvEntry, Placement
 
 
 def _at(path: Path) -> PurePosixPath:
@@ -135,6 +136,49 @@ async def test_a_file_written_through_a_link_is_written_where_it_points(
 
     assert (tmp_path / "link.txt").is_symlink()
     assert real.read_bytes() == b"new"
+
+
+async def test_a_directory_is_listed_and_a_path_looked_at_without_following_links(
+    tmp_path: Path,
+) -> None:
+    machine = LocalMachine()
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "a.txt").write_bytes(b"abc")
+    (tmp_path / "to-a").symlink_to("a.txt")
+    os.utime(tmp_path / "a.txt", ns=(0, 1_500_000_000))
+
+    listed = {one.name: one for one in await machine.list(_at(tmp_path))}
+
+    assert {name: one.kind for name, one in listed.items()} == {
+        "sub": "dir",
+        "a.txt": "file",
+        "to-a": "link",
+    }
+    assert listed["a.txt"] == EnvEntry("a.txt", "file", 3, 1.5)
+    assert listed["to-a"].target == "a.txt"
+    assert await machine.stat(_at(tmp_path / "to-a")) == listed["to-a"]
+    with pytest.raises(EnvFileNotFound):
+        await machine.list(_at(tmp_path / "missing"))
+    with pytest.raises(EnvFileNotFound):
+        await machine.stat(_at(tmp_path / "missing"))
+    with pytest.raises(EnvError):
+        await machine.list(_at(tmp_path / "a.txt"))
+
+
+async def test_a_path_is_moved_here(tmp_path: Path) -> None:
+    machine = LocalMachine()
+    (tmp_path / "a.txt").write_bytes(b"a")
+
+    await machine.rename(_at(tmp_path / "a.txt"), _at(tmp_path / "b.txt"))
+
+    assert (tmp_path / "b.txt").read_bytes() == b"a"
+    with pytest.raises(EnvFileNotFound):
+        await machine.rename(_at(tmp_path / "a.txt"), _at(tmp_path / "c.txt"))
+
+
+async def test_a_terminal_in_a_missing_directory_is_unavailable(tmp_path: Path) -> None:
+    with pytest.raises(EnvUnavailable):
+        await LocalMachine().pty(["sh"], _at(tmp_path / "missing"), cols=80, rows=24)
 
 
 async def test_what_cannot_be_read_says_why(tmp_path: Path) -> None:

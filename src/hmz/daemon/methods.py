@@ -4,7 +4,8 @@ Each is a handler of `hmz.rpc`, given the call and answering its result or raisi
 :class:`hmz.rpc.RpcError` (Section 4 of daemon.md). The other families -- settings, epics
 written down, flows and the rest -- are each a module of :mod:`hmz.daemon.api`, which names its
 own in `METHODS`; every one is found here and served beside these. A method the OpenRPC
-document lists that nothing serves is answered -32601, as `hmz.rpc` answers it.
+document lists that nothing serves is answered -32601, as `hmz.rpc` answers it. The calls to an
+epic's environments are each carried to the host, as the calls to an epic are.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from hmz.daemon.routing import Router
     from hmz.rpc import Call, Handler
 
-__all__ = ["EPIC", "families", "methods"]
+__all__ = ["ENV", "EPIC", "families", "methods"]
 
 _log = logging.getLogger(__name__)
 
@@ -49,6 +50,39 @@ EPIC = (
     "detach",
     "quit",
 )
+
+#: Every call to an epic's environments (Section 4.24 of daemon.md), by what follows `env.`.
+ENV = (
+    "list",
+    "stat",
+    "read",
+    "find",
+    "search",
+    "write",
+    "mkdir",
+    "rename",
+    "remove",
+    "term.open",
+    "term.input",
+    "term.resize",
+    "term.ack",
+    "term.close",
+    "term.list",
+    "git.status",
+    "git.diff",
+    "git.log",
+    "git.stage",
+    "git.unstage",
+    "git.discard",
+    "git.commit",
+    "git.snapshots",
+    "git.rewind",
+)
+
+#: The calls a session over an untrusted carrier makes only where `envs.paired_terminals` is on,
+#: and what they are refused with otherwise (Section 4.24.4.10).
+_TERMINAL = ("env.term.open", "env.term.input")
+_NO_TERMINALS = "Terminals are off for paired devices; turn on envs.paired_terminals."
 
 
 def _refused(code: int, message: str) -> Exception:
@@ -343,6 +377,27 @@ class _Methods:
 
         return asks
 
+    def env(self, do: str) -> Handler:
+        """The handler of one call to an environment, which the host attached carries out.
+
+        The host is asked `do`, the method's whole name (Section 4.24.1.2). A session over an
+        untrusted carrier opens a terminal, or types into one, only where `envs.paired_terminals`
+        is on (Section 4.24.4.10).
+        """
+        gated = do in _TERMINAL
+
+        def asks(call: Call) -> dict[str, Any]:
+            sub = self.subscription(call)
+            if gated and not sub.session.trusted and not _paired_terminals():
+                raise _refused(409, _NO_TERMINALS)
+            said = {k: v for k, v in call.params.items() if k not in ("sub", "idem")}
+            answer = sub.hosted.ask(sub.client, {"do": do, **said})
+            if not answer.get("ok"):
+                raise _refused(409, str(answer.get("why") or "refused"))
+            return {k: v for k, v in answer.items() if k != "ok"}
+
+        return asks
+
     def _checks(
         self, call: Call, workspace: str, said: dict[str, Any]
     ) -> Callable[[], None] | None:
@@ -417,6 +472,7 @@ class _Methods:
             "hosts.stop": self.hosts_stop,
             "epic.attach": self.attach,
             **{f"epic.{do}": self.epic(do) for do in EPIC},
+            **{f"env.{do}": self.env(f"env.{do}") for do in ENV},
             "btw.list": asides.listed,
             "btw.ask": asides.ask,
             "btw.leave": asides.leave,
@@ -447,6 +503,16 @@ def families() -> dict[str, Handler]:
         named = cast("Mapping[str, Handler]", getattr(module, "METHODS", {}))
         found.update(named)
     return found
+
+
+def _paired_terminals() -> bool:
+    """Whether the setting `envs.paired_terminals` is on (Section 3.4.12 of files.md)."""
+    from hmz.coganchor import settings
+
+    envs: object = settings.read().get("envs")
+    if not isinstance(envs, dict):
+        return False
+    return cast("dict[str, object]", envs).get("paired_terminals") is True
 
 
 def _version() -> str:
