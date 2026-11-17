@@ -251,13 +251,13 @@ code {
 
 .app {
   display: grid;
-  grid-template-columns: var(--side-wide) minmax(0, 1fr);
+  grid-template-columns: var(--side-wide) minmax(0, 1fr) auto;
   height: 100vh;
   height: 100dvh;
 }
 
 .app.side-folded {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .app.side-folded .sidebar {
@@ -3901,6 +3901,14 @@ pre.exo-args {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* Ai-chan's drawer covers the view on a phone, closed by its button or Escape. */
+  .inspector.aichan {
+    top: 0;
+    max-height: none;
+    border-top: 0;
+    box-shadow: none;
+  }
+
   .sidebar,
   .app.side-folded .sidebar {
     display: flex;
@@ -5260,3 +5268,187 @@ input[aria-invalid='true'] {
 }
 
 /* /asks */
+
+/* ------------------------------------------------------------------ Ai-chan's drawer */
+
+/* She is pixel art: drawn in hard pixels at every size. */
+.aichan-avatar {
+  image-rendering: pixelated;
+  display: block;
+}
+
+.aichan-btn .aichan-avatar {
+  width: 24px;
+  height: 24px;
+}
+
+.aichan-btn[aria-pressed='true'] {
+  background: var(--hover);
+  border-color: var(--line-strong);
+}
+
+.inspector.aichan {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.inspector.aichan[hidden] {
+  display: none;
+}
+
+.aichan .panel-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.aichan-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 46px 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.aichan-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+}
+
+.aichan-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 10px 14px 14px;
+}
+
+.aichan-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aichan-row {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+}
+
+.aichan-row > .confirm {
+  padding: 0 8px 8px;
+}
+
+.aichan-pick {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.aichan-pick:hover .aichan-title {
+  text-decoration: underline;
+}
+
+.aichan-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.aichan-about {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.aichan-state {
+  font: 11.5px var(--mono);
+  color: var(--ink-2);
+}
+
+.aichan-state.running {
+  color: var(--live-ink);
+}
+
+.aichan-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.aichan-crumb .aichan-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.aichan-form .composer {
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.aichan-chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aichan-scroll {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+}
+
+.aichan-log {
+  font-size: 13.5px;
+}
+
+/* Her words beside her avatar, in place of the bullet. */
+.aichan-log .said:is(.text, .result, .asks, .notice) > .g {
+  width: 20px;
+  height: 20px;
+  align-self: start;
+  margin-top: 3px;
+  color: transparent;
+  background: url('ai-chan/avatar-32.png') center / contain no-repeat;
+  image-rendering: pixelated;
+}
+
+.aichan-log .said {
+  grid-template-columns: 20px minmax(0, 1fr);
+}
+
+.nous-field,
+.nous-field input {
+  display: block;
+  width: 100%;
+}
+
+.aichan-options:empty {
+  display: none;
+}
+
+@media (min-width: 861px) {
+  /* The drawer, open, is the top right: its head keeps clear of the window's captions. */
+  :root[data-shell='windows']:not([data-fullscreen]) .aichan-head {
+    padding-right: calc(46px + var(--captions));
+  }
+
+  :root[data-shell='windows']:not([data-fullscreen]) .app.aichan-open .bar {
+    padding-right: 16px;
+  }
+}

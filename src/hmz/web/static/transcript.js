@@ -92,9 +92,11 @@ function threadOf(one) {
  * word in the conversation, and is drawn there, as the terminal interface draws it. A `!`
  * command the chat ran is drawn as a shell draws it, and a line it refused with why.
  *
+ * Given `folded`, every tool is one line to open, as Ai-chan's are drawn.
+ *
  * @returns {(record: object) => Node[]} What one more record adds to the transcript.
  */
-export function sayer(key, { chat = false } = {}) {
+export function sayer(key, { chat = false, folded = false } = {}) {
   const began = new Map()
   const [kind, whom] = key.startsWith('agent:') ? ['agent', key.slice(6)] : key.startsWith('person:') ? ['person', key.slice(7)] : ['session', '']
   const of = (record) => String(record.session || record.key || record.agent || '')
@@ -142,7 +144,7 @@ export function sayer(key, { chat = false } = {}) {
         return chat && kind === 'session' ? [line('refused', refusedSaid(record))] : []
       case 'event':
         if (mine && record.kind === 'result') answer = String(record.text || '')
-        return mine ? said(record, kind === 'agent' ? record.session || record.agent : '', began) : []
+        return mine ? said(record, kind === 'agent' ? record.session || record.agent : '', began, folded) : []
       default:
         return []
     }
@@ -186,7 +188,7 @@ function shown(record) {
   return one
 }
 
-function said(record, who, began) {
+function said(record, who, began, folded = false) {
   const whose = record.session || record.agent
   switch (record.kind) {
     case 'begins':
@@ -205,7 +207,7 @@ function said(record, who, began) {
     case 'reasoning':
       return [line('reasoning', record.text, { who, folded: true })]
     case 'tool':
-      return [line('tool', record.text, { who, folded: record.text.length > 140 })]
+      return [line('tool', record.text, { who, folded: folded || record.text.length > 140 })]
     case 'failed':
       return [line('failed', `hmz: ${record.text}`, { who })]
     case 'subagent':
