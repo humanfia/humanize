@@ -642,9 +642,9 @@ class PiSession(StreamSessionBase):
 
     def _stale(self) -> bool:
         """Whether the process up was started inside another fence, or with other callbacks."""
-        return self._moved() or self._telling != self._agent.toolbox.names()
+        return self._refenced() or self._telling != self._agent.toolbox.names()
 
-    def _moved(self) -> bool:
+    def _refenced(self) -> bool:
         """Whether the fence moved since the process up was started inside one.
 
         Returns:

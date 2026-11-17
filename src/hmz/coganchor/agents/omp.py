@@ -116,10 +116,10 @@ class OhMyPiSession(PiSession):
         """Whether the fence moved since the process up was started inside one.
 
         A moved fence is also whether omp is told `--approval-mode` at all, so it restarts
-        omp as it restarts pi (:meth:`PiSession._moved`). Never for the callbacks, which omp is
+        omp as it restarts pi (:meth:`PiSession._refenced`). Never for the callbacks, which omp is
         told of without being started again.
         """
-        return self._moved() or super(PiSession, self)._stale()
+        return self._refenced() or super(PiSession, self)._stale()
 
     def _restarted(self) -> None:
         """Forgets what the last process was told of, which this one has not been."""
