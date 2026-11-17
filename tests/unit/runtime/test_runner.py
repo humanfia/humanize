@@ -995,7 +995,7 @@ def test_ai_chan_works_in_her_conversations_scratch_directory(
     runner = Runner(
         "ai_chan",
         agents=cast("Any", {"builder": Agent()}),
-        params=Conversation(id=3),
+        params=cast("Any", Conversation(id=3)),
         workspace=tmp_path,
     )
 
