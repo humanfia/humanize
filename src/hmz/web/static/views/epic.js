@@ -16,7 +16,7 @@ import { asides, board, outworlders, question, saying } from '../acting.js'
 import { call, exported, given, hash } from '../api.js'
 import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
-import { ask, chatAsk, placed } from '../held.js'
+import { ask, chatAsk } from '../held.js'
 import { composer as composed } from '../composer.js'
 import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
@@ -597,7 +597,7 @@ export function mount(root, { parts, query }) {
   /** The box a chat going is talked to in. */
   let talk = null
   /** What `@` listed, by the directory listed, until the catalogue is read again. */
-  const listed = new Map()
+  const pathsListed = new Map()
 
   /**
    * Reads the catalogue again where the host changed or a turn ended since it was read; the
@@ -631,7 +631,7 @@ export function mount(root, { parts, query }) {
     if (here.slot !== slot) return
     catalogue = { ...read, slot }
     preferring = null
-    listed.clear()
+    pathsListed.clear()
     draw()
   }
 
@@ -682,8 +682,8 @@ export function mount(root, { parts, query }) {
       // Names starting with `.` are listed only once a `.` is typed, as a shell completes them.
       const hidden = base.startsWith('.')
       const key = `${hidden}\n${dir}`
-      if (!listed.has(key)) listed.set(key, call('paths.list', { at: `${detail.workspace.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
-      const items = pathItems(dir, base, await listed.get(key))
+      if (!pathsListed.has(key)) pathsListed.set(key, call('paths.list', { at: `${detail.workspace.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
+      const items = pathItems(dir, base, await pathsListed.get(key))
       if (items.length) groups.unshift({ source: 'path', label: 'Files', items })
     }
     return { from: typed.from, to: typed.to, groups }
