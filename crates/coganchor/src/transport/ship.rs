@@ -244,9 +244,7 @@ pub fn digest(path: &Path) -> io::Result<String> {
     {
         return Ok(known.clone());
     }
-    let mut hasher = Sha256::new();
-    io::copy(&mut fs::File::open(path)?, &mut hasher)?;
-    let digest = hex::encode(hasher.finalize())[..DIGEST].to_owned();
+    let digest = hex::encode(Sha256::digest(fs::read(path)?))[..DIGEST].to_owned();
     DIGESTS
         .lock()
         .unwrap()
