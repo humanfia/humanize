@@ -201,7 +201,7 @@ export function mount(root, { query }) {
         h('dt', {}, 'environments'),
         h('dd', {}, flow.envs.length ? flow.envs.map((role) => h('div', {}, h('b', {}, role.name), role.auto ? h('span', { class: 'dim' }, ' (this directory)') : null)) : '—'),
         h('dt', {}, 'params'),
-        h('dd', {}, params.length ? params.map(([key, one]) => h('div', {}, h('b', { class: 'mono' }, key), one.description ? h('span', { class: 'dim' }, ` — ${one.description}`) : null)) : 'none'),
+        h('dd', {}, params.length ? params.map(([key, one]) => h('div', {}, one.title ? h('b', { title: key }, one.title) : h('b', { class: 'mono' }, key), one.description ? h('span', { class: 'dim' }, ` — ${one.description}`) : null)) : 'none'),
       ),
     )
   }

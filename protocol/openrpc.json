@@ -1783,21 +1783,7 @@
           }
         },
         {
-          "name": "asks",
-          "deprecated": true,
-          "schema": {
-            "type": "boolean"
-          }
-        },
-        {
           "name": "prompt",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "answered",
-          "deprecated": true,
           "schema": {
             "type": "string"
           }
@@ -4113,10 +4099,7 @@
             "asides"
           ],
           "properties": {
-            "asides": {},
-            "default": {
-              "deprecated": true
-            }
+            "asides": {}
           }
         }
       },
@@ -4206,10 +4189,7 @@
             "aside": {},
             "to": {},
             "question": {},
-            "answer": {},
-            "asked": {
-              "deprecated": true
-            }
+            "answer": {}
           }
         }
       },

@@ -1,18 +1,22 @@
-"""Side questions about an epic, `btw.*` (Section 4.15 of daemon.md).
+"""Side questions about one session of an epic, `btw.*` (Section 4.15 of daemon.md).
 
-A side question is asked beside an epic rather than of it, in a side conversation the
-workspace's own host opens (`epic.aside`). The daemon opens them as a frontend of its own, of
-kind `btw`, attached to that host only while a `btw.*` call asks something of it or it holds a
-side conversation open, and lets go of it once neither has happened for a minute. Each side
-conversation is kept per workspace and per `aside`, the name a client gives it, the same for
-every session: :class:`hmz.runtime.watching.btw.Btw` is what asks, here as in the terminal
-interface.
+A side question is asked beside an epic rather than of it, in a session side copy the host of
+that epic opens (`epic.aside`): the workspace's own host for the epic in view on it, the host
+of a chat's slot for that chat, and the workspace's own host again for an epic no host holds,
+carried on from where that epic kept the session. The daemon opens them as a frontend of its
+own, of kind `btw`, attached to a host only while a `btw.*` call asks something of it or it
+holds a side conversation open, and lets go of it once neither has happened for a minute. Each
+side conversation is kept per workspace and per `aside`, the name a client gives it, the same
+for every session: :class:`hmz.runtime.watching.btw.Btw` is what asks, here as in the
+terminal interface.
 """
 
 from __future__ import annotations
 
 import contextlib
 import datetime
+import queue
+import re
 import threading
 import time
 from typing import TYPE_CHECKING, Any
@@ -26,14 +30,21 @@ if TYPE_CHECKING:
     from hmz.daemon.routing import Router
     from hmz.rpc import Call
     from hmz.runtime.watching.btw import Btw, FlowSnapshot
+    from hmz.runtime.watching.following import Following
 
 __all__ = ["Asides"]
 
 #: How long the daemon stays attached to a host for side questions nobody asks.
 _LINGER = 60.0
 
+#: How long attaching waits for a host to have told the epic so far.
+_PATIENCE = 10.0
+
 #: How many side questions and their answers each aside keeps.
 _SAID = 200
+
+#: A session, as a side question is asked of one.
+_SESSION = re.compile(r"[^/\s]+/[1-9][0-9]*")
 
 
 def _refused(code: int, message: str) -> Exception:
@@ -43,50 +54,60 @@ def _refused(code: int, message: str) -> Exception:
 
 
 class _Aside:
-    """One aside: whom it asks, about which epic, and what was said in it."""
+    """One aside: whom it asks, about which epic, on which host, and what was said in it."""
 
-    def __init__(self, to: str, epic: str, about: FlowSnapshot | None) -> None:
-        self.to, self.epic, self.about = to, epic, about
-        self.mode: Btw
+    def __init__(
+        self, to: str, epic: str, about: FlowSnapshot | None, host: _Host, mode: Btw
+    ) -> None:
+        self.to, self.epic, self.about, self.host, self.mode = (
+            to,
+            epic,
+            about,
+            host,
+            mode,
+        )
         self.question = ""
-        self.asked: list[dict[str, str]] = []
         self.said: list[dict[str, Any]] = []
 
 
 class _Frontend:
-    """What the daemon's own frontend of one host is, as a subscription sees a session."""
+    """What the daemon's own frontend of one host is, as a subscription sees a session.
 
-    def __init__(self, told: Callable[[dict[str, Any]], None]) -> None:
+    What it is told is only queued here, under the subscription's lock, and taken on a thread
+    of its own: nothing that takes it ever waits on that lock while holding another.
+    """
+
+    def __init__(self, heard: Callable[[dict[str, Any]], None]) -> None:
         self.name = "btw"
         self.kind = "btw"
         self.lock = threading.Lock()
         self.subs: dict[str, Any] = {}
-        self._told = told
+        self._heard = heard
 
     def tell(self, method: str, params: dict[str, Any]) -> None:
         del method
-        self._told(params["message"])
+        self._heard(params["message"])
 
 
-class _Workspace:
-    """The side conversations of one workspace, and the daemon's frontend of its host."""
+class _Host:
+    """The daemon's frontend of one host of a workspace, and what that host told it."""
 
-    def __init__(self, router: Router, named: str) -> None:
+    def __init__(self, held: _Workspace, slot: str) -> None:
         from hmz.runtime.watching.following import Following
 
-        self.named = named
-        self._router = router
-        self.lock = threading.Condition()
+        self.held = held
+        self.slot = slot
         self.sub: Subscription | None = None
         self.following = Following()
         self.standing: dict[str, dict[str, Any]] = {}
-        self.asides: dict[str, _Aside] = {}
+        #: Whether the host has told the epic so far, after which an epic starting is new.
+        self.live = False
         self.used = time.monotonic()
         #: Held while the daemon's frontend is being attached, so that it is attached once.
         self._attaching = threading.Lock()
 
     def attached(self) -> Subscription:
-        """The daemon's frontend of the workspace's own host, attached where it is not."""
+        """The daemon's frontend of the host, attached where it is not, once it is told all."""
         with self._attaching:
             return self._attaches()
 
@@ -94,20 +115,33 @@ class _Workspace:
         from hmz.daemon.hosts import Subscription
         from hmz.runtime.watching.following import Following
 
-        with self.lock:
+        lock = self.held.lock
+        with lock:
             self.used = time.monotonic()
-            if self.sub is not None and not self.sub.gone:
-                return self.sub
-            self.following.close()
-            self.following, self.standing = Following(), {}
-        hosted = self._router.hosts.opened(self.named, "")
-        frontend = _Frontend(self._told)
-        sub = Subscription(frontend, "btw", hosted, figures=False)  # pyright: ignore[reportArgumentType]
+            sub = self.sub
+        if sub is not None and not sub.gone:
+            return sub
+        hosted = self.held.router.hosts.opened(self.held.named, self.slot)
+        heard: queue.SimpleQueue[dict[str, Any]] = queue.SimpleQueue()
+        sub = Subscription(_Frontend(heard.put), "btw", hosted, figures=False)  # pyright: ignore[reportArgumentType]
         sub.client = hosted.attach(sub, replay=True, since=None)
-        sub.opened()
-        with self.lock:
+        with lock:
+            self.following.close()
+            self.following, self.standing, self.live = Following(), {}, False
+            following = self.following
             self.sub = sub
-        threading.Thread(target=self._lingers, daemon=True, name="hmz-btw").start()
+        threading.Thread(
+            target=self._hears,
+            args=(sub, heard, following),
+            daemon=True,
+            name="hmz-btw",
+        ).start()
+        sub.opened()
+        with lock:
+            lock.wait_for(lambda: self.live or sub.gone, timeout=_PATIENCE)
+        threading.Thread(
+            target=self._lingers, args=(sub,), daemon=True, name="hmz-btw"
+        ).start()
         return sub
 
     def aside(self, **said: Any) -> Mapping[str, Any]:
@@ -122,25 +156,49 @@ class _Workspace:
 
     def unaside(self, side: str) -> None:
         """Closes one side conversation, quietly: one already gone is closed."""
-        with self.lock:
+        with self.held.lock:
             sub = self.sub
         if sub is not None and not sub.gone:
             with contextlib.suppress(Exception):
                 sub.hosted.ask(sub.client, {"do": "unaside", "side": side})
 
-    def _told(self, message: dict[str, Any]) -> None:
+    def _hears(
+        self,
+        sub: Subscription,
+        heard: queue.SimpleQueue[dict[str, Any]],
+        following: Following,
+    ) -> None:
+        """Takes what the host tells one subscription, in order, until it has gone."""
+        while True:
+            try:
+                message = heard.get(timeout=1.0)
+            except queue.Empty:
+                if sub.gone:
+                    # Ended without a word: what it held on the host went with it.
+                    self.held.closed(self)
+                    return
+                continue
+            self._told(message, following)
+            if message.get("type") == "gone":
+                return
+
+    def _told(self, message: dict[str, Any], following: Following) -> None:
         kind = str(message.get("type") or "")
-        following = self.following
-        with self.lock:
+        lock = self.held.lock
+        with lock:
+            if following is not self.following:
+                return
             if "seq" not in message and kind not in ("welcome", "live", "gone"):
                 self.standing[kind] = message
+            # Before `live` the host is telling the epic so far: an epic it tells of as
+            # started is the one going, not a new one.
+            new = kind == "started" and self.live
+            if kind == "live":
+                self.live = True
+                lock.notify_all()
         with contextlib.suppress(Exception):
             if kind == "started":
                 following.started(message)
-                # A side conversation is about the epic it was opened on, which has gone.
-                threading.Thread(
-                    target=self.leave, kwargs={"going": True}, daemon=True
-                ).start()
             elif kind == "printed":
                 following.printed(str(message.get("text") or ""))
             elif kind == "opened":
@@ -149,59 +207,157 @@ class _Workspace:
                 following.heard(message)
             elif kind == "ended":
                 following.ended(message)
-            elif kind == "gone":
-                self.leave(unasking=False)
-
-    def leave(
-        self, aside: str | None = None, *, unasking: bool = True, going: bool = False
-    ) -> None:
-        """Closes asides: one by name, those about the epic going, or every one."""
-        with self.lock:
-            left = [
-                one
-                for name, one in self.asides.items()
-                if (aside is None or name == aside) and (not going or one.about is None)
-            ]
-            self.asides = {k: v for k, v in self.asides.items() if v not in left}
-        for one in left:
-            one.mode.close(unasking=unasking)
+        if new or kind == "gone":
+            # The host closed every side conversation it held: those about the epic it was
+            # going have gone with it, and those about an earlier one open again when asked.
+            self.held.closed(self)
+        if kind == "gone":
+            with lock:
+                lock.notify_all()
 
     def snapshot(self) -> FlowSnapshot:
-        """The epic going, as a side question is told it."""
-        with self.lock:
+        """The epic going on the host, as a side question is told it."""
+        with self.held.lock:
             standing = dict(self.standing)
+            following = self.following
         run: dict[str, Any] = standing.get("run") or {}
         calls: list[dict[str, Any]] = (standing.get("calls") or {}).get("calls") or []
         waiting: dict[str, Any] = standing.get("waiting") or {}
         pending: list[dict[str, Any]] = (standing.get("pending") or {}).get(
             "pending"
         ) or []
-        return self.following.snapshot(
+        return following.snapshot(
             flow=" ▸ ".join(str(one.get("name")) for one in calls)
             or str(run.get("flow") or ""),
             task=str(run.get("task") or ""),
-            workspace=self.named,
+            workspace=self.held.named,
             going=run.get("state") not in (None, "idle"),
-            working=list((standing.get("sessions") or {}).get("working") or []),
             waiting=len(waiting.get("queued") or []) + len(waiting.get("given") or []),
             waiting_for_input=any(one.get("mode") == "listen" for one in pending),
         )
 
-    def _lingers(self) -> None:
+    def _lingers(self, sub: Subscription) -> None:
         """Lets go of the host once nothing has been asked and nothing held for a minute."""
         while True:
             time.sleep(1.0)
-            with self.lock:
-                sub = self.sub
-                if sub is None or sub.gone:
+            if sub.gone:
+                return
+            with self.held.lock:
+                if self.sub is not sub:
                     return
-                if self.asides or any(one.question for one in self.asides.values()):
+                if any(one.host is self for one in self.held.asides.values()):
                     self.used = time.monotonic()
                 if time.monotonic() - self.used < _LINGER:
                     continue
                 self.sub = None
             sub.dropped()
             return
+
+
+class _Workspace:
+    """The side conversations of one workspace, and the daemon's frontends of its hosts."""
+
+    def __init__(self, router: Router, named: str) -> None:
+        self.named = named
+        self.router = router
+        self.lock = threading.Condition()
+        self.hosts: dict[str, _Host] = {}
+        self.asides: dict[str, _Aside] = {}
+
+    def host(self, slot: str) -> _Host:
+        """The daemon's frontend of one slot's host, made the first time."""
+        with self.lock:
+            held = self.hosts.get(slot)
+            if held is None:
+                held = self.hosts[slot] = _Host(self, slot)
+            return held
+
+    def holding(self, epic: str) -> _Host | None:
+        """The host of the workspace whose epic going, stopping or last is `epic`, if any."""
+        for hosted in self.router.hosts.listed():
+            if hosted.workspace == self.named and hosted.status().get("epic") == epic:
+                return self.host(hosted.slot)
+        return None
+
+    def opens(self, aside: str, to: str, epic: str) -> _Aside:
+        """An aside asked for the first time, on the host of its epic, kept by its name.
+
+        Raises:
+          RpcError: 404 for a session there is none of.
+        """
+        from hmz.runtime.watching.btw import Btw
+
+        host = self.holding(epic) if epic else self.host("")
+        seen = False
+        if host is not None:
+            host.attached()
+            with self.lock:
+                seen = to in host.following.seen
+            if not seen and not epic:
+                raise _refused(404, f"{to} has no conversation to ask")
+        if host is not None and seen:
+            held = host
+            about: FlowSnapshot | None = None
+            mode = Btw(
+                to,
+                aside=held.aside,
+                unaside=held.unaside,
+                sessions=lambda: list(held.following.seen),
+            )
+        else:
+            # An epic, or a session of it, that no host holds any more: carried on from where
+            # that epic kept the session, on the workspace's own host.
+            about, opening = _recalled(epic)
+            opening(to)
+            held = self.host("")
+            held.attached()
+            mode = Btw(
+                to,
+                aside=_recalling(opening, held.aside),
+                unaside=held.unaside,
+                sessions=lambda: (to,),
+            )
+        with self.lock:
+            return self.asides.setdefault(aside, _Aside(to, epic, about, held, mode))
+
+    def closed(self, host: _Host) -> None:
+        """Takes the side conversations a host closed: an epic started on it, or it went."""
+        with self.lock:
+            going = {
+                name: one
+                for name, one in self.asides.items()
+                if one.host is host and one.about is None
+            }
+            earlier = [
+                one
+                for one in self.asides.values()
+                if one.host is host and one.about is not None
+            ]
+            self.asides = {k: v for k, v in self.asides.items() if k not in going}
+        for one in going.values():
+            one.mode.close(unasking=False)
+        for one in earlier:
+            one.mode.forget()
+
+    def leave(self, aside: str | None = None) -> None:
+        """Closes asides: one by name, or every one."""
+        with self.lock:
+            left = {
+                name: one
+                for name, one in self.asides.items()
+                if aside is None or name == aside
+            }
+            self.asides = {k: v for k, v in self.asides.items() if k not in left}
+        for one in left.values():
+            one.mode.close()
+
+    def drops(self, aside: str, one: _Aside) -> None:
+        """Closes an aside whose first question failed, which holds the host for nothing."""
+        with self.lock:
+            if self.asides.get(aside) is not one or one.said:
+                return
+            del self.asides[aside]
+        one.mode.close()
 
 
 class Asides:
@@ -233,13 +389,12 @@ class Asides:
                         "aside": name,
                         "to": one.to,
                         "question": one.question,
-                        "asked": list(one.asked),
                         "said": list(one.said),
                     }
                     for name, one in held.asides.items()
                     if one.epic == epic
                 ]
-        return {"asides": asides, "default": _answers()}
+        return {"asides": asides}
 
     def leave(self, call: Call) -> dict[str, Any]:
         """`btw.leave`: closes one aside, or every one of the workspace."""
@@ -254,7 +409,7 @@ class Asides:
     def ask(self, call: Call) -> dict[str, Any]:
         """`btw.ask`: one side question, in the aside it names, opened the first time."""
         from hmz.runtime import Refused
-        from hmz.runtime.watching.btw import NOBODY, Btw, Left
+        from hmz.runtime.watching.btw import Left
 
         named = workspace(call.params["workspace"])
         question = " ".join(str(call.params["question"]).split())
@@ -263,49 +418,23 @@ class Asides:
         epic = str(call.params.get("epic") or "")
         held = self._of(named)
         with held.lock:
-            opens = aside not in held.asides
-        if opens and not to and not _answers():
-            raise _refused(409, NOBODY)
-        about: FlowSnapshot | None = None
-        opening: Callable[[str], dict[str, Any]] | None = None
-        if opens:
-            held.attached()
-            if epic and not _still(held, epic, to):
-                about, opening = _recalled(epic)
-                if to:
-                    opening(to)
-        with held.lock:
             one = held.asides.get(aside)
-            if one is None:
-                one = _Aside(to, epic, about)
-                kept = one
-                frozen = about
-                one.mode = Btw(
-                    to,
-                    aside=held.aside
-                    if opening is None
-                    else _recalling(opening, held.aside),
-                    unaside=held.unaside,
-                    sessions=lambda: (
-                        list(held.following.seen)
-                        if frozen is None
-                        else [key for key, _ in frozen.sessions]
-                    ),
-                    source=_source,
-                    asking=lambda key, asking: kept.asked.append(
-                        {"to": key, "question": asking}
-                    ),
+        if one is None:
+            if not _SESSION.fullmatch(to):
+                raise _refused(
+                    400, "A side question is asked of a session, as <agent>/<n>."
                 )
-                held.asides[aside] = one
+            one = held.opens(aside, to, epic)
+        with held.lock:
             if one.question:
                 raise _refused(
                     409, "btw is still answering the last question asked of it."
                 )
-            one.question, one.asked = question, []
-            held.used = time.monotonic()
+            one.question = question
+        answer = ""
         try:
-            held.attached()
-            answer = one.mode.ask(question, one.about or held.snapshot())
+            one.host.attached()
+            answer = one.mode.ask(question, one.about or one.host.snapshot())
         except Left:
             raise _refused(
                 409, "A new epic started, which closed what was asked."
@@ -315,26 +444,15 @@ class Asides:
         finally:
             with held.lock:
                 one.question = ""
-                held.used = time.monotonic()
+                one.host.used = time.monotonic()
+            if not answer:
+                held.drops(aside, one)
         if not answer:
             raise _refused(502, "The agent returned no answer.")
-        said = {
-            "aside": aside,
-            "to": one.to,
-            "question": question,
-            "answer": answer,
-            "asked": list(one.asked),
-        }
+        said = {"aside": aside, "to": one.to, "question": question, "answer": answer}
         with held.lock:
             one.said = [*one.said, said][-_SAID:]
         return said
-
-
-def _still(held: _Workspace, epic: str, to: str) -> bool:
-    """Whether an epic, or a session of it, is one the host still holds."""
-    with held.lock:
-        run = held.standing.get("run") or {}
-    return run.get("epic") == epic and (not to or to in held.following.seen)
 
 
 def _named(epic: str) -> Any:
@@ -353,7 +471,7 @@ def _named(epic: str) -> Any:
 
 
 def _recalled(epic: str) -> tuple[FlowSnapshot, Callable[[str], dict[str, Any]]]:
-    """An epic written down, as side questions about it and its sessions are asked."""
+    """An epic written down, as side questions about its sessions are asked."""
     from hmz.runtime.epic import where
     from hmz.runtime.watching.btw import AgentProgress, FlowSnapshot
 
@@ -399,13 +517,6 @@ def _recalled(epic: str) -> tuple[FlowSnapshot, Callable[[str], dict[str, Any]]]
             )
             for one in ran.agents
         ),
-        sessions=tuple(
-            (
-                key,
-                f"ended, model={drove[one.agent].model if one.agent in drove else ''}",
-            )
-            for key, one in sessions.items()
-        ),
     )
     return about, opening
 
@@ -420,7 +531,9 @@ def _recalling(
         if key is not None:
             how = opening(key)
             said = (
-                {**how, **said} if said.get("fork") else {"runs": how["runs"], **said}
+                {**how, **said}
+                if said.get("fork")
+                else {"runs": how["runs"], "cwd": how["cwd"], **said}
             )
         return aside(**said)
 
@@ -433,20 +546,3 @@ def _moment(stamp: str) -> float:
         return datetime.datetime.fromisoformat(stamp).timestamp()
     except ValueError:
         return 0.0
-
-
-def _answers() -> str:
-    """The agent the setting `btw` names, as it says it now, or "" for nobody."""
-    from hmz.coganchor import settings
-
-    said = settings.read().get("btw")
-    return said if isinstance(said, str) else ""
-
-
-def _source() -> dict[str, str] | None:
-    """What the btw agent is opened as: what the setting `btw` names."""
-    from hmz.runtime.kept import read_back, written
-    from hmz.runtime.watching.btw import opened_as
-
-    said = read_back(answers) if (answers := _answers()) else None
-    return opened_as(written(said) if said is not None else "")

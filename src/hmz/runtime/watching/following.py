@@ -19,7 +19,7 @@ from .monitor import Monitor
 from .tally import Seen, Tally
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Mapping
+    from collections.abc import Mapping
 
 __all__ = ["Following"]
 
@@ -225,7 +225,6 @@ class Following:
         task: str,
         workspace: str,
         going: bool,
-        working: Collection[str],
         waiting: int,
         waiting_for_input: bool,
     ) -> FlowSnapshot:
@@ -236,7 +235,6 @@ class Following:
           task: What the run was started on.
           workspace: Where it runs.
           going: Whether it is going still.
-          working: The conversations with a turn open, `<agent>/<n>` apiece.
           waiting: How many messages are waiting for a turn to take them.
           waiting_for_input: Whether the run is waiting on a person.
 
@@ -288,15 +286,6 @@ class Following:
                 for one in self.monitor.reckoning(now=ended or moment)
             ),
             waiting_for_input=waiting_for_input,
-            # What the btw agent may ask by key: each conversation, and whether it is going.
-            sessions=tuple(
-                (
-                    key,
-                    ("working" if key in working else "idle" if going else "ended")
-                    + f", model={seen.model or '(default)'}",
-                )
-                for key, seen in list(self.seen.items())
-            ),
         )
 
     def close(self) -> None:

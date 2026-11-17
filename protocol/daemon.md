@@ -1226,11 +1226,12 @@ device <name>.`
 #### 4.15.1. General
 
 **4.15.1.1** A side question of `btw.*` MUST be asked as Section 9 of [CORE] defines it, through
-side conversations the workspace's own host opens (Section 4.8.8), and MUST NOT reach the epic.
+side conversations opened (Section 4.8.8) by the host whose slot holds the session asked: the
+workspace's own host for its epic, the `chat:<hex>` host for a chat; and MUST NOT reach the epic.
 
 **4.15.1.2** The daemon MUST open those side conversations as a frontend of its own, of kind `btw`,
-attached to the workspace's own host only while a `btw.*` call asks something of it or it holds an
-open side conversation, and MUST let go of it once neither has happened for 60 seconds.
+attached to that host only while a `btw.*` call asks something of it or it holds an open side
+conversation there, and MUST let go of it once neither has happened for 60 seconds.
 
 **4.15.1.3** Every side conversation of `btw.*` MUST be a session side copy (Section 9.5 of [CORE]),
 and `btw.*` MUST NOT open a side conversation of any other agent.

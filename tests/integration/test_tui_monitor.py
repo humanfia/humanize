@@ -8,12 +8,10 @@ from typing import TYPE_CHECKING
 import pytest
 from textual.app import App
 
-from hmz.runtime.settings import Settings
 from hmz.runtime.watching.monitor import Monitor
 from hmz.tui import Humanize
 from hmz.tui.monitoring import Details, Halts, Monitoring
 from tests.integration.doubles_tui import (
-    MODEL,
     OWN,
     RUNS,
     SIZE,
@@ -137,18 +135,23 @@ async def test_shift_tab_and_tab_step_between_the_views_of_a_run(
         await shows(pilot, "reading outworlder human")
 
 
-def _answers(spec: str = f"claude/{MODEL}") -> None:
-    """Has the settings name who answers The Epic, as `/settings` would."""
-    Settings().btw = spec
-
-
-async def test_btw_asks_a_side_agent_and_leaves_the_run_alone(workspace: Path) -> None:
-    _answers()
-    async with Humanize().run_test(size=SIZE) as pilot:
-        await working(pilot, "")
+async def test_btw_asks_a_side_copy_of_the_session_and_leaves_the_run_alone(
+    workspace: Path,
+) -> None:
+    async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
+        await working(pilot)
+        await pilot.press("tab")
+        await shows(pilot, "reading outworlder human")
+        await pilot.press("shift+tab")
+        await shows(pilot, "· conversation 1 ─")
 
         await typed(pilot, "/btw what is it doing")
-        await shows(pilot, "btw · what is it doing heard what is it doing")
+        await shows(pilot, "btw · what is it doing")
+        await until(
+            pilot,
+            lambda: any("what is it doing" in one for one in heard(workspace)),
+            "the side copy to be asked",
+        )
         await pilot.press("escape")
         await shows(pilot, "btw: exited")
 
@@ -158,46 +161,20 @@ async def test_btw_asks_a_side_agent_and_leaves_the_run_alone(workspace: Path) -
     said = heard(workspace)
     assert said[0] == "wait a moment"
     assert said[-1] == "carry on"
-    # The question went to an agent of its own, with what the run is doing to go on.
-    (aside,) = [one for one in said if "what is it doing" in one]
-    assert "flow: chat" in aside
+    # The question went to a side copy of the session, and never into the run's own.
+    assert any("what is it doing" in one for one in said)
 
 
-async def test_btw_with_nothing_running_still_answers(workspace: Path) -> None:
-    _answers()
+async def test_btw_with_no_session_read_is_refused(workspace: Path) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
 
         await typed(pilot, "/btw hey")
 
-        await shows(pilot, "btw · The Epic", "heard hey")
+        await shows(pilot, "a side question is asked of a session", "/ai")
 
 
-async def test_the_epic_is_answered_by_the_agent_the_settings_name(
-    workspace: Path,
-) -> None:
-    _answers(f"claude/{MODEL}:low")
-    own_flow(workspace)
-    app = Humanize()
-    async with app.run_test(size=SIZE) as pilot:
-        await set_up_own_flow(pilot)
-        await typed(pilot, f"${OWN} wait a moment")
-        await shows(pilot, "still on it")
-        await pilot.press("left")
-        await on(pilot, Monitoring)
-        await typed(pilot, "/btw")
-        await shows(pilot, "btw · The Epic", "/btw or esc to exit")
-        # Nothing picks an agent of the epic's own: the settings say who answers.
-        await pilot.press("ctrl+g")
-        await on(pilot, Monitoring)
-        await typed(pilot, "what is it doing")
-        await until(pilot, lambda: _asides(workspace) != [], "The Epic opening")
-
-    (aside,) = _asides(workspace)
-    assert aside[aside.index("--effort") + 1] == "low"
-
-
-async def test_with_nobody_named_the_epic_is_refused_and_the_settings_named(
+async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
     workspace: Path,
 ) -> None:
     own_flow(workspace)
@@ -205,13 +182,13 @@ async def test_with_nobody_named_the_epic_is_refused_and_the_settings_named(
         await set_up_own_flow(pilot)
         await typed(pilot, f"${OWN} wait a moment")
         await shows(pilot, "still on it")
-        # Over the monitor, where a side question is of The Epic rather than a session.
+        # Over the monitor, where there is no session a side question is of.
         await pilot.press("left")
         await on(pilot, Monitoring)
 
         await typed(pilot, "/btw what is it doing")
 
-        await shows(pilot, "Nobody answers The Epic yet", "settings")
+        await shows(pilot, "a side question is asked of a session", "/ai")
     assert _asides(workspace) == []
 
 

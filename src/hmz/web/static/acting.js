@@ -253,7 +253,7 @@ export function asides(workspace, epic = '') {
         log,
         one.said.map((said) => [
           line('you', said.question, { who }),
-          said.asked.map((asked) => line('begins', `asked ${asked.to}: ${asked.question}`)),
+          (said.asked || []).map((asked) => line('begins', `asked ${asked.to}: ${asked.question}`)),
           line('btw', said.answer),
         ]),
         one.question
@@ -350,8 +350,8 @@ export function asides(workspace, epic = '') {
         const unasked = all.findIndex((each) => each.to === null)
         all.splice(unasked < 0 ? all.length : unasked, 0, (one = aside(kept.aside, kept.to)))
       }
-      if (one.posting) one.asked = kept.asked
-      else Object.assign(one, { to: kept.to, said: kept.said, question: kept.question, asked: kept.asked })
+      if (one.posting) one.asked = kept.asked || []
+      else Object.assign(one, { to: kept.to, said: kept.said, question: kept.question, asked: kept.asked || [] })
     }
     for (const one of all.filter((each) => each.to !== null && !each.posting && !held.some((kept) => kept.aside === each.id))) {
       // One answered here that the server holds no more was closed: by another page, or an epic
