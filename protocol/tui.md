@@ -62,7 +62,7 @@ It is normative. It is cited by the tag [TUI].
   - [19.5. Daemons](#195-daemons)
   - [19.6. Accounts](#196-accounts)
   - [19.7. Account form](#197-account-form)
-  - [19.8. Fallback](#198-fallback)
+  - [19.8. Nous](#198-nous)
   - [19.9. Runtimes](#199-runtimes)
   - [19.10. Backup](#1910-backup)
   - [19.11. Workspace](#1911-workspace)
@@ -97,7 +97,7 @@ This document does not define the following, each of which the document cited de
 - The chat flow's behaviour common to every frontend: Section 8 of [CORE].
 - Side questions' behaviour common to every frontend: Section 9 of [CORE].
 - Agents, harnesses, models and efforts: Section 4 of [CORE].
-- Accounts and fallback: Section 5 of [CORE].
+- Accounts and nous: Sections 4 and 5 of [CORE].
 - Placements and runtimes: Section 6 of [CORE].
 - Environments: Section 7 of [CORE].
 - Epics, export, import and resuming: Section 3 of [CORE].
@@ -394,7 +394,7 @@ and MUST look again for itself when typed.
 **7.13.1** `/settings` MUST open the settings menu (Section 19) on its landing screen.
 
 **7.13.2** `/settings <page>` MUST open inside the page named: `general`, `notifications`,
-`daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace` or `usage`, compared without
+`daemons`, `accounts`, `nous`, `runtimes`, `backup`, `workspace` or `usage`, compared without
 regard to case.
 
 **7.13.3** `/settings` MUST take `settings` and `everywhere` as `general`, `directory` as
@@ -985,7 +985,7 @@ with no saved state.
 ### 19.1. Landing screen
 
 **19.1.1** `/settings` MUST be one menu of nine pages, in this order: General, Notifications,
-Daemons, Accounts, Fallback, Runtimes, Backup, Workspace, Usage.
+Daemons, Accounts, Nous, Runtimes, Backup, Workspace, Usage.
 
 **19.1.2** The landing screen MUST show one card per page with a summary of it, and `● unsaved` on
 each card whose page holds a change.
@@ -1081,14 +1081,24 @@ it in their place.
 **19.7.3** After an account is made, the interface MUST ask what it runs without holding up the
 menu, saying so while it asks and how that went.
 
-### 19.8. Fallback
+### 19.8. Nous
 
-**19.8.1** The Fallback page MUST list each rule by the place that fails, its retries, its wait
-policy, its limit and the chain of places it falls back to, in order.
+**19.8.1** The Nous page MUST list each nous by its name, marked virtual or concrete, with its
+retries, its wait policy, its limit, and its graph and `then`, each shown as its nodes in order from
+the start, a use node as its nous and a balance node as its strategy and its nous with their weights.
 
-**19.8.2** The rule form MUST take the place that fails, the chain of places, each added, taken off
-and reordered there, the number of tries, the wait policy and the limit, and MUST refuse a chain
-that names the place that fails or one place twice (Section 5 of [CORE]).
+**19.8.2** The nous form MUST take the name -- for a concrete nous, one the daemon's accounts and
+installed harnesses run, or one typed, with an effort; for a virtual nous, a name -- the number of
+tries, the wait policy and the limit, and MUST offer editing a virtual nous's graph and every nous's
+`then` with the graph form.
+
+**19.8.3** The graph form MUST let the user add, change and remove nodes -- a use node naming one
+nous, concrete or virtual; a balance node naming a strategy, its nous each with a weight, and its
+spread -- choose the start node, and set each node's edges, by fault class or `*`, to another node.
+
+**19.8.4** The interface MUST refuse a nous or a graph that Section 4.11.4.9 of [CORE] or Section
+3.6.2 of [FILES] refuses, saying why, MUST let the user rename a virtual nous, and MUST refuse
+removing one that another nous names, saying which.
 
 ### 19.9. Runtimes
 

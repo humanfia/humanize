@@ -84,7 +84,7 @@ _EARLIER = frozenset(
 
 #: The settings a batch apply carries from one daemon to others, by the page each is set on:
 #: never the accounts, which only a secret sets.
-CARRIED = ("general", "fallback", "runtimes", "backup")
+CARRIED = ("general", "nous", "runtimes", "backup")
 
 
 def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
@@ -107,19 +107,24 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
         if settings.enable_sentry is not None:
             general["reports"] = settings.enable_sentry
         sent.append(("settings.set", general))
-    if "fallback" in pages:
+    if "nous" in pages:
+        from hmz.coganchor import nous
+
         sent += [
             (
-                "fallbacks.set",
+                "nous.set",
                 {
-                    "spec": one.spec,
-                    "to": list(one.to),
+                    "name": one.name,
                     "tries": one.tries,
                     "policy": one.policy,
                     "timeout": one.timeout,
+                    "graph": nous.shown(one.graph),
+                    "then": nous.shown(one.then),
                 },
             )
-            for one in hmz.fallbacks.all()
+            # Virtual nous a graph names go before the graphs naming them, so that each
+            # write names only nous the daemon already has.
+            for one in sorted(hmz.nous.all(), key=lambda one: not one.virtual)
         ]
     if "runtimes" in pages:
         for one in hmz.runtimes.all():

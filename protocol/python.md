@@ -42,7 +42,7 @@ It is normative. It is cited by the tag [PYTHON].
   - [4.8. `Flowverses`](#48-flowverses)
   - [4.9. `Accounts`](#49-accounts)
   - [4.10. `Runtimes`](#410-runtimes)
-  - [4.11. `Fallbacks`](#411-fallbacks)
+  - [4.11. `NousBook`](#411-nousbook)
   - [4.12. `Epics`](#412-epics)
   - [4.13. `Backups`](#413-backups)
   - [4.14. The daemon registry](#414-the-daemon-registry)
@@ -2144,8 +2144,8 @@ defines it. An epic is named by its epic directory's base name.
 ### 4.3. The module
 
 ```python
-__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses",
-           "Hmz", "Link", "Refused", "Run", "Runtimes", "fakes"]
+__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Flows", "Flowverses", "Hmz", "Link",
+           "NousBook", "Refused", "Run", "Runtimes", "fakes"]
 def __getattr__(name: str) -> object: ...
 ```
 
@@ -2182,7 +2182,7 @@ class Hmz:
     verses: Flowverses   # property
     accounts: Accounts   # property
     runtimes: Runtimes   # property
-    fallbacks: Fallbacks # property
+    nous: NousBook       # property
     epics: Epics         # property
     backups: Backups     # property
     daemons: Registry    # property; the type of Section 4.14, not hmz.sdk.Daemons
@@ -2803,49 +2803,66 @@ that accept a job.
 **4.10.13** `Runtimes.check` MUST NOT wait longer than `seconds`, MUST NOT prompt for a password,
 and MUST NOT raise: a runtime that does not answer MUST be reported as unreached, with why.
 
-### 4.11. `Fallbacks`
+### 4.11. `NousBook`
 
 ```python
-class Fallbacks:
+class NousBook:
     default: str  # property
-    def all(self) -> list[Falls]: ...
+    def all(self) -> list[Nous]: ...
     def policies(self) -> tuple[Policy, ...]: ...
     def named(self, policy: str) -> Policy | None: ...
+    def strategies(self) -> tuple[Strategy, ...]: ...
+    def strategy(self, name: str, about: str,
+                 picks: Callable[[Sequence[Member]], str]) -> Strategy: ...
     def reads(self, said: str) -> str: ...
-    def spec(self, backend: str, model: str, provider: str = "") -> str: ...
-    def tried(self, said: str) -> Falls: ...
-    def chain(self, said: str) -> list[str]: ...
-    def points(self, said: str, to: Sequence[str]) -> Falls: ...
-    def retrying(self, said: str, tries: int, policy: str, timeout: float) -> Falls: ...
+    def spec(self, backend: str, model: str, provider: str = "", effort: str = "") -> str: ...
+    def rule(self, said: str) -> Nous: ...
+    def graph(self, said: object) -> Graph | None: ...
+    def put(self, nous: Nous) -> Nous: ...
+    def virtual(self, name: str, graph: object, *, tries: int = 0, policy: str = "",
+                timeout: float = 0.0, then: object = None) -> Nous: ...
+    def retrying(self, said: str, tries: int, policy: str, timeout: float) -> Nous: ...
+    def then(self, said: str, to: Graph | Sequence[str] | None) -> Nous: ...
+    def renamed(self, said: str, name: str) -> Nous: ...
+    def entry(self, said: str) -> str: ...
     def clear(self, said: str) -> bool: ...
 ```
 
-**4.11.1** `Fallbacks.default` MUST be `"exponential-jitter"`.
+**4.11.1** `NousBook.default` MUST be `"exponential-jitter"`.
 
-**4.11.2** `Fallbacks.policies()` MUST return the wait policies `none`, `constant`, `linear`,
-`exponential`, `exponential-jitter` and `fibonacci`; `Fallbacks.named(policy)` MUST return one of
+**4.11.2** `NousBook.policies()` MUST return the wait policies `none`, `constant`, `linear`,
+`exponential`, `exponential-jitter` and `fibonacci`; `NousBook.named(policy)` MUST return one of
 them, or `None`.
 
-**4.11.3** `Fallbacks.all()` MUST return every fallback step written, in the order written.
+**4.11.3** `NousBook.strategies()` MUST return the strategies of Section 4.11.4.7 of [CORE], in that
+order, and then those added; `NousBook.strategy(name, about, picks)` MUST add one for this process,
+`picks` returning the name of the member to try next, and MUST raise `ValueError` for a built-in
+name or one that does not match `[A-Za-z][A-Za-z0-9_.-]*`.
 
-**4.11.4** `Fallbacks.reads(said)` MUST return the canonical spelling of a place, or `""` where
-`said` is not one; `Fallbacks.spec(backend, model, provider)` MUST return the place
-`<backend>[@<provider>]/<model>`.
+**4.11.4** `NousBook.all()` MUST return every nous written, in the order written.
 
-**4.11.5** `Fallbacks.tried(said)` MUST return the step written against a place, or an empty `Falls`
-where there is none.
+**4.11.5** `NousBook.reads(said)` MUST return the canonical spelling of a concrete nous, a virtual
+nous's name as it is, or `""` where `said` is neither; `NousBook.spec(backend, model, provider,
+effort)` MUST return the concrete nous `<backend>[@<provider>]/<model>[:<effort>]`.
 
-**4.11.6** `Fallbacks.chain(said)` MUST return `[said, *to]` where a step is written against `said`,
-and `[said]` otherwise; chains MUST NOT be joined.
+**4.11.6** `NousBook.rule(said)` MUST return the nous written under `said`, else that written under
+`said` without its effort, else a `Nous` of that name that says nothing.
 
-**4.11.7** `Fallbacks.points(said, to)` MUST set the places `said` falls back to, in order, and MUST
-raise `ValueError` for a text that is not a place, for `said` itself, and for a place named twice.
+**4.11.7** `NousBook.graph(said)` MUST read a nous graph written as Section 3.6.1.8 of [FILES]
+states, or with `nodes` a list of nodes each holding its `id` and with `among` a list of nous or of
+`{nous, weight}`, and MUST raise `TypeError` for any other shape.
 
-**4.11.8** `Fallbacks.retrying(said, tries, policy, timeout)` MUST set the extra tries, the wait
-policy and the total limit in seconds (`0` meaning none), and MUST raise `ValueError` for an invalid
-value.
+**4.11.8** `NousBook.put(nous)`, `NousBook.virtual(...)`, `NousBook.retrying(...)` and
+`NousBook.then(said, to)` MUST write the nous and return it as written, and MUST raise `ValueError`
+for a nous Section 3.6.2.3 of [FILES] refuses or a graph Section 4.11.4.9 of [CORE] refuses.
 
-**4.11.9** `Fallbacks.clear(said)` MUST remove the step and return whether there was one.
+**4.11.9** `NousBook.renamed(said, name)` MUST rename a virtual nous as Section 3.6.2.4 of [FILES]
+states, and MUST raise `ValueError` for a name that is no virtual nous or one already taken.
+
+**4.11.10** `NousBook.entry(said)` MUST return the concrete nous a walk of `said` starts at.
+
+**4.11.11** `NousBook.clear(said)` MUST remove the nous and return whether there was one, and MUST
+raise `ValueError` for a virtual nous another nous names.
 
 ### 4.12. `Epics`
 
@@ -3305,8 +3322,12 @@ none), `asks`, `sets`, `args` and `stdin`.
 **4.20.2.3** `Model` MUST have the fields `name`, `efforts: tuple[str, ...]` (hardest first) and
 `swarms: bool`.
 
-**4.20.2.4** `Falls` MUST have the fields `spec`, `to: tuple[str, ...]`, `tries: int`, `policy: str`
-and `timeout: float`; `Policy` MUST have the fields `name` and `about`.
+**4.20.2.4** `Nous` MUST have the fields `name`, `tries: int`, `policy: str`, `timeout: float`,
+`graph: Graph | None` and `then: Graph | None`, and the property `virtual: bool`; `Graph` MUST have
+the fields `start` and `nodes: tuple[Node, ...]`; `Node` MUST have the fields `id`, `use`, `balance`,
+`among: tuple[tuple[str, int], ...]`, `spread: int` and `on: tuple[tuple[str, str], ...]`; `Policy`
+and `Strategy` MUST have the fields `name` and `about`; `Member` MUST have the fields `name`,
+`weight`, `busy`, `latency`, `tokens`, `price` and `cooling`.
 
 #### 4.20.3. Flows
 
