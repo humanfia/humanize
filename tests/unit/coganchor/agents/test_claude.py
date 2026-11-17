@@ -62,9 +62,32 @@ class _Claude:
         self.answers: list[Callable[[Process, str], None]] = []
         self.model = "claude-x"
         self.mode = ""
+        #: What its `system/init` lists as slash commands and as skills.
+        self.commands: list[str] = []
+        self.skills: list[str] = []
+        #: The models `set_model` takes, by what each resolves to.
+        self.models = {"claude-y": "claude-y", "sonnet": "claude-sonnet-9"}
         spawner.replying(self._heard)
 
     def _heard(self, proc: Process, said: Any) -> None:
+        request: dict[str, Any] = said.get("request") or {}
+        if (
+            said.get("type") == "control_request"
+            and request.get("subtype") == "set_model"
+        ):
+            asked = str(request.get("model"))
+            answer: dict[str, Any] = (
+                {"subtype": "success", "response": {"model": self.models[asked]}}
+                if asked in self.models
+                else {"subtype": "error", "error": f"Model '{asked}' not found"}
+            )
+            proc.say(
+                {
+                    "type": "control_response",
+                    "response": {"request_id": said["request_id"], **answer},
+                }
+            )
+            return
         if said.get("type") != "user" or _text(said) == "also this":
             return
         session = (
@@ -81,10 +104,12 @@ class _Claude:
                 "session_id": session,
                 "model": self.model,
                 "permissionMode": self.mode or "default",
+                "slash_commands": self.commands,
+                "skills": self.skills,
             }
         )
-        answer = self.answers.pop(0) if self.answers else _says("done")
-        answer(proc, session)
+        answering = self.answers.pop(0) if self.answers else _says("done")
+        answering(proc, session)
 
 
 def _result(text: str = "done", **more: Any) -> dict[str, Any]:
@@ -1175,3 +1200,213 @@ def test_a_cli_run_on_another_machine_is_refused_an_account_through_a_gateway(
     with pytest.raises(Unserved, match="local LiteLLM gateway"):
         _agent(provider="gw", machine=machine)
     assert routed == []
+
+
+def _natively(session: ClaudeCodeSession, line: str) -> str:
+    """Takes a turn of `line` as a person's native input, answering with its result."""
+    (answer,) = [
+        one.text for one in session.stream(line, native=True) if one.kind == "result"
+    ]
+    return answer
+
+
+def _users(proc: Process) -> list[str]:
+    """The user messages written to a process, in order."""
+    assert proc.stdin is not None
+    return [_text(one) for one in proc.stdin.said if one.get("type") == "user"]
+
+
+def _controls(proc: Process) -> list[dict[str, Any]]:
+    """The control requests written to a process, in order."""
+    assert proc.stdin is not None
+    return [
+        one["request"]
+        for one in proc.stdin.said
+        if one.get("type") == "control_request"
+    ]
+
+
+def test_the_catalog_is_what_init_listed_less_what_hmz_keeps(
+    claude: _Claude, tmp_path: Path
+) -> None:
+    claude.commands = [
+        "compact",
+        "context",
+        "clear",
+        "resume",
+        "model",
+        "effort",
+        "config",
+        "mcp",
+        "__remote-workflow",
+        "code-review",
+    ]
+    claude.skills = ["code-review", "anthropic-skills:pdf"]
+    session = _agent().new(tmp_path)
+    # Before its init, nothing under `/` is known: a chat passes every `/` line as text.
+    assert {(one.sigil, one.how) for one in session.natives()} == {
+        ("!", "emulate"),
+        ("@", "pass"),
+    }
+    session("one")
+    natives = session.natives()
+    passed = {
+        one.name: one for one in natives if one.how == "pass" and one.sigil == "/"
+    }
+    assert list(passed) == ["compact", "context", "code-review", "anthropic-skills:pdf"]
+    assert passed["code-review"].about == "a skill"
+    assert passed["compact"].about == "a Claude Code command"
+    assert {one.name for one in natives if one.how == "call"} == {"model", "effort"}
+    refused = {one.name: one.about for one in natives if one.how == "refuse"}
+    assert {"config", "mcp", "agents", "login", "permissions", "doctor"} <= set(refused)
+    assert set(refused.values()) == {
+        "served only by Claude Code's own interactive interface"
+    }
+    assert {(one.sigil, one.how) for one in natives if one.sigil in "!@"} == {
+        ("!", "emulate"),
+        ("@", "pass"),
+    }
+    named = [one.name for one in natives if one.sigil == "/"]
+    assert len(named) == len(set(named))
+    for kept in ("clear", "resume", "__remote-workflow"):
+        assert kept not in named
+
+
+@pytest.mark.parametrize(
+    "line", ["/compact keep the tests", "@notes.txt what is in it?", "/code-review"]
+)
+def test_a_native_line_claude_expands_goes_into_the_message_unchanged(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, line: str
+) -> None:
+    del claude
+    session = _agent().new(tmp_path)
+    assert _natively(session, line) == "done"
+    assert _users(spawner.last) == [line]
+
+
+def test_a_native_model_moves_the_conversation_without_a_turn(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("one")
+    said = _natively(session, "/model sonnet")
+    assert said == "Set model to sonnet (claude-sonnet-9)"
+    assert agent.config.model == "sonnet"
+    session("two")
+    (proc,) = spawner.started  # moved over the control protocol, not by a restart
+    assert _controls(proc) == [{"subtype": "set_model", "model": "sonnet"}]
+    assert _users(proc) == ["one", "two"]
+
+
+def test_a_native_model_before_any_turn_is_the_model_the_first_turn_starts_on(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    assert _natively(session, "/model claude-y") == "Set model to claude-y"
+    assert spawner.started == []
+    session("one")
+    (proc,) = spawner.started
+    assert _flag(proc.args, "--model") == "claude-y"
+    assert _users(proc) == ["one"]
+    assert _controls(proc) == []
+    assert agent.config.model == "claude-y"
+
+
+def test_a_model_moved_by_hand_starts_the_next_turn_on_it(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("one")
+    agent.reconfigure(replace(agent.config, model="claude-y"))
+    session("two")
+    first, second = spawner.started
+    assert _flag(first.args, "--model") == "claude-x"
+    assert _flag(second.args, "--model") == "claude-y"
+    assert _flag(second.args, "--resume") == session.id
+
+
+def test_a_model_claude_does_not_know_is_refused_and_nothing_moves(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("one")
+    assert _natively(session, "/model nonsense") == "Model 'nonsense' not found"
+    assert _natively(session, "/model") == "Model: claude-x"
+    assert agent.config.model == "claude-x"
+    session("two")
+    (proc,) = spawner.started
+    assert _users(proc) == ["one", "two"]
+
+
+def test_a_native_effort_resumes_the_conversation_at_the_new_rung(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("one")
+    first = spawner.last
+    assert _natively(session, "/effort low") == "Set effort to low"
+    assert agent.config.effort == "low"
+    assert _natively(session, "/effort") == "Effort: low"
+    session("two")
+    second = spawner.last
+    assert second is not first
+    assert _users(first) == ["one"]
+    assert _flag(second.args, "--effort") == "low"
+    assert _flag(second.args, "--resume") == session.id
+
+
+def test_a_native_effort_outranks_a_rung_a_flow_set_on_the_agent(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent(effort="high")
+    agent.effort = "low"
+    session = agent.new(tmp_path)
+    assert _natively(session, "/effort max") == "Set effort to max"
+    session("one")
+    assert _flag(spawner.last.args, "--effort") == "max"
+
+
+def test_a_rung_claude_has_no_word_for_is_refused(
+    claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent(effort="high")
+    session = agent.new(tmp_path)
+    assert "warp" in _natively(session, "/effort warp")
+    assert agent.config.effort == "high"
+
+
+@pytest.mark.parametrize("line", ["/model sonnet", "/effort low"])
+def test_a_flow_s_prompt_is_text_whatever_it_starts_with(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, line: str
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    assert session(line) == "done"
+    assert _users(spawner.last) == [line]
+    assert _controls(spawner.last) == []
+    assert (agent.config.model, agent.config.effort) == ("claude-x", "")
+
+
+def test_a_native_model_line_saying_more_is_passed_as_it_was(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    line = "/model sonnet\nand then fix the bug"
+    assert _natively(session, line) == "done"
+    assert _users(spawner.last) == [line]
+    assert agent.config.model == "claude-x"
