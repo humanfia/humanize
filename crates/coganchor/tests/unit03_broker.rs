@@ -204,3 +204,66 @@ fn the_command_line_announces_where_it_listens() {
     .unwrap();
     assert_eq!(running.wait().unwrap().code(), Some(0));
 }
+
+/// A session met through the broker, inside TLS as `peer://` carries it: the anchor's
+/// certificate binds both ends alike, and frames cross whether punched or carried.
+fn sealed_session(punching: Duration) {
+    use coganchor::proto::{Frame, Stream};
+    use coganchor::tls;
+
+    let meeting = broker(punching);
+    let (anchor, serve) = met(&meeting);
+    let key = meeting.ticket.clone().into_bytes();
+    let theirs = key.clone();
+    let identity = tls::Identity::fresh().unwrap();
+    let answering =
+        thread::spawn(move || identity.answer(serve, Some(theirs), String::new()).unwrap());
+    let cog = tls::dial(anchor, Some(key), String::new()).unwrap();
+    let served = answering.join().unwrap();
+    let (ours, theirs) = (cog.bound().unwrap(), served.bound().unwrap());
+    assert_eq!(ours.binding, theirs.binding);
+    let proof: String = ours
+        .cog_proof()
+        .unwrap()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    assert!(theirs.cog_proved(&proof).is_some());
+    cog.send(&Frame::chunk(4, Stream::Data, vec![9; 100_000]))
+        .unwrap();
+    assert_eq!(served.recv().unwrap().unwrap().body.len(), 100_000);
+    served.close();
+    assert!(cog.recv().unwrap().is_none());
+}
+
+#[test]
+fn a_meeting_carries_tls_when_joined_directly() {
+    sealed_session(Duration::from_millis(500));
+}
+
+#[test]
+fn a_meeting_carries_tls_when_relayed() {
+    sealed_session(Duration::ZERO);
+}
+
+#[test]
+fn the_broker_is_told_a_name_and_never_the_ticket() {
+    let ear = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = ear.local_addr().unwrap().port();
+    let meeting = Meeting::fresh("127.0.0.1", port);
+    let dialling = {
+        let meeting = meeting.clone();
+        thread::spawn(move || dial(&meeting, Role::Anchor, Duration::from_secs(2)))
+    };
+    let (told, _) = ear.accept().unwrap();
+    let mut line = String::new();
+    BufReader::new(&told).read_line(&mut line).unwrap();
+    drop(told);
+    assert!(dialling.join().unwrap().is_err());
+    assert!(!line.contains(&meeting.ticket), "{line}");
+    let said: serde_json::Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(
+        said["ticket"],
+        coganchor::tls::meeting_name(&meeting.ticket).as_str()
+    );
+}

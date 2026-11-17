@@ -73,9 +73,28 @@ class RemoteClient:
     # ---------------------------------------------------------------- lifecycle
 
     def start(self, token: str | None = None) -> dict[str, Any]:
-        """Start the reader thread and complete the handshake."""
+        """Start the reader thread and complete the handshake.
+
+        On a channel carried inside TLS the key it is bound to is proved rather than shown,
+        `token` is not asked about, and the serving half must prove the key back.
+
+        Raises:
+          ConnectionError: If the serving half did not prove the key this side holds.
+        """
         self._reader.start()
-        self.info = self.call(Op.HELLO, version=PROTOCOL_VERSION, token=token)
+        bound = self._channel.bound
+        if bound is None:
+            self.info = self.call(Op.HELLO, version=PROTOCOL_VERSION, token=token)
+        else:
+            mine = bound.cog_proof()
+            proof = None if mine is None else mine.hex()
+            self.info = self.call(Op.HELLO, version=PROTOCOL_VERSION, proof=proof)
+            if mine is not None and not bound.anchor_proved(
+                mine, self.info.get("proof")
+            ):
+                raise ConnectionError(
+                    f"the serving half at {bound.whom} did not prove the token"
+                )
         remote_version = self.info.get("version")
         if remote_version != PROTOCOL_VERSION:
             raise ProtocolError(
