@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pytest
+from pydantic import BaseModel, Field
 
 from hmz.runtime.epic import JOURNAL, epics
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
+from hmz.tui.asking import Asks
 from hmz.tui.pick import STOPS, Leaves
 from tests.integration.doubles_tui import (
     MODEL,
@@ -17,6 +19,7 @@ from tests.integration.doubles_tui import (
     RUNS,
     SIZE,
     TALKS,
+    Answers,
     heard,
     on,
     opened,
@@ -27,6 +30,7 @@ from tests.integration.doubles_tui import (
     stand_in,
     started,
     talks_set_up,
+    tell,
     typed,
     until,
 )
@@ -248,3 +252,289 @@ async def test_a_question_the_flow_asks_of_its_own_is_shown_and_answered_where_y
 
         await shows(pilot, "heard yes", "the flow is done")
     assert heard(workspace) == ["make it so", "yes"]
+
+
+class Review(BaseModel):
+    """What a person says of a change, asked as one form."""
+
+    verdict: Literal["approve", "request changes", "reject"] = Field(
+        description="what to do with the change"
+    )
+    notes: str = Field(description="what to change, or why")
+    tests: bool = Field(default=True, description="Write tests.")
+
+
+#: The change the form is about.
+PATCH = """\
+diff --git a/parse.py b/parse.py
+--- a/parse.py
++++ b/parse.py
+@@ -1,2 +1,3 @@
+-def parse(s): return s
++def parse(s):
++    return s.strip()
+ # end
+"""
+
+
+def asked_as_form(question: str = "q1") -> dict[str, Any]:
+    """A question asked as a form, with a diff and a table, as the host says it."""
+    return {
+        "type": "asked",
+        "run": 1,
+        "question": question,
+        "role": "human",
+        "mode": "ask",
+        "options": [],
+        "key": "",
+        "text": "Ship the parser change?\nIt changes how **every** line is read.",
+        "schema": Review.model_json_schema(),
+        "context": [
+            {"kind": "diff", "title": "the change", "patch": PATCH},
+            {
+                "kind": "table",
+                "columns": ["test", "result"],
+                "rows": [["parses", "pass"], ["strips", "fail"]],
+            },
+        ],
+        "face": None,
+        "session": "human/1",
+    }
+
+
+def pending(*asked: dict[str, Any]) -> dict[str, Any]:
+    """The `pending` snapshot of some questions, nobody holding their role."""
+    return {
+        "type": "pending",
+        "pending": [
+            {**{key: said for key, said in one.items() if key != "type"}, "owner": None}
+            for one in asked
+        ],
+    }
+
+
+def running(app: Humanize) -> None:
+    """Tells the interface a flow is running, with one outworlder, `human`."""
+    tell(
+        app,
+        {
+            "type": "run",
+            "state": "running",
+            "run": 1,
+            "kind": "flow",
+            "flow": "review",
+            "task": "review the parser",
+            "began": 0.0,
+            "outworlders": ["human"],
+            "epic": "",
+        },
+    )
+
+
+def short_notes(sent: dict[str, Any]) -> list[dict[str, Any]]:
+    """Refuses notes of fewer than three letters, as a schema's own check would."""
+    notes = str(cast("dict[str, Any]", sent.get("value") or {}).get("notes") or "")
+    if len(notes) < 3:
+        return [{"path": ["notes"], "message": "say what to change"}]
+    return []
+
+
+async def test_a_question_asked_as_a_form_is_read_then_answered_on_its_sheet(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del workspace
+    answers = Answers(short_notes).install(monkeypatch)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        running(app)
+        record = asked_as_form()
+        tell(app, record)
+        tell(app, pending(record))
+        await pilot.pause()
+
+        # Read first: the prompt, the change and the table, then the form -- not opened.
+        drawn = await shows(
+            pilot,
+            "Ship the parser change?",
+            "the change · diff · +2 \N{MINUS SIGN}1 in 1 file",
+            "table · 2 rows",
+            "form · 3 fields \N{EM DASH} press Enter to open",
+        )
+        assert "return s.strip()" in drawn
+        assert not isinstance(app.screen, Asks)
+
+        await pilot.press("enter")
+        sheet = await on(pilot, Asks)
+        await shows(
+            pilot,
+            "Verdict",
+            "1 approve",
+            "3 reject",
+            "More options (1)",
+            "Answer · 2 required left",
+        )
+        await pilot.press("2", "enter", "x", "enter", "enter")
+
+        # Refused beside the field it is about, and the sheet stays up with what was typed.
+        await shows(pilot, "✗ say what to change")
+        assert app.screen is sheet
+
+        await pilot.press("backspace", *"needs tests", "enter", "enter")
+        await until(
+            pilot, lambda: not isinstance(app.screen, Asks), "the sheet to close"
+        )
+        value = answers.sent[-1]["value"]
+        tell(
+            app,
+            {
+                "type": "answered",
+                "question": "q1",
+                "role": "human",
+                "text": json.dumps(value),
+                "value": value,
+            },
+        )
+        tell(app, pending())
+        await shows(pilot, "❯ request changes · 'needs tests' · Yes, write tests")
+
+    assert answers.sent == [
+        {
+            "question": "q1",
+            "value": {"verdict": "request changes", "notes": "x", "tests": True},
+        },
+        {
+            "question": "q1",
+            "value": {
+                "verdict": "request changes",
+                "notes": "needs tests",
+                "tests": True,
+            },
+        },
+    ]
+
+
+async def test_esc_keeps_the_form_s_draft_and_words_typed_go_into_it(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del workspace
+    answers = Answers(lambda _: []).install(monkeypatch)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        running(app)
+        record = asked_as_form()
+        tell(app, record)
+        tell(app, pending(record))
+        await shows(pilot, "press Enter to open")
+
+        # Words typed at the prompt open the form with them in the field they answer.
+        await typed(pilot, "looks fine")
+        await on(pilot, Asks)
+        await shows(pilot, "looks fine", "Answer · 1 required left")
+        await pilot.press("1", "escape")
+        await until(
+            pilot, lambda: not isinstance(app.screen, Asks), "the sheet to close"
+        )
+
+        await pilot.press("enter")
+        await on(pilot, Asks)
+        drawn = await shows(pilot, "looks fine", "Answer")
+        assert "required left" not in drawn
+    assert answers.sent == []
+
+
+async def test_json_typed_at_a_form_is_its_answer_and_a_choice_s_number_opens_it(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del workspace
+    answers = Answers(lambda _: []).install(monkeypatch)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        running(app)
+        record = asked_as_form()
+        tell(app, record)
+        tell(app, pending(record))
+        await shows(pilot, "press Enter to open")
+
+        await typed(pilot, "1")
+        await on(pilot, Asks)
+        await shows(pilot, "Answer · 1 required left")
+        await pilot.press("escape")
+        await until(
+            pilot, lambda: not isinstance(app.screen, Asks), "the sheet to close"
+        )
+
+        await typed(pilot, '{"verdict": "approve", "notes": "ok"}')
+        await until(pilot, lambda: bool(answers.sent), "the answer to be sent")
+    assert answers.sent == [
+        {"question": "q1", "value": {"verdict": "approve", "notes": "ok"}}
+    ]
+
+
+async def test_a_form_withdrawn_while_open_comes_down_saying_why(
+    workspace: Path,
+) -> None:
+    del workspace
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        running(app)
+        record = asked_as_form()
+        tell(app, record)
+        tell(app, pending(record))
+        await shows(pilot, "press Enter to open")
+        await pilot.press("enter")
+        await on(pilot, Asks)
+
+        tell(app, {"type": "withdrawn", "question": "q1", "why": "the run ended"})
+        tell(app, pending())
+
+        await until(
+            pilot, lambda: not isinstance(app.screen, Asks), "the sheet to close"
+        )
+        await shows(pilot, "withdrawn: the run ended")
+
+
+async def test_a_form_held_by_another_frontend_waits_for_it(workspace: Path) -> None:
+    del workspace
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        tell(app, {"type": "clients", "clients": [{"client": "c9", "name": "web"}]})
+        tell(app, {"type": "claims", "claims": {"human": "c9"}})
+        tell(app, {**asked_as_form(), "face": {"hash": "ab12", "title": "review"}})
+
+        drawn = await shows(
+            pilot,
+            "Waiting for web",
+            "a richer view of this question is in the web page",
+        )
+        assert "press Enter to open" not in drawn
+
+
+async def test_what_an_outworlder_is_shown_is_on_its_own_transcript(
+    workspace: Path,
+) -> None:
+    own_flow(workspace, ASKS)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await set_up_own_flow(pilot)
+        await typed(pilot, f"${OWN} make it so")
+        await shows(pilot, "Ship heard make it so?")
+        tell(
+            app,
+            {
+                "type": "shown",
+                "run": 1,
+                "role": "human",
+                "session": "human/1",
+                "context": [{"kind": "markdown", "text": "**3 of 5** tests pass"}],
+            },
+        )
+        await pilot.pause()
+        assert "3 of 5" not in screen(app)  # not on the transcript being read
+
+        await pilot.press("tab")
+        await shows(pilot, "human was shown", "3 of 5 tests pass")
