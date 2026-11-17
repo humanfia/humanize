@@ -46,7 +46,7 @@ import weakref
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from hmz.flows import (
     EnvCommandTimeout,
@@ -64,24 +64,28 @@ from hmz.flows import (
 from .spi import ENV_CAPABILITIES, ENV_TOOLS
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    import builtins
+    from collections.abc import Coroutine, Iterable, Sequence
 
     from hmz.flows import EnvBackendKind
 
-    from .spi import Placement
+    from .spi import EnvEntry, Placement
 
 __all__ = [
     "CLONE_SCRIPT",
     "ENVS",
     "GPU_QUERY",
     "KILLED_WITHIN",
+    "LOGIN_SHELL",
     "REMOVE_SCRIPT",
     "REWIND_SCRIPT",
     "SNAPSHOTS_SCRIPT",
     "SNAPSHOT_SCRIPT",
+    "TERM",
     "Claim",
     "Machine",
     "MachineEnvDriver",
+    "Pty",
     "Resources",
     "Running",
     "clone_dir",
@@ -120,6 +124,18 @@ _REFUSED = frozenset({errno.EACCES, errno.EPERM, errno.EROFS})
 
 #: How long a command that was killed is given to be gone before it is let go of anyway.
 KILLED_WITHIN = 10.0
+
+#: What a terminal says it is to the programs run on it.
+TERM = "xterm-256color"
+
+#: What a terminal opened with no program runs, in POSIX sh: the machine's login shell --
+#: `$SHELL` where it names one that can be run, else bash where there is one, else `sh` --
+#: started as a login shell, in place of this one.
+LOGIN_SHELL = r"""
+if [ -n "${SHELL:-}" ] && [ -x "$SHELL" ]; then exec "$SHELL" -l; fi
+if command -v bash >/dev/null 2>&1; then exec bash -l; fi
+exec /bin/sh -l
+"""
 
 #: How long a command may be in a message before it is cut short.
 _SHOWN = 120
@@ -597,6 +613,41 @@ class Running(Protocol):
         ...
 
 
+class Pty(ABC):
+    """A program a machine runs on a terminal of its own: the driver's `EnvPty`.
+
+    A :class:`Running` too, so that a driver closing kills it with its commands; what it
+    wrote is had by :meth:`read`, and is not in what :meth:`finished` answers.
+    """
+
+    @abstractmethod
+    async def read(self) -> bytes:
+        """What it wrote next, as soon as there is any; b"" once it has ended and all is read."""
+
+    @abstractmethod
+    async def write(self, data: bytes) -> None:
+        """Types at it; dropped once it has ended."""
+
+    @abstractmethod
+    async def resize(self, cols: int, rows: int) -> None:
+        """Gives its terminal another window."""
+
+    @abstractmethod
+    async def wait(self) -> int:
+        """Waits for it to end: its exit status, 128 + N for one killed by signal N."""
+
+    @abstractmethod
+    async def kill(self) -> None:
+        """Kills it and everything it started on its terminal. Bounded, and never raises."""
+
+    async def finished(self) -> tuple[int, bytes, bytes]:
+        """Waits for it to end, as a :class:`Running` does; its output is :meth:`read`'s."""
+        return await self.wait(), b"", b""
+
+    def release(self) -> None:  # noqa: B027 -- nothing to let go of, by default
+        """Nothing is held past its end but its terminal, which :meth:`read` lets go of."""
+
+
 class Claim(Protocol):
     """A hold on a temporary copy that other processes on the machine can see."""
 
@@ -730,6 +781,49 @@ class Machine(ABC):
 
         Raises:
           EnvConnectionError: If the machine could not be asked.
+        """
+
+    @abstractmethod
+    async def list(self, path: PurePosixPath) -> builtins.list[EnvEntry]:
+        """What a directory holds, in no particular order, links not followed.
+
+        Raises:
+          EnvFileNotFound: If it is not there.
+          EnvPermissionDenied: If it may not be listed.
+          EnvError: For anything else, like a file.
+        """
+
+    @abstractmethod
+    async def stat(self, path: PurePosixPath) -> EnvEntry:
+        """What one path is, a final link not followed.
+
+        Raises:
+          EnvFileNotFound: If it is not there.
+          EnvError: For anything else.
+        """
+
+    @abstractmethod
+    async def rename(self, path: PurePosixPath, to: PurePosixPath) -> None:
+        """Moves a file or a directory, as `rename(2)` does.
+
+        Raises:
+          EnvFileNotFound: If it is not there.
+          EnvError: For anything else.
+        """
+
+    @abstractmethod
+    async def pty(
+        self, argv: Sequence[str], cwd: PurePosixPath, *, cols: int, rows: int
+    ) -> Pty:
+        """Starts a program on a terminal of its own, its session's controlling one.
+
+        With :data:`TERM` set and the window given. Killing it kills the program's process
+        group, and that of whatever runs in the terminal's foreground where the machine can
+        tell which.
+
+        Raises:
+          EnvError: The leaf for why it could not be started; `EnvUnavailable` for a `cwd`
+            that is not there.
         """
 
     async def claim(self, path: PurePosixPath) -> Claim | None:
@@ -904,6 +998,24 @@ async def _unless_closed(machine: Machine, held: _Command) -> None:
     if machine.closed:
         held.closing = True
         await held.running.kill()
+
+
+#: What is being waited on in the background, so that it is not lost before it is over.
+_WATCHED: set[asyncio.Future[int]] = set()
+
+
+def _watched(waiting: Coroutine[Any, Any, int]) -> asyncio.Future[int]:
+    """Waits on something in the background, keeping hold of the wait until it is over."""
+    task = asyncio.ensure_future(waiting)
+    _WATCHED.add(task)
+
+    def over(done: asyncio.Future[int]) -> None:
+        _WATCHED.discard(done)
+        if not done.cancelled():
+            done.exception()
+
+    task.add_done_callback(over)
+    return task
 
 
 def _limit(timeout: float) -> float | None:
@@ -1173,6 +1285,135 @@ class MachineEnvDriver:
         """
         machine = self._open()
         await machine.write(await machine.absolute(self._at(path)), bytes(data))
+
+    # --- what a person looking around it asks, which flows never do
+
+    async def list(self, path: str) -> builtins.list[EnvEntry]:
+        """What a directory holds, directories first and then by name, links not followed.
+
+        Args:
+          path: The directory, relative to the workdir, absolute, or `~/...`.
+
+        Raises:
+          EnvFileNotFound: If it is not there.
+          EnvPermissionDenied: If it may not be listed.
+          EnvError: For anything else, like a file.
+        """
+        machine = self._open()
+        entries = await machine.list(await machine.absolute(self._at(path)))
+        return sorted(entries, key=lambda one: (one.kind != "dir", one.name))
+
+    async def stat(self, path: str) -> EnvEntry:
+        """What one path is, a final link not followed.
+
+        Args:
+          path: The path, relative to the workdir, absolute, or `~/...`.
+
+        Raises:
+          EnvFileNotFound: If it is not there.
+        """
+        machine = self._open()
+        return await machine.stat(await machine.absolute(self._at(path)))
+
+    async def mkdir(self, path: str) -> None:
+        """Makes a directory and those above it; one already there is left as it is.
+
+        Args:
+          path: The directory, relative to the workdir, absolute, or `~/...`.
+
+        Raises:
+          EnvError: The leaf for why it could not be made.
+        """
+        machine = self._open()
+        await machine.mkdir(await machine.absolute(self._at(path)))
+
+    async def rename(self, path: str, to: str) -> None:
+        """Moves a file or a directory to where nothing is, as it was looked at just before.
+
+        Args:
+          path: What to move, relative to the workdir, absolute, or `~/...`.
+          to: Where to, the same way.
+
+        Raises:
+          EnvFileNotFound: If `path` is not there.
+          EnvError: If something is at `to`, or it could not be moved.
+        """
+        machine = self._open()
+        source = await machine.absolute(self._at(path))
+        target = await machine.absolute(self._at(to))
+        await machine.stat(source)
+        if _normal(source) == _normal(target):
+            return
+        try:
+            await machine.stat(target)
+        except EnvFileNotFound:
+            await machine.rename(source, target)
+        else:
+            raise EnvError(f"could not move {source}: {target} is already there")
+
+    async def remove(self, path: str) -> None:
+        """Removes a file, a link, or a directory and everything in it.
+
+        Args:
+          path: What to remove, relative to the workdir, absolute, or `~/...`.
+
+        Raises:
+          EnvFileNotFound: If it is not there.
+          EnvError: If it is the workdir or a directory the workdir is in, or it could not
+            be removed.
+        """
+        machine = self._open()
+        target = _normal(await machine.absolute(self._at(path)))
+        if _normal(await machine.absolute(self._workdir)).is_relative_to(target):
+            raise EnvError(
+                f"will not remove {target}: the workdir {self._workdir} is in it"
+            )
+        await machine.stat(target)
+        await machine.remove(target)
+
+    async def pty(self, argv: Sequence[str] | None, *, cols: int, rows: int) -> Pty:
+        """Starts a program on a terminal of its own, in the workdir; see :class:`Pty`.
+
+        Killed when this driver closes, as its commands are, and when the root does.
+
+        Args:
+          argv: The program and its arguments; None for the machine's login shell, as
+            :data:`LOGIN_SHELL` finds it.
+          cols: The terminal's width.
+          rows: Its height.
+
+        Raises:
+          ValueError: For an empty argv, or a window that is not at least 1 by 1.
+          EnvUnavailable: If the workdir is not there.
+          EnvError: The leaf for why it could not be started, or that the driver was closed.
+        """
+        command = (
+            ["/bin/sh", "-c", LOGIN_SHELL, "humanize"] if argv is None else [*argv]
+        )
+        if not command:
+            raise ValueError("a program to run on a terminal is at least a program")
+        if cols < 1 or rows < 1:
+            raise ValueError(f"a terminal of {cols}x{rows} has no room")
+        machine = self._open()
+        cwd = await machine.absolute(self._workdir)
+        try:
+            opened = await machine.pty(command, cwd, cols=cols, rows=rows)
+        except EnvUnavailable:
+            self._seen = False
+            raise
+        held = _Command(opened)
+        self._running.add(held)
+        machine.running.add(held)
+
+        def over(_: asyncio.Future[int]) -> None:
+            self._running.discard(held)
+            machine.running.discard(held)
+
+        _watched(opened.wait()).add_done_callback(over)
+        await _unless_closed(machine, held)
+        if held.closing:
+            raise EnvError(f"the environment at {self._workdir} is closed")
+        return opened
 
     # --- deriving
 

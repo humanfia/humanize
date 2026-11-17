@@ -54,9 +54,10 @@ _KINDS = {
 }
 
 #: What a page of the interface may load and run: its own files and nothing else, but that it
-#: may reach the relay of any `webrtc:` route, whose host the server cannot know.
+#: may reach the relay of any `webrtc:` route, whose host the server cannot know, and that the
+#: editor and the terminal in static/vendor may style what they draw from their own scripts.
 _POLICY = (
-    "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; "
+    "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
     "script-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none'; "
     "base-uri 'none'; form-action 'self'"
 )

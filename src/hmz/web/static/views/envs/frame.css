@@ -1,0 +1,342 @@
+/* The Environments frame: the list of a host's environments beside the one picked, with its
+   panels under a row of tabs; in a chat's side panel, the one picked alone. Every colour is a
+   token of style.css, as everywhere on the page. */
+
+.view-envs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.envs-holder {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.envs {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--paper);
+}
+
+.envs-split {
+  --envs-tree: 240px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--envs-tree) 6px minmax(0, 1fr);
+}
+
+.envs-compact .envs-split {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ------------------------------------------------------------------ the list */
+
+.envs-side {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--side);
+  padding: 8px 0 16px;
+}
+
+.envs-role {
+  padding: 12px 14px 4px;
+  font: 600 11px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.envs-item {
+  --depth: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 12px 5px calc(14px + var(--depth) * 16px);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 13px;
+  user-select: none;
+}
+
+.envs-item:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.envs-item:focus-visible {
+  outline: 2px solid var(--edge);
+  outline-offset: -2px;
+}
+
+.envs-item.chosen {
+  border-left-color: var(--cyan);
+  background: var(--live-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.envs-item.off {
+  opacity: 0.55;
+}
+
+.envs-glyph {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.envs-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+}
+
+.envs-item-meta {
+  font: 11px var(--mono);
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.envs-resizer {
+  cursor: col-resize;
+  background: var(--line);
+  touch-action: none;
+}
+
+.envs-resizer:hover,
+.envs-resizer:focus-visible,
+.envs-resizer.dragging {
+  background: var(--cyan);
+  outline: none;
+}
+
+/* ------------------------------------------------------------------ the one picked */
+
+.envs-main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.envs-notice {
+  padding: 0 16px;
+}
+
+.envs-head {
+  flex: none;
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.envs-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.envs-title b {
+  font: 700 14px var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.envs-select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Beside the tree, the picker it folds into is not shown; in a side panel, it is, in the name's place. */
+.envs:not(.envs-compact) .envs-select,
+.envs-compact .envs-named {
+  display: none;
+}
+
+.envs-off {
+  padding: 8px 0;
+  color: var(--ink-2);
+}
+
+.envs-off p {
+  margin: 0;
+}
+
+.envs-panes[inert] {
+  opacity: 0.7;
+}
+
+.envs-full {
+  margin-left: auto;
+  font-size: 16px;
+}
+
+.envs-chip {
+  font: 600 11px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+}
+
+.envs-chip.off {
+  border-color: var(--fail);
+  color: var(--fail);
+}
+
+.envs-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  min-width: 0;
+}
+
+.envs-workdir {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.envs-uses {
+  color: var(--cyan-ink);
+}
+
+.envs-tabs {
+  flex: none;
+  padding: 6px 16px 0;
+  border-bottom-width: 1px;
+}
+
+.envs-used {
+  margin-left: 4px;
+  color: var(--cyan);
+}
+
+.envs-panes {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+
+.envs-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.envs-pane > .loading,
+.envs-pane > .error,
+.envs-unavailable {
+  padding: 0 16px;
+}
+
+.envs-pane-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ------------------------------------------------------------------ asking before doing */
+
+.envs-confirm {
+  max-width: min(440px, calc(100vw - 32px));
+  padding: 20px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 8px 8px 0 var(--cyan);
+}
+
+.envs-confirm::backdrop {
+  background: var(--scrim);
+}
+
+.envs-confirm p {
+  margin: 0 0 16px;
+}
+
+.envs-confirm-row {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------------ a chat's side panel */
+
+.inspector.envs-wide {
+  width: min(62vw, 980px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.inspector.envs-wide > .panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.inspector.envs-wide .panel-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 0;
+}
+
+/* ------------------------------------------------------------------ a phone */
+
+@media (max-width: 860px) {
+  .envs-split {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* On a phone the tree folds into the picker over the panels. */
+  .envs-side,
+  .envs-resizer,
+  .envs-named {
+    display: none;
+  }
+
+  .envs:not(.envs-compact) .envs-select {
+    display: block;
+  }
+
+  .envs-main {
+    flex: 1;
+  }
+
+  .envs-head,
+  .envs-tabs,
+  .envs-notice,
+  .envs-pane > .loading,
+  .envs-unavailable {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .inspector.envs-wide {
+    width: auto;
+    height: 80vh;
+    max-height: 80vh;
+  }
+}

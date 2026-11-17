@@ -1,18 +1,25 @@
-"""`hmz.daemon.methods` and `hmz.daemon.listening`: what a call names, and listener specs."""
+"""`hmz.daemon.methods` and `hmz.daemon.listening`: calls, envs, and listener specs."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+import threading
+from pathlib import Path
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 from hmz.daemon import where
 from hmz.daemon.listening import spec
-from hmz.daemon.methods import EPIC, families, slot, workspace
+from hmz.daemon.methods import ENV, EPIC, families, methods, slot, workspace
 from hmz.rpc import RpcError
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from hmz.daemon.routing import Router
+    from hmz.rpc import Call, Handler
+
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_a_workspace_is_a_whole_path_with_every_link_followed(tmp_path: Path) -> None:
@@ -108,3 +115,177 @@ def test_a_listener_spec_is_a_route_a_daemon_listens_on(text: str) -> None:
 def test_anything_else_is_no_listener(text: str) -> None:
     with pytest.raises(ValueError, match=f"{text} is not a listener."):
         spec(text)
+
+
+class _Hosted:
+    """A host that answers every call as told, and keeps what it was asked."""
+
+    def __init__(self, answer: dict[str, Any]) -> None:
+        self.answer = answer
+        self.asked: list[tuple[str, dict[str, Any]]] = []
+
+    def ask(self, client: str, said: dict[str, Any]) -> dict[str, Any]:
+        self.asked.append((client, said))
+        return self.answer
+
+
+class _Sub:
+    def __init__(self, hosted: _Hosted) -> None:
+        self.hosted = hosted
+        self.client = "c1"
+        self.gone = False
+        self.session: _Session | None = None
+
+
+class _Session:
+    def __init__(self, sub: _Sub, *, trusted: bool) -> None:
+        self.trusted = trusted
+        self.lock = threading.Lock()
+        self.subs = {"s1": sub}
+        sub.session = self
+
+
+class _Router:
+    def __init__(self, session: _Session) -> None:
+        self._session = session
+
+    def session(self, call: object) -> _Session:
+        del call
+        return self._session
+
+
+def _served(
+    *, trusted: bool = True, answer: dict[str, Any] | None = None
+) -> tuple[dict[str, Handler], _Hosted]:
+    hosted = _Hosted({"ok": True} if answer is None else answer)
+    router = _Router(_Session(_Sub(hosted), trusted=trusted))
+    return methods(cast("Router", router), {}), hosted
+
+
+def _call(method: str, sub: str = "s1", **params: object) -> Call:
+    return cast("Call", SimpleNamespace(method=method, params={"sub": sub, **params}))
+
+
+@pytest.fixture
+def held(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    """The settings file, as the daemon reads it: empty until a test fills it."""
+    from hmz.coganchor import settings
+
+    file: dict[str, object] = {}
+    monkeypatch.setattr(settings, "read", lambda: file)
+    return file
+
+
+def test_every_call_to_an_environment_of_the_document_is_served() -> None:
+    document = json.loads((ROOT / "protocol" / "openrpc.json").read_text("utf-8"))
+    listed = {
+        str(m["name"]) for m in document["methods"] if m["name"].startswith("env.")
+    }
+    served, _ = _served()
+
+    assert {f"env.{one}" for one in ENV} == listed
+    assert listed <= set(served)
+
+
+@pytest.mark.parametrize("one", ENV)
+def test_a_call_to_an_environment_asks_the_host_by_its_whole_name(one: str) -> None:
+    served, hosted = _served(answer={"ok": True, "etag": "e"})
+
+    answered = served[f"env.{one}"](
+        _call(f"env.{one}", env="1:work", idem="k", path="a")
+    )
+
+    assert answered == {"etag": "e"}
+    assert hosted.asked == [("c1", {"do": f"env.{one}", "env": "1:work", "path": "a"})]
+
+
+def test_a_refusal_of_the_host_is_answered_409_with_its_why() -> None:
+    served, _ = _served(answer={"ok": False, "why": "There is no environment 9:x."})
+
+    with pytest.raises(RpcError) as refused:
+        served["env.read"](_call("env.read", env="9:x", path="a"))
+    assert (refused.value.code, refused.value.message) == (
+        409,
+        "There is no environment 9:x.",
+    )
+
+
+def test_a_call_naming_no_subscription_is_refused_410() -> None:
+    served, hosted = _served()
+
+    with pytest.raises(RpcError) as refused:
+        served["env.list"](_call("env.list", sub="s9", env="1:w", path="."))
+    assert refused.value.code == 410
+    assert hosted.asked == []
+
+
+@pytest.mark.parametrize("one", ["env.term.open", "env.term.input"])
+@pytest.mark.parametrize(
+    "envs", [None, "on", {}, {"paired_terminals": "yes"}, {"paired_terminals": False}]
+)
+def test_a_paired_device_opens_no_terminal_unless_the_setting_lets_it(
+    one: str, envs: object, held: dict[str, object]
+) -> None:
+    if envs is not None:
+        held["envs"] = envs
+    served, hosted = _served(trusted=False)
+
+    with pytest.raises(RpcError) as refused:
+        served[one](_call(one, env="1:w", term="t1", cols=80, rows=24, data=""))
+    assert (refused.value.code, refused.value.message) == (
+        409,
+        "Terminals are off for paired devices; turn on envs.paired_terminals.",
+    )
+    assert hosted.asked == []
+
+
+def test_a_paired_device_naming_no_subscription_is_told_so_first(
+    held: dict[str, object],
+) -> None:
+    del held
+    served, _ = _served(trusted=False)
+
+    with pytest.raises(RpcError) as refused:
+        served["env.term.input"](_call("env.term.input", sub="s9", term="t1", data=""))
+    assert refused.value.code == 410
+
+
+def test_the_setting_lets_a_paired_device_open_a_terminal(
+    held: dict[str, object],
+) -> None:
+    held["envs"] = {"paired_terminals": True}
+    served, hosted = _served(trusted=False, answer={"ok": True, "term": "t1"})
+
+    opened = served["env.term.open"](
+        _call("env.term.open", env="1:w", cols=80, rows=24)
+    )
+
+    assert opened == {"term": "t1"}
+    assert [said["do"] for _, said in hosted.asked] == ["env.term.open"]
+
+
+def test_a_trusted_session_opens_terminals_without_the_setting(
+    held: dict[str, object],
+) -> None:
+    del held
+    served, hosted = _served(trusted=True)
+
+    served["env.term.input"](_call("env.term.input", term="t1", data="bHM="))
+
+    assert hosted.asked == [
+        ("c1", {"do": "env.term.input", "term": "t1", "data": "bHM="})
+    ]
+
+
+@pytest.mark.parametrize(
+    "one", [one for one in ENV if one not in ("term.open", "term.input")]
+)
+def test_a_paired_device_still_reaches_everything_else(
+    one: str, held: dict[str, object]
+) -> None:
+    del held
+    served, hosted = _served(trusted=False)
+
+    served[f"env.{one}"](_call(f"env.{one}", env="1:w"))
+
+    assert hosted.asked == [("c1", {"do": f"env.{one}", "env": "1:w"})]

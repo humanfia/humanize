@@ -37,6 +37,9 @@ pub trait Sink: Send {
     fn end(&mut self, stream: Stream) -> Result<(), RemoteError>;
     /// A `SIGNAL` naming this exchange. Only commands take one.
     fn signal(&mut self, _signal: i32) {}
+    /// A `RESIZE` naming this exchange: the window of its terminal is now `rows` by `cols`.
+    /// Only a command run under a pty takes one.
+    fn resize(&mut self, _rows: u16, _cols: u16) {}
     /// Whether the exchange has closed (its `RSP` or `ERR` sent), so it can be forgotten.
     fn is_done(&self) -> bool {
         false
