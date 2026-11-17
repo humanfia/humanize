@@ -363,6 +363,21 @@ def test_reached_calls_the_epic_with_its_sub_and_an_idem_for_a_write(
     assert "idem" not in said["epic.status"]
 
 
+def test_reached_calls_an_environment_by_its_own_method_with_the_epic_s_sub(
+    daemon_: _Daemon, tmp_path: Path
+) -> None:
+    daemon_.answers["env.list"] = {"path": "/w", "entries": []}
+    daemon_.answers["env.write"] = {"etag": "e"}
+    link = reached(tmp_path, "/w")
+
+    link.asked({"do": "env.list", "env": "1:coder", "path": ""})
+    link.asked({"do": "env.write", "env": "1:coder", "path": "a", "data": ""})
+    said = dict(daemon_.calls)
+    assert said["env.list"] == {"env": "1:coder", "path": "", "sub": "s1"}
+    assert said["env.write"]["sub"] == "s1"
+    assert said["env.write"]["idem"]
+
+
 def test_reached_raises_a_refusal_in_the_hosts_words(
     daemon_: _Daemon, tmp_path: Path
 ) -> None:
