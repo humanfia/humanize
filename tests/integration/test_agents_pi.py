@@ -77,6 +77,24 @@ while (told := take()) is not None:
     if told["type"] == "steer":
         steered(told["message"])
         continue
+    if told["type"] in ("get_commands", "bash", "compact"):
+        # Answered under the id it came with, as pi answers a command.
+        data = {
+            "get_commands": {"commands": [
+                {"name": "fix-tests", "description": "Fix failing tests",
+                 "source": "prompt"},
+                {"name": "skill:review", "description": "Review", "source": "skill"},
+            ]},
+            "bash": {"output": "ran " + told.get("command", ""), "exitCode": 0},
+            "compact": {"summary": "s", "tokensBefore": 1200, "usage": SPENT},
+        }[told["type"]]
+        if told["type"] != "get_commands":
+            quiet = " quietly" if told.get("excludeFromContext") else ""
+            note(told["type"] + " " + told.get("command", told.get(
+                "customInstructions", "")) + quiet)
+        out({"type": "response", "id": told.get("id"), "command": told["type"],
+             "success": True, "data": data})
+        continue
     if told["type"] != "prompt":
         note(told["type"])
         out({"type": "response", "command": told["type"], "success": True})
@@ -171,6 +189,37 @@ def test_one_process_holds_the_session_across_turns(pi: Standins) -> None:
     assert launch.flag("--thinking") == "high"
     assert launch.flag("--session-id") == session.id
     assert pi.said() == ["one", "two"]
+
+
+def test_a_chats_native_input_is_served_by_pis_own_commands(pi: Standins) -> None:
+    session = PiAgent(CONFIG).new()
+
+    def native(typed: str) -> str:
+        return list(session.stream(typed, native=True))[-1].text
+
+    assert [one.name for one in session.natives()] == ["", "!", "compact"]
+    assert session("one") == "one"
+    assert [(one.sigil, one.name, one.how) for one in session.natives()] == [
+        ("!", "", "call"),
+        ("!", "!", "call"),
+        ("/", "compact", "call"),
+        ("/", "fix-tests", "pass"),
+        ("/", "skill:review", "pass"),
+    ]
+    assert native("!ls -la") == "ran ls -la"
+    assert native("!!ls") == "ran ls"
+    assert native("/compact keep the tests") == "compacted from 1200 tokens"
+    assert native("/fix-tests") == "/fix-tests"
+    assert session("!ls") == "!ls"  # a flow's prompt is only ever text
+    assert len({one.pid for one in pi.calls()}) == 1
+    assert pi.said() == [
+        "one",
+        "bash ls -la",
+        "bash ls quietly",
+        "compact keep the tests",
+        "/fix-tests",
+        "!ls",
+    ]
 
 
 def test_a_word_put_in_mid_run_reaches_it(pi: Standins) -> None:
