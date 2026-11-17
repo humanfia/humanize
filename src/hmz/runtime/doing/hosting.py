@@ -2748,7 +2748,7 @@ def assistant(agent: str) -> Runs:
 def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
     """What a chat is to be started with, checked before anything is started for it.
 
-    What `chat.start` refuses before a host is asked (Section 4.21.1.6 of daemon.md), the same
+    What `chat.start` refuses before a host is asked (Section 4.24.1.6 of daemon.md), the same
     whoever asks: no task, no agent and no chat carried on to take one from, an agent that is
     not one, a preference that is neither, and a chat to carry on that is no chat of this
     workspace.

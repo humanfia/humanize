@@ -51,7 +51,7 @@ EPIC = (
 )
 
 
-#: Why a chat whose host folded it away takes nothing more (Section 4.21.2.4).
+#: Why a chat whose host folded it away takes nothing more (Section 4.24.2.4).
 _FOLDED = "this chat has folded away; carry it on from its epic"
 
 
@@ -349,7 +349,7 @@ class _Methods:
         return {k: v for k, v in answer.items() if k not in ("ok", "why", "code")}
 
     def _chat_held(self, call: Call) -> Hosted:
-        """The host of the chat a call names (Section 4.21.2.4).
+        """The host of the chat a call names (Section 4.24.2.4).
 
         Raises:
           RpcError: 400 for a slot that is not a chat's, 404 where no host holds it, and
@@ -367,7 +367,7 @@ class _Methods:
         return hosted
 
     def chat_start(self, call: Call) -> dict[str, Any]:
-        """Starts a chat on a chat host, or carries one on there (Section 4.21.1).
+        """Starts a chat on a chat host, or carries one on there (Section 4.24.1).
 
         What the host would refuse it for before it starts anything is refused here first, so
         that no host is started for a chat that cannot be.
@@ -400,7 +400,7 @@ class _Methods:
         return {"slot": hosted.slot, "epic": str(started.get("epic") or "")}
 
     def chat_say(self, call: Call) -> dict[str, Any]:
-        """Says one line to a chat (Section 4.21.2)."""
+        """Says one line to a chat (Section 4.24.2)."""
         text = call.params.get("text")
         if not isinstance(text, str):
             raise _refused(-32602, "chat.say takes text.")
@@ -408,11 +408,11 @@ class _Methods:
         return {}
 
     def chat_commands(self, call: Call) -> dict[str, Any]:
-        """What a line of a chat can start with, and its preference (Section 4.21.3)."""
+        """What a line of a chat can start with, and its preference (Section 4.24.3)."""
         return self._chatted(call, self._chat_held(call), {"do": "commands"})
 
     def chat_set(self, call: Call) -> dict[str, Any]:
-        """Sets a chat's own preference (Section 4.21.4)."""
+        """Sets a chat's own preference (Section 4.24.4)."""
         prefer = call.params.get("prefer")
         if prefer not in ("native", "flow"):
             raise _refused(400, "prefer is native or flow")

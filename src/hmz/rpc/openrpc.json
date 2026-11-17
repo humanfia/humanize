@@ -41,7 +41,8 @@
                   "desktop",
                   "cli",
                   "sdk",
-                  "bridge"
+                  "bridge",
+                  "ai-chan"
                 ]
               }
             },
@@ -120,7 +121,11 @@
         {
           "$ref": "#/components/errors/ProtocolMismatch"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "session.cancel",
@@ -138,7 +143,11 @@
           }
         }
       ],
-      "x-notification": true
+      "x-notification": true,
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "rpc.discover",
@@ -172,7 +181,11 @@
         {
           "$ref": "#/components/errors/TooLarge"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "pair.create",
@@ -246,7 +259,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "pair.claim",
@@ -311,7 +328,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "devices.list",
@@ -381,7 +402,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "devices.revoke",
@@ -441,7 +466,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "hosts.list",
@@ -504,7 +533,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "hosts.running",
@@ -542,7 +575,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "hosts.open",
@@ -617,7 +654,13 @@
         {
           "$ref": "#/components/errors/Unavailable"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "hosts.status",
@@ -669,7 +712,13 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "hosts.detach",
@@ -729,7 +778,13 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "hosts.stop",
@@ -787,7 +842,13 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.attach",
@@ -889,7 +950,13 @@
         {
           "$ref": "#/components/errors/Unavailable"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "epic.start",
@@ -1044,7 +1111,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.say",
@@ -1108,7 +1180,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.answer",
@@ -1172,7 +1249,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.stop",
@@ -1224,7 +1306,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.force",
@@ -1284,7 +1371,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.afk",
@@ -1346,7 +1438,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.claim",
@@ -1410,7 +1507,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.release",
@@ -1468,7 +1570,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.board",
@@ -1532,11 +1639,16 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "epic.aside",
-      "summary": "Open, ask or answer a side conversation of this frontend.",
+      "summary": "Open or ask a side conversation of this frontend.",
       "paramStructure": "by-name",
       "params": [
         {
@@ -1590,6 +1702,7 @@
         },
         {
           "name": "asks",
+          "deprecated": true,
           "schema": {
             "type": "boolean"
           }
@@ -1602,6 +1715,7 @@
         },
         {
           "name": "answered",
+          "deprecated": true,
           "schema": {
             "type": "string"
           }
@@ -1638,7 +1752,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "epic.unaside",
@@ -1690,7 +1809,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "epic.status",
@@ -1736,7 +1860,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "epic.detach",
@@ -1779,7 +1908,11 @@
         {
           "$ref": "#/components/errors/UnknownSubscription"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "epic.quit",
@@ -1831,7 +1964,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "btw.list",
@@ -1857,12 +1995,13 @@
         "schema": {
           "type": "object",
           "required": [
-            "asides",
-            "default"
+            "asides"
           ],
           "properties": {
             "asides": {},
-            "default": {}
+            "default": {
+              "deprecated": true
+            }
           }
         }
       },
@@ -1891,7 +2030,13 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "epic": "epic"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "btw.ask",
@@ -1940,15 +2085,16 @@
             "aside",
             "to",
             "question",
-            "answer",
-            "asked"
+            "answer"
           ],
           "properties": {
             "aside": {},
             "to": {},
             "question": {},
             "answer": {},
-            "asked": {}
+            "asked": {
+              "deprecated": true
+            }
           }
         }
       },
@@ -1983,7 +2129,13 @@
         {
           "$ref": "#/components/errors/Upstream"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "epic": "epic"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "btw.leave",
@@ -2035,7 +2187,241 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "aichan.create",
+      "summary": "Make an Ai-chan conversation and start its host.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "scope",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "workspace",
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "epic",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "nous",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "preset",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "network",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "title",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "task",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "create",
+        "schema": {
+          "type": "object",
+          "required": [
+            "id",
+            "workspace",
+            "slot"
+          ],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "workspace": {
+              "type": "string"
+            },
+            "slot": {
+              "$ref": "#/components/schemas/Slot"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "aichan.list",
+      "summary": "Every Ai-chan conversation, newest first.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "conversations"
+          ],
+          "properties": {
+            "conversations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Conversation"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "aichan.forget",
+      "summary": "Forget an Ai-chan conversation, closing its host.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "forget",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "runs.list",
@@ -2129,7 +2515,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "runs.get",
@@ -2172,7 +2562,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "epic": "name"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "runs.trace",
@@ -2221,7 +2616,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "epic": "name"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "runs.timeline",
@@ -2288,7 +2688,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "epic": "name"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "runs.span",
@@ -2354,7 +2759,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "epic": "name"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "runs.bundle",
@@ -2417,7 +2827,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "epic": "name"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "runs.backup",
@@ -2495,7 +2910,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "epic": "name"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "runs.import",
@@ -2575,7 +2995,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "runs.usage",
@@ -2642,7 +3066,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "backups.epics",
@@ -2694,7 +3123,11 @@
         {
           "$ref": "#/components/errors/Upstream"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "backups.pull",
@@ -2759,7 +3192,11 @@
         {
           "$ref": "#/components/errors/Upstream"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "files.create",
@@ -2819,7 +3256,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "files.write",
@@ -2888,7 +3329,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "files.read",
@@ -2960,7 +3405,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "files.close",
@@ -3003,7 +3452,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "flows.list",
@@ -3059,7 +3512,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "flows.get",
@@ -3112,7 +3570,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "flows.backends",
@@ -3154,7 +3617,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "flows.setup",
@@ -3282,7 +3749,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "flows.check",
@@ -3445,7 +3917,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "flows.fork",
@@ -3512,7 +3989,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "workspaces.list",
@@ -3551,7 +4033,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "workspaces.add",
@@ -3622,7 +4108,12 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "workspaces.forget",
@@ -3677,7 +4168,12 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "flowverses.list",
@@ -3709,7 +4205,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "flowverses.get",
@@ -3770,7 +4270,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "flowverses.add",
@@ -3838,7 +4342,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "flowverses.fetch",
@@ -3900,7 +4408,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "flowverses.remove",
@@ -3965,7 +4477,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "flowverses.install",
@@ -4036,7 +4552,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "flowverses.uninstall",
@@ -4101,7 +4621,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "paths.list",
@@ -4169,7 +4693,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "paths.complete",
@@ -4215,7 +4743,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "settings.get",
@@ -4257,7 +4789,12 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "settings.set",
@@ -4271,22 +4808,14 @@
           }
         },
         {
-          "name": "chat",
+          "name": "ai_chan",
           "schema": {
             "type": "string"
           }
         },
         {
-          "name": "prefer",
-          "schema": {
-            "enum": [
-              "native",
-              "flow"
-            ]
-          }
-        },
-        {
           "name": "btw",
+          "deprecated": true,
           "schema": {
             "type": "string"
           }
@@ -4332,6 +4861,21 @@
           "schema": {
             "$ref": "#/components/schemas/Idem"
           }
+        },
+        {
+          "name": "chat",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "prefer",
+          "schema": {
+            "enum": [
+              "native",
+              "flow"
+            ]
+          }
         }
       ],
       "result": {
@@ -4362,7 +4906,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "settings.forget",
@@ -4424,7 +4972,12 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "accounts.list",
@@ -4456,7 +5009,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "accounts.create",
@@ -4531,7 +5088,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "accounts.correct",
@@ -4599,7 +5160,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "accounts.remove",
@@ -4655,7 +5220,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "accounts.models",
@@ -4714,7 +5283,11 @@
         {
           "$ref": "#/components/errors/Upstream"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "accounts.copy",
@@ -4783,7 +5356,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "nous.list",
@@ -4815,7 +5392,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "nous.set",
@@ -4928,7 +5509,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "nous.rename",
@@ -4984,7 +5569,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "nous.clear",
@@ -5036,7 +5625,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "runtimes.list",
@@ -5068,7 +5661,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "runtimes.set",
@@ -5140,7 +5737,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "runtimes.remove",
@@ -5196,7 +5797,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "runtimes.check",
@@ -5274,7 +5879,11 @@
         {
           "$ref": "#/components/errors/NotFound"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "runtimes.hosts",
@@ -5315,7 +5924,11 @@
         {
           "$ref": "#/components/errors/Unavailable"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "runtimes.import",
@@ -5373,7 +5986,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "easytier.list",
@@ -5405,7 +6022,11 @@
         {
           "$ref": "#/components/errors/NotPaired"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "easytier.set",
@@ -5470,7 +6091,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "easytier.remove",
@@ -5522,7 +6147,11 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "easytier.nodes",
@@ -5563,7 +6192,11 @@
         {
           "$ref": "#/components/errors/Unavailable"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "notices.list",
@@ -5621,7 +6254,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "notices.subscribe",
@@ -5676,7 +6313,11 @@
         {
           "$ref": "#/components/errors/Refused"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "notices.unsubscribe",
@@ -5719,7 +6360,562 @@
         {
           "$ref": "#/components/errors/UnknownSubscription"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "any"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "env.list",
+      "summary": "The envs of the epic going on a host.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "envs"
+          ],
+          "properties": {
+            "envs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "kind",
+                  "workdir",
+                  "can"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "workdir": {
+                    "type": "string"
+                  },
+                  "can": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "read",
+                        "write",
+                        "exec",
+                        "grep"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "env.read",
+      "summary": "Read a file of an env.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "offset",
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "length",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1048576
+          }
+        }
+      ],
+      "result": {
+        "name": "read",
+        "schema": {
+          "type": "object",
+          "required": [
+            "text",
+            "size",
+            "eof"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "eof": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "env.write",
+      "summary": "Write a file of an env, whole.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "text",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "write",
+        "schema": {
+          "type": "object",
+          "required": [
+            "size"
+          ],
+          "properties": {
+            "size": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "env.exec",
+      "summary": "Run a command in an env's workdir.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "argv",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "seconds",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "exec",
+        "schema": {
+          "type": "object",
+          "required": [
+            "code",
+            "stdout",
+            "stderr"
+          ],
+          "properties": {
+            "code": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "stdout": {
+              "type": "string"
+            },
+            "stderr": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "env.grep",
+      "summary": "Search the files of an env.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "pattern",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "path",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2000
+          }
+        }
+      ],
+      "result": {
+        "name": "grep",
+        "schema": {
+          "type": "object",
+          "required": [
+            "matches",
+            "more"
+          ],
+          "properties": {
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "line",
+                  "text"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "more": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "chat.start",
@@ -5832,7 +7028,12 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "chat.say",
@@ -5901,7 +7102,13 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "chat.commands",
@@ -6026,7 +7233,13 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "chat.set",
@@ -6098,7 +7311,13 @@
         {
           "$ref": "#/components/errors/Conflict"
         }
-      ]
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
     }
   ],
   "components": {
@@ -6109,8 +7328,8 @@
       },
       "Slot": {
         "type": "string",
-        "pattern": "^((chat|exec):[0-9a-f]{1,32})?$",
-        "description": "\"\" for the workspace's own host, chat:<hex> or exec:<hex>."
+        "pattern": "^((chat|ai|exec):[0-9a-f]{1,32})?$",
+        "description": "\"\" for the workspace's own host, chat:<hex>, ai:<hex> or exec:<hex>."
       },
       "Idem": {
         "type": "string",
@@ -6336,19 +7555,28 @@
         "required": [
           "workspace",
           "flow",
-          "chat",
-          "prefer",
-          "btw",
           "details",
           "reports",
           "flows",
           "backup",
           "listen",
-          "ice_servers"
+          "ice_servers",
+          "chat",
+          "prefer"
         ],
         "properties": {
           "workspace": {},
           "flow": {},
+          "ai_chan": {},
+          "details": {},
+          "reports": {},
+          "flows": {},
+          "backup": {},
+          "listen": {},
+          "ice_servers": {},
+          "btw": {
+            "deprecated": true
+          },
           "chat": {
             "type": "string"
           },
@@ -6357,14 +7585,7 @@
               "native",
               "flow"
             ]
-          },
-          "btw": {},
-          "details": {},
-          "reports": {},
-          "flows": {},
-          "backup": {},
-          "listen": {},
-          "ice_servers": {}
+          }
         }
       },
       "Accounts": {
@@ -6485,6 +7706,69 @@
           "strategies": {},
           "faults": {},
           "concrete": {}
+        }
+      },
+      "Conversation": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "scope",
+          "workspace",
+          "epic",
+          "nous",
+          "preset",
+          "network",
+          "slot",
+          "state",
+          "created"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "daemon",
+              "workspace",
+              "epic"
+            ]
+          },
+          "workspace": {
+            "type": "string"
+          },
+          "epic": {
+            "type": "string"
+          },
+          "nous": {
+            "type": "string"
+          },
+          "preset": {
+            "enum": [
+              "read-only",
+              "danger-full-access"
+            ]
+          },
+          "network": {
+            "type": "boolean"
+          },
+          "slot": {
+            "$ref": "#/components/schemas/Slot"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "waiting",
+              "folded"
+            ]
+          },
+          "created": {
+            "type": "string"
+          }
         }
       }
     },
