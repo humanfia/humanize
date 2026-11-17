@@ -59,6 +59,29 @@ _WRITES = frozenset(
 #: The calls to a chat that are writes, which carry an `idem` of their own.
 _CHAT_WRITES = frozenset({"chat.start", "chat.say", "chat.set"})
 
+#: The calls to an environment of the epic that are writes, which carry an `idem` too. An
+#: `env.*` call is named as it is, rather than as one more `epic.<do>`: it is a method of its
+#: own, made with the epic's `sub` as every call to the epic is.
+_ENV_WRITES = frozenset(
+    {
+        "env.write",
+        "env.mkdir",
+        "env.rename",
+        "env.remove",
+        "env.git.stage",
+        "env.git.unstage",
+        "env.git.discard",
+        "env.git.commit",
+        "env.git.rewind",
+    }
+)
+
+
+def _method(do: str) -> str:
+    """The method one request is: `env.*` as it is, anything else the epic's `epic.<do>`."""
+    return do if do.startswith("env.") else f"epic.{do}"
+
+
 #: Why a link whose session ended without a `gone` is let go.
 _WENT = "the host went away"
 
@@ -478,9 +501,9 @@ def reached(
             if do in _CHAT_WRITES:
                 params["idem"] = secrets.token_urlsafe(12)
         else:
-            method = f"epic.{do}"
+            method = _method(do)
             params = {**said, "sub": sub[0]}
-            if do in _WRITES:
+            if do in _WRITES or do in _ENV_WRITES:
                 params["idem"] = secrets.token_urlsafe(12)
         try:
             pending = peer.request(method, params)
@@ -594,8 +617,12 @@ def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Lin
             method, params = do, {**said, "workspace": workspace, "slot": slotted[0]}
             idem = secrets.token_urlsafe(12) if do in _CHAT_WRITES else None
         else:
-            method, params = f"epic.{do}", {**said, "sub": sub[0]}
-            idem = secrets.token_urlsafe(12) if do in _WRITES else None
+            method, params = _method(do), {**said, "sub": sub[0]}
+            idem = (
+                secrets.token_urlsafe(12)
+                if do in _WRITES or do in _ENV_WRITES
+                else None
+            )
         try:
             result: Any = client.call(method, params, idem=idem, seconds=seconds)
         except Refused as why:
