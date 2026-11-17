@@ -399,7 +399,8 @@ impl Shared {
                 Some(cli) if !cli.forwarded.contains(&signal) => {
                     cli.forwarded.push(signal);
                     if let Some((_, was)) = cli.before.iter().find(|(one, _)| *one == signal)
-                        && !(signal == Signal::SIGINT && was.handler() == SigHandler::SigDfl)
+                        && !(signal == Signal::SIGINT
+                            && matches!(was.handler(), SigHandler::SigDfl))
                     {
                         // SAFETY: putting back what was there.
                         let _ = unsafe { sigaction(signal, was) };
@@ -454,7 +455,7 @@ impl Signals {
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(shared.clone());
         // SAFETY: the handler only writes to a pipe.
         let was = unsafe { sigaction(Signal::SIGINT, &taking()) }?;
-        let before = if was.handler() == SigHandler::SigIgn {
+        let before = if matches!(was.handler(), SigHandler::SigIgn) {
             // SAFETY: putting back what was there.
             unsafe { sigaction(Signal::SIGINT, &was) }?;
             None
