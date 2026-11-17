@@ -286,6 +286,15 @@ class Hosted:
         finally:
             self.detach(client)
 
+    def env(self, said: dict[str, Any]) -> dict[str, Any]:
+        """Asks the host for one `hosts.env.*`, attaching nobody: `ok`, else `why` and `code`.
+
+        Raises:
+          RpcError: 409, where the host could not be asked.
+        """
+        answer: Any = self._call("env", {"said": said})
+        return answer if isinstance(answer, dict) else {"ok": False, "why": "no answer"}  # pyright: ignore[reportUnknownVariableType]
+
     def detach(self, client: str) -> None:
         """Lets one frontend go, without waiting on the host."""
         threading.Thread(

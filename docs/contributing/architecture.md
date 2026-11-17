@@ -216,6 +216,23 @@ uv run pytest -n0 tests/system/test_harness_task.py -k <name>
 Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and with
 `uv run hmz <command> --help`.
 
+## Vendored web code {#vendored-web-code}
+
+The page under `web/static/` has no build step, save its one piece of third-party code: the
+editor (CodeMirror 6) and the terminal (xterm.js) of the env panels. `src/hmz/web/vendor/`
+pins them with pnpm and bundles them with esbuild into `web/static/vendor/codemirror.js`,
+`xterm.js` and `xterm_css.css`, which are committed; a module of the page that uses them
+imports them from `/vendor/` and from nothing else. After changing a version or what is
+bundled:
+
+```sh
+cd src/hmz/web/vendor
+pnpm install && pnpm build
+```
+
+and commit what it wrote. CI's `vendor` job builds it again from the lockfile and fails when
+the committed files differ. `src/hmz/web/vendor/README.md` lists what each file exports.
+
 ## The protocol {#protocol}
 
 `protocol/` states everything Humanize shows to the outside, in MUST, MUST NOT and MAY terms, and
