@@ -1133,6 +1133,35 @@ class Host:
         except Exception as why:  # noqa: BLE001 -- a request that failed is answered as one
             return _no(str(why) or type(why).__name__)
 
+    def env(self, said: dict[str, Any]) -> dict[str, Any]:
+        """Does one `hosts.env.*` on an env of the epic going here, which no frontend asks.
+
+        Carried out through the env's own driver, on the run's loop, as the flow would, and
+        neither attaching anybody nor telling the run (Section 4.23 of daemon.md).
+
+        Args:
+          said: The call: `do`, its method's whole name, and its params.
+
+        Returns:
+          `ok` and the result; or `ok` False, `why`, and the `code` it is refused with.
+        """
+        from hmz.runtime.doing.envs import NO_FLOW, EnvRefusal, answered
+
+        with self._lock:
+            going = self._current or self._stopping
+        holds = None
+        if going is not None:
+            with contextlib.suppress(Exception):
+                holds = going.run.envs
+        if holds is None:
+            return {**_no(NO_FLOW), "code": 409}
+        try:
+            return _ok(**answered(holds, said))
+        except EnvRefusal as why:
+            return {**_no(why.why), "code": why.code}
+        except Exception as why:  # noqa: BLE001 -- what the env could not do, said as it said it
+            return {**_no(str(why) or type(why).__name__), "code": 409}
+
     def status(self) -> dict[str, Any]:
         """What there is to say about the runs here, for somebody asking from outside them.
 

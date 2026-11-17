@@ -168,6 +168,18 @@ def test_a_chat_is_asked_from_outside_every_frontend(host: mock.Mock) -> None:
     host.chatted.assert_called_once_with({"do": "say", "text": "/clear"})
 
 
+def test_env_is_answered_as_the_host_answers_it_attaching_nobody(
+    host: mock.Mock,
+) -> None:
+    host.env.return_value = {"ok": True, "envs": []}
+
+    said = _carried(Carrier(host, {}), "env", said={"do": "hosts.env.list"})
+
+    assert said == {"result": {"ok": True, "envs": []}}
+    host.env.assert_called_once_with({"do": "hosts.env.list"})
+    host.attach.assert_not_called()
+
+
 def test_status_says_what_the_host_said_of_itself(host: mock.Mock) -> None:
     carrier = Carrier(host, {"pid": 7, "kind": "host"})
 
