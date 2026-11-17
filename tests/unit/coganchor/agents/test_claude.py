@@ -827,7 +827,9 @@ def test_an_account_that_forbids_bypass_is_moved_and_remembered(
     agent = _agent(fence=_WRITES)
     assert not agent.declines()
     events = list(agent.new(tmp_path).stream("go"))
-    assert any("will not run an agent at bypass" in one.text for one in events)
+    assert any(
+        "will not run an agent at bypassPermissions" in one.text for one in events
+    )
     assert spawner.last.stdin is not None
     (moved,) = [
         one for one in spawner.last.stdin.said if one["type"] == "control_request"

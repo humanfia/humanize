@@ -251,17 +251,11 @@ _WRITES = ("/somewhere",)
 @pytest.mark.parametrize(
     ("said", "approval", "excluded"),
     [
-        # No fence: an agent driven by hand is told nothing, whatever rung it still carries.
+        # No fence: an agent driven by hand is told nothing.
         ({}, None, None),
-        ({"permission": "read-only"}, None, None),
         ({"web_search": False}, None, "web_search,web_fetch"),
         # A fence that writes nothing: the writers withheld, the shell and monitor kept.
         ({"fence": Fence(online=True)}, "yolo", _WRITERS),
-        (
-            {"permission": "bypass", "fence": Fence(online=True)},
-            "yolo",
-            _WRITERS,
-        ),
         (
             {"fence": Fence(online=False)},
             "yolo",
@@ -269,11 +263,6 @@ _WRITES = ("/somewhere",)
         ),
         # A fence that writes somewhere: every tool, the web decided by the network alone.
         ({"fence": Fence(write=_WRITES, online=True)}, "yolo", None),
-        (
-            {"permission": "read-only", "fence": Fence(write=_WRITES, online=True)},
-            "yolo",
-            None,
-        ),
         ({"fence": Fence(write=_WRITES, online=False)}, "yolo", "web_search,web_fetch"),
         (
             {"fence": Fence(write=_WRITES, online=True), "web_search": False},

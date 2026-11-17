@@ -44,7 +44,6 @@ from hmz.flows import (
     UserPromptSubmitHookResult,
     allow,
     deny,
-    read_only,
 )
 from hmz.runtime.flowing import harnessing
 from hmz.runtime.flowing.harnesses import (
@@ -81,7 +80,6 @@ class Config:
     model: str = ""
     effort: str = ""
     provider: str = ""
-    permission: str = ""
     web_search: bool | None = None
     machine: Any = None
     fence: Any = None
@@ -176,7 +174,6 @@ def _echo(prompt: str) -> str:
 class CLI:
     """coganchor's agent for one CLI."""
 
-    rungs = ("read-only", "workspace-write", "auto", "bypass")
     pipes_tools = False
     built: list[CLI] = []  # noqa: RUF012 -- emptied per test
     reply: Callable[[str], str] = staticmethod(_echo)
@@ -354,7 +351,7 @@ async def test_a_session_opens_in_its_workdir_with_its_skills(
     )
 
     agent = _cli(session)
-    assert agent.config.permission == harnessing.READ_ONLY
+    assert not hasattr(agent.config, "permission")
     assert agent.config.web_search is True
     assert [one.name for one in agent.loaded] == ["review"]
     assert len(agent.watched) == 2, "the run's listener, and the session's own"
@@ -1414,39 +1411,42 @@ async def test_a_flows_tools_are_offered_and_called_on_the_engines_loop(
 
 
 @pytest.mark.parametrize(
-    ("harness", "permission", "refused"),
+    ("harness", "fence", "refused"),
     [
-        (HarnessKind.GROK, Permission(granular=(read_only("."),)), True),
-        (HarnessKind.GROK, Permission(preset="read-only"), True),
-        (
-            HarnessKind.GROK,
-            Permission(preset="read-only", granular=(allow("."),)),
-            False,
-        ),
-        (HarnessKind.GROK, Permission(granular=(read_only("./docs"),)), False),
-        (HarnessKind.CLAUDE, Permission(granular=(read_only("."),)), False),
+        (HarnessKind.GROK, SimpleNamespace(writes=False), True),
+        (HarnessKind.GROK, SimpleNamespace(writes=True), False),
+        (HarnessKind.GROK, None, False),
+        (HarnessKind.CLAUDE, SimpleNamespace(writes=False), False),
+    ],
+    ids=[
+        "grok-writes-nothing",
+        "grok-writes",
+        "grok-unfenced",
+        "claude-writes-nothing",
     ],
 )
-async def test_grok_offering_a_flows_tools_takes_no_turn_that_may_not_write_its_workdir(
+async def test_grok_offering_a_flows_tools_takes_no_turn_whose_fence_writes_nothing(
     coganchor: type[CLI],
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     harness: HarnessKind,
-    permission: Permission,
+    fence: SimpleNamespace | None,
     refused: bool,
 ) -> None:
     async def note() -> str:
         return "noted"
 
+    monkeypatch.setattr(harnessing, "fenced", returning(fence))
     session = await open_agent(_spec(harness)).open(
         _placed(tmp_path),
-        permission=permission,
+        permission=Permission(),
         skills=(),
         hooks=HookTable(),
         tools=(FakeTool("note", "Notes.", note),),
     )
 
     if refused:
-        with pytest.raises(HarnessUnrecoverable, match="may not write its workdir"):
+        with pytest.raises(HarnessUnrecoverable, match="fence writes nothing"):
             await session.turn(TurnRequest("hi"), Sink())
     else:
         assert await session.turn(TurnRequest("hi"), Sink())
@@ -1521,16 +1521,13 @@ def test_a_sessions_config_is_settled_for_its_permission_and_hooks(
     said = settled(
         _config(config),
         HarnessKind.KIMI,
-        CLI,  # pyright: ignore[reportArgumentType]
         Permission(network=False, granular=(deny("/"), allow("."))),
         frozenset({HookKind.ASK_USER}),
         tellable=True,
         workdir="/w",
     )
 
-    assert said == dataclasses.replace(
-        config, permission=harnessing.ASKING, web_search=False
-    )
+    assert said == dataclasses.replace(config, web_search=False)
 
 
 @pytest.mark.parametrize(
@@ -1558,7 +1555,6 @@ def test_a_fence_is_drawn_around_the_work_where_the_cli_has_it(
     settled(
         _config(Config()),
         HarnessKind.CLAUDE,
-        CLI,  # pyright: ignore[reportArgumentType]
         Permission(),
         frozenset(),
         tellable=False,
@@ -1581,7 +1577,6 @@ def test_a_fence_the_cli_cannot_be_held_to_is_unrecoverable(
         settled(
             _config(Config()),
             HarnessKind.CLAUDE,
-            CLI,  # pyright: ignore[reportArgumentType]
             Permission(),
             frozenset(),
             tellable=False,

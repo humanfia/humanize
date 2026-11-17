@@ -933,7 +933,7 @@ class GrokBuildAgent(Agent, FakeToolAgentMixin, Protocol):
 
     Its `_tools` reach it over ACP, the one way grok is given a tool of the flow's, and a turn
     that only `grok -p` can take is refused while any are offered: an `output_schema`, the
-    first turn of a fork, web search off, and a permission whose rung takes tools away each
+    first turn of a fork, web search off, and a permission whose fence writes nothing each
     raise :class:`~hmz.flows.errors.HarnessUnrecoverable` there.
     """
 

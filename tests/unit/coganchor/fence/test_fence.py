@@ -968,3 +968,46 @@ def test_reach_makes_what_is_missing_as_the_users_own(reachable: Path) -> None:
     assert at == str(made)
     assert made.is_dir()
     assert stat.S_IMODE(made.stat().st_mode) == 0o700
+
+
+def test_a_mac_reads_the_developer_tools_its_xcrun_shims_load() -> None:
+    """A Mac's `/usr/bin` shims load `libxcrun.dylib` from the chosen developer directory."""
+    assert {
+        "/private/var/db/xcode_select_link",
+        "/Library/Developer/CommandLineTools",
+        "/Library/Preferences/com.apple.dt.Xcode.plist",
+        "/Applications/Xcode.app",
+    } <= set(DARWIN_SYSTEM)
+    assert not {"/Library", "/Applications"} & set(DARWIN_SYSTEM)
+
+
+@pytest.mark.parametrize(
+    ("platform", "chosen", "read"),
+    [
+        ("darwin", "/Applications/Xcode-beta.app/Contents/Developer", True),
+        ("linux", "/Applications/Xcode-beta.app/Contents/Developer", False),
+        ("darwin", None, False),
+    ],
+    ids=["mac-elsewhere", "linux", "mac-none-chosen"],
+)
+def test_the_developer_directory_xcode_select_chose_is_read_on_a_mac(
+    monkeypatch: pytest.MonkeyPatch, platform: str, chosen: str | None, read: bool
+) -> None:
+    real = os.path.realpath
+
+    def resolving(path: str, *, strict: bool = False) -> str:
+        if path != "/private/var/db/xcode_select_link":
+            return real(path, strict=strict)
+        if chosen is None:
+            raise FileNotFoundError(path)
+        return chosen
+
+    monkeypatch.setattr("sys.platform", platform)
+    monkeypatch.setattr("os.path.realpath", resolving)
+
+    fence = drawn((".", READ))
+
+    beta = "/Applications/Xcode-beta.app/Contents/Developer/usr/lib/libxcrun.dylib"
+    shared = "/Applications/Xcode-beta.app/Contents/SharedFrameworks"
+    assert fence.allows(beta) == fence.allows(shared) == read
+    assert not fence.allows(beta, write=True)

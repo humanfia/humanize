@@ -121,12 +121,11 @@ _NO_WEB = "--disable-web-search"
 #: write a file under it reaches for a writer that is not there and writes nothing.
 #:
 #: The shell by its tool id and not by the name a tool call is reported under. Over ACP the
-#: shell's calls are titled `run_terminal_command`, and that is what Section 4.6.2.3 of the
-#: protocol names it; but `--tools` takes ids, and run against 1.0.62 an allowlist naming
-#: `run_terminal_command` warns `--tools "run_terminal_command" names no tool, so other tools
-#: stay available` and starts with the whole toolset, writers included -- one wrong name and
-#: the allowlist is no allowlist at all. `run_terminal_cmd` is the id its own help gives the
-#: shell, and the one 1.0.62 takes without a word.
+#: shell's calls are titled `run_terminal_command`; but `--tools` takes ids, and run against
+#: 1.0.62 an allowlist naming `run_terminal_command` warns `--tools "run_terminal_command"
+#: names no tool, so other tools stay available` and starts with the whole toolset, writers
+#: included -- one wrong name and the allowlist is no allowlist at all. `run_terminal_cmd` is
+#: the id its own help gives the shell, and the one 1.0.62 takes without a word.
 #: The shell is kept: a `git log` or a test run is most of what an agent that may change
 #: nothing is for, and a write it attempts is refused by the fence around the process rather
 #: than by anything Grok Build is told.
@@ -142,12 +141,20 @@ _NO_WEB = "--disable-web-search"
 #: holds it in any case: what the CLI is told is only which tools it has.
 _READERS = ("read_file", "grep", "list_dir", "run_terminal_cmd")
 
+#: The web tools by their `--tools` ids, added to :data:`_READERS` where the agent may search the
+#: web (:func:`_searches`). An allowlist leaves out what it does not name, so a fence that writes
+#: nothing would otherwise take web search away from an agent whose grant is online -- and
+#: Section 4.6.3.1 of the protocol has a grant on the network switch its web search on, whatever
+#: it may write. 1.0.62 takes both ids without a word, as it does not a name that is no tool.
+_SEARCHERS = ("web_search", "web_fetch")
+
 
 def _granted(config: AgentConfig) -> tuple[str, ...]:
     """What a turn at this config is run as, said as the command line says it.
 
     Read off the fence and nothing else. A fence that writes nothing is approved its tools and
-    started with :data:`_READERS` only; one that writes somewhere is approved every tool, the
+    started with :data:`_READERS` only, and :data:`_SEARCHERS` beside them where the agent may
+    search the web; one that writes somewhere is approved every tool, the
     fence deciding where its writes land. And an agent with no fence -- one driven by hand --
     is told nothing whatever: no approval, no allowlist. It is one `grok` decides for itself
     -- its own prompting, the permission rules this machine carries, the tools it starts with
@@ -163,7 +170,8 @@ def _granted(config: AgentConfig) -> tuple[str, ...]:
         return ()
     if config.fence.writes:
         return (_APPROVAL,)
-    return (_APPROVAL, "--tools", ",".join(_READERS))
+    allowed = _READERS + (_SEARCHERS if _searches(config) else ())
+    return (_APPROVAL, "--tools", ",".join(allowed))
 
 
 #: How a tool call is refused, as `_GRANTS` is how one is permitted: the kind rather than the

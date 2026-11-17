@@ -141,7 +141,17 @@ LINUX_SYSTEM: Final = (
 #: The same on a Mac, where the libraries and frameworks are under `/System` as well as
 #: `/usr`, `/bin/sh` reads which shell it is from `/private/var/select`, and `/etc/localtime`
 #: leads into `/private/var/db/timezone`. `/Library` and `/opt` are not among them, for the
-#: reason `/opt` is not on Linux.
+#: reason `/opt` is not on Linux -- except the developer tools. `/usr/bin/git`, `make`, `clang`
+#: and `python3` on a Mac are Apple's `xcrun` shims, which follow
+#: `/private/var/db/xcode_select_link` to the developer directory `xcode-select` chose and load
+#: `libxcrun.dylib` and the real program from there; a fence that kept them out would have
+#: `git log` fail with `xcrun: error: unable to load libxcrun` before it read anything. So the
+#: link is read, and the two places it leads on any Mac that has the tools: the Command Line
+#: Tools, and Xcode where it is installed -- the whole of `Xcode.app`, whose tools load its
+#: `SharedFrameworks` and `Frameworks` beside `Contents/Developer`, with the plist its license
+#: is checked against. A directory chosen anywhere else is added where the fence is drawn
+#: (:func:`_developer`).
+_XCODE_SELECT: Final = "/private/var/db/xcode_select_link"
 DARWIN_SYSTEM: Final = (
     "/usr",
     "/bin",
@@ -149,6 +159,10 @@ DARWIN_SYSTEM: Final = (
     "/System",
     "/private/var/select",
     "/private/var/db/timezone",
+    _XCODE_SELECT,
+    "/Library/Developer/CommandLineTools",
+    "/Library/Preferences/com.apple.dt.Xcode.plist",
+    "/Applications/Xcode.app",
     "/etc/ssl",
     "/etc/resolv.conf",
     "/etc/hosts",
@@ -210,6 +224,26 @@ SYSTEM: Final = DARWIN_SYSTEM if sys.platform == "darwin" else LINUX_SYSTEM
 
 #: This machine's minimum to write.
 DEVICES: Final = DARWIN_DEVICES if sys.platform == "darwin" else LINUX_DEVICES
+
+
+def _developer() -> tuple[str, ...]:
+    """The developer directory `xcode-select` chose, on a Mac, where it is not already read.
+
+    Read off the link itself rather than by running `xcode-select -p`, which is one more
+    program started for every fence drawn. The whole app where it is inside one, as
+    `Xcode.app` is in :data:`DARWIN_SYSTEM`. Nothing on Linux, nothing where no directory was
+    chosen, and nothing where the one chosen is among :data:`DARWIN_SYSTEM` already.
+    """
+    if sys.platform != "darwin":
+        return ()
+    try:
+        chosen = os.path.realpath(_XCODE_SELECT, strict=True)
+    except OSError:
+        return ()
+    if any(_under(chosen, one) for one in DARWIN_SYSTEM):
+        return ()
+    app, inside, _ = chosen.partition(".app/")
+    return (f"{app}.app" if inside else chosen,)
 
 
 def _accelerators() -> tuple[str, ...]:
@@ -510,9 +544,10 @@ class Fence:
         in :attr:`write`; one read in :attr:`read`, or in :attr:`keep` beneath one written;
         one kept from in :attr:`deny` beneath one granted, and left out otherwise.
 
-        Then the minimum is added, whatever the rules were: :data:`SYSTEM` and the Python
-        Humanize runs on to read, :data:`DEVICES` and the GPUs' nodes to write -- each a grant,
-        which a rule carving out a path above it does not take back. A workdir that may be
+        Then the minimum is added, whatever the rules were: :data:`SYSTEM`, the developer
+        directory a Mac's `xcode-select` chose, and the Python Humanize runs on to read,
+        :data:`DEVICES` and the GPUs' nodes to write -- each a grant, which a rule carving out
+        a path above it does not take back. A workdir that may be
         written writes :data:`TEMPORARY` as well, as a workspace Codex may write does; a home
         that may be written -- by a rule at it or above it, and not only as part of a workdir
         it is inside -- writes whatever the user may change, which for anyone but root is the
@@ -560,7 +595,7 @@ class Fence:
             write=writing
         )
         return fence._at(held).granting(  # noqa: SLF001 -- its own class's
-            read=(*SYSTEM, *_ours(), *read),
+            read=(*SYSTEM, *_developer(), *_ours(), *read),
             write=(*_written(), *write),
         )
 

@@ -21,46 +21,13 @@ if TYPE_CHECKING:
 __all__ = [
     "CUTOFFS",
     "OUTCOMES",
-    "PERMISSIONS",
     "SERVICE_TIERS",
-    "UNSAID",
     "AgentConfig",
     "Budget",
     "Unfenced",
     "Unserved",
     "anchored",
 ]
-
-#: What an agent may do without being asked, loosest last. Named the way these CLIs name them
-#: rather than in a vocabulary of Humanize's own, so that a rung reads as the thing it is
-#: wherever it is shown. Every backend has a ladder of its own and none of them has the same
-#: four rungs, so these are the question rather than any one CLI's answer, and each driver
-#: says which of its own settings it reaches for:
-#:
-#: - `read-only`: it may look at anything and change nothing -- no edits, no commands.
-#: - `workspace-write`: it may change the workspace it was given, and is stopped at the edge
-#:   of it.
-#: - `auto`: it may reach for anything, and what it asks for is granted -- which is where a
-#:   hook hung on `PERMISSION_REQUEST` gets a say, that being a moment a backend actually
-#:   waits on. It is not the only one: on a CLI that takes a hook table written for a single
-#:   run, `PRE_TOOL_USE` is served from that table and is waited on at every rung.
-#: - `bypass`: nothing is asked and nothing is checked, which is what an unattended flow has
-#:   always run its agents at.
-#:
-#: A backend with no sandbox of its own cannot tell `workspace-write` from `auto`, and says so
-#: where it maps them rather than pretending to a rung it has not got.
-PERMISSIONS = ("read-only", "workspace-write", "auto", "bypass")
-
-
-#: The word for no rung at all: Humanize says nothing to the CLI about what its agent may do,
-#: which leaves it wherever that CLI's own headless run leaves it. Outside :data:`PERMISSIONS`
-#: because it is not a rung on the ladder but the absence of one -- the same shape `effort`
-#: already has, where `AUTO` becomes "" and every driver knows to say nothing. Loosest of all,
-#: so a place declaring nothing goes on settling nothing.
-UNSAID = ""
-
-#: Every answer a config may be written with: the ladder, and the silence above it.
-_SAYABLE = (*PERMISSIONS, UNSAID)
 
 
 class Unserved(ValueError):  # noqa: N818  -- what the setting is here, not what went wrong
@@ -228,19 +195,6 @@ class AgentConfig:
         the first turn and says where it is itself. The agent runs here either way, so its
         credentials and its trajectory stay where a flow can reach them; what moves is the
         project it reads and the commands it runs.
-      permission: What this agent may do without being asked, as one of :data:`PERMISSIONS`,
-        or :data:`UNSAID` -- not a rung at all, but Humanize saying nothing to the CLI and
-        leaving it wherever that CLI's own headless run leaves it. :data:`UNSAID` is what an
-        agent comes at, because a run nobody configured is a run Humanize has nothing to say
-        about: a rung is an answer, and an answer nobody gave is not Humanize's to invent on
-        their behalf. What such a run does is what the same CLI does for whoever types it at a
-        shell, out of the settings they already have -- which is the one behaviour a person
-        can check for themselves. Every rung is the flow's choice, settled onto the agent from
-        the :class:`~hmz.flows.Permission` it runs under; a flow driving an agent unattended
-        writes `bypass` and means it, because it watches its agent rather than gating it and a
-        turn waiting on an approval nobody is there to give is a flow that has stopped. That is
-        a different thing from a flow which never raised the question, and it is said
-        differently.
       provider: Which account this agent's turns run as, by the name a provider of its CLI was
         made under, or "" for the CLI as whoever is at this machine already runs it. It is a
         setting of the agent rather than of the flow because it is the agent that signs in:
@@ -252,7 +206,7 @@ class AgentConfig:
       web_search: Whether this agent may search the web, and None -- which is what it comes
         at -- for one nobody has said either way about. Neither half of the switch goes on the
         command line then, so the CLI reads the internet, or does not, exactly as whoever
-        installed it has it set up; the reason is the rung's reason, that a run nobody
+        installed it has it set up; the reason is the fence's reason, that a run nobody
         configured is one Humanize is not the one answering for. On and off are both the
         flow's choice, read off the `online` of the permission it runs under -- on for work
         that wants the internet, off for a run that must read only this repository, one under a
@@ -268,15 +222,19 @@ class AgentConfig:
         those beneath them they may only read or not reach at all, and whether they may go
         online -- or None, which is what it comes at, for an agent
         nobody has said anything about: it reaches whatever the CLI and the user running it
-        let it, as it always has. A flow says one for every session, read off the
-        :class:`~hmz.flows.Permission` it runs under beside `permission` and `web_search`,
-        as the rules it was drawn from (:meth:`~hmz.coganchor.fence.Fence.of`). Where one is
-        said it is held to, never run wider: the part of it the CLI can enforce
-        itself it is told natively (:meth:`~hmz.coganchor.agents.AgentBase.natively`), and
-        the rest is put around it from outside by ``hmz internal fence``. A fence neither can
-        hold here refuses the agent with :class:`Unfenced`. The rung and web search are
-        what the CLI's own tools are told; the fence is what its process, and every command
-        it runs, cannot get past whatever it was told.
+        let it, as it always has, and its CLI is told nothing about what it may do. A flow
+        says one for every session, read off the :class:`~hmz.flows.Permission` it runs
+        under beside `web_search`, as the rules it was drawn from
+        (:meth:`~hmz.coganchor.fence.Fence.of`). Where one is said it is held to, never run
+        wider: the part of it the CLI can enforce itself it is told natively
+        (:meth:`~hmz.coganchor.agents.AgentBase.natively`), and the rest is put around it
+        from outside by ``hmz internal fence``. A fence neither can hold here refuses the
+        agent with :class:`Unfenced`. It is also the one grant the
+        CLI's own controls are told, each driver in its CLI's words (protocol/core.md
+        Section 4.6.2): a fence that writes nothing withholds the file-writing tools and
+        keeps the shell, one that writes somewhere asks about nothing. That and web search
+        are what the CLI's own tools are told; the fence is what its process, and every
+        command it runs, cannot get past whatever it was told.
       budget: What each turn of each session of this agent may spend before it is cut off, or
         None for a turn that runs until it is done -- which is what an agent nobody has been
         asked about runs at, because a cap nobody chose is a cap that would truncate the one
@@ -308,7 +266,6 @@ class AgentConfig:
     effort: str
     service_tier: str = "default"
     machine: MachineConfig | None = None
-    permission: str = UNSAID
     provider: str = ""
     goals: bool = True
     web_search: bool | None = None
@@ -327,15 +284,6 @@ class AgentConfig:
             raise ValueError(
                 "service_tier must be one of "
                 f"{', '.join(SERVICE_TIERS)}, not {self.service_tier!r}"
-            )
-        # Said where it is written, which for a config read back out of an older file is the
-        # moment it is read: a rung no backend has a word for is one every driver would have
-        # to answer for, so it is refused here where they all pass rather than reached down in
-        # one of them as a key that is not there.
-        if self.permission not in _SAYABLE:
-            raise ValueError(
-                f"permission must be one of {', '.join(PERMISSIONS)}, "
-                f"not {self.permission!r}"
             )
 
 

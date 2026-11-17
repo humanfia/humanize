@@ -37,7 +37,7 @@ from hmz.coganchor.backends import AUTO
 
 from .clis import Shelf
 from .codenames import codename
-from .config import PERMISSIONS, UNSAID, Unfenced, Unserved
+from .config import Unfenced, Unserved
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
 from .tools import Toolbox
@@ -4169,23 +4169,6 @@ class AgentBase(ABC):
     #: the first provider turn.
     service_tiers: ClassVar[tuple[str, ...]] = ("default",)
 
-    #: Which rungs of :data:`hmz.coganchor.agents.config.PERMISSIONS` this backend can be held
-    #: to. Every one of them here, since a CLI Humanize drives is one it can say something to
-    #: about what its agent may do; a backend that cannot narrows this, and :meth:`_serves` is
-    #: where the narrowing is enforced when a config actually arrives.
-    #:
-    #: Declared as well as enforced because the two answer different people. The refusal is
-    #: owed to whoever built the agent, and arrives when they build it. This is owed to
-    #: whoever is *choosing* one -- the picker ruling out a CLI for a place it could not fill
-    #: -- which asks before there is an agent to refuse.
-    #:
-    #: What this says is which rungs a backend will *take*, and not how finely it tells them
-    #: apart once taken: a CLI with no sandbox of its own runs `workspace-write` and `auto`
-    #: as one agent and says so where it maps them, which is a coarseness rather than a
-    #: refusal and is written down in `docs/reference/agents.md` rather than here. A rung
-    #: missing from this tuple is a rung that will not start.
-    rungs: ClassVar[tuple[str, ...]] = PERMISSIONS
-
     #: Which kinds of token this backend reports, out of :data:`hmz.coganchor.agents.KINDS`.
     #: Declared here rather than worked out from what a turn happened to say: a kind nothing
     #: was spent on this turn is missing from that turn's `Usage` exactly as a kind the CLI
@@ -4437,41 +4420,25 @@ class AgentBase(ABC):
     def _serves(self, config: AgentConfig) -> None:
         """Refuses a config this backend has no way of expressing.
 
-        Three of them: a rung it has no word for, a service tier it cannot send, and web
-        search it cannot switch off. Each is refused wherever the config arrives -- where the
-        agent is made, and where one already running is set up as something else -- since a
-        setting a backend quietly ignored would be a setting that lies about what the agent
-        is doing.
+        Three of them: an effort its ladder has no rung for, a service tier it cannot send,
+        and web search it cannot switch off. Each is refused wherever the config arrives --
+        where the agent is made, and where one already running is set up as something else --
+        since a setting a backend quietly ignored would be a setting that lies about what the
+        agent is doing.
 
         Args:
           config: What the agent is to run at.
 
         Raises:
-          Unserved: If the effort is not a rung this backend's ladder has, if the rung is not
-            one of :attr:`rungs`, if the tier is not one of :attr:`service_tiers`, or if web
-            search was switched off for a backend with no way of being told. Switched off
-            rather than left unsaid: an agent nobody was asked about goes on reaching the web
-            exactly as its CLI lets it, which is the thing this refusal exists to be honest
-            about rather than the thing it forbids. Reading the silence as a no would refuse
-            every backend that cannot be told the moment a config stopped answering for one.
+          Unserved: If the effort is not a rung this backend's ladder has, if the tier is not
+            one of :attr:`service_tiers`, or if web search was switched off for a backend with
+            no way of being told. Switched off rather than left unsaid: an agent nobody was
+            asked about goes on reaching the web exactly as its CLI lets it, which is the thing
+            this refusal exists to be honest about rather than the thing it forbids. Reading
+            the silence as a no would refuse every backend that cannot be told the moment a
+            config stopped answering for one.
         """
         self._thinks(config.effort)
-        # Read off :attr:`rungs` rather than written out in each driver that narrows it. The
-        # tuple is already the answer given to whoever is *choosing* a backend -- the picker
-        # ruling one out for a place -- and a refusal spelled separately would be the same
-        # table twice, free to disagree with itself the moment a driver learned a rung and
-        # updated only one of them.
-        #
-        # `UNSAID` is not among them and is not meant to be: it is not a rung but the absence
-        # of one, and every backend can be told nothing. So it passes here whatever a driver
-        # narrowed to, which is what lets a config that settles no rung reach the one backend
-        # that can only be run wide open.
-        if config.permission not in (UNSAID, *type(self).rungs):
-            raise Unserved(
-                f"{type(self).__name__} cannot be held to {config.permission!r}; "
-                f"expected {', '.join(type(self).rungs)}, or left unsaid for the agent as "
-                "whoever installed the CLI configured it"
-            )
         if config.service_tier not in self.service_tiers:
             raise Unserved(
                 f"{type(self).__name__} does not support service tier "
