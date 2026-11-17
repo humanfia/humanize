@@ -12,7 +12,7 @@ one object about the one workspace it is about.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     import os
@@ -22,7 +22,24 @@ if TYPE_CHECKING:
     from hmz.runtime.epic import Called, Ran, Session
     from hmz.runtime.tracing.timeline import Timeline
 
-__all__ = ["Epics"]
+__all__ = ["Epics", "kind"]
+
+
+def kind(ran: Ran) -> Literal["flow", "chat"]:
+    """What one epic is (Section 3.2.13 of core.md), as its record says it.
+
+    A record that says no kind is of a flow, but for one whose flow is `chat`, which an
+    earlier hmz wrote for a chat when a chat was a flow (Section 8.3.5 of core.md) -- and one
+    of no flow at all, which only a chat is. Read off the record where it is read back with
+    its kind, and off its flow until then.
+
+    Args:
+      ran: The epic, read back.
+    """
+    said: object = getattr(ran, "kind", "")
+    if said in ("flow", "chat"):
+        return "chat" if said == "chat" else "flow"
+    return "chat" if ran.flow in ("chat", "") else "flow"
 
 
 class Epics:
@@ -90,6 +107,31 @@ class Epics:
         from hmz.runtime.epic import resumed
 
         return resumed(flow, self._workspace)
+
+    def chat(self, said: str) -> Path | None:
+        """The epic of a chat of this workspace, named by its directory, or None for none.
+
+        Args:
+          said: The epic's directory, whole or by its name under this workspace's.
+
+        Returns:
+          It, where it is an epic, of a chat, run in this workspace; else None.
+        """
+        from hmz.runtime.epic import JOURNAL, read
+
+        if not said:
+            return None
+        named = Path(said).expanduser()
+        epic = named if named.is_absolute() else self.under() / said
+        if not (epic / JOURNAL).is_file():
+            return None
+        ran = read(epic)
+        if ran is None or kind(ran) != "chat":
+            return None
+        here = (self._workspace or Path.cwd()).resolve()
+        if Path(ran.workspace).expanduser().resolve() != here:
+            return None
+        return epic
 
     def picks_up(self, epic: Path) -> bool:
         """Whether a run can be picked up from one epic: it kept a journal, and wrote in it."""

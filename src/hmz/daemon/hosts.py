@@ -243,6 +243,17 @@ class Hosted:
         answer: Any = self._call("ask", {"client": client, "said": said})
         return answer if isinstance(answer, dict) else {"ok": False, "why": "no answer"}  # pyright: ignore[reportUnknownVariableType]
 
+    def chat(self, said: dict[str, Any]) -> dict[str, Any]:
+        """Asks the chat held there what `chat.*` asks, as the host answers it.
+
+        Answered `ok`, and `why` and the `code` to refuse it with where not.
+
+        Raises:
+          RpcError: 409, where the host could not be asked.
+        """
+        answer: Any = self._call("chat", {"said": said})
+        return answer if isinstance(answer, dict) else {"ok": False, "why": "no answer"}  # pyright: ignore[reportUnknownVariableType]
+
     def detach(self, client: str) -> None:
         """Lets one frontend go, without waiting on the host."""
         threading.Thread(
@@ -352,6 +363,11 @@ class Hosts:
         """The host of a workspace and slot, or None where none is held."""
         with self._lock:
             return self._held.get((workspace, slot))
+
+    def gone(self, workspace: str, slot: str) -> bool:
+        """Whether the host of a chat's or an `hmz exec`'s slot has gone, not to come back."""
+        with self._lock:
+            return (workspace, slot) in self._gone
 
     def opened(self, workspace: str, slot: str) -> Hosted:
         """The host of a workspace and slot, started where none is.

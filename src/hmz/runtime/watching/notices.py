@@ -26,8 +26,8 @@ if TYPE_CHECKING:
 
 __all__ = ["KINDS", "Notices", "prefer", "preferences"]
 
-#: Every kind of notice there is: an epic or a chat's turn done, an epic failed or stopped, a
-#: person asked, and a flow listening for what to say next.
+#: Every kind of notice there is: an epic of a flow or a chat's turn done, an epic failed, an
+#: epic of a flow stopped, a person asked, and a flow listening for what to say next.
 KINDS = ("done", "failed", "stopped", "asked", "listening")
 
 #: How often how the runs stand is asked, in seconds.
@@ -224,14 +224,16 @@ def _noticed(
     """
     made: list[dict[str, Any]] = []
     ended = now.get("ended")
-    # A host says the turn of a chat alone, and of the run it shows: the one going, or the last.
-    chat = "turn" in now
+    # Of the epic a host shows: the one going, or the last.
+    chat = now.get("epic_kind") == "chat"
     if ended and ended != was.get("ended") and float(ended.get("at") or began) >= began:
         why = str(ended.get("why") or "").strip()
         kind = _ENDED.get(str(ended.get("how")), "failed")
-        # A chat left is no news, nor one whose last turn was told done already.
-        left = kind == "stopped" or (kind == "done" and was.get("turn") == "done")
-        if not (chat and now.get("run") == ended.get("run") and left):
+        if chat and now.get("run") == ended.get("run") and kind != "failed":
+            # A chat ends stopped, which is no news, but where it ended in a turn not yet
+            # told: that turn is done (Section 10.4.2.7 of core.md).
+            kind = "" if was.get("turn") == "done" else "done"
+        if kind:
             made.append(
                 {
                     "kind": kind,

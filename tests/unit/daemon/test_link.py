@@ -149,6 +149,35 @@ def test_start_says_where_the_epic_is_backed_up(backup: Any, said: object) -> No
             {"agent": "a", "text": "t"},
             {"do": "aside", "agent": "a", "text": "t"},
         ),
+        (
+            "chat",
+            ["claude/opus", "hi"],
+            {},
+            {
+                "do": "chat.start",
+                "agent": "claude/opus",
+                "task": "hi",
+                "resume": None,
+                "prefer": None,
+                "remember": False,
+            },
+        ),
+        (
+            "chat",
+            ["", "more"],
+            {"resume": Path("/e/1"), "prefer": "flow", "remember": True},
+            {
+                "do": "chat.start",
+                "agent": "",
+                "task": "more",
+                "resume": str(Path("/e/1")),
+                "prefer": "flow",
+                "remember": True,
+            },
+        ),
+        ("chat_say", ["/compact"], {}, {"do": "chat.say", "text": "/compact"}),
+        ("chat_commands", [], {}, {"do": "chat.commands"}),
+        ("chat_set", ["flow"], {}, {"do": "chat.set", "prefer": "flow"}),
     ],
 )
 def test_each_request_is_the_one_the_protocol_names(
@@ -361,6 +390,30 @@ def test_reached_calls_the_epic_with_its_sub_and_an_idem_for_a_write(
     assert said["epic.say"]["sub"] == "s1"
     assert said["epic.say"]["idem"]
     assert "idem" not in said["epic.status"]
+
+
+def test_reached_says_to_a_chat_by_the_workspace_and_slot_attached_to(
+    daemon_: _Daemon, tmp_path: Path
+) -> None:
+    daemon_.answers["epic.attach"] = {"sub": "s1", "client": "c3", "slot": "chat:9"}
+    daemon_.answers["chat.start"] = {"slot": "chat:9", "epic": "e1"}
+    daemon_.answers["chat.commands"] = {"entries": []}
+    link = reached(tmp_path, "/w", slot="chat:9")
+
+    assert link.chat("claude/opus", "hi") == {
+        "ok": True,
+        "slot": "chat:9",
+        "epic": "e1",
+    }
+    assert link.chat_commands() == {"ok": True, "entries": []}
+    said = dict(daemon_.calls)
+    assert (said["chat.start"]["workspace"], said["chat.start"]["slot"]) == (
+        "/w",
+        "chat:9",
+    )
+    assert said["chat.start"]["idem"]
+    assert "sub" not in said["chat.start"]
+    assert "idem" not in said["chat.commands"]
 
 
 def test_reached_raises_a_refusal_in_the_hosts_words(
