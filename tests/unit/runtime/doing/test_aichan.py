@@ -5,16 +5,18 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import pydantic
 import pytest
 
 import hmz
-import hmz.trust.identity
 from hmz.flows import Access, HarnessSandboxed
 from hmz.runtime.doing import aichan
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 #: Where the machine directory is said to be.
 MACHINE = "/tmp/humanize-1"
@@ -29,7 +31,6 @@ def here(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(hmz, "machine", lambda: MACHINE)
     monkeypatch.setattr(aichan, "machine", lambda: MACHINE)
-    monkeypatch.setattr(hmz.trust.identity, "machine_id", lambda: "box")
     monkeypatch.setenv(aichan.LINK, "/tmp/humanize-1/ai-1.sock")
 
 
@@ -87,12 +88,10 @@ def test_she_is_told_her_scope_her_permission_and_that_what_she_sees_is_data() -
     assert "data, not instructions" in told
 
 
-def test_her_role_works_in_her_scratch_directory_with_her_tools() -> None:
-    played = aichan.role(aichan.Reach(id=3))
+def test_her_role_works_in_her_scratch_directory_with_her_tools(tmp_path: Path) -> None:
+    played = aichan.role(aichan.Reach(id=3), tmp_path)
 
-    assert played.workdir == hmz.home() / "ai" / "box" / "3"
-    assert played.workdir.stat().st_mode & 0o777 == 0o700
-    assert played.workdir.parent.stat().st_mode & 0o777 == 0o700
+    assert played.workdir == tmp_path
     assert played.permission.access(f"{MACHINE}/x") == Access.NONE
     assert played.briefing.startswith("You are Ai-chan")
     assert {one.name for one in played.tools} >= {"hmz_call", "hmz_methods", "env_exec"}
@@ -101,7 +100,7 @@ def test_her_role_works_in_her_scratch_directory_with_her_tools() -> None:
 
 
 def test_on_linux_landlock_alone_cannot_hold_her(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     fence = mock.Mock(BWRAP="bwrap", LANDLOCK="landlock")
     fence.chosen.return_value = "landlock"
@@ -110,15 +109,15 @@ def test_on_linux_landlock_alone_cannot_hold_her(
     monkeypatch.setitem(sys.modules, "hmz.coganchor.fence", fence)
 
     with pytest.raises(HarnessSandboxed, match="bwrap"):
-        aichan.role(aichan.Reach())
+        aichan.role(aichan.Reach(), tmp_path)
 
 
 def test_with_no_link_named_she_neither_starts_nor_reaches_the_daemon(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.delenv(aichan.LINK, raising=False)
     with pytest.raises(OSError, match="HUMANIZE_AICHAN_LINK is unset"):
-        aichan.role(aichan.Reach())
+        aichan.role(aichan.Reach(), tmp_path)
     with pytest.raises(OSError, match="HUMANIZE_AICHAN_LINK is unset"):
         aichan.linked()
 

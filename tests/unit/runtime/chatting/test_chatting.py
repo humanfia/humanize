@@ -915,3 +915,44 @@ def test_a_new_conversation_put_in_for_one_not_carried_on_is_briefed(
     _had(wired, Person(), task="again", resume=first.epic, role=role)
 
     assert wired.driver.prompts[-1] == "You are her.\n\nagain"
+
+
+def test_a_role_briefs_words_and_not_a_native_command(
+    wired: Wired, tmp_path: Path
+) -> None:
+    wired.driver.catalog = [COMPACT]
+
+    _had(wired, Person(["more"]), task="/compact", role=_role(tmp_path))
+
+    assert wired.driver.prompts == ["/compact", "You are her.\n\nmore"]
+
+
+def test_a_chat_with_a_role_and_nothing_said_waits_for_the_first_line(
+    wired: Wired, tmp_path: Path
+) -> None:
+    person = Person(["hello"])
+
+    _had(wired, person, task="", role=_role(tmp_path))
+
+    assert person.shown == ["", "did: You are her.\n\nhello"]
+
+
+def test_a_turn_stopped_leaves_the_chat_between_turns(wired: Wired) -> None:
+    person = Person(["again"])
+    chat = _chat(wired, person)
+    stopped: list[bool] = []
+
+    async def reply(session: Session, request: TurnRequest) -> str:
+        if not stopped:
+            stopped.append(chat.interrupt())
+            raise SessionError("interrupted")
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = reply
+    assert chat.interrupt() is False
+
+    asyncio.run(chat.run())
+
+    assert stopped == [True]
+    assert person.shown == ["That turn was stopped.", "did: again"]
+    assert len(wired.driver.sessions) == 1

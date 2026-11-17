@@ -277,6 +277,16 @@ class FakeChatting:
     fails: BaseException | None = None
     going: threading.Event = field(default_factory=threading.Event)
     stopped: bool = False
+    #: Whether a turn is going, which `interrupt` stops; and how many it stopped.
+    turning: bool = False
+    interrupted: int = 0
+
+    def interrupt(self) -> bool:
+        if not self.turning:
+            return False
+        self.turning = False
+        self.interrupted += 1
+        return True
 
     def watch(self, listener: Callable[..., None]) -> None:
         del listener
@@ -1343,10 +1353,10 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
 ) -> None:
     from hmz.runtime.doing import aichan
 
-    reached: list[aichan.Reach] = []
+    reached: list[tuple[aichan.Reach, Path]] = []
 
-    def role(reach: aichan.Reach) -> object:
-        reached.append(reach)
+    def role(reach: aichan.Reach, scratch: Path) -> object:
+        reached.append((reach, scratch))
         return mock.sentinel.role
 
     monkeypatch.setattr(aichan, "role", role)
@@ -1354,12 +1364,35 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
     try:
         alice = Told(host, "alice")
         ai = {"id": 1, "scope": "daemon", "preset": "read-only", "network": False}
+        # Hers is the daemon's to start, with the reach it keeps: no frontend's.
+        assert alice.asks("chat.start", agent="claude/opus:high", task="hi", ai=ai) == {
+            "ok": False,
+            "why": "an Ai-chan host has her own conversation",
+            "code": 409,
+        }
 
-        answer = alice.asks("chat.start", agent="claude/opus:high", task="hi", ai=ai)
+        answer = host.chatted(
+            {
+                "do": "start",
+                "by": "hmz",
+                "agent": "claude/opus:high",
+                "task": "",
+                "ai": ai,
+                "scratch": "/ai/m/1",
+            }
+        )
 
         assert answer["ok"], answer
-        assert reached == [aichan.Reach(id=1)]
+        assert reached == [(aichan.Reach(id=1), Path("/ai/m/1"))]
         assert where.asked_chats[-1]["role"] is mock.sentinel.role
+        chat = where.chats[-1]
+        # Stopping her stops her open turn alone, and she goes on between turns.
+        refused = alice.asks("stop")
+        assert refused["why"] == "Ai-chan is not answering, so there is nothing to stop"
+        chat.turning = True
+        assert alice.asks("stop") == {"ok": True}
+        assert chat.interrupted == 1
+        assert host.status()["state"] == "running"
     finally:
         host.close()
 
@@ -1376,6 +1409,11 @@ def test_an_ai_chan_conversation_carried_on_needs_nothing_said(
         {"agent": "claude/opus", "task": "", "resume": "20260101-chat", "ai": {}},
     )
     assert (checked["ok"], checked["task"]) == (True, "")
+    # Her nous may be named as a nous, which no setting keeps as a chat's agent.
+    named = hosting.chat_checked(
+        cast("Any", where), {"agent": "claude/opus", "task": "", "ai": {}}
+    )
+    assert (named["ok"], named["runs"]) == (True, None)
 
 
 def test_a_chat_starts_on_its_own_host_and_says_it_is_a_chat(

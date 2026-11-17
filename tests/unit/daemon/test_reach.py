@@ -269,6 +269,7 @@ def test_her_host_has_her_chat_anew_then_carried_on(
             "task": "hi",
             "resume": None,
             "ai": reach,
+            "scratch": str(kept.scratch(made["id"])),
         }
     )
     hosted.started.assert_not_called()

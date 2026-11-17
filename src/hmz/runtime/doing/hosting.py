@@ -1338,14 +1338,10 @@ class Host:
             return checked
         agent, task, resume = checked["agent"], checked["task"], checked["resume"]
         prefer: Prefer | None = checked["prefer"]
-        role: Role | None = None
-        if self._slot.startswith("ai:"):
-            # An Ai-chan conversation: a chat whose assistant plays her role, held to the
-            # reach it was made with (Section 14 of core.md).
-            from hmz.runtime.doing.aichan import Reach
-            from hmz.runtime.doing.aichan import role as playing
-
-            role = playing(Reach.model_validate(said.get("ai") or {}))
+        ai = self._slot.startswith("ai:")
+        if ai and (client or not isinstance(said.get("ai"), dict)):
+            # Her conversation is the daemon's to start, with the reach it keeps for it.
+            return _no("an Ai-chan host has her own conversation", 409)
         with self._lock:
             if self._closed:
                 return _no("this host has closed", 409)
@@ -1363,6 +1359,9 @@ class Host:
             functools.partial(self._shelled, number),
         )
         try:
+            # An Ai-chan conversation: a chat whose assistant plays her role, held to the
+            # reach it was made with (Section 14 of core.md).
+            role = _her(said) if ai else None
             run = self._hmz.chat(
                 agent,
                 task,
@@ -1713,6 +1712,16 @@ class Host:
         del said
         with self._lock:
             current = self._current
+            if (
+                self._slot.startswith("ai:")
+                and current is not None
+                and current.run.kind == "chat"
+            ):
+                # Her open turn alone: the conversation goes on between turns (Section
+                # 4.22.5.3 of daemon.md).
+                if not current.run.interrupt():
+                    return _no("Ai-chan is not answering, so there is nothing to stop")
+                return _ok()
             if current is None:
                 if self._stopping is not None:
                     return _no(f"the flow is already stopping: {_UNWINDING}")
@@ -2587,6 +2596,19 @@ def assistant(agent: str) -> Runs:
     return runs
 
 
+def _her(said: Mapping[str, Any]) -> Role:
+    """Ai-chan's role, for the conversation whose reach and scratch directory `said` holds.
+
+    Raises:
+      ValueError: For a reach that is not one.
+      OSError: Where no scoped link is named.
+      HarnessSandboxed: Where her confinement cannot be held here.
+    """
+    from hmz.runtime.doing.aichan import Reach, role
+
+    return role(Reach.model_validate(said["ai"]), Path(str(said.get("scratch") or "")))
+
+
 def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
     """What a chat is to be started with, checked before anything is started for it.
 
@@ -2605,9 +2627,9 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
       `ok` false with `why` and the `code` to refuse it with.
     """
     task, prefer = said.get("task"), said.get("prefer")
-    # An Ai-chan conversation carried on waits, between turns, for what is said next.
-    waits = said.get("ai") is not None and bool(said.get("resume"))
-    if not isinstance(task, str) or not (task or waits):
+    # An Ai-chan conversation started with nothing said waits, between turns, for what is.
+    ai = said.get("ai") is not None
+    if not isinstance(task, str) or not (task or ai):
         return _no("a chat starts with something said", 400)
     if prefer not in (None, "native", "flow"):
         return _no("prefer is native or flow", 400)
@@ -2624,7 +2646,12 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
     if not agent:
         return _no("an agent for the chat is named", 400)
     try:
-        runs = assistant(agent)
+        # Her nous may be a nous by name, which no setting keeps as a chat's agent.
+        runs = None if ai else assistant(agent)
+        if ai:
+            from hmz.runtime.flowing.specs import parse_agents
+
+            parse_agents([f"assistant={agent}"])
     except ValueError as why:
         return _no(str(why), 400)
     return _ok(

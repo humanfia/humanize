@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any, Literal, Self
 
 import pydantic
 
-from hmz import home, machine
+from hmz import machine
 from hmz.flows import FakeCli, FakeCommand, FakeTool, Permission, allow, deny, read_only
 
 if TYPE_CHECKING:
@@ -404,8 +404,9 @@ class Calling(_Model):
 
 async def overview(link: Link) -> str:
     """Every host going and every workspace."""
-    running = await link.call("hosts.running")
-    workspaces = await link.call("workspaces.list")
+    running, workspaces = await asyncio.gather(
+        link.call("hosts.running"), link.call("workspaces.list")
+    )
     return _said({"running": running, "workspaces": workspaces})
 
 
@@ -686,23 +687,12 @@ def offered(link: Link) -> tuple[tuple[FakeTool, ...], FakeCli]:
     return tools, cli
 
 
-def scratch(ident: int) -> Path:
-    """Her conversation's scratch directory, `<home>/ai/<machine>/<id>/`, made where it is not.
-
-    Each level is made private (Section 4.16 of files.md).
-    """
-    from hmz.trust.identity import machine_id
-
-    ai = home() / "ai"
-    ai.parent.mkdir(parents=True, exist_ok=True)
-    at = ai / machine_id() / str(ident)
-    for one in (ai, at.parent, at):
-        one.mkdir(mode=0o700, exist_ok=True)
-    return at
-
-
-def role(reach: Reach) -> Role:
+def role(reach: Reach, scratch: Path) -> Role:
     """The role her chat's assistant plays for one conversation.
+
+    Args:
+      reach: What the conversation was made with.
+      scratch: Its scratch directory, as the daemon keeps it (Section 4.16.3 of files.md).
 
     Raises:
       OSError: Where no scoped link is named (Section 14.4.2 of core.md).
@@ -716,10 +706,12 @@ def role(reach: Reach) -> Role:
     unheld = _unheld(network=reach.network)
     if unheld:
         raise HarnessSandboxed(unheld)
+    if not scratch.is_dir():
+        raise OSError(f"Ai-chan #{reach.id} has no scratch directory {scratch}")
     link = Link(reach.workspace)
     tools, cli = offered(link)
     return Role(
-        workdir=scratch(reach.id),
+        workdir=scratch,
         permission=permission(reach),
         briefing=briefing(reach),
         tools=tools,

@@ -565,6 +565,7 @@ class Links:
                     "task": task,
                     "resume": str(picked) if picked else None,
                     "ai": reach,
+                    "scratch": str(self.kept.scratch(int(conversation["id"]))),
                 }
             )
         self.tasks.pop(hosted.slot, None)

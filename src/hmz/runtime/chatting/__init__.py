@@ -231,6 +231,9 @@ class Person(Protocol):
 #: The role the assistant is written down as, in the epic and to whatever is told of its sessions.
 ASSISTANT = "assistant"
 
+#: What a turn stopped by the person is answered with, the conversation going on.
+STOPPED = "That turn was stopped."
+
 #: How long a `!` command may run before it is killed: long enough for a build or a test run, not
 #: so long that a command waiting on input it will never get holds the chat for good.
 SHELL_TIMEOUT = 600.0
@@ -363,6 +366,15 @@ class Chat:
         """
         talk = self._talk
         return None if talk is None or self._ended else talk.held
+
+    def interrupt(self) -> bool:
+        """Stops the turn going, if one is, leaving the chat between turns; from any thread.
+
+        Returns:
+          Whether a turn was going.
+        """
+        talk = self._talk
+        return talk is not None and talk.interrupt()
 
     @property
     def agents(self) -> tuple[AgentBase, ...]:
@@ -542,6 +554,9 @@ class _Talk:
         self.handle: SessionHandle | None = None
         #: Whether a turn of it has been taken, by when its harness has listed its catalog.
         self.taken = False
+        #: Whether a turn is going, and whether the person stopped the one that was.
+        self.turning = False
+        self._interrupted = False
         #: The assistant as last written down: its CLI, model and effort.
         begun = _drove(_assistant(chat.spec.agent), driver.name)
         self._as = (begun.backend, begun.model, begun.effort)
@@ -578,8 +593,8 @@ class _Talk:
         role = chat.spec.role
         #: Whether the conversation open now was told its role's briefing.
         briefed = role is None or carrying
-        if not message and before is not None:
-            # Carried on with nothing said yet: between turns, waiting on the person.
+        if not message and role is not None:
+            # Her conversation, with nothing said yet: between turns, waiting on the person.
             message = await person.next(unkept)
             unkept = ""
         try:
@@ -619,13 +634,22 @@ class _Talk:
                 # turn, so what `!` ran waits for the turn after it.
                 ahead = bool(ran) and not (native and line[:1] in "/$")
                 prompt = "\n".join([*ran, line]) if ahead else line
-                if not briefed and role is not None:
+                # Ahead of words alone: a native command starts its turn, or is no command.
+                telling = not briefed and role is not None and not native
+                if telling and role is not None:
                     prompt = f"{role.briefing}\n\n{prompt}"
                 try:
                     answered = await self._turn(handle, prompt, native=native)
                     if native and line.split(maxsplit=1)[0] in ("/model", "/effort"):
                         self._changed(handle)
                 except HarnessError as failed:
+                    if self._interrupted:
+                        # Stopped by the person: the conversation goes on between turns.
+                        self._interrupted = False
+                        opening = carrying = False
+                        message = await person.next(_said(unkept, STOPPED))
+                        unkept = ""
+                        continue
                     if opening:
                         raise
                     if carrying and isinstance(failed, SessionError):
@@ -638,7 +662,8 @@ class _Talk:
                         continue
                     answered = f"That turn could not be taken: {failed}"
                 else:
-                    self.taken = briefed = True
+                    self.taken = True
+                    briefed = briefed or telling
                     if ahead:
                         ran.clear()
                 opening = carrying = False
@@ -765,13 +790,24 @@ class _Talk:
         """Takes one turn of the conversation, with no limit on what it spends."""
         from hmz.runtime.flowing.spi import TurnRequest
 
+        self.turning = True
         try:
             answered = await handle.turn(
                 TurnRequest(prompt, native=native), self._spending
             )
         finally:
+            self.turning = False
             self._noting(handle)
         return str(answered)
+
+    def interrupt(self) -> bool:
+        """Stops the turn going, from any thread, and says whether one was."""
+        handle = self.handle
+        if not self.turning or handle is None:
+            return False
+        self._interrupted = True
+        handle.interrupt()
+        return True
 
     def _noting(self, handle: SessionHandle) -> None:
         """Writes down a conversation a driver with no coganchor agent behind it named."""
