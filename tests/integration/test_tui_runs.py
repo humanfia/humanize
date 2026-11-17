@@ -13,6 +13,7 @@ from hmz.tui import Humanize
 from hmz.tui.pick import STOPS, Leaves
 from tests.integration.doubles_tui import (
     MODEL,
+    OWN,
     RUNS,
     SIZE,
     TALKS,
@@ -128,7 +129,7 @@ async def test_two_ctrl_c_cut_the_turn_off_and_end_the_run_as_stopped(
     app = Humanize(flow=TALKS)
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
-        await typed(pilot, "wait forever")
+        await typed(pilot, f"/flow {TALKS} wait forever")
         await shows(pilot, "still on it")
 
         await pilot.press("ctrl+c")
@@ -144,7 +145,7 @@ async def test_two_ctrl_c_cut_the_turn_off_and_end_the_run_as_stopped(
 async def test_stop_ends_a_run_waiting_on_you_without_asking(workspace: Path) -> None:
     async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
-        await typed(pilot, "hello")
+        await typed(pilot, f"/flow {TALKS} hello")
         await shows(pilot, "waiting for you")
 
         await typed(pilot, "/stop")
@@ -162,7 +163,7 @@ async def test_a_flow_that_will_not_load_is_said_and_the_interface_stays(
 
     app = Humanize(flow=str(flow), agents={"coder": Runs(RUNS)})
     async with app.run_test(size=SIZE) as pilot:
-        await typed(pilot, "do it")
+        await typed(pilot, f"/flow {flow} do it")
 
         await shows(pilot, "prompt.md")
         assert app.is_running
@@ -175,7 +176,7 @@ async def test_exit_while_a_run_is_going_asks_and_stopping_it_ends_both(
     app = Humanize(flow=TALKS)
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
-        await typed(pilot, "wait a while")
+        await typed(pilot, f"/flow {TALKS} wait a while")
         await shows(pilot, "still on it")
 
         await typed(pilot, "/exit")
@@ -194,7 +195,7 @@ async def test_a_line_typed_reading_the_conversation_between_turns_is_its_next_t
 ) -> None:
     async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
-        await typed(pilot, "wait first")
+        await typed(pilot, f"/flow {TALKS} wait first")
         # Read already: a run lands on the agent of the first conversation it opens.
         await shows(pilot, "still on it", "─ reading ")
         await typed(pilot, "more")
@@ -211,7 +212,7 @@ async def test_what_the_agent_stops_to_ask_is_shown_and_answered_in_its_conversa
 ) -> None:
     async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
-        await typed(pilot, "ask me")
+        await typed(pilot, f"/flow {TALKS} ask me")
         await shows(pilot, "─ reading ", "Which colour? (red / blue)", "type an answer")
 
         await typed(pilot, "blue")
@@ -226,7 +227,7 @@ async def test_a_question_the_flow_asks_of_its_own_is_shown_and_answered_where_y
     own_flow(workspace, ASKS)
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await typed(pilot, "make it so")
+        await typed(pilot, f"${OWN} make it so")
 
         # Landed on the agent of the run's first conversation, with no view of every agent,
         # and the question put where it is read rather than on a transcript nobody reads.

@@ -91,7 +91,7 @@ async def test_walking_out_of_flow_without_saving_changes_nothing(
 
         await leaves(pilot, saving=False)
 
-        await shows(pilot, "◉ chat")
+        await shows(pilot, f"◉ {RUNS}")
     assert remembered(tmp_path, workspace) == {}
 
 
@@ -100,16 +100,17 @@ async def test_an_own_flow_given_a_budget_and_saved_runs_and_is_opened_on_next_t
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await shows(pilot, f"coder · {RUNS}")
 
-        await typed(pilot, "make it so")
+        await typed(pilot, f"${OWN} make it so")
         drawn = await shows(pilot, "the flow is done")
 
     assert "heard make it so" in drawn
     assert (workspace / "said.txt").read_text() == "started: heard make it so\n"
     assert remembered(tmp_path, workspace)["flow"] == OWN
     async with Humanize().run_test(size=SIZE) as pilot:
-        await shows(pilot, f"◉ {OWN}", f"coder · {RUNS}")
+        # Set up as it was saved: it starts at once.
+        await typed(pilot, f"/flow {OWN} again")
+        await shows(pilot, "heard again", "the flow is done")
 
 
 async def test_an_effort_picked_for_an_agent_is_what_its_next_turn_starts_at(
@@ -124,9 +125,9 @@ async def test_an_effort_picked_for_an_agent_is_what_its_next_turn_starts_at(
         await picks(pilot, "effort", "low")
         await shows(pilot, "unsaved changes")
         await leaves(pilot)
-        await shows(pilot, f"claude/{MODEL}:low")
+        await shows(pilot, "set up: /flow chat <task> starts it")
 
-        await typed(pilot, "hello")
+        await typed(pilot, "/flow chat hello")
         await shows(pilot, "heard hello")
 
     (argv,) = started(workspace)
@@ -198,9 +199,9 @@ async def test_both_profiling_switches_are_remembered_and_sent_with_the_start(
         await picks(pilot, "\x1eprofile-environment", "on")
         await shows(pilot, "samples the flow's own Python")
         await leaves(pilot)
-        await shows(pilot, "◉ chat")
+        await shows(pilot, "set up: /flow chat <task> starts it")
 
-        await typed(pilot, "hello")
+        await typed(pilot, "/flow chat hello")
         await shows(pilot, "heard hello")
 
     (start,) = [one for one in asked if one.get("do") == "start"]
