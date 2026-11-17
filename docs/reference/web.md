@@ -216,6 +216,13 @@ to another daemon's address draws the view and the sidebar again, of that daemon
 what the page followed of the last. The notifications, the daemons and the page's own settings
 are the same whichever daemon is shown.
 
+Every view's bar carries Ai-chan's avatar at its right, the page's file `ai-chan/avatar.png`, a button that
+opens and closes the [Ai-chan drawer](/user/web#ai-chan) beside it, kept open from view to view
+of one daemon. The drawer lists that daemon's conversations (`aichan.list`), makes one
+(`aichan.create`) from its **New** form, forgets one (`aichan.forget`) after asking, and draws
+one as a chat attached to its `ai:` slot (`epic.attach`), its **Stop** being `epic.stop`. On a
+phone's width it covers the view.
+
 ### What the page keeps {#kept}
 
 Nothing of the page is kept in any daemon's settings. The browser keeps it, for the server's

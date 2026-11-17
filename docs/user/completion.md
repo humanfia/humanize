@@ -43,6 +43,7 @@ With no flow running, type `/`:
 <Term title="hmz · the list /  opens">
 
 <pre>  <span class="p">/afk</span> <span class="m">[on|off]</span>      <span class="p">Toggle whether an agent may ask you</span><span class="n">1</span>
+  <span class="p">/ai</span>                <span class="p">Talk to Ai-chan, in a conversation new or kept</span>
   <span class="p">/btw</span> <span class="m">[question]</span>    <span class="p">Ask side questions; press esc or /btw to stop</span>
   <span class="p">/clear</span>             <span class="p">Clear the screen</span>
   <span class="p">/epics</span>             <span class="p">View and manage epics here, or of another daemon</span>

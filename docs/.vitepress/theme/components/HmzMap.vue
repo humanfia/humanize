@@ -50,6 +50,7 @@ const AREAS: Area[] = [
     items: [
       { name: 'Talk into a turn', link: '/user/steering' },
       { name: 'Side questions', link: '/user/btw' },
+      { name: 'Ask Ai-chan', link: '/user/ai-chan' },
       { name: 'Watch every agent', link: '/user/monitor' },
       { name: 'Answer, or step away', link: '/user/questions' },
       { name: 'What it costs', link: '/user/tally' },
