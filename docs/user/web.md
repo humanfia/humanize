@@ -121,18 +121,17 @@ The panel beside it (the button at the top right shows and hides it) holds:
   model and kind of token (`≥` marks a figure that is only a floor), **Environments** -- where
   each session works and where its harness went -- the **Frontends** reading it, the flows going
   or the flows it called, and how it was set up and where it is written down.
-- **Aside.** A side question, as [`/btw`](/user/btw) asks it: of **The Epic** -- the agent
-  chosen under **Settings › General**, the same for every epic -- or of one session's side copy
-  -- any epic's session, an earlier one forked from where that epic kept it, so it answers with
-  that session's own history. Keep as many asides as you like: each is a side conversation of
-  its own, on a tab named by whom it asks (`btw · The Epic`, `btw · <agent>/<n>`), and **New
-  aside** opens another. A new aside's **Ask** chip, above its box, picks whom: The Epic, then
-  each agent with the role it fills, opening onto its conversations, newest first; type in its
-  box to narrow it. Its first question fixes whom it asks -- to ask someone else, open another.
-  While one answers it says `… is thinking…`, and a pulsing dot marks its tab; each
-  conversation The Epic asks on the way shows as it asks it. The epic never sees any of it.
-  Every question after the first goes on in the same side conversation until you press its
-  **Close**, or a new epic starts.
+- **Aside.** A side question, as [`/btw`](/user/btw) asks it, of one session's side copy -- any
+  epic's session, an earlier one forked from where that epic kept it, so it answers with that
+  session's own history. Keep as many asides as you like: each is a side conversation of its
+  own, on a tab named by the session it asks (`btw · <agent>/<n>`), and **New aside** opens
+  another. A new aside's **Ask** chip, above its box, picks the session: each agent with the
+  role it fills, opening onto its conversations, newest first; type in its box to narrow it. Its
+  first question fixes the session it asks -- to ask another, open another aside. While one
+  answers it says `… is thinking…`, and a pulsing dot marks its tab. The epic never sees any of
+  it. Every question after the first goes on in the same side conversation until you press its
+  **Close**, or a new epic starts. A question about the whole epic, or several, is
+  [Ai-chan's](#ai-chan).
 - **Board.** For an epic that holds one: edit, remove and add its lines. See
   [The mission board](/user/board).
 - **People.** Each person the flow has: **Answer it here** holds the role for this browser,
@@ -282,6 +281,32 @@ directory last set it up:
 needs at least one limit. The page goes to the epic once it starts -- a `chat` to its
 conversation.
 
+### Ai-chan {#ai-chan}
+
+Ai-chan is an agent you operate Humanize through by talking to her. Her avatar, at the right of
+every view's bar, opens and closes her drawer beside the view; it stays open as you go from view
+to view, until you close it. On a phone it covers the view: close it with its button or
+<kbd>Escape</kbd>.
+
+The drawer lists every conversation with her on the daemon shown, newest first: its title, what
+it reaches, its nous, its preset, whether its network is on, and whether she is **Answering**,
+**Waiting** for you, or has **Folded away**. **Forget** forgets one, once you confirm.
+
+**New** asks what the conversation is fixed to:
+
+- **Scope.** **Daemon** -- every workspace and epic --, **Workspace** -- one workspace and its
+  epics --, or **Epic** -- one epic. It starts on the epic the view shows, else the workspace,
+  else the daemon.
+- **Nous.** Starts on the one **Settings › General** names for her; with none named there,
+  pick one.
+- **Preset.** `read-only`, the default, or `danger-full-access`; and **Network**, off by default.
+- **Title**, from the task where left empty.
+
+Type the task and press <kbd>Enter</kbd>: the conversation opens as a chat, her answers beside
+her avatar and each tool she calls a line to open. While she answers, **Stop** stops her turn and
+leaves the conversation waiting for your next line. One that folded away is carried on by opening
+it and saying something.
+
 ### Settings {#settings}
 
 Settings has two groups. **App** is the page's own: how it is drawn, the daemons it reaches and
@@ -292,7 +317,7 @@ daemon:
 | Page | What is there |
 | --- | --- |
 | **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
-| **General** | Whether a turn's working is shown, the [`/btw` agent](/user/btw), and [error reports](/user/reporting) |
+| **General** | Whether a turn's working is shown, **Ai-chan** -- the nous a new [Ai-chan](#ai-chan) conversation starts with, none until one is picked -- and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |

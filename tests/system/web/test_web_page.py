@@ -1290,22 +1290,14 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
 ) -> None:
     from hmz.runtime.watching.btw import Btw, FlowSnapshot
 
-    opens, asks = Btw.__init__, Btw.ask
-    #: What each side conversation tells whoever opened it of whom it asks, as it asks.
-    told: dict[int, Any] = {}
-
-    def opening(self: Btw, target: str, **given: Any) -> None:
-        told[id(self)] = given.get("asking")
-        opens(self, target, **given)
+    asks = Btw.ask
 
     def slowly(self: Btw, question: str, snapshot: FlowSnapshot) -> str:
-        # Long enough to be seen answering, saying whom it asks on the way.
+        # Long enough to be seen answering.
         if "slowly" in question:
-            told[id(self)]("someone/1", "are you there")
             time.sleep(3)
         return asks(self, question, snapshot)
 
-    monkeypatch.setattr(Btw, "__init__", opening)
     monkeypatch.setattr(Btw, "ask", slowly)
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "remember papaya")
@@ -1315,16 +1307,15 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         aside = page.locator("[data-hmz=btw]")
         ask = page.locator("[data-hmz=btw-to]")
 
-        # Of The Epic until a conversation is picked, picked above the box rather than in it,
-        # and no agent to pick here at all.
-        expect(ask).to_contain_text("The Epic")
+        # No conversation until one is picked, picked above the box rather than in it, and no
+        # agent to pick here at all, nor The Epic.
+        expect(ask).to_contain_text("Pick a conversation")
         expect(aside.locator("[data-hmz=btw-to]")).to_have_count(0)
         expect(
             page.locator("[data-hmz=btw-whom], [data-hmz=btw-picker]")
         ).to_have_count(0)
         ask.click()
-        epic = page.locator("[data-hmz=btw-the-epic]")
-        expect(epic).to_contain_text("set its agent in Settings")
+        expect(page.locator("[data-hmz=btw-the-epic]")).to_have_count(0)
         # Laid out as the epic is: its agent, with the role it fills, opening its sessions.
         agent = page.locator(
             ".choice-sub", has=page.get_by_role("menuitem").filter(has_text="assistant")
@@ -1339,17 +1330,16 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         expect(page.locator(".ask-list")).to_contain_text("Nobody matches.")
         page.keyboard.press("Escape")
 
-        # Asked of The Epic with nobody named to answer it: the settings are where to say who.
+        # Asked with no conversation picked: it says to pick one first.
         aside.locator("textarea").fill("what is it doing")
         aside.locator("textarea").press("Enter")
-        expect(aside).to_contain_text("settings")
-        # Refused before it opened: whom it asks is still to pick.
+        expect(aside).to_contain_text("Pick the conversation to ask first.")
         expect(ask).to_be_visible()
-        _call(page, "settings.set", {"btw": "claude/claude-haiku-4-5"})
+        _asks_of(page, "/1")
         aside.locator("textarea").fill("what now")
         aside.locator("textarea").press("Enter")
         log = page.locator("[data-hmz=btw-log]")
-        expect(log).to_contain_text("btw · The Epic")
+        expect(log).to_contain_text("btw · assistant/1")
         expect(log.locator(".said.btw")).to_have_count(1)
         # Whom it asks was fixed by its first answer: nothing to pick for it any more.
         expect(ask).to_be_hidden()
@@ -1360,10 +1350,9 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         _asks_of(page, "/1")
         aside.locator("textarea").fill("and you, slowly")
         aside.locator("textarea").press("Enter")
-        # Answering, it says so, and whom it asks on the way, as it asks.
+        # Answering, it says so.
         working = page.locator("[data-hmz=btw-working]")
         expect(working).to_contain_text("is thinking")
-        expect(log).to_contain_text("asking someone/1: are you there")
         expect(aside.locator("button.send")).to_be_disabled()
         expect(page.locator("[data-hmz=btw-tab].busy")).to_have_count(1)
         expect(log.locator(".said.btw")).to_have_count(1)
@@ -1385,6 +1374,48 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         expect(tabs).to_have_count(1)
         expect(log).to_contain_text("and you, slowly")
         stop(page)
+
+
+def test_ai_chan_drawer_opens_from_every_view_with_her_avatar_and_new_form(
+    project: Path, engine: str, tmp_path: Path
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new")
+        drawer = page.locator("[data-hmz=aichan]")
+        expect(drawer).to_be_hidden()
+        toggle = page.locator("[data-hmz=aichan-toggle]").first
+        expect(toggle).to_have_attribute("aria-pressed", "false")
+        toggle.click()
+        expect(drawer).to_be_visible()
+        expect(toggle).to_have_attribute("aria-pressed", "true")
+        # Her avatar, loaded and drawn in hard pixels.
+        avatar = drawer.locator(".aichan-head img")
+        expect(avatar).to_have_attribute("src", "/ai-chan/avatar.png")
+        assert avatar.evaluate("(img) => img.complete && img.naturalWidth") == 512
+        assert (
+            avatar.evaluate("(img) => getComputedStyle(img).imageRendering")
+            == "pixelated"
+        )
+        # Open from view to view, until closed.
+        go(page, "/flows")
+        expect(drawer).to_be_visible()
+        # New: the scope the page shows, a preset, the network off, and the task.
+        drawer.locator("[data-hmz=aichan-new]").click()
+        form = drawer.locator("[data-hmz=aichan-form]")
+        expect(form).to_be_visible()
+        # The flows of a workspace show it: the scope starts on it.
+        expect(form.locator("[data-hmz=aichan-scope]")).to_have_value("workspace")
+        expect(form.locator("[data-hmz=aichan-workspace]")).to_be_visible()
+        expect(form.locator("[data-hmz=aichan-preset]")).to_have_value("read-only")
+        expect(form.locator("[data-hmz=aichan-network]")).not_to_be_checked()
+        form.locator("[data-hmz=aichan-scope]").select_option("daemon")
+        expect(form.locator("[data-hmz=aichan-workspace]")).to_be_hidden()
+        form.locator("[data-hmz=aichan-scope]").select_option("epic")
+        expect(form.locator("[data-hmz=aichan-epic]")).to_be_visible()
+        expect(form.locator("[data-hmz=aichan-task] textarea")).to_be_visible()
+        page.screenshot(path=str(tmp_path / "aichan-drawer.png"))
+        drawer.get_by_role("button", name="Close panel").click()
+        expect(drawer).to_be_hidden()
 
 
 def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
@@ -1413,9 +1444,9 @@ def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
         expect(answering).to_have_count(0)
 
         # An aside's Close.
-        _call(page, "settings.set", {"btw": "claude/claude-haiku-4-5"})
         page.get_by_role("tab", name="Aside").click()
         aside = page.locator("[data-hmz=btw]")
+        _asks_of(page, "/1")
         aside.locator("textarea").fill("what now")
         aside.locator("textarea").press("Enter")
         expect(page.locator("[data-hmz=btw-log] .said.btw")).to_have_count(1)
