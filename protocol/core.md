@@ -3515,7 +3515,8 @@ that chat's epic and MUST survive carrying on.
 MUST be served as the catalogue says.
 
 **8.9.13** A line of a chat that starts with `/` and names no entry of the catalogue MUST be passed
-to the harness as text where the catalogue holds no entry with sigil `/`, and MUST otherwise be
+to the harness as text where the catalogue holds no entry with sigil `/` or the conversation has
+not yet taken a turn, by when every harness has listed its catalogue, and MUST otherwise be
 refused, naming it; a line that starts with `!` or `@` and names no entry MUST be passed as text.
 
 ## 9. Side Questions

@@ -5930,7 +5930,8 @@
           "required": [
             "entries",
             "prefer",
-            "prefer_from"
+            "prefer_from",
+            "listed"
           ],
           "properties": {
             "entries": {
@@ -5989,6 +5990,10 @@
                 "settings",
                 "chat"
               ]
+            },
+            "listed": {
+              "type": "boolean",
+              "description": "Whether the catalogue is all its harness lists: once the conversation has taken a turn."
             }
           }
         }

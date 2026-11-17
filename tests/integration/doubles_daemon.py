@@ -177,7 +177,11 @@ from hmz.runtime.epic import Drove, Epic
 class StandIn(chatting.Chat):
     def __init__(self, spec, *, person):
         super().__init__(spec, person=person)
-        self.epic = None
+        self._at = None
+
+    @property
+    def epic(self):
+        return self._at
 
     def prefers(self, prefer):
         self._prefer = prefer
@@ -188,18 +192,21 @@ class StandIn(chatting.Chat):
             NativeCommand("!", "", "runs a shell command", "emulate"),
         ]
 
-    async def run(self):
+    async def run(self, *, opened=None, started=None):
         carried = self.spec.resume
         backend, _, model = self.spec.agent.partition("/")
         with Epic(
-            "chat",
+            "",
             self.spec.task,
             self.spec.workspace,
+            kind="chat",
             agents=[Drove("assistant", backend, model.partition(":")[0], "")],
             picked_up=carried,
             reopened=carried is not None,
         ) as epic:
-            self.epic = epic.path
+            self._at = epic.path
+            if started is not None:
+                started(epic.path)
             said = self.spec.task
             while said:
                 said = await self.person.next(f"you said: {said}")

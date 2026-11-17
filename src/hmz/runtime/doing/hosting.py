@@ -1626,6 +1626,7 @@ class Host:
             catalog=_natives(run) if sigiled else [],
             flows=self._flow_names() if named else (),
             prefer=self._prefer(run) if named else "native",
+            listed=run.chat.listed,
         )
         # Named as typed: the sigil and the name, or the line where it is one of `!` or `@`.
         typed = line if line[0] in "!@" else line.split(maxsplit=1)[0]
@@ -1712,6 +1713,7 @@ class Host:
             entries=entries,
             prefer=self._prefer(run),
             prefer_from="settings" if own is None else "chat",
+            listed=run.chat.listed,
         )
 
     def _chat_set(self, by: str, client: str, said: dict[str, Any]) -> dict[str, Any]:

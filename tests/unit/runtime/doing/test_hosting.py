@@ -231,6 +231,7 @@ class FakeChat:
 
     prefer: str | None = None
     catalog: list[Native] = field(default_factory=list[Native])
+    listed: bool = True
 
     def prefers(self, prefer: str) -> None:
         self.prefer = prefer

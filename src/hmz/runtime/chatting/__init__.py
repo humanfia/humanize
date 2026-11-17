@@ -40,6 +40,7 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
 
+    from hmz.coganchor.agents.base import AgentBase, SessionBase
     from hmz.coganchor.agents.native import NativeCommand
     from hmz.flows import AskUserHookResult, Permission, Usage
     from hmz.runtime.backing import Keeping
@@ -47,7 +48,7 @@ if TYPE_CHECKING:
     from hmz.runtime.flowing import AgentDriver, EnvDriver, SessionHandle
     from hmz.runtime.flowing.harnesses import Listener
     from hmz.runtime.flowing.specs import AgentSpec
-    from hmz.runtime.flowing.spi import HookTable, Kept
+    from hmz.runtime.flowing.spi import HookTable, Kept, Placement
     from hmz.runtime.runner import Opened
 
 #: What `$<name>` means where it names both a native skill and a flow.
@@ -100,6 +101,7 @@ def resolve(
     catalog: Sequence[NativeCommand],
     flows: Collection[str],
     prefer: Prefer,
+    listed: bool = True,
 ) -> Resolved:
     """Reads one line typed in a chat as Section 8.9 of [CORE] says to.
 
@@ -108,6 +110,9 @@ def resolve(
       catalog: The harness's native catalog for the conversation, empty for none.
       flows: The names a flow can be named by here, as a `$` line names one.
       prefer: The chat's preference, which decides a `$` name that is both.
+      listed: Whether the catalog is all the harness lists, which it is once its conversation
+        has taken a turn (:attr:`Chat.listed`). Until then a `/` name it does not hold yet is
+        said to the harness, which may list it later, rather than refused.
 
     Returns:
       What the line is.
@@ -144,7 +149,7 @@ def resolve(
                 f"/{name} is served only by the harness's own interactive interface",
             )
         return Resolved("native", name, rest, entry)
-    if any(e.sigil == "/" for e in catalog):
+    if listed and any(e.sigil == "/" for e in catalog):
         return Resolved("refused", name, rest, None, f"no such command: /{name}")
     return Resolved("prose")
 
@@ -244,6 +249,8 @@ class Chat:
         self._ended = False
         self._talk: _Talk | None = None
         self._listeners: list[Listener] = []
+        self._opened: list[Opened] = []
+        self._spending: _Spending | None = None
 
     @property
     def prefer(self) -> Prefer | None:
@@ -277,6 +284,17 @@ class Chat:
             if self._epic is not None and not self._ended:
                 self._epic.write("set", prefer=prefer)
 
+    @property
+    def listed(self) -> bool:
+        """Whether its catalog is all the harness lists: once its conversation took a turn.
+
+        Some harnesses list their commands only as a conversation opens, and some only when
+        asked once one is open, so before a turn the catalog may hold some of them and not the
+        rest (Section 8.9.13 of [CORE]).
+        """
+        talk = self._talk
+        return talk is not None and talk.taken
+
     def natives(self) -> list[NativeCommand]:
         """The assistant's native catalog, as its conversation stands; empty before it opens."""
         talk = self._talk
@@ -293,6 +311,33 @@ class Chat:
           listener: What to tell, from whichever thread its CLI is read on.
         """
         self._listeners.append(listener)
+
+    def opened(self, callback: Opened) -> None:
+        """Has each conversation of the assistant told to `callback` as it is opened.
+
+        As :meth:`hmz.runtime.doing.running.Run.opened` has it for a run; asked before
+        :meth:`run`, and told beside what :meth:`run` is handed as `opened`.
+
+        Args:
+          callback: What to tell: the role, the agent, its session and where it works.
+        """
+        self._opened.append(callback)
+
+    @property
+    def usage(self) -> Usage:
+        """What the conversation has spent so far: nothing before :meth:`run` opens it."""
+        from hmz.flows import Usage
+
+        spending = self._spending
+        return Usage() if spending is None else spending.usage()
+
+    @property
+    def agents(self) -> tuple[AgentBase, ...]:
+        """The coganchor agent behind the conversation open now, where one is behind it."""
+        talk = self._talk
+        handle = None if talk is None else talk.handle
+        agent = getattr(handle, "agent", None)
+        return () if agent is None else (agent,)
 
     async def run(
         self,
@@ -379,9 +424,20 @@ class Chat:
                         )
                 if started is not None:
                     started(epic.path)
-                spending = _Spending()
+                self._spending = spending = _Spending()
+                told = [*self._opened, *(() if opened is None else (opened,))]
+
+                def telling(
+                    role: str,
+                    agent: AgentBase,
+                    session: SessionBase,
+                    where: Placement | None,
+                ) -> None:
+                    for callback in told:
+                        callback(role, agent, session, where)
+
                 self._talk = talk = _Talk(
-                    self, driver, local, epic, keeping, spending, opened
+                    self, driver, local, epic, keeping, spending, telling
                 )
                 try:
                     await talk.had(before)
@@ -427,6 +483,8 @@ class _Talk:
         self._noted = ""
         #: The conversation open now, once one is: what the chat's catalog is asked of.
         self.handle: SessionHandle | None = None
+        #: Whether a turn of it has been taken, by when its harness has listed its catalog.
+        self.taken = False
 
     async def had(self, before: Ran | None) -> None:
         """Has every turn of the conversation, from the first message to the empty one.
@@ -466,7 +524,13 @@ class _Talk:
                     if line.startswith("$")
                     else (frozenset[str](), "native")
                 )
-                read = resolve(line, catalog=chat.natives(), flows=flows, prefer=prefer)
+                read = resolve(
+                    line,
+                    catalog=chat.natives(),
+                    flows=flows,
+                    prefer=prefer,
+                    listed=chat.listed,
+                )
                 entry = read.entry
                 if read.kind == "refused":
                     message = await person.next(_said(unkept, read.why))
@@ -502,6 +566,7 @@ class _Talk:
                         continue
                     answered = f"That turn could not be taken: {failed}"
                 else:
+                    self.taken = True
                     if ahead:
                         ran.clear()
                 opening = carrying = False

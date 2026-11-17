@@ -11,19 +11,16 @@ an epic. A line that is wrong is refused with exit status 2 before anything is s
 
 from __future__ import annotations
 
-import inspect
 import json
 import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-import hmz.flows
 from hmz.cli import main
-from hmz.runtime.chatting import Chat
 from hmz.sdk import Hmz
 from tests.integration.doubles_core import (
     AGENT,
@@ -34,6 +31,9 @@ from tests.integration.doubles_core import (
     started,
     write_flow,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 #: Every epic here is held by a daemon of the test's own, in this process.
 pytestmark = pytest.mark.usefixtures("daemon")
@@ -183,13 +183,6 @@ def _refused(capsys: pytest.CaptureFixture[str], *argv: str) -> str:
     return capsys.readouterr().err
 
 
-#: Whether a chat can be had yet: its runner and the daemon's `chat.*` land apart from `hmz chat`.
-_UNCHATTY = pytest.mark.skipif(
-    "raise NotImplementedError" in inspect.getsource(Chat.run),
-    reason="the chat runner has not landed yet",
-)
-
-
 def _chat(*argv: str) -> subprocess.CompletedProcess[str]:
     """Runs `hmz chat` as a program, in the working directory, and answers with how it went."""
     return subprocess.run(
@@ -202,7 +195,6 @@ def _chat(*argv: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-@_UNCHATTY
 def test_chat_answers_one_turn_on_stdout_and_works_in_the_project(
     tmp_path: Path, project: Path
 ) -> None:
@@ -225,7 +217,6 @@ def test_chat_answers_one_turn_on_stdout_and_works_in_the_project(
     assert session.ident == start["session"]
 
 
-@_UNCHATTY
 def test_a_chat_carried_on_goes_on_in_its_own_epic_and_conversation(
     tmp_path: Path, project: Path
 ) -> None:
@@ -238,10 +229,14 @@ def test_a_chat_carried_on_goes_on_in_its_own_epic_and_conversation(
     assert then.returncode == 0, then.stderr
     assert then.stdout.strip() == "did: and then?"
     assert Hmz(project).epics.all() == [epic]
-    assert len({one["session"] for one in started(tmp_path)}) == 1
+    # The same conversation, carried on from where the first left it.
+    first_start, then_start = started(tmp_path)
+    assert (
+        then_start["argv"][then_start["argv"].index("--resume") + 1]
+        == (first_start["session"])
+    )
 
 
-@_UNCHATTY
 def test_a_failed_first_turn_fails_the_chat_with_what_the_cli_said() -> None:
     ran = _chat("-a", AGENT, "--", "fail: it broke")
 
@@ -562,10 +557,6 @@ def test_a_loop_without_a_budget_is_refused(capsys: pytest.CaptureFixture[str]) 
     assert "budget" in said
 
 
-@pytest.mark.skipif(
-    (Path(hmz.flows.__file__).parent / "builtin" / "chat").exists(),
-    reason="the built-in chat flow has not been taken out yet",
-)
 def test_chat_names_a_flow_as_any_name_does_and_no_chat(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -135,7 +135,8 @@ In a chat, a line starting with `/`, `$`, `!` or `@` is read as
 [preference](#prefer-command) where it is both, then the entries of the assistant's
 [catalogue](/user/chat#native-input-by-cli), each passed, called, emulated or refused as the
 catalogue says. A `/<name>` the catalogue lacks is refused, `hmz: no such command: /<name>`,
-where the catalogue has any `/` entry, and said as text otherwise; an `!` or `@` line with no
+where the catalogue has any `/` entry and the chat has taken a turn (`listed`, by when every CLI
+has said what it has), and said as text otherwise; an `!` or `@` line with no
 entry is said as text. A line the catalogue refuses says
 `hmz: /<name> is served only by the harness's own interactive interface`.
 
@@ -1554,13 +1555,13 @@ default on.
 | Kinds | **Failed** ▾ `an epic failed, crashed, ran out of budget or was refused` | `notifications.kinds.failed` |
 | Kinds | **Stopped** ▾ `an epic was stopped` | `notifications.kinds.stopped` |
 | Kinds | **Questions** ▾ `a flow asks you something` | `notifications.kinds.asked` |
-| Kinds | **Chat turns** ▾ `a chat waits for its next turn` | `notifications.kinds.listening` |
+| Kinds | **Waiting** ▾ `a flow waits for what you say next` | `notifications.kinds.listening` |
 | Shown | **System** ▾ `ring the terminal's bell and show a system notification too`: `on` (`ring the bell and notify the system`), `off` (`a card in hmz alone`) | `notifications.system` |
 
 Every epic on this machine is watched from the start of `hmz`, asking each host the daemon
 holds how it stands every 2 seconds, never attaching. A
 notice of a kind turned on is a toast at the bottom right, titled `Done`, `Failed`, `Stopped`,
-`Question` or `Chat turn`, reading `<flow> · <workspace directory> · <what it asked or said,
+`Question` or `Waiting`, reading `<flow> · <workspace directory> · <what it asked or said,
 else its task>`, `Failed` as an error; with **System** on, also the terminal bell and OSC 9
 (`hmz: <title> · …`). None while the notice is of this directory and the log or the monitor is
 on top. Its epic is marked `●` after its name in [`/epics`](#the-runs-that-have-already-happened)

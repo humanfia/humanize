@@ -1698,7 +1698,7 @@ on a chat host that has folded (Section 4.13.8).
 #### 4.21.3. `chat.commands`
 
 **4.21.3.1** `chat.commands` MUST take `workspace` and `slot`, and MUST answer `entries`,
-`prefer` and `prefer_from`.
+`prefer`, `prefer_from` and `listed`.
 
 **4.21.3.2** `entries` MUST hold the catalogue of the chat's conversation (Section 8.9.2 of [CORE]),
 or, before it has opened, what the catalogue of its harness holds without one, each `sigil`,
@@ -1708,6 +1708,9 @@ or, before it has opened, what the catalogue of its harness holds without one, e
 
 **4.21.3.3** `prefer` MUST be the chat's preference, `native` or `flow`, and `prefer_from` MUST be
 `chat` where the chat overrides it and `settings` otherwise.
+
+**4.21.3.4** `listed` MUST be whether the catalogue is all its harness lists, which it is once the
+chat's conversation has taken a turn (Section 8.9.13 of [CORE]).
 
 #### 4.21.4. `chat.set`
 

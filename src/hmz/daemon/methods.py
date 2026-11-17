@@ -427,6 +427,9 @@ class _Methods:
             said = {k: v for k, v in call.params.items() if k not in ("sub", "idem")}
             remembers = None
             if do == "start":
+                if sub.hosted.slot.startswith("chat:"):
+                    # Before the flow is looked for: a chat host starts no flow of any name.
+                    raise _refused(409, "a chat is started with chat.start")
                 remembers = self._checks(call, sub.hosted.workspace, said)
             answer = sub.hosted.ask(sub.client, {"do": do, **said})
             if not answer.get("ok"):

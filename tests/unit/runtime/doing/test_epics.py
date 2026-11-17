@@ -43,6 +43,19 @@ def _run(workspace: Path, flow: str = "ralph", *, resumable: bool = False) -> Pa
     return one.path
 
 
+def _old_chat(workspace: Path) -> Path:
+    """A chat as an earlier hmz wrote one: an epic of the flow `chat`, saying no kind."""
+    from hmz.runtime.epic import JOURNAL
+
+    epic = _run(workspace, "chat")
+    journal = epic / JOURNAL
+    events = [json.loads(line) for line in journal.read_text().splitlines()]
+    for one in events:
+        one.pop("kind", None)
+    journal.write_text("".join(json.dumps(one) + "\n" for one in events))
+    return epic
+
+
 def test_the_runs_of_a_workspace_are_read_back(workspace: Path) -> None:
     epics = Epics(workspace)
     assert epics.all() == []
@@ -333,23 +346,22 @@ def test_a_run_went_running_while_it_is_held_and_unfinished_after(
 def test_an_epic_is_of_a_flow_but_one_an_earlier_hmz_wrote_of_the_flow_chat(
     workspace: Path,
 ) -> None:
-    from types import SimpleNamespace
-
     from hmz.runtime.doing.epics import kind
 
-    chat, flow = Epics(workspace).read(_run(workspace, "chat")), _run(workspace)
+    chat, flow = Epics(workspace).read(_old_chat(workspace)), _run(workspace)
     assert chat is not None
     assert kind(chat) == "chat"
     assert kind(Epics(workspace).read(flow) or chat) == "flow"
-    # What a record says it is, it is: a flow named chat now is a flow.
-    assert kind(SimpleNamespace(flow="chat", kind="flow")) == "flow"  # pyright: ignore[reportArgumentType]
-    assert kind(SimpleNamespace(flow="", kind="chat")) == "chat"  # pyright: ignore[reportArgumentType]
+    # One written now of a flow called `chat` says it is a flow, and is one.
+    named = Epics(workspace).read(_run(workspace, "chat"))
+    assert named is not None
+    assert kind(named) == "flow"
 
 
 def test_a_chat_to_carry_on_is_a_chat_of_this_workspace(
     workspace: Path, tmp_path: Path
 ) -> None:
-    chat, flow = _run(workspace, "chat"), _run(workspace)
+    chat, flow = _old_chat(workspace), _run(workspace)
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     epics = Epics(workspace)

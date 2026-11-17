@@ -29,17 +29,13 @@ def kind(ran: Ran) -> Literal["flow", "chat"]:
     """What one epic is (Section 3.2.13 of core.md), as its record says it.
 
     A record that says no kind is of a flow, but for one whose flow is `chat`, which an
-    earlier hmz wrote for a chat when a chat was a flow (Section 8.3.5 of core.md) -- and one
-    of no flow at all, which only a chat is. Read off the record where it is read back with
-    its kind, and off its flow until then.
+    earlier hmz wrote for a chat when a chat was a flow: :func:`hmz.runtime.epic.read` reads
+    it so (Section 6.5.20 of files.md).
 
     Args:
       ran: The epic, read back.
     """
-    said: object = getattr(ran, "kind", "")
-    if said in ("flow", "chat"):
-        return "chat" if said == "chat" else "flow"
-    return "chat" if ran.flow in ("chat", "") else "flow"
+    return "chat" if ran.chat else "flow"
 
 
 class Epics:

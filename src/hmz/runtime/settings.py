@@ -288,18 +288,15 @@ class Settings:
     def chat_agent(self) -> Runs | None:
         """The agent a new chat here talks to, or None where none was chosen.
 
-        A workspace's, as a flow's agents are. Read where an earlier hmz wrote it, too: the
-        `assistant` of the flow `chat`, from when a chat was a flow.
+        A workspace's, as a flow's agents are, and read from `chat.agent` alone (Section 3.5.1.9
+        of files.md): a flow called `chat` is a flow, whose agents are no chat's.
         """
         raw = self._here().get("chat")
-        said = (
+        return (
             read_back(cast("dict[str, Any]", raw).get("agent"))
             if isinstance(raw, dict)
             else None
         )
-        if said is None:
-            said = self.agents("chat").get("assistant")
-        return said
 
     @chat_agent.setter
     def chat_agent(self, runs: Runs) -> None:

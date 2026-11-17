@@ -35,7 +35,7 @@ _CHUNK = 4096
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A project, and an epic of a chat written down in it."""
     at = install(tmp_path, monkeypatch)
-    with Epic("chat", "hello there", at):
+    with Epic("", "hello there", at, kind="chat"):
         pass
     return at
 

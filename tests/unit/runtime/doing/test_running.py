@@ -329,13 +329,23 @@ def test_a_run_is_an_epic_of_a_flow() -> None:
 
 @dataclass(eq=False)
 class Chat:
-    """A chat, as far as holding it reads one: what it was started with, and how it ends."""
+    """A chat, as holding it reads one: what it was started with, what it tells, how it ends."""
 
     spec: ChatSpec
     ended: ChatEnd | None = None
     raises: BaseException | None = None
     going: threading.Event = field(default_factory=threading.Event)
     holds: bool = False
+    epic: Path | None = None
+    usage: Usage = field(default_factory=Usage)
+    agents: tuple[Agent, ...] = ()
+    told: dict[str, Any] = field(default_factory=dict[str, Any])
+
+    def watch(self, listener: Any) -> None:
+        self.told["watch"] = listener
+
+    def opened(self, callback: Any) -> None:
+        self.told["opened"] = callback
 
     async def run(self) -> ChatEnd:
         self.going.set()
@@ -345,25 +355,6 @@ class Chat:
             raise self.raises
         assert self.ended is not None
         return self.ended
-
-
-@dataclass(eq=False)
-class TellingChat(Chat):
-    """A chat that tells what it opens, says and spends, as a run does."""
-
-    epic: Path | None = None
-    usage: Usage = field(default_factory=lambda: Usage(cost=0.25))
-    agents: tuple[Agent, ...] = field(default_factory=lambda: (Agent(),))
-    told: dict[str, Any] = field(default_factory=dict[str, Any])
-
-    def watch(self, listener: Any) -> None:
-        self.told["watch"] = listener
-
-    def opened(self, callback: Any) -> None:
-        self.told["opened"] = callback
-
-    def noticed(self, callback: Any) -> None:
-        self.told["noticed"] = callback
 
 
 def _spec(resume: Path | None = None) -> ChatSpec:
@@ -376,11 +367,8 @@ def test_a_chat_is_held_as_a_run_is_with_no_flow_and_no_budget() -> None:
     assert (held.kind, held.flow, held.ref, held.budget) == ("chat", "", "", None)
     assert (held.task, held.agent) == ("hello", "claude/opus:high")
     assert (held.usage, held.agents, held.unreadable()) == (Usage(), (), "")
-    # A chat that does not tell its epic has none to name until it ends.
-    assert (held.epic, held.names_epic) == (None, False)
-    held.watch(print)
-    held.opened(print)
-    held.noticed(print)
+    # Its epic is named once it has one, which is not before it has begun.
+    assert (held.epic, held.names_epic) == (None, True)
 
 
 def test_a_chat_carried_on_is_written_into_the_epic_it_carries_on() -> None:
@@ -390,7 +378,9 @@ def test_a_chat_carried_on_is_written_into_the_epic_it_carries_on() -> None:
 
 
 def test_what_a_chat_tells_of_itself_is_handed_through() -> None:
-    chat = TellingChat(_spec(), epic=Path("/epics/e2"))
+    chat = Chat(
+        _spec(), epic=Path("/epics/e2"), usage=Usage(cost=0.25), agents=(Agent(),)
+    )
     held = Chatting(cast("Any", chat))
 
     def opened(*said: Any) -> None:
@@ -401,9 +391,10 @@ def test_what_a_chat_tells_of_itself_is_handed_through() -> None:
 
     held.watch(print)
     held.opened(opened)
+    # A chat is never moved off where it works, so there is nothing to notice.
     held.noticed(noticed)
 
-    assert chat.told == {"watch": print, "opened": opened, "noticed": noticed}
+    assert chat.told == {"watch": print, "opened": opened}
     assert (held.epic, held.names_epic) == (Path("/epics/e2"), True)
     assert (held.usage, held.agents) == (Usage(cost=0.25), chat.agents)
 
@@ -424,7 +415,7 @@ def test_a_chat_whose_first_turn_failed_raises_it() -> None:
 
 
 def test_a_chat_going_is_ended_from_another_thread_and_its_agents_stopped() -> None:
-    chat = TellingChat(_spec(), holds=True)
+    chat = Chat(_spec(), holds=True, agents=(Agent(),))
     held = Chatting(cast("Any", chat))
     raised: list[BaseException] = []
 

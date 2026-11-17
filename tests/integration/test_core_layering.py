@@ -97,6 +97,7 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.epic",
         "hmz.runtime.exporting",
         "hmz.runtime.flowing",
+        "hmz.runtime.kept",
         "hmz.runtime.runner",
         "hmz.runtime.settings",
         "hmz.runtime.telemetry",

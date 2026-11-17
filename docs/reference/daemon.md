@@ -359,7 +359,7 @@ chat's messages by `epic.attach` on its slot, as any epic's.
 | --- | --- | --- | --- |
 | `chat.start` | `workspace`, `slot` (a chat slot, or `chat:` alone for a new one), `agent` (an `-a` spec, required unless `resume`), `task` (the first message, required, not empty), `resume` (an epic directory name, or `null`), `prefer` (`native`, `flow` or `null`), `remember` (bool, `false`) | `slot`, `epic` (the chat's epic directory name) | 400 `a chat starts with something said`, `<slot> is not a chat slot.`, `an agent for the chat is named`, or why the agent is refused; 404 `<epic> is not a chat of <workspace>.`; 409 `a chat is already going on <slot>` |
 | `chat.say` | `workspace`, `slot`, `text` | `{}` | 400 naming the line, for a `$` line naming a flow or a name hmz keeps, which the frontend serves; 404 where no host holds the slot; 409 `this chat has folded away; carry it on from its epic` |
-| `chat.commands` | `workspace`, `slot` | `entries` (`[{sigil, name, about, how, source}]`), `prefer` (`native` or `flow`), `prefer_from` (`chat` or `settings`) | as `chat.say` |
+| `chat.commands` | `workspace`, `slot` | `entries` (`[{sigil, name, about, how, source}]`), `prefer` (`native` or `flow`), `prefer_from` (`chat` or `settings`), `listed` (whether the catalogue is all the CLI lists: once a turn was taken) | as `chat.say` |
 | `chat.set` | `workspace`, `slot`, `prefer` (`native` or `flow`) | `{}` | 400 for any other `prefer`; else as `chat.say` |
 
 - **`chat.start`** starts the slot's host as `epic.attach` does, without attaching, and starts

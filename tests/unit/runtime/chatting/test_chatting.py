@@ -25,7 +25,7 @@ from hmz.flows import (
     Usage,
 )
 from hmz.runtime import epic, flowing
-from hmz.runtime.chatting import Chat, ChatEnd, ChatSpec
+from hmz.runtime.chatting import Chat, ChatEnd, ChatSpec, resolve
 from hmz.runtime.flowing import harnesses
 from hmz.runtime.flowing.spi import HookTable, Kept, Placement, TurnRequest
 from hmz.runtime.runner import Refused
@@ -775,3 +775,19 @@ def test_a_preference_set_once_the_chat_has_ended_writes_nothing_after_its_end(
 
     assert chat.prefer == "flow"
     assert _events(ended.epic)[-1]["event"] == "ended"
+
+
+def test_a_slash_name_is_said_until_the_harness_has_listed_its_catalogue() -> None:
+    # pi lists `/compact` before it has been asked for its own commands.
+    early = [NativeCommand("/", "compact", "compacts", "call")]
+
+    before = resolve(
+        "/fix-tests now", catalog=early, flows=(), prefer="native", listed=False
+    )
+    after = resolve("/fix-tests now", catalog=early, flows=(), prefer="native")
+
+    assert before.kind == "prose"
+    assert (after.kind, after.why) == ("refused", "no such command: /fix-tests")
+    # What it does list is served either way.
+    listed = resolve("/compact", catalog=early, flows=(), prefer="native", listed=False)
+    assert (listed.kind, listed.entry) == ("native", early[0])

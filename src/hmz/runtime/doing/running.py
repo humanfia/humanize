@@ -335,11 +335,9 @@ class Run:
 class Chatting:
     """One chat, held as a host holds a run: what it opened, what it spent, and how it ends.
 
-    What a chat opens and says is told by the chat itself, where it tells it: a
-    :class:`hmz.runtime.chatting.Chat` that has `watch`, `opened` and `noticed` -- taking what
-    :class:`Run`'s of those names take -- and `epic`, `usage` and `agents` as :class:`Run` has
-    them, has each handed through here; one without them is a chat whose conversation is told
-    only by what its person is told. A chat has no flow, no ref, no params and no budget.
+    What a chat opens and says is told by the chat itself: :class:`hmz.runtime.chatting.Chat`'s
+    `watch`, `opened`, `epic`, `usage` and `agents` are what :class:`Run`'s of those names are,
+    handed through here. A chat has no flow, no ref, no params and no budget.
     """
 
     #: What it is an epic of (Section 3.2.13 of core.md).
@@ -387,50 +385,45 @@ class Chatting:
 
     @property
     def usage(self) -> Usage:
-        """What its conversation has spent so far, where the chat says."""
-        from hmz.flows import Usage
-
-        said: Any = getattr(self._chat, "usage", None)
-        return said if isinstance(said, Usage) else Usage()
+        """What its conversation has spent so far."""
+        return self._chat.usage
 
     @property
     def agents(self) -> tuple[AgentBase, ...]:
-        """The coganchor agent behind its conversation, where the chat says it has one open."""
-        return tuple(getattr(self._chat, "agents", ()) or ())
+        """The coganchor agent behind its conversation, while one is open."""
+        return self._chat.agents
 
     @property
     def epic(self) -> Path | None:
         """The epic it is written into: the one it carries on, else the one it has opened."""
         if self._end is not None:
             return self._end.epic
-        said: Any = getattr(self._chat, "epic", None)
-        return said if said is not None else self._chat.spec.resume
+        return self._chat.epic or self._chat.spec.resume
 
     @property
     def names_epic(self) -> bool:
-        """Whether its epic is known once it has one: carried on, or told by the chat."""
-        return self._chat.spec.resume is not None or hasattr(self._chat, "epic")
+        """Whether its epic is known once it has one, which a chat's always is."""
+        return True
 
     def unreadable(self) -> str:
         """Which cap nothing it drives can read, which is none: a chat has no budget."""
         return ""
 
     def watch(self, listener: Listener) -> None:
-        """Has everything its conversation says reach `listener`, where the chat tells it."""
-        self._hands("watch", listener)
+        """Has everything its conversation says reach `listener`."""
+        self._chat.watch(listener)
 
     def opened(self, callback: Opened) -> None:
-        """Has its conversation told to `callback` as it opens, where the chat tells it."""
-        self._hands("opened", callback)
+        """Has its conversation told to `callback` as it opens."""
+        self._chat.opened(callback)
 
     def noticed(self, callback: Callable[[str], None]) -> None:
-        """Has Humanize's own word about it told to `callback`, where the chat tells it."""
-        self._hands("noticed", callback)
+        """Takes what a run tells of an environment moved, which a chat never has.
 
-    def _hands(self, name: str, callback: Callable[..., None]) -> None:
-        tells: Any = getattr(self._chat, name, None)
-        if callable(tells):
-            tells(callback)
+        A chat works in its workspace on this machine and nowhere else (Section 8.3.1 of
+        core.md), so there is nothing of Humanize's own to say about where it went.
+        """
+        del callback
 
     def run(self) -> ChatEnd:
         """Has the chat on a loop of its own on this thread, from its first message to its last.

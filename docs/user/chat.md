@@ -226,7 +226,8 @@ nothing this directory remembers. See [CLI › `hmz chat`](/reference/cli#hmz-ch
 ### `no such command: /<name>`
 
 The agent's CLI has no `/<name>` that Humanize can reach. The completion list after `/` shows
-what it has.
+what it has. Before a chat's first turn some CLIs have not said all their commands yet, so a
+`/<name>` not listed then is said to the agent as it was typed.
 
 ### `/<name> is served only by the harness's own interactive interface`
 
