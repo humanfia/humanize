@@ -627,7 +627,8 @@ that the refusal answers neither call.
 answer calls in another order than they were made, but for Section 6.4.5.
 
 **6.4.5** The daemon MUST carry out the calls of one session that name one subscription in the order
-sent, except `epic.aside`, which MUST be carried out apart so that no other call waits on it.
+sent, except `epic.aside` and the calls to an environment (Section 4.21 of [DAEMON]), which MUST be
+carried out apart so that no other call waits on them.
 
 **6.4.6** A call of one session MUST NOT delay the calls or notifications of another.
 

@@ -1834,6 +1834,1919 @@
       ]
     },
     {
+      "name": "env.list",
+      "summary": "List a directory of an environment.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvPath"
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "path",
+            "entries"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/EnvEntry"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.stat",
+      "summary": "Say what one path of an environment is.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvPath"
+          }
+        }
+      ],
+      "result": {
+        "name": "stat",
+        "schema": {
+          "$ref": "#/components/schemas/EnvEntry"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.read",
+      "summary": "Read a file of an environment.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvPath"
+          }
+        },
+        {
+          "name": "offset",
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "length",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1048576
+          }
+        }
+      ],
+      "result": {
+        "name": "read",
+        "schema": {
+          "type": "object",
+          "required": [
+            "data",
+            "size",
+            "mtime",
+            "etag",
+            "eof"
+          ],
+          "properties": {
+            "data": {
+              "$ref": "#/components/schemas/Data"
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mtime": {
+              "type": "number"
+            },
+            "etag": {
+              "type": "string"
+            },
+            "eof": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.find",
+      "summary": "List the files of an environment, to open one by its name.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "result": {
+        "name": "find",
+        "schema": {
+          "type": "object",
+          "required": [
+            "paths",
+            "truncated"
+          ],
+          "properties": {
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.search",
+      "summary": "Search the files of an environment for text.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "query",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "regex",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "case",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "glob",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "result": {
+        "name": "search",
+        "schema": {
+          "type": "object",
+          "required": [
+            "matches",
+            "truncated"
+          ],
+          "properties": {
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "line",
+                  "column",
+                  "text"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "column": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.write",
+      "summary": "Write a file of an environment.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvPath"
+          }
+        },
+        {
+          "name": "data",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Data"
+          }
+        },
+        {
+          "name": "if_match",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "write",
+        "schema": {
+          "type": "object",
+          "required": [
+            "etag",
+            "size",
+            "mtime"
+          ],
+          "properties": {
+            "etag": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mtime": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.mkdir",
+      "summary": "Make a directory of an environment, with its parents.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvPath"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "mkdir",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.rename",
+      "summary": "Move a path of an environment.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvPath"
+          }
+        },
+        {
+          "name": "to",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvPath"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "rename",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.remove",
+      "summary": "Remove a path of an environment, and everything under it.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvPath"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "remove",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.term.open",
+      "summary": "Open a terminal in an environment, or attach to one again.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "cols",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "rows",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "term",
+          "schema": {
+            "$ref": "#/components/schemas/TermId"
+          }
+        }
+      ],
+      "result": {
+        "name": "open",
+        "schema": {
+          "type": "object",
+          "required": [
+            "term",
+            "shell",
+            "replay"
+          ],
+          "properties": {
+            "term": {
+              "type": "string"
+            },
+            "shell": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "replay": {
+              "$ref": "#/components/schemas/Data"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.term.input",
+      "summary": "Type into a terminal.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "term",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/TermId"
+          }
+        },
+        {
+          "name": "data",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Data"
+          }
+        }
+      ],
+      "result": {
+        "name": "input",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.term.resize",
+      "summary": "Resize a terminal.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "term",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/TermId"
+          }
+        },
+        {
+          "name": "cols",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "rows",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "result": {
+        "name": "resize",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.term.ack",
+      "summary": "Say how many more bytes of a terminal's output this frontend drew.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "term",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/TermId"
+          }
+        },
+        {
+          "name": "bytes",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ],
+      "result": {
+        "name": "ack",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.term.close",
+      "summary": "Kill a terminal.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "term",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/TermId"
+          }
+        }
+      ],
+      "result": {
+        "name": "close",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.term.list",
+      "summary": "The terminals of an environment.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "terms"
+          ],
+          "properties": {
+            "terms": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "term",
+                  "env",
+                  "title",
+                  "cols",
+                  "rows",
+                  "alive"
+                ],
+                "properties": {
+                  "term": {
+                    "type": "string"
+                  },
+                  "env": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "cols": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "rows": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "alive": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.git.status",
+      "summary": "The git status of an environment.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "required": [
+            "root",
+            "branch",
+            "head",
+            "upstream",
+            "ahead",
+            "behind",
+            "files"
+          ],
+          "properties": {
+            "root": {
+              "type": "string"
+            },
+            "branch": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "head": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "upstream": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ahead": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "behind": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "index",
+                  "worktree",
+                  "state"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "orig": {
+                    "type": "string"
+                  },
+                  "index": {
+                    "type": "string"
+                  },
+                  "worktree": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "enum": [
+                      "changed",
+                      "untracked",
+                      "conflict"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.git.diff",
+      "summary": "Both sides of one file's change.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvPath"
+          }
+        },
+        {
+          "name": "staged",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "diff",
+        "schema": {
+          "type": "object",
+          "required": [
+            "old",
+            "new",
+            "binary"
+          ],
+          "properties": {
+            "old": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Data"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "new": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Data"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "binary": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.git.log",
+      "summary": "The latest commits of an environment.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "result": {
+        "name": "log",
+        "schema": {
+          "type": "object",
+          "required": [
+            "commits"
+          ],
+          "properties": {
+            "commits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "hash",
+                  "parents",
+                  "author",
+                  "date",
+                  "subject"
+                ],
+                "properties": {
+                  "hash": {
+                    "type": "string"
+                  },
+                  "parents": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "author": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.git.stage",
+      "summary": "Stage paths.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "paths",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvPath"
+            },
+            "minItems": 1
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "stage",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.git.unstage",
+      "summary": "Unstage paths.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "paths",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvPath"
+            },
+            "minItems": 1
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "unstage",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.git.discard",
+      "summary": "Throw away the worktree's changes to paths.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "paths",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvPath"
+            },
+            "minItems": 1
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "discard",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.git.commit",
+      "summary": "Commit what is staged.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "message",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "amend",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "commit",
+        "schema": {
+          "type": "object",
+          "required": [
+            "head"
+          ],
+          "properties": {
+            "head": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.git.snapshots",
+      "summary": "The snapshots of an environment.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        }
+      ],
+      "result": {
+        "name": "snapshots",
+        "schema": {
+          "type": "object",
+          "required": [
+            "snapshots"
+          ],
+          "properties": {
+            "snapshots": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
+      "name": "env.git.rewind",
+      "summary": "Rewind an environment to a snapshot.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EnvId"
+          }
+        },
+        {
+          "name": "ref",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "rewind",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ]
+    },
+    {
       "name": "btw.list",
       "summary": "The side conversations about an epic.",
       "paramStructure": "by-name",
@@ -5977,6 +7890,146 @@
             }
           }
         }
+      },
+      "EnvId": {
+        "type": "string",
+        "minLength": 1,
+        "description": "An environment of the host, as the envs snapshot names it (Section 4.21.2 of [DAEMON])."
+      },
+      "EnvPath": {
+        "type": "string",
+        "minLength": 1,
+        "description": "A path relative to the environment's workdir, or an absolute POSIX path."
+      },
+      "TermId": {
+        "type": "string",
+        "minLength": 1,
+        "description": "A terminal of the host (Section 4.21.4 of [DAEMON])."
+      },
+      "Data": {
+        "type": "string",
+        "contentEncoding": "base64",
+        "description": "Bytes, base64 encoded."
+      },
+      "EnvCaps": {
+        "type": "array",
+        "items": {
+          "enum": [
+            "files",
+            "shell",
+            "bash",
+            "git",
+            "git_worktree",
+            "rewind",
+            "scratch",
+            "temp_clone"
+          ]
+        }
+      },
+      "Env": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "chain",
+          "parent",
+          "run",
+          "backend",
+          "provider",
+          "workdir",
+          "available",
+          "open",
+          "caps",
+          "declared",
+          "facts"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "chain": {
+            "type": "string"
+          },
+          "parent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run": {
+            "type": "integer"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "workdir": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "open": {
+            "type": "boolean"
+          },
+          "caps": {
+            "$ref": "#/components/schemas/EnvCaps"
+          },
+          "declared": {
+            "$ref": "#/components/schemas/EnvCaps"
+          },
+          "facts": {
+            "type": "object",
+            "properties": {
+              "cpu": {},
+              "memory": {},
+              "gpu_count": {},
+              "gpu_memory": {}
+            }
+          }
+        },
+        "description": "One environment of the envs snapshot (Section 4.21.2 of [DAEMON])."
+      },
+      "EnvEntry": {
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "size",
+          "mtime"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "file",
+              "dir",
+              "link",
+              "other"
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mtime": {
+            "type": "number"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "description": "One path of an environment (Section 4.21.3 of [DAEMON])."
       }
     },
     "errors": {

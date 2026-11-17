@@ -10,5 +10,6 @@ export const WRITES = new Set([
   'flowverses.install', 'flowverses.uninstall', 'settings.set', 'settings.forget',
   'accounts.create', 'accounts.correct', 'accounts.remove', 'accounts.models', 'accounts.copy',
   'fallbacks.set', 'fallbacks.clear', 'runtimes.set', 'runtimes.remove', 'runtimes.import',
-  'easytier.set', 'easytier.remove',
+  'easytier.set', 'easytier.remove', 'env.write', 'env.mkdir', 'env.rename', 'env.remove',
+  'env.git.stage', 'env.git.unstage', 'env.git.discard', 'env.git.commit', 'env.git.rewind',
 ])

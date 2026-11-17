@@ -25,7 +25,7 @@ SCHEMA_META = Path(__file__).with_name("json-schema-meta-schema.json")
 # The namespaces of Section 4 of daemon.md; a backticked `<namespace>.<name>` in the text names a
 # method or a notification, but for the files the text also names that way.
 NAMESPACES = (
-    "accounts|backups|btw|devices|easytier|epic|fallbacks|files|flows|flowverses|hosts|notices"
+    "accounts|backups|btw|devices|easytier|env|epic|fallbacks|files|flows|flowverses|hosts|notices"
     "|pair|paths|rpc|runs|runtimes|session|settings|workspaces"
 )
 NAMED = re.compile(rf"`((?:{NAMESPACES})\.[a-z_]+)`")

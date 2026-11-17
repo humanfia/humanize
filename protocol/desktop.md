@@ -445,8 +445,10 @@ for a `.hmzepic` file opened with the app (Section 3.8.2) alone, at most 1 048 5
 and MUST stop the processes it started for it.
 
 **3.12.9** The web view MUST hold the page to the Content-Security-Policy `default-src 'self';
-connect-src ipc: http://ipc.localhost ws: wss:`, `ipc:` and `http://ipc.localhost` being the app's
-own commands and `ws:` and `wss:` the relay of any `webrtc:` route (Section 3.5.7).
+style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost ws: wss:`, `ipc:` and
+`http://ipc.localhost` being the app's own commands, `ws:` and `wss:` the relay of any `webrtc:`
+route (Section 3.5.7), and `'unsafe-inline'` in `style-src` lets the editor and the terminal of
+Section 3.16 of [WEB] style what they draw.
 
 **3.12.10** The `why` of `pipe_closed` MUST be `closed` where the page closed the pipe or went;
 the sentence of the failure where the carrier failed to open or failed once up; and, where the
