@@ -1824,11 +1824,12 @@ are.
 **4.15.1.2** The human agent MUST run no model, MUST spend nothing, and MUST be outside every
 budget.
 
-**4.15.1.3** Where a turn of the human agent asks for a schema, hmz MUST ask the user one question
-per field, offering a field's literal values or `yes` and `no` for a boolean as options, and
-offering `-` to take a field's default.
+**4.15.1.3** Where a turn of the human agent asks for a schema, hmz MUST ask the user the whole
+schema as one question, with its context, and MUST NOT ask it a field at a time (Section 3.10.4 of
+[PYTHON]).
 
-**4.15.1.4** A value the schema refuses MUST be asked again a bounded number of times.
+**4.15.1.4** A value the schema refuses MUST be refused with what is wrong with it, field by field,
+and the question MUST stay open for another answer (Section 4.8.4 of [DAEMON]).
 
 **4.15.1.5** Where nobody is at the prompt, the human agent MUST answer with nothing rather than
 leave a flow waiting.

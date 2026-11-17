@@ -682,7 +682,8 @@ where the session closed meanwhile, and `this host has closed` once the host is 
 #### 4.7.2. Replies
 
 **4.7.2.1** Every call to an epic MUST be answered with exactly one reply, as a result where the
-host carries it out and as the error 409 with its `why` where it refuses it.
+host carries it out and as the error 409 with its `why` where it refuses it, but where its paragraph
+states another code.
 
 **4.7.2.2** A call to an epic that fails for any other reason MUST be refused with the text of the
 failure, or the name of its type where the text is empty.
@@ -716,7 +717,8 @@ close every aside it opened.
 the stated types and defaults; a field not sent MUST take its default.
 
 **4.8.1.2** `epic.start`, `epic.say`, `epic.answer`, `epic.stop`, `epic.force`, `epic.afk`,
-`epic.claim`, `epic.release`, `epic.board` and `epic.quit` MUST be writes.
+`epic.claim`, `epic.release`, `epic.board` and `epic.quit` MUST be writes. `epic.face` MUST be a
+read.
 
 #### 4.8.2. `epic.start`
 
@@ -757,16 +759,32 @@ where `to` is `outworlder:<role>` and another frontend claims `role`.
 
 #### 4.8.4. `epic.answer`
 
-**4.8.4.1** `epic.answer` MUST take `question` (text, a question id) and `text` (text, required, not
-empty).
+**4.8.4.1** `epic.answer` MUST take `question` (text, a question id) and exactly one of `text`
+(text, not empty) and `value` (any JSON value); a `value` of `null` MUST be read as not sent.
 
-**4.8.4.2** Where `text`, stripped, is a decimal number `n` from 1 to the number of the question's
-options and is not itself an option, the answer MUST be the `n`-th option; otherwise it MUST be
-`text`.
+**4.8.4.2** Where the question has options and `text`, stripped, is a decimal number `n` from 1 to
+the number of its options and is not itself an option, the answer MUST be the `n`-th option;
+otherwise it MUST be `text`.
 
-**4.8.4.3** `epic.answer` MUST be refused with `an answer says something`; `already answered by
-<name>` for a question answered; `no question <id> is waiting`; and `<role> is <name>'s` where
-another frontend claims the question's role.
+**4.8.4.3** Where the question has a `schema`, the answer MUST be `value`, or `text` read as JSON,
+and MUST be taken only where it fits the schema, as the flow validates it (Section 3.10.4.3 of
+[PYTHON]); `answered.text` MUST then be the value taken, as JSON text, with the value of every
+field its schema marks `"hmz:widget": "secret"` written `***`.
+
+**4.8.4.4** Where the question has no `schema`, a `value` that is text MUST be read as `text`, and
+any other `value` MUST NOT fit.
+
+**4.8.4.5** An answer that does not fit -- a value the schema refuses, `text` that is not JSON, or a
+`value` that is not text where text is asked -- MUST be refused 400 with `the answer does not fit:
+<message>`, `<message>` being the `message` of its first error, and with `data` `{"errors":
+[{"path": [...], "message": ...}]}`: one entry per error, `path` the keys and indexes from the
+value's root to what is wrong, `[]` for the whole value. The question MUST stay waiting.
+
+**4.8.4.6** `epic.answer` MUST be refused with the first of these that holds: `an answer says
+something` where neither `text` nor `value` is sent, or `text` is empty; `an answer is text or a
+value, not both`; `already answered by <name>` for a question answered; `no question <id> is
+waiting`; `<role> is <name>'s` where another frontend claims the question's role; and an answer
+that does not fit (Section 4.8.4.5).
 
 #### 4.8.5. `epic.stop` and `epic.force`
 
@@ -858,6 +876,18 @@ epic starts on the host, and when the host closes; no message announces side con
 
 **4.8.9.3** `epic.quit` MUST close the host as Section 4.13.6 states.
 
+#### 4.8.10. `epic.face`
+
+**4.8.10.1** `epic.face` MUST take `hash` (text, required) and MUST be answered with `html` and
+`title`, the face (Section 3.10.7 of [PYTHON]) of the epic going or the last one whose hash is
+`hash`.
+
+**4.8.10.2** A host MUST keep every face the flow made known to it for as long as it keeps the
+history records of that epic (Section 4.9.2.2).
+
+**4.8.10.3** `epic.face` MUST be refused 404 with `no face <hash>` where the host keeps no face of
+that hash.
+
 ### 4.9. Messages
 
 #### 4.9.1. Attaching
@@ -908,9 +938,15 @@ and counting them in `elided`.
   person or the harness's own home), `env`, `harness`, `mono`, `wall`.
 - `event`: `key`, `session`, `agent`, `cli`, `model`, `ident`, `kind`, `text`, `whose`, `tokens`,
   `spent`, `at`, `mono`: the record `hmz exec --json` writes ([CLI]).
-- `asked`: `question` (`q<n>`), `role`, `text`, `options`, `mode` (`ask` or `listen`), `key`.
+- `asked`: `question` (`q<n>`), `role`, `text`, `options` (`[]` for a question with a schema),
+  `mode` (`ask` or `listen`), `key`, `schema` (the JSON Schema of the answer, or `null` for text),
+  `context` (the blocks put beneath the question, each in the JSON form of Section 3.10.5.2 of
+  [PYTHON], `[]` for none), `face` (`{hash, title}`, or `null` for none) and `session` (the
+  outworlder session asking, `<role>/<n>`, `""` for none).
 - `answered`: `question`, `role`, `by`, `client`, `text`.
 - `withdrawn`: `question`, `why` (`away` or `over`).
+- `shown`: `role`, `session`, `context`: blocks an outworlder session was shown with no question
+  (Section 3.10.6 of [PYTHON]), as `asked` carries them.
 - `said`: `text`, `key`, `by`, `client`.
 - `refused`: `agent`, `text`, `because`.
 - `unheld`: `agent`, `texts`.
@@ -964,7 +1000,8 @@ MUST send a snapshot to every frontend whenever it changes.
 - `calls`: `calls`: `[{ref, name, depth, since, id, parent}]`; initially `[]`.
 - `waiting`: `queued` (`[{text, by, client, to}]`), `given` (`[{agent, text, by, client}]`);
   initially `[]`, `[]`.
-- `pending`: `pending`: `[{question, run, role, text, options, mode, key, owner}]`; initially `[]`.
+- `pending`: `pending`: `[{question, run, role, text, options, mode, key, schema, context, face,
+  session, owner}]`, each as its `asked` record says it; initially `[]`.
 - `usage`: `run`, `usage`, `budget`; sent at most once a second; initially `0`, `null`, `null`.
 - `board`: `items`: `[{key, value, about, whose, by, at}]`, or `null` for an epic with no board;
   initially `null`.
@@ -1030,11 +1067,14 @@ role is not away; otherwise the flow MUST receive no answer at once.
 **4.10.2.4** A question MUST be answerable by its role's claimant, or by any frontend where the role
 is unclaimed, the first answer winning; it MUST stay waiting with no frontend attached.
 
-**4.10.2.5** A question MUST be `ask` where it has options or a turn is open, else `listen`; a
-question asked while exactly one session has a turn open MUST carry that session's key.
+**4.10.2.5** A question MUST be `ask` where it has options or a schema or a turn is open, else
+`listen`; a question asked while exactly one session has a turn open MUST carry that session's key.
 
 **4.10.2.6** A question MUST be withdrawn with `away` when its role goes away, and with `over` when
 its epic stops or ends, is forced, or the host closes.
+
+**4.10.2.7** `shown` MUST be recorded only where a question of its role would be (Section
+4.10.2.3), MUST NOT wait on any frontend, and MUST make no notice.
 
 #### 4.10.3. Away
 
@@ -1050,7 +1090,8 @@ the value of every role another frontend claims unchanged.
 Section 6.10.1 of [WIRE] states.
 
 **4.11.2** Every text longer than 262 144 characters in a history record or a snapshot MUST be cut
-to that length followed by `… (<n> more characters)`, `n` the characters cut.
+to that length followed by `… (<n> more characters)`, `n` the characters cut, but the texts of
+`schema` and `context`, which MUST be sent whole (Section 3.10.5.3 of [PYTHON]).
 
 ### 4.12. Protocol versions
 
@@ -2221,6 +2262,10 @@ types into one, only where the setting `envs.paired_terminals` of the daemon's m
 (Section 4.24.4.10). Every change a frontend makes to an environment, and every terminal it opens,
 is written in the epic's history with the frontend's name; what a terminal is told and prints never
 is (Section 4.24.1.8).
+
+Answers and faces. An answer to a question with a schema is taken only where the host finds it fits
+that schema, whichever frontend or face gave it (Section 4.8.4.3). A face is HTML the flow made;
+`epic.face` hands it over as text and the daemon runs none of it (Section 4.8.10).
 
 Secrets. The daemon answers no value of an account's variables, no EasyTier secret, no TURN
 credential and no credential of a URL (Section 4.18.1.1, Section 4.18.1.7, Section 4.18.2.2, Section

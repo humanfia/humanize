@@ -693,6 +693,43 @@ closes.
 
 **10.10** The monitor MUST list every frontend reading the epic where there is more than one.
 
+**10.11** A question with a schema MUST be shown as its text, then its context blocks (Section
+10.15), then the line `form · <n> fields — press enter to open`; it MUST NOT take the focus from
+the editor while a line is being typed.
+
+**10.12** Where a question with a schema is the answerable question, `enter` with nothing typed MUST
+open its sheet, and a line typed MUST be sent as its `text`, read as JSON (Section 4.8.4.3 of
+[DAEMON]).
+
+**10.13** The sheet MUST be a form of Section 15 titled with the question's text, holding one row
+per field of the whole schema, ordered, named, hinted, filled with defaults marked `suggested`, and
+folded under `More options (<n>)`, as Section 3.6.9.6 and Section 3.6.9.7 of [WEB] state, and
+drawing each type as Section 3.6.9.5 of [WEB] does: in place of Section 15.2.4, a choice of at most
+5 values and a boolean MUST show their values side by side in their row, the one picked marked, `←`
+and `→` moving the pick; a `secret` MUST be hidden as it is typed; an object's fields MUST be
+indented under its title; an array MUST offer to add and remove items; and anything else MUST take
+JSON. Its button MUST say what Section 3.6.9.8 of [WEB] says, and MUST send the whole form as
+`value`.
+
+**10.14** Where an answer is refused as one that does not fit, the sheet MUST stay open and put each
+of the refusal's `errors` in red beside the row its `path` names, else on the message line, the
+cursor on the first. `esc` MUST close the sheet and keep what it holds until the question is
+answered or withdrawn.
+
+**10.15** Context blocks (Section 3.10.5 of [PYTHON]) MUST be written under their `title`:
+`markdown` as Markdown, `code` and `diff` highlighted as their language and as a diff, `table` as a
+table, `json` indented, and `image` and `chart` as one line naming the block and saying that the web
+page shows it, with the address of the epic's page where it is known.
+
+**10.16** Blocks shown with no question (`shown`) MUST be written to the outworlder view of their
+role, as Section 5.3 states of an outworlder's line, with no means to answer.
+
+**10.17** A question naming a face MUST say that the web page shows it in the flow's own view, and
+MUST be answered here by the sheet.
+
+**10.18** A question answered MUST be shown as one line, `You answered: <answer>`, as Section
+3.6.9.14 of [WEB] words it; a question withdrawn MUST say why, `went away` or `the run ended`.
+
 ## 11. Chat
 
 **11.1** The interface MUST hold one chat of its own at a time, and MUST treat as a chat the chat
@@ -1492,6 +1529,8 @@ states where its row's context holds.
 | 24.1.67 | Exomyth | `r` | read again |
 | 24.1.68 | Exomyth | `esc` | out of search, range, pane, then back |
 | 24.1.69 | anywhere | drag, double click, triple click | copy (Section 23) |
+| 24.1.70 | editor, empty, the answerable question has a schema | `enter` | open its sheet (Section 10.12) |
+| 24.1.71 | question sheet, a row of values side by side | `←`, `→` | previous or next value (Section 10.13) |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 
